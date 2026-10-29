@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::acquire::{DocumentAcquisitionFailure, acquire};
 use crate::document::{
     DocumentCardBody, DocumentDefinition, DocumentResolveInput, DocumentSelection,
@@ -28,14 +17,6 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct PreparedCurrentDocument {
     runtime: RuntimeHandle,
@@ -51,12 +32,6 @@ pub struct CurrentDocumentCapture {
     pub telemetry_cut: Option<harmos::storage::StorageCursor>,
     pub artifacts_sha256: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub fn prepare_current_cycle_document(
@@ -196,10 +171,6 @@ impl PreparedCurrentDocument {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn binding_context<'a>(
     snapshot: &'a RuntimeStateSnapshot, definition: &DocumentDefinition, selection: &'a DocumentSelection, source_bytes: usize,
 ) -> crate::runtime::Result<crate::document::input::Context<'a>> {
@@ -223,5 +194,3 @@ fn binding_context<'a>(
     Context::ordered(&cycle.execution_ids, &snapshot.state().executions, &selection.scope)
         .ok_or_else(|| DocumentAcquisitionFailure::IncompleteCapture.into())
 }
-
-/* === Tests === */

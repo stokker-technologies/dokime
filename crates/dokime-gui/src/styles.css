@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
 /* Standard Library Imports */
 
 /* Third Party Imports */
@@ -17,8 +15,6 @@
 @import "tw-animate-css";
 /* Local Imports */
 @import "./generated/organization/theme.css";
-
-/* === Variables === */
 
 /* Variants */
 
@@ -359,8 +355,6 @@
   border-radius: var(--radius-lg);
 }
 
-/* === Base Styles === */
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -392,8 +386,6 @@
     @apply text-inherit no-underline;
   }
 }
-
-/* === Layout === */
 
 /* Touch control sizing. Unlayered so it wins over the utility-layer heights the
    primitives ship with, while an explicit `h-[...]`/`size-[...]` on a control —
@@ -508,8 +500,6 @@
 :root[data-density="touch"][data-focus="on"] .min-h-\[18rem\] {
   min-height: 25rem;
 }
-
-/* === Components === */
 
 @layer components {
   .uplot {
@@ -887,8 +877,6 @@
   color: var(--muted-foreground);
 }
 
-/* === Utilities === */
-
 @utility no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -897,8 +885,6 @@
     display: none;
   }
 }
-
-/* === Animations === */
 
 /* Shared Card And Table Rhythm. */
 [data-slot="table-head"] {

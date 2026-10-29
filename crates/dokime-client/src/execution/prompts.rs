@@ -9,36 +9,11 @@
 
 // Read And Answer Execution-Scoped Prompts
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::TestExecutionHandle;
 use crate::{Error, ResponseStream, Result, TestCycleHandle};
 use dokime_domain::model::identity::{PromptId, TestCycleId};
 use dokime_domain::model::prompts::wire::{PromptInstance, PromptResponseReceipt, PromptView};
 use dokime_domain::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestExecutionHandle {
     pub async fn pending_prompts(&self) -> Result<ResponseStream<PromptInstance>> {
@@ -73,9 +48,3 @@ impl TestExecutionHandle {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

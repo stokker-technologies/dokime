@@ -7,39 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 use std::process::Command;
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 const ENDPOINT: &str = "http://127.0.0.1:8765";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir().unwrap();
@@ -79,8 +50,6 @@ fn refused(output: std::process::Output) -> String {
     assert!(!output.status.success());
     String::from_utf8(output.stderr).unwrap()
 }
-
-/* === Tests === */
 
 // The CLI hosts its server without a companion executable or installation lookup.
 fn embedded_server_identity() {
@@ -135,8 +104,6 @@ fn cli_executable() -> String {
         .or_else(|| option_env!("CARGO_BIN_EXE_dokime").map(str::to_owned))
         .expect("workspace executable")
 }
-
-/* === Tests === */
 
 #[test]
 fn installation_contract() {

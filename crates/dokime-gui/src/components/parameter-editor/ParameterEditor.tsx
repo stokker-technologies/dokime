@@ -13,20 +13,15 @@
  * rows and quiet eyebrows for the parameter groups. No cards, no per-row
  * frames: alignment carries the structure. */
 
-/* === External Imports === */
-
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import type { FileRowState } from "@/components/start-cycle-form-model";
 import { parameterInputId } from "@/components/start-cycle-form-model";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "@/lib/notifications";
 import type { FileDefinition } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -39,8 +34,6 @@ import {
   unitColumnCharacters,
 } from "./model";
 import { ExpressionReferencePopover, FileValueCell, ParameterValueCell } from "./parameter-cells";
-
-/* === Constants === */
 
 /** 40px rows, 48px at touch; the whole grid reads off this one measure. */
 const GRID_DENSITY = "[--parameter-row-height:2.5rem] [[data-density=touch]_&]:[--parameter-row-height:3rem]";
@@ -59,8 +52,6 @@ const ROW_INSET = "border-l-2 pr-4 pl-4";
 /** The eyebrow above a parameter group; the first one does not need the air. */
 const GROUP_HEADING = "px-4 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
 
-/* === Types === */
-
 export type ParameterEditorProps = {
   fileDefinitions: FileDefinition[];
   fileRows: FileRowState[];
@@ -72,8 +63,6 @@ export type ParameterEditorProps = {
   onResetFile: (name: string) => void;
   rows: EditorParameterRow[];
 };
-
-/* === Components === */
 
 export function ParameterEditor({
   fileDefinitions,
@@ -191,8 +180,6 @@ export function ParameterEditor({
   );
 }
 
-/* === Subcomponents === */
-
 function ParameterEditorRow({
   row,
   onChangeRaw,
@@ -307,7 +294,6 @@ function ParameterLabelCell({ description, inputId, label }: { description: stri
   );
 }
 
-/* === Private Functions === */
 async function copyParameterId(parameterId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(parameterId);

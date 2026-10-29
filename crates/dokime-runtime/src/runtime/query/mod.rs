@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod aggregate;
 pub(crate) mod artifacts;
 pub mod cases;
@@ -30,8 +28,6 @@ mod reduction;
 pub(crate) mod request;
 pub(crate) mod runtime;
 pub(crate) mod telemetry;
-
-/* === Re-Exports === */
 
 pub use crate::execution_runtime::outputs::{ExecutionFileContent, ExecutionFileEntry};
 pub use artifacts::{
@@ -62,31 +58,3 @@ pub use runtime::{
     RuntimeStateSnapshot,
 };
 pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryRead, RuntimeTelemetryStreamFrame};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

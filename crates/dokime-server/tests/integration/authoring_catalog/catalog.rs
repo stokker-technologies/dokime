@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
-// Third Party Imports
 
-// Local Imports
 use super::*;
 use dokime::domain::model;
 use {
@@ -26,29 +17,11 @@ use {
     dokime::telemetry::TelemetryColumn, dokime::telemetry::TelemetryContract, dokime::telemetry::TelemetryRole,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[derive(Clone, PartialEq)]
 struct CountRow {
     count: i64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn schemas_exact_pages() {
     let root = tempfile::tempdir().unwrap();
@@ -279,5 +252,3 @@ pub(crate) async fn catalog_suite_extensions() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

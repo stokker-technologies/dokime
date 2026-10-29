@@ -7,48 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod backend;
 mod contract;
 pub mod launch;
 mod owner;
 pub mod storage;
 
-/* === Re-Exports === */
-
 pub use contract::*;
 pub use owner::DesktopSession;
-
-/* === Constants === */
 
 const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
 
 pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct DesktopSessionControl(DesktopSession);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DesktopSessionControl {
     pub fn active(owner: DesktopSession) -> Self {
@@ -78,8 +50,6 @@ impl DesktopSessionControl {
         self.0.status()
     }
 }
-
-/* === Public Functions === */
 
 pub async fn desktop_session_select(
     state: tauri::State<'_, DesktopSessionControl>, selection: BackendSelection,
@@ -189,8 +159,6 @@ pub async fn desktop_open_backend_log(
     .map_err(|error| error.to_string())?
 }
 
-/* === Private Functions === */
-
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 
@@ -212,8 +180,6 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
     let application = window.state::<dokime::paths::ApplicationPaths>().root.clone();
     storage::StorageRoot::resolve(application, DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES).map_err(failed)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

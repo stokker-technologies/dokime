@@ -11,20 +11,7 @@
  * Organization Pack Row States
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { type OrganizationPackSummary, type OrganizationStatus, organizationPackError } from "@/lib/desktop/organization";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type OrganizationPackState = "none" | "active" | "pending" | "removed" | "invalid";
 
@@ -39,10 +26,6 @@ export type OrganizationPackPresentation = {
   restart: boolean;
   remove: boolean;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function organizationPackPresentation(status: OrganizationStatus): OrganizationPackPresentation {
   const base = { error: organizationPackError(status.error, status.active !== null) };
@@ -96,10 +79,6 @@ export function organizationPackPresentation(status: OrganizationStatus): Organi
   };
 }
 
-/* === Private Functions === */
-
 function packName(pack: OrganizationPackSummary): string {
   return pack.organization ? `${pack.label} · ${pack.organization}` : pack.label;
 }
-
-/* === Entry Point === */

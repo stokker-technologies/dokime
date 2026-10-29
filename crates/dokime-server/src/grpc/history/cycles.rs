@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{canonical, projection};
@@ -30,29 +21,15 @@ use dokime::operations::history::BrowseCycles;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::cycle_history::{CycleBrowsePage as NativePage, CycleBrowseQuery};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(BrowseCycles),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<BrowseCycles> for Resources {
     fn serve<'a>(&'a self, mut request: BrowseCycles, _: Context<'a, BrowseCycles>) -> Served<'a, CycleBrowsePage> {
@@ -75,8 +52,6 @@ impl Serve<BrowseCycles> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -87,8 +62,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(page: dokime::harmos::storage::ReadBatch<NativePage>, maximum: usize) -> dokime::harmos::Result<Response<CycleBrowsePage>> {
     let projected = page.try_map(project_wire)?;
@@ -128,5 +101,3 @@ fn original_error(source: Status) -> dokime::harmos::Error {
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted { resource: "canonical cycle browse page" }
 }
-
-/* === Tests === */

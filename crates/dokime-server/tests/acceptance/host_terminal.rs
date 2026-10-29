@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 use futures_util::FutureExt;
 
-// Local Imports
 use crate::support::host::Host;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn command() -> std::process::Command {
     let mut command = dokime::domain::process::command(crate::support::artifacts::host_binary());
@@ -54,8 +27,6 @@ async fn serve_until_stopped(signal: bool) {
     host.stop(signal).await;
     drop(client);
 }
-
-/* === Tests === */
 
 async fn stdin_close_stops() {
     serve_until_stopped(false).await;

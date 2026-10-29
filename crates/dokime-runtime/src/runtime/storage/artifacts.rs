@@ -7,26 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use super::artifact_reads::ArtifactReader;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Arc, Weak,
     atomic::{AtomicU64, Ordering},
 };
 
-// Third Party Imports
 use harmos::storage::{ByteRange, FileChunk, FileMetadata, FileReadBatch};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-// Local Imports
 use super::{
     execution::ExecutionView,
     executions::{Acquisition, ExecutionStorage},
@@ -47,15 +38,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::identity::UploadId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const UPLOAD_PREFIX: &str = "artifacts/uploads/";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct ArtifactUpload {
@@ -90,16 +73,10 @@ pub(super) struct Upload {
     owner: Weak<()>,
 }
 
-/* === Enums === */
-
 enum Bytes {
     Submitted(FileChunk),
     Read(FileReadBatch),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Bytes {
     fn as_slice(&self) -> &[u8] {
@@ -413,8 +390,6 @@ impl ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn abandon_dropped(acquisition: &mut Acquisition) -> Result<()> {
     for upload in acquisition.artifacts.values_mut() {
         if upload.record.status == ArtifactStatus::Staged && upload.owner.upgrade().is_none() {
@@ -441,8 +416,6 @@ pub(super) async fn checkpoint(acquisition: &mut Acquisition) -> Result<()> {
 pub(super) fn has_live_upload(acquisition: &Acquisition) -> bool {
     acquisition.artifacts.values().any(|upload| upload.closing.is_none() && upload.owner.upgrade().is_some())
 }
-
-/* === Private Functions === */
 
 async fn append(upload: &mut Upload, chunk: Chunk) -> Result<()> {
     use std::io::{Seek, Write};
@@ -574,5 +547,3 @@ fn validate_digest(value: &str) -> Result<()> {
 fn error(problem: impl ToString) -> Error {
     Error::Operation(format!("artifact storage: {}", problem.to_string()))
 }
-
-/* === Tests === */

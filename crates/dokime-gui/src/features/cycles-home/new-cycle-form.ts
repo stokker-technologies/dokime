@@ -11,24 +11,16 @@
    the request it submits. Creating a cycle is always this explicit step; cases
    join it afterwards from the Library. */
 
-/* === Local Imports === */
-
 import type { NewCycleRequest } from "@/lib/api/native-planning";
 import { defaultCycleLabel } from "@/lib/time-format";
 
-/* === Constants === */
-
 export const EMPTY_TITLE_ERROR = "A cycle needs a title.";
-
-/* === Types === */
 
 export type NewCycleForm = {
   title: string;
   description: string;
   continueAutomatically: boolean;
 };
-
-/* === Public Functions === */
 
 /** The form as it opens at `now`: titled by that moment. */
 export function initialNewCycleForm(now: Date): NewCycleForm {

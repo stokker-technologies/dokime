@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { PathPill } from "@/components/PathPill";
 import { formatValue } from "@/lib/dashboard";
 import { isPathLike } from "@/lib/path-display";
-
-/* === Types === */
 
 type ValueDisplayProps = {
   value: unknown;
@@ -23,8 +19,6 @@ type ValueDisplayProps = {
   copyPath?: boolean;
   compactPath?: boolean;
 };
-
-/* === Components === */
 
 export function ValueDisplay({ value, label = "", unit, align = "left", copyPath = true, compactPath = false }: ValueDisplayProps) {
   const formatted = formatValue(value, unit, label);

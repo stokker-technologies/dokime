@@ -7,32 +7,23 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod cycle;
 pub(super) mod header;
 mod plan;
 mod telemetry;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
 
-// Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value as JsonValue;
 
-// Local Imports
 use super::output;
 use crate::definition::TestCase;
 use crate::document::DocumentDefinition;
@@ -61,15 +52,7 @@ use dokime_domain::model::traceability::derived_traceability_group;
 use dokime_domain::model::values::Value;
 use header::Header;
 
-/* === Constants === */
-
 const DEFAULT_DOCUMENT_ID: &str = "default";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct CaseRun<'a> {
     test_case: &'a TestCase,
@@ -313,8 +296,6 @@ struct TraceabilityKey<'a> {
     label: &'a str,
 }
 
-/* === Enums === */
-
 #[derive(Serialize)]
 #[serde(untagged)]
 enum StepResult<'a> {
@@ -327,10 +308,6 @@ enum TraceabilityGroupRank {
     Derived,
     Stated,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serialize for ReportValues<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
@@ -536,10 +513,6 @@ impl Serialize for TraceabilitySources<'_, '_> {
         fields.end()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn snapshot(input: Header<'_>) -> Snapshot<'_> {
     let template_id = input.cycle.metadata.identifier.as_str();
@@ -969,5 +942,3 @@ fn duration_seconds(started_at: Option<&Timestamp>, finished_at: Option<&Timesta
         .map(|duration| duration.0 as f64 / 1000.0)
         .unwrap_or(0.0)
 }
-
-/* === Tests === */

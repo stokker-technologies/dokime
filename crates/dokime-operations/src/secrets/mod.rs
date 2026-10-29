@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::{Endpoint, MUTATION, ORDINARY};
 use dokime_domain::model::secrets::catalog::{Metadata, Snapshot, Value};
 use dokime_domain::model::secrets::transfer::{Archive, Choice, Preview as ImportPreview};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<Lookup>], response = Value, id = "dokime.secrets.lookup", policy = ORDINARY,
     visibility = harmos::operations::Visibility::Public,
@@ -102,8 +84,6 @@ pub struct Import {
     pub generation: u64,
 }
 
-/* === Enums === */
-
 #[harmos::catalog]
 pub enum Operations {
     Lookup(Lookup),
@@ -114,10 +94,6 @@ pub enum Operations {
     Preview(Preview),
     Import(Import),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for Lookup {
     const PATH: &'static str = "/dokime.v1.Secrets/Lookup";
@@ -162,14 +138,6 @@ impl std::fmt::Debug for Import {
         formatter.write_str("ImportSecretFile(<redacted>)")
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

@@ -9,43 +9,14 @@
 
 // Saved Base64 Files Carry Secrets Between Independent Keyring Stores.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 use base64::Engine as _;
 
-// Local Imports
 use dokime_domain::model::secrets::{
     catalog::Metadata,
     transfer::{Action, Choice},
 };
 use dokime_operations::secrets as wire;
 use dokime_runtime::{Runtime, RuntimeConfig};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) fn secret_metadata_rejects_old_name_field() {
     let value = serde_json::json!({ "name": "old.token", "label": "Old Token", "description": null });

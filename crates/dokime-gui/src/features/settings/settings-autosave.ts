@@ -9,11 +9,7 @@
 
 /* Debounced, Serialized Settings Writes With Inline Status. */
 
-/* === External Imports === */
-
 import { useCallback, useEffect, useRef, useState } from "react";
-
-/* === Types === */
 
 export type AutosaveState = { kind: "error"; message: string } | { kind: "idle" } | { kind: "saved" } | { kind: "saving" };
 
@@ -24,14 +20,10 @@ export type Autosave<T> = {
   state: AutosaveState;
 };
 
-/* === Constants === */
-
 const GUI_SETTINGS_DEBOUNCE_MS = 100;
 const GUI_SETTINGS_SAVED_MS = 2_000;
 
 const SAVED_MS = GUI_SETTINGS_SAVED_MS;
-
-/* === Public Functions === */
 
 export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (error: unknown) => string = describeError): Autosave<T> {
   const [state, setState] = useState<AutosaveState>({ kind: "idle" });
@@ -124,8 +116,6 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
     },
   };
 }
-
-/* === Private Functions === */
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

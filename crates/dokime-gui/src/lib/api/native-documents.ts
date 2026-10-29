@@ -9,11 +9,7 @@
 
 /* Native document stream transport and bounded assembly for the current document. */
 
-/* === External Imports === */
-
 import { toBinary } from "@bufbuild/protobuf";
-
-/* === Local Imports === */
 
 import * as documentWire from "@generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
@@ -38,8 +34,6 @@ const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
 const DOCUMENTS_MATERIALIZED_BYTES = 33_554_432;
 const GUI_PLOT_TRANSFORMS = 32;
-
-/* === Canonical Types === */
 
 type DocumentFrame = documentWire.Row3;
 const DocumentFrameSchema = documentWire.Row3Schema;

@@ -7,13 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { useNativeAppearance } from "@/app/native-session/context";
 import {
   BrandProvider,
@@ -26,11 +20,10 @@ import {
 } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
+import { toast } from "@/lib/notifications";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
 import { isReportBuild } from "@/lib/ui-mode";
-
-/* === Re-Exports === */
 
 export type {
   RuntimeAppearanceFrame,
@@ -38,8 +31,6 @@ export type {
   RuntimeThemeFamily,
   ThemeModePolicy,
 } from "@/lib/types/view-contracts";
-
-/* === Constants === */
 
 const defaultAppearanceFrame: Appearance = {
   app_name: defaultBrand.label,
@@ -60,19 +51,13 @@ let reportedOrganizationError = false;
 
 export const appearanceQueryKey = ["appearance"] as const;
 
-/* === Types === */
-
 type Appearance = RuntimeAppearanceFrame & {
   themes: NonNullable<RuntimeAppearanceFrame["themes"]>;
 };
 
-/* === Hooks === */
-
 export function useAppearance(): Appearance {
   return useContext(AppearanceContext);
 }
-
-/* === Components === */
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const nativeResource = useNativeAppearance();
@@ -112,10 +97,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     </AppearanceContext.Provider>
   );
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
   const template = appearance.title_template?.trim() || "{app}";

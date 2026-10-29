@@ -11,23 +11,13 @@
  * Render Declared Analysis Outputs
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { useId, useMemo, useState } from "react";
-// Third Party Imports
+
 import { NotificationMessage } from "@/components/NotificationMessage";
 
-// Local Imports
 import type { EvidenceAnalysisResult } from "@/lib/types";
 import { CartesianPlot } from "./CartesianPlot";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 type AnalysisResultProps = {
   result: EvidenceAnalysisResult;
   title: string;
@@ -35,7 +25,6 @@ type AnalysisResultProps = {
   stateDetail?: string;
 };
 
-/* === Components === */
 export function AnalysisResult({ result, title, stateLabel, stateDetail }: AnalysisResultProps) {
   const inputId = useId();
   const [selected, setSelected] = useState(0);
@@ -121,9 +110,3 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
     </section>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

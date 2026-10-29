@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { isNumber } from "@/lib/utils";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Types === */
 
 /** One box as the backend summarized it, whiskers as its drawn extent. */
 type BoxSummaryBucket = {
@@ -27,8 +23,6 @@ type BoxSummaryBucket = {
   maximum: number;
   outliers: number[];
 };
-
-/* === Components === */
 
 export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const buckets = plotBoxSummaryBuckets(plot);
@@ -105,8 +99,6 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
     </article>
   );
 }
-
-/* === Private Functions === */
 
 function position(value: number | null | undefined, min: number, range: number): number {
   return value === null || value === undefined ? 0 : ((value - min) / range) * 100;

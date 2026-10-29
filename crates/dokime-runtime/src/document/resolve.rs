@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
 
-// Third Party Imports
-
-// Local Imports
 use super::binding::{self, Evidence, Row, row as expression_value};
 use super::bounded::DocumentLimits;
 use crate::artifacts::media_kind_for;
@@ -45,15 +35,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const VALUE_PLACEHOLDER: &str = "{value}";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct DocumentMaterializer<'a> {
     unavailable_reason_bytes: usize,
@@ -86,12 +68,6 @@ struct CaptureBindings {
     repeats: BTreeMap<Identifier, Vec<RepeatInstance>>,
     sections: BTreeMap<Identifier, SectionBinding>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DocumentMaterializer<'_> {
     fn capture_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<bool> {
@@ -418,8 +394,6 @@ impl DocumentMaterializer<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> Result<DocumentPayload> {
     super::bounded::resolve_bounded(input, limits, true)
 }
@@ -487,7 +461,6 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits)
         warnings: Vec::new(),
     })
 }
-/* === Private Functions === */
 
 fn push_exact<T>(values: &mut Vec<T>, value: T) -> Result<()> {
     values.try_reserve_exact(1).map_err(|_| DocumentFailure::Limit)?;
@@ -985,5 +958,3 @@ fn index_cards(cards: impl IntoIterator<Item = DocumentCardDefinition>) -> BTree
     }
     definitions
 }
-
-/* === Tests === */

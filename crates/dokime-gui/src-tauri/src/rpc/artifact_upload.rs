@@ -7,27 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 use crate::rpc::protocol::UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES;
 
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{Notify, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
 
 const DESKTOP_ACTIVE_UPLOADS: u64 = 2;
 const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
@@ -48,12 +37,6 @@ const DESKTOP_UPLOAD_REAPER_MS: u64 = 1_000;
 // tonic stream — `desktop_recording_finish` (a `bindings/mod.rs` command,
 // not one of these raw ones) takes the finished file out of the registry
 // and hands it to `content::push_verified` after patching it.
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 pub(super) struct ArtifactUploads(Arc<Mutex<Registry>>);
@@ -105,12 +88,6 @@ pub struct RecordingHandle {
 
 #[derive(Clone, Default)]
 pub(super) struct RecordingSinks(Arc<Mutex<HashMap<String, Arc<Recording>>>>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Outcome {
     fn complete(&self, result: Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError>) {
@@ -495,8 +472,6 @@ impl RecordingSinks {
     }
 }
 
-/* === Public Functions === */
-
 #[tauri::command]
 pub async fn artifact_upload_open<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -580,8 +555,6 @@ pub async fn recording_cancel<R: tauri::Runtime>(
     bridge.recordings.cancel(webview.label(), generation).await
 }
 
-/* === Private Functions === */
-
 async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError> {
     let outcome = upload.outcome.wait();
     tokio::pin!(outcome);
@@ -605,5 +578,3 @@ fn ensure_private_recording_directory(path: &std::path::Path) {
 
 #[cfg(not(unix))]
 fn ensure_private_recording_directory(_path: &std::path::Path) {}
-
-/* === Tests === */

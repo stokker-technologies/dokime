@@ -7,22 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-// Third Party Imports
-
-// Local Imports
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::SamplingScope;
 use crate::telemetry_runtime::sampling::record_scope_from_sampling_scope;
@@ -32,15 +22,7 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type StreamDemand = std::pin::Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>;
-
-/* === Structs === */
 
 pub(crate) struct StreamLeases {
     state: Mutex<LeaseState>,
@@ -135,18 +117,12 @@ struct Delivery {
     delivered: tokio::sync::oneshot::Sender<()>,
 }
 
-/* === Enums === */
-
 // What A Stream Needs Before A Run Reads It.
 enum LeaseTarget {
     Sampled { owner: String, interval: Duration },
     // No Cadence: Its Owner Publishes It Without Being Sampled.
     Published,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for PendingLeases {
     fn drop(&mut self) {
@@ -845,10 +821,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn lease_delivers(
     sample: &crate::telemetry::TelemetrySample, holder: &Holder, identities: &[super::streams::admission::SampleIdentity<'_>],
 ) -> bool {
@@ -920,8 +892,6 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 
     left_ended.is_none_or(|ended| ended >= &right.opened_at) && right_ended.is_none_or(|ended| ended >= &left.opened_at)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

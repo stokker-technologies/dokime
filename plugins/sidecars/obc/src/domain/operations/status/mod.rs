@@ -7,26 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::prelude::StatusResponse;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::operation(
     id = "obc.bench.get_status",
@@ -37,15 +18,3 @@ use dokime::prelude::StatusResponse;
 )]
 #[derive(Clone, PartialEq)]
 pub struct GetStatus {}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

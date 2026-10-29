@@ -11,14 +11,9 @@
  * Selected Base64 File Export And Explicit Import Conflict Review.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Local Imports
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
-// Third Party Imports
+
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,15 +28,7 @@ import {
 } from "@/lib/api/native-secrets";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type Props = { session: SessionIdentity; catalog: SecretCatalog; onImported: (catalog: SecretCatalog) => void };
-
-/* === Components === */
 
 export function SecretTransfer({ session, catalog, onImported }: Props) {
   const [mode, setMode] = useState<"export" | "import" | null>(null);
@@ -242,9 +229,3 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
     </>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

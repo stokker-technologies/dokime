@@ -7,36 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod append;
 pub(crate) mod copy;
 pub(crate) mod create;
 pub(crate) mod policy;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl crate::RuntimeHandle {
     pub async fn register_cases(
@@ -99,10 +73,6 @@ impl crate::RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn prepare_case(
     case: &crate::definition::TestCase,
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<crate::storage::objects::case::Case>> {
@@ -124,5 +94,3 @@ async fn settings(
     }
     Ok(result)
 }
-
-/* === Tests === */

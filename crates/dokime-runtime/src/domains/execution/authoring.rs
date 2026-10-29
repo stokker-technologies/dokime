@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     any::{Any, type_name},
     collections::BTreeMap,
     time::Duration,
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-// Local Imports
 use crate::definition::ParameterSource;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -37,14 +28,6 @@ use crate::{
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionFileTarget {
@@ -110,8 +93,6 @@ struct RuntimeResourceEntry {
     handle: Box<dyn Any + Send + Sync>,
 }
 
-/* === Enums === */
-
 #[derive(Debug, Error)]
 pub enum StepContextError {
     #[error("resource {resource_id} is not stored")]
@@ -132,10 +113,6 @@ pub enum StepContextError {
     #[error("runtime operation failed: {0}")]
     Runtime(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SidecarStepContext {
     pub fn new(runtime: RuntimeHandle, scope: RecordScope) -> Self {
@@ -483,10 +460,6 @@ impl From<crate::runtime::Error> for StepContextError {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn resource_record_details(metadata: &RuntimeResourceMetadata) -> BTreeMap<String, Value> {
     let mut details = metadata.details.clone();
     details.insert("resource_id".to_owned(), Value::from(metadata.resource_id.clone()));
@@ -516,5 +489,3 @@ fn identifier(value: impl Into<String>) -> Identifier {
 fn traceability_group_id() -> Option<Identifier> {
     Some(identifier("traceability.runtime"))
 }
-
-/* === Tests === */

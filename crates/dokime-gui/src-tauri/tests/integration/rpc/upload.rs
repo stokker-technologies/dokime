@@ -7,44 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use crate::wire::WireMessage;
 use dokime::harmos::MemorySize;
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
 use dokime::domain::model;
 use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, handler};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 fn generation(session: &dokime_gui::connection::ConnectionSession) -> u64 {
     session.status().generation.parse().expect("fixture generation is numeric")

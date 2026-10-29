@@ -9,39 +9,16 @@
 
 //! Replays Saved Execution Samples With Retained Decode And Signal Staging.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroU32;
 
-// Third Party Imports
 use harmos::storage::query::{StreamRead, StreamSelection};
 
-// Local Imports
 use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
-
-/* === Constants === */
 
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Default)]
 struct JsonCount(usize);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::io::Write for JsonCount {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
@@ -52,8 +29,6 @@ impl std::io::Write for JsonCount {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn replay_sample_inputs(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution,
@@ -94,8 +69,6 @@ pub(super) async fn replay_sample_inputs(
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn replay_stream(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, at: &harmos::storage::StorageCursor,
@@ -239,5 +212,3 @@ fn failed(error: impl std::fmt::Display) -> ProviderExecutionFailure {
 fn overflow() -> ProviderExecutionFailure {
     failed("replay staging memory overflows")
 }
-
-/* === Tests === */

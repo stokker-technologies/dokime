@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type * as React from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 /** `containerClassName` lets a caller drop the wrapper's own scroll box, so a
     sticky header can stick to the page's scroller instead. */

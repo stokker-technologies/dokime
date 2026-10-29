@@ -7,34 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
-// Third Party Imports
 use harmos::Context;
 use harmos::operations::HostContext;
 use tonic::Status;
 
-// Local Imports
 use super::session::Session;
 use crate::execution::ExecutionScope;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub(crate) struct Sessions {
@@ -48,18 +31,12 @@ pub(crate) struct Embedded {
 
 struct Serving(Arc<Sessions>);
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum PreparedOperations {
     Operation0(EvidenceBatch),
     Operation1(OperatorQuestion),
     Operation2(LeaseAsk),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Sessions {
     pub(super) fn insert(&self, execution: &str, session: Arc<Session>) {
@@ -169,8 +146,6 @@ impl Serve<LeaseAsk> for Serving {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, sessions: &Arc<Sessions>) -> harmos::Result<()> {
     let served = Arc::new(Serving(Arc::clone(sessions)));
 
@@ -183,7 +158,3 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, sessions: &
         Ok(())
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

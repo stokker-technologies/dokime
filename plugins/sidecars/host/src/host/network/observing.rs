@@ -7,40 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::Network;
 use crate::{Error, HostPlugin, HostTelemetryStream};
 use dokime::harmos::operations::Host;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct State {
     pub(crate) collector: crate::collectors::network::NetworkCollector,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Observer<Publisher<HostPlugin>> for Network {
     type Error = Error;
@@ -75,9 +51,3 @@ impl dokime::harmos::sidecar::inventory::observers::Declared for Network {
         demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
     };
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

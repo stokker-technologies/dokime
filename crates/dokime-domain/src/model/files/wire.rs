@@ -13,31 +13,13 @@
 // template, settling only when the watch stops, and may carry line matchers
 // that turn captured lines into rows and records.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::content::wire::ArtifactMetadata;
 use crate::model::telemetry::TelemetryRow;
 use crate::model::telemetry::TelemetryStream;
 use crate::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One ordered include or exclude rule over paths relative to the source root.
 #[harmos::message]
@@ -179,8 +161,6 @@ pub struct FileWatchFrame {
     pub payload: Option<FileWatchFramePayload>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileRuleAction {
@@ -264,10 +244,6 @@ pub enum FileWatchFramePayload {
     Armed(FileWatchArmed),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl LineMatcher {
     // Publishes one row of `S` per matching line, each column read from the
     // named group of the same name.
@@ -311,9 +287,3 @@ impl LineMarker {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

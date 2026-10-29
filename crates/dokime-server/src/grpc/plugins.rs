@@ -7,30 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
 mod admission;
 mod inventory;
 mod wire;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use contract as v1;
 use sha2::{Digest, Sha256};
 use tokio::sync::OwnedSemaphorePermit;
 use tonic::Status;
 use uuid::Uuid;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
 use dokime::domain::model::plugins::wire as plugins_model;
@@ -41,25 +32,15 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plugins as contract;
 use dokime::plugins::{PluginError, PluginStore};
 
-/* === Constants === */
-
 const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
 const SERVER_PLUGIN_UPLOAD_IDLE_MS: u64 = 30_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub runtime: LiveRuntime,
     pub admission: admission::Admission,
     pub max_message_bytes: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -70,10 +51,6 @@ enum PreparedOperations {
     Operation4(v1::Remove),
     Operation5(v1::ListAdmittedPlugins),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     async fn submit<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(
@@ -309,8 +286,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -330,8 +305,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn message(
     input: &StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
@@ -379,5 +352,3 @@ fn failure(error: PluginError, diagnostic_bytes: usize) -> Status {
         _ => Status::unavailable("plugin storage unavailable; reconcile installation state before retrying mutation"),
     }
 }
-
-/* === Tests === */

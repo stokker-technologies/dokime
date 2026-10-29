@@ -7,41 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::execution::TestExecutionInstance;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct TestCycleInstance {
     pub cycle: CycleView,
     executions: BTreeMap<TestExecutionId, TestExecutionInstance>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestCycleInstance {
     pub fn new(cycle: CycleView) -> Self {
@@ -67,9 +43,3 @@ impl TestCycleInstance {
         &self.cycle.test_cycle_id
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

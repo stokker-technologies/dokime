@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { z } from "zod";
 
 /* === Explore URL state ===
    Compare selection lives in the URL (`?selected=a,b`) so it survives
    navigation between the library, the compare view, and cycle detail,
    and deep-links stay shareable. */
-
-/* === Schema === */
 
 export const exploreSearchSchema = z.object({
   selected: z
@@ -31,11 +27,7 @@ export const exploreSearchSchema = z.object({
     .catch(undefined),
 });
 
-/* === Types === */
-
 export type ExploreSearch = z.infer<typeof exploreSearchSchema>;
-
-/* === Public Functions === */
 
 export function selectedIdsFromSearch(search: ExploreSearch): Set<string> {
   if (!search.selected) {

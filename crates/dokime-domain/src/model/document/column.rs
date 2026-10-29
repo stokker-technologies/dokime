@@ -7,42 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::marker::PhantomData;
 
-// Third Party Imports
-
-// Local Imports
 use crate::model::document::DocumentFilter;
 use crate::model::expressions::DataExpression;
 use crate::model::expressions::telemetry;
 use crate::model::telemetry::TelemetryStream;
 use crate::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Column<R: ?Sized> {
     field: &'static str,
     row: PhantomData<fn() -> R>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<R: ?Sized> Column<R> {
     pub const fn new(field: &'static str) -> Self {
@@ -117,9 +93,3 @@ impl<R: TelemetryStream> From<Column<R>> for DataExpression {
         expression
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
 use sha2::Digest;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 #[command(about = "Bundle the executables a collected build names into a .dokime bundle, without compiling", long_about = None)]
@@ -42,14 +24,6 @@ pub struct Args {
     json: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub async fn run(args: Args) -> Result<(), crate::error::Error> {
     let collected: dokime_packaging::build::Collected = serde_json::from_slice(&std::fs::read(&args.build_json)?)?;
     std::fs::create_dir_all(&args.output)?;
@@ -62,7 +36,3 @@ pub async fn run(args: Args) -> Result<(), crate::error::Error> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

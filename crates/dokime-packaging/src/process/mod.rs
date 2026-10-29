@@ -7,47 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
 mod owner;
-
-/* === Re-Exports === */
 
 pub use owner::{Child, spawn, spawn_session};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::Command;
 use std::process::{Output, Stdio};
 use std::time::Duration;
 
-// Third Party Imports
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-// Local Imports
 use crate::error::Error;
-
-/* === Constants === */
 
 const PROCESS_OUTPUT_BYTES: u64 = 33_554_432;
 const PROCESS_TAIL_BYTES: u64 = 65_536;
 const TERMINAL_TICK_MS: u64 = 120;
 const PROCESS_READ_BYTES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn run(command: Command, name: &str, timeout: Option<Duration>, stdout: usize, stderr: usize) -> Result<Output, Error> {
     let mut command = tokio::process::Command::from(command);
@@ -133,8 +108,6 @@ pub(crate) async fn cargo(command: Command, name: &str, timeout: Option<Duration
         }
     }
 }
-
-/* === Private Functions === */
 
 async fn read(reader: impl AsyncRead + Unpin, limit: usize, label: String) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
@@ -229,5 +202,3 @@ async fn cargo_diagnostics(
     }
     Ok(output)
 }
-
-/* === Tests === */

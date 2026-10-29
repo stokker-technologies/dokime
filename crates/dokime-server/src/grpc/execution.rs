@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod commands;
 mod control;
 mod detail;
@@ -16,24 +14,17 @@ mod loan;
 mod requests;
 mod steps;
 
-/* === Re-Exports === */
-
 pub(super) use control::command_context;
 pub(crate) use detail::result as result_summary;
 
-/* === Imports === */
-
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use prost::Message;
 use tonic::{Code, Status};
 
-// Local Imports
 use super::value;
 use super::value::canonical;
 use dokime::app::LiveRuntime;
@@ -54,20 +45,10 @@ use dokime::runtime::query::{
     historical_case_projection, select_cycles,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -81,10 +62,6 @@ enum PreparedOperations {
     Operation7(wire::ListCases),
     Operation8(wire::ListExecutions),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetCase> for Resources {
     fn serve<'a>(
@@ -221,8 +198,6 @@ impl Resources {
         inspection_reply(self, value)
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
@@ -382,8 +357,6 @@ pub(super) fn execution_summary(
     }
 }
 
-/* === Private Functions === */
-
 fn inspection_reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
@@ -522,5 +495,3 @@ fn execution_page<'a>(
         cursor: Some(cursor),
     })
 }
-
-/* === Tests === */

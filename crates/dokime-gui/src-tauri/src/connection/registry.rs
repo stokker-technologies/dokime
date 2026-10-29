@@ -9,43 +9,17 @@
 
 // Shared Backend Registry Commands
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-// Local Imports
 use super::{ConnectionError, ConnectionSession, ConnectionSnapshot};
 use crate::native_session::{BackendSelection, DesktopSessionControl};
 use dokime::client::profiles::{Document, Profile, Store};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub struct Registry {
     serial: tokio::sync::Mutex<()>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn load() -> Result<Document, ConnectionError> {
     tokio::task::spawn_blocking(|| Store::discover(None).and_then(|store| store.load()).map_err(persistence))
@@ -171,10 +145,6 @@ pub fn session_error(error: crate::native_session::DesktopSessionError) -> Conne
     }
 }
 
-/* === Private Functions === */
-
 fn persistence(error: dokime::client::profiles::Error) -> ConnectionError {
     ConnectionError::Registry { message: error.to_string() }
 }
-
-/* === Tests === */

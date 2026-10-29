@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::execution;
 use super::value::canonical;
 use crate::grpc::transcode::Transcode;
@@ -31,8 +22,6 @@ use dokime::operations::observation as wire;
 use dokime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime::runtime::query::RuntimeChange;
 
-/* === Constants === */
-
 const SERVER_SHELL_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_SCAN_ITEMS: u64 = 8_192;
@@ -41,18 +30,10 @@ pub const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(
 
 pub(super) const STREAM: &str = "runtime.state";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -61,10 +42,6 @@ enum PreparedOperations {
     Operation2(wire::WatchExecutionProgress),
     Operation3(wire::GetTraceability),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetRuntimeShell> for Resources {
     fn serve<'a>(
@@ -274,8 +251,6 @@ impl Serve<wire::GetTraceability> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -292,8 +267,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn operation_frames(operations: &OperationSnapshot) -> Result<Vec<dokime::domain::model::observation::wire::OperationProgress>, Status> {
     operations
@@ -369,5 +342,3 @@ fn evidence_counts(counts: &dokime::domains::evidence::EvidenceCounts) -> dokime
         notes: counts.notes as u64,
     }
 }
-
-/* === Tests === */

@@ -7,24 +7,16 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useQuery } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
-
-/* === Query Keys === */
 
 export const settingsQueryKeys = {
   all: ["settings"] as const,
   frame: (generation?: string) =>
     generation ? ([...settingsQueryKeys.all, "frame", generation] as const) : ([...settingsQueryKeys.all, "frame"] as const),
 };
-
-/* === Hooks === */
 
 export function useSettingsFrameQuery(ownerKey?: string, enabled = true) {
   const session = useNativeSessionOptional();

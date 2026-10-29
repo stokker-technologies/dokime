@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
-// Third Party Imports
+
 use harmos::state::Transaction;
-// Local Imports
+
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, SuiteSet, TestCase, TestCaseTemplate, TestSuite};
@@ -33,13 +27,6 @@ use {
     dokime_domain::model::execution::result::TestExecution, dokime_domain::model::execution::snapshot::ExecutionPluginIdentity,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Clone)]
 struct FixtureAppend {
     admission_identifier: CommandId,
@@ -49,11 +36,6 @@ struct FixtureAppend {
     settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl FixtureAppend {
     fn execution_ids(&self) -> Vec<dokime_runtime::TestExecutionId> {
         self.cases
@@ -103,9 +85,6 @@ impl FixtureAppend {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn metadata(id: &str) -> Metadata {
     Metadata::new(Identifier::new(id).unwrap(), id, None)
 }
@@ -337,8 +316,6 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
     .expect("execution status is projected from its row")
     .value
 }
-
-/* === Tests === */
 
 pub(crate) fn catalog_reconciliation_preserves_execution_evidence() {
     use dokime_runtime::state::ProviderCatalog;

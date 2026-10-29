@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::PublishRecord;
 pub use dokime_domain::model::records::publication::PublishReceipt;
 pub use dokime_domain::model::records::publication::PublishStatus;
 pub use dokime_domain::model::records::publication::RecordPublishRequest;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use tracing::Instrument;
 
-// Local Imports
 use crate::telemetry::TelemetryBatch;
 use crate::telemetry_runtime::sampling::{SamplingPhaseState, sampling_phase_state};
 use crate::transactions::RecordHealth;
@@ -35,20 +26,6 @@ use dokime_domain::model::identity::HealthItemId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::records::product::ProductRecordDraft;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn publish_product_record(&self, draft: ProductRecordDraft) -> Result<PublishReceipt, Error> {
@@ -115,8 +92,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn validation_rejection(message: impl Into<String>, path: impl Into<String>, expected: Option<String>) -> Error {
     Error::validation(
         "validation_failed",
@@ -140,8 +115,6 @@ pub(crate) fn retain_running_samples(state: &RuntimeState, batch: &mut Telemetry
     before.saturating_sub(batch.samples.len()) as u64
 }
 
-/* === Private Functions === */
-
 async fn wait_for_telemetry_batch_cycles(runtime: &RuntimeHandle, batch: &TelemetryBatch) {
     let mut cycle_ids: Vec<TestCycleId> = Vec::new();
     for sample in &batch.samples {
@@ -156,5 +129,3 @@ async fn wait_for_telemetry_batch_cycles(runtime: &RuntimeHandle, batch: &Teleme
         runtime.wait_if_paused(&test_cycle_id).await;
     }
 }
-
-/* === Tests === */

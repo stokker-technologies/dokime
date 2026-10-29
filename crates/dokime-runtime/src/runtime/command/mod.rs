@@ -7,24 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod handle;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::execution::CommandContext;
 pub use dokime_domain::model::identity::CommandId;
 pub use dokime_domain::model::identity::JobRunId;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::runtime::Error;
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -32,15 +22,7 @@ use dokime_domain::model::identity::CorrelationId;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(crate) type CommandResult<T> = std::result::Result<T, Box<CommandReceipt>>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandReceipt {
@@ -63,20 +45,12 @@ pub struct CommandRejection {
     pub validation_issues: Vec<ValidationIssue>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandStatus {
     Accepted,
     Rejected,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn accepted_receipt(
     command_id: CommandId, context: &CommandContext, accepted_at: Timestamp, job_id: Option<JobRunId>,
@@ -121,8 +95,6 @@ pub fn internal_rejection(message: impl Into<String>) -> Error {
     Error::internal("runtime_internal", message)
 }
 
-/* === Private Functions === */
-
 fn command_rejection(error: Error) -> CommandRejection {
     match error {
         Error::Admission(AdmissionFailure::Validation { code, message, issues }) => {
@@ -147,5 +119,3 @@ fn command_rejection(error: Error) -> CommandRejection {
         },
     }
 }
-
-/* === Tests === */

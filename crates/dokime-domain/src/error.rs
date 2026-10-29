@@ -7,29 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[non_exhaustive]
 #[derive(Debug, PartialEq, thiserror::Error)]
@@ -70,13 +48,3 @@ pub enum Error {
     #[error("{0}")]
     Suite(#[from] crate::model::plugins::SuiteContractError),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,41 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod diagnostic;
 pub mod evaluation;
-
-/* === Re-Exports === */
 
 pub use evaluation::CompatibilityStatus;
 pub use evaluation::ConditionEvaluation;
 pub use evaluation::ValidationMode;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

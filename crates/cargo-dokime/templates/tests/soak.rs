@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::host::ToolConnectionAcquired;
 use dokime::plugin::testing::Harness;
 
-// Local Imports
 use {{crate}}::bench::Sensor;
 use {{crate}}::domain::model::chamber::ChamberReading;
 use {{crate}}::domain::operations::ReadChamber;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
@@ -110,7 +84,6 @@ async fn unreachable_target_run() {
     );
 }
 
-/* === Tests === */
 
 #[test]
 fn soak_document_wraps() {

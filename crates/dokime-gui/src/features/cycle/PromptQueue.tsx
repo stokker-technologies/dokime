@@ -25,14 +25,8 @@
  * operator typed.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useEffect, useMemo, useRef } from "react";
 
-// Local Imports
 import { stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { PromptPanel } from "@/components/PromptPanel";
@@ -47,12 +41,6 @@ import { answeredPrompts, pendingPromptCountLabel, queuePrompts } from "./prompt
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 export type PromptQueueProps = {
   /** The answerable prompts this node owns, in any order; none in a file. */
   prompts: PromptRequest[];
@@ -61,8 +49,6 @@ export type PromptQueueProps = {
   /** The node's step records, which name the step a prompt came from. */
   steps?: readonly StepExecutionRecord[];
 };
-
-/* === Components === */
 
 export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) {
   const queue = useMemo(() => queuePrompts(prompts), [prompts]);
@@ -87,12 +73,6 @@ export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) 
     </ExecutionSectionCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /** One pending prompt: open and focused at the head of the queue, read-only behind it. */
 function PromptQueueCard({ open, prompt, steps }: { open: boolean; prompt: PromptRequest; steps: readonly StepExecutionRecord[] }) {

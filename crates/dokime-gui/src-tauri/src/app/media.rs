@@ -7,53 +7,28 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State, WebviewWindow, http};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-// Local Imports
 use super::content;
 use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
-
-/* === Constants === */
 
 const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
 const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
 
 pub const MEDIA_SCHEME: &str = "dokime-media";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 enum RangeOutcome {
     Full,
     Partial { start: u64, end: u64 },
     Unsatisfiable,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.register_asynchronous_uri_scheme_protocol(
@@ -106,8 +81,6 @@ pub(crate) async fn release_all(app: &AppHandle) {
     let media_root = media_root(app);
     let _ = tokio::fs::remove_dir_all(&media_root).await;
 }
-
-/* === Private Functions === */
 
 fn media_root(app: &AppHandle) -> PathBuf {
     app.state::<dokime::paths::ApplicationPaths>().cache().join("media")
@@ -326,5 +299,3 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
         }
     }
 }
-
-/* === Tests === */

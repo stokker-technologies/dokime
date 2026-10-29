@@ -7,42 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::Digest;
 
-// Local Imports
 use super::*;
 use dokime_domain::model;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn whole() -> harmos::storage::ByteRange {
     harmos::storage::ByteRange { offset: 0, limit: None }
 }
-
-/* === Tests === */
 
 pub(super) async fn report_save_receipt() {
     use dokime_domain::model::execution::saved::ExecutionRevision;

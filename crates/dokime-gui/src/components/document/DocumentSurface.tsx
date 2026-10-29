@@ -7,14 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
 import { ArtifactTree } from "@/components/ArtifactTree";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
 import { type DocumentCardContentProps, DocumentCardContentView } from "./DocumentSurfaceView";
 import { OperatorNotesContent } from "./OperatorNotesContent";
 
-/* === Components === */
 export function DocumentCardContent(props: DocumentCardContentProps) {
   if (props.renderMode === "report") return <DocumentCardContentView {...props} />;
   return (

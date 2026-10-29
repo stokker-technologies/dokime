@@ -9,8 +9,6 @@
 
 // Remote Listener Operation Catalog
 
-/* === Modules === */
-
 mod create_pairing;
 mod list_paired_clients;
 mod list_sessions;
@@ -18,8 +16,6 @@ mod read_listener;
 mod regenerate_certificate;
 mod revoke_paired_client;
 mod update_listener;
-
-/* === Re-Exports === */
 
 pub use create_pairing::CreatePairing;
 pub use list_paired_clients::ListPairedClients;
@@ -29,25 +25,8 @@ pub use regenerate_certificate::RegenerateCertificate;
 pub use revoke_paired_client::RevokePairedClient;
 pub use update_listener::UpdateListener;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Endpoint, ORDINARY, TRANSFER};
 use dokime_domain::model::remote::{CreatedPairing, PairedClientPage, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -59,10 +38,6 @@ pub enum Operations {
     RegenerateCertificate(RegenerateCertificate),
     ListSessions(ListSessions),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for ReadListener {
     const PATH: &'static str = "/dokime.v1.Remote/ReadListener";
@@ -98,9 +73,3 @@ impl Endpoint for RegenerateCertificate {
     const PATH: &'static str = "/dokime.v1.Remote/RegenerateCertificate";
     const LOCAL_ONLY: bool = true;
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

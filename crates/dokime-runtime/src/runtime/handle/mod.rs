@@ -7,29 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 mod preparation;
 mod records;
 mod settings;
-
-/* === Re-Exports === */
 
 pub(crate) use preparation::Prepared;
 
 pub use records::{CapturedRecord, CapturedRecords, RecordSubscription};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, RwLock},
 };
 
-// Third Party Imports
-
-// Local Imports
 use crate::InstalledPlugin;
 use crate::app::{Dokime, HarmosRuntime};
 use crate::domains::ActionDispatcher;
@@ -47,17 +37,9 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::SessionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 #[cfg(feature = "fault-injection")]
 pub(crate) type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
-
-/* === Structs === */
 
 // The Opened Owners A Boot Hands To Handle Assembly.
 pub(crate) struct BootParts {
@@ -123,12 +105,6 @@ pub struct RuntimeHandle {
     secrets: Arc<SecretStore>,
     pub(crate) brand: Arc<RwLock<Option<crate::installed_plugins::brand::ResolvedBrand>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) fn admit_owned_work(&self) -> Option<tokio_util::task::task_tracker::TaskTrackerToken> {
@@ -530,10 +506,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn check_boot_config(config: &RuntimeConfig) -> Result<InstalledPlugins> {
     let mut installed_plugins = BTreeMap::new();
     for plugin in &config.installed_plugins {
@@ -543,5 +515,3 @@ fn check_boot_config(config: &RuntimeConfig) -> Result<InstalledPlugins> {
     }
     Ok(installed_plugins)
 }
-
-/* === Tests === */

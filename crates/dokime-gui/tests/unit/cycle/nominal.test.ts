@@ -7,17 +7,13 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
-// Local Imports
+
 import {
   archiveRefusal,
   buildCycleExecutionRows,
@@ -37,12 +33,12 @@ import {
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
 import {
-  RECONNECT_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
   documentRetry,
   documentRetryDelay,
   evidencePaneState,
   isBusyRefusal,
+  RECONNECT_MAX_MS,
 } from "@/features/cycle/document-query-model";
 import {
   CLOSED_LABEL_DRAFT,
@@ -64,12 +60,6 @@ import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
 import { reportFixturePayload } from "@/report/report-fixture";
 import { focusPresentation } from "@/shell/focus-mode";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type Execution = Parameters<typeof buildCycleExecutionRows>[1][number];
 
 type ControlInput = Parameters<typeof executionControlState>[0];
@@ -78,12 +68,6 @@ type RunControl = ControlInput["controls"];
 
 type FollowInput = Parameters<typeof followSelection>[0];
 
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 function cases(...ids: string[]): CycleCase[] {
   return ids.map((caseId) => ({ caseId }) as CycleCase);
 }
@@ -91,8 +75,6 @@ function cases(...ids: string[]): CycleCase[] {
 function execution(fields: Record<string, unknown>): Execution {
   return fields as unknown as Execution;
 }
-
-/* === Entry Point === */
 
 test("Active Containers Persist", () => {
   const rows = [

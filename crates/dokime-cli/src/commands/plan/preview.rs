@@ -9,28 +9,9 @@
 
 // Preview A Canonical Selection Request
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::operations::planning::PreviewSelection;
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -44,17 +25,8 @@ pub(crate) struct Args {
     json: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
-    // === Read Request === //
 
     let mut input = args.input;
     let planned = match input.input_file.take() {
@@ -67,8 +39,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
         None => input.plan()?,
     };
 
-    // === Resolve And Preview === //
-
     let client = args.connection.connect().await?;
     let result = async {
         let plan = planned.resolve(&client).await?;
@@ -79,7 +49,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     client.close_and_wait().await;
     result
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

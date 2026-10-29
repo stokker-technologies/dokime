@@ -7,19 +7,13 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { z } from "zod";
 
-/* === Local Imports === */
-
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { focusSearchSchema } from "@/shell/focus-mode";
-
-/* === Constants === */
 
 const optionalId = z
   .preprocess((value) => {
@@ -41,14 +35,10 @@ const cycleWorkspaceSearchSchema = z.object({
   focus: focusSearchSchema,
 });
 
-/* === Route === */
-
 export const Route = createFileRoute("/cycles_/$cycleId")({
   component: CycleWorkspaceRoute,
   validateSearch: (search) => cycleWorkspaceSearchSchema.parse(search),
 });
-
-/* === Components === */
 
 function CycleWorkspaceRoute() {
   const { cycleId } = Route.useParams();

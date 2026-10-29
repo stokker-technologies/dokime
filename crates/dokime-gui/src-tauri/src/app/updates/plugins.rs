@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use tauri::{State, WebviewWindow, ipc::Channel};
 
-// Local Imports
 use super::{UpdateState, sources};
 use crate::app::{
     organization::policy::https_url,
@@ -29,14 +20,6 @@ use crate::app::{
 };
 use crate::connection::ConnectionSession;
 use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(super) struct Candidate {
@@ -75,12 +58,6 @@ pub struct Release {
     pub requires_dokime: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Manifest {
     fn select(&self, host_version: &str, target: &str) -> Result<Asset, String> {
         let package_valid = !self.package.is_empty()
@@ -117,8 +94,6 @@ impl Manifest {
             .ok_or_else(|| "The plugin release has no asset for this backend target".into())
     }
 }
-
-/* === Public Functions === */
 
 pub async fn desktop_plugin_release_check(
     window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, generation: String,
@@ -192,8 +167,6 @@ pub async fn desktop_plugin_release_install(
     Ok(installed.install_id)
 }
 
-/* === Private Functions === */
-
 fn validate_release_bundle(bytes: &[u8], selected: &Manifest) -> Result<(), String> {
     let bundle =
         harmos_packaging::bundle::Bundle::inspect(bytes, harmos_packaging::bundle::Limits::default()).map_err(|error| error.to_string())?;
@@ -203,8 +176,6 @@ fn validate_release_bundle(bytes: &[u8], selected: &Manifest) -> Result<(), Stri
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

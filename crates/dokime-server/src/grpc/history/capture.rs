@@ -7,51 +7,28 @@
  * ***
  */
 
-/* === Modules === */
-
 mod wire;
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use dokime::app::LiveRuntime;
 use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(history::GetCheckpointDocument),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<history::GetCheckpointDocument> for Resources {
     fn serve<'a>(
@@ -82,8 +59,6 @@ impl Serve<history::GetCheckpointDocument> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -94,8 +69,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn original_error(source: Status) -> dokime::harmos::Error {
     if source.code() == tonic::Code::ResourceExhausted {
@@ -109,5 +82,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "canonical checkpoint execution document",
     }
 }
-
-/* === Tests === */

@@ -7,42 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::support;
 use crate::support::wire::*;
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime_server::grpc::Config;
 
-/* === Constants === */
-
 const CRASH_ROOT: &str = "DOKIME_TEST_RUN_REQUEST_CRASH_ROOT";
 const READY: &str = "crash-fixture-ready ";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Child(std::process::Child);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Child {
     fn drop(&mut self) {
@@ -50,10 +26,6 @@ impl Drop for Child {
         let _ = self.0.wait();
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn config() -> Config {
     keyed()
@@ -184,5 +156,3 @@ async fn crashed_run_replay() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

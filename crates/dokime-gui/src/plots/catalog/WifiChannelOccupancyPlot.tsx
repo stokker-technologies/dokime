@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-/* === Local Imports === */
 
 import { Slider } from "@/components/ui/slider";
 
 import type { PlotAnalysis, WifiOccupancyScan } from "@/lib/types";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Types === */
 
 type ChannelBand = {
   label: string;
@@ -33,16 +27,12 @@ type OccupancyScan = WifiOccupancyScan & {
   counts: Map<number, number>;
 };
 
-/* === Constants === */
-
 const TWO_FOUR_GHZ_CHANNELS = Array.from({ length: 14 }, (_, index) => index + 1);
 const FIVE_GHZ_CHANNELS = [
   32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169, 173,
   177,
 ];
 const SIX_GHZ_CHANNELS = Array.from({ length: 59 }, (_, index) => 1_001 + index * 4);
-
-/* === Components === */
 
 export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
   const analysis = plot.analysis?.kind === "wifi_occupancy" ? plot.analysis : null;
@@ -129,8 +119,6 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
     </article>
   );
 }
-
-/* === Private Components === */
 
 function BandHeatmap({
   activeBand,
@@ -307,8 +295,6 @@ function ScanSlider({
     </div>
   );
 }
-
-/* === Private Functions === */
 
 function occupancyScans(analysis: OccupancyAnalysis | null): OccupancyScan[] {
   return (analysis?.scans ?? []).map((scan) => ({

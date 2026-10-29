@@ -7,20 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
-// Third Party Imports
+
 use clap::Parser;
 use futures_util::FutureExt;
 use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
-// Local Imports
+
 use super::*;
 use dokime::RecordScope;
 use dokime::artifacts::{ArtifactRecord, ArtifactUploadInput};
@@ -28,14 +21,6 @@ use dokime::domain::model;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::domains::ExecutionProviderTarget;
 use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 struct Artifacts {
@@ -49,12 +34,6 @@ pub(super) struct UploadGate {
     pub(super) started: Notify,
     pub(super) release: Notify,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for Artifacts {
     fn run_cycle<'a>(
@@ -103,10 +82,6 @@ impl ExecutionFixture for UploadGate {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 // A 4 KiB Frame Limit Pages Listings And Chunks Downloads Into Small Frames
 pub(crate) async fn small_frame_transfer() {
@@ -1026,5 +1001,3 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
     assert!(complete, "report stream must complete");
     (metadata.expect("report metadata"), html)
 }
-
-/* === Tests === */

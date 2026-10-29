@@ -7,31 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod contracts;
 mod rows;
 mod table;
-
-/* === Re-Exports === */
 
 pub use rows::{Bluetooth, Network, System, WifiLatency, WifiLink, WifiScan};
 
 pub use contracts::host_telemetry_contract;
 pub use contracts::host_telemetry_contracts;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
 
 pub const HOST_STREAMS: &[HostTelemetryStream] = &[
     HostTelemetryStream::System,
@@ -42,17 +30,9 @@ pub const HOST_STREAMS: &[HostTelemetryStream] = &[
     HostTelemetryStream::Bluetooth,
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("unsupported host telemetry stream: {0}")]
 pub struct UnknownHostStream(pub String);
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -64,10 +44,6 @@ pub enum HostTelemetryStream {
     WifiLatency,
     Bluetooth,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl HostTelemetryStream {
     // The One Source Of Each Host Stream's Default Cadence.
@@ -123,16 +99,10 @@ impl TryFrom<&str> for HostTelemetryStream {
     }
 }
 
-/* === Public Functions === */
-
 pub fn host_stream_identifiers() -> Vec<Identifier> {
     HOST_STREAMS.iter().map(|stream| stream.identifier()).collect()
 }
 
-/* === Private Functions === */
-
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).expect("built-in host telemetry identifiers are valid")
 }
-
-/* === Tests === */

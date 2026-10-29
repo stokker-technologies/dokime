@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::wire;
 use crate::grpc::{
     catalog, content,
@@ -33,29 +24,15 @@ use dokime::operations::history as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(contract::GetCheckpointEvidence),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::GetCheckpointEvidence> for Resources {
     fn serve<'a>(
@@ -91,8 +68,6 @@ impl Serve<contract::GetCheckpointEvidence> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -103,8 +78,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 #[derive(Clone, Copy)]
 struct Sections {
@@ -287,5 +260,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "canonical checkpoint evidence",
     }
 }
-
-/* === Tests === */

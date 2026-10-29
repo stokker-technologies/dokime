@@ -9,40 +9,15 @@
 
 // gRPC Benchmarks: Concurrent Observation Requests Against A Running Server
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::hint::black_box;
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use futures_util::future::try_join_all;
 
-// Local Imports
 use super::server::Server;
 use dokime::client::{Client, Target, contracts::observation::GetRuntimeShell};
 
-/* === Constants === */
-
 const PAGE_ITEMS: u32 = 50;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn benchmark(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -62,7 +37,3 @@ pub fn benchmark(criterion: &mut Criterion) {
     drop(client);
     server.stop();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

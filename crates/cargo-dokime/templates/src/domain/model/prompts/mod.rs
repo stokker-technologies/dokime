@@ -7,25 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The struct is the question and the answer at once: its fields are the
 // form's fields, the attribute is the title and the actions, and what the
@@ -48,15 +29,3 @@ pub struct SoakCheckpoint {
     #[prompt(label = "The soak looked right", default = true)]
     pub accepted: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -30,10 +30,6 @@
  * it, and the console the report prints follows the sections.
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { TraceabilityDocumentContent } from "@/components/document/DocumentSurfaceView";
@@ -67,8 +63,6 @@ import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
 import { durationText, useElapsedSeconds } from "./use-elapsed";
 
-/* === Types === */
-
 export type ExecutionSectionsViewProps = {
   plan: TestCyclePlan | null;
   row: CycleExecutionRow;
@@ -95,11 +89,7 @@ export type ExecutionSectionsViewProps = {
   documentView?: ComponentType<DocumentViewProps>;
 };
 
-/* === Constants === */
-
 const UNSTARTED_NOTICE = "This case has not run yet. These are the parameters the next attempt will use.";
-
-/* === Components === */
 
 export function ExecutionSectionsView({
   plan,
@@ -248,8 +238,6 @@ export function ExecutionSectionsView({
     </div>
   );
 }
-
-/* === Private Functions === */
 
 /** What the runtime measured: from start to finish, once the execution ended. */
 function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished_at">): number | null {

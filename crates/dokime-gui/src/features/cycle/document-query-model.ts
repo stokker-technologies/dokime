@@ -19,8 +19,6 @@
  * has no application imports, so a node test can load it directly.
  */
 
-/* === Constants === */
-
 const GUI_RECONNECT_INITIAL_MS = 1_000;
 const GUI_RECONNECT_MAX_MS = 10_000;
 
@@ -31,15 +29,11 @@ export const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
 export const DOCUMENT_FAILED_FALLBACK = "The document could not be read from the backend.";
 export const BUSY_NOTICE = "The backend is busy; the document is read again shortly.";
 
-/* === Types === */
-
 export type EvidencePaneState =
   | { kind: "document"; staleReason: string | null }
   | { kind: "loading" }
   | { kind: "busy" }
   | { kind: "failed"; message: string };
-
-/* === Public Functions === */
 
 /** Whether the backend refused the read for load rather than for a fault. */
 export function isBusyRefusal(error: unknown): boolean {
@@ -87,8 +81,6 @@ export function evidencePaneState({
   if (pending) return { kind: "loading" };
   return { kind: "document", staleReason: null };
 }
-
-/* === Private Functions === */
 
 function failureMessage(error: unknown): string {
   return error instanceof Error && error.message.trim() ? error.message : DOCUMENT_FAILED_FALLBACK;

@@ -7,20 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use super::context::Context;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
 
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::document::definition::DocumentDefinition;
 use crate::telemetry::TelemetrySample;
@@ -29,14 +19,6 @@ use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentResolveInput {
@@ -78,8 +60,6 @@ pub(super) struct RecordView<'a> {
     pub scope: Option<&'a RecordScope>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 pub(crate) enum Records<'a> {
     Native(crate::records::view::View<'a>),
@@ -92,10 +72,6 @@ pub(crate) enum Artifacts<'a> {
     Native(&'a [ArtifactRecord]),
     Outputs(&'a [ExecutionOutput]),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DocumentResolveInput {
     pub(crate) fn borrowed(&self) -> BorrowedInput<'_> {
@@ -215,9 +191,3 @@ impl DocumentSelection {
             && self.scope.suite_id.as_ref().is_none_or(|id| scope.and_then(|scope| scope.suite_id.as_ref()) == Some(id))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

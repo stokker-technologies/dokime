@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "native")]
 pub(crate) mod binding;
 
@@ -46,8 +44,6 @@ pub mod registry;
 #[cfg(feature = "native")]
 pub mod resolve;
 
-/* === Re-Exports === */
-
 pub use dokime_domain::model::document::*;
 pub use dokime_domain::model::expressions::RecordField;
 pub use dokime_domain::model::expressions::RecordMarker;
@@ -80,31 +76,3 @@ pub use registry::{DocumentRegistry, DocumentRegistryError};
 
 #[cfg(feature = "native")]
 pub use resolve::resolve_document;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

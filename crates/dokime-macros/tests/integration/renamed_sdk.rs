@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod dokime {
     #[sdk::message]
     #[derive(Clone, PartialEq)]
@@ -27,32 +26,20 @@ pub(crate) mod dokime {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use sdk::harmos::operations::{OperationPolicy, RetryPolicy};
 use sdk::harmos::plugin::{Attachment, Declared};
 use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
-// Local Imports
-
-/* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
 type Observing = ObserverAttachment<Publisher<Renamed>>;
 
-/* === Structs === */
 struct Renamed {
     resources: Arc<Resources>,
     observers: Option<Arc<Observing>>,
@@ -113,7 +100,6 @@ struct GetSpareEcho {
     text: String,
 }
 
-/* === Enums === */
 #[sdk::harmos::catalog(harmos_path = sdk::harmos)]
 enum Implemented {
     GetEcho(GetEcho),
@@ -143,9 +129,6 @@ pub enum Records {
     Observed(Observed),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl sdk::Operation for GetEcho {
     type Error = sdk::Refusal;
 
@@ -251,9 +234,6 @@ impl Renamed {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 #[cfg(not(test))]
 fn main() {
     std::hint::black_box(<Renamed as Declared>::markers()).unwrap();
@@ -269,8 +249,6 @@ fn operation_ids(nodes: &[sdk::catalog::Node<sdk::harmos::operations::WireDeclar
         })
         .collect()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 #[test]

@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Expr, Ident, LitStr, Type};
 
-// Local Imports
 use crate::arguments::Arguments;
-
-/* === Constants === */
 
 const FIELD_ARGUMENTS: &[&str] = &["label", "unit", "format", "message", "description"];
 const SEVERITIES: &[(&str, &str)] = &[("debug", "Debug"), ("info", "Info"), ("warning", "Warning"), ("error", "Error")];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct RecordFieldDeclaration {
     name: Ident,
@@ -53,14 +35,6 @@ struct FieldArguments {
     message: bool,
     description: Option<Expr>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn implementation(attribute: TokenStream, input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -200,8 +174,6 @@ pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
     crate::arguments::stripped(input, "record")
 }
 
-/* === Private Functions === */
-
 fn handles(fields: &[RecordFieldDeclaration], identifier: &Expr) -> TokenStream {
     let sdk = crate::facade::root();
     let accessors = fields.iter().map(|field| {
@@ -336,5 +308,3 @@ fn read(field: &RecordFieldDeclaration) -> TokenStream {
 
     quote!(#name: #sdk::records::field(values, #identifier)?)
 }
-
-/* === Tests === */

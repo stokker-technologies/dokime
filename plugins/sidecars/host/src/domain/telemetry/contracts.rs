@@ -7,25 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{HOST_STREAMS, HostTelemetryStream};
 use dokime_domain::model::identity::{Identifier, Metadata};
 use dokime_domain::model::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime_domain::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
 
 macro_rules! host_contracts {
     (
@@ -80,23 +65,9 @@ macro_rules! host_contracts {
 
 super::table::host_streams!(host_contracts);
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
     HOST_STREAMS.iter().copied().map(host_telemetry_contract).collect()
 }
-
-/* === Private Functions === */
 
 fn column(id: &str, label: &str, value_type: ValueType, role: TelemetryRole) -> TelemetryColumn {
     TelemetryColumn::new(Metadata::new(identifier(id), label, None), value_type, role).optional()
@@ -105,8 +76,6 @@ fn column(id: &str, label: &str, value_type: ValueType, role: TelemetryRole) -> 
 fn identifier(value: &str) -> Identifier {
     Identifier::new(value).expect("host telemetry identifiers are valid")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

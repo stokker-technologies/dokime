@@ -9,11 +9,7 @@
 
 /* Native plugin and admitted-artifact adapters for the original settings UI. */
 
-/* === External Imports === */
-
 import { Channel } from "@tauri-apps/api/core";
-
-/* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { commands } from "@/lib/desktop/commands";
@@ -23,13 +19,9 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
 
-/* === Types === */
-
 type PluginInstallation = Wire<Awaited<ReturnType<typeof rpc.pluginsGetInstallation>>>;
 type PluginInstallationState = PluginInstallation["state"];
 type AdmittedPlugin = Wire<Awaited<ReturnType<typeof rpc.pluginsListAdmittedPlugins>>["plugins"][number]>;
-
-/* === Plugin installations === */
 
 export async function listNativePlugins(session: SessionIdentity): Promise<PluginEntry[]> {
   const installations: PluginInstallation[] = [];
@@ -67,8 +59,6 @@ export async function removeNativePlugin(session: SessionIdentity, installId: st
 export async function setNativePluginEnabled(session: SessionIdentity, installId: string, enabled: boolean): Promise<PluginEntry> {
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
-
-/* === Plugin Installation === */
 
 /** Progress phases {@link installNativePlugin} reports through `onProgress`, in order. */
 export type InstallPluginProgress = { phase: "reading" } | { phase: "uploading"; sent: number; total: number } | { phase: "installing" };
@@ -108,8 +98,6 @@ export async function installNativePlugin(
   return getNativePlugin(session, installId);
 }
 
-/* === Admitted Plugins === */
-
 export async function listNativeAdmittedPlugins(session: SessionIdentity): Promise<RuntimeInstalledPluginRecord[]> {
   const artifacts: AdmittedPlugin[] = [];
   let after: { epoch: string; revision: bigint; afterPluginId: string } | undefined;
@@ -135,8 +123,6 @@ export async function listNativeAdmittedPlugins(session: SessionIdentity): Promi
 
   throw new NativeApiLimitError("Plugins.ListAdmittedPlugins", `more than ${NATIVE_MAX_PAGES} pages`);
 }
-
-/* === Mapping === */
 
 function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
   const installedAt = timestampIso(installation.installedAt);

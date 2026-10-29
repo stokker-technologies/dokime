@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::document::{
     DocumentFailure,
     input::{DocumentSelection, Records},
@@ -25,22 +14,6 @@ use crate::document::{
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::records::evidence::RecordMarker;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn record_markers_for_selection(records: &[RecordEntry], selection: &DocumentSelection) -> crate::Result<Vec<RecordMarker>> {
     selected_markers(Records::Native(records.into()), selection)
@@ -65,7 +38,3 @@ pub(super) fn selected_markers(records: Records<'_>, selection: &DocumentSelecti
 pub(crate) fn scope_matches(scope: Option<&RecordScope>, selection: &DocumentSelection) -> bool {
     selection.matches_scope(scope)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

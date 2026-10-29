@@ -8,9 +8,6 @@
 
 """Generate Release Metadata From Canonically Inspected Bundles"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 import subprocess
@@ -18,24 +15,9 @@ from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.build.rust import tests
 from dokime_tools.package import plugins
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("shipped", [[], ["instruments-plugin", "instruments-plugin"]])
@@ -143,9 +125,6 @@ def test_child_diagnostics(
     assert str(returncode) in captured.err
 
 
-# === Private Functions === #
-
-
 @pytest.mark.parametrize("fixture", [False, True])
 def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: bool) -> None:
     output = tmp_path / ("fixtures/plugins" if fixture else "plugins")
@@ -200,6 +179,3 @@ def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path
     monkeypatch.setattr(tests.archive, "stamp", lambda root, profile, names: None)
     tests.build("dev")
     assert prepared == [(built.with_name("compiler.json"), "dev", collector, plugins.FIXTURES)]
-
-
-# === Entry Point === #

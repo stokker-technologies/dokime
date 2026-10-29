@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
-
-// Local Imports
 use super::telemetry::HostTelemetryStream;
 use dokime_domain::model::document::DocumentCard;
 use dokime_domain::model::document::DocumentCardBody;
@@ -29,19 +19,11 @@ use dokime_domain::model::document::PlotType;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 
-/* === Constants === */
-
 const HOST_SYSTEM: &str = HostTelemetryStream::System.as_str();
 const HOST_WIFI_LINK: &str = HostTelemetryStream::WifiLink.as_str();
 const HOST_WIFI_LATENCY: &str = HostTelemetryStream::WifiLatency.as_str();
 const HOST_WIFI_SCAN: &str = HostTelemetryStream::WifiScan.as_str();
 const HOST_BLUETOOTH: &str = HostTelemetryStream::Bluetooth.as_str();
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct HostPlotSpec<'a> {
     identifier: &'a str,
@@ -54,14 +36,6 @@ struct HostPlotSpec<'a> {
     unit: Option<&'a str>,
     style: PlotStyle,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
     let mut plot = PlotDefinition::with_type(label, PlotType::WifiChannelOccupancy);
@@ -79,8 +53,6 @@ pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
     let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI_LINK, HOST_WIFI_LATENCY, HOST_WIFI_SCAN, HOST_BLUETOOTH]);
     vec![wifi_section(&streams), wifi_congestion_section(&streams, tracking_requested), bluetooth_section(), system_section()]
 }
-
-/* === Private Functions === */
 
 fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
     let mut cards = Vec::new();
@@ -306,8 +278,6 @@ fn metadata(identifier_value: &str, label: &str, description: &str) -> Metadata 
 fn identifier(identifier_value: &str) -> Identifier {
     Identifier::new(identifier_value).expect("host document identifier is valid")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

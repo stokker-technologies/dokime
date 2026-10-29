@@ -11,8 +11,6 @@ import type { JsonObject } from "../types";
 import type { ValueFormat } from "./format";
 import type { ContractValidationMode } from "./records";
 
-/* === Telemetry stream/spec/sample types === */
-
 export type TelemetryColumnSpec = {
   name: string;
   value_type: "number" | "integer" | "string" | "boolean" | "datetime";

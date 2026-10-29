@@ -13,20 +13,12 @@
 // detached one, or one kept past its step, is cancelled by the step-end sweep
 // with a `test.step.handle_cancelled` warning.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-// Third Party Imports
 use harmos::Message;
 use harmos::operations::instance::{Id, Outcome, Phase, Status};
 use harmos::operations::{Host, Instance, OperationDeclaration, Response};
@@ -34,13 +26,10 @@ use harmos::sidecar::{CallError, Supervisor};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-// Local Imports
 use crate::host::StepHandleCancelled;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_operations::files::WatchFile;
 use dokime_operations::process::RunProcess;
-
-/* === Constants === */
 
 // The JSON-RPC server error code of a refusal raised on the step side.
 const STEP_REFUSAL: i64 = -32_000;
@@ -48,14 +37,8 @@ const STEP_REFUSAL: i64 = -32_000;
 // Local instance ids count down from the top, apart from the host's.
 const LOCAL_IDS: u64 = u64::MAX;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 type Sweeping<'a> = Pin<Box<dyn Future<Output = Option<StepHandleCancelled>> + Send + 'a>>;
-
-/* === Structs === */
 
 // The running execution as a child process and a warning name it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -112,8 +95,6 @@ pub(crate) struct LocalRun {
     readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
 }
 
-/* === Enums === */
-
 enum Readiness {
     // A Host-Routed Watch Is Found By The Ticket It Was Submitted With.
     Host(Supervisor, Option<u64>),
@@ -125,13 +106,9 @@ enum Running<O: OperationDeclaration> {
     Local(LocalRun),
 }
 
-/* === Traits === */
-
 trait Sweep: Send + Sync {
     fn sweep(&self, step: String) -> Sweeping<'_>;
 }
-
-/* === Implementations === */
 
 impl Handles {
     pub(crate) fn new() -> Self {
@@ -412,8 +389,6 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
     CallError::Refused {
         code: STEP_REFUSAL,
@@ -424,8 +399,6 @@ pub(crate) fn refused(message: impl Into<String>) -> CallError {
 pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
     harmos::Failure::new(harmos::operations::FailureKind::Permanent, message)
 }
-
-/* === Private Functions === */
 
 fn swept() -> Status {
     Status {
@@ -456,5 +429,3 @@ fn label<O: OperationDeclaration>(request: &[u8]) -> (&'static str, String) {
     }
     ("operation", O::ID.to_owned())
 }
-
-/* === Tests === */

@@ -9,31 +9,13 @@
 
 // Discover A Pending Prompt For One Execution
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::model::prompts::wire::PromptInstance;
 
-/* === Constants === */
-
 const MAXIMUM_TIMEOUT_MS: u64 = 86_400_000;
 const REQUEST_POLL_MS: u64 = 200;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -58,14 +40,6 @@ pub(crate) struct Args {
     #[command(flatten)]
     id_file: crate::commands::id_file::Args,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -104,8 +78,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     Ok(())
 }
 
-/* === Private Functions === */
-
 async fn find(execution: &dokime::client::TestExecutionHandle, wait: bool, poll_ms: u64) -> crate::Result<PromptInstance> {
     loop {
         let pending = execution.pending_prompts().await?;
@@ -125,5 +97,3 @@ async fn find(execution: &dokime::client::TestExecutionHandle, wait: bool, poll_
         tokio::time::sleep(Duration::from_millis(poll_ms)).await;
     }
 }
-
-/* === Tests === */

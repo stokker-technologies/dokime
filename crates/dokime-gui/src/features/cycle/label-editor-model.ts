@@ -17,20 +17,14 @@
  * closes the draft without a call. The module has no imports, so a node test can load it directly.
  */
 
-/* === Types === */
-
 export type LabelDraft = { mode: "closed" } | { mode: "editing"; original: string; text: string; error: string | null };
 
 /** What a key does to an open draft: save it, drop it, refuse it, or nothing. */
 export type LabelKeyAction = { kind: "save"; label: string } | { kind: "cancel" } | { kind: "refuse"; error: string } | { kind: "none" };
 
-/* === Constants === */
-
 export const CLOSED_LABEL_DRAFT: LabelDraft = { mode: "closed" };
 
 export const EMPTY_LABEL_ERROR = "A label cannot be empty.";
-
-/* === Public Functions === */
 
 /** Opens a draft holding the current label. */
 export function openLabelEdit(label: string): LabelDraft {

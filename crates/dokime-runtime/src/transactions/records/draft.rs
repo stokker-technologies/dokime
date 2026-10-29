@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
@@ -27,14 +17,6 @@ use dokime_domain::model::identity::RecordId;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct BuiltinDraft {
     pub record_type: BuiltinRecordType,
@@ -51,12 +33,6 @@ pub(crate) struct Drafts {
     records: Vec<(Record, Option<String>)>,
     captures: Vec<(dokime_domain::model::identity::TestExecutionId, Vec<dokime_domain::model::identity::Identifier>, RecordScope)>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drafts {
     pub(crate) fn new(state: &RuntimeState) -> Self {
@@ -182,9 +158,3 @@ impl IntoIterator for Drafts {
         self.records.into_iter().map(|(record, _)| record)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

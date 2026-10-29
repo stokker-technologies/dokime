@@ -7,38 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::RecordSelection;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn publish_position_record(runtime: &RuntimeHandle, message: String) {
     use {
@@ -145,5 +116,3 @@ async fn record_position_writer(root: PathBuf) {
     crate::service_support::children::announce_ready();
     std::future::pending::<()>().await;
 }
-
-/* === Tests === */

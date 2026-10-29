@@ -9,32 +9,14 @@
 
 // Construct Canonical Selection Plans From Flags
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::planning::wire::PreviewSelectionReply;
 use dokime::domain::model::planning::wire::RegisteredSelection;
 use dokime::domain::model::planning::wire::SelectionPlan;
 
-/* === Constants === */
-
 const VALUE_INPUT_BYTES: u64 = 1_048_576;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[group(id = "plan_input")]
@@ -68,12 +50,6 @@ pub(crate) struct Args {
 pub(crate) struct Planned {
     plan: Option<SelectionPlan>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Args {
     pub(crate) fn plan(self) -> crate::Result<Planned> {
@@ -157,13 +133,9 @@ impl Planned {
     }
 }
 
-/* === Public Functions === */
-
 // Planned cases name their template by its readable ID; the registered UUID
 // the backend answers with never reaches the operator.
 pub(super) async fn print(client: &dokime::client::Client, reply: &PreviewSelectionReply, json: bool) -> crate::Result<()> {
-    // === Read Template References === //
-
     let mut references = BTreeMap::new();
     let mut read = BTreeSet::new();
     for case in &reply.cases {
@@ -178,8 +150,6 @@ pub(super) async fn print(client: &dokime::client::Client, reply: &PreviewSelect
                 .filter_map(|template| template.metadata.map(|metadata| (template.template_id, metadata.identifier))),
         );
     }
-
-    // === Write Readable Cases === //
 
     let mut value = serde_json::to_value(reply)?;
     let cases =
@@ -196,8 +166,6 @@ pub(super) async fn print(client: &dokime::client::Client, reply: &PreviewSelect
     println!("{output}");
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn parameters(
     input: Option<&str>, maximum: usize,
@@ -225,5 +193,3 @@ fn parameters(
     }
     Ok(parameters)
 }
-
-/* === Tests === */

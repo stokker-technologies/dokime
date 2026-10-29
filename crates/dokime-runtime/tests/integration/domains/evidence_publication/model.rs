@@ -7,35 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(super) async fn definitions_survive_completion(runtime: &RuntimeHandle) {
     let custom_batch = tracking_batch();
@@ -118,5 +90,3 @@ pub(super) async fn tracking_derives_kpis() {
     assert_eq!(tracking_samples[4].values.get("connection_loss_distance_m"), Some(&Value::Number(4.0)));
     assert_eq!(tracking_samples[4].values.get("connection_acquired_distance_m"), Some(&Value::Number(6.0)));
 }
-
-/* === Tests === */

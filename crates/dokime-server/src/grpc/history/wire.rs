@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use dokime::harmos::storage::{ObjectVersionToken, StorageCursor, StoreHistory};
 use tonic::Status;
 
-// Local Imports
 use super::super::error::detailed;
 use super::super::{execution, value};
 use dokime::domain::model::execution::result::ResultStatus;
@@ -28,23 +19,7 @@ use dokime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle, ExecutionCheckpoint,
 };
 
-/* === Constants === */
-
 const SERVER_CHECKPOINT_TOKEN_BYTES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn query_failure(error: dokime::runtime::Error) -> Status {
     if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
@@ -195,8 +170,6 @@ pub(crate) fn traceability(
     })
 }
 
-/* === Private Functions === */
-
 fn browse_cycle(value: ExecutionBrowseCycle) -> Result<dokime::domain::model::history::wire::ExecutionBrowseCycle, Status> {
     Ok(dokime::domain::model::history::wire::ExecutionBrowseCycle {
         cycle_id: value.cycle_id.as_str().to_owned(),
@@ -289,5 +262,3 @@ fn metadata(
         suite_label: value.suite_label,
     })
 }
-
-/* === Tests === */

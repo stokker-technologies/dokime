@@ -7,42 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow};
 use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct ReducedItems<T> {
     pub(crate) total: usize,
     pub(crate) returned: Vec<T>,
     pub(crate) high_water: Option<u64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn reduce_timestamped_items<T, F, S>(
     items: Vec<T>, window: &RuntimeWindow, resolution: &RuntimeResolution, timestamp: F, sequence: S,
@@ -58,8 +31,6 @@ where
 
     ReducedItems { total, returned, high_water }
 }
-
-/* === Private Functions === */
 
 fn apply_window<T, F, S>(mut items: Vec<T>, window: &RuntimeWindow, timestamp: &F, sequence: &S) -> Vec<T>
 where
@@ -129,4 +100,3 @@ fn downsample<T>(mut items: Vec<T>, count: usize) -> Vec<T> {
     });
     items
 }
-/* === Tests === */

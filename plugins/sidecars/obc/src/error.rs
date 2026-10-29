@@ -7,28 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("the operator declined pulse capture")]
@@ -68,10 +46,6 @@ pub enum Error {
     Summary(#[from] serde_json::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<Error> for dokime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
         Self::Refused {
@@ -80,9 +54,3 @@ impl From<Error> for dokime::domains::ActionDispatcherError {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

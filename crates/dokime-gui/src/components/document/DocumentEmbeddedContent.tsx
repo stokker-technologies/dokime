@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type DocumentEmbeddedTone = "default" | "warning";
 
@@ -34,8 +28,6 @@ type DocumentEmbeddedEmptyStateProps = {
   className?: string;
   dashed?: boolean;
 };
-
-/* === Components === */
 
 export function DocumentEmbeddedBlock<T extends ElementType = "section">({
   as,

@@ -7,49 +7,25 @@
  * ***
  */
 
-/* === Modules === */
-
 mod archive;
 mod status;
 
-/* === Re-Exports === */
-
 pub(super) use status::prepare;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde_json::{Value as Json, json};
 use tonic::Status;
 
-// Local Imports
 use super::bundle;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::domains::exports::storage::DiagnosticPathKey;
 
-/* === Constants === */
-
 const SERVER_BUNDLE_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Collector<'a> {
     runtime: &'a RuntimeHandle,
     identity: &'a dokime::domain::model::backend::wire::BackendIdentity,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Collector<'_> {
     async fn health(&self) -> Result<dokime::domain::model::backend::wire::BackendHealth, Status> {
@@ -131,8 +107,6 @@ impl Collector<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn collect(
     runtime: &RuntimeHandle, identity: &dokime::domain::model::backend::wire::BackendIdentity, log_tail_bytes: u64,
 ) -> Result<bundle::Bundle, Status> {
@@ -142,8 +116,6 @@ pub(super) async fn collect(
 pub(super) fn hub_log_path(paths: &dokime::paths::ApplicationPaths) -> std::path::PathBuf {
     paths.logs().join(dokime::domains::exports::storage::HUB_LOG_FILENAME)
 }
-
-/* === Private Functions === */
 
 fn encoded<T: serde::Serialize>(value: &T) -> Result<Json, Status> {
     serde_json::to_value(value).map_err(|_| Status::internal("diagnostics document could not be encoded"))
@@ -187,5 +159,3 @@ fn health_json(health: &dokime::domain::model::backend::wire::BackendHealth) -> 
         "message": health.message,
     })
 }
-
-/* === Tests === */

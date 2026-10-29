@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
@@ -19,16 +15,12 @@ import { type ExploreEntry, exploreEntryKey } from "@/features/explore/explore-c
 import { formatDuration } from "@/lib/format";
 import { PageNotice } from "@/shell/PageShell";
 
-/* === Types === */
-
 type HistoryComparisonViewProps = {
   cycles: ExploreEntry[];
   onBack: () => void;
 };
 
 type ComparisonRow = { get: (cycle: ExploreEntry) => string; label: string };
-
-/* === Constants === */
 
 const COMPARISON_ROWS: ComparisonRow[] = [
   { label: "Owner", get: (cycle) => cycle.owner ?? "—" },
@@ -40,8 +32,6 @@ const COMPARISON_ROWS: ComparisonRow[] = [
   { label: "Updated", get: (cycle) => formatDate(cycle.updated_at) },
 ];
 
-/* === Private Functions === */
-
 function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
@@ -50,8 +40,6 @@ function formatDate(iso: string): string {
 function rowLabel(row: ComparisonRow): string {
   return row.label;
 }
-
-/* === Components === */
 
 export function HistoryComparisonView({ cycles }: HistoryComparisonViewProps) {
   // One column per compared entry; the metric order is the data, so nothing sorts.

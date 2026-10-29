@@ -7,27 +7,18 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
-// Local Imports
 import type { EditorParameterRow } from "@/components/parameter-editor/model";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
 import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/features/library/ActiveCycle";
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { TestCycleSelection } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const ROWS = [
   {
@@ -36,15 +27,7 @@ const ROWS = [
   },
 ] as unknown as EditorParameterRow[];
 
-/* === Types === */
-
 type Preview = Parameters<typeof summaryNeeded>[0];
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function row(cycleId: string, label: string, phase: CycleRow["phase"], statusLabel = "Active · Idle"): CycleRow {
   return {
@@ -76,8 +59,6 @@ function preview(...cases: Record<string, unknown>[]): Preview {
     cases: cases.map((parameters, index) => ({ case_id: `case-${index}`, parameters })),
   } as unknown as Preview;
 }
-
-/* === Entry Point === */
 
 test("Summary Skip", () => {
   // One Case At Its Registered Defaults Has Nothing To Review

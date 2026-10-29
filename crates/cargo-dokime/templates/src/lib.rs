@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 
 pub mod bench;
 pub mod domain;
@@ -17,25 +16,19 @@ pub mod observers;
 pub mod operations;
 pub mod suites;
 
-/* === Re-Exports === */
 
 pub use error::{Error, Result};
 
-/* === Imports === */
 
-// Standard Library Imports
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-// Third Party Imports
 
-// Local Imports
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
 
-/* === Constants === */
 
 const AMBIENT_C: f64 = 22.0;
 
@@ -47,13 +40,9 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
 
 type Observing = ObserverAttachment<Publisher<Plugin>>;
 
-/* === Structs === */
 
 pub struct Bench {
     pub sensor: bench::Sensor,
@@ -66,14 +55,10 @@ pub struct Plugin {
     observers: Option<Arc<Observing>>,
 }
 
-/* === Enums === */
 
 #[dokime::catalog]
 pub enum Records {}
 
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Bench {
     pub(crate) fn observed(&self, unit: String) {
@@ -161,9 +146,3 @@ impl Plugin {
         Arc::clone(&self.bench)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

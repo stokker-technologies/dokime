@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::TestCycleInstance;
 use crate::document::{DocumentInstance, DocumentPayload, DocumentSelection};
 use crate::documents::RuntimeDocumentData;
@@ -27,14 +17,6 @@ use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeDocumentFrame {
@@ -63,12 +45,6 @@ pub struct RuntimeResolvedDocumentFrame {
 
 #[derive(Clone)]
 pub struct RuntimeResolvedDocumentRead(harmos::storage::ReadBatch<RuntimeResolvedDocumentFrame>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for RuntimeResolvedDocumentRead {
     type Target = RuntimeResolvedDocumentFrame;
@@ -109,8 +85,6 @@ impl RuntimeDocumentRecord {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn document_frame<'a>(cycles: impl Iterator<Item = &'a TestCycleInstance>, scope: Option<&RecordScope>) -> RuntimeDocumentFrame {
     let documents = cycles.flat_map(|cycle| cycle_document_records(cycle, scope)).collect::<Vec<_>>();
 
@@ -150,8 +124,6 @@ pub(crate) fn resolved_document_frame(
     })?;
     Ok(RuntimeResolvedDocumentRead(frame))
 }
-
-/* === Private Functions === */
 
 fn failure(data: RuntimeDocumentData, arguments: std::fmt::Arguments<'_>) -> crate::runtime::Result<RuntimeResolvedDocumentRead> {
     let bytes = formatted_size(arguments)?;
@@ -212,5 +184,3 @@ fn execution_has_payload(status: &ExecutionStatus) -> bool {
             | ExecutionStatus::Interrupted
     )
 }
-
-/* === Tests === */

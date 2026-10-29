@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 #[path = "authoring/error.rs"]
 pub(crate) mod error;
 pub(crate) mod catalog_lifecycle {
@@ -76,15 +75,9 @@ pub(crate) mod catalog_lifecycle {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-// Third Party Imports
 
-// Local Imports
 use dokime_runtime::definition::{Criterion, DeclaredTemplate, SuiteSet, authored_criterion as criterion, materialize_template_cases};
 use dokime_runtime::execution::{CriterionContext, ObserverContext, StepContext};
 use dokime_runtime::execution::{Run, Signal, Workflow};
@@ -97,7 +90,6 @@ use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionSta
 use dokime_runtime::{Value, ValueType};
 use error::Error;
 
-/* === Constants === */
 const SUITE_ID: &str = "spike.checks";
 const TEMPLATE_ID: &str = "spike.checks.probe";
 const STREAM_ID: &str = "spike.pulse";
@@ -106,11 +98,6 @@ const PULSE_TEMPLATE_ID: &str = "spike.pulses.pulse";
 const PULSE_STREAM_ID: &str = <PulseRow as dokime_runtime::StreamSpec>::ID;
 const PULSE_CRITERION_ID: &str = "spike.pulses.acceptance";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct SpikeChecks;
 
 struct Probe;
@@ -164,16 +151,11 @@ pub struct PulseParameters {
     pub rows: u64,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 #[dokime_runtime::catalog]
 enum RowsStreams {
     PulseRow(PulseRow),
 }
 
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum SpikeChecksTemplates {
     Probe(Probe),
@@ -310,9 +292,6 @@ enum SpikeSuites {
     PulseChecks(PulseChecks),
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn pulse_start() -> RunExecution {
     RunExecution {
         mode: "automatic".into(),
@@ -372,8 +351,6 @@ async fn attributed_functions_runs() {
     assert_eq!(SidecarCriterionStatus::try_from(outcome.criteria[0].status), Ok(SidecarCriterionStatus::Passed));
     execution.shutdown().await;
 }
-
-/* === Tests === */
 
 #[test]
 fn registration_phase_envelope() {

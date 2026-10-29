@@ -9,39 +9,25 @@
 
 """Verify Evidence Identity Terminal Status And Atomic Destination Publication"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import hashlib
 from pathlib import Path
 from uuid import UUID
 
-# Third Party Imports
 import pytest
 from google.protobuf.message import Message
 
-# Local Imports
 from dokime_client.client import Cycle, Execution, _contracts
 from dokime_client.client._transport import Transport
 from dokime_client.client.errors import ProtocolError, RpcError
 from dokime_client.client.exports import export_evidence
 from dokime_client.client.models import Backend
 
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
 IDENTITY = str(UUID(int=1))
 DATA = b"saved-evidence:" + bytes(range(256)) * 400
 BACKEND = Backend("host", "epoch", "0.6", "Export Fixture", frozenset(), max_evidence_bytes=1024 * 1024)
 
-# === Types === #
 
-
-# === Classes === #
 class Reader:
     def __init__(self, frames: list[Message], failure: Exception | None = None, *, stall: bool = False) -> None:
         self.frames = iter(frames)
@@ -86,7 +72,6 @@ class ExportTransport(Transport):
         return self.reader
 
 
-# === Public Functions === #
 def test_verified_export(tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
     destination.write_bytes(b"previous")
@@ -171,7 +156,6 @@ def test_export_cancellation(tmp_path: Path) -> None:
     assert not destination.with_suffix(".zip.part").exists()
 
 
-# === Private Functions === #
 def _frame(branch: str, fields: dict) -> Message:
     output = _contracts.operation("Content", "DownloadEvidence").output
     assert output is not None
@@ -193,6 +177,3 @@ def _frames(*, kind: str = "Execution") -> list[Message]:
     chunks = [_frame("Chunk", {"offset": offset, "data": DATA[offset : offset + 65_536]}) for offset in range(0, len(DATA), 65_536)]
     complete = _frame("Complete", {"size_bytes": len(DATA), "sha256": sha256})
     return [metadata, *chunks, complete]
-
-
-# === Entry Point === #

@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { artifactLabel } from "@/lib/dashboard";
-
-/* === Types === */
 
 export type ArtifactTreeInput = {
   artifact_id: string;
@@ -47,8 +43,6 @@ export type ArtifactTreeFolder = {
   folders: ArtifactTreeFolder[];
   files: ArtifactTreeFile[];
 };
-
-/* === Public Functions === */
 
 export function buildArtifactTree(artifacts: ArtifactTreeInput[], runDir?: string | null): ArtifactTreeFolder {
   const root: ArtifactTreeFolder = {
@@ -136,8 +130,6 @@ export function normalizeArtifactPath(path: string): string {
     .replace(/\/+/gu, "/")
     .replace(/\/$/u, "");
 }
-
-/* === Private Functions === */
 
 function stripRunDir(path: string, runDir: string): string {
   if (!path) {

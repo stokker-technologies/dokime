@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::storage::telemetry::TelemetryEntry as ExecutionTelemetryRow;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
 use crate::{RuntimeHandle, runtime::Result};
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,12 +38,6 @@ pub struct ExecutionTelemetryPage {
     pub issues_truncated: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl RuntimeHandle {
     pub async fn execution_checkpoint_telemetry(
         &self, checkpoint: ExecutionCheckpoint, stream: &Identifier, query: ExecutionTelemetryQuery,
@@ -70,9 +46,3 @@ impl RuntimeHandle {
         crate::runtime::storage::telemetry_pages::read(&view, stream, query, self.schema_settings()).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

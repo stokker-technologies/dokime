@@ -7,35 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // resource records project into instance groups without mutating parameters.
 
 pub(super) async fn resource_records_absent(runtime: &RuntimeHandle) {
@@ -132,5 +105,3 @@ async fn publish_tooling_resource(runtime: &RuntimeHandle, scope: &RecordScope, 
 
     runtime.publish_record(request).await.unwrap();
 }
-
-/* === Tests === */

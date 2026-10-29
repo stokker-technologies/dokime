@@ -7,41 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{net::Ipv4Addr, sync::Arc};
-// Third Party Imports
+
 use tonic::Status;
-// Local Imports
+
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
 use dokime::client::contracts::runtime;
 use dokime::domain::model;
 use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSecrets, ConnectionSession, ConnectionTarget};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn switching_cancels_work() {

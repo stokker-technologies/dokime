@@ -7,16 +7,11 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-
-/* === Local Imports === */
-
 import { DataTable } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
@@ -30,10 +25,6 @@ import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
 
-/* === Constants === */
-
-/* === Types === */
-
 type LibrarySurfaceProps = {
   /** A cycle to make active on arrival, as Add Cases names it; a closed one is ignored. */
   appendTo?: string;
@@ -43,8 +34,6 @@ type OpenTemplate = {
   suite: TestSuiteEntry;
   template: SuiteTemplateEntry;
 };
-
-/* === Components === */
 
 /**
  * Suite and template selection. Cases enter the active cycle through the
@@ -179,5 +168,3 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     </PageShell>
   );
 }
-
-/* === Private Functions === */

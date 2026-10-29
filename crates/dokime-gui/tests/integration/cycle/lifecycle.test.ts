@@ -7,18 +7,13 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 
-// Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";
 import { cycleControlState } from "@/features/cycle/control-model";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
@@ -29,10 +24,6 @@ import {
   startNativeTestExecution,
   stopNativeTestExecution,
 } from "@/lib/api/native-execution";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const fixture = vi.hoisted(() => ({
   append: vi.fn(),
@@ -46,19 +37,9 @@ const fixture = vi.hoisted(() => ({
 
 const session = { generation: "lifecycle", isCurrent: () => true };
 
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 function accepted() {
   return { outcome: { HarmosVariant: { case: "Accepted", value: { field0: { commandId: "execution", jobId: null } } } } };
 }
-
-/* === Entry Point === */
 
 vi.mock("@/lib/rpc/generated/client", () => ({
   executionAppendExecutions: fixture.append,

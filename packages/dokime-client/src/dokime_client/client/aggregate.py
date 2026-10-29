@@ -8,33 +8,18 @@
 
 """Name Harmos Aggregates Through Their Generated Enum Message"""
 
-# === Imports === #
-
-# Standard Library Imports
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Literal
 
-# Third Party Imports
 from google.protobuf.message import Message
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 _VARIANT = "_harmos_variant"
 _MAX_RANK = 100
 
-# === Types === #
 
 type Member = Literal["Count", "Sum", "Mean", "Median", "Min", "Max", "Rms", "Std", "Percentile"]
-
-# === Classes === #
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,10 +99,3 @@ class Aggregate:
         if self.rank is None:
             return self.member.lower()
         return f"p{self.rank}"
-
-
-# === Public Functions === #
-
-# === Private Functions === #
-
-# === Entry Point === #

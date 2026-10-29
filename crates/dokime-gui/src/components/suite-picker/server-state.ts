@@ -9,11 +9,7 @@
 
 /* Suite selection server state. */
 
-/* === External Imports === */
-
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
@@ -21,15 +17,11 @@ import { fetchNativeSuites } from "@/lib/api/native-catalog";
 import { appendNativeTestCycle, previewNativeTestCycle } from "@/lib/api/native-planning";
 import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
-/* === Query Keys === */
-
 export const suiteQueryKeys = {
   all: ["suite"] as const,
   preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
-
-/* === Hooks === */
 
 export function useTestSuitesQuery() {
   const session = useNativeSession();

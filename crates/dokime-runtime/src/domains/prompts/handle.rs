@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-// Third Party Imports
-
-// Local Imports
 use crate::prompts::admission::{validate_request, validate_response};
 use crate::prompts::{PromptInstance, PromptRequest, PromptResponse};
 use crate::transactions::prompts::{RequestPrompt as Request, SubmitPromptResponse as SubmitResponse};
@@ -32,20 +22,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn prompt_definitions(&self) -> Vec<PromptDefinition> {
@@ -196,10 +172,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn ensure_accepted(receipt: &CommandReceipt) -> std::result::Result<(), Error> {
     match &receipt.rejection {
         Some(rejection) => Err(Error::internal(rejection.code.clone(), rejection.message.clone())),
@@ -214,5 +186,3 @@ fn prompt_projection_missing(message: impl Into<String>) -> Error {
 fn prompt_wait_cancelled(message: impl Into<String>) -> Error {
     Error::cancelled("prompt_wait_cancelled", message)
 }
-
-/* === Tests === */

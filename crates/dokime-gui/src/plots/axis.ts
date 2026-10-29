@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { ValueFormat } from "@/lib/types";
@@ -18,8 +16,6 @@ import { numericValue } from "@/lib/utils";
 // formatter it falls back to; re-exported so this module — and its test file
 // — stay the plot layer's home for it.
 export { defaultPlotNumber } from "@/lib/format";
-
-/* === Constants === */
 
 /**
  * The duration units a declared x column may name, mapped to the symbol the
@@ -74,8 +70,6 @@ const MAX_TICK_FRACTION_DIGITS = 6;
 /** A wall clock resolves no finer than a millisecond. */
 const MAX_CLOCK_FRACTION_DIGITS = 3;
 
-/* === Types === */
-
 /** How a plot's x axis prints, and what one pixel of it spans. */
 export type CursorXAxis = {
   timeAxis: boolean;
@@ -87,8 +81,6 @@ export type CursorXAxis = {
   /** The plot area's width in CSS pixels. */
   widthPx: number;
 };
-
-/* === Public Functions === */
 
 /**
  * The duration unit a plot's declared x column names, or `null` when the
@@ -179,8 +171,6 @@ export function xValue(value: unknown, index: number): number {
   }
   return index;
 }
-
-/* === Private Functions === */
 
 /** Local `M/D/YY h:mm:ss[.fff] AM`, the date-and-clock form the time axis reads in. */
 function clockLabel(epochSeconds: number, fractionDigits: number): string {

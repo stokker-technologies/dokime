@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Code;
-// Local Imports
+
 use crate::support::wire::WireMessage;
 use crate::{WireClient, contracts};
 use dokime::domain::model;
@@ -27,24 +18,6 @@ use {
     model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
     model::records::product::ProductCalibrationPhase,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn start(root: &std::path::Path) -> (Runtime, Server, WireClient) {
     start_bounded(root, 1024 * 1024).await
@@ -529,5 +502,3 @@ pub(crate) async fn oversized_delivery_evidence() {
     schema_server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

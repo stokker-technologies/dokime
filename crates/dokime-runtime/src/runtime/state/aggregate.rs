@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::RuntimeState;
 use crate::{
     RuntimeConfig,
@@ -25,22 +14,6 @@ use crate::{
     queries::{RuntimeCycleSummary, RuntimeOverviewFrame, RuntimeOverviewSnapshot, RuntimeRetentionDiagnostics},
 };
 use dokime_domain::model::execution::result::CycleView;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usize, traceability: usize) -> RuntimeOverviewFrame {
     RuntimeOverviewFrame {
@@ -98,8 +71,6 @@ pub(crate) fn runtime_overview_snapshot(
     }
 }
 
-/* === Private Functions === */
-
 fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) -> RuntimeRetentionDiagnostics {
     RuntimeRetentionDiagnostics {
         state_cycles: state.cycles.len(),
@@ -108,5 +79,3 @@ fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) 
         telemetry_cursor_entries,
     }
 }
-
-/* === Tests === */

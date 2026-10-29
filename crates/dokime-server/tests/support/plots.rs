@@ -9,34 +9,16 @@
 
 // The Plot Admission Path, Shared By Its Integration Guard And Its Full-Scale System Story.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Code;
 
-// Local Imports
 use super::wire::{WireClient, WireStream, runtime};
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime_server::grpc::Config;
 use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
-/* === Constants === */
-
 // The Query Limit Of One Plot Request, Independent Of The Message Budget.
 const QUERY_POINTS: u64 = 100_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One Size Of The Admission Path: Saved Rows, The Message Budget And The Two Requested Windows.
 #[derive(Clone, Copy, Debug)]
@@ -47,14 +29,6 @@ pub struct Admission {
     pub window: u64,
     pub oversized: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // Oversized Plot Responses Reduce Display Points Without Repeating The Storage Query.
 pub async fn admission(size: Admission) {
@@ -207,8 +181,6 @@ pub async fn publish_scoped(
     save(handle, id, samples).await;
 }
 
-/* === Private Functions === */
-
 // Millisecond Steps From Midnight, So Tens Of Thousands Of Rows Keep Distinct Times.
 fn clock(index: u64) -> Timestamp {
     let (hours, minutes, seconds, milliseconds) = (index / 3_600_000, index / 60_000 % 60, index / 1_000 % 60, index % 1_000);
@@ -232,5 +204,3 @@ async fn save(handle: &dokime::RuntimeHandle, id: &Identifier, samples: Vec<Tele
     handle.publish_telemetry_batch(batch).await.unwrap();
     handle.storage().flush().await.unwrap();
 }
-
-/* === Tests === */

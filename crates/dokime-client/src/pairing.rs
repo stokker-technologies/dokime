@@ -9,39 +9,13 @@
 
 // Bounded Pairing File Input And Certificate Trust Validation
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_domain::model::remote::PairingFile;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 
-// Third Party Imports
 use rustls::pki_types::{CertificateDer, pem::PemObject};
 
-// Local Imports
-
-/* === Constants === */
-
 const PAIRING_BYTES: usize = 1_048_576;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn read(path: &Path) -> Result<PairingFile, super::profiles::Error> {
     let bytes = harmos::filesystem::input::read(path, PAIRING_BYTES)?;
@@ -54,8 +28,6 @@ pub fn read(path: &Path) -> Result<PairingFile, super::profiles::Error> {
     Ok(pairing)
 }
 
-/* === Private Functions === */
-
 pub(crate) fn validate_ca(pem: &str) -> Result<(), super::profiles::Error> {
     let mut roots = rustls::RootCertStore::empty();
     for certificate in CertificateDer::pem_slice_iter(pem.as_bytes()) {
@@ -67,5 +39,3 @@ pub(crate) fn validate_ca(pem: &str) -> Result<(), super::profiles::Error> {
     }
     Ok(())
 }
-
-/* === Tests === */

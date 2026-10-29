@@ -8,23 +8,20 @@
  */
 
 import { notesNewestFirst } from "@/features/cycle/operator-notes-model";
-/* === Local Imports === */
+
 import { useAddNoteMutation, useEditNoteMutation } from "@/features/cycle/server-state";
 import type { OperatorNote, RecordScope } from "@/lib/types";
 import { EditableOperatorNotes, FrozenOperatorNotes } from "./OperatorNotesView";
 
-/* === Types === */
 type OperatorNotesContentProps = {
   notes: OperatorNote[];
   scope?: RecordScope | null;
 };
 
-/* === Components === */
 export function OperatorNotesContent({ notes, scope = null }: OperatorNotesContentProps) {
   return scope ? <ConnectedOperatorNotes notes={notes} scope={scope} /> : <FrozenOperatorNotes notes={notes} />;
 }
 
-/* === Private Components === */
 function ConnectedOperatorNotes({ notes, scope }: { notes: OperatorNote[]; scope: RecordScope }) {
   const addNote = useAddNoteMutation();
   const editNote = useEditNoteMutation();

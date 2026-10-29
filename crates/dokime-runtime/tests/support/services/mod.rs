@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub mod backend;
 pub mod budgets;
 pub mod bundles;
@@ -71,34 +70,13 @@ pub mod prelude {
     };
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-// Third Party Imports
 
-// Local Imports
 use dokime_runtime::domains::execution::provider::ExecutionFixture;
 use dokime_runtime::{Identifier, Metadata, Value};
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn config(root: impl Into<PathBuf>) -> RuntimeConfig {
     budgets::runtime_config(root, metadata("runtime.hub", "Runtime Hub"))
 }
@@ -184,7 +162,3 @@ pub fn identifier(value: &str) -> Identifier {
 pub fn value(value: serde_json::Value) -> Value {
     Value::from_plain_json(value).unwrap()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

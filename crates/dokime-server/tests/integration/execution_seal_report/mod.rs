@@ -9,8 +9,6 @@
 
 // Planning, append, prompts, records, notes, evidence, traceability and history of an execution over the served surface.
 
-/* === Modules === */
-
 mod append;
 mod evidence;
 mod history;
@@ -20,36 +18,7 @@ mod prompts;
 mod records;
 mod traceability;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn execution_seal_report() {

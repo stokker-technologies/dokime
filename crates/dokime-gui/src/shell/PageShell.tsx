@@ -11,25 +11,15 @@
  * One Page Shell For Content Pages
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
-// Third Party Imports
+
 import { type ComponentProps, type ReactNode, useEffect } from "react";
-// Local Imports
+
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 type PageShellProps = Omit<ComponentProps<"div">, "children" | "className" | "title"> & {
   /** The breadcrumb, outermost first; the page bar shows it joined with chevrons. */
@@ -45,8 +35,6 @@ type PageNoticeProps = {
   /** `alert` for failures the page cannot hide, `status` for quiet notes. */
   tone?: "alert" | "status";
 };
-
-/* === Components === */
 
 /**
  * The content page: its breadcrumb and actions in the page bar, the shell inset
@@ -66,15 +54,9 @@ export function PageNotice({ children, tone = "status" }: PageNoticeProps) {
   return <NotificationMessage tone={tone === "alert" ? "error" : "info"}>{children}</NotificationMessage>;
 }
 
-/* === Hooks === */
-
-/* === Public Functions === */
-
 export function pageTitle(trail: string[]): string {
   return trail.join(" \u203a ");
 }
-
-/* === Private Functions === */
 
 export function PanelHeader({
   title,

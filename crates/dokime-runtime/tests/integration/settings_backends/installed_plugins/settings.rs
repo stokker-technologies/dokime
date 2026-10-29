@@ -7,28 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
 
 use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[dokime_runtime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
 struct FixtureSettings {
@@ -44,16 +27,6 @@ struct FixtureConnection {
     #[setting(label = "Access Token")]
     token: Option<dokime_runtime::plugin::Secret>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn boot_health_transaction() {
     let root = tempdir().unwrap();
@@ -232,5 +205,3 @@ fn settings_artifact() -> dokime_runtime::InstalledPlugin {
         ..Default::default()
     }
 }
-
-/* === Tests === */

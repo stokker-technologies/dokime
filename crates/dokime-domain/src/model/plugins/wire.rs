@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-/* === Constants === */
-
 pub const INSTALL_ARCHIVE_MAX_BYTES: u64 = 272 * 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -169,8 +151,6 @@ pub struct AdmittedPlugin {
     pub owner: Option<AdmittedPluginOwner>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PluginInstallationState {
@@ -201,13 +181,3 @@ pub enum AdmittedPluginOwner {
     Bundle(AdmittedBundleOwner),
     Embedded(AdmittedEmbeddedOwner),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

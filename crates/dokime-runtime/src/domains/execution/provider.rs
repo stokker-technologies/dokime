@@ -7,22 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod admission;
-
-/* === Re-Exports === */
 
 pub(crate) use crate::runtime::operations::provider::ProviderCycleRequest;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
-// Third Party Imports
-
-// Local Imports
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
 use crate::evidence_runtime::ArtifactUploadInput;
 use crate::evidence_runtime::PublishReceipt;
@@ -42,16 +32,8 @@ use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type ExecutionFixtureFuture<'a> =
     Pin<Box<dyn Future<Output = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>> + Send + 'a>>;
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct ExecutionFixtureContext {
@@ -71,10 +53,6 @@ pub(crate) struct ProviderCycleAdmission {
     pub(crate) job: ProviderCycleRequest,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait ExecutionFixture: Send + Sync + 'static {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
@@ -84,8 +62,6 @@ pub trait ExecutionFixture: Send + Sync + 'static {
         None
     }
 }
-
-/* === Implementations === */
 
 impl ExecutionFixtureContext {
     pub(crate) fn new(runtime: RuntimeHandle) -> Self {
@@ -295,8 +271,6 @@ impl ProviderExecutorRegistry {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn provider_targets_for_cycle(
     state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
 ) -> Vec<ExecutionProviderTarget> {
@@ -319,7 +293,3 @@ pub(crate) fn provider_targets_for_cycle(
 
     targets
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

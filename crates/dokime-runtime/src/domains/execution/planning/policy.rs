@@ -7,36 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::UpdateCyclePolicy as UpdatePolicy;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 
-// Local Imports
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn update_cycle_policy(
@@ -56,9 +32,3 @@ impl RuntimeHandle {
         self.execution_storage.save_cycle(test_cycle_id).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

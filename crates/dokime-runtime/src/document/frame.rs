@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::num::NonZeroU128;
 
-// Third Party Imports
 use harmos::Aggregate;
 use harmos::storage::query::{
     Accumulator,
     scalar::{Agg, ExactNumber, ScalarValue},
 };
 
-// Local Imports
 use super::DocumentFailure;
 use super::binding::{Evidence, Row};
 use super::context::Entry;
@@ -36,18 +27,10 @@ use dokime_domain::model::execution::EvidenceOrigin;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 const NONNUMERIC: &str = "numeric aggregate contains nonnumeric or nonfinite evidence";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Result<T> = crate::Result<T>;
-
-/* === Structs === */
 
 pub(super) struct Plan<'a> {
     left: Columns,
@@ -118,8 +101,6 @@ pub(crate) struct Side<'a> {
     pub present: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Ordinal,
@@ -165,10 +146,6 @@ pub(crate) enum Strategy {
     AtOrBefore,
     Previous,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Columns {
     fn new() -> Self {
@@ -705,13 +682,9 @@ impl<'a> Lookup<'a> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn nanos(timestamp: &dokime_domain::model::time::Timestamp) -> Option<i128> {
     timestamp.to_datetime().ok().map(|time| time.unix_timestamp_nanos())
 }
-
-/* === Private Functions === */
 
 fn lookup_keys<'a>(side: &Side<'a>) -> (&'a str, &'a str) {
     let execution = side.scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or("", |id| id.as_str());
@@ -862,5 +835,3 @@ fn reduction(error: harmos::storage::Error) -> crate::Error {
         _ => failure("document fold failed"),
     }
 }
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod command;
 mod embedded;
 pub mod error;
@@ -22,8 +20,6 @@ pub mod rollback;
 pub(crate) mod sidecars;
 pub mod state;
 pub(crate) mod storage;
-
-/* === Re-Exports === */
 
 pub use crate::execution::context::ExecutionCycleContext;
 pub use embedded::EmbeddedProvider;
@@ -45,27 +41,14 @@ pub use storage::{
     telemetry::{TelemetryPage, TelemetryReader},
 };
 
-/* === Imports === */
-
-// Standard Library Imports
 // Named by this crate's own domain modules, by nobody outside it.
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use futures_util::future::BoxFuture;
 
-// Local Imports
 use crate::app::HarmosRuntime;
 use crate::{config::RuntimeConfig, execution_runtime::provider::ExecutionFixture};
 use query::RuntimeOverviewSnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Runtime {
     handle: RuntimeHandle,
@@ -96,12 +79,6 @@ struct Shutdown {
     complete: bool,
     task_failure: Option<Arc<tokio::task::JoinError>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for BackgroundTask {
     fn drop(&mut self) {
@@ -419,9 +396,3 @@ impl Runtime {
         Ok(overview)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,39 +9,8 @@
 
 // Evidence storage saves, reopens, recovers from a restart midway and honours cancellation through the real backends.
 
-/* === Modules === */
 pub(crate) mod engine_storage;
 pub(crate) mod runtime_storage;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn storage_recovery() {

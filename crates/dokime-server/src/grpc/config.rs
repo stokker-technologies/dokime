@@ -7,25 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{net::SocketAddr, num::NonZeroUsize, sync::Arc, time::Duration};
 
-// Third Party Imports
 use zeroize::Zeroizing;
 
-// Local Imports
 use super::{
     Error,
     access::{self, Policy},
 };
-
-/* === Constants === */
 
 const SERVER_ALLOWED_ORIGINS: u64 = 32;
 const SERVER_CALLS: u64 = 32;
@@ -41,12 +30,6 @@ const SERVER_REQUEST_TIMEOUT_MS: u64 = 86_400_000;
 const SERVER_SHUTDOWN_TIMEOUT_MS: u64 = 5_000;
 const SERVER_STREAM_ITEMS: u64 = 1;
 const SERVER_TLS_TIMEOUT_MS: u64 = 10_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct TlsIdentity {
@@ -64,12 +47,6 @@ pub struct Config {
     remote: bool,
     web: Option<Vec<dokime::harmos::grpc::Origin>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::fmt::Debug for TlsIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -225,9 +202,3 @@ impl Default for Config {
         Self::local()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

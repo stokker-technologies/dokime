@@ -7,32 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{AdmissionIssue, ConnectionError};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<dokime::client::Error> for ConnectionError {
     fn from(error: dokime::client::Error) -> Self {
@@ -64,8 +39,6 @@ impl From<dokime::client::Error> for ConnectionError {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn invalid_target(message: &str) -> ConnectionError {
     ConnectionError::InvalidTarget { message: message.into() }
 }
@@ -77,7 +50,3 @@ pub(super) fn rpc_error(status: tonic::Status) -> ConnectionError {
         _ => ConnectionError::Transport,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

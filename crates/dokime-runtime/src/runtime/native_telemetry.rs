@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
-
-// Local Imports
 use super::RuntimeHandle;
 use crate::domains::telemetry::Payloads;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
@@ -27,14 +17,6 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 pub(crate) struct Executions(Arc<Mutex<BTreeMap<String, Execution>>>);
@@ -49,12 +31,6 @@ pub(crate) struct Admission {
     executions: Executions,
     token: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Executions {
     pub(crate) fn admit(
@@ -109,8 +85,6 @@ impl Drop for Admission {
         self.executions.0.lock().expect("execution publication admissions are healthy").remove(&self.token);
     }
 }
-
-/* === Public Functions === */
 
 // A Run Of Rows Sharing One Declaration And Context Is Projected Once With The Saved Codec.
 // Refused Rows Record A Gap; Admission Failure Never Replays An Already Decoded Run.
@@ -248,8 +222,6 @@ pub(super) async fn incomplete(handle: &RuntimeHandle, owner: &str, stream: &Ide
     }
 }
 
-/* === Private Functions === */
-
 // The Execution A Publication Context Names, None For The Owner's Own Stream; An Unknown Context Is
 // Refused With Its Reason And An Unowned Stream Without Context Is Ignored.
 fn publication_scope(
@@ -303,8 +275,6 @@ fn publication_time(published_unix_micros: Option<i64>) -> Result<Timestamp, Str
         .map_err(|error| format!("producer timestamp cannot be represented: {error}"))?;
     Ok(Timestamp::new(encoded))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

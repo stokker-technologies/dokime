@@ -7,31 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
 mod call;
 mod list;
 mod show;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -45,12 +23,6 @@ pub(crate) enum Command {
     Call(call::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
         Command::List(args) => list::run(args, settings).await,
@@ -58,7 +30,3 @@ pub(crate) async fn run(command: Command, settings: &dokime::domain::model::sett
         Command::Call(args) => call::run(args, settings).await,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

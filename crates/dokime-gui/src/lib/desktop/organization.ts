@@ -11,20 +11,6 @@
  * Organization Pack Status The Desktop Shell Reports
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 /** Mirrors `PackSummary` in `src-tauri/src/app/organization.rs`. */
 export type OrganizationPackSummary = {
   label: string;
@@ -63,16 +49,8 @@ export type OrganizationUpdatePolicy = {
 
 export type BootOrganization = { pack: BootOrganizationPack | null; error: string | null };
 
-/* === Classes === */
-
-/* === Public Functions === */
-
 export function organizationPackError(error: string | null, retained: boolean): string | null {
   if (!error) return null;
   const appearance = retained ? "The last valid pack remains active." : "The bundled organization applies.";
   return `Not applied: ${error}. ${appearance}`;
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

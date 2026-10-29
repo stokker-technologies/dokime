@@ -9,39 +9,8 @@
 
 // The artifact directory and diagnostics publish, list and read back through the engine.
 
-/* === Modules === */
 pub(crate) mod artifacts;
 pub(crate) mod diagnostics;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn engine_artifacts() {

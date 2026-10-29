@@ -7,13 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatDuration } from "./format";
-
-/* === Constants === */
-
-/* === Public Functions === */
 
 /**
  * Parse a wire timestamp into epoch milliseconds. Missing and unparseable
@@ -71,8 +65,6 @@ export function defaultCycleLabel(now: Date = new Date()): string {
   }).format(now);
   return `Test Cycle - ${formatted}`;
 }
-
-/* === Private Functions === */
 
 function elapsedEndTime(finishedAt: string | null | undefined, now: number): number {
   return parseTimestampMs(finishedAt) ?? now;

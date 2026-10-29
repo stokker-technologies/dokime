@@ -13,18 +13,12 @@
    the transport is injected, so the same logic runs under the node test runner
    and in the viewer. Type-only imports are erased before either runs. */
 
-/* === Local Imports === */
-
 import type { ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileLifecycle, ExecutionFileReadWindow } from "@/lib/types";
-
-/* === Constants === */
 
 const GUI_FILE_WINDOW_BYTES = 65_536;
 
 /** The contract's bound on one `ReadExecutionFile` window and one follow chunk. */
 export const EXECUTION_FILE_WINDOW_BYTES = GUI_FILE_WINDOW_BYTES;
-
-/* === Types === */
 
 export type ReadExecutionFileWindow = (offset: number, maxBytes: number) => Promise<ExecutionFileReadWindow>;
 
@@ -46,8 +40,6 @@ export type ExecutionFileFollowCursor = {
   availableLength: number;
   phase: "connecting" | "producing" | "finished" | "abandoned";
 };
-
-/* === Public Functions === */
 
 /**
  * Read `[offset, offset + budgetBytes)` in windows no larger than the contract
@@ -180,8 +172,6 @@ export function advanceFollowCursor(cursor: ExecutionFileFollowCursor, event: Ex
 export function followTailOffset(availableLength: number, tailBytes: number): number {
   return Math.max(0, availableLength - tailBytes);
 }
-
-/* === Private Functions === */
 
 function sameIdentity(left: ExecutionFileIdentity, right: ExecutionFileIdentity): boolean {
   return (

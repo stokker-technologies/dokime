@@ -8,9 +8,6 @@
 
 """Package Product Plugins From Their Existing Compiler Outputs"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import hashlib
 import json
@@ -19,25 +16,11 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
 from dokime_tools.release import policy
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 FIXTURES = ("obc-plugin",)
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] | None = None) -> list[Path]:
@@ -120,9 +103,6 @@ def release_feed(assets: list[tuple[Path, str]], *, tool: Path, requires_dokime:
     return {"format_version": 1, "package": identity[0], "version": identity[1], "requires_dokime": requires_dokime, "assets": entries}
 
 
-# === Private Functions === #
-
-
 def _capture(command: list[str], *, cwd: Path | None = None) -> str:
     try:
         result = subprocess.run(
@@ -142,8 +122,6 @@ def _capture(command: list[str], *, cwd: Path | None = None) -> str:
         raise
     return result.stdout
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate plugins.json from inspected, already built bundles")

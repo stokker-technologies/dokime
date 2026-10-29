@@ -13,29 +13,14 @@
  * frozen alike.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { RecordListContent } from "@/components/document/DocumentSurfaceView";
 import type { HubRecord } from "@/lib/types";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type RecordsSectionProps = {
   records: HubRecord[];
   live: boolean;
 };
-
-/* === Components === */
 
 export function RecordsSection({ live, records }: RecordsSectionProps) {
   return (
@@ -44,9 +29,3 @@ export function RecordsSection({ live, records }: RecordsSectionProps) {
     </ExecutionSectionCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

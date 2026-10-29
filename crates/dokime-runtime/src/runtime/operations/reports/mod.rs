@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod cycle;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::reports::MaterializeReport;
 use crate::report::Scope;
@@ -32,14 +23,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 use dokime_domain::model::reports::wire::ReportSubject;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) execution_storage: Arc<ExecutionStorage>,
     pub(super) settings: crate::storage::sqlite::State,
@@ -48,16 +31,10 @@ pub(super) struct Resources {
     scope: Scope,
 }
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum Operations {
     Materialize(MaterializeReport),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 struct Runtime(crate::app::LiveRuntime);
 
@@ -93,8 +70,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, live: &crate::app::LiveRuntime) {
     setup.resource::<Host<MaterializeReport>>(Host::<MaterializeReport>::new(Arc::new(Runtime(live.clone()))));
     setup.operations::<Operations>(Lanes::Open);
@@ -118,8 +93,6 @@ impl Resources {
         }
     }
 }
-
-/* === Private Functions === */
 
 async fn execution(
     ctx: &Scope, resources: &Resources, id: &TestExecutionId, at: &harmos::storage::StorageCursor,
@@ -222,5 +195,3 @@ pub(crate) fn status(error: Error) -> Status {
     status.set_source(Arc::new(error));
     status
 }
-
-/* === Tests === */

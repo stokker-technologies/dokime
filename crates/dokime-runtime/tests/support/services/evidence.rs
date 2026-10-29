@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
-// Third Party Imports
 
-// Local Imports
 use super::identifier;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_runtime::RuntimeHandle;
@@ -32,26 +24,12 @@ use dokime_runtime::transport::{
 use dokime_runtime::{Identifier, RecordScope, Timestamp, Value};
 use {dokime_domain::model::execution::result::ExecutionStatus, dokime_domain::model::execution::result::TestExecution};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct ProviderIdentity<'a> {
     pub module: &'a str,
     pub registrations: u64,
     pub suite: &'a str,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn cycle_outcome(
     cycle: &CycleView, provider: ProviderIdentity<'_>, outcome: impl Fn(&TestCase, &TestExecution) -> ProviderExecutionOutcome,
 ) -> ProviderCycleOutcome {
@@ -481,7 +459,6 @@ pub fn samples_from(stream: &str, first: usize, count: usize, scope: Option<Reco
     TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
-/* === Private Functions === */
 fn stream_columns(stream: &str, index: usize) -> Vec<(&'static str, Value)> {
     match stream {
         "host.wifi.scan" => vec![
@@ -493,5 +470,3 @@ fn stream_columns(stream: &str, index: usize) -> Vec<(&'static str, Value)> {
         stream => panic!("no fixture columns for stream {stream}"),
     }
 }
-
-/* === Tests === */

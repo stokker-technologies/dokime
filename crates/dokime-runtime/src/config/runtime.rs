@@ -7,35 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 
-// Third Party Imports
 use harmos::storage::StorageSettings;
 
-// Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
 use crate::domains::ActionDispatcher;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
-
-/* === Structs === */
 
 #[derive(Clone, serde::Deserialize)]
 pub struct RuntimeConfig {
@@ -84,12 +67,6 @@ pub struct RuntimeConfig {
     #[serde(skip)]
     pub composition: Vec<crate::app::Composition>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
@@ -185,9 +162,3 @@ impl fmt::Debug for RuntimeConfig {
             .finish()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

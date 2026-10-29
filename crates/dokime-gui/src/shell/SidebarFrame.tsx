@@ -11,12 +11,8 @@
  * Shared Sidebar Frame; The Owning Surface Supplies Navigation.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-// Third Party Imports
+
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/ui-store";
@@ -24,15 +20,6 @@ import { BrandMark } from "./BrandMark";
 import { sidebarWidth } from "./navigation-model";
 import { useSidebarState } from "./use-sidebar-state";
 
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 export function SidebarFrame({ children }: { children: ReactNode }) {
   const { collapsed, width, mode, toggle } = useSidebarState();
   if (mode === "phone") return null;
@@ -88,9 +75,3 @@ export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
     </div>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

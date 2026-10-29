@@ -7,28 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Bluetooth, Network, System, WifiLatency, WifiLink, WifiScan};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Catalog {
@@ -40,17 +19,7 @@ pub enum Catalog {
     Bluetooth(Bluetooth),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl dokime::catalog::IdentifierCatalog<dokime::catalog::StreamIdentifiers> for Catalog {
     const IDENTIFIERS: &'static [dokime::catalog::Node<&'static str>] =
         &<Self as dokime::catalog::Catalog<dokime::catalog::StreamIdentifiers>>::ENTRIES;
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

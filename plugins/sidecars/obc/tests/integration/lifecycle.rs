@@ -7,41 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::Value;
 use dokime::domain::model;
 use dokime::execution::Workflow;
 use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use model::records::publication::RecordPublishRequest;
 use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn start_request(token: &str, sample_count: u64) -> RunExecution {
     let template = <Pulse as dokime::definition::DeclaredTemplate>::declaration();
@@ -127,8 +98,6 @@ fn outcome(replies: &[EvidenceBatch]) -> &SidecarExecutionOutcome {
 fn records(replies: &[EvidenceBatch]) -> Vec<RecordPublishRequest> {
     replies.iter().flat_map(|reply| reply.records.iter()).map(|record| serde_json::from_str(record).expect("every event decodes")).collect()
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn execution_streams_outcome() {

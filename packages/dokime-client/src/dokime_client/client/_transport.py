@@ -8,9 +8,6 @@
 
 """Authenticated asyncio gRPC transport, negotiation and verified downloads."""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import hashlib
 import json
@@ -24,24 +21,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-# Third Party Imports
 import grpc
 from google.protobuf.json_format import ParseDict
 from google.protobuf.message import DecodeError, Message
 
-# Local Imports
 from ..dynamic import from_contract
 from ..operation import Operation
 from . import _contracts, _wire
 from .errors import BackendChanged, ClientClosed, ProtocolError, RpcError
 from .models import Backend
 from .secrets import _validate_key
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 CA_BYTES = 1048576
 CATALOG_BYTES = 16777216
@@ -57,11 +46,6 @@ PROFILE_ID_BYTES = 256
 PROJECTION_BYTES = 4194304
 PROJECTION_DEFINITIONS = 65536
 PROJECTION_WORK = 1048576
-
-
-# === Types === #
-
-# === Classes === #
 
 
 class Transport:
@@ -724,11 +708,6 @@ class _Stream:
             self._transport._calls.discard(self._call)
 
 
-# === Public Functions === #
-
-# === Private Functions === #
-
-
 def _stream_timeout(operation: Operation) -> float:
     try:
         timeout = json.loads(operation.contract)["operation"]["policy"]["timeout"]
@@ -801,6 +780,3 @@ def _object(items: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError("duplicate catalog field")
         result[key] = value
     return result
-
-
-# === Entry Point === #

@@ -8,9 +8,6 @@
 
 """Keep Updater Verification Independent Of Private Signing Secrets"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 import shutil
@@ -18,25 +15,10 @@ import stat
 import zipfile
 from pathlib import Path
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.build import organization
 from dokime_tools.package import installer, payload
 from dokime_tools.prepare import resources
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_installer_keeps_compiled_trust_and_organization_owned_sources(tmp_path: Path) -> None:
@@ -276,9 +258,6 @@ def test_payload_input_retained(tmp_path: Path) -> None:
     assert {path.relative_to(source): path.read_bytes() for path in source.rglob("*") if path.is_file()} == original
 
 
-# === Private Functions === #
-
-
 def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _native_build(tmp_path, "dev", "x86_64-pc-windows-msvc")
     monkeypatch.setattr(installer.sys, "platform", "win32")
@@ -382,6 +361,3 @@ def _tag(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
         monkeypatch.setenv("GITHUB_REF", "refs/tags/v0.1.0")
     else:
         monkeypatch.setenv("CI_COMMIT_TAG", "v0.1.0")
-
-
-# === Entry Point === #

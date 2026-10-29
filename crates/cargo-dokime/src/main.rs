@@ -7,41 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod cli;
 mod commands;
 mod error;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::ExitCode;
 
-// Third Party Imports
 use clap::Parser;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn main() -> ExitCode {
     let mut args = std::env::args_os().collect::<Vec<_>>();
@@ -65,5 +37,3 @@ fn main() -> ExitCode {
 fn execute(cli: cli::Cli) -> Result<(), error::Error> {
     dokime::process::block_on(cli.command.run())?
 }
-
-/* === Tests === */

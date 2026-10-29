@@ -9,18 +9,11 @@
 
 /* A Single Settings Panel With Shared Navigation And Viewer Preferences. */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { Switch } from "@/components/ui/switch";
-import { useNavigationMode } from "@/shell/use-sidebar-state";
-import { useUiStore } from "@/stores/ui-store";
-
-/* === Local Imports === */
-
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
@@ -35,18 +28,16 @@ import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } f
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
 import { usePageChrome } from "@/shell/page-chrome";
+import { useNavigationMode } from "@/shell/use-sidebar-state";
+import { useUiStore } from "@/stores/ui-store";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
 import { PluginSettingsCards } from "./PluginSettingsCards";
 import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 
-/* === Types === */
-
 type SettingsSurfaceProps = {
   section?: SettingsSectionId;
 };
-
-/* === Components === */
 
 /** The Selected Section Of The Shared Settings Panel. */
 export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {

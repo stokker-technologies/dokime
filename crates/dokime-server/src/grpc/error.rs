@@ -7,41 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::Error;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use prost::Message;
 use tonic::Status;
 
-// Local Imports
 use dokime::plugin::Diagnostic;
 use dokime::runtime::Error as HostError;
 
-/* === Constants === */
-
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[track_caller]
 pub(super) fn detailed(status: Status, error: &HostError) -> Status {
@@ -70,8 +44,6 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
     Status::with_details(code, message, envelope.encode_to_vec().into())
 }
 
-/* === Private Functions === */
-
 fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
     dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
@@ -91,5 +63,3 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         correlation_id: None,
     }
 }
-
-/* === Tests === */

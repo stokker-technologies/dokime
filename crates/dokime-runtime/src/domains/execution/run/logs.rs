@@ -9,33 +9,15 @@
 
 // Persist Sidecar Diagnostics In Bounded Ordered Segments.
 
-/* === Modules === */
-
 #[cfg(feature = "testing")]
 pub(crate) mod testing;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::{ExecutionFixtureContext, TestExecution, artifacts::DiscardedArtifact};
-
-/* === Constants === */
 
 const SEGMENT_BYTES: u64 = 64 * 1024 * 1024;
 const EXECUTION_BYTES: u64 = 1024 * 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub(super) struct StreamLog {
@@ -55,17 +37,11 @@ struct StreamLogWriter<'a> {
     workflow: &'a str,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug)]
 pub(super) enum DropReason {
     Abandoned,
     Incomplete,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DropReason {
     fn trace(self) -> &'static str {
@@ -313,8 +289,6 @@ impl<'a> StreamLogWriter<'a> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn report_dropped(
     context: &ExecutionFixtureContext, execution: &TestExecution, workflow: &str, source: &str, stream_log: &mut StreamLog,
     dropped: &[DiscardedArtifact], reason: DropReason,
@@ -350,8 +324,6 @@ pub(super) async fn report_dropped(
     }
 }
 
-/* === Private Functions === */
-
 fn segment_path(workflow: &str, segment: u32) -> String {
     format!("{workflow}/stream.{segment:06}.log")
 }
@@ -359,5 +331,3 @@ fn segment_path(workflow: &str, segment: u32) -> String {
 fn log_error(error: impl ToString) -> crate::runtime::Error {
     crate::runtime::Error::Operation(error.to_string())
 }
-
-/* === Tests === */

@@ -7,15 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(all(test, feature = "derive"))]
 mod tests {
-    // Standard Library Imports
-    use std::collections::BTreeMap;
-    // Third Party Imports
 
-    // Local Imports
+    use std::collections::BTreeMap;
+
     use dokime_runtime::definition::{
         CaseMaterializationOptions, CaseMaterializationSelection, ParameterDefinition, ParameterExpr, ParameterList,
         ParameterResolverError, ParameterSelection, ParameterSource, TemplateContext, authored_metadata, materialize_template_cases,
@@ -569,27 +565,15 @@ mod tests {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::Parameter;
 use crate::expressions::DataExpression;
 use crate::values::FieldValue;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const CHOICE_LABELS: &str = "choice_labels";
-
-/* === Macros === */
 
 macro_rules! carried {
     ($($type:ty),+ $(,)?) => {
@@ -604,10 +588,6 @@ macro_rules! carried {
 }
 
 carried!(bool, f32, f64, i32, i64, u16, u32, u64, String);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParameterChoice {
@@ -628,10 +608,6 @@ pub struct Bounds {
     pub max_items: Option<usize>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait FromParameters: Send + Sync + Sized + 'static {
     fn declaration() -> Vec<Parameter>;
 
@@ -647,8 +623,6 @@ pub trait ParameterValue: Send + Sync + Sized + 'static {
 
     fn refine(base: Self::Base) -> Result<Self, String>;
 }
-
-/* === Implementations === */
 
 impl ParameterChoice {
     pub fn new(value: impl Into<Value>, label: impl Into<String>) -> Self {
@@ -691,8 +665,6 @@ impl FromParameters for () {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub fn refined<B, T>(base: B) -> Result<T, String>
 where
@@ -748,8 +720,6 @@ pub fn optional_list<T: ParameterValue>(values: &BTreeMap<String, Value>, name: 
         value => items::<T>(name, value, bounds).map(Some),
     }
 }
-
-/* === Private Functions === */
 
 fn refused(parameter: impl Into<String>, reason: impl Into<String>) -> crate::Error {
     crate::Error::Parameter {
@@ -831,5 +801,3 @@ fn bounded(name: &str, value: &Value, bounds: Bounds) -> crate::Result<()> {
 
     Ok(())
 }
-
-/* === Tests === */

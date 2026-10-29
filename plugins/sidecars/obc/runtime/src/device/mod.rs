@@ -7,29 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Supply {
@@ -66,8 +49,6 @@ pub struct Device {
     pub log: Option<PathBuf>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Power {
@@ -84,10 +65,6 @@ pub enum Fault {
     Overcurrent,
     PowerLoss,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for Supply {
     fn default() -> Self {
@@ -191,9 +168,3 @@ impl Device {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

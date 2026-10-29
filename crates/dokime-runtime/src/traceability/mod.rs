@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "native")]
 mod payload;
 #[cfg(feature = "native")]
 mod projection;
-
-/* === Re-Exports === */
 
 #[cfg(feature = "native")]
 pub use projection::{
@@ -31,31 +27,3 @@ pub(crate) use projection::{resource_traceability, scope_discriminator, snapshot
 
 #[cfg(feature = "native")]
 pub(crate) use payload::{count, replace_source, retained_host, retained_leases, retained_state};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

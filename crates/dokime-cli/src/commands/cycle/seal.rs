@@ -9,26 +9,6 @@
 
 // Seal A Remote Cycle And Wait For Durability
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Cycle UUID To Seal; Running Work Stops And Unrun Executions Are Cancelled.")]
@@ -40,14 +20,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Durable Seal Reply As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -64,7 +36,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

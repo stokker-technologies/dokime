@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::runtime::state::RuntimeState;
 use crate::telemetry::SamplingScope;
 use dokime_domain::model::execution::RecordScope;
@@ -28,28 +17,12 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SamplingPhaseState {
     Running,
     Paused,
     Stopped,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn record_scope_from_sampling_scope(scope: &SamplingScope) -> RecordScope {
     let mut record_scope = RecordScope::default();
@@ -112,7 +85,3 @@ pub(crate) fn sampling_phase_state(state: &RuntimeState, scope: &RecordScope, st
         });
     if started { SamplingPhaseState::Running } else { SamplingPhaseState::Paused }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

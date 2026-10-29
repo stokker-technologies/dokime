@@ -9,43 +9,15 @@
 
 // Stop The Host While An Operator Question Waits
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::{
     PROTECTION_SUITE, PROTECTION_TEMPLATE, STARTUP_SUITE, STARTUP_TEMPLATE, Session, create_cycle, cycle_report, on_change, report_bytes,
     run_cycle, selection, suite, wait_prompt,
 };
 use dokime::client::contracts;
 
-/* === Constants === */
-
 const STOP_GUARD: Duration = Duration::from_secs(120);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 // The plugin's sidecar processes among the host's children; host collectors
 // spawn short-lived tools of their own beside them.
@@ -74,8 +46,6 @@ fn running(pid: u32) -> bool {
 fn running(_pid: u32) -> bool {
     false
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn stop_while_prompt_waits() {

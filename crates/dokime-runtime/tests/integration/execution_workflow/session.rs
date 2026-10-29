@@ -7,19 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::execution::log::{Entry, Level};
 use dokime_runtime::runtime::EmbeddedProvider;
@@ -34,16 +26,10 @@ use {
     dokime_runtime::execution::ExecutionHost, dokime_runtime::execution::Runnable, dokime_runtime::execution::SampleOutput,
 };
 
-/* === Constants === */
 const SOURCE: &str = "fixture_sessions";
 const TEMPLATE: &str = "fixture.sessions.cancel";
 const PHASE: &str = "fixture.sessions.stream";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Probe {
     mode: Settlement,
     entered: tokio::sync::Notify,
@@ -61,7 +47,6 @@ struct Probe {
 
 struct Provider(Arc<Probe>);
 
-/* === Enums === */
 #[derive(Clone, Copy, PartialEq)]
 enum Settlement {
     Complete,
@@ -75,9 +60,6 @@ enum Settlement {
     Failure,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Probe {
     fn new(mode: Settlement) -> Self {
         Self {
@@ -360,9 +342,6 @@ impl EmbeddedProvider for Provider {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn host_rows(runtime: &RuntimeHandle) -> usize {
     let selection = dokime_runtime::domains::evidence::TelemetrySelection {
         streams: vec![identifier("host.system").into()],
@@ -399,7 +378,6 @@ fn without_timestamps(log: &str) -> String {
         .collect()
 }
 
-/* === Tests === */
 // The Host Preserves Cancellation Verdicts And All Diagnostic Levels From Its Provider.
 pub(crate) async fn cancellation_retains_verdict() {
     for mode in [Settlement::Complete, Settlement::Deferred, Settlement::Refused] {

@@ -15,8 +15,6 @@
  * persists, so the reset affordance, the gilt rule and the summary's delta
  * list all read the same fact. */
 
-/* === Local Imports === */
-
 import {
   type FileRowState,
   nonEmptyString,
@@ -28,15 +26,11 @@ import type { ParameterOverrides } from "@/lib/desktop/settings";
 import { type ParseResult, parseParameterInput } from "@/lib/parameter-parser";
 import type { FileDefinition, ParameterDefinition, SuiteTemplateEntry } from "@/lib/types";
 
-/* === Constants === */
-
 /** Above this a choice parameter gets a Select instead of a segmented control. */
 export const SEGMENTED_CHOICE_LIMIT = 4;
 
 const BOOLEAN_TYPES = new Set(["bool", "boolean"]);
 const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
-
-/* === Types === */
 
 /**
  * How a value cell is drawn. One kind per parameter, decided once so the cell
@@ -58,8 +52,6 @@ export type EditorGroup = {
   label: string;
   rows: EditorParameterRow[];
 };
-
-/* === Public Functions === */
 
 export function parameterValueType(definition: ParameterDefinition): string {
   return (definition.value_type ?? "str").toLowerCase();

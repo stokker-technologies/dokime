@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::secrets::{Export, Import, List, Lookup, Preview, Put, Remove};
 use crate::secrets::{Change, SecretStore, SecretStoreError, SecretValue};
 use dokime_domain::model::secrets::catalog::{Snapshot, Value};
 use dokime_domain::model::secrets::transfer::{Archive, Preview as ImportPreview};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::catalog]
 enum PreparedOperations {
@@ -48,10 +29,6 @@ enum PreparedOperations {
     Operation5(Preview),
     Operation6(Import),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<Lookup> for SecretStore {
     fn serve<'a>(&'a self, request: Lookup, _: Context<'a, Lookup>) -> Served<'a, Value> {
@@ -125,8 +102,6 @@ impl From<SecretStoreError> for Status {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, store: Arc<SecretStore>) -> crate::runtime::Result<()> {
     setup.resource::<Host<Lookup>>(Host::<Lookup>::new(store.clone()));
     setup.resource::<Host<List>>(Host::<List>::new(store.clone()));
@@ -139,7 +114,3 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, store: Arc<
     setup.operations::<PreparedOperations>(Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

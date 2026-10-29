@@ -9,16 +9,8 @@
 
 // The Active Power Plan Read Through The Power Management API, Without Starting powercfg.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::ptr::null_mut;
 
-// Third Party Imports
 use windows::{
     Win32::{
         Foundation::{ERROR_SUCCESS, HLOCAL, LocalFree},
@@ -26,24 +18,6 @@ use windows::{
     },
     core::GUID,
 };
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // The Active Plan's GUID And Friendly Name.
 pub fn active_scheme() -> Option<(String, Option<String>)> {
@@ -60,8 +34,6 @@ pub fn active_scheme() -> Option<(String, Option<String>)> {
     unsafe { LocalFree(Some(allocation)) };
     Some((guid_string(&guid), friendly_name(&guid)))
 }
-
-/* === Private Functions === */
 
 fn friendly_name(scheme: &GUID) -> Option<String> {
     let mut size = 0u32;
@@ -87,8 +59,6 @@ fn guid_string(guid: &GUID) -> String {
     let [a, b, c, d, e, f, g, h] = guid.data4;
     format!("{:08x}-{:04x}-{:04x}-{a:02x}{b:02x}-{c:02x}{d:02x}{e:02x}{f:02x}{g:02x}{h:02x}", guid.data1, guid.data2, guid.data3)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

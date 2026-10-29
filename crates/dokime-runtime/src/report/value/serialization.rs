@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, fmt};
 
-// Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{
@@ -24,17 +16,8 @@ use serde::{
     },
 };
 
-// Local Imports
 use super::Value;
 use crate::{runtime::Error, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug)]
 struct EncodingError(String);
@@ -77,12 +60,6 @@ struct Text {
     value: String,
     limit: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl fmt::Display for EncodingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -461,15 +438,11 @@ impl fmt::Write for Text {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn build<T: ?Sized + Serialize>(value: &T, maximum_depth: usize) -> Result<Value> {
     let mut budget = Budget { maximum_depth };
     let node = value.serialize(Encoder { budget: &mut budget, depth: 0 }).map_err(|error| Error::InvalidReportInputs(error.0))?;
     Ok(node.value.expect("building owned values"))
 }
-
-/* === Private Functions === */
 
 fn error(message: &str) -> EncodingError {
     EncodingError(message.into())
@@ -494,5 +467,3 @@ fn tagged(value: Value, tag: Option<String>) -> Value {
         None => value,
     }
 }
-
-/* === Tests === */

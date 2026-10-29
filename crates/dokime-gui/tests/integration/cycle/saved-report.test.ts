@@ -7,29 +7,9 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test, vi } from "vitest";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 test("Saved Report Browser", async () => {
   const opened: string[] = [];

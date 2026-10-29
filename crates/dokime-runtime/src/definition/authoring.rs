@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::{
     CriterionDefinition, DynamicDefaultKey, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, ParameterGroup, ParameterGroupId,
     ParameterList, ParameterSelection, TestCaseTemplate,
@@ -40,20 +30,12 @@ use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::ValueType;
 use dokime_domain::model::values::validate_value_format;
 
-/* === Constants === */
-
-/* === Macros === */
-
 product_error!(TemplateAuthoringError, formatter {
     Self::MissingMetadata => formatter.write_str("test case template metadata is required"),
     Self::InvalidIdentifier { field, value, reason } => write!(formatter, "invalid {field} identifier {value:?}: {reason}"),
 });
 
-/* === Type Aliases === */
-
 type StepAction<T, C, E> = dyn Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync;
-
-/* === Structs === */
 
 pub struct TemplateContext {
     template_id: Option<TemplateId>,
@@ -116,8 +98,6 @@ pub struct StepBinding<T, C, E = ()> {
     action: Box<StepAction<T, C, E>>,
 }
 
-/* === Enums === */
-
 pub enum ParameterDefault {
     Expression(ParameterExpr),
     Source { source: Box<dyn Fn() -> Option<Value> + Send + Sync>, fallback: Value },
@@ -128,8 +108,6 @@ pub enum TemplateAuthoringError {
     MissingMetadata,
     InvalidIdentifier { field: &'static str, value: String, reason: dokime_domain::Error },
 }
-
-/* === Traits === */
 
 pub trait RustTemplate {
     fn define(&self, ctx: &mut TemplateContext);
@@ -184,8 +162,6 @@ pub trait DeclaredSuite {
     #[cfg(feature = "native")]
     fn runners() -> Vec<std::sync::Arc<dyn crate::execution::Runnable>>;
 }
-
-/* === Implementations === */
 
 impl TemplateContext {
     pub fn new() -> Self {
@@ -667,8 +643,6 @@ impl<T, C, E> StepBinding<T, C, E> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn criterion(identifier_value: impl Into<String>, label: impl Into<String>, expected: Option<Value>) -> Criterion {
     Criterion {
         identifier: identifier_value.into(),
@@ -749,8 +723,6 @@ pub const fn assert_template_identifiers(suite: &str, templates: &[&str]) {
     }
 }
 
-/* === Private Functions === */
-
 const fn same_identifier(left: &str, right: &str) -> bool {
     let (left, right) = (left.as_bytes(), right.as_bytes());
     if left.len() != right.len() {
@@ -769,5 +741,3 @@ const fn same_identifier(left: &str, right: &str) -> bool {
 fn validated_identifier(field: &'static str, value: String) -> Result<Identifier, TemplateAuthoringError> {
     Identifier::new(value.clone()).map_err(|reason| TemplateAuthoringError::InvalidIdentifier { field, value, reason: reason.into() })
 }
-
-/* === Tests === */

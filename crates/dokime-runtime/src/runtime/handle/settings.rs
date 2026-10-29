@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, time::Duration};
 
-// Third Party Imports
-
-// Local Imports
 use crate::InstalledPlugin;
 use crate::plugin::Configuration;
 use crate::settings::SecretReference;
@@ -27,20 +17,6 @@ use crate::settings::Settings;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result, secrets::SecretStore};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn settings_snapshot(&self, plugin: &InstalledPlugin) -> Result<SettingValues> {
@@ -69,10 +45,6 @@ impl RuntimeHandle {
         resolved_secrets(catalog, values, &self.secret_store(), Duration::from_secs(5)).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn resolved_secrets(
     catalog: &Settings, values: &SettingValues, store: &SecretStore, timeout: Duration,
@@ -139,5 +111,3 @@ async fn read_stored_secret(secrets: &SecretStore, setting_id: &str, secret_id: 
 fn operation(error: impl std::fmt::Display) -> Error {
     Error::Operation(error.to_string())
 }
-
-/* === Tests === */

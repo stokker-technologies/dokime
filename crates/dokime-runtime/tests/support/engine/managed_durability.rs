@@ -9,13 +9,6 @@
 
 // Compact Checkpoints, Evidence Dependencies And Uncertain Publication Recovery
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     num::NonZeroUsize,
     path::Path,
@@ -25,29 +18,11 @@ use std::{
     },
 };
 
-// Third Party Imports
 use harmos::storage::state::{RecoveryEntry, RecoverySnapshot, StateBackend, file::FileBackend};
 use harmos::storage::{ReadLimits, RecoveryPosition, StorageBackend, StorageBackends, StorageBatch, StorageManager, StorageSchema};
 
-// Local Imports
 use crate::evidence_support::{announce_and_wait, assert_counts, position, record_batch, record_schema};
 use dokime_runtime::storage::{records, sqlite::Backend};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn managed_durability(days: usize, rows_per_day: usize) {
     assert!(rows_per_day > 1);
@@ -191,8 +166,6 @@ pub async fn checkpoint_recovered(root: std::path::PathBuf) {
     store.close().await.unwrap();
 }
 
-/* === Private Functions === */
-
 fn settings() -> harmos::config::StorageStateSettings {
     let mut settings = dokime_runtime::config::storage_state_defaults();
     settings.max_checkpoint_bytes = NonZeroUsize::new(16 * 1024).unwrap();
@@ -242,5 +215,3 @@ fn entries(store: &Backend<()>, state: &FileBackend, first: usize, count: usize)
         })
         .collect()
 }
-
-/* === Tests === */

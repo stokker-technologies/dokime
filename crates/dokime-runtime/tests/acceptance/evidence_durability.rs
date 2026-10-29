@@ -9,35 +9,10 @@
 
 // Evidence Durability Through Actual SQLite Fault And Retry Boundaries
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::evidence_support::{CRASH_READY, crash_writer, recovered_after_crash};
 use std::io::BufRead;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Writer(std::process::Child);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Writer {
     fn drop(&mut self) {
@@ -45,12 +20,6 @@ impl Drop for Writer {
         let _ = self.0.wait();
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn evidence_durability() {

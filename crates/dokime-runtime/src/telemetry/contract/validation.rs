@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::error::TelemetryFailure;
 use crate::telemetry::{
     TelemetrySample,
@@ -27,22 +17,6 @@ use crate::telemetry::{
 use dokime_domain::model::validation::ValidationMode;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::value_matches_type;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn validate_telemetry_sample(
     contract: Option<&TelemetryContract>, sample: &TelemetrySample, default_mode: ValidationMode,
@@ -96,8 +70,6 @@ pub fn telemetry_sample_check_memory(contract: Option<&TelemetryContract>, sampl
     }
     bytes
 }
-
-/* === Private Functions === */
 
 enum Rule<'a> {
     Column(&'a TelemetryColumn),
@@ -212,8 +184,6 @@ fn resolved_values(
     }
     values
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

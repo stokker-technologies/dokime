@@ -7,29 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos::MemorySize;
 use harmos::builtins::host::{Catalog, CatalogKind, DiscoveredOperation};
 use harmos::domain::Portable;
 use harmos::operations::{OperationDeclaration, StreamItem};
 
-// Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
 use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
 use dokime_operations::runtime::GetHealth;
 use dokime_operations::runtime::GetIdentity;
-
-/* === Constants === */
 
 const CATALOG_BYTES: u64 = 16_777_216;
 const CATALOG_PAGE_BYTES: u64 = 4_194_304;
@@ -38,16 +27,8 @@ const CATALOG_ROWS: u64 = 4_096;
 
 const CATALOG_PATH: &str = "/harmos.host.v1.Host/Catalog";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, Error>;
 pub type Description = DiscoveredOperation;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -72,10 +53,6 @@ pub enum Error {
     #[error(transparent)]
     Client(#[from] ClientError),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub async fn operations(&self) -> Result<Vec<Description>> {
@@ -175,9 +152,3 @@ impl Client {
         .await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

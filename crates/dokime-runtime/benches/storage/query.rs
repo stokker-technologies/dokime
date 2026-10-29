@@ -6,16 +6,9 @@
  *
  * ***
  */
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
-// Third Party Imports
 use arrow_array::{Float64Array, UInt64Array};
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::storage::Query;
@@ -28,24 +21,7 @@ use harmos::storage::query::transform::{
 };
 use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
 
-// Local Imports
 use super::{fixture::Fixture, waveforms};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     let mut group = criterion.benchmark_group("storage/query");
@@ -122,7 +98,6 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     }
     group.finish();
 }
-/* === Private Functions === */
 
 fn plan(fixture: &Fixture, periods: usize, kind: &str) -> Query {
     let transform = match kind {
@@ -215,5 +190,3 @@ async fn verify(fixture: &Fixture, query: &Query, kind: &str, input_rows: usize)
     }
     rows
 }
-
-/* === Tests === */

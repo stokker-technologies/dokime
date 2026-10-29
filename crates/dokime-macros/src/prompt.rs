@@ -7,35 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Type};
 
-// Local Imports
 use crate::arguments::Arguments;
-
-/* === Constants === */
 
 const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel", "level"];
 const FIELD_ARGUMENTS: &[&str] =
     &["label", "description", "default", "min", "max", "min_length", "max_length", "pattern", "min_items", "max_items"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct FieldDeclaration {
     name: Ident,
@@ -62,20 +44,12 @@ struct FieldArguments {
     max_items: Option<Expr>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, PartialEq)]
 enum Shape {
     Required,
     Optional,
     Multiple,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn prompt(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
@@ -87,8 +61,6 @@ pub(crate) fn prompt(attribute: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 }
-
-/* === Private Functions === */
 
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -119,8 +91,6 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     let inherent = quote! {
                 pub const PROMPT_TYPE: &'static str = #identifier;
     };
-
-    // === A Confirmation === //
 
     if matches!(structure.fields, Fields::Unit) {
         for relabel in ["submit", "cancel"] {
@@ -164,8 +134,6 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             }
         });
     }
-
-    // === A Form === //
 
     let fields = declarations(structure)?;
     let submit = arguments.value("submit").map(|label| quote!(declared.actions[0].label = ::std::string::String::from(#label);));
@@ -422,5 +390,3 @@ fn read(field: &FieldDeclaration) -> TokenStream {
 fn stripped(input: &DeriveInput) -> TokenStream {
     crate::arguments::stripped(input, "prompt").to_token_stream()
 }
-
-/* === Tests === */

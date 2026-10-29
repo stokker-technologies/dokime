@@ -7,31 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
 use thiserror::Error;
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, StorageError>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -89,13 +69,3 @@ pub enum StorageError {
     #[error("telemetry sample cannot be stored: {message}")]
     InvalidTelemetrySample { message: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

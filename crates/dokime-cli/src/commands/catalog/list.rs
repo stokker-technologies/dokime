@@ -9,26 +9,6 @@
 
 // List Registered Suites
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
@@ -37,14 +17,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit One Complete Suite Definition Per JSON Line.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -71,7 +43,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     client.close_and_wait().await;
     result
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

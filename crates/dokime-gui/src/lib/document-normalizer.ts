@@ -8,7 +8,7 @@
  */
 
 import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
-/* === Local Imports === */
+
 import { assembleCapture, type DeclaredNode } from "./document-assembly";
 
 import type {
@@ -32,8 +32,6 @@ const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
 
 export type { DocumentCapture_Serialize as DocumentCapturePayload } from "./document-contracts";
-
-/* === Public Functions === */
 
 export function mapDocumentCapture(document: DocumentCapturePayload): DocumentViewPayload {
   if (document.definition.cards.length > DOCUMENTS_EXPANDED_NODES || document.cards.length > DOCUMENTS_EXPANDED_NODES)
@@ -71,8 +69,6 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
     sections: new Map(Object.entries(document.sections)),
   });
 }
-
-/* === Private Functions === */
 
 function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBinding): DocumentViewCard {
   const result = binding.result;

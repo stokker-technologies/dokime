@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use tonic::Status as TonicStatus;
 
-// Local Imports
 use super::super::{
     execution,
     value::{Budget, canonical},
@@ -51,22 +41,6 @@ use dokime::settings::SecretSetting;
 use dokime::settings::Settings;
 use dokime::settings::SettingsEntry;
 use dokime::settings::TextArea;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn identifier(value: String, field: &str) -> Result<Identifier, TonicStatus> {
     Identifier::new(value).map_err(|error| TonicStatus::invalid_argument(format!("{field}: {error}")))
@@ -112,8 +86,6 @@ pub(super) fn plugin_error(error: RuntimePluginManagementError) -> TonicStatus {
     };
     execution::status(error)
 }
-
-/* === Private Functions === */
 
 fn encode_section(section: RuntimeSettingsSection) -> Result<dokime::domain::model::settings::wire::SettingsSection, TonicStatus> {
     let section_id = checked_identifier(&section.section_id, "section_id")?;
@@ -386,5 +358,3 @@ fn ensure_size<M: Portable>(message: &M, max_message_bytes: usize, name: &str) -
     }
     Ok(())
 }
-
-/* === Tests === */

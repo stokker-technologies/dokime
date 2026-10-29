@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
 
@@ -30,14 +20,6 @@ use crate::model::document::DownsampleTechnique;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -582,8 +564,6 @@ pub struct AnalysisValues {
     pub display_indices: Vec<u32>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotType {
@@ -702,13 +682,3 @@ pub enum PlotAnalysisResult {
     Error(PlotAnalysisError),
     WifiOccupancy(PlotWifiOccupancyAnalysis),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

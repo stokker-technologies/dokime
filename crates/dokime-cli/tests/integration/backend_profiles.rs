@@ -9,41 +9,12 @@
 
 // Offline Backend Profile And Credential Admission Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use clap::Parser;
 
-// Local Imports
 use crate::configuration::resolve as configuration;
 use dokime::client::profiles::Store;
 use dokime_cli::{Cli, Error};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[tokio::test]
 async fn backend_profiles() {
     // Add, Select, Reopen And Remove An Offline Profile.

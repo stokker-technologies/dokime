@@ -9,35 +9,11 @@
 
 // Dokime Application Lifecycle
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::{Dokime, LaunchConfig, Resources};
 use crate::runtime::{Error, Result};
 use dokime_domain::state::records::Records;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::Lifecycle for Dokime {
     type Config = Option<LaunchConfig>;
@@ -102,9 +78,3 @@ impl harmos::Lifecycle for Dokime {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

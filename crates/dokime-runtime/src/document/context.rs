@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 
-// Local Imports
 use crate::definition::MaterializedParameter;
 use crate::expressions::DataSource;
 use crate::state::shared::Map;
@@ -28,14 +19,6 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Context<'a> {
@@ -51,17 +34,11 @@ pub(super) struct Entry<'a> {
     pub outputs: &'a BTreeMap<String, MaterializedParameter>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
     Ordered { ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Context<'a> {
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
@@ -197,10 +174,6 @@ impl<'a> From<&'a TestExecution> for Entry<'a> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn member(execution: &RecordScope, selected: &RecordScope) -> bool {
     scoped(execution, selected, true)
 }
@@ -217,5 +190,3 @@ fn scoped(actual: &RecordScope, selected: &RecordScope, planned: bool) -> bool {
         && selected.session_id.as_ref().is_none_or(|id| actual.session_id.as_ref().map_or(planned, |session| session == id))
         && selected.suite_id.as_ref().is_none_or(|id| actual.suite_id.as_ref() == Some(id))
 }
-
-/* === Tests === */

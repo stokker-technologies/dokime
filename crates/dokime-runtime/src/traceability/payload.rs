@@ -7,29 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 #[path = "payload/context.rs"]
 mod context;
 
 #[path = "payload/portable.rs"]
 mod portable;
 
-/* === Re-Exports === */
-
 pub(super) use context::host_override_bytes;
 pub(super) use portable::{
     execution_snapshots, host_snapshot, lease_snapshot, parameter_entry, resource_entries, section_snapshot, source_group,
 };
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt::{self, Write};
 
-// Third Party Imports
-
-// Local Imports
 use crate::{
     runtime::{Error, Result},
     state::RuntimeState,
@@ -45,14 +35,6 @@ use dokime_domain::model::{
     traceability::{TraceabilityEntry, TraceabilitySnapshot},
     values::Value,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct ScopeSeed<'a>(Scope<'a>);
 
@@ -134,8 +116,6 @@ struct CycleFields<'a> {
     case_count: usize,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 enum Scope<'a> {
     Borrowed(&'a RecordScope),
@@ -154,8 +134,6 @@ enum EntryMetadata<'a> {
     New { identifier: fmt::Arguments<'a>, label: fmt::Arguments<'a> },
 }
 
-/* === Traits === */
-
 trait Entries {
     fn push(&mut self, entry: Entry<'_>) -> Result<()>;
 }
@@ -166,8 +144,6 @@ trait Groups {
         keep_empty: bool, visit: &mut dyn FnMut(&mut dyn Entries) -> Result<()>,
     ) -> Result<()>;
 }
-
-/* === Implementations === */
 
 impl Write for TextSize {
     fn write_str(&mut self, text: &str) -> fmt::Result {
@@ -373,8 +349,6 @@ impl Groups for CountGroups {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn retained_state(
     state: &RuntimeState, selected: Option<&RecordScope>, at: &Timestamp,
 ) -> Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
@@ -436,8 +410,6 @@ pub(crate) fn count(state: &RuntimeState) -> Result<usize> {
     visit_state(state, None, None, &mut count)?;
     Ok(count.count)
 }
-
-/* === Private Functions === */
 
 fn exhausted() -> Error {
     harmos::Error::ResourceExhausted { resource: "traceability construction" }.into()
@@ -1023,5 +995,3 @@ fn visit_test_groups(
     }
     Ok(())
 }
-
-/* === Tests === */

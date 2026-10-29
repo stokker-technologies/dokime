@@ -11,50 +11,20 @@
 // collectors' own platform probes (native APIs on Windows; nmcli, iw, ping and
 // bluetoothctl on Linux).
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime_host::host_telemetry_contract;
 use model::telemetry::ValidationMode;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
 
-// Local Imports
 use crate::support::*;
 use dokime::telemetry::TelemetryRow;
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
     assert_eq!(batch.samples.len(), 1);
     &batch.samples[0]
 }
-
-/* === Tests === */
 
 #[test]
 fn host_stream_row() {

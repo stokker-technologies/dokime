@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(in crate::grpc) mod canonical;
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{
     execution,
     value::{self, canonical as values},
@@ -41,22 +32,12 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::prompts as wire;
 use dokime::runtime::query::RuntimeStateSnapshot;
 
-/* === Constants === */
-
 const STREAM: &str = "runtime.state";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -66,10 +47,6 @@ enum PreparedOperations {
     Operation3(wire::GetPrompt),
     Operation4(wire::Respond),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListDefinitions> for Resources {
     fn serve<'a>(
@@ -255,8 +232,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -271,8 +246,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeStateSnapshot) -> Result<usize, Status> {
     let current = NativeCursor {
@@ -300,5 +273,3 @@ fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeState
 fn prompt_id(id: &str) -> Result<PromptId, Status> {
     PromptId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid prompt UUID"))
 }
-
-/* === Tests === */

@@ -7,26 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{net::IpAddr, path::PathBuf};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, clap::Args)]
 #[command(about = "Listener flags shared by the standalone runtime and the Cargo wrapper.")]
@@ -96,12 +77,6 @@ pub struct Args {
     pub plugins_root: Option<PathBuf>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Args {
     pub fn configuration(&self) -> super::Result<dokime::config::Config> {
         let options = dokime::config::ApplicationOptions {
@@ -112,9 +87,3 @@ impl Args {
         Ok(options.resolve()?)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::prompts::{
     PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind, PromptInstance, PromptKind, PromptRequest,
     PromptResponse,
@@ -40,14 +31,6 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.prompts.request")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -75,18 +58,12 @@ pub(crate) struct SettledPrompts {
     at: Option<Timestamp>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PromptSettlement {
     Stopped,
     Ended,
     Interrupted,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PromptSettlement {
     fn action(self) -> &'static str {
@@ -162,8 +139,6 @@ impl Transaction<RuntimeState> for SubmitPromptResponse {
     }
 }
 
-/* === Public Functions === */
-
 pub fn validate_request(state: &RuntimeState, request: &RequestPrompt) -> Result<PromptId, Error> {
     prepare_request(state, request).map(|(prompt, _)| prompt.prompt_id)
 }
@@ -233,8 +208,6 @@ pub(crate) fn commit_settled_prompts(state: &mut RuntimeState, settled: SettledP
         state.closed_prompts.insert(id, at.clone());
     }
 }
-
-/* === Private Functions === */
 
 fn prepare_request(
     state: &RuntimeState, request: &RequestPrompt,
@@ -583,5 +556,3 @@ fn value_type_wire(value_type: &ValueType) -> &'static str {
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down { Err("runtime is shutting down".to_owned()) } else { Ok(()) }
 }
-
-/* === Tests === */

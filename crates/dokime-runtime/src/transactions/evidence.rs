@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::ValidationMode;
 use crate::records::validate_record;
 use crate::runtime::Error;
@@ -31,14 +21,6 @@ use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::identity::HealthItemId;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.evidence.health.record")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,8 +49,6 @@ pub struct PublishRecord {
     source: PublicationSource,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
@@ -76,10 +56,6 @@ enum PublicationSource {
     Sidecar { owner: String },
     Undeclared,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for RecordHealth {
     type Error = String;
@@ -172,10 +148,6 @@ impl Transaction<RuntimeState> for PublishRecord {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn prepare_record(state: &RuntimeState, publish: &PublishRecord) -> Result<crate::transactions::records::draft::Drafts, Error> {
     match &publish.source {
         PublicationSource::Host => {
@@ -242,5 +214,3 @@ fn validation_rejection(message: impl Into<String>, path: impl Into<String>, exp
         }],
     )
 }
-
-/* === Tests === */

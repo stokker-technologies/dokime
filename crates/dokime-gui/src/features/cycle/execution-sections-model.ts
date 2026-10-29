@@ -18,14 +18,10 @@
  * the Parameters grid prints and the column widths both halves share.
  */
 
-/* === Local Imports === */
-
 import { formatValue } from "@/lib/dashboard";
 import { durationParts } from "@/lib/format";
 import type { DocumentViewCard, JsonObject, ParameterDefinition, PromptRequest } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
-
-/* === Types === */
 
 /** The document-backed sections, in page order; Control and Parameters are the page's own. */
 export type ExecutionDocumentSection = "steps-criteria" | "notes" | "media" | "artifacts" | "report" | "records" | "traceability";
@@ -48,8 +44,6 @@ export type ExecutionParameterColumns = {
   value: number;
   unit: number;
 };
-
-/* === Constants === */
 
 export const EXECUTION_DOCUMENT_SECTIONS: readonly ExecutionDocumentSection[] = [
   "steps-criteria",
@@ -76,8 +70,6 @@ const BUILT_IN_SECTION: Partial<Record<DocumentViewCard["kind"], ExecutionDocume
   records: "records",
   traceability: "traceability",
 };
-
-/* === Public Functions === */
 
 /** The section a card of this kind belongs to; authored kinds belong to Report. */
 export function executionSectionOf(kind: DocumentViewCard["kind"]): ExecutionDocumentSection {
@@ -127,8 +119,6 @@ export function executionParameterColumns(rows: readonly Pick<ExecutionParameter
 export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(prompts: readonly T[], executionId: string | null): T[] {
   return prompts.filter((prompt) => (prompt.scope?.test_execution_id ?? null) === executionId);
 }
-
-/* === Private Functions === */
 
 /**
  * One row, printed the same way wherever it appears. A duration — declared in

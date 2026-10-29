@@ -11,15 +11,11 @@
 // Connection, The Scan Lists Nearby Networks And The Latency Probe Echoes A
 // Configured Target. None Reads Another's State.
 
-/* === Modules === */
-
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
 
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
-
-/* === Re-Exports === */
 
 #[cfg(all(feature = "runtime", unix))]
 pub use crate::platform::unix::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
@@ -27,35 +23,22 @@ pub use crate::platform::unix::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_int
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 pub use crate::platform::windows::wifi::WifiLink;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use sysinfo::Networks;
 
-// Local Imports
 use crate::platform::ScannedNetwork;
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const WIFI_CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 const WIFI_CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
 const BITS_PER_MEGABIT: f64 = 1_000_000.0;
 const LOST_PERCENT: f64 = 100.0;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct WifiLinkCollector {
     sample_index: u64,
@@ -87,12 +70,6 @@ struct Congestion {
     score: Option<f64>,
     model: Option<&'static str>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl WifiLinkCollector {
     pub fn new(options: HostOptions) -> Self {
@@ -270,8 +247,6 @@ impl WifiLatencyCollector {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn wifi_channel_band(channel: u32) -> Option<String> {
     match channel {
         1..=14 => Some("2.4GHz".to_owned()),
@@ -280,8 +255,6 @@ pub(crate) fn wifi_channel_band(channel: u32) -> Option<String> {
         _ => None,
     }
 }
-
-/* === Private Functions === */
 
 // An Echo Waits Half Its Collection's Bound, So A Lost Reply Yields A Loss Sample Rather Than A Timed-Out Collection.
 fn echo_timeout() -> Duration {
@@ -317,8 +290,6 @@ fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
         0.0
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

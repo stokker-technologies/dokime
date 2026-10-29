@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::definition::{MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate, TestSuite};
 use crate::model::document::DocumentDefinition;
 use crate::model::identity::DocumentId;
@@ -27,14 +18,6 @@ use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::TemplateId;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("parameter {name:?}: {reason}")]
@@ -71,18 +54,12 @@ pub struct ExecutionSnapshot {
     documents: BTreeMap<DocumentId, DocumentDefinition>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExecutionImplementation {
     Bundle { content_digest: String },
     Embedded { generation: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for ExecutionSnapshot {
     fn memory_size(&self) -> usize {
@@ -286,9 +263,3 @@ impl ExecutionSnapshot {
         &self.documents
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

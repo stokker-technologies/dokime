@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::HashMap;
 use std::sync::Arc;
 
-// Third Party Imports
 use futures_util::FutureExt;
 use futures_util::future::BoxFuture;
 use harmos::Context;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::app::Lanes;
 use crate::domains::ExecutionProviderTarget;
 use crate::operations::execution::RunProviderCycle;
@@ -37,12 +28,6 @@ use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type ProviderOutcome = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>;
 
 // The Process-Local Work Of One Invocation, Started Once By Its First Attempt.
@@ -50,8 +35,6 @@ type ProviderWork = Box<dyn FnOnce(tokio::sync::watch::Receiver<bool>) -> BoxFut
 
 // Concludes An Invocation's Provider Resources Exactly Once After Its Work Settled.
 type ProviderFinish = Box<dyn FnOnce() -> BoxFuture<'static, Result<(), ProviderExecutionFailure>> + Send>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ProviderCycleRequest {
@@ -102,16 +85,10 @@ struct ProviderSettlement {
 // Signals The Work To Cancel When An Attempt Is Dropped Before It Concluded.
 struct CancelOnDrop(Option<tokio::sync::watch::Sender<bool>>);
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum PreparedOperations {
     Operation0(RunProviderCycle),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ProviderInvocations {
     // Registers An Invocation Before Its Operation Is Submitted.
@@ -373,16 +350,12 @@ impl ProviderCycleRequest {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, invocations: Arc<ProviderInvocations>) -> crate::runtime::Result<()> {
     setup.resource::<Host<RunProviderCycle>>(Host::<RunProviderCycle>::new(invocations));
 
     setup.operations::<PreparedOperations>(Lanes::Execution);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn provider_work(
     runtime: RuntimeHandle, job: ProviderCycleRequest, started: Arc<std::sync::atomic::AtomicU8>,
@@ -656,8 +629,6 @@ async fn submit_finish_provider_cycle(
         });
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

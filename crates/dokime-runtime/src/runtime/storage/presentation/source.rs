@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     io::{self, Write},
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::{error, owns_annotation, owns_projection};
 use crate::RuntimeState;
 use crate::definition::TestCase;
@@ -29,14 +19,6 @@ use crate::runtime::Result;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct CaseSelection<'a> {
     rows: Vec<&'a TestCase>,
@@ -48,12 +30,6 @@ struct Budget {
     quoted: bool,
     escaped: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl CaseSelection<'_> {
     pub(super) fn clone_values(&self) -> Result<Vec<TestCase>> {
@@ -108,8 +84,6 @@ impl Write for Budget {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn preflight(
     state: &RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
@@ -249,8 +223,6 @@ pub(super) fn grouping(cycle: &CycleView) -> CycleView {
     }
 }
 
-/* === Private Functions === */
-
 fn cycle_budget(cycle: &CycleView) -> Result<Budget> {
     let maximum = 64 * 1024 * 1024;
     let mut budget = Budget::new(maximum);
@@ -281,5 +253,3 @@ fn cycle_budget(cycle: &CycleView) -> Result<Budget> {
     }
     Ok(budget)
 }
-
-/* === Tests === */

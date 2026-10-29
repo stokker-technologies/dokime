@@ -7,25 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-// Third Party Imports
+
 use futures_util::FutureExt;
 use tokio::sync::Notify;
 use tonic::{
     Request,
     transport::{Channel, Endpoint},
 };
-// Local Imports
+
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime::domains::ExecutionProviderTarget;
@@ -36,15 +29,7 @@ use {
     dokime::transport::ProviderCycleOutcome, dokime::transport::ProviderExecutionOutcome, dokime::transport::ProviderStatusOutcome,
 };
 
-/* === Constants === */
-
 pub const TOKEN: &str = "fixture-token-012345678901234567890123456789";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Keep Per-Request Metadata Available For Wire Authorization Scenarios.
 #[derive(Clone, Debug)]
@@ -84,10 +69,6 @@ pub struct Gate {
     pub outcome: fn(&CycleView) -> ProviderCycleOutcome,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
@@ -125,8 +106,6 @@ impl<T: dokime::harmos::domain::Portable> WireMessage for T {
         dokime::harmos::operations::StreamItem::charged(value, claim).map_err(|error| tonic::Status::internal(error.to_string()))
     }
 }
-
-/* === Implementations === */
 
 impl WireClient {
     pub async fn start_first(
@@ -469,8 +448,6 @@ impl ExecutionFixture for Gate {
     }
 }
 
-/* === Public Functions === */
-
 pub async fn runtime(root: &std::path::Path, server: &dokime_server::grpc::PreparedService) -> Runtime {
     let config = super::budgets::runtime_config(root, Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None));
     Runtime::start(server.configuration(config)).boxed_local().await.unwrap()
@@ -589,7 +566,3 @@ pub fn accepted(reply: model::execution::wire::RunReply) -> model::execution::wi
         }
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

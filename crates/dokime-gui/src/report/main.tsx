@@ -7,21 +7,15 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DokimeToaster } from "@/components/DokimeToaster";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
-/* === Local Imports === */
-
 import { BrandProvider, defaultBrand } from "@/lib/brand";
 import { applyReportAppearance } from "./report-appearance";
 
 import "../styles.css";
-
-/* === Constants === */
 
 declare global {
   interface Window {

@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     future::Future,
     pin::Pin,
@@ -24,7 +17,6 @@ use std::{
     task::{Context, Poll},
 };
 
-// Third Party Imports
 use tokio::{
     sync::{Mutex, Notify, mpsc},
     task::JoinHandle,
@@ -32,18 +24,9 @@ use tokio::{
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 
-// Local Imports
 use super::{Client, Error, Result};
 
-/* === Constants === */
-
 const STREAM_BUFFER_ITEMS: u64 = 1;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct ResponseStream<T> {
     inner: Arc<Response<T>>,
@@ -77,12 +60,6 @@ pub(super) struct Input<S> {
     inner: Pin<Box<S>>,
     cancellation: Pin<Box<dyn Future<Output = ()> + Send>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<T: Send + 'static> ResponseStream<T> {
     pub(super) fn new<S>(client: &Client, stream: S) -> Result<Self>
@@ -376,9 +353,3 @@ impl<S: Stream> Stream for Input<S> {
         self.inner.as_mut().poll_next(context)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

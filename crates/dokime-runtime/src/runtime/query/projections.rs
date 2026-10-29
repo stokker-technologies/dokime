@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::prompts::PromptInstance;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use dokime_domain::model::execution::RecordScope;
@@ -27,14 +17,6 @@ use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::records::resources::ResourceRecord;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeResourceFrame {
@@ -106,12 +88,6 @@ impl Serialize for RuntimeTraceabilityRead {
     }
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl<T> Reduced<T> {
     fn truncated(&self) -> bool {
         self.returned < self.total
@@ -161,8 +137,6 @@ impl From<Reduced<OperatorNote>> for RuntimeNoteFrame {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn resource_frame<'a>(
     records: impl Iterator<Item = &'a ResourceRecord>, scope: Option<&RecordScope>, window: &RuntimeWindow, resolution: &RuntimeResolution,
@@ -214,8 +188,6 @@ pub(crate) fn note_frame<'a>(
     windowed(notes, |note| scope.is_none_or(|scope| note.scope.is_visible_in(scope)), |note| &note.created_at, window, resolution).into()
 }
 
-/* === Private Functions === */
-
 fn windowed<'a, T: Clone + 'a>(
     items: impl Iterator<Item = &'a T>, visible: impl Fn(&T) -> bool, timestamp: impl Fn(&T) -> &Timestamp, window: &RuntimeWindow,
     resolution: &RuntimeResolution,
@@ -230,5 +202,3 @@ fn windowed<'a, T: Clone + 'a>(
         returned,
     }
 }
-
-/* === Tests === */

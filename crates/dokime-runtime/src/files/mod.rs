@@ -10,41 +10,11 @@
 // The behaviour behind the file-watch declarations: which relative paths a
 // watch tracks, and the rows and records its captured lines become.
 
-/* === Modules === */
-
 mod lines;
 mod rules;
 
-/* === Re-Exports === */
-
 pub use lines::{InvalidLineMatcher, LineBuffer, LineMatch, LineMatchers};
 pub use rules::{FileMatcher, InvalidRule};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) fn segment_name(base: &str, segment: u64) -> String {
     match base.rsplit_once('.') {
@@ -71,5 +41,3 @@ pub(crate) fn identity(path: &std::path::Path, _: &std::fs::Metadata) -> Option<
 pub(crate) fn identity(_: &std::path::Path, _: &std::fs::Metadata) -> Option<(u64, u64)> {
     None
 }
-
-/* === Tests === */

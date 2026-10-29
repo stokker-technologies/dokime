@@ -9,39 +9,22 @@
 
 // Write Bounded Verified ZIP Payloads And Manifest
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fs::File,
     io::{self, Seek, SeekFrom, Write},
     path::Path,
 };
 
-// Third Party Imports
 use harmos::storage::FileReader;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-// Local Imports
 use super::{
     InventoryBudget,
     error::{Error, Result},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Writer {
     zip: ZipWriter<BoundedFile>,
@@ -76,12 +59,6 @@ struct Document<'a, T> {
 
     payloads: &'a [Entry],
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Writer {
     pub fn open(path: &Path, cancellation: &CancellationToken) -> Result<Self> {
@@ -219,8 +196,6 @@ impl Seek for BoundedFile {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn hash(reader: FileReader, cancellation: &CancellationToken, maximum: u64) -> Result<(u64, String)> {
     let mut sink = io::sink();
     copy(reader, &mut sink, cancellation, maximum).await
@@ -239,8 +214,6 @@ pub(super) fn output_path(execution: &str, index: usize, relative: &str) -> Stri
 pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Private Functions === */
 
 async fn copy(mut reader: FileReader, output: &mut impl Write, cancellation: &CancellationToken, maximum: u64) -> Result<(u64, String)> {
     let mut length = 0_u64;
@@ -267,8 +240,6 @@ async fn copy(mut reader: FileReader, output: &mut impl Write, cancellation: &Ca
     }
     Ok((length, hex(&hash.finalize())))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

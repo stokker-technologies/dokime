@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::signal::Series;
 
-// Local Imports
 use super::evidence_rows::EvidenceRows;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionEvidence {
@@ -50,12 +33,6 @@ pub struct Samples<Row> {
     rows: EvidenceRows<TelemetrySample>,
     decode: fn(&std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<Row, crate::telemetry::FieldError>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionEvidence {
     pub fn new() -> Self {
@@ -116,9 +93,3 @@ impl<Row> Samples<Row> {
         values.into()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

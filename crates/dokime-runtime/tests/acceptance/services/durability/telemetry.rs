@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn elapsed_seconds(samples: &[TelemetrySample]) -> Vec<String> {
     let mut values: Vec<String> = samples
@@ -58,7 +31,6 @@ async fn wait_for_telemetry(
     .await
 }
 
-/* === Tests === */
 #[tokio::test]
 async fn checkpointed_telemetry_kill() {
     const PUBLISHED: usize = 25;

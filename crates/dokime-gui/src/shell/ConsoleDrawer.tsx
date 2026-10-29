@@ -19,15 +19,11 @@
  * everything that would suggest a running backend does not.
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
 import type { HubRecord } from "@/lib/types";
 import { useUiStore } from "@/stores/ui-store";
 import { FrozenConsole, LiveConsoleView, resolvedConsoleScope } from "./ConsoleDrawerView";
 import { useConsoleRecords } from "./console-records";
 
-/* === Types === */
 export type ConsoleDrawerProps =
   | {
       /** The cycle the route carries, or null away from a cycle. */
@@ -42,7 +38,6 @@ export type ConsoleDrawerProps =
       records: HubRecord[];
     };
 
-/* === Components === */
 export function ConsoleDrawer(props: ConsoleDrawerProps) {
   if (props.live === false) {
     return <FrozenConsole records={props.records} />;
@@ -50,7 +45,6 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
   return <ConnectedConsole cycleId={props.cycleId} executionId={props.executionId} />;
 }
 
-/* === Private Components === */
 function ConnectedConsole({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const drawer = useUiStore((state) => state.console);
   const scope = resolvedConsoleScope(drawer.scope, cycleId, executionId);

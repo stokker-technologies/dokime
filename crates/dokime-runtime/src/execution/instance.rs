@@ -7,39 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::document::DocumentRegistry;
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct TestExecutionInstance {
     pub execution: TestExecution,
     pub documents: DocumentRegistry,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestExecutionInstance {
     pub fn new(execution: TestExecution) -> Self {
@@ -52,9 +27,3 @@ impl TestExecutionInstance {
         Self { execution, documents }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

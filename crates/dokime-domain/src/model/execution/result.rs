@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::model::execution::ExecutionMode;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::definition::{MaterializedParameter, TestCase};
 use crate::model::diagnostics::Diagnostic;
 use crate::model::document::DocumentDefinition;
@@ -39,17 +30,9 @@ use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
 use crate::state::records::set::TestRecordSet;
 
-/* === Constants === */
-
-/* === Macros === */
-
 product_error!(IllegalCycleTransition, formatter {
     Self { from, to } => write!(formatter, "illegal cycle transition from {from:?} to {to:?}"),
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -234,8 +217,6 @@ pub struct ExecutionInvalidation {
     pub current: Option<crate::model::execution::snapshot::ExecutionPluginIdentity>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -321,10 +302,6 @@ pub enum ResultStatus {
     Blocked,
     Cancelled,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for CycleView {
     fn memory_size(&self) -> usize {
@@ -683,8 +660,6 @@ impl TestExecution {
     }
 }
 
-/* === Public Functions === */
-
 pub fn validate_invocation(
     template: &crate::model::definition::TestCaseTemplate, attempts: &[TestStepAttempt], step_id: &StepId,
 ) -> Result<(), &'static str> {
@@ -725,8 +700,6 @@ pub fn effective_attempts<'a>(
     selected.into_values().map(|attempt| (attempt.step_id.clone(), attempt)).collect()
 }
 
-/* === Private Functions === */
-
 // An Explicit Phase Outcome Survives Refresh: A Settled One Always, A Running
 // One Until Its Execution Finishes Without Settling It.
 fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
@@ -736,5 +709,3 @@ fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
         _ => true,
     }
 }
-
-/* === Tests === */

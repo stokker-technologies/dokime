@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette } from "lucide-react";
-
-/* === Constants === */
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: "backends", label: "Backends", description: "Saved backend connections", icon: Network, group: "primary" },
@@ -61,8 +57,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ];
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = "backends";
-
-/* === Types === */
 
 export type SettingsSectionId = string;
 

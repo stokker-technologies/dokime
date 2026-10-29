@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // ping Waits For The Echo; Its Process Is Bounded By The Collection It Serves.
 // The Round Trip In Milliseconds, Or None When No Reply Arrived Within The Wait.
@@ -58,8 +31,6 @@ pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, Strin
     Ok(Some(latency))
 }
 
-/* === Private Functions === */
-
 fn parse_ping_latency_ms(output: &str) -> Option<f64> {
     let lower = output.to_ascii_lowercase();
     for marker in ["time=", "time<"] {
@@ -76,5 +47,3 @@ fn parse_ping_latency_ms(output: &str) -> Option<f64> {
 fn leading_number(text: &str) -> String {
     text.trim_start().chars().take_while(|value| value.is_ascii_digit() || *value == '.').collect()
 }
-
-/* === Tests === */

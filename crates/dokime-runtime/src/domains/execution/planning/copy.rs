@@ -7,35 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 
-// Local Imports
 use crate::transactions::CopyCycle;
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn copy_cycle(&self, source_cycle_id: TestCycleId, context: CommandContext) -> Result<TestCycleId, Error> {
@@ -66,9 +42,3 @@ impl RuntimeHandle {
         Ok(id)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

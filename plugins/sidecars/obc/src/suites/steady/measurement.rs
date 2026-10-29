@@ -7,22 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::measurement::InputMeasurement;
@@ -36,18 +26,10 @@ use dokime::expressions::telemetry;
 use dokime::prelude::*;
 use obc_runtime::device::Device;
 
-/* === Constants === */
-
 const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 const STEADY_STREAM: &str = "obc.charger.steady.samples";
 
-/* === Macros === */
-
 bench!(Parameters);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct SteadyResources {
     device: Mutex<Device>,
@@ -162,8 +144,6 @@ pub struct Parameters {
     pub sample_interval_s: f64,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
@@ -190,10 +170,6 @@ pub enum Records {
 pub enum ObserverStreams {
     Samples(Samples),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::template(
     id = STEADY_TEMPLATE, label = "Steady-State Measurement",
@@ -358,10 +334,6 @@ impl Steady {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn reading(resources: &SteadyResources, index: u64) -> Result<InputMeasurement, Error> {
     let elapsed_s = 0.1 + index as f64 * resources.interval_s;
     let measured = resources.device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.sample(elapsed_s);
@@ -432,5 +404,3 @@ fn steady_document() -> Document {
 
     document
 }
-
-/* === Tests === */

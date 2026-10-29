@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{Budget, canonical};
 use dokime::app::LiveRuntime;
 use dokime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -45,10 +26,6 @@ enum PreparedOperations {
     Operation2(wire::UpdatePluginSettings),
     Operation3(wire::UpdatePluginSecret),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetSettings> for Resources {
     fn serve<'a>(
@@ -117,8 +94,6 @@ impl Serve<wire::UpdatePluginSecret> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -133,8 +108,6 @@ pub(super) fn prepare(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn plugin_id(id: &str) -> Result<dokime::domain::model::identity::Identifier, Status> {
     projection::identifier(id.to_owned(), "plugin_id")
 }
@@ -144,5 +117,3 @@ fn plugin_response(
 ) -> Result<Response<dokime::domain::model::settings::wire::PluginRuntimeSettings>, Status> {
     resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }
-
-/* === Tests === */

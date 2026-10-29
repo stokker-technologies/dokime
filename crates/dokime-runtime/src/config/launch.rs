@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fmt, path::PathBuf, sync::Arc};
 
-// Third Party Imports
-
-// Local Imports
 use crate::config::{RuntimeConfig, StorageSettings};
 use crate::domains::installed_plugins::ResolvedBrand;
 use crate::plugins::PluginBundle;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 
-/* === Constants === */
-
 const HUB_IDENTIFIER: &str = "dokime.test_hub";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -58,12 +40,6 @@ pub(crate) struct ShellStartup {
 
 #[derive(Clone, Default)]
 struct Registrations(Vec<Arc<dyn crate::runtime::EmbeddedProvider>>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl fmt::Debug for Registrations {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -118,9 +94,3 @@ impl Config {
         (config, startup)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

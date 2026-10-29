@@ -18,11 +18,7 @@
  * imports so a node test can load it directly.
  */
 
-/* === Imports === */
-
 import type uPlot from "uplot";
-
-/* === Constants === */
 
 /**
  * The drag thresholds, in CSS pixels: a drag shorter than `dist` on both
@@ -35,8 +31,6 @@ export const PLOT_DRAG_OPTIONS = {
   dist: 4,
   setScale: true,
 } as const;
-
-/* === Types === */
 
 export type ViewportRange = {
   min: number;
@@ -72,8 +66,6 @@ type PanStart = {
   x: ViewportRange;
   y: ViewportRange | null;
 };
-
-/* === Public Functions === */
 
 /**
  * The viewport a released selection box holds, or `null` for an empty box.
@@ -171,8 +163,6 @@ export function attachPan(
     plot.over.removeEventListener("mousedown", down, true);
   };
 }
-
-/* === Private Functions === */
 
 /** Whether the box covers the whole axis: uPlot's one-axis drag fills the other. */
 function spansAxis(start: number, extent: number, full: number): boolean {

@@ -7,28 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{fmt, sync::Arc};
 
-// Third Party Imports
 use tokio::sync::Mutex;
 
-// Local Imports
 use super::Runtime;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Receipt {
@@ -44,16 +27,10 @@ pub(crate) struct Boot {
 
 pub(crate) struct Preparing(pub(crate) Option<Receipt>);
 
-/* === Enums === */
-
 enum Owner {
     Runtime(Box<Runtime>),
     Boot(Arc<std::sync::Mutex<Boot>>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Preparing {
     fn drop(&mut self) {
@@ -114,9 +91,3 @@ impl fmt::Debug for Receipt {
         formatter.debug_struct("Receipt").finish_non_exhaustive()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

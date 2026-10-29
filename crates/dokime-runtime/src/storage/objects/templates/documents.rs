@@ -7,29 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Map, Value, layout};
 use crate::expressions::{DataExpression, DataSource as DomainSource, DataTransform};
 use crate::storage::objects::metadata;
 use crate::storage::{Error, Result};
 use dokime_domain::model::values::ValueFormat;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -448,11 +431,6 @@ pub struct Axis {
     unit: Option<String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Document {
     pub fn encoding_memory(value: &crate::document::DocumentDefinition) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
@@ -2182,9 +2160,6 @@ impl From<crate::document::DocumentCardLayout> for CardLayout {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn body_encoding_memory(value: &crate::document::DocumentCardBody) -> Result<usize> {
     use crate::document::DocumentCardBody;
     let mut bytes = body_name(value).len();
@@ -2377,5 +2352,3 @@ fn format_digits(value: u32) -> Result<u8> {
 fn span(value: u32) -> Result<u8> {
     u8::try_from(value).map_err(|_| Error::Invalid("document span exceeds byte range"))
 }
-
-/* === Tests === */

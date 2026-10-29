@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use futures_util::{StreamExt, stream};
 use harmos::MemorySize;
 use harmos::domain::Portable;
@@ -27,25 +19,10 @@ use tonic::{
     transport::Channel,
 };
 
-// Local Imports
 use super::{Client, Error, ResponseStream, Result, request, stream::Input};
-
-/* === Constants === */
 
 const DECODE_RETAINED_BYTES: u64 = 67_108_864;
 const ENCODE_BUFFER_BYTES: u64 = 8_192;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub(super) async fn download<O>(
@@ -163,8 +140,6 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn value<T>(reply: StreamItem<T>) -> Result<T> {
     // Transfer The Decoded Allocation; Never Clone A Payload To Drop Its Owner.
     reply.into_request().map(|(value, _claims)| value).map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
@@ -214,8 +189,6 @@ where
         .map_err(Error::Rpc)
 }
 
-/* === Private Functions === */
-
 // A Live Stream Fails Only When No Frame, Heartbeats Included, Arrives Within The Idle Deadline.
 async fn idle_frame<T>(idle: Option<std::time::Duration>, next: impl Future<Output = T>) -> std::result::Result<T, tonic::Status> {
     match idle {
@@ -230,5 +203,3 @@ fn status(error: Error) -> tonic::Status {
         error => tonic::Status::data_loss(error.to_string()),
     }
 }
-
-/* === Tests === */

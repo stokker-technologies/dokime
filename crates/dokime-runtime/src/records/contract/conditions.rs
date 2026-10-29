@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::records::RecordCondition;
 use crate::records::RecordConditionEvaluation;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordEntry]) -> RecordConditionEvaluation {
     for record in records.iter().rev() {
@@ -63,10 +37,6 @@ pub fn evaluate_record_condition(condition: &RecordCondition, records: &[RecordE
     }
 }
 
-/* === Private Functions === */
-
 fn matches_fields(details: &BTreeMap<String, Value>, expected: &BTreeMap<String, Value>) -> bool {
     expected.iter().all(|(name, value)| details.get(name) == Some(value))
 }
-
-/* === Tests === */

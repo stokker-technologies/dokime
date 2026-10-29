@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type React from "react";
 import { Toaster } from "sonner";
 
-/* === Local Imports === */
-
 import { useApplicationTheme } from "@/lib/application-theme";
-
-/* === Constants === */
 
 const DOKIME_TOAST_CLASSES = {
   toast:
@@ -35,10 +29,6 @@ const DOKIME_TOAST_CLASSES = {
   closeButton:
     "absolute top-2 right-2 grid size-6 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-popover-foreground [&>svg]:size-4",
 } as const;
-
-/* === Types === */
-
-/* === Components === */
 
 /** The one toast surface, shared by the application and the frozen report. */
 export function DokimeToaster() {

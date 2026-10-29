@@ -11,23 +11,16 @@
  * Scoped Preferences Behavior
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
-// Local Imports
+
 import type { SettingsSnapshot } from "@generated/application-settings";
-// Third Party Imports
+
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { preferencesKey, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 import { createDebouncedWriter } from "@/features/settings/settings-autosave";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const fixture = vi.hoisted(() => ({
   read: vi.fn(),
@@ -47,14 +40,6 @@ const fixture = vi.hoisted(() => ({
     onSuccess: (snapshot: SettingsSnapshot) => void;
   }[],
 }));
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function SavePreferencesProbe({ scope }: { scope: "local" | "backend" }) {
   useSavePreferences(scope);
@@ -79,8 +64,6 @@ function snapshot(): SettingsSnapshot {
     },
   };
 }
-
-/* === Entry Point === */
 
 vi.mock("@/components/NotificationMessage", () => ({
   NotificationMessage: (props: unknown) => {

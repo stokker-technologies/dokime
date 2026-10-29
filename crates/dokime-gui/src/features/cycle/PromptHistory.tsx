@@ -7,27 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { absoluteTimestampLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
 import { answeredPrompts } from "./prompt-banner-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Components === */
 
 export function PromptHistory({ records }: { records: readonly HubRecord[] }) {
   const answered = answeredPrompts(records);
@@ -55,11 +38,3 @@ export function PromptAnswers({ answered }: { answered: ReturnType<typeof answer
     </ol>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */

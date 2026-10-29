@@ -7,25 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::Arc;
-// Third Party Imports
+
 use dokime_runtime::harmos::plugin::Declared;
-// Local Imports
+
 use dokime_runtime::{Refusal, Supervisor};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[dokime_runtime::row]
 #[derive(Clone, PartialEq)]
 struct DirectReading {
@@ -42,16 +29,12 @@ struct DirectStreams {
     host: Option<Supervisor>,
 }
 
-/* === Enums === */
 #[dokime_runtime::catalog]
 enum Streams {
     Inlet(Inlet),
     Outlet(Outlet),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl dokime_runtime::harmos::builtins::lifecycle::Policy for DirectStreams {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
@@ -103,12 +86,6 @@ impl DirectStreams {
         Arc::new(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn stream_alias_publication() {

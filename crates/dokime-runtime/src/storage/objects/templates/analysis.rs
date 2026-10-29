@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Map;
 use crate::storage::{Error, Result};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -37,11 +19,6 @@ pub struct Selection {
     parameters: Option<Map>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Selection {
     pub fn encoding_memory(value: &crate::analysis::Selection) -> Result<usize> {
         if value.id.is_empty() || value.version == 0 {
@@ -83,9 +60,3 @@ impl TryFrom<Selection> for crate::analysis::Selection {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,32 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SystemCollector {
     pub(super) fn power_profile_context() -> PowerProfileContext {
@@ -47,10 +22,6 @@ impl SystemCollector {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn power_mode_label(name: &str) -> String {
     let normalized = name.to_ascii_lowercase();
@@ -73,5 +44,3 @@ fn power_performance_bias(name: &str) -> i64 {
         _ => 50,
     }
 }
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod authoring;
 
 mod dispatch;
@@ -51,35 +49,5 @@ pub mod telemetry;
 #[cfg(feature = "native")]
 pub(crate) mod traceability;
 
-/* === Re-Exports === */
-
 pub use dispatch::{ActionDispatcher, ActionDispatcherFuture, DispatchContext, OptionsResponse, StatusResponse};
 pub use dokime_domain::model::plugins::*;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
-// Third Party Imports
 use harmos::{
     ServiceContext,
     operations::Response,
@@ -24,7 +16,6 @@ use harmos::{
     storage::{FilePhase, FileReadBatch, FileReference, ProductionFollower, StagedFile},
 };
 
-// Local Imports
 use super::saved::{SavedOutputFile, SavedOutputs};
 use crate::{
     RuntimeHandle,
@@ -36,14 +27,6 @@ use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::wire_checkpoint as checkpoint;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct ExecutionFileFollower {
     poll_interval: Duration,
@@ -66,17 +49,11 @@ struct Position {
     offset: u64,
 }
 
-/* === Enums === */
-
 enum Source {
     Live(LiveOutput),
     Saved(SavedOutputFile),
     Captured(harmos::storage::ReadBatch<FileReference>, bool),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn follow_execution_file(
@@ -424,10 +401,6 @@ impl ExecutionFileFollower {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn metadata(
     staged: &StagedFile, execution: &TestExecutionId, path: &str, media: &str, position: Position,
 ) -> Result<harmos::storage::ReadBatch<dokime_domain::model::content::wire::ExecutionFileFollowMetadata>> {
@@ -483,5 +456,3 @@ fn refused(reason: &'static str) -> harmos::Error {
 fn invalid(reason: &'static str) -> Error {
     refused(reason).into()
 }
-
-/* === Tests === */

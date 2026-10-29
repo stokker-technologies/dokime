@@ -7,29 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -49,9 +29,6 @@ pub enum Error {
     Unmeasured(&'static str),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<Error> for dokime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
@@ -61,9 +38,3 @@ impl From<Error> for dokime::domains::ActionDispatcherError {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

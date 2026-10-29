@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod checkpoint;
 pub mod command;
 pub mod cursor;
@@ -24,8 +22,6 @@ pub mod termination;
 pub mod wire;
 pub mod wire_checkpoint;
 pub mod wire_cursor;
-
-/* === Re-Exports === */
 
 pub use checkpoint::{ExecutionCheckpoint, SavedEvidenceError};
 pub use command::CommandContext;
@@ -50,31 +46,3 @@ pub use scope::RecordScope;
 pub use scope::scope_visible_in;
 pub use snapshot::{ExecutionImplementation, ExecutionPluginIdentity, ExecutionSnapshot};
 pub use termination::TerminationReason;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod backend;
 mod catalog;
 mod cycle;
@@ -24,26 +22,7 @@ mod plugin;
 mod server;
 mod status;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::version;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -78,12 +57,6 @@ pub(crate) enum Command {
     Version(version::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) fn configuration(command: &Command) -> crate::Result<dokime::config::Config> {
     if let Command::Server(args) = command {
         return server::configuration(args);
@@ -112,7 +85,3 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
         }
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

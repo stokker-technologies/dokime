@@ -11,16 +11,10 @@
  * Shared Frozen And Live Gallery Presentation; Media Resources Are Supplied.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { AudioLines, Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
-/* === Local Imports === */
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,20 +32,12 @@ import {
   type ResolvedMediaGalleryArtifact,
 } from "./media-gallery-model";
 
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 export type MediaActions = {
   open: (artifact: MediaGalleryArtifact) => Promise<unknown>;
   download: (artifact: MediaGalleryArtifact) => Promise<unknown>;
 };
 export type MediaGalleryModel = ReturnType<typeof useMediaGallery>;
 
-/* === Components === */
 export function MediaGalleryView({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {
   const model = useMediaGallery(artifacts, runDir);
   return <MediaGallerySurface model={model} emptyMessage={emptyMessage} />;
@@ -425,7 +411,6 @@ function isResolvedMediaArtifact(
   return artifact.kind !== null;
 }
 
-/* === Hooks === */
 export function useMediaGallery(artifacts: MediaGalleryArtifact[], runDir?: string | null) {
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
   const media = useMemo(
@@ -458,7 +443,3 @@ export function useMediaGallery(artifacts: MediaGalleryArtifact[], runDir?: stri
   }, [media, selectedArtifactId, visibleArtifactIds]);
   return { media, selectedArtifactId, setSelectedArtifactId, markVisible, requestedArtifactIds };
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */

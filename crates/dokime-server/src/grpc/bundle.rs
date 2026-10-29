@@ -7,37 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt::Write as _;
 use std::io::{Seek, Write};
 use std::path::PathBuf;
 
-// Third Party Imports
 use dokime::harmos::storage::{ByteRange, FileReader, FrozenFile, ReadBatch};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use tonic::Status;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-// Local Imports
 use super::redaction;
 use dokime::domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const MANIFEST_PATH: &str = "manifest.json";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Bundle {
     pub(super) metadata: ReadBatch<Metadata>,
@@ -84,8 +67,6 @@ pub(super) struct Entry {
     pub(super) note: Option<String>,
 }
 
-/* === Enums === */
-
 pub(super) enum Part {
     Json { path: String, value: Value },
     Tail { path: String, source: PathBuf, max_bytes: u64 },
@@ -95,10 +76,6 @@ enum Input {
     Opened { file: std::fs::File, range: ByteRange },
     Frozen { file: FrozenFile, range: ByteRange },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Parts {
     pub(super) fn new(session: dokime::storage::Manager) -> Result<Self, Status> {
@@ -196,8 +173,6 @@ impl Input {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn log_tail_ceiling(requested: Option<u64>, maximum: u64) -> u64 {
     requested.unwrap_or(maximum).min(maximum)
 }
@@ -235,8 +210,6 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
     let reader = session.read_opened_file(file, ByteRange { offset: 0, limit: Some(size_bytes) }).await.map_err(native_failure)?;
     Ok(Bundle { metadata, reader })
 }
-
-/* === Private Functions === */
 
 async fn assemble(
     session: &dokime::storage::Manager, parts: ReadBatch<Vec<ReadBatch<Prepared>>>, mut context: Value, generated_at: Timestamp,
@@ -488,8 +461,6 @@ pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
 fn too_large(maximum: usize) -> Status {
     Status::resource_exhausted(format!("diagnostics archive exceeds {maximum} bytes; request a smaller log tail"))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

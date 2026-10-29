@@ -7,33 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
 mod composition;
 mod lifecycle;
 
-/* === Re-Exports === */
-
 pub use composition::{Composition, LiveRuntime, live_runtime};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{Application, state::Origin as HarmosOrigin};
 
-// Local Imports
 use crate::config::Config;
 use crate::runtime_state::RuntimeState;
 use crate::transactions::Transactions;
 use dokime_domain::state::records::Records;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Origin = HarmosOrigin<RuntimeState>;
 pub(crate) type HarmosRuntime = harmos::Runtime<Dokime>;
@@ -43,8 +27,6 @@ pub(crate) type OperationManager = harmos::operations::OperationManager<Lanes>;
 
 #[cfg(feature = "simulation")]
 pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
-
-/* === Structs === */
 
 pub struct Dokime {
     parts: Option<crate::runtime::handle::BootParts>,
@@ -79,8 +61,6 @@ pub struct Resources {
     pub(crate) renderer: crate::report::Renderer,
 }
 
-/* === Enums === */
-
 #[harmos::lanes]
 pub enum Lanes {
     #[default]
@@ -89,10 +69,6 @@ pub enum Lanes {
     #[lane(serial)]
     Execution,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     pub fn new(schema_settings: harmos::config::SchemaSettings) -> Self {
@@ -111,8 +87,6 @@ impl Application for Dokime {
     type Record = Records;
     type Streams = ();
 }
-
-/* === Public Functions === */
 
 #[tracing::instrument(
     level = "debug",
@@ -143,7 +117,3 @@ pub async fn launch_with(config: Config, composition: Vec<Composition>) -> crate
 pub fn simulate(origin: impl Into<Origin>, seed: u64) -> Result<Simulated, harmos::StartupError> {
     HarmosRuntime::simulate(origin, None, seed)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

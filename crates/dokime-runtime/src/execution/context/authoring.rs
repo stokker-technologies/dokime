@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-// Third Party Imports
-// Third-Party Imports
 use serde::de::DeserializeOwned;
 
-// Local Imports
 use crate::artifacts::Artifacts;
 use crate::execution::environment::Environment;
 use crate::execution::evidence::{ExecutionEvidence, Samples};
@@ -38,10 +28,6 @@ use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::StepAttemptId;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
 
 macro_rules! own_resources {
     ($($stage:ty),+ $(,)?) => {
@@ -73,8 +59,6 @@ own_document!(Initialize, Traceability, Step, Cleanup);
 #[cfg(feature = "native")]
 own_document!(Observing);
 
-/* === Type Aliases === */
-
 pub type InitializationContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Initialize>;
 pub type TraceabilityContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Traceability>;
 pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
@@ -82,8 +66,6 @@ pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
 #[cfg(feature = "native")]
 pub type ObserverContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Observing>;
 pub type CleanupContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Cleanup>;
-
-/* === Structs === */
 
 pub struct Context<'a, C, O, I, Stage> {
     environment: &'a Environment<'a, C, O, I>,
@@ -127,10 +109,6 @@ pub struct CriterionContext<'a, C = (), I = ()> {
     callbacks: crate::execution::Callbacks,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait Required {
     type Operations;
 }
@@ -142,8 +120,6 @@ pub trait Required {
     label = "add this operation to the template's `requires = ...` catalog"
 )]
 pub trait Called<T> {}
-
-/* === Implementations === */
 
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
 
@@ -537,9 +513,3 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         self.evidence.gap_counts.get(R::ID).copied().unwrap_or_default()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

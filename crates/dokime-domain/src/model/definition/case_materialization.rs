@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::FileDefinition;
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterResolverError;
@@ -36,10 +27,6 @@ use crate::model::identity::Metadata;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 
-/* === Constants === */
-
-/* === Macros === */
-
 product_error!(CaseMaterializationError, formatter {
     Self::UnknownFilterParameters(parameters) => write!(formatter, "unknown case filter parameters: {parameters}"),
     Self::UnknownOverrideParameters(parameters) => write!(formatter, "unknown case override parameters: {parameters}"),
@@ -51,10 +38,6 @@ product_error!(CaseMaterializationError, formatter {
     Self::CaseLimitExceeded { template_id, count, limit } => write!(formatter, "materialized {count} cases for {template_id:?}; limit is {limit}"),
     Self::InvalidIdentifier(message) | Self::InvalidExpansion(message) => formatter.write_str(message),
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct CaseMaterializationSelection {
@@ -93,8 +76,6 @@ struct Materialization<'a> {
     file_parameters: &'a BTreeMap<String, Value>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum CaseMaterializationError {
     UnknownFilterParameters(String),
@@ -108,10 +89,6 @@ pub enum CaseMaterializationError {
     InvalidIdentifier(String),
     InvalidExpansion(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Materialization<'_> {
     fn push_cases(
@@ -163,15 +140,11 @@ impl Materialization<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn materialize_template_cases(
     suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
 ) -> crate::Result<CaseMaterializationOutput> {
     materialize_template_cases_detail(suite_id, template, selection, options).map_err(Into::into)
 }
-
-/* === Private Functions === */
 
 fn materialize_template_cases_detail(
     suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
@@ -400,5 +373,3 @@ fn map_resolver_error(error: ParameterResolverError) -> CaseMaterializationError
 fn case_label(template_label: &str, number: usize) -> String {
     format!("{template_label} #{number}")
 }
-
-/* === Tests === */

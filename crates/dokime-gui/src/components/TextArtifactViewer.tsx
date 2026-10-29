@@ -7,15 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Clipboard, Download, FileText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-
-/* === Local Imports === */
-
 import { useNativeSessionOptional } from "@/app/native-session/context";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -47,8 +42,6 @@ import type { NativeStream } from "@/lib/rpc/transport";
 import type { ArtifactRecord, ExecutionFileFollowEvent } from "@/lib/types";
 import { occurrenceKeys } from "@/lib/utils";
 
-/* === Constants === */
-
 const GRPC_STATUS_NAMES = [
   "OK",
   "CANCELLED",
@@ -68,8 +61,6 @@ const GRPC_STATUS_NAMES = [
   "DATA_LOSS",
   "UNAUTHENTICATED",
 ] as const;
-
-/* === Types === */
 
 type TextViewerArtifact = Pick<
   ArtifactRecord,
@@ -91,8 +82,6 @@ type ViewerStatus =
   | { kind: "finished"; bytes: number }
   | { kind: "abandoned"; bytes: number }
   | { kind: "error"; message: string };
-
-/* === Private Functions === */
 
 /** The connection a read needs. Unreachable while nothing can be opened. */
 function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
@@ -134,8 +123,6 @@ function describeStatus(status: ViewerStatus): string {
 function resumable(cursor: ExecutionFileFollowCursor | null): cursor is ExecutionFileFollowCursor {
   return cursor?.identity != null && cursor.phase === "producing";
 }
-
-/* === Components === */
 
 export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifactViewerProps) {
   /* The artifact explorer mounts this dialog beside the tree whether or not

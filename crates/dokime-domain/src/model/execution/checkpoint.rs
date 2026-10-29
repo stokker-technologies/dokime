@@ -9,32 +9,14 @@
 
 // Validate native saved evidence checkpoints
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::model::storage::ObjectVersionToken;
 use harmos::model::storage::StorageCursor;
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,8 +26,6 @@ pub struct ExecutionCheckpoint {
     pub version: ObjectVersionToken,
     pub evidence_through: StorageCursor,
 }
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum SavedEvidenceError {
@@ -58,10 +38,6 @@ pub enum SavedEvidenceError {
     #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for ExecutionCheckpoint {
     fn memory_size(&self) -> usize {
@@ -86,9 +62,3 @@ impl ExecutionCheckpoint {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

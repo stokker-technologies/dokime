@@ -11,15 +11,11 @@
  * Backend Registry Behavior
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, test, vi } from "vitest";
-// Local Imports
+
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -28,10 +24,6 @@ import { backendValidation } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -43,14 +35,6 @@ const fixture = vi.hoisted(() => ({
   phase: "disconnected",
   effects: [] as (() => () => void)[],
 }));
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function connected(generation = "8"): DesktopSessionSnapshot {
   return {
@@ -85,8 +69,6 @@ function connected(generation = "8"): DesktopSessionSnapshot {
     },
   };
 }
-
-/* === Entry Point === */
 
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),

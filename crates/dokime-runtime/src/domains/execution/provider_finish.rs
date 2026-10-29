@@ -7,39 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::FinishProvider as Finish;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::transactions::provider_finish::prepare_finish_telemetry;
 use crate::{
     RuntimeHandle,
     runtime::error::{Error, Result},
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub(crate) async fn finish_provider_cycle(&self, finish: Finish) -> Result<()> {
@@ -285,10 +260,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn retry_after(error: &Error, milliseconds: u64) -> Option<std::time::Duration> {
     transient_persistence(error).then_some(std::time::Duration::from_millis(milliseconds))
 }
@@ -307,5 +278,3 @@ fn transient_persistence(error: &(dyn std::error::Error + 'static)) -> bool {
     }
     false
 }
-
-/* === Tests === */

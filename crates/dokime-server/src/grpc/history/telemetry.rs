@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::{Code, Status};
 
-// Local Imports
 use super::super::{telemetry::projection as samples, value::projection};
 use super::wire;
 use crate::grpc::transcode::Transcode;
@@ -29,29 +20,15 @@ use dokime::operations::history as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(contract::ListCheckpointTelemetry),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::ListCheckpointTelemetry> for Resources {
     fn serve<'a>(
@@ -75,8 +52,6 @@ impl Serve<contract::ListCheckpointTelemetry> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -87,8 +62,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(
     page: dokime::harmos::storage::ReadBatch<ExecutionTelemetryPage>, maximum: usize,
@@ -142,5 +115,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "canonical saved telemetry page",
     }
 }
-
-/* === Tests === */

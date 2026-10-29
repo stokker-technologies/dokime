@@ -7,41 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use model::values::Value;
 
-// Local Imports
 use crate::support::*;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // Native Collection Reports Either Scanned Networks Or An Explicit Availability State.
 #[test]

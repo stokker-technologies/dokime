@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { create } from "zustand";
-
-/* === Types === */
 
 type SelectionStoreState = {
   followActive: boolean;
@@ -25,16 +21,12 @@ type SelectionStore = SelectionStoreState & {
   setSelectionState: (patch: Partial<SelectionStoreState>) => void;
 };
 
-/* === Constants === */
-
 const initialSelectionStoreState: SelectionStoreState = {
   followActive: true,
   selectedCaseIds: new Set(),
   selectedExecutionId: null,
   selectedQueueItemId: null,
 };
-
-/* === Public Functions === */
 
 export const useSelectionStore = create<SelectionStore>()((set) => ({
   ...initialSelectionStoreState,

@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::NoteId;
 use crate::model::time::Timestamp;
 
-/* === Constants === */
-
 pub const NOTE_EDIT_NOT_AUTHOR: &str = "only the note's author may edit it";
 pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the notes it froze";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperatorNote {
@@ -58,8 +40,6 @@ pub struct NoteAdmission {
     pub checkpoint_targets: Vec<crate::model::identity::TestExecutionId>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
@@ -67,10 +47,6 @@ pub enum NoteOwner {
     Case { cycle_id: crate::model::identity::TestCycleId, case_id: crate::model::identity::CaseId },
     Execution { cycle_id: crate::model::identity::TestCycleId, execution_id: crate::model::identity::TestExecutionId },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for OperatorNote {
     fn memory_size(&self) -> usize {
@@ -95,12 +71,6 @@ impl NoteOwner {
     }
 }
 
-/* === Public Functions === */
-
 pub fn note_identity(epoch: &crate::model::identity::SessionId, actor: &str, mutation: &crate::model::identity::CommandId) -> NoteId {
     NoteId::from_seed(format!("note:{}:{}:{}:{}", epoch, actor.len(), actor, mutation))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

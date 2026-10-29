@@ -7,42 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, EditNote, NoteError};
 use model::execution::notes::NoteOwner;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 // operator notes are editable by their author until the seal freezes them.
 pub(super) async fn notes_until_seal() {
     let root = tempfile::tempdir().unwrap();

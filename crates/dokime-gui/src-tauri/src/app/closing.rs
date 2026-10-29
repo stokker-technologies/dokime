@@ -9,13 +9,6 @@
 
 // The window close: an orderly backend stop, its visible state and the force-quit choice
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     sync::{
         Arc, Mutex,
@@ -24,15 +17,11 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
 
-// Local Imports
 use crate::PRODUCT;
 use crate::native_session::{DesktopSessionControl, DesktopSessionError};
-
-/* === Constants === */
 
 const DESKTOP_CLOSING_VISIBLE_MS: u64 = 1_000;
 const DESKTOP_STOP_GRACE_MS: u64 = 30_000;
@@ -43,12 +32,6 @@ const STOPPING_EVENT: &str = "desktop://stopping";
 // The run's settle budget plus the backend's final checkpoint; past it the
 // operator is offered an explicit choice to exit without finishing.
 const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One per process: every close and exit request of every window lands here.
 #[derive(Clone, Default)]
@@ -70,8 +53,6 @@ struct Announcement {
     visible: bool,
 }
 
-/* === Enums === */
-
 enum Failure {
     Retry,
     Exit,
@@ -84,10 +65,6 @@ enum CloseRequest {
     Wait,
     OfferForceQuit,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Closing {
     pub(crate) fn complete(&self) -> bool {
@@ -220,10 +197,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn announce(app: &tauri::AppHandle, announcement: Announcement) {
     if let Err(error) = app.emit(STOPPING_EVENT, announcement) {
         tracing::debug!(%error, "the stop announcement did not reach the WebView");
@@ -258,8 +231,6 @@ async fn failure_choice(app: &tauri::AppHandle, error: &DesktopSessionError) -> 
         _ => Failure::KeepOpen,
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::telemetry::{validation_mode, validation_mode_code, value_type, value_type_code};
 use crate::records::{RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordSeverity, RecordTone};
 use crate::storage::objects::presentation as native;
@@ -30,15 +20,7 @@ use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Declarations = BTreeMap<Identifier, BTreeMap<u32, RecordContract>>;
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -81,12 +63,6 @@ struct Field {
     default: Option<native::Value>,
     format: Option<native::ValueFormat>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
@@ -211,10 +187,6 @@ impl TryFrom<Field> for RecordField {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
@@ -334,5 +306,3 @@ fn icon(value: u32) -> Result<RecordIconKey> {
         _ => Err(invalid("unknown captured record icon")),
     }
 }
-
-/* === Tests === */

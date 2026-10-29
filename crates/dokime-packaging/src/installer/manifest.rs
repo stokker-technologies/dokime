@@ -7,28 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -81,8 +64,6 @@ pub struct UpdaterSigning {
     pub artifact_base_url: String,
 }
 
-/* === Enums === */
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Format {
@@ -90,10 +71,6 @@ pub enum Format {
     Deb,
     Rpm,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Manifest {
     pub(super) fn identity(&self, compiled: &super::payload::Identity) -> Result<super::payload::Identity, Error> {
@@ -153,12 +130,6 @@ impl Manifest {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

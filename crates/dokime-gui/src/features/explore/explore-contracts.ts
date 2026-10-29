@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { CycleHistorySummary } from "@/lib/types";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
-
-/* === Types === */
 
 export type ExploreSourceKind = "local" | "remote" | "storage";
 

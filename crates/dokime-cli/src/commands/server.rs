@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{future::Future, io::Write, net::SocketAddr, path::Path, pin::Pin};
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::{DEV_PROTOCOL, READINESS_PROTOCOL};
 use dokime_server::host;
 
-/* === Constants === */
-
 const DEVELOPMENT_COMMAND_ITEMS: u64 = 8;
 const DEVELOPMENT_COMMAND_BYTES: u64 = 16_384;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[command(about = "Run The Dokime Server.")]
@@ -43,18 +25,10 @@ pub struct Args {
     command: Option<Command>,
 }
 
-/* === Enums === */
-
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Version(host::version::Args),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn configuration(args: &Args) -> crate::Result<dokime::config::Config> {
     let loaded = load_environment(args.runtime.env_file.as_deref());
@@ -74,8 +48,6 @@ pub async fn run(args: Args, configuration: dokime::config::Config) -> crate::Re
         source: Box::new(error),
     })
 }
-
-/* === Private Functions === */
 
 async fn run_server(args: host::Args, config: dokime::config::Config) -> host::Result<()> {
     let network = args.network.config()?;
@@ -263,8 +235,6 @@ async fn force_quit_error() {
     force_quit(interrupt, record_exit).await;
     assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
 }
-
-/* === Tests === */
 
 #[cfg(all(test, unix))]
 #[test]

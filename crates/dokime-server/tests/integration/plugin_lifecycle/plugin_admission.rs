@@ -9,40 +9,8 @@
 
 // Verify cancellation retains bounded read and mutation ownership independently.
 
-/* === Modules === */
-
 #[path = "../../../src/grpc/plugins/admission.rs"]
 mod admission;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn cancelled_admission_ownership() {
     let admission = admission::Admission::new();

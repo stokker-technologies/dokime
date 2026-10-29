@@ -9,18 +9,8 @@
 
 // Quiet Plot And Log Watches Survive Their Configured Idle Period
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write as _;
 
-// Third Party Imports
-
-// Local Imports
 use crate::support::{
     self,
     plots::{publish, request, served_points},
@@ -32,26 +22,6 @@ use dokime::{
     domain::model,
 };
 use dokime_server::grpc::Config;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn watch_liveness() {

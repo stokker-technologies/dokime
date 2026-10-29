@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
 use tonic::Status;
 use tracing::Instrument;
 
-// Local Imports
 use crate::trace::{Event, Journal, Page, Scope, WATCH_SPAN};
 use dokime::app::LiveRuntime;
 use dokime::domain::model::backend::wire::{LogFrameFieldsEntry, TraceBatch, TraceEvent};
@@ -30,19 +21,11 @@ use dokime::domain::model::identity::wire::Timestamp;
 use dokime::operations::backend as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
 const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
 const SERVER_DEFAULT_TRACE_BYTES: u64 = 262_144;
 const SERVER_DEFAULT_TRACE_EVENTS: u64 = 256;
 const SERVER_MAXIMUM_TRACE_EVENTS: u64 = 1_024;
 const SERVER_MINIMUM_TRACE_BYTES: u64 = 32_768;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
@@ -50,16 +33,10 @@ struct Resources {
     journal: Arc<Journal>,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::WatchTrace),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::WatchTrace> for Resources {
     fn serve<'a>(&'a self, request: wire::WatchTrace, ctx: Context<'a, wire::WatchTrace>) -> Served<'a, ()> {
@@ -140,8 +117,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize, journal: Arc<Journal>,
 ) -> Result<(), crate::grpc::Error> {
@@ -156,8 +131,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn scope(scope: Option<&dokime::domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
     match scope {
@@ -233,8 +206,6 @@ fn event_wire(sequence: u64, event: &Event) -> Result<TraceEvent, Status> {
         fields,
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

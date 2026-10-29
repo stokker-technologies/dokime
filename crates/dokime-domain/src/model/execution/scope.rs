@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::id::CaseId;
 use crate::model::identity::id::CriterionId;
 use crate::model::identity::id::SessionId;
@@ -29,14 +19,6 @@ use crate::model::identity::id::SuiteId;
 use crate::model::identity::id::TemplateId;
 use crate::model::identity::id::TestCycleId;
 use crate::model::identity::id::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(default)]
@@ -51,8 +33,6 @@ pub struct RecordScope {
     pub suite_id: Option<SuiteId>,
     pub origin: EvidenceOrigin,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -76,10 +56,6 @@ pub enum CapturePhase {
     Initialization,
     Cleanup,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for RecordScope {
     fn memory_size(&self) -> usize {
@@ -175,8 +151,6 @@ impl RecordScope {
     }
 }
 
-/* === Public Functions === */
-
 pub fn scope_visible_in(record_scope: Option<&RecordScope>, selected: &RecordScope) -> bool {
     if selected.is_empty() {
         return true;
@@ -197,10 +171,6 @@ pub fn scope_visible_in(record_scope: Option<&RecordScope>, selected: &RecordSco
         && (selected.origin == EvidenceOrigin::Default || selected.origin == record_scope.origin)
 }
 
-/* === Private Functions === */
-
 fn field_visible_in<T: PartialEq>(record: &Option<T>, selected: &Option<T>) -> bool {
     selected.as_ref().is_none_or(|selected| record.as_ref() == Some(selected))
 }
-
-/* === Tests === */

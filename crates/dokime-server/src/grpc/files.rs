@@ -10,21 +10,12 @@
 // File watch operations: sources polled during an execution, each matched
 // file sealed as one of its artifacts.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
 use tonic::Status;
 
-// Local Imports
 use super::content::{content_failure, metadata};
 use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
@@ -35,14 +26,6 @@ use dokime::{
     runtime::Error,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
 }
@@ -52,16 +35,10 @@ struct Sealing {
     watch: Option<Watch>,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(contract::FileWatch),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::FileWatch> for Resources {
     fn serve<'a>(&'a self, request: contract::FileWatch, ctx: Context<'a, contract::FileWatch>) -> Served<'a, ()> {
@@ -141,8 +118,6 @@ impl Drop for Sealing {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone() });
 
@@ -151,8 +126,6 @@ pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, ru
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn send_events(
     output: &StreamOutput<dokime::domain::model::files::wire::FileWatchFrame>, events: &mut Vec<WatchEvent>,
@@ -206,5 +179,3 @@ fn failure(error: Error) -> Status {
         _ => content_failure(error),
     }
 }
-
-/* === Tests === */

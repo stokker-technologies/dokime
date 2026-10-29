@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type uPlot from "uplot";
-
-/* === Local Imports === */
 
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
@@ -37,8 +33,6 @@ import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
 import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
-
-/* === Constants === */
 
 const GUI_POINT_MARK_THRESHOLD = 600;
 const GUI_RENDERED_SERIES = 48;
@@ -69,8 +63,6 @@ const NO_PROMPTS: PromptMarker[] = [];
 const PROMPT_HOVER_PX = 5;
 /* The cap glyph drawn atop each prompt marker, in CSS pixels. */
 const PROMPT_CAP_PX = 4;
-
-/* === Types === */
 
 type CartesianPlotProps = {
   title: string;
@@ -159,11 +151,7 @@ type DrawnWindow = {
 
 type UPlotConstructor = typeof uPlot;
 
-/* === State === */
-
 let uPlotPromise: Promise<UPlotConstructor> | null = null;
-
-/* === Components === */
 
 export const CartesianPlot = memo(function CartesianPlot({
   title,
@@ -913,8 +901,6 @@ function fontSizePx(size: string, root: Element): number {
   return Math.round(value);
 }
 
-/* === Axis gutter === */
-
 /** Measures text at `font`, reusing one offscreen canvas for every call. */
 let gutterContext: CanvasRenderingContext2D | null = null;
 
@@ -971,8 +957,6 @@ function yAxisGutter(values: string[] | null | undefined, font: string): number 
   const widest = (values ?? []).reduce((width, value) => Math.max(width, value ? measureTextWidth(value, font) : 0), 0);
   return Math.min(Y_AXIS_MAX_GUTTER, Math.max(Y_AXIS_MIN_GUTTER, Math.ceil(widest) + Y_AXIS_LABEL_PADDING));
 }
-
-/* === Private Functions === */
 
 export function usableCartesianFrame(
   cartesian: PlotCartesianFrame | null | undefined,

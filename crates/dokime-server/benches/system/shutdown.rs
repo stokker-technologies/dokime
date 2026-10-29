@@ -9,39 +9,14 @@
 
 // Shutdown Benchmarks: Idle Server Drain After Stdin Closes
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::Path, time::Duration};
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode};
 
-// Local Imports
 use super::server::{Server, plugin_bundle};
 use dokime::client::{Client, Target};
 
-/* === Constants === */
-
 const SETTLE: Duration = Duration::from_secs(2);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn benchmark(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -61,8 +36,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     }
     group.finish();
 }
-
-/* === Private Functions === */
 
 fn idle_shutdown(runtime: &tokio::runtime::Runtime, connected: bool, watching: bool, plugin: Option<&Path>) -> Duration {
     let server = Server::start(plugin);
@@ -84,5 +57,3 @@ fn idle_shutdown(runtime: &tokio::runtime::Runtime, connected: bool, watching: b
     drop(client);
     elapsed
 }
-
-/* === Tests === */

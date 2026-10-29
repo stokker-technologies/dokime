@@ -7,39 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
-// Third Party Imports
-// Local Imports
+
 use super::*;
 use dokime::client::contracts::history::BrowseExecutions;
 use dokime::client::contracts::history::DeleteExecution;
 use dokime::domain::model;
 use dokime::runtime::command::CommandContext;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn checkpoint_for(
     handle: &dokime::RuntimeHandle, history: &mut WireClient, execution_id: &str,
@@ -162,8 +136,6 @@ pub(crate) async fn deletion_validates_unsupported() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */
 
 pub(crate) async fn empty_cycles_retain_history() {
     use dokime::client::contracts::history::BrowseCycles;

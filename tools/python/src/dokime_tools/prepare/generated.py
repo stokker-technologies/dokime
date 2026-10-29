@@ -16,32 +16,14 @@ and stages a copy under `target/build/<profile>/<target>/generated/typescript`, 
 artifact carries. Lanes restore this Product export before importing the GUI.
 """
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import sync_output
 
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
 ROOT = Path(__file__).resolve().parents[5]
 MODULES = ROOT / "target/generated/typescript"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def stage(profile: str) -> Path:
@@ -71,10 +53,6 @@ def main() -> int:
         restore(options.profile)
     return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(main())

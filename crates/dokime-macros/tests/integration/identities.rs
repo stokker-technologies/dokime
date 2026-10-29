@@ -7,25 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use sdk::definition::DeclaredTemplate;
 use sdk::execution::{CriterionContext, ObserverContext, StepContext};
-// Local Imports
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Probe;
 
 struct Checks;
@@ -45,10 +29,6 @@ struct Samples;
 #[sdk::stream(id = "stable.samples", window = 4096, row = Row, label = "Stable Samples")]
 struct StableSamples;
 
-/* === Enums === */
-
-/* === Traits === */
-
 #[sdk::catalog]
 enum SamplesStreams {
     Samples(Samples),
@@ -59,7 +39,6 @@ enum StableSamplesStreams {
     StableSamples(StableSamples),
 }
 
-/* === Implementations === */
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("probe failed")
@@ -113,12 +92,6 @@ impl Probe {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn item_names_identities() {

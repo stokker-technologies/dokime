@@ -7,34 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 use super::{ResolvedBrand, policy};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     path::{Component, Path},
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::theme::{Bundled, Source};
 
-/* === Constants === */
-
 const DEFAULT_INSTALLER_SIDEBAR_COLOR: [u8; 3] = [0x1b, 0x19, 0x15];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// A Validated Organization With All Inherited Files Included.
 #[derive(Clone, Debug)]
@@ -42,12 +24,6 @@ pub struct ResolvedPack {
     pub manifest: toml::Value,
     pub files: BTreeMap<String, Vec<u8>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ResolvedPack {
     pub fn label(&self) -> &str {
@@ -123,8 +99,6 @@ impl Source for ResolvedPack {
     }
 }
 
-/* === Public Functions === */
-
 pub fn brand() -> Option<ResolvedBrand> {
     super::compiled_brand()
 }
@@ -171,8 +145,6 @@ pub fn installation_directory() -> Option<std::path::PathBuf> {
     let directory = executable.parent()?.join("organization");
     directory.join("organization.toml").is_file().then_some(directory)
 }
-
-/* === Private Functions === */
 
 fn validate(pack: &ResolvedPack) -> Result<(), String> {
     let manifest = &pack.manifest;
@@ -264,8 +236,6 @@ fn collect_files(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

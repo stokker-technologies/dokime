@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use crate::installation::{Program, hand_over};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[command(about = "Open The Installed Desktop GUI On A Running Backend; Arguments After -- Reach It Verbatim.", trailing_var_arg = true)]
@@ -43,14 +25,6 @@ pub struct Args {
     arguments: Vec<OsString>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub fn run(args: Args) -> crate::Result<()> {
     let gui = Program::GUI.resolve(args.gui.as_deref())?;
 
@@ -58,7 +32,3 @@ pub fn run(args: Args) -> crate::Result<()> {
     command.arg("--endpoint").arg(args.endpoint).args(args.arguments);
     hand_over(command)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

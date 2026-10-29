@@ -7,26 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
 mod append;
 mod copy;
-
-/* === Re-Exports === */
 
 pub use append::AppendExecutions;
 pub use copy::CopyCycle;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::TestCase;
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -41,14 +32,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 use dokime_domain::state::records::set::TestRecordSet;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
@@ -73,12 +56,6 @@ pub struct CreateCycle {
     pub test_cycle_id: TestCycleId,
     pub occurred_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for RegisterCases {
     type Error = String;
@@ -131,10 +108,6 @@ impl Transaction<RuntimeState> for CreateCycle {
         apply_create_cycle(state, self).expect("Harmos checked cycle creation before applying it");
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn apply_create_cycle(state: &mut RuntimeState, create: &CreateCycle) -> Result<TestCycleId, Error> {
     let (cycle, records) = prepare_create_cycle(state, create)?;
@@ -250,5 +223,3 @@ fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
 fn conflict(message: String) -> Error {
     Error::conflict("conflict", message)
 }
-
-/* === Tests === */

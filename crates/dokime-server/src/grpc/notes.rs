@@ -7,28 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 mod selection;
 mod wire;
 
-/* === Re-Exports === */
-
 pub(in crate::grpc) use wire::{health, note};
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::access::Principal;
 use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::CommandId;
@@ -39,22 +30,12 @@ use dokime::domains::evidence::notes::NoteError;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::notes as contract;
 
-/* === Constants === */
-
 const SERVER_NOTE_RESPONSE_BYTES: u64 = 524_288;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -63,10 +44,6 @@ enum PreparedOperations {
     Operation2(contract::CreateNote),
     Operation3(contract::EditNote),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::ListNotes> for Resources {
     fn serve<'a>(
@@ -197,8 +174,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -216,8 +191,6 @@ pub(super) fn prepare(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn status(error: NoteError) -> Status {
     match error {
         NoteError::Invalid(message) => Status::invalid_argument(message),
@@ -231,5 +204,3 @@ fn status(error: NoteError) -> Status {
         NoteError::Unavailable(_) => Status::unavailable("note operation could not be confirmed; Get resolves commitment"),
     }
 }
-
-/* === Tests === */

@@ -7,17 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "testing")]
 #[path = "delivery/transport.rs"]
 pub mod delivery;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     convert::Infallible,
@@ -26,7 +19,7 @@ use std::{
     num::NonZeroUsize,
     sync::{Arc, Mutex},
 };
-// Third Party Imports
+
 use sha2::{Digest, Sha256};
 use tokio::sync::{Notify, Semaphore};
 use tokio_stream::wrappers::TcpListenerStream;
@@ -34,14 +27,12 @@ use tonic::{
     Request, Response, Status,
     transport::{Identity, Server, ServerTlsConfig},
 };
-// Local Imports
+
 use dokime::client::contracts::{Endpoint, backend, plugins, runtime};
 use dokime::client::secrets::{Error as SecretError, SecretStore};
 use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 use zeroize::Zeroizing;
-
-/* === Constants === */
 
 static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::new(|| {
     let generated = rcgen::generate_simple_self_signed(vec!["localhost".into(), "127.0.0.1".into()])
@@ -54,12 +45,6 @@ static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
     let artifacts = harmos_packaging::proto::Artifacts::new(&contracts).unwrap();
     Sha256::digest(artifacts.descriptors()).to_vec()
 });
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub struct MemorySecrets(pub Arc<Mutex<BTreeMap<String, String>>>);
@@ -102,12 +87,6 @@ pub struct Listener {
     pub endpoint: String,
     pub task: tokio::task::JoinHandle<()>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SecretStore for MemorySecrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
@@ -599,9 +578,3 @@ impl Drop for Listener {
         self.task.abort();
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

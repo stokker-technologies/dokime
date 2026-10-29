@@ -7,33 +7,17 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Third Party Imports
 import { test } from "vitest";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").replace(/^\s*\/\/.*$/gm, "")) as {
   compilerOptions: { paths: Record<string, string[]> };
 };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Tests === */
 
 test("the embedded report cannot reach generated RPC or message modules", () => {
   const vite = readFileSync(resolve(root, "vite.config.ts"), "utf8");
@@ -79,10 +63,6 @@ test("the graph walker follows re-exports and lazy imports while ignoring erased
   );
 });
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 function runtimeImports(source: string): string[] {
   const imports: string[] = [];
   const declarations = /\b(?:import|export)\s+(?!type\b)(?:([^;"']*?)\s+from\s*)?["']([^"']+)["']/g;
@@ -119,5 +99,3 @@ function resolveLocal(specifier: string, importer: string): string | null {
   assert.ok(found, `unresolved report import ${specifier} from ${relative(root, importer)}`);
   return found;
 }
-
-/* === Entry Point === */

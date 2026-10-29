@@ -7,18 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
 mod distribution;
 mod query;
 
-/* === Re-Exports === */
-
 pub use query::PluginPage;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeSet,
     fs::{self, File},
@@ -26,24 +19,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-// Local Imports
 use super::model::{Installation, PluginSettings};
 use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState};
 use crate::config::Settings;
 
-/* === Constants === */
-
 const BUNDLE_EXTENSION: &str = "dokime";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct PluginStore {
@@ -52,8 +35,6 @@ pub struct PluginStore {
     settings: Settings,
     root: PathBuf,
 }
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum PluginError {
@@ -87,10 +68,6 @@ pub enum PluginError {
     #[error(transparent)]
     Storage(#[from] crate::storage::Error),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginStore {
     pub fn new(settings: Settings, schema: harmos::config::SchemaSettings) -> Self {
@@ -355,8 +332,6 @@ impl PluginStore {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, PluginError> {
     if !fs::symlink_metadata(path)?.file_type().is_file() {
         return Err(PluginError::Invalid("bundle must be a regular file".into()));
@@ -373,8 +348,6 @@ pub(crate) fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, PluginE
 pub(crate) fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
 }
-
-/* === Private Functions === */
 
 fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Option<String>) -> PluginEntry {
     PluginEntry {
@@ -409,5 +382,3 @@ fn sync_directory(path: &Path) -> Result<(), std::io::Error> {
     let _ = path;
     Ok(())
 }
-
-/* === Tests === */

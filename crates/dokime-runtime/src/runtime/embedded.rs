@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
-// Third Party Imports
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
 
-// Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
 use crate::schema::graph::Schema;
@@ -31,16 +22,8 @@ use crate::{InstalledPlugin, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 // Finished embedded runs whose token still routes a late signal, such as failure cleanup.
 const FINISHED_ROUTES: usize = 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Active {
     pub(super) provider: Arc<dyn EmbeddedProvider>,
@@ -110,15 +93,11 @@ struct Publication {
     schema: Schema,
 }
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum PreparedOperations {
     Operation0(crate::execution::Run<()>),
     Operation1(crate::execution::Signal<()>),
 }
-
-/* === Traits === */
 
 #[async_trait]
 pub trait EmbeddedProvider: Send + Sync {
@@ -129,8 +108,6 @@ pub trait EmbeddedProvider: Send + Sync {
 
     async fn stop(&self) -> Result<()>;
 }
-
-/* === Implementations === */
 
 impl Active {
     pub(super) fn prepare(provider: Arc<dyn EmbeddedProvider>, settings: &harmos::config::SchemaSettings) -> Result<Self> {
@@ -412,8 +389,6 @@ impl EmbeddedPublisher for Publisher {
     }
 }
 
-/* === Public Functions === */
-
 // Registers the host-level template run and signal every embedded provider serves through.
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, templates: &Arc<Templates>) -> harmos::Result<()> {
     setup.resource::<crate::execution::EmbeddedTemplates>(std::sync::Arc::new(crate::execution::EmbeddedTemplates(
@@ -425,8 +400,6 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, templates: 
         Ok(())
     }
 }
-
-/* === Private Functions === */
 
 fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
     use crate::plugin::registration::{
@@ -483,5 +456,3 @@ fn record_requirement(
 fn operation(error: impl std::fmt::Display) -> Error {
     Error::Operation(error.to_string())
 }
-
-/* === Tests === */

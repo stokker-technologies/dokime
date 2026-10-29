@@ -7,51 +7,26 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(any(windows, test))]
 use std::io::Cursor;
 
 use std::path::Path;
 
-// Third Party Imports
 use image::{
     DynamicImage, ImageFormat, Rgb, RgbImage,
     codecs::ico::{IcoEncoder, IcoFrame},
     imageops::FilterType,
 };
 
-// Local Imports
 use crate::Error;
 
-/* === Constants === */
-
 const ICON_SIZES: [u32; 7] = [16, 24, 32, 48, 64, 128, 256];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[cfg(any(windows, test))]
 pub(super) struct Icon {
     pub group: Vec<u8>,
     pub frames: Vec<Vec<u8>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[cfg(any(windows, test))]
 pub(super) fn icon(image: &DynamicImage) -> Result<Icon, Error> {
@@ -97,13 +72,9 @@ pub(super) fn sidebar(pack: &dokime::config::organization::ResolvedPack, path: &
     bitmap.save_with_format(path, ImageFormat::Bmp).map_err(image_error)
 }
 
-/* === Private Functions === */
-
 fn image_error(error: image::ImageError) -> Error {
     Error::Invalid(error.to_string())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

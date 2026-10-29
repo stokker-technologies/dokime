@@ -9,40 +9,15 @@
 
 // Verify And Stage Installer Plugin Bundles
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use harmos_packaging::bundle::{Bundle, Facility, Limits};
 
-// Local Imports
 use crate::{
     Error,
     bundle::{COMPATIBILITY_FILE, Compatibility},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn stage(
     paths: &[PathBuf], base: &Path, organization: Option<&Path>, scratch: &Path, target: &str, version: &str,
@@ -92,8 +67,6 @@ pub(super) fn stage(
     Ok(staged)
 }
 
-/* === Private Functions === */
-
 fn folder(directory: &Path) -> Result<BTreeMap<String, PathBuf>, Error> {
     let metadata = match std::fs::symlink_metadata(directory) {
         Ok(metadata) => metadata,
@@ -138,8 +111,6 @@ fn verify(path: &Path, target: &str, version: &str) -> Result<(Vec<u8>, String),
     }
     Ok((bytes, bundle.manifest().identity.name.clone()))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

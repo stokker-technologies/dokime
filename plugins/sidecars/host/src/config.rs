@@ -7,35 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 #[cfg(feature = "runtime")]
 pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
 
 pub(crate) const LATENCY_HOST: &str = "1.1.1.1";
 
 // An Active Wi-Fi Scan Disturbs The Link, So Scans Never Start Closer Together Than This.
 pub(crate) const MINIMUM_SCAN_INTERVAL_S: u32 = 30;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -67,12 +49,6 @@ pub struct HostOptions {
     pub minimum_scan_interval: Duration,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<Probes> for HostOptions {
     fn from(probes: Probes) -> Self {
         Self {
@@ -84,10 +60,6 @@ impl From<Probes> for HostOptions {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn selected(value: String) -> Option<String> {
     let value = value.trim();
     if value.is_empty() {
@@ -98,43 +70,10 @@ fn selected(value: String) -> Option<String> {
 
 #[cfg(feature = "runtime")]
 mod defaults {
-    /* === Modules === */
-
-    /* === Re-Exports === */
-
-    /* === Imports === */
-
-    // Standard Library Imports
-
-    // Third Party Imports
-
-    // Local Imports
-
-    /* === Constants === */
 
     pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
     pub(crate) const BLUETOOTH_DEEP_REFRESH: std::time::Duration = std::time::Duration::from_millis(300_000);
-
-    /* === Macros === */
-
-    /* === Type Aliases === */
-
-    /* === Structs === */
-
-    /* === Enums === */
-
-    /* === Traits === */
-
-    /* === Implementations === */
-
-    /* === Public Functions === */
-
-    /* === Private Functions === */
-
-    /* === Tests === */
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

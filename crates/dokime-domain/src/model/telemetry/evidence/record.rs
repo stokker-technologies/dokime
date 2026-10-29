@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
 use crate::model::identity::TelemetrySampleId;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySample {
@@ -53,12 +36,6 @@ pub struct TelemetrySample {
     pub summary: BTreeMap<String, Value>,
     pub metadata: BTreeMap<String, Value>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for TelemetrySample {
     fn memory_size(&self) -> usize {
@@ -115,9 +92,3 @@ impl TelemetrySample {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

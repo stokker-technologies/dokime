@@ -7,20 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, process::ExitCode};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 // Process Exit Codes
 // 0 Clean stop.
@@ -33,15 +20,7 @@ const EXIT_FAILURE: u8 = 3;
 const EXIT_INCOMPATIBLE_STORAGE: u8 = 4;
 const EXIT_STOP_INCOMPLETE: u8 = 5;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, Error>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -85,10 +64,6 @@ pub enum Error {
     Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime::runtime::Error> },
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         if error.kind() == std::io::ErrorKind::InvalidInput { Self::Input(error.to_string()) } else { Self::Io(error) }
@@ -125,10 +100,6 @@ impl Error {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn storage_refusal(error: &dokime::runtime::Error) -> Option<&dokime::storage::sqlite::Error> {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
@@ -148,5 +119,3 @@ fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
         _ => false,
     }
 }
-
-/* === Tests === */

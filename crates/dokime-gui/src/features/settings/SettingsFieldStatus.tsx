@@ -9,21 +9,13 @@
 
 /* What became of the last autosave, stated at the row that caused it. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { NotificationMessage } from "@/components/NotificationMessage";
 import type { AutosaveState } from "@/features/settings/settings-autosave";
-
-/* === Types === */
 
 type SettingsFieldStatusProps = {
   onRetry: () => void;
   state: AutosaveState;
 };
-
-/* === Components === */
 
 export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps) {
   return (

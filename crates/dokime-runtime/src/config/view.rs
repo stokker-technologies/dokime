@@ -7,33 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, runtime::Result};
 use dokime_domain::model::settings::{SettingsSnapshot, UpdateSettings};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn read_application_settings(&self) -> Result<SettingsSnapshot> {
@@ -47,9 +22,3 @@ impl RuntimeHandle {
         Ok(self.local_storage.update_application_settings(update).await?)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

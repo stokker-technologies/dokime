@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::Arc;
-// Third Party Imports
 
-// Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
 use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
@@ -25,18 +17,12 @@ use dokime_runtime::plugin::{Configuration, Secret};
 use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
 use dokime_runtime::settings::{SettingValues, SettingsEntry};
 
-/* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct Bench;
 
 #[dokime_runtime::settings]
@@ -84,7 +70,6 @@ pub struct GetVoltageResponse {
     pub volts: f64,
 }
 
-/* === Enums === */
 #[dokime_runtime::choice]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Environment {
@@ -94,9 +79,6 @@ pub enum Environment {
     Production,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
     const INITIALIZATION_POLICY: OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: OperationPolicy = POLICY;
@@ -227,14 +209,9 @@ impl dokime_runtime::Operation for GetVoltage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn defaults() -> SettingValues {
     BenchSettings::catalog().resolve(&SettingValues::new()).expect("the declared catalog resolves its own defaults")
 }
-
-/* === Tests === */
 
 #[test]
 fn section_folds_shows() {

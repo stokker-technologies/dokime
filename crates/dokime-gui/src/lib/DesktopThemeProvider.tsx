@@ -11,13 +11,8 @@
  * Connected Desktop Theme Preferences.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { type ReactNode, useEffect, useState } from "react";
-// Local Imports
+
 import { useAppearance } from "@/lib/appearance";
 import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { toast } from "@/lib/notifications";
@@ -25,13 +20,6 @@ import type { ResolvedTheme, ThemeModePreference } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
 import { ApplicationThemeProvider } from "./application-theme";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 export function DesktopThemeProvider({ children }: { children: ReactNode }) {
   const query = useApplicationSettings();
   const save = useSaveAppearance();
@@ -87,9 +75,3 @@ export function DesktopThemeProvider({ children }: { children: ReactNode }) {
     </ApplicationThemeProvider>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

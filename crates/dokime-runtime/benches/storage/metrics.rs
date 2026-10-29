@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-// Third Party Imports
 use harmos::storage::{StorageManager, StorageSettings};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-// Local Imports
-
-/* === Constants === */
-
 const SAMPLE_INTERVAL: Duration = Duration::from_millis(1);
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub struct Observed {
@@ -46,11 +29,6 @@ pub struct Probe {
     stop: Arc<(Mutex<bool>, Condvar)>,
     thread: Option<JoinHandle<Observed>>,
 }
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Probe {
     pub fn start<C: 'static>(storage: StorageManager<C>) -> Self {
@@ -142,7 +120,6 @@ impl Observed {
         );
     }
 }
-/* === Public Functions === */
 
 pub fn provenance() -> &'static Value {
     static VALUE: OnceLock<Value> = OnceLock::new();
@@ -162,7 +139,6 @@ pub fn provenance() -> &'static Value {
         })
     })
 }
-/* === Private Functions === */
 
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
@@ -188,4 +164,3 @@ fn rss() -> Option<usize> {
 fn rss() -> Option<usize> {
     None
 }
-/* === Tests === */

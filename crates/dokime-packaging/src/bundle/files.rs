@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use crate::error::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Discovery<'a> {
     root: &'a Path,
@@ -37,17 +19,11 @@ struct Discovery<'a> {
     visited: usize,
 }
 
-/* === Enums === */
-
 enum Entry {
     Directory(Box<dyn Iterator<Item = std::io::Result<PathBuf>>>),
     File,
     Other,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Discovery<'_> {
     fn visit(&mut self, path: &Path, depth: usize, inspect: &impl Fn(&Path) -> std::io::Result<Entry>) -> Result<(), Error> {
@@ -83,8 +59,6 @@ impl Discovery<'_> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn read(path: &Path, limit: usize) -> Result<Vec<u8>, Error> {
     if !std::fs::symlink_metadata(path)?.file_type().is_file() {
         return Err(Error::Invalid(format!("{} must be a regular file (no links)", path.display())));
@@ -99,8 +73,6 @@ pub fn assets(root: &Path, maximum: usize) -> Result<Vec<(String, PathBuf)>, Err
         Err(error) => Err(error.into()),
     }
 }
-
-/* === Private Functions === */
 
 fn bounded(reader: impl Read, limit: usize, label: &str) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
@@ -134,5 +106,3 @@ fn discover(root: &Path, maximum: usize, inspect: &impl Fn(&Path) -> std::io::Re
     discovery.paths.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(discovery.paths)
 }
-
-/* === Tests === */

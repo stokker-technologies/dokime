@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "native")]
 mod serving;
-
-/* === Re-Exports === */
 
 pub use dokime_domain::model::analysis::Axis;
 pub use dokime_domain::model::analysis::Definition;
@@ -22,29 +18,16 @@ pub use dokime_domain::model::analysis::MAX_SAMPLES;
 pub use dokime_domain::model::analysis::Output;
 pub use dokime_domain::model::analysis::Selection;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::time::Duration;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::parameters::FromParameters;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
 crate::transport::templated!(Operation, Request);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -83,8 +66,6 @@ pub struct Operation<A>(pub Request, PhantomData<fn() -> A>);
 
 pub struct Definitions;
 
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid analysis declaration: {0}")]
@@ -106,8 +87,6 @@ pub enum Error {
     Evaluation(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
-/* === Traits === */
-
 pub trait Analysis: Send + Sync + 'static {
     type Parameters: FromParameters;
     type Output: ResultData;
@@ -127,8 +106,6 @@ pub trait ResultData: Send + 'static {
     fn outputs() -> Vec<Output>;
     fn into_response(self) -> Response;
 }
-
-/* === Implementations === */
 
 impl Samples {
     pub fn check(&self, limits: Limits) -> Result<(), Error> {
@@ -261,12 +238,6 @@ impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Public;
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

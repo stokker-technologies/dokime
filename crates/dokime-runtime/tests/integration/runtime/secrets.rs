@@ -9,38 +9,21 @@
 
 // Two Plugin-Owned Operations Resolve The Same Live Host Secret.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::operations::{InvocationError, Visibility};
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginEndpoint, PluginLifecycle,
     PluginLifecycleAuthority, PluginManager, PluginTransition, Router,
 };
 
-// Local Imports
 use dokime_domain::model::secrets::catalog::{Metadata, Value};
 use dokime_runtime::operations::secrets;
 use dokime_runtime::{Runtime, app::Lanes};
 
-/* === Constants === */
-
 const OWNERS: [&str; 2] = ["plugin_alpha", "plugin_beta"];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Operations = harmos::operations::OperationManager<Lanes>;
-
-/* === Structs === */
 
 #[harmos::operation(response = Value, id = "fixture.secrets.read", policy = dokime_operations::ORDINARY, operations = [secrets::Lookup])]
 #[derive(PartialEq)]
@@ -56,12 +39,6 @@ struct Staged {
     endpoint: Option<PluginEndpoint>,
     registration: Option<harmos::operations::PluginRegistration>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::Operation for ReadSecret {
     type Error = InvocationError;
@@ -138,12 +115,6 @@ fn owners() -> PluginDefinitions {
     });
     PluginDefinitions::new(definitions, []).unwrap()
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn two_plugin_owners_resolve_shared_secret_lifecycle() {

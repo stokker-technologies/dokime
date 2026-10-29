@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-// Third Party Imports
-// Third-Party Imports
 use serde::de::DeserializeOwned;
 
-// Local Imports
 use super::context::{Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext};
 use super::document::DocumentIndex;
 use super::evidence::ExecutionEvidence;
@@ -32,14 +22,6 @@ use crate::telemetry::Streams;
 use crate::transport::ExecutionTransport;
 use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Environment<'a, C = (), O = (), I = ()> {
     parameters: &'a I,
@@ -68,12 +50,6 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
     #[cfg(feature = "native")]
     handles: super::instances::Handles,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a, C, O, I> Environment<'a, C, O, I> {
     pub fn new(
@@ -248,8 +224,6 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn parameter<C: DeserializeOwned>(values: &BTreeMap<String, Value>, id: &str) -> crate::Result<C> {
     let failure = |reason: &str| crate::Error::Parameter {
         name: id.to_owned(),
@@ -259,7 +233,3 @@ pub(super) fn parameter<C: DeserializeOwned>(values: &BTreeMap<String, Value>, i
     let json = value.to_plain_json().map_err(|_| failure("parameter cannot be represented as JSON"))?;
     serde_json::from_value(json).map_err(|_| failure("parameter has the wrong type"))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

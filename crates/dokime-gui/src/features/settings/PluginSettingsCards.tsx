@@ -9,20 +9,12 @@
 
 /* Installed-plugin settings cards. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { Badge } from "@/components/ui/badge";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import type { HostCardBlock, HostCardTone, RuntimeSettingsCard, RuntimeSettingsCardState } from "@/features/settings/settings-contracts";
 
-/* === Types === */
-
 type PluginSettingsCardsProps = { cards: RuntimeSettingsCard[] };
-
-/* === Components === */
 
 export function PluginSettingsCards({ cards }: PluginSettingsCardsProps) {
   if (cards.length === 0) {
@@ -102,8 +94,6 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
       );
   }
 }
-
-/* === Private Functions === */
 
 function stateMeta(state: RuntimeSettingsCardState): {
   label: string;

@@ -9,34 +9,8 @@
 
 // Disk-Spool Volume Fixture
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn capture(days: u64, per_day: u64) {
     let mut rows = EvidenceRows::<(u64, String)>::default();
     let mut previous_bytes = 0;
@@ -57,6 +31,3 @@ pub fn capture(days: u64, per_day: u64) {
         assert_eq!(row.1.len(), 256);
     }
 }
-/* === Private Functions === */
-
-/* === Tests === */

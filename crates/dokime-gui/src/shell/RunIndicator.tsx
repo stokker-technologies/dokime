@@ -11,34 +11,16 @@
  * Stream Refreshed Execution Focus In The Status Bar.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
 import { workflowQueryKeys } from "@/features/cycle/server-state";
+import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
 import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
 export function RunIndicator() {
   const session = useNativeSession();
   const cycles = useCyclesQuery();
@@ -114,5 +96,3 @@ export function RunIndicator() {
     </button>
   );
 }
-
-/* === Private Functions === */

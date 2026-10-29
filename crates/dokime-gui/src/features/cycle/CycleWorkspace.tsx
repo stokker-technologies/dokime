@@ -28,18 +28,13 @@
  * frozen rendering does not construct those resources.
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/lib/notifications";
 import type { TestExecution } from "@/lib/types";
 import { useSelectionStore } from "@/stores/selection-store";
 import { ControlCard } from "./ControlCard";
@@ -76,8 +71,6 @@ import { NodeSummary } from "./NodeSummary";
 import { answerablePrompts } from "./prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 
-/* === Types === */
-
 export type CycleWorkspaceProps = {
   cycleId: string;
   caseId?: string;
@@ -90,8 +83,6 @@ export type CycleWorkspaceProps = {
 };
 
 type PendingConfirm = { kind: "seal" } | null;
-
-/* === Components === */
 
 export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true, onSelectionChange }: CycleWorkspaceProps) {
   const navigate = useNavigate();
@@ -457,8 +448,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   );
 }
 
-/* === Private Functions === */
-
 /** A case whose attempt sealed keeps the label its report froze. */
 function caseSealed(executions: TestExecution[], caseId: string): boolean {
   return executions.some((execution) => execution.case_id === caseId && execution.sealed);
@@ -467,8 +456,6 @@ function caseSealed(executions: TestExecution[], caseId: string): boolean {
 function executionTitlePrefix(row: CycleExecutionRow): string {
   return `Execution ${row.ordinal} · `;
 }
-
-/* === Private Components === */
 
 function WorkspaceNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (

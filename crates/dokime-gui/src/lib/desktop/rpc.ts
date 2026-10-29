@@ -9,11 +9,7 @@
 
 /* Native RPC failures, mirroring `Error` in `src-tauri/src/error.rs`. */
 
-/* === Local Imports === */
-
 import type { ConnectionError } from "./connection";
-
-/* === Types === */
 
 export type RpcError =
   | { kind: "session"; detail: ConnectionError }

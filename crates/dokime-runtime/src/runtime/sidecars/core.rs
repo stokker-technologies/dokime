@@ -7,39 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, RwLock};
 
-// Third Party Imports
 use harmos::Context;
 use harmos::operations::HostContext;
 use tonic::Status;
 
-// Local Imports
 use crate::RuntimeHandle;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::records::RecordPublication;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub(crate) struct RecordIngress {
     runtime: RwLock<Option<RuntimeHandle>>,
 }
-
-/* === Enums === */
 
 #[harmos::catalog]
 enum RecordOperations {
@@ -50,10 +31,6 @@ enum RecordOperations {
 enum Publications {
     Operation0(harmos::builtins::streams::Publish),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordIngress {
     pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<Arc<Self>> {
@@ -105,8 +82,6 @@ impl Serve<RecordPublication> for RecordIngress {
     }
 }
 
-/* === Public Functions === */
-
 // Serves Harmos's `streams.publish` built-in; each call reaches the calling
 // sidecar's own native endpoint through the call's host context.
 pub(crate) fn prepare_publications(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<()> {
@@ -115,7 +90,3 @@ pub(crate) fn prepare_publications(setup: &mut harmos::Setup<crate::app::Dokime>
         Ok(())
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod encoding;
 mod foreign_streams;
 pub(crate) mod notes;
@@ -16,19 +14,11 @@ mod ownership;
 mod record_history;
 pub mod shared;
 
-/* === Re-Exports === */
-
 pub use ownership::{BundleCatalog, PluginOwner, ProviderCatalog};
 pub(crate) use record_history::Redefinition;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
 use crate::prompts::{PromptDefinition, PromptInstance, PromptResponse};
@@ -55,10 +45,6 @@ use dokime_domain::state::records::set::TestRecordSet;
 use foreign_streams::{admit_foreign_view, declares_foreign_view};
 use shared::{Map, Shared};
 
-/* === Constants === */
-
-/* === Macros === */
-
 product_error!(RuntimeStateInstallError, formatter {
     Self::RecordHistory(message) => write!(formatter, "record contract history: {message}"),
     Self::DuplicateRecord(identifier) => write!(formatter, "event definition {identifier} is already registered"),
@@ -68,10 +54,6 @@ product_error!(RuntimeStateInstallError, formatter {
         "foreign view of telemetry stream {stream} reads column {column}, which {detail}"
     ),
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // The managed snapshot encodes this state through `encoding`.
 #[derive(Clone, Debug, PartialEq)]
@@ -118,8 +100,6 @@ struct CatalogSnapshot {
     telemetry_definitions: Shared<BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStateInstallError {
     DuplicateRecord(dokime_domain::model::identity::Identifier),
@@ -127,10 +107,6 @@ pub enum RuntimeStateInstallError {
     DuplicateTelemetry(dokime_domain::model::identity::Identifier),
     ForeignTelemetryColumn { stream: dokime_domain::model::identity::Identifier, column: String, detail: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeState {
     // Catalog Validation Needs Cross-Provider Definitions, Never Execution Evidence.
@@ -830,10 +806,6 @@ impl RuntimeState {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn unestablished_node_id() -> NodeId {
     NodeId::from_seed("dokime.unestablished-node")
 }
@@ -841,8 +813,6 @@ fn unestablished_node_id() -> NodeId {
 fn unestablished_node_identity() -> DokimeNodeIdentity {
     DokimeNodeIdentity::new(unestablished_node_id(), None, Timestamp::new("1970-01-01T00:00:00Z"))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

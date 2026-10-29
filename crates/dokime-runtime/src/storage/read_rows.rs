@@ -7,27 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::ReadBatch;
 use serde::{Deserialize, Serialize, ser::SerializeSeq};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 /// An Immutable Sequence Of Owned Rows Or Shared Native Pages.
 pub struct ReadRows<T> {
@@ -40,16 +21,10 @@ pub struct RowsIter<'a, T> {
     back: std::slice::Iter<'a, T>,
 }
 
-/* === Enums === */
-
 enum Rows<T> {
     Owned(Vec<T>),
     Native(super::projection::Pages<T>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<T> ReadRows<T> {
     pub fn get(&self, mut index: usize) -> Option<&T> {
@@ -207,12 +182,6 @@ impl<T: harmos::MemorySize> harmos::MemorySize for ReadRows<T> {
         std::mem::size_of::<Self>().saturating_add(heap)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

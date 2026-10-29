@@ -12,20 +12,13 @@
  * identifier wraps at its dots and the provenance chips wrap onto a new line.
  * Internal UUIDs are never rendered here. */
 
-/* === External Imports === */
-
 import { Clipboard } from "lucide-react";
 import { Fragment } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { TagChip } from "@/components/suite-picker/SuiteTags";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { useBrand } from "@/lib/brand";
+import { toast } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type CatalogIdentifierProps = {
   className?: string;
@@ -44,8 +37,6 @@ type OwnerDisplay = {
   label: string;
   title: string;
 };
-
-/* === Components === */
 
 /** A monospace identifier with a copy affordance; it wraps only at its dots. */
 export function CatalogIdentifier({ className, subject, value }: CatalogIdentifierProps) {
@@ -99,8 +90,6 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
   );
 }
 
-/* === Public Functions === */
-
 /** Searchable plugin text for one suite, so the filter matches provenance too. */
 export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefined, brandLabel: string): unknown[] {
   if (!plugin) {
@@ -109,8 +98,6 @@ export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefine
   const owner = ownerDisplay(plugin.owner, brandLabel);
   return [plugin.plugin_id, plugin.label, plugin.version, owner?.label, plugin.owner?.kind === "bundle" ? plugin.owner.package : null];
 }
-
-/* === Private Functions === */
 
 function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"], brandLabel: string): OwnerDisplay | null {
   switch (owner?.kind) {

@@ -11,24 +11,9 @@
  * A cycle state pill sized to the longest state label.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { Badge } from "@/components/ui/badge";
 import { CYCLE_STATE_LABELS, STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 
 /**
  * A cycle's state pill, as wide as the longest state label wherever it sits.
@@ -51,12 +36,6 @@ export function CycleStatusPill({ label, tone }: { label: string; tone: CycleRow
     </span>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function toneVariant(tone: CycleRow["statusTone"]) {
   switch (tone) {

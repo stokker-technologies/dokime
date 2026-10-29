@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod canonical;
 mod selection;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::Response;
 use tonic::Status;
 
-// Local Imports
 use super::error::detailed;
 use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
@@ -36,20 +27,12 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::CapturedRecords;
 use selection::Selection;
 
-/* === Constants === */
-
 const SERVER_EVIDENCE_PAGE_BYTES: u64 = 524_288;
 const SERVER_EVIDENCE_RECORD_ITEMS: u64 = 1_000;
 const SERVER_EVIDENCE_SCAN_ITEMS: u64 = 1_000;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Page = dokime::domain::model::evidence::wire::RecordPage;
 type TailEntry = (usize, dokime::domain::model::evidence::wire::CapturedRecord);
-
-/* === Structs === */
 
 struct Resources {
     pub(super) runtime: LiveRuntime,
@@ -76,18 +59,12 @@ struct Tail {
     oversized: bool,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(v1::ListRecords),
     Operation1(v1::WatchRecords),
     Operation2(v1::GetCapturedRecordSchema),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Reader {
     fn new(
@@ -366,8 +343,6 @@ impl Serve<v1::GetCapturedRecordSchema> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), super::Error> {
@@ -383,8 +358,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn record_wire_size(record: &dokime::domain::model::evidence::wire::CapturedRecord) -> Result<usize, Status> {
     let body = record.wire_len()?;
@@ -414,5 +387,3 @@ fn memory_error(error: dokime::harmos::Error) -> Status {
 fn capture_error(error: dokime::runtime::Error) -> Status {
     detailed(Status::unavailable(format!("captured record source unavailable: {error}")), &error)
 }
-
-/* === Tests === */

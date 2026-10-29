@@ -11,8 +11,6 @@ import type { JsonObject, RecordScope } from "../types";
 import type { ValueFormat } from "./format";
 import type { TelemetryContractSpec } from "./telemetry";
 
-/* === Record / notification / prompt / contract types === */
-
 export type Severity = "debug" | "info" | "warning" | "error";
 
 export type RecordIconKey =

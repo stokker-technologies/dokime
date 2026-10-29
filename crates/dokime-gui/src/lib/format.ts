@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { ValueFormat } from "@/lib/types";
-
-/* === Types === */
 
 export type NumberFormatOptions = {
   /** The axis tick increment; sets the fraction digits when no format declares its own. */
@@ -22,8 +18,6 @@ export type TimeFormatOrigin = {
   runStart?: number | null;
   cycleStart?: number | null;
 };
-
-/* === Constants === */
 
 /** The units below a minute, each used while the rounded value stays under its limit (seconds). */
 const SUBSECOND_SCALES: ReadonlyArray<{ divisor: number; limit: number; unit: string }> = [
@@ -53,8 +47,6 @@ const SI_PREFIXES: ReadonlyArray<readonly [number, string]> = [
 
 const MIN_SI_EXPONENT = SI_PREFIXES[0][0];
 const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
-
-/* === Public Functions === */
 
 /** A duration split into the figure and the unit it is printed in. */
 export type DurationParts = { figure: string; unit: string };
@@ -195,8 +187,6 @@ export function defaultPlotNumber(value: number, increment?: number): string {
   const maximumFractionDigits = Math.min(6, fromIncrement ?? 4);
   return value.toLocaleString(undefined, { maximumFractionDigits });
 }
-
-/* === Private Functions === */
 
 /** Three significant digits, without trailing zeros. */
 function significant(value: number): number {

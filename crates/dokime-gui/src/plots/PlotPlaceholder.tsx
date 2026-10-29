@@ -7,24 +7,16 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { cn } from "@/lib/utils";
 import type { PlotPlaceholderText } from "@/plots/plot-placeholder";
-
-/* === Types === */
 
 type PlotPlaceholderProps = PlotPlaceholderText & {
   title?: string;
   description?: string | null;
   actions?: ReactNode;
 };
-
-/* === Components === */
 
 /**
  * The centred box every plot shows in place of a chart it cannot draw yet. A

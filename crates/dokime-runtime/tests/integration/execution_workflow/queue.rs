@@ -7,37 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model::execution::result::ResultStatus;
 use dokime_runtime::runtime::query::execution_history::ExecutionBrowseLifecycle;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn container_request_outcomes() {
     use dokime_domain::model::execution::request::RunPhase;
@@ -446,5 +418,3 @@ pub(crate) async fn execution_retry_receipt() {
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }
-
-/* === Tests === */

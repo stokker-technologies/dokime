@@ -7,44 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, btree_map::Entry};
 
-// Third Party Imports
-
-// Local Imports
 use super::{PlotAnalysis, PlotPoint, PlotSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, point_x};
-
-/* === Constants === */
 
 const BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 const ALLOCATION: &str = "WiFi occupancy allocation failed";
 const OVERFLOW: &str = "WiFi occupancy count or size overflows";
 const ENCODING: &str = "WiFi occupancy time encoding failed";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Channel = (i64, bool);
 type Counts = BTreeMap<i64, usize>;
 type Scans = BTreeMap<i64, (String, Counts)>;
 
-/* === Structs === */
-
 struct Count(usize);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::io::Write for Count {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
@@ -55,8 +31,6 @@ impl std::io::Write for Count {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn analyze(series: &[PlotSeries]) -> Result<PlotAnalysis, &'static str> {
     let mut channels = channel_slots(series)?;
@@ -165,8 +139,6 @@ pub(in crate::plot::payload) fn series_channel(entry: &PlotSeries) -> Option<i64
     channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
 }
 
-/* === Private Functions === */
-
 fn channel_slots(series: &[PlotSeries]) -> Result<Vec<Channel>, &'static str> {
     let count = series.iter().filter(|entry| series_channel(entry).is_some()).count();
     let mut channels = slots(count)?;
@@ -218,8 +190,6 @@ fn band_index(channel: i64) -> Option<usize> {
         _ => None,
     }
 }
-
-/* === Tests === */
 
 #[cfg(feature = "storage")]
 #[cfg(test)]

@@ -9,28 +9,21 @@
 
 #![allow(dead_code)]
 
-/* === Modules === */
-
 pub mod artifacts;
 pub mod budgets;
 pub mod host;
 pub mod plots;
 pub mod wire;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-// Third Party Imports
+
 use futures_util::FutureExt;
 use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
-// Local Imports
+
 use dokime::client::contracts;
 use dokime::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, TestCase, TestCaseTemplate, TestSuite,
@@ -50,14 +43,6 @@ use dokime::{CaseId, Identifier, Metadata, ParameterId, TemplateId, TestCycleId,
 use dokime::{InstalledPlugin, Runtime, RuntimeHandle};
 use {dokime::domain::model::execution::result::CycleStatus, dokime::domain::model::execution::result::CycleView};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[derive(Clone, PartialEq)]
 pub struct ProgressRow {
@@ -73,12 +58,6 @@ pub struct TestEnvironment {
 struct FakePythonExecutor;
 
 struct FixtureProgressExecutor;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestEnvironment {
     pub async fn with_installed_plugins(artifacts: Vec<InstalledPlugin>, server: &dokime_server::grpc::PreparedService) -> Self {
@@ -140,8 +119,6 @@ impl ExecutionFixture for FixtureProgressExecutor {
         Box::pin(async move { Ok(fixture_provider_outcome(cycle, true)) })
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient, create: Request<contracts::execution::CreateCycle>, plan: model::planning::wire::SelectionPlan,
@@ -427,8 +404,6 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
     }
 }
 
-/* === Private Functions === */
-
 fn settled_view(cycle: &CycleView, outcome: &dokime::domain::model::execution::result::ResultStatus) -> bool {
     let planned =
         cycle.test_executions.iter().any(|execution| execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none());
@@ -534,5 +509,3 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
         }],
     }
 }
-
-/* === Tests === */

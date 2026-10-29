@@ -1,7 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
-/* === Types === */
-
 /** Derive Structural Fields From Canonical Generated Messages Across Method Namespaces. */
 export type Wire<T> = T extends Uint8Array
   ? T

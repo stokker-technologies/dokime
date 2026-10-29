@@ -9,9 +9,6 @@
 
 """Verify Example Cancellation And Recovery Boundaries"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import runpy
@@ -20,28 +17,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import ResultSummary, RpcError
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
 
 EXAMPLES = Path(__file__).resolve().parents[3] / "examples/remote/python"
 CYCLE = "00000000-0000-0000-0000-000000000001"
 EXECUTION = "00000000-0000-0000-0000-000000000002"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("existing", [False, True])
@@ -260,8 +242,3 @@ def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert summary["run"]["execution_id"] == EXECUTION
     assert summary["samples_by_stream"] == {"pulse": 1}
     assert summary["events_by_type"] == {"run": 1}
-
-
-# === Private Functions === #
-
-# === Entry Point === #

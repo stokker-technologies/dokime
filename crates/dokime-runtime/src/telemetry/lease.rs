@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// Third Party Imports
-// Third-Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 static NEXT_LEASE: AtomicU64 = AtomicU64::new(0);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LeaseRequest {
@@ -48,12 +30,6 @@ pub struct LeaseGap {
     pub reason: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl LeaseRequest {
     pub fn new(stream: Identifier) -> Self {
         Self {
@@ -62,9 +38,3 @@ impl LeaseRequest {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

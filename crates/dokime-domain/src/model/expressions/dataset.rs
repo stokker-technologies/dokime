@@ -7,27 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::model::time::DurationMillis;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecordTimingRecord<'a> {
@@ -46,14 +27,6 @@ pub struct RecordTimingPoint {
     pub ended_at: Timestamp,
     pub duration: DurationMillis,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn record_time_between<'a>(
     records: impl IntoIterator<Item = RecordTimingRecord<'a>>, end_record_type: &str, previous_record_type: &str,
@@ -86,7 +59,3 @@ pub fn record_time_between<'a>(
 
     points
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

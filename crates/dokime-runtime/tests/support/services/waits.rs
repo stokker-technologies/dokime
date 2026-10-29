@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -32,21 +22,6 @@ use dokime_runtime::runtime::query::{
 };
 use dokime_runtime::state::RuntimeState;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub async fn settle<T, F, Fut>(runtime: &RuntimeHandle, mut check: F) -> T
 where
     F: FnMut() -> Fut,
@@ -168,8 +143,6 @@ pub fn latest_execution_for_case<'a>(
     cycle.test_executions.iter().rev().find(|execution| &execution.test_case_id == test_case_id)
 }
 
-/* === Private Functions === */
-
 async fn wait_for_idle_cycle(
     runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: ResultStatus, settled: bool,
 ) -> dokime_domain::model::execution::result::CycleView {
@@ -191,5 +164,3 @@ async fn wait_for_idle_cycle(
     let snapshot = until_state(runtime, idle).await;
     snapshot.state().cycle_views().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
 }
-
-/* === Tests === */

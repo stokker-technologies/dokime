@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::value::canonical;
 use dokime::domain::model::execution::health::HealthItem;
 use dokime::domain::model::execution::health::HealthSeverity;
@@ -29,22 +19,6 @@ use dokime::domain::model::identity::TestCycleId;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::model::identity::wire as common;
 use dokime::domains::evidence::notes::{NoteCreation, NotePublication};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn owner(value: Option<dokime::domain::model::notes::wire::AnnotationOwner>) -> Result<NoteOwner, Status> {
     use dokime::domain::model::notes::wire::AnnotationOwnerOwner as Owner;
@@ -125,7 +99,3 @@ pub(super) fn receipt(value: &NoteCreation) -> Result<dokime::domain::model::not
         unconfirmed_targets,
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

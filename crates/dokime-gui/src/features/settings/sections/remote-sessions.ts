@@ -11,25 +11,12 @@
  * Remote Session Rows For The Recent Sessions Table
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { Wire } from "@/lib/rpc/canonical";
 import type * as rpc from "@/lib/rpc/generated/client";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const GUI_REMOTE_SESSION_PAGE_ITEMS = 20;
 
 export const SESSION_PAGE_SIZE = GUI_REMOTE_SESSION_PAGE_ITEMS;
-
-/* === Types === */
 
 export type RemoteSessionPage = Wire<Awaited<ReturnType<typeof rpc.remoteListSessions>>>;
 export type RemoteSession = RemoteSessionPage["sessions"][number];
@@ -50,10 +37,6 @@ export type RemoteSessionRow = {
 
 /** Cursors of the pages before the current one; the last entry is the current page's cursor. */
 export type SessionPager = { cursors: (string | undefined)[] };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function sessionRow(session: RemoteSession, format: (millis: number) => string = formatTime): RemoteSessionRow {
   const connected = Number(session.connectedAt);
@@ -96,10 +79,6 @@ export function newerPage(pager: SessionPager): SessionPager {
   return pager.cursors.length > 1 ? { cursors: pager.cursors.slice(0, -1) } : pager;
 }
 
-/* === Private Functions === */
-
 function formatTime(millis: number): string {
   return new Date(millis).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" });
 }
-
-/* === Entry Point === */

@@ -11,27 +11,14 @@
  * Frozen Snapshot Composition Of The Shared Shell Frames.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import type { ReactNode } from "react";
 
-// Local Imports
 import { CycleSidebarCasesView } from "@/features/cycle/CycleSidebarCasesView";
 import { useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { AppShellLayout, type FrozenShell } from "@/shell/AppShellLayout";
 import { SidebarFrame } from "@/shell/SidebarFrame";
 import { FrozenStatusBar } from "@/shell/StatusBarFrame";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 export function ReportShell({ children, frozen }: { children: ReactNode; frozen: FrozenShell }) {
   const snapshot = useCycleSnapshotSource();
   if (!snapshot) throw new Error("A frozen report requires its captured cycle snapshot.");
@@ -61,9 +48,3 @@ export function ReportShell({ children, frozen }: { children: ReactNode; frozen:
     </AppShellLayout>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

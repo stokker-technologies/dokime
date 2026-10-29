@@ -7,32 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::telemetry::TelemetryContract;
 use crate::model::telemetry::TelemetryRow;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 
 #[diagnostic::on_unimplemented(
     message = "`{Self}` declares no stream of its own",
@@ -48,11 +25,3 @@ pub trait TelemetryStream: harmos::StreamSpec<Row: TelemetryRow> {
         Identifier::declared(Self::ID, "telemetry stream")
     }
 }
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -11,9 +11,6 @@
  * Own Native Report Browser Tabs And Cleanup
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn } from "node:child_process";
 import { on, once } from "node:events";
@@ -24,19 +21,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type Target = { id: string; url: string; type: string };
-
-/* === Classes === */
 
 export class ReportBrowser {
   private readonly tabs = new Set<string>();
@@ -200,9 +185,3 @@ export class ReportBrowser {
     if (failures.length) throw new AggregateError(failures, "Owned report browser cleanup failed");
   }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */

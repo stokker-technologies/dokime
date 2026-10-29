@@ -8,9 +8,6 @@
 
 """Extend The Scripted Backend With Sealed History, Reports And Prompts"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import hashlib
 import json
@@ -18,21 +15,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-# Third Party Imports
 import grpc
 
-# Local Imports
 from dokime_client.client import DokimeClient, _wire
 
 from . import backend
 from .backend import CASE_ID, COMMAND_ID, CYCLE_ID, EXECUTION_ID, BackendFixture
 from .canonical import _message, _value
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Native V1 Golden Cursors Verified By The Rust Saved-Evidence Unit Tests.
 RECORD_CURSORS = (
@@ -43,11 +32,6 @@ SAMPLE_CURSORS = (
     "AS-NHy5qsY3VX7wdUoUc1hTUnmoBSgaqNQrN5IyZu8n1AAAAAAAAAAE",
     "AS-NHy5qsY3VX7wdUoUc1hTUnmoBSgaqNQrN5IyZu8n1AAAAAAAAAAI",
 )
-
-
-# === Types === #
-
-# === Classes === #
 
 
 class CaptureBackend(BackendFixture):
@@ -550,15 +534,7 @@ class CaptureBackend(BackendFixture):
             await context.abort(grpc.StatusCode.DATA_LOSS, "failed after completion frame")
 
 
-# === Public Functions === #
-
-
 @asynccontextmanager
 async def serve() -> AsyncIterator[tuple[CaptureBackend, DokimeClient]]:
     async with backend.serve(CaptureBackend()) as (implementation, client):
         yield implementation, client
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,37 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
-
-// Local Imports
 use super::store::read_bounded;
 use super::{PluginEntry, PluginError, PluginProvenance, PluginStore};
 use crate::RuntimeHandle;
 
-/* === Constants === */
-
 const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application startup.";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub fn plugin_process_state(&self, entry: &mut PluginEntry) {
@@ -85,10 +61,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     entry.active = attempted == Some(true);
     entry.restart_required = match entry.installation.state {
@@ -110,5 +82,3 @@ fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
         _ => GENERIC_BOOT_ERROR.to_owned(),
     });
 }
-
-/* === Tests === */

@@ -7,35 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn stored_cycle(
     runtime: &RuntimeHandle, test_cycle_id: &TestCycleId,
 ) -> (dokime_domain::model::execution::result::TestCycle, harmos::storage::StorageCursor) {
@@ -360,8 +333,6 @@ pub(crate) async fn stopped_telemetry_refused() {
 }
 
 pub(crate) async fn execution_stop_leaves_cycle_idle() {
-    // === Run The First Of Two Executions === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -378,13 +349,9 @@ pub(crate) async fn execution_stop_leaves_cycle_idle() {
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     assert_eq!(running.test_executions.len(), 2);
 
-    // === Stop That Execution Alone === //
-
     let stopped = running.test_executions[0].test_execution_id.clone();
     runtime.stop_execution(stopped.clone(), CommandContext::default()).await.unwrap();
     executor.release();
-
-    // === The Cycle Stays Active And Idle === //
 
     let idle = wait_for_cycle_idle(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
     assert_eq!(idle.phase, dokime_domain::model::execution::result::CyclePhase::Active);
@@ -393,8 +360,6 @@ pub(crate) async fn execution_stop_leaves_cycle_idle() {
     assert_eq!(execution(&stopped).status, ExecutionStatus::Cancelled);
     let sibling = idle.test_executions.iter().find(|execution| execution.test_execution_id != stopped).unwrap();
     assert!(sibling.started_at.is_none(), "the sibling has not run yet");
-
-    // === The Sibling Still Starts === //
 
     let next = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(next.status, CommandStatus::Accepted, "{next:?}");
@@ -451,8 +416,6 @@ pub(crate) async fn pause_blocks_boundaries() {
 
     assert!(resume.is_ok());
 }
-
-/* === Tests === */
 
 pub(crate) async fn continuation_follows_seal() {
     let root = tempdir().unwrap();

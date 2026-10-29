@@ -8,24 +8,7 @@
 
 """Settings Operation Round Trip"""
 
-# === Imports === #
-
-# Standard Library Imports
-# Third Party Imports
-# Local Imports
 from dokime_client.client import _contracts
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_settings_operation_round_trip() -> None:
@@ -57,8 +40,3 @@ def test_settings_operation_round_trip() -> None:
     restored = operation.response.FromString(response.SerializeToString())
     assert restored.revision == 8
     assert restored.settings == received.update.settings
-
-
-# === Private Functions === #
-
-# === Entry Point === #

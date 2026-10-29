@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { ArrowRight, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
@@ -21,8 +17,6 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
-
-/* === Constants === */
 
 const column = dataTableColumns<ExploreEntry>();
 
@@ -66,8 +60,6 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
   }),
 ]);
 
-/* === Types === */
-
 type HistoryLibraryProps = {
   /** The Archived view: archived rows only, each with Unarchive. */
   archived: boolean;
@@ -83,8 +75,6 @@ type HistoryLibraryProps = {
   query: string;
   selectedIds: Set<string>;
 };
-
-/* === Components === */
 
 export function HistoryLibrary({
   archived,
@@ -215,8 +205,6 @@ function SourceBadge({ source }: { source: ExploreSource }) {
     </Badge>
   );
 }
-
-/* === Private Functions === */
 
 function formatDate(iso: string): string {
   const date = new Date(iso);

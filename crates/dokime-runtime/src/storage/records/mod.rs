@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{Message, storage::SchemaKey};
 
-// Local Imports
 use super::{Error, Result, values};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::RecordSeverity;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -96,12 +78,6 @@ struct CauseRow {
     pub code: Option<String>,
     pub source: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<&dokime_domain::model::execution::RecordScope> for ScopeRow {
     fn from(scope: &dokime_domain::model::execution::RecordScope) -> Self {
@@ -504,8 +480,6 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
     }
 }
 
-/* === Public Functions === */
-
 pub fn encode(entry: &RecordEntry, max_bytes: usize) -> Result<Vec<u8>> {
     let row = RecordRow::from_entry(entry)?;
     if row.encoded_size() > max_bytes {
@@ -525,8 +499,6 @@ pub fn schema() -> SchemaKey {
         version: 1.try_into().unwrap(),
     }
 }
-
-/* === Private Functions === */
 
 fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -557,5 +529,3 @@ fn copy_text(source: &str) -> Result<String> {
 fn error(reason: &'static str) -> Error {
     Error::Invalid(reason)
 }
-
-/* === Tests === */

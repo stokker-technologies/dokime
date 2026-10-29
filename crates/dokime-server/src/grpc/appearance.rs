@@ -7,57 +7,34 @@
  * ***
  */
 
-/* === Modules === */
-
 mod assets;
 mod convert;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use prost::Message;
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
 use dokime::operations::appearance as wire;
 use dokime::operations::content;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
 const SERVER_APPEARANCE_ASSET_BYTES: u64 = 8_388_608;
 const SERVER_APPEARANCE_SOURCE_BYTES: u64 = 4_194_304;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub runtime: LiveRuntime,
     pub max_message_bytes: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::GetAppearance),
     Operation1(content::DownloadAppearanceAsset),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetAppearance> for Resources {
     fn serve<'a>(
@@ -129,8 +106,6 @@ impl Serve<content::DownloadAppearanceAsset> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
 ) -> Result<(), super::Error> {
@@ -151,8 +126,6 @@ pub(super) fn historical(
 ) -> Result<dokime::domain::model::appearance::wire::AppearanceSnapshot, Status> {
     convert::appearance(frame, Vec::new()).map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
 }
-
-/* === Private Functions === */
 
 fn source_budget(max_message_bytes: usize) -> usize {
     max_message_bytes.min(usize::try_from(SERVER_APPEARANCE_SOURCE_BYTES).expect("validated appearance source size"))
@@ -182,5 +155,3 @@ fn failure(kind: dokime::domain::model::appearance::wire::AppearanceFailureKind)
     };
     Status::with_details(code, message, envelope.encode_to_vec().into())
 }
-
-/* === Tests === */

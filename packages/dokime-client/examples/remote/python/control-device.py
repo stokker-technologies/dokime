@@ -9,36 +9,17 @@
 
 """Discover And Control The Manual Simulated Device"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import sys
 from pathlib import Path
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 
 from dokime_client.client import DokimeClient, DokimeError
 
-# Local Imports
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
 # Connection Parameters
 PAIRING_FILE = Path("../lab.dokime-pair")
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def run() -> int:
@@ -82,10 +63,6 @@ async def run() -> int:
             raise ValueError("manual device did not report the expected powered-off state")
     return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     try:

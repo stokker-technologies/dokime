@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 #[cfg(feature = "fault-injection")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn node_identity_restart() {
     let root = tempdir().unwrap();
@@ -116,8 +89,6 @@ pub(crate) async fn old_incompatible_startup() {
     runtime.shutdown().await.unwrap();
     assert_eq!(std::fs::read(legacy.join("journal.jsonl")).unwrap(), b"incompatible old history\n");
 }
-
-/* === Tests === */
 
 pub(crate) async fn boot_reboots_intact() {
     let root = tempfile::tempdir().unwrap();

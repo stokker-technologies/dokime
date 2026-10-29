@@ -9,34 +9,7 @@
 
 // CLI Story Configuration Uses The Production Bootstrap
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn resolve(root: &Path) -> dokime::config::Config {
     dokime::config::ApplicationOptions {
@@ -46,7 +19,3 @@ pub fn resolve(root: &Path) -> dokime::config::Config {
     .resolve()
     .unwrap()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

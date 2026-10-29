@@ -7,12 +7,9 @@
  * ***
  */
 
-/* === Local Imports === */
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, Severity } from "@/lib/types";
-
-/* === Constants === */
 
 const GUI_LOG_BYTES = 262_144;
 const GUI_LOG_EVENTS = 256;
@@ -25,7 +22,6 @@ const MIN_LEVEL: Record<TraceLevel, LogLevel> = {
   warning: { HarmosVariant: { case: "Warn", value: {} } },
 };
 
-/* === Types === */
 type Request = Parameters<typeof rpc.backendWatchTrace>[1];
 type LogLevel = Request["minLevel"];
 export type TraceLevel = "trace" | Severity;
@@ -37,7 +33,6 @@ export type TracePage = {
   nextSequence: bigint;
 };
 
-/* === Public Functions === */
 export async function openTraceStream(
   session: SessionIdentity,
   request: TraceSelection & { minLevel: TraceLevel; afterSequence: bigint; epoch?: string },
@@ -90,7 +85,6 @@ export async function openTraceStream(
   };
 }
 
-/* === Private Functions === */
 function logSeverity(level: LogLevel): Severity {
   switch (level?.HarmosVariant?.case) {
     case "Error":

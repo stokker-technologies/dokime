@@ -7,37 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn live_file_rewrites() {
     let Gated {
@@ -713,5 +686,3 @@ pub(crate) async fn execution_file_buffer() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

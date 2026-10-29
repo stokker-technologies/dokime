@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod controls;
 
 pub(crate) mod documents_execution;
@@ -27,31 +25,18 @@ pub(crate) mod start;
 
 pub(crate) mod steps;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
-// Third Party Imports
+
 use crate::support::wire::WireMessage;
 use prost::Message;
 use tokio::sync::Notify;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::domains::ExecutionProviderTarget;
 use dokime::transport::ProviderExecutionFailure;
 use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Progress;
 
@@ -70,12 +55,6 @@ struct Gated {
     execution: WireClient,
     cycle: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for Progress {
     fn run_cycle<'a>(
@@ -131,10 +110,6 @@ impl Gated {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn registered_create_definitions() {
     let root = tempfile::tempdir().unwrap();
@@ -983,8 +958,6 @@ pub(crate) async fn run_cycle_targets() {
 fn run(id: &str) -> contracts::execution::GetCycle {
     contracts::execution::GetCycle { cycle_id: id.into() }
 }
-
-/* === Tests === */
 
 // Registered execution runs: create, start, control, inspect, search, files, checkpoints and restart receipts.
 #[tokio::test]

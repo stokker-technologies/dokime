@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::Context;
 
-// Local Imports
 use crate::app::{Dokime, Lanes, LiveRuntime, live_runtime};
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::runtime::GetHealth;
@@ -28,27 +19,13 @@ use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
 use dokime_domain::model::runtime::wire::Readiness;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Runtime(LiveRuntime);
-
-/* === Enums === */
 
 #[harmos::catalog]
 enum Operations {
     Health(GetHealth),
     Identity(GetIdentity),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<GetHealth> for Runtime {
     fn serve<'a>(&'a self, _: GetHealth, _: Context<'a, GetHealth>) -> Served<'a, Health> {
@@ -79,16 +56,12 @@ impl Serve<GetIdentity> for Runtime {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<Dokime>, live: &LiveRuntime) {
     let served = Arc::new(Runtime(live.clone()));
     setup.resource::<Host<GetHealth>>(Host::<GetHealth>::new(served.clone()));
     setup.resource::<Host<GetIdentity>>(Host::<GetIdentity>::new(served));
     setup.operations::<Operations>(Lanes::Open);
 }
-
-/* === Private Functions === */
 
 fn identity(runtime: &crate::RuntimeHandle) -> Identity {
     Identity {
@@ -98,5 +71,3 @@ fn identity(runtime: &crate::RuntimeHandle) -> Identity {
         product_version: env!("CARGO_PKG_VERSION").into(),
     }
 }
-
-/* === Tests === */

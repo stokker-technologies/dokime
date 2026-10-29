@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::executions::ExecutionStorage;
 use crate::artifacts::ArtifactRecord;
 use crate::artifacts::ArtifactStatus;
@@ -28,23 +18,7 @@ use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
 const UUID_BYTES: usize = 36;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
     inspect(storage, |_, _| Ok(())).await
@@ -209,8 +183,6 @@ fn reserve_slots<T>(rows: &mut Vec<T>, target: usize) -> Result<()> {
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn observe(seen: &mut BTreeMap<ArtifactId, TestExecutionId>, owner: &TestExecutionId, record: &ArtifactRecord) -> harmos::Result<bool> {
     validate_record(owner, record)?;
     if let Some(previous) = seen.get(&record.artifact_id) {
@@ -241,5 +213,3 @@ fn invalid(reason: &'static str) -> harmos::Error {
 fn codec_error(source: crate::storage::Error) -> harmos::Error {
     harmos::Error::backend("inspect native artifact inventory", harmos::BackendFailure::Corrupt, source)
 }
-
-/* === Tests === */

@@ -15,27 +15,17 @@
  * several cases, or values that differ from what the template registered. One
  * case at its defaults goes straight to Finish And Add. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { type EditorParameterRow, parameterValueType } from "@/components/parameter-editor/model";
 import { formatPreview, titleCaseIdentifier } from "@/components/start-cycle-form-model";
 import type { ParameterDefinition, PreviewTestCycleResponse, TestCycleSelection } from "@/lib/types";
 
-/* === Types === */
-
 export type CaseAppend = { cycleId: string; selections: TestCycleSelection[] };
-
-/* === Constants === */
 
 /** The one blocking statement: no cycle is open, so there is nothing to add to. */
 export const NO_ACTIVE_CYCLE = "No cycle is open. Create one to add cases.";
 
 /** Open cycles exist, but none is the active cycle yet. */
 export const NO_CHOSEN_CYCLE = "Choose the cycle these cases join.";
-
-/* === Public Functions === */
 
 /** The append the dialog performs: into the active cycle, or `null` without one. */
 export function caseAppend(activeCycleId: string | null | undefined, selections: TestCycleSelection[]): CaseAppend | null {
@@ -71,8 +61,6 @@ export function caseDeltas(parameters: Record<string, unknown>, rows: EditorPara
   }
   return deltas;
 }
-
-/* === Private Functions === */
 
 function valueText(value: unknown, valueType: string): string {
   return formatPreview(Array.isArray(value) ? value : [value], valueType);

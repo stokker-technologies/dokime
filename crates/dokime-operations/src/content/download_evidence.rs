@@ -9,28 +9,10 @@
 
 // Download One Complete Saved Evidence Archive
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::*;
 use dokime_domain::model::exports::{EvidenceExportFrame, EvidenceSubject};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<DownloadEvidence>], response = (), output = EvidenceExportFrame, id = "dokime.content.download_evidence",
     policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
@@ -39,20 +21,6 @@ use dokime_domain::model::exports::{EvidenceExportFrame, EvidenceSubject};
 pub struct DownloadEvidence {
     pub subject: Option<EvidenceSubject>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

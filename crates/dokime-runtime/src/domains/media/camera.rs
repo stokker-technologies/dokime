@@ -9,34 +9,7 @@
 
 // Camera stills through nokhwa: V4L2, Media Foundation or AVFoundation.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // Captures one settled frame of the indexed camera as JPEG bytes.
 #[cfg(feature = "media-native")]
@@ -76,7 +49,3 @@ pub(super) fn capture_jpeg(camera: Option<u32>, warmup_frames: usize, jpeg_quali
 pub(super) fn capture_jpeg(_camera: Option<u32>, _warmup_frames: usize, _jpeg_quality: u8) -> Result<Vec<u8>> {
     Err(super::not_compiled())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

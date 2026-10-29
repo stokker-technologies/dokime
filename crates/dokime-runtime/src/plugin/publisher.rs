@@ -7,39 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::operations::Host;
 
-// Local Imports
 use crate::publication::{Publication, Publishable};
 use crate::records::RecordPublication;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Publisher {
     host: harmos::sidecar::Supervisor,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Publisher {
     pub fn new(host: &harmos::sidecar::Supervisor) -> Self {
@@ -68,9 +44,3 @@ impl Publisher {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

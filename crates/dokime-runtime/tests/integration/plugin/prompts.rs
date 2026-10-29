@@ -7,30 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prompts::{DeclaredPrompt, FormPrompt, PromptDefinition};
 use dokime_runtime::records::RecordSeverity;
 
-/* === Constants === */
 const SUITE: &str = "prompts.checks";
 const TEMPLATE: &str = "prompts.checks.ask";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[dokime_runtime::prompt(
     id = "prompts.checks.signoff",
     label = "Sign off",
@@ -65,7 +49,6 @@ struct Ask {
     heard: Vec<String>,
 }
 
-/* === Enums === */
 #[dokime_runtime::choice]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Sweep {
@@ -80,9 +63,6 @@ enum Error {
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -110,20 +90,14 @@ impl Ask {
 
     #[dokime_runtime::step(label = "Ask by type")]
     async fn declared(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Ask The Form === //
-
         let answer = ctx.ask(SignOff::default()).await?;
         self.heard.push(format!(
             "form note={} accepted={} sweep={:?} retries={:?} repeats={:?}",
             answer.note, answer.accepted, answer.sweep, answer.retries, answer.repeats
         ));
 
-        // === Ask The Confirmation === //
-
         let go = ctx.ask(Go).await?;
         self.heard.push(format!("go={go}"));
-
-        // === Ask With Custom Initial Values === //
 
         let seen = format!("{} samples looked right", 3);
         let again = ctx
@@ -147,9 +121,6 @@ impl Ask {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn logged(report: &dokime_runtime::plugin::testing::Report) -> Vec<String> {
     report.log().iter().map(|entry| entry.message.clone()).collect()
 }
@@ -194,8 +165,6 @@ async fn answers_declared_constant() {
     assert!(logged.contains(&"go=false".to_owned()), "{logged:?}");
 }
 
-/* === Tests === */
-
 #[test]
 fn declaration_what_registers() {
     let definition = SignOff::definition();
@@ -223,23 +192,17 @@ fn declaration_what_registers() {
 
 #[test]
 fn prompt_level_roundtrips() {
-    // === Declared And Built Levels === //
-
     let declared = SignOff::definition();
     let unraised = Go::definition();
     let built = dokime_runtime::prompts::Prompt::definition(
         &FormPrompt::<std::collections::BTreeMap<String, String>>::new("prompts.checks.built", "Built").level(RecordSeverity::Error),
     );
 
-    // === Encode And Decode === //
-
     let encoded = serde_json::to_value(&declared).expect("a prompt definition encodes");
     let decoded: PromptDefinition = serde_json::from_value(encoded.clone()).expect("a prompt definition decodes");
     let mut baseline = encoded;
     baseline.as_object_mut().expect("a prompt definition encodes as an object").remove("level");
     let defaulted: PromptDefinition = serde_json::from_value(baseline).expect("a definition without a level decodes");
-
-    // === Compare === //
 
     assert_eq!(declared.level, RecordSeverity::Warning);
     assert_eq!(unraised.level, RecordSeverity::Info);

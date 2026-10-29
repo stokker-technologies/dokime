@@ -18,8 +18,6 @@
  * node test can load it directly.
  */
 
-/* === Constants === */
-
 const DOCUMENTS_DEFAULT_PLOT_POINTS = 2_000;
 const DOCUMENTS_MAXIMUM_PLOT_POINTS = 100_000;
 
@@ -29,13 +27,9 @@ export const DEFAULT_PLOT_MAX_POINTS = DOCUMENTS_DEFAULT_PLOT_POINTS;
 /** The host's per-plot point ceiling; it also bounds a plot that keeps every sample. */
 export const NATIVE_PLOT_MAX_POINTS = DOCUMENTS_MAXIMUM_PLOT_POINTS;
 
-/* === Types === */
-
 export type ReduceTechnique = "auto" | "lttb" | "min_max" | "raw";
 
 type Values = readonly (number | null | undefined)[];
-
-/* === Public Functions === */
 
 /**
  * The indices one x axis keeps for every series drawn on it, ascending.
@@ -198,8 +192,6 @@ export function m4Indices(x: readonly number[], y: Values, from: number, to: num
   }
   return kept;
 }
-
-/* === Private Functions === */
 
 /** The first index whose x is at or above `value`; x ascends. */
 function lowerBound(x: readonly number[], value: number): number {

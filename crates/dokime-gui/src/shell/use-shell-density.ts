@@ -16,19 +16,11 @@
  * drive directly. Layout that must agree with the CSS reads it here.
  */
 
-/* === External Imports === */
-
 import { useSyncExternalStore } from "react";
-
-/* === Local Imports === */
 
 import type { DensityPreference } from "@/lib/theme";
 
-/* === Constants === */
-
 const DENSITIES: ReadonlySet<string> = new Set(["comfortable", "compact", "touch"]);
-
-/* === Private Functions === */
 
 function readDensity(): DensityPreference {
   if (typeof document === "undefined") return "comfortable";
@@ -45,8 +37,6 @@ function observeDensity(onChange: () => void): () => void {
   });
   return () => observer.disconnect();
 }
-
-/* === Public Functions === */
 
 /** The density `styles.css` is applying right now. */
 export function useShellDensity(): DensityPreference {

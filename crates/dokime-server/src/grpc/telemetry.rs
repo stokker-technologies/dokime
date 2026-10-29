@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod projection;
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 use crate::grpc::transcode::Transcode;
 
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::value::{self, canonical};
 use dokime::app::LiveRuntime;
 
@@ -36,17 +27,9 @@ use dokime::domains::evidence::TelemetrySelection;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::telemetry as wire;
 
-/* === Constants === */
-
 const SERVER_DEFAULT_TELEMETRY_ITEMS: u64 = 500;
 const SERVER_EVIDENCE_SELECTION_ITEMS: u64 = 64;
 const SERVER_MAXIMUM_TELEMETRY_ITEMS: u64 = 5_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub(super) runtime: LiveRuntime,
@@ -56,8 +39,6 @@ struct Resources {
 struct Selection {
     query: TelemetrySelection,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -93,10 +74,6 @@ impl ProjectionError {
         }
     }
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListSamples> for Resources {
     fn serve<'a>(
@@ -253,8 +230,6 @@ impl Selection {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -269,8 +244,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 /// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
 fn heartbeat() -> dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
@@ -397,5 +370,3 @@ fn timestamp(value: Option<common::Timestamp>, _: &str) -> Result<Option<Timesta
 fn request_is_complete(latest: bool, sample_count: usize, limit: usize) -> bool {
     latest || sample_count < limit
 }
-
-/* === Tests === */

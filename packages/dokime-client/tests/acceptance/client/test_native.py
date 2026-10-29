@@ -8,9 +8,6 @@
 
 """Capture And Stop Charger Runs Against The Built Server And Plugin Bundle"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import shutil
@@ -21,17 +18,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import DokimeClient, Execution, ExecutionEvidence
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 SUITE = "obc.charger.steady"
 PARAMETERS = {
@@ -44,19 +33,12 @@ PARAMETERS = {
 # The Packaging Lane Ships The Saved Cycle Report As Its Example.
 EXAMPLE_REPORT = "target/validation/examples/charger-report.html"
 
-# === Types === #
-
-# === Classes === #
-
 
 @dataclass(frozen=True)
 class Host:
     endpoint: str
     process: subprocess.Popen[bytes]
     log: Path
-
-
-# === Public Functions === #
 
 
 @pytest.fixture(scope="module")
@@ -237,9 +219,6 @@ def test_native_stop(native: Host, tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-# === Private Functions === #
-
-
 def _event(stdout: IO[bytes], names: set[str], log: Path) -> dict[str, Any]:
     """Read Supervisor Lines Until One Of The Named Readiness Events"""
     while True:
@@ -269,6 +248,3 @@ def _export_example(report: Path, destination: Path) -> None:
     staged = destination.with_name(destination.name + ".pending")
     shutil.copyfile(report, staged)
     staged.replace(destination)
-
-
-# === Entry Point === #

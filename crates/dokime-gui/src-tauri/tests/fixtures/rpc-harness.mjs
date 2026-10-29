@@ -11,9 +11,7 @@
  * Canonical TypeScript Transpilation And Native Adapter Test Transport
  */
 
-/* === Imports === */
 
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
@@ -22,19 +20,6 @@ import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { transformWithOxc } from "vite";
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -172,11 +157,8 @@ export async function openHarness() {
   };
 }
 
-/* === Private Functions === */
 
 function buffer(text) {
   const bytes = Buffer.from(text, "base64");
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
-
-/* === Entry Point === */

@@ -7,17 +7,12 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
-// Local Imports
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import {
   certificateIssue,
@@ -26,10 +21,6 @@ import {
   type ListenerStatus,
   listenerRunning,
 } from "@/features/settings/sections/remote-listener";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const notice = vi.hoisted(() => vi.fn());
 vi.mock("@/components/NotificationMessage", () => ({
@@ -48,12 +39,6 @@ const SETTINGS: ListenerSettings = {
 };
 
 const STOPPED: ListenerStatus = { settings: SETTINGS, keyConfigured: true, certificatePem: "-----BEGIN CERTIFICATE-----" };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Tests === */
 
 test("enabling applies the host's settings at once and shows the running listener", async () => {
   const sent: ListenerSettings[] = [];

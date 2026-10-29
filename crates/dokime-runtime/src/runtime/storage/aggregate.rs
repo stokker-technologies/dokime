@@ -7,24 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod fields;
 mod groups;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{
     ObjectRead, RecordRead,
     query::{ObjectVersions, RecordSelection},
 };
 
-// Local Imports
 use crate::runtime::Result;
 use crate::runtime::query::aggregate::{AggregateOutcome, AggregateQuery, AggregateSource};
 use crate::storage::{
@@ -34,22 +24,6 @@ use crate::storage::{
 };
 use fields::Row;
 use groups::Groups;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn evaluate(storage: &super::executions::ExecutionStorage, query: &AggregateQuery) -> Result<AggregateOutcome> {
     native_aggregate(&storage.storage, query).await
@@ -104,8 +78,6 @@ pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) 
     groups.outcome(query)
 }
 
-/* === Private Functions === */
-
 async fn latest<T, U>(storage: &Manager, map: impl Fn(T) -> crate::storage::Result<U>) -> Result<crate::storage::projection::Pages<U>>
 where
     T: harmos::storage::StoredObject,
@@ -122,5 +94,3 @@ where
         .await?;
     Ok(crate::storage::projection::pages(rows, |row| map(row.value))?)
 }
-
-/* === Tests === */

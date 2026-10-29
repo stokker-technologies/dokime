@@ -9,39 +9,12 @@
 
 // Reduction And Saved Windows Share One Durable Plot History
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::service_support::{contracts, evidence};
 use dokime_runtime::runtime::query::RuntimePlotQueryMode;
 
-/* === Constants === */
-
 const SAMPLE_BATCH: usize = 1_000;
 const MINUTES_PER_DAY: usize = 24 * 60;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn telemetry_history(samples: usize, display_points: usize, days: usize) {
     let root = tempdir().unwrap();
@@ -107,8 +80,6 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
     owner.shutdown().await.unwrap();
 }
 
-/* === Private Functions === */
-
 async fn save_day(runtime: &RuntimeHandle, first: usize) {
     for start in (0..MINUTES_PER_DAY).step_by(120) {
         runtime.publish_telemetry_batch(minute_batch(first + start)).await.unwrap();
@@ -143,5 +114,3 @@ fn minute_batch(first: usize) -> TelemetryBatch {
     }
     batch
 }
-
-/* === Tests === */

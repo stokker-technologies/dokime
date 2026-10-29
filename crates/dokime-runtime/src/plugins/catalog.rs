@@ -7,31 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeSet;
 
-// Third Party Imports
 use harmos::plugin::inventory::{CarrierSection, Declaration};
 use harmos_packaging::bundle::{Bundle, Identity, Limits};
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::PluginError;
 use crate::domains::installed_plugins::contributions::decode_registrations;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginMetadata {
@@ -48,12 +31,6 @@ pub struct PluginIdentity {
     pub description: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<&Identity> for PluginIdentity {
     fn from(identity: &Identity) -> Self {
         Self {
@@ -63,8 +40,6 @@ impl From<&Identity> for PluginIdentity {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub fn inspect(bytes: &[u8], settings: &harmos::config::SchemaSettings) -> Result<(Bundle, PluginMetadata), PluginError> {
     inspect_with_archive_limit(bytes, settings, Limits::default().archive_bytes)
@@ -145,7 +120,3 @@ pub(crate) fn guest_refused(path: &str) -> PluginError {
 pub(crate) fn native(declaration: &Declaration) -> bool {
     matches!(declaration.carrier, CarrierSection::Sidecar { .. })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

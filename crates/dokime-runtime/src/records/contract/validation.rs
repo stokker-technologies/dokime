@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
-
-// Local Imports
 use crate::records::contract::RecordContract;
 use crate::records::contract::RecordField;
 use dokime_domain::model::identity::Identifier;
@@ -29,22 +19,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::validation::ValidationMode;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::value_matches_type;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn validate_record_details(
     contract: Option<&RecordContract>, record: &RecordEntry, default_mode: ValidationMode,
@@ -57,8 +31,6 @@ pub fn validate_record(
 ) -> Result<BTreeMap<String, Value>> {
     validate_payload(contract, &record.record_type, record.schema_version, &record.details, default_mode)
 }
-
-/* === Private Functions === */
 
 fn validate_payload(
     contract: Option<&RecordContract>, record_type: &Identifier, schema_version: u32, details: &BTreeMap<String, Value>,
@@ -150,5 +122,3 @@ fn validate_fields(
 
     Ok(resolved)
 }
-
-/* === Tests === */

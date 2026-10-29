@@ -9,27 +9,9 @@
 
 // Apply Remote Listener Settings
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<UpdateListener>], response = RemoteListenerStatus, id = "dokime.remote.update_listener",
     policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
@@ -38,20 +20,6 @@ use super::*;
 pub struct UpdateListener {
     pub settings: Option<RemoteListenerSettings>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

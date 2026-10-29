@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::records::RecordContract;
 use crate::records::RecordSeverity;
 use crate::records::builtin_record_contracts;
@@ -28,11 +18,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const PRODUCT_SCHEMA_VERSION: u32 = dokime_domain::model::records::product::PRODUCT_RECORD_SCHEMA_VERSION;
-
-/* === Macros === */
 
 macro_rules! host_record {
     (
@@ -131,10 +117,6 @@ host_record!(
 
 host_record!(TargetLost, "target.lost", RecordSeverity::Warning, "a target lock was lost", [resource_id, resource_kind, status_message]);
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TestCycleCompleted;
 
@@ -185,12 +167,6 @@ pub struct TargetLost {
     pub resource_kind: String,
     pub status_message: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DeclaredRecord for TestCycleCompleted {
     const RECORD_TYPE: &'static str = "test.cycle.completed";
@@ -308,8 +284,6 @@ impl crate::execution::Listenable for TestCycleCompleted {
     }
 }
 
-/* === Public Functions === */
-
 pub fn declared() -> Vec<Identifier> {
     vec![
         ToolConnectionAcquired::record_type(),
@@ -319,8 +293,6 @@ pub fn declared() -> Vec<Identifier> {
         TestCycleCompleted::record_type(),
     ]
 }
-
-/* === Private Functions === */
 
 fn checked<R: DeclaredRecord>(record: &Record) -> crate::Result<R> {
     if record.record_type.as_str() != R::RECORD_TYPE {
@@ -334,5 +306,3 @@ fn builtin(record_type: &str) -> RecordContract {
         panic!("the host declares a builtin contract for {record_type:?}");
     })
 }
-
-/* === Tests === */

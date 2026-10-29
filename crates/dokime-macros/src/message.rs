@@ -9,42 +9,15 @@
 
 // Shared Dokime Message Declarations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Error};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 pub(crate) enum Kind {
     Plain,
     Row,
     Record,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn message(kind: Kind, attribute: TokenStream, item: TokenStream) -> TokenStream {
     declare(kind, attribute, item).unwrap_or_else(Error::into_compile_error)
@@ -64,8 +37,6 @@ pub(crate) fn check(input: &DeriveInput) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn declare(kind: Kind, attribute: TokenStream, item: TokenStream) -> Result<TokenStream, Error> {
     let mut input: DeriveInput = syn::parse2(item)?;
@@ -91,5 +62,3 @@ fn declare(kind: Kind, attribute: TokenStream, item: TokenStream) -> Result<Toke
         #domain
     }))
 }
-
-/* === Tests === */

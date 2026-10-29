@@ -9,34 +9,6 @@
 
 // Bounded allocation helpers for wire value projection.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(in crate::grpc) fn text(source: &str) -> dokime::harmos::Result<String> {
     let mut target = String::new();
     target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
@@ -52,12 +24,8 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> dokime::harmos::Result<Vec<T>>
     Ok(target)
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted {
         resource: "canonical projection allocation",
     }
 }
-
-/* === Tests === */

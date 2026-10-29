@@ -9,9 +9,6 @@
 
 """Bounded Version 1 Pairing Input And Certificate Trust Validation"""
 
-# === Imports === #
-
-# Standard Library Imports
 import ipaddress
 import json
 import os
@@ -23,26 +20,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ._transport import _target
-
-# Third Party Imports
-# Local Imports
 from .profiles import _fields, _object
 from .secrets import _validate_key
 
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
 PAIRING_BYTES = 1_048_576
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def read(path: str | Path) -> dict[str, Any]:
@@ -108,8 +89,3 @@ def read(path: str | Path) -> dict[str, Any]:
     key = value["access_key"]
     _validate_key(key)
     return value
-
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -7,17 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
-// Third Party Imports
+
 use tonic::Code;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime::domains::{
@@ -29,21 +22,7 @@ use {
     dokime::settings::Settings, dokime::settings::SettingsEntry, dokime::settings::TextArea,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct FixtureActionDispatcher;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ActionDispatcher for FixtureActionDispatcher {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime::domains::StatusResponse> {
@@ -65,10 +44,6 @@ impl ActionDispatcher for FixtureActionDispatcher {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let prepared_environment = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
@@ -288,8 +263,6 @@ fn fixture_module() -> InstalledPlugin {
 fn metadata(identifier: &str, label: &str) -> Metadata {
     support::metadata(identifier, label)
 }
-
-/* === Tests === */
 
 pub(crate) async fn application_settings() {
     let (environment, server, client) = fixture().await;

@@ -12,18 +12,7 @@
  * operator something, and when the operator answered, read from its records.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { HubRecord } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 /** The request records of every prompt kind; each one asks the operator. */
 const ASKED_RECORD_TYPES: ReadonlySet<string> = new Set([
@@ -35,8 +24,6 @@ const ASKED_RECORD_TYPES: ReadonlySet<string> = new Set([
 
 const ANSWERED_RECORD_TYPE = "prompt.response.submitted";
 
-/* === Types === */
-
 /** The two generic lifecycle moments a plot marks, whatever the prompt's kind. */
 export type PromptMarkerKind = "asked" | "answered";
 
@@ -46,10 +33,6 @@ export type PromptMarker = {
   x: number;
   title: string;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * The prompt markers of `records`, in time order. A response carries no title
@@ -82,8 +65,6 @@ export function promptMarkerLabel(marker: PromptMarker): string {
   return `${marker.kind === "asked" ? "Prompt asked" : "Prompt answered"}: ${marker.title}`;
 }
 
-/* === Private Functions === */
-
 function promptTitle(record: HubRecord): string {
   return textDetail(record, "title") ?? record.message ?? "Prompt";
 }
@@ -92,5 +73,3 @@ function textDetail(record: HubRecord, key: string): string | null {
   const value = record.details?.[key];
   return typeof value === "string" && value.trim() ? value : null;
 }
-
-/* === Entry Point === */

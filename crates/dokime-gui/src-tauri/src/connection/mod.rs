@@ -7,40 +7,23 @@
  * ***
  */
 
-/* === Modules === */
-
 mod contract;
 mod errors;
 pub mod registry;
 mod transport;
 
-/* === Re-Exports === */
-
 pub use contract::*;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     future::Future,
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
-// Local Imports
 use dokime::client::secrets::{KeyringStore, SecretStore};
 use dokime::domain::model::settings::application::ClientPreferences;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct ConnectionSession {
@@ -65,12 +48,6 @@ pub struct SessionLease {
     cancellation: CancellationToken,
     preferences: Arc<Mutex<ClientPreferences>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for ConnectionSession {
     fn default() -> Self {
@@ -330,9 +307,3 @@ impl SessionLease {
         self.guard(request).await?.map_err(errors::rpc_error)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,39 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod document_reports;
 pub(crate) mod evidence_publication;
 pub(crate) mod files;
 pub(crate) mod telemetry;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

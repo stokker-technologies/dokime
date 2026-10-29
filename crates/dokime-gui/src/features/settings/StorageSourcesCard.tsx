@@ -15,19 +15,14 @@
  * card states the outcome once rather than once per row.
  */
 
-/* === External Imports === */
-
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-
-/* === Local Imports === */
-
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
@@ -35,24 +30,16 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { fetchStorageSources, reorderStorageSources, setStorageSourceEnabled } from "@/lib/api/native-storage-settings";
 
-/* === Constants === */
-
 const NO_SOURCES: StorageSource[] = [];
-
-/* === Types === */
 
 type StorageSource = Awaited<ReturnType<typeof fetchStorageSources>>[number];
 
 type Change = { kind: "enabled"; identifier: string; enabled: boolean } | { kind: "order"; identifiers: string[] };
 
-/* === Components === */
-
 export function StorageSourcesCard() {
   const session = useNativeSessionOptional();
   return session ? <ConnectedStorageSources key={session.identity.generation} session={session} /> : null;
 }
-
-/* === Private Components === */
 
 function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
   const queryClient = useQueryClient();
@@ -190,8 +177,6 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
     </SettingsCard>
   );
 }
-
-/* === Private Functions === */
 
 function sourceId(source: StorageSource): string {
   return source.identifier;

@@ -12,12 +12,8 @@
    dialog draws. The cycle starts empty; the caller decides where the operator
    goes next. */
 
-/* === External Imports === */
-
 import { type FormEvent, useEffect, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,15 +21,11 @@ import { SettingsFields } from "@/features/cycle/SettingsForm";
 import { useCreateCycleMutation } from "@/features/cycles-home/cycles-queries";
 import { initialNewCycleForm, type NewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 
-/* === Types === */
-
 type NewCycleDialogProps = {
   onCreated: (cycleId: string) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 };
-
-/* === Components === */
 
 export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialogProps) {
   const create = useCreateCycleMutation();

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod download_appearance_asset;
 mod download_artifact;
 mod download_evidence;
@@ -18,8 +16,6 @@ mod list_artifacts;
 mod list_execution_files;
 mod read_execution_file;
 mod upload_artifact;
-
-/* === Re-Exports === */
 
 pub use download_appearance_asset::DownloadAppearanceAsset;
 pub use download_artifact::DownloadArtifact;
@@ -31,13 +27,6 @@ pub use list_execution_files::ListExecutionFiles;
 pub use read_execution_file::ReadExecutionFile;
 pub use upload_artifact::UploadArtifact;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -49,16 +38,6 @@ use dokime_domain::model::appearance::wire::*;
 use dokime_domain::model::content::wire::*;
 #[allow(unused_imports)]
 use dokime_domain::model::identity::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -72,10 +51,6 @@ pub enum Operations {
     DownloadEvidence(DownloadEvidence),
     UploadArtifact(UploadArtifact),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Endpoint for DownloadAppearanceAsset {
     const PATH: &'static str = "/dokime.v1.Content/DownloadAppearanceAsset";
@@ -112,9 +87,3 @@ impl Endpoint for DownloadArtifact {
 impl Endpoint for UploadArtifact {
     const PATH: &'static str = "/dokime.v1.Content/UploadArtifact";
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

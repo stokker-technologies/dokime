@@ -8,35 +8,20 @@
 
 """Read And Answer Identity-Bound Operator Prompts"""
 
-# === Imports === #
-
-# Standard Library Imports
 import hashlib
 import json
 from collections.abc import AsyncGenerator, Mapping
 
-# Third Party Imports
 from google.protobuf.message import Message
 
-# Local Imports
 from . import _wire
 from ._transport import Transport, _cursor
 from .errors import ProtocolError
 from .execution.request import _identity
 from .models import Backend, Prompt, Value
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 PAGE_ITEMS = 100
 VALUE_DEPTH = 64
-
-# === Types === #
-
-# === Classes === #
 
 
 class Scope:
@@ -131,11 +116,6 @@ class Scope:
             raise ProtocolError("pending prompt continuation is invalid")
 
 
-# === Public Functions === #
-
-# === Private Functions === #
-
-
 def _validate_listed(identity: Message, item: Message) -> None:
     same_definition = identity.HasField("definition") and (
         item.definition.prompt_type,
@@ -158,6 +138,3 @@ def _model(item: Message) -> Prompt:
         _wire.fields(item.values, VALUE_DEPTH),
         level="info" if level == "unspecified" else level,
     )
-
-
-# === Entry Point === #

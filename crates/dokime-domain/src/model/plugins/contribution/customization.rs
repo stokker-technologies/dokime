@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppCustomizationContribution {
@@ -127,8 +110,6 @@ pub struct ThemeVariant {
     pub plot_palette: Vec<String>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -164,10 +145,6 @@ pub enum ThemeModePolicy {
     ForceLight,
     ForceDark,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for OrganizationIdentity {
     fn memory_size(&self) -> usize {
@@ -211,9 +188,3 @@ impl harmos::MemorySize for ThemeVariant {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

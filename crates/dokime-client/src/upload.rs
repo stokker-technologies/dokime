@@ -7,33 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{future::Future, path::Path};
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-// Local Imports
 use super::Client;
 
-/* === Constants === */
-
 const PLUGIN_CHUNK_BYTES: u64 = 65_536;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -46,10 +27,6 @@ pub enum Error {
     #[error("invalid upload: {0}")]
     Invalid(&'static str),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub async fn upload_artifact_file(
@@ -98,10 +75,6 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn feed<F: Future<Output = super::Result<()>>>(
     mut source: impl AsyncRead + Unpin, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
     mut send: impl FnMut(dokime_domain::model::content::wire::UploadArtifactFrame) -> F,
@@ -147,5 +120,3 @@ async fn feed<F: Future<Output = super::Result<()>>>(
     .await?;
     Ok(completion)
 }
-
-/* === Tests === */

@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{Change, Error};
 use dokime::domain::model::remote::{CreatedPairing, PairedClientPage, RemoteListenerStatus, RemoteSessionPage};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::remote as wire;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Remote(Arc<crate::grpc::preparation::Owner>);
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
@@ -48,10 +29,6 @@ enum Operations {
     Operation5(wire::RevokePairedClient),
     Operation6(wire::ListSessions),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ReadListener> for Remote {
     fn serve<'a>(&'a self, _: wire::ReadListener, _: Context<'a, wire::ReadListener>) -> Served<'a, RemoteListenerStatus> {
@@ -132,8 +109,6 @@ impl Serve<wire::RevokePairedClient> for Remote {
     }
 }
 
-/* === Public Functions === */
-
 pub(in crate::grpc) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, owner: Arc<crate::grpc::preparation::Owner>,
 ) -> Result<(), Error> {
@@ -150,8 +125,6 @@ pub(in crate::grpc) fn prepare(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn status(error: Error) -> Status {
     match error {
         Error::Configuration(message) => Status::invalid_argument(message),
@@ -160,5 +133,3 @@ fn status(error: Error) -> Status {
         other => Status::unavailable(other.to_string()),
     }
 }
-
-/* === Tests === */

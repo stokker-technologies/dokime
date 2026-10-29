@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "runtime")]
 mod observing;
 
@@ -18,24 +16,14 @@ mod unix;
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
-/* === Re-Exports === */
-
 #[cfg(feature = "runtime")]
 pub use observing::State;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use crate::HostTelemetryStream;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
-
-/* === Constants === */
 
 const BUDGET: Duration = Duration::from_millis(6000);
 pub const POLICY: OperationPolicy = OperationPolicy {
@@ -43,12 +31,6 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: BUDGET,
     retries: RetryPolicy::Never,
 };
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::operation(
     id = "host.bluetooth.collect",
@@ -72,12 +54,6 @@ pub struct Collected {
     pub timestamp_micros: i64,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl dokime::StreamSpec for Bluetooth {
     type Row = crate::Bluetooth;
     const ID: &'static str = "host.bluetooth";
@@ -92,12 +68,6 @@ impl TelemetryStream for Bluetooth {
 }
 
 impl dokime::telemetry::OwnedStream for Bluetooth {}
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

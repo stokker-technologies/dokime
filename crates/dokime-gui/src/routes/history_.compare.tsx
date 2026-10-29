@@ -7,24 +7,16 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-/* === Local Imports === */
-
 import { ExploreSurface } from "@/features/explore/ExploreSurface";
 import { exploreSearchSchema, searchFromSelectedIds, selectedIdsFromSearch, toggleSelectedId } from "@/features/explore/explore-search";
-
-/* === Route === */
 
 export const Route = createFileRoute("/history_/compare")({
   component: HistoryCompareRoute,
   validateSearch: (search) => exploreSearchSchema.parse(search),
 });
-
-/* === Components === */
 
 function HistoryCompareRoute() {
   const search = Route.useSearch();

@@ -9,35 +9,14 @@
 
 // Artifact names are relative paths: their folders are implicit, never created.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Component;
 use std::path::Path;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 // The wire and storage bound of one artifact name, in UTF-8 bytes.
 pub const MAX_NAME_BYTES: usize = 255;
 
 // The bound of any relative execution path, in UTF-8 bytes.
 pub const MAX_PATH_BYTES: usize = 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidName {
@@ -47,12 +26,6 @@ pub enum InvalidName {
     #[error("artifact name must be a relative path with forward slashes and no empty, '.' or '..' segments")]
     Path,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // One relative path below an execution folder: forward slashes, no empty, `.`
 // or `..` segment, no root, drive or control character.
@@ -82,7 +55,3 @@ pub fn validate(name: &str) -> Result<(), InvalidName> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

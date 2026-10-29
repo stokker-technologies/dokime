@@ -9,26 +9,13 @@
 
 """Run Independent Attempts With Listeners And Saved Evidence"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 import sys
 from collections import Counter
 from pathlib import Path
 
-# Third Party Imports
 from dokime_client.client import Cycle, DokimeClient, DokimeError, Execution, Record, Sample
-
-# Local Imports
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Connection Parameters
 PAIRING_FILE = Path("../lab.dokime-pair")
@@ -47,12 +34,6 @@ STREAMS = ("obc.pulse",)
 # Evidence Files
 OUTPUT_DIRECTORY = Path("test-evidence")
 OVERWRITE = False
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def run() -> int:
@@ -189,10 +170,6 @@ async def run() -> int:
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
             return 130
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     try:

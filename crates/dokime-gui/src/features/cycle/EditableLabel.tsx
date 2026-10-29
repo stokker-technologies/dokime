@@ -18,19 +18,13 @@
  * title is plain text.
  */
 
-/* === External Imports === */
-
 import { Check, Pencil } from "lucide-react";
 import { useState } from "react";
-
-/* === Local Imports === */
 
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, refuseLabel, updateLabelText } from "./label-editor-model";
-
-/* === Types === */
 
 export type EditableLabelProps = {
   label: string;
@@ -43,11 +37,7 @@ export type EditableLabelProps = {
   onRename: ((label: string) => Promise<unknown>) | null;
 };
 
-/* === Constants === */
-
 const TITLE_CLASS = "font-heading text-lg leading-7 font-semibold";
-
-/* === Components === */
 
 export function EditableLabel({ label, prefix = "", subject, onRename, initiallyEditing = false }: EditableLabelProps) {
   const [draft, setDraft] = useState<LabelDraft>(() => (initiallyEditing ? openLabelEdit(label) : CLOSED_LABEL_DRAFT));

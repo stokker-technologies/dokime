@@ -9,15 +9,6 @@
 
 // Internet Connectivity As The Network List Manager Reports It.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use windows::Win32::{
     Foundation::RPC_E_CHANGED_MODE,
     Networking::NetworkListManager::{
@@ -26,24 +17,8 @@ use windows::Win32::{
     System::Com::{CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize},
 };
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 // Balances A Successful CoInitializeEx On This Thread.
 struct Apartment(bool);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Apartment {
     fn drop(&mut self) {
@@ -53,8 +28,6 @@ impl Drop for Apartment {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub fn internet() -> Option<bool> {
     // SAFETY: Initializing COM has no preconditions; a thread already in another apartment keeps it.
@@ -70,10 +43,6 @@ pub fn internet() -> Option<bool> {
     let internet = NLM_CONNECTIVITY_IPV4_INTERNET.0 | NLM_CONNECTIVITY_IPV6_INTERNET.0;
     Some(connectivity.0 & internet != 0)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

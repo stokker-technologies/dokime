@@ -7,43 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::collectors::maybe_insert;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl BluetoothCollector {
     pub(super) fn bluetooth_values(options: &HostOptions, timeout: Duration) -> Result<BTreeMap<String, Value>, String> {
         crate::platform::windows::bluetooth::snapshot(options, timeout).map(snapshot_values).map_err(|error| error.to_string())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();
@@ -60,5 +31,3 @@ fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnaps
 
     values
 }
-
-/* === Tests === */

@@ -7,37 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn labelled(identifier: &str, label: &str, description: Option<&str>) -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
@@ -73,8 +44,6 @@ async fn walk(
     }
     walked
 }
-
-/* === Tests === */
 
 pub(crate) async fn cycle_search_once() {
     let root = tempfile::tempdir().unwrap();

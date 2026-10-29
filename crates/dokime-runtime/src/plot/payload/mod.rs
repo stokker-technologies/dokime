@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
@@ -22,8 +20,6 @@ mod retained;
 #[cfg(feature = "storage")]
 pub(crate) mod spilled;
 mod types;
-
-/* === Re-Exports === */
 
 pub use analyses::{
     BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
@@ -39,17 +35,12 @@ pub use types::{
     PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow,
 };
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::Aggregate;
 use serde_json::Value as JsonValue;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-// Local Imports
 use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::plot::record_timing::RECORD_CONTEXT_STREAM;
@@ -62,15 +53,7 @@ use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::datetime_seconds;
 
-/* === Constants === */
-
 const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub(crate) struct PlotPayloadContext<'a> {
@@ -89,8 +72,6 @@ struct ZSample<'a> {
     ordinal: usize,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug)]
 enum ZIndex<'a> {
     None,
@@ -105,10 +86,6 @@ enum XInput<'a> {
     Timestamp(&'a str),
     Value(&'a Value),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ZIndex<'_> {
     fn resolve(&self, sample: &TelemetrySample) -> Option<f64> {
@@ -130,8 +107,6 @@ impl ZIndex<'_> {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn plot_streams(request: &PlotPayloadRequest) -> Vec<String> {
     let mut count = 0;
@@ -449,8 +424,6 @@ pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[Docume
     filters.iter().all(|filter| sample_matches_filter(sample, filter))
 }
 
-/* === Private Functions === */
-
 fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     visit_dimension_context(execution, |key, value| insert_context_value(&mut context, key, value));
@@ -761,8 +734,6 @@ fn marker_color_text(record_type: &str) -> &'static str {
     let hash = record_type.bytes().fold(0usize, |acc, byte| acc.wrapping_mul(31).wrapping_add(usize::from(byte)));
     MARKER_COLORS[hash % MARKER_COLORS.len()]
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

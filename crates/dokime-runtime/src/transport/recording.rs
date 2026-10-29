@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
-
-// Local Imports
 use super::protocol::ArtifactChunk;
 use super::{ExecutionTransport, Journal, TransportFuture};
 use crate::artifacts::ArtifactSink;
@@ -34,14 +24,6 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Default)]
 pub struct RecordingTransport {
@@ -83,12 +65,6 @@ struct RecordingJournal {
 struct RecordingProgressSink {
     updates: Arc<Mutex<Vec<ExecutionProgress>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordingTransport {
     pub fn new() -> Self {
@@ -325,9 +301,3 @@ impl LeaseRelease for RecordingLeaseRelease {
         self.released.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(lease_token.to_owned());
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

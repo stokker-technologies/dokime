@@ -7,40 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::diagnostics::Diagnostic;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::transport::ProviderExecutionFailure;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct DiagnosticExecutor {
     diagnostic: Diagnostic,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for DiagnosticExecutor {
     fn run_cycle<'a>(
@@ -52,12 +27,6 @@ impl ExecutionFixture for DiagnosticExecutor {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn stored_provider_paths() {
     let home = std::env::var("HOME")

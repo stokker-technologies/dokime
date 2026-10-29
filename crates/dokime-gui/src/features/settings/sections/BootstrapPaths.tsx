@@ -7,20 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { SettingsCard } from "../SettingsCard";
 import { SettingsPathField } from "../SettingsPathField";
 import { SettingsRow } from "../SettingsRow";
 import { useSettingsFrameQuery } from "../settings-queries";
-
-/* === Types === */
-
-/* === Components === */
 
 export function BootstrapPaths() {
   const session = useNativeSessionOptional();
@@ -45,9 +37,3 @@ export function BootstrapPaths() {
     </SettingsCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod catalog;
 mod cycle;
 mod discovery;
@@ -29,8 +27,6 @@ mod target;
 mod transport;
 mod upload;
 
-/* === Re-Exports === */
-
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
 pub use dokime_operations as contracts;
@@ -46,9 +42,6 @@ pub use target::Target;
 pub use tonic::{Code as RpcCode, Status as RpcStatus};
 pub use upload::Error as UploadError;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     future::Future,
     num::NonZeroUsize,
@@ -56,7 +49,6 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use serde::Serialize;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tonic::{
@@ -65,20 +57,10 @@ use tonic::{
 };
 use zeroize::Zeroizing;
 
-// Local Imports
-
-/* === Constants === */
-
 const DISCOVERY_BYTES: u64 = 1_048_576;
 const MAX_MESSAGE_BYTES: u64 = 16_777_216;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, Error>;
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Client {
@@ -121,8 +103,6 @@ pub struct Limits {
     pub max_stream_buffer_items: Option<u32>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionFailure {
@@ -135,10 +115,6 @@ pub enum ConnectionFailure {
     NotReady,
     Failed,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Error {
     pub fn connection_failure(&self) -> ConnectionFailure {
@@ -316,10 +292,6 @@ impl Drop for Inner {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }
@@ -365,5 +337,3 @@ fn request<T>(message: T, authorization: Option<&MetadataValue<Ascii>>) -> tonic
     }
     request
 }
-
-/* === Tests === */

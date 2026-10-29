@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Collected, Samples, State, WifiScan};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Operation for WifiScan {
     type Error = Refusal;
@@ -60,9 +35,3 @@ impl Operation for WifiScan {
         Ok(Response::new(Samples { rows }))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

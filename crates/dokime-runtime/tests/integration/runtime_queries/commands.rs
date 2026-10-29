@@ -7,33 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
-// Local Imports
 use super::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn provider_runtime(root: &Path) -> (Runtime, RuntimeHandle) {
     let executor = Arc::new(FakePythonExecutor::fixed("passed"));
     let (owner, runtime) = booted_with_fixture(root, executor).await;
@@ -116,7 +91,6 @@ pub(crate) async fn refusals_refuses_processor() {
     assert!(revision().await >= accepted.runtime_revision);
 }
 
-/* === Tests === */
 pub(crate) async fn idempotency_survives_restart() {
     let root = tempdir().unwrap();
     let context = CommandContext {

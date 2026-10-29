@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::grpc::value::canonical;
 use dokime::domains::installed_plugins::{RuntimeAppearanceFrame, RuntimeThemeFamily};
 use dokime::domains::{ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn appearance(
     frame: RuntimeAppearanceFrame, logos: Vec<dokime::domain::model::appearance::wire::AppearanceLogo>,
@@ -67,8 +40,6 @@ pub(super) fn appearance(
         source_plugin_id: frame.source_plugin_id.map(|id| id.as_str().to_owned()),
     })
 }
-
-/* === Private Functions === */
 
 fn theme(value: RuntimeThemeFamily) -> dokime::harmos::Result<dokime::domain::model::appearance::wire::ThemeFamily> {
     let mut variables = Vec::new();
@@ -119,5 +90,3 @@ fn exhausted() -> dokime::harmos::Error {
         resource: "historical appearance construction",
     }
 }
-
-/* === Tests === */

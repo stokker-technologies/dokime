@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { contours, geoPath, interpolateYlOrRd, scaleLinear, scaleLog, scaleSequential } from "d3";
-
-/* === Local Imports === */
 
 import { formatNumber } from "@/lib/format";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Types === */
 
 type HeatmapPoint = {
   x: number;
@@ -37,8 +31,6 @@ type SurfaceCell = {
   z: number;
 };
 
-/* === Constants === */
-
 const GRID_COLUMNS = 36;
 const GRID_ROWS = 28;
 const CONTOUR_MIN_POINTS = 4;
@@ -47,8 +39,6 @@ const SVG_HEIGHT = 420;
 const MARGIN = { top: 72, right: 24, bottom: 52, left: 58 };
 const LEGEND_WIDTH = 160;
 const LEGEND_HEIGHT = 8;
-
-/* === Components === */
 
 export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
   const points = heatmapPoints(plot);
@@ -315,8 +305,6 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
   );
 }
 
-/* === Public Functions === */
-
 export function heatmapPoints(plot: PlotCardSpec): HeatmapPoint[] {
   return plot.series.flatMap((series) =>
     series.points
@@ -331,8 +319,6 @@ export function heatmapPoints(plot: PlotCardSpec): HeatmapPoint[] {
       .filter((point): point is HeatmapPoint => point !== null),
   );
 }
-
-/* === Private Functions === */
 
 function heatmapDomain(points: HeatmapPoint[]): Domain {
   if (!points.length) {

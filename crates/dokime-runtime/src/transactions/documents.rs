@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::document::{DocumentAddition, DocumentCardBody, DownsampleTechnique};
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::execution::RecordScope;
@@ -28,14 +18,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.documents.execution.add")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -56,12 +38,6 @@ pub struct UpdatePlotSettings {
     pub downsample: DownsampleTechnique,
     pub occurred_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for AddExecutionDocumentParts {
     type Error = String;
@@ -153,10 +129,6 @@ impl UpdatePlotSettings {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDocumentParts) -> Result<(), Error> {
     check_document_additions(state, &update)?;
     let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("document addition scope missing cycle"))?;
@@ -196,5 +168,3 @@ fn check_document_additions(state: &RuntimeState, update: &AddExecutionDocumentP
 fn not_found(message: impl Into<String>) -> Error {
     Error::not_found("not_found", message)
 }
-
-/* === Tests === */

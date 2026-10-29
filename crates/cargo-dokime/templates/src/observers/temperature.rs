@@ -7,37 +7,15 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::domain::model::chamber::TemperatureRow;
 use crate::{Bench, Plugin};
 use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 pub struct Temperature;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
 impl Temperature {
@@ -56,9 +34,3 @@ impl Temperature {
     // This one borrows the bench's shared sensor and has nothing of its own to
     // close, so it keeps the trait's empty ending.
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

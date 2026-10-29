@@ -7,28 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("development child exited with status {0}")]
@@ -55,10 +33,6 @@ pub enum Error {
     Bundle(#[from] harmos_packaging::bundle::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<dokime_packaging::Error> for Error {
     fn from(error: dokime_packaging::Error) -> Self {
         match error {
@@ -68,12 +42,6 @@ impl From<dokime_packaging::Error> for Error {
     }
 }
 
-/* === Public Functions === */
-
 pub fn guest_refused(path: &str) -> Error {
     Error::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,20 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
 mod prompts;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::HashSet;
 
-// Third Party Imports
-
-// Local Imports
 use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, validate_observed_cursor, validate_observed_epoch};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
@@ -29,25 +19,11 @@ use dokime_operations::Endpoint;
 use dokime_operations::execution as contract;
 use dokime_operations::planning;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub struct TestCycleHandle {
     client: Client,
     id: TestCycleId,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub fn cycle(&self, id: TestCycleId) -> TestCycleHandle {
@@ -251,10 +227,6 @@ impl TestCycleHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn execution_members(
     epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply,
     first_ordinal: u64, seen: &mut HashSet<TestExecutionId>,
@@ -294,5 +266,3 @@ fn validate_snapshot(id: &TestCycleId, snapshot: &dokime_domain::model::executio
 fn invalid(message: &'static str) -> Error {
     Error::Rpc(tonic::Status::data_loss(message))
 }
-
-/* === Tests === */

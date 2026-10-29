@@ -16,24 +16,12 @@
 // contiguous sequence, which is what makes an eviction gap exact to count for
 // any reader holding a cursor into that ring.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-// Third Party Imports
 use time::OffsetDateTime;
 use tokio::sync::watch;
-
-// Local Imports
-
-/* === Constants === */
 
 const SERVER_TRACE_CYCLES: u64 = 32;
 const SERVER_TRACE_EXECUTIONS: u64 = 128;
@@ -42,12 +30,6 @@ const SERVER_TRACE_INSTANCE_EVENTS: u64 = 8_192;
 const SERVER_TRACE_LINEAGE: u64 = 1_024;
 const SERVER_TRACE_SCOPE_BYTES: u64 = 2_097_152;
 const SERVER_TRACE_SCOPE_EVENTS: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug)]
 pub struct Event {
@@ -121,18 +103,12 @@ pub struct Stale {
     pub head: u64,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Scope {
     Instance,
     Cycle(String),
     Execution(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for Limits {
     fn default() -> Self {
@@ -387,12 +363,6 @@ impl Lineage {
         self.cycles.get(execution)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

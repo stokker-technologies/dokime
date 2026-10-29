@@ -7,32 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::diagnostics::Diagnostic;
 use crate::records::RecordSeverity;
 use dokime_domain::model::records::error::RecordErrorDetail;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProviderCycleOutcome {
@@ -138,12 +121,6 @@ pub struct ProviderExecutionErrorDetail {
     pub message: String,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl ProviderTelemetryRow {
     pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
         let payload = row.encode();
@@ -208,9 +185,3 @@ impl ProviderStatusOutcome {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

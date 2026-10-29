@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
 use dokime::domain::model::settings::wire::SettingsSnapshot;
@@ -28,30 +19,16 @@ use dokime::harmos::{Context, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Resources {
     pub(super) runtime: LiveRuntime,
     pub(super) maximum: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::ReadApplicationSettings),
     Operation1(wire::UpdateApplicationSettings),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ReadApplicationSettings> for Resources {
     fn serve<'a>(
@@ -99,8 +76,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -112,7 +87,3 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,22 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod analysis;
 mod cursor;
 mod wire;
 
-/* === Re-Exports === */
-
 pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filter_wire};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::StreamOutput;
 use dokime::harmos::{Context, Response};
@@ -30,7 +22,6 @@ use futures_util::{Stream, StreamExt, stream};
 use tokio::time::Instant;
 use tonic::Status;
 
-// Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
 use dokime::app::LiveRuntime;
 use dokime::harmos::storage::{ReadBatch, StorageCursor};
@@ -42,19 +33,11 @@ use dokime::runtime::query::{
 };
 use wire::{FrameError, ensure_message_budget, envelope, stream_frame};
 
-/* === Constants === */
-
 const SERVER_PLOT_INITIAL_CONCURRENCY: u64 = 4;
 const SERVER_PLOT_KEEPALIVE_MS: u64 = 3_000;
 const SERVER_PLOT_RETRY_INITIAL_MS: u64 = 250;
 const SERVER_PLOT_RETRY_MAX_MS: u64 = 5_000;
 const SERVER_PLOT_THROTTLE_MS: u64 = 100;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
@@ -66,8 +49,6 @@ struct FrameContext<'a> {
     selection: &'a str,
     kind: PlotPayloadStreamKind,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -82,10 +63,6 @@ enum Opening<T> {
     Ready(T),
     Keepalive,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     fn produce<T: Portable + Send + Sync + 'static>(&self, build: impl FnOnce() -> Result<T, Status>) -> Result<Response<T>, Status> {
@@ -408,8 +385,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -422,8 +397,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 // Lower a plot's stored point budget to what fits; `false` when it already asks for no more.
 fn reduce(
@@ -543,8 +516,6 @@ fn failure(error: dokime::harmos::Error) -> Status {
     };
     super::error::detailed(status, &error.into())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

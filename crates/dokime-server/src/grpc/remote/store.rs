@@ -9,34 +9,17 @@
 
 // Atomic Remote Security Material Persistence
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     net::{IpAddr, SocketAddr},
     path::Path,
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
-// Local Imports
 use dokime::domain::model::remote::RemoteListenerSettings;
 
-/* === Constants === */
-
 const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(super) struct Document {
@@ -69,12 +52,6 @@ struct Security {
     identity: Option<Identity>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Document {
     pub fn initial() -> Self {
         Self {
@@ -106,8 +83,6 @@ impl Drop for Identity {
         self.private_key.zeroize();
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Document, super::Error> {
     match std::fs::symlink_metadata(path) {
@@ -203,8 +178,6 @@ pub(super) fn host_names(address: SocketAddr, maximum: usize) -> Vec<String> {
     default_names(address, sysinfo::System::host_name(), interfaces, maximum)
 }
 
-/* === Private Functions === */
-
 fn default_names(address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = IpAddr>, maximum: usize) -> Vec<String> {
     let reachable = |ip: &IpAddr| !ip.is_loopback() && !ip.is_unspecified() && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local());
     let host =
@@ -232,8 +205,6 @@ fn valid_dns(name: &str) -> bool {
             && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(feature = "runtime")]
 mod app;
 
@@ -23,8 +21,6 @@ pub mod host;
 pub(crate) mod platform;
 mod sample;
 
-/* === Re-Exports === */
-
 #[cfg(feature = "runtime")]
 pub use app::{HostPlugin, Workers};
 pub use config::{HostOptions, Probes, Settings};
@@ -34,31 +30,3 @@ pub use domain::telemetry::{
 };
 pub use error::{Error, Result};
 pub use sample::HostStreamSample;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

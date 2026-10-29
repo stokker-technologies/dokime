@@ -7,22 +7,11 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-/* === External Imports === */
-
 import { Pencil, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-
-/* === Local Imports === */
-
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { MarkdownText } from "@/components/MarkdownText";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -40,8 +29,6 @@ import { timeOfDayLabel } from "@/lib/time-format";
 import type { OperatorNote } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/* === Types === */
-
 export type NoteSubmission = NonNullable<ReturnType<typeof noteSubmission>>;
 
 type EditableOperatorNotesProps = {
@@ -52,14 +39,10 @@ type EditableOperatorNotesProps = {
   onSubmit: (submission: NoteSubmission, saved: () => void) => void;
 };
 
-/* === Constants === */
-
 const TABS: { id: NoteEditorTab; label: string }[] = [
   { id: "code", label: "Code" },
   { id: "preview", label: "Preview" },
 ];
-
-/* === Components === */
 
 export function FrozenOperatorNotes({ notes }: { notes: OperatorNote[] }) {
   const ordered = notesNewestFirst(notes);
@@ -215,11 +198,3 @@ function NoteList({
     </div>
   );
 }
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

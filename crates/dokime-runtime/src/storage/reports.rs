@@ -7,22 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::schema::Described;
 use harmos::{
     Identifier, Message,
     storage::{FileReference, SchemaKey, StorageCursor, StoredRecord},
 };
 
-// Local Imports
 use super::{
     Error, Manager, Result,
     objects::{
@@ -35,15 +25,7 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 const SCHEMA_ID: &str = "dokime.report.publication";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -87,17 +69,11 @@ struct PublicationState {
     position: Option<StorageCursor>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 pub enum Owner<'a> {
     Cycle(&'a TestCycleId),
     Execution(&'a TestExecutionId),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Prepared {
     pub fn new(manager: &Manager, input: &Input<'_>, schema_settings: &harmos::config::SchemaSettings) -> Result<Self> {
@@ -349,8 +325,6 @@ impl Publication {
     }
 }
 
-/* === Public Functions === */
-
 pub fn schema() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
@@ -368,8 +342,6 @@ pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storag
         source_end: None,
     }
 }
-
-/* === Private Functions === */
 
 fn exact_slots<T>(length: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
@@ -441,5 +413,3 @@ fn validate(input: &Input<'_>) -> Result<()> {
     }
     Ok(())
 }
-
-/* === Tests === */

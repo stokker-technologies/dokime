@@ -7,31 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
 
 pub const PAGE_ITEMS: u64 = 50;
 pub const MAXIMUM_PAGE_ITEMS: u64 = 500;
 pub const AFTER_BYTES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -40,8 +21,6 @@ pub struct Cursor {
     pub stream: String,
     pub position: u64,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -63,10 +42,6 @@ pub enum Error {
     #[error("subsequent page requires cursor")]
     Missing,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Cursor {
     pub fn validate(&self, given: Option<&Self>, exact: bool) -> Result<(), Error> {
@@ -93,8 +68,6 @@ impl Cursor {
     }
 }
 
-/* === Public Functions === */
-
 pub fn page_size(limit: u32, after: &str) -> Result<usize, Error> {
     let after_bytes = u64::try_from(after.len()).map_err(|_| Error::AfterTooLarge)?;
     if after_bytes > AFTER_BYTES {
@@ -106,7 +79,3 @@ pub fn page_size(limit: u32, after: &str) -> Result<usize, Error> {
     }
     usize::try_from(limit).map_err(|_| Error::Limit)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

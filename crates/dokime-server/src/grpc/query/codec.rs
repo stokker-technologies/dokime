@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::super::value::{Budget, canonical};
 use crate::grpc::transcode::Transcode;
 use dokime::runtime::query::aggregate::AggregateOutcome;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn project(
     outcome: &AggregateOutcome, maximum: usize,
@@ -65,8 +38,6 @@ pub(super) fn project(
     Ok(result)
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted { resource: "canonical aggregate response" }
 }
@@ -77,5 +48,3 @@ fn failure(error: tonic::Status) -> dokime::harmos::Error {
     }
     dokime::harmos::Error::backend("project original aggregate", dokime::harmos::BackendFailure::Corrupt, error)
 }
-
-/* === Tests === */

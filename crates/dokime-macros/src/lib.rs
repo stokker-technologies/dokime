@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod arguments;
 mod catalog;
 mod facade;
@@ -24,32 +22,7 @@ mod settings;
 mod suite;
 mod template;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro::TokenStream;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[proc_macro_attribute]
 pub fn parameters(attribute: TokenStream, item: TokenStream) -> TokenStream {
@@ -140,7 +113,3 @@ pub fn section(attribute: TokenStream, item: TokenStream) -> TokenStream {
 pub fn settings(attribute: TokenStream, item: TokenStream) -> TokenStream {
     settings::settings(attribute.into(), item.into()).into()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

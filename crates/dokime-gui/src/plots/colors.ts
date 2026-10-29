@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Types === */
-
 export type ResolvedPlotThemeColors = {
   background: string;
   border: string;
@@ -17,15 +15,11 @@ export type ResolvedPlotThemeColors = {
   palette: string[];
 };
 
-/* === Constants === */
-
 const PLOT_PALETTE_SIZE = 8;
 const CSS_COLOR_FALLBACK = "currentColor";
 const CSS_VARIABLE_PATTERN = /^var\(\s*(--[a-zA-Z0-9_-]+)\s*\)$/;
 const PLOT_PALETTE_VARIABLES = Array.from({ length: PLOT_PALETTE_SIZE }, (_, index) => `--chart-${index + 1}`);
 const PLOT_PALETTE_REFERENCES = PLOT_PALETTE_VARIABLES.map((name) => `var(${name})`);
-
-/* === Public Functions === */
 
 export function plotColor(topic: string, index: number, palette?: readonly string[] | null): string {
   const colors = normalizePlotPalette(palette) ?? PLOT_PALETTE_REFERENCES;
@@ -71,8 +65,6 @@ export function resolvePlotCssColor(color: string | null | undefined, element?: 
   }
   return resolvedVariable(computedStyles(element), variable) ?? fallback;
 }
-
-/* === Private Functions === */
 
 function computedStyles(element?: Element | null): CSSStyleDeclaration | null {
   if (typeof window === "undefined" || typeof window.getComputedStyle !== "function") {

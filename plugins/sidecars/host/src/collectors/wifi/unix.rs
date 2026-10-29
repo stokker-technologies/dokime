@@ -7,33 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::platform::unix::wifi::{NmcliWifiRow, adapter_matches, nmcli_wifi_rows, wireless_link};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl WifiLinkCollector {
     // The Active NetworkManager Row Plus The Kernel Link; Answers The Adapter For Throughput.
@@ -92,10 +67,6 @@ impl WifiLatencyCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn scanned(row: NmcliWifiRow) -> ScannedNetwork {
     ScannedNetwork {
         adapter: row.device,
@@ -108,5 +79,3 @@ fn scanned(row: NmcliWifiRow) -> ScannedNetwork {
         associated: row.active,
     }
 }
-
-/* === Tests === */

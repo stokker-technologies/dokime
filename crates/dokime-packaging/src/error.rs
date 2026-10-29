@@ -7,28 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("cancelled")]
@@ -59,10 +37,6 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Self::Invalid(error.to_string())
@@ -74,9 +48,3 @@ impl From<harmos_packaging::bundle::Error> for Error {
         Self::Invalid(error.to_string())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

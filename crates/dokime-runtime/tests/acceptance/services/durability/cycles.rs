@@ -7,34 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::path::PathBuf;
-// Third Party Imports
-// Local Imports
+
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 #[tokio::test]
 async fn kill_recovers_cycle() {
@@ -116,5 +91,3 @@ async fn run_kill_child() {
     crate::service_support::children::announce_ready();
     std::future::pending::<()>().await;
 }
-
-/* === Tests === */

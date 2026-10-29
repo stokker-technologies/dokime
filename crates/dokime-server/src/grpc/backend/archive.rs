@@ -7,41 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::harmos::operations::{Response, StreamOutput};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::{bundle, chunked, value::canonical};
 use dokime::RuntimeHandle;
 
-/* === Constants === */
-
 const SERVER_BUNDLE_LOG_TAIL_BYTES: u64 = 2_097_152;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Frames {
     metadata: Response<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl chunked::Frames for Frames {
     type Frame = dokime::domain::model::backend::wire::DiagnosticsBundleFrame;
@@ -66,8 +42,6 @@ impl chunked::Frames for Frames {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn deliver(
     runtime: &RuntimeHandle, identity: &dokime::domain::model::backend::wire::BackendIdentity, maximum: usize, tail: Option<u64>,
@@ -121,7 +95,3 @@ pub(super) async fn deliver(
     .run(output)
     .await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

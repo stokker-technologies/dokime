@@ -7,27 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::operations::plots;
 use dokime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
     document::{AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind, PlotStyle, PlotType, ReferenceAxis},
     runtime::query::DownsampleTechnique,
 };
-
-/* === Constants === */
-
-/* === Macros === */
 
 macro_rules! encode {
     ($name:ident: $native:ident -> $wire:ty { $($variant:ident),+ $(,)? }) => {
@@ -114,18 +99,6 @@ encode!(execution_file_state: ExecutionFileStreamState -> dokime::domain::model:
     Interrupted,
 });
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(in crate::grpc) fn plot_axis(value: Option<&PlotAxisKind>) -> (dokime::domain::model::documents::wire::PlotAxisKind, Option<String>) {
     match value {
         None => (dokime::domain::model::documents::wire::PlotAxisKind::Unspecified, None),
@@ -195,7 +168,3 @@ pub(in crate::grpc) fn downsample_technique_from_wire(
         plots::DownsampleTechnique::Lttb => Some(DownsampleTechnique::Lttb),
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

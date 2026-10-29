@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::IdentifierPattern;
 use crate::model::telemetry::TelemetrySample;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TelemetryFilter {
@@ -43,12 +25,6 @@ pub struct TelemetryFilter {
     pub end: Option<Timestamp>,
     pub signals: Vec<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TelemetryFilter {
     pub fn matches(&self, sample: &TelemetrySample) -> bool {
@@ -83,9 +59,3 @@ impl TelemetryFilter {
         true
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

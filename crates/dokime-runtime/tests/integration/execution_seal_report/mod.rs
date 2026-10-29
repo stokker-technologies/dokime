@@ -9,8 +9,6 @@
 
 // Execution Seal And Report Story: cycle create, append, run, seal, report, open report.
 
-/* === Modules === */
-
 pub(crate) mod artifacts;
 pub(crate) mod cancel;
 pub(crate) mod contention;
@@ -27,37 +25,7 @@ pub(crate) mod run;
 pub(crate) mod storage;
 pub(crate) mod streams;
 
-/* === Re-Exports === */
-
 pub(crate) use crate::service_support::prelude::*;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn execution_seal_report() {

@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::RuntimeConfig;
 use dokime::domain::model;
@@ -25,24 +14,6 @@ use dokime::runtime::command::CommandContext;
 use dokime::{RecordScope, TestCycleId};
 use model::execution::HealthSeverity;
 use model::execution::OperatorNoteRequest;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn cycle(runtime: &dokime::RuntimeHandle) -> TestCycleId {
     let suite = support::fixture_suite(&["passed"]);
@@ -298,5 +269,3 @@ pub(crate) async fn sealed_refuses_notes() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

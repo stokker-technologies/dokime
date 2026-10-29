@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::runtime_state::RuntimeState;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn configure(setup: &mut harmos::Setup<crate::app::Dokime>, parts: &crate::runtime::handle::BootParts) {
     let storage = &parts.storage;
@@ -69,10 +42,6 @@ pub(crate) async fn initialize(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn reconciliation_error(source: impl std::error::Error + Send + Sync + 'static) -> harmos::Error {
     harmos::Error::backend("reconcile native Dokime storage", harmos::BackendFailure::Permanent, source)
 }
-
-/* === Tests === */

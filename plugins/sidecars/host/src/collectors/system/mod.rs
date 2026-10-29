@@ -7,22 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
 
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use starship_battery::{
     Battery, Manager as BatteryManager, State as BatteryState,
     units::{
@@ -36,20 +28,11 @@ use starship_battery::{
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
 
-// Local Imports
 use crate::{
     HostStreamSample, HostTelemetryStream, Result,
     collectors::{integer, maybe_insert},
 };
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct SystemCollector {
     sample_index: u64,
@@ -73,12 +56,6 @@ struct PowerProfileContext {
     mode: Option<String>,
     performance_bias: Option<i64>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for SystemCollector {
     fn default() -> Self {
@@ -160,10 +137,6 @@ impl SystemCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn git_identity() -> GitIdentity {
     let mut command = dokime_domain::process::command("git");
     command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
@@ -233,8 +206,6 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
         ("battery_cycle_count", battery.cycle_count().map(|count| Value::Integer(i64::from(count)))),
     ]
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

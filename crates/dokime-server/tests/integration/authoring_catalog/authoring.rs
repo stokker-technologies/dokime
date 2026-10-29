@@ -7,40 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 
 const HOME_STREAM: &str = "fixture.homed.events";
 const OTHER_STREAM: &str = "fixture.other.samples";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 struct HomedRow {
     value: f64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::StreamSpec for HomedRow {
     type Row = Self;
@@ -80,12 +56,6 @@ impl dokime::telemetry::TelemetryRow for HomedRow {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) fn untyped_artifact_refused() {
     let sink = std::sync::Arc::new(dokime::transport::recording::RecordingSink::new());

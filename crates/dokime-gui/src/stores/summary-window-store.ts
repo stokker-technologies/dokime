@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { create } from "zustand";
-
-/* === Types === */
 
 /** An x range in a plot's cartesian x space. */
 export type SummaryWindow = { from: number; to: number };
@@ -25,8 +21,6 @@ type SummaryWindowStore = {
   windows: Readonly<Record<string, SummaryWindow>>;
   setSummaryWindow: (plotId: string, window: SummaryWindow | null) => void;
 };
-
-/* === Stores === */
 
 export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
   windows: {},

@@ -7,41 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
 mod add;
 mod list;
 mod remove;
 mod show;
 mod r#use;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::client::profiles::Store;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Config {
     #[arg(long, help = "Use This Backend Profile Configuration File.")]
     profiles_file: Option<PathBuf>,
 }
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -61,17 +41,11 @@ pub(crate) enum Command {
     Remove(remove::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl Config {
     pub(super) fn store(&self) -> crate::Result<Store> {
         Ok(Store::discover(self.profiles_file.as_deref())?)
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn run(command: Command) -> crate::Result<()> {
     match command {
@@ -82,7 +56,3 @@ pub(crate) fn run(command: Command) -> crate::Result<()> {
         Command::Remove(args) => remove::run(args),
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

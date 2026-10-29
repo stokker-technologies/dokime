@@ -7,40 +7,30 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
     Arc, LazyLock,
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
-// Third Party Imports
+
 use dokime_runtime::harmos::operations::Host as _;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
-// Local Imports
+
 use dokime_runtime::Value;
 use dokime_runtime::execution::{CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::{Refusal, Supervisor};
 
-/* === Constants === */
 const SUITE: &str = "observer.checks";
 
 static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
-/* === Macros === */
-/* === Type Aliases === */
 type Publishing = Publisher<Owner>;
 
-/* === Structs === */
 #[derive(Default)]
 struct Probe {
     starts: AtomicUsize,
@@ -147,7 +137,6 @@ struct GetProbeResponse {
     secrets: bool,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum WatchError {
     #[error(transparent)]
@@ -207,9 +196,6 @@ enum ProbeRequired {
     GetProbe(GetProbe),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Probe {
     // Counts one event and wakes every story waiting on the probe.
     fn bump(&self, counter: &AtomicUsize) {
@@ -584,9 +570,6 @@ impl Pending {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -601,8 +584,6 @@ fn probe(token: &str) -> Arc<Probe> {
 fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Sync + 'static {
     move |_| GetProbeResponse { token: token.clone(), secrets: true }
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn activation_starts_execution() {

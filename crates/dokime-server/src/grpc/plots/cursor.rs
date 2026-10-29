@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
 use dokime::document::AxisScale;
@@ -39,25 +29,9 @@ use dokime::runtime::query::DownsampleTechnique;
 use dokime::runtime::query::PlotPayloadRequest;
 use dokime::runtime::query::PlotWindow;
 
-/* === Constants === */
-
 const SERVER_PLOT_POINTS: u64 = 100_000;
 const SERVER_PLOT_REQUESTS: u64 = 32;
 const SERVER_PLOT_TRANSFORMS: u64 = 32;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn decode_plot_requests(
     requests: Vec<dokime::domain::model::plots::wire::PlotRequest>,
@@ -89,8 +63,6 @@ pub(super) fn expression_stream(value: String) -> Result<String, Status> {
 pub(crate) fn record_scope(scope: dokime::domain::model::identity::wire::EvidenceScope) -> Result<RecordScope, Status> {
     canonical::decoded_scope(&scope)
 }
-
-/* === Private Functions === */
 
 fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Result<PlotPayloadRequest, Status> {
     if request.stream.is_empty() {
@@ -276,5 +248,3 @@ fn data_transform(transform: dokime::domain::model::plots::wire::DataTransform) 
         dokime::domain::model::plots::wire::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })
 }
-
-/* === Tests === */

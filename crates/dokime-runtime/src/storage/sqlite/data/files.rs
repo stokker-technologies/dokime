@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 use std::{
     fs::{File, OpenOptions},
@@ -21,24 +14,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
 
-// Local Imports
 use super::super::{Error, State};
 use super::{blob, entry, saved};
 
-/* === Constants === */
-
 const CHUNK_BYTES: usize = 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One Exact First Block And Its Digest State; At Most CHUNK_BYTES Per Store.
 #[derive(Default)]
@@ -46,12 +29,6 @@ pub(in crate::storage::sqlite) struct VerifiedPrefix {
     bytes: Vec<u8>,
     digest: Sha256,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl VerifiedPrefix {
     fn begin(&mut self, bytes: &[u8]) -> Sha256 {
@@ -296,8 +273,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool) -> Result<StagedFile, Error> {
     entry::key(metadata.id.as_str())?;
     if let Some(scope) = &metadata.scope {
@@ -541,13 +516,9 @@ pub(super) fn remove(path: &Path) -> Result<(), Error> {
     }
 }
 
-/* === Private Functions === */
-
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

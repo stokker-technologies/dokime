@@ -9,40 +9,13 @@
 
 // Persisted Report Restart Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::StorageBackend;
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wire::ReportSubject};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn persisted_cycle_restart() {
     let root = tempdir().unwrap();
@@ -172,5 +145,3 @@ pub(crate) async fn persisted_cycle_restart() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

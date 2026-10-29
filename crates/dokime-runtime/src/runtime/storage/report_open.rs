@@ -18,18 +18,8 @@
 // An unreadable sealed report returns an error: finalized
 // evidence may already have been pruned, and its published bytes are authoritative.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::ObjectVersion;
 
-// Local Imports
 use super::execution::ExecutionView;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -37,14 +27,6 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct OpenedReport {
     pub test_cycle_id: TestCycleId,
@@ -56,17 +38,11 @@ pub struct OpenedReport {
     pub reader: harmos::storage::FileReader,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReportOrigin {
     Sealed,
     Current,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
@@ -195,10 +171,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn report_reader(storage: &crate::storage::Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::FileReader> {
     Ok(storage
         .read_file(harmos::storage::FileRead {
@@ -214,5 +186,3 @@ fn not_found(code: &str, message: &str) -> Error {
         message: message.into(),
     })
 }
-
-/* === Tests === */

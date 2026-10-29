@@ -7,34 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::domains::SettingDiscovery as Discovery;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use crate::domains::{OptionProviderContribution, OptionProviderSource, PluginEntrypoint};
 use crate::parameters::{Bounds, ParameterValue};
 use crate::plugin::{Configuration, Secret};
 use crate::settings::{Choice, SettingValues, Settings, SettingsEntry};
 use crate::values::FieldValue;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoSettings;
@@ -45,10 +27,6 @@ pub struct Discovered {
     #[row(description = "The value, JSON-encoded as one [`Value`](dokime_domain::model::values::Value).")]
     value_json: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait SettingsSection: Sized {
     const LABEL: &'static str;
@@ -93,8 +71,6 @@ pub trait PluginSettings: Sized + Send + Sync + 'static {
 )]
 pub trait Answers<Answered> {}
 
-/* === Implementations === */
-
 impl PluginSettings for NoSettings {
     fn catalog() -> Settings {
         Settings { contributions: Vec::new() }
@@ -126,8 +102,6 @@ impl Discovered {
         serde_json::from_str(&self.value_json)
     }
 }
-
-/* === Public Functions === */
 
 pub fn option_provider(operation: &str) -> OptionProviderContribution {
     OptionProviderContribution {
@@ -209,8 +183,6 @@ pub fn bound_secret(configuration: &Configuration, id: &str) -> Option<Secret> {
     configuration.secret(id).ok()
 }
 
-/* === Private Functions === */
-
 fn titled(id: &str) -> String {
     id.split(['.', '-', '_'])
         .filter(|word| !word.is_empty())
@@ -242,5 +214,3 @@ fn text(value: Value) -> String {
         _ => String::new(),
     }
 }
-
-/* === Tests === */

@@ -9,8 +9,6 @@
 
 /* Shared native value conversion, read limits, and mapping helpers. */
 
-/* === External Imports === */
-
 import type {
   Row107 as NativeElapsed,
   Row19 as NativeFormat,
@@ -36,8 +34,6 @@ type ValueType = Wire<NativeValueType>;
 type NativeValueFormat = Wire<NativeFormat>;
 type NativeElapsedUnit = Wire<NativeElapsed>;
 
-/* === Constants === */
-
 const DOCUMENTS_VALUE_DEPTH = 128;
 const GUI_CASE_ITEMS = 1_000;
 const GUI_CONCURRENT_READS = 4;
@@ -56,8 +52,6 @@ export const NATIVE_SMALL_PAGE_SIZE = GUI_SMALL_PAGE_ITEMS;
 export const NATIVE_MAX_PAGES = GUI_MAXIMUM_PAGES;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
 export const NATIVE_MAX_CONCURRENT_READS = GUI_CONCURRENT_READS;
-
-/* === Errors === */
 
 export class NativeApiUnsupportedError extends Error {
   readonly operation: string;
@@ -80,8 +74,6 @@ export class NativeApiLimitError extends Error {
     this.operation = operation;
   }
 }
-
-/* === Value conversion === */
 
 /**
  * A JSON-facing integer that keeps its signed 64-bit identity for a later
@@ -402,8 +394,6 @@ export function jsonToNativeValue(value: unknown): Value {
   push(value, 0);
   return { nodes };
 }
-
-/* === Mapping and bounded reads === */
 
 export function metadataJson(metadata?: Metadata): JsonObject {
   return metadata

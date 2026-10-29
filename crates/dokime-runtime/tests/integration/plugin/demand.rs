@@ -7,7 +7,6 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod observers {
     use super::*;
 
@@ -120,35 +119,27 @@ pub(crate) mod observers {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
     Arc, LazyLock,
     atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
-// Third Party Imports
+
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use harmos::Message;
-// Local Imports
+
 use dokime_domain::model;
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
 
-/* === Constants === */
 static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 const UNIT_NOTED: DemandKey = DemandKey::new("dokime.record", "owned.unit.noted");
 
-/* === Macros === */
-/* === Type Aliases === */
 type Publishing = Publisher<Measured>;
 
-/* === Structs === */
 #[derive(Default)]
 struct Probe {
     opens: AtomicUsize,
@@ -236,7 +227,6 @@ struct RawIdentifiers {
     r#type: String,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
@@ -267,9 +257,6 @@ enum MeasuredRecords {
     UnitNoted(UnitNoted),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl Probe {
     // Counts one event and wakes every story waiting on the probe.
     fn bump(&self, counter: &AtomicUsize) -> usize {
@@ -449,9 +436,6 @@ impl Echoed {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -499,8 +483,6 @@ fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
     filed.details = [("serial".to_owned(), dokime_runtime::Value::from(serial))].into();
     dokime_runtime::plugin::Delivery::of(&filed)
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn instance_opens_resources() {

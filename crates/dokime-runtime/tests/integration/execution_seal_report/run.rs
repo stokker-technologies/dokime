@@ -7,36 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn cycle_exposes_rows() {
     let root = tempdir().unwrap();
@@ -278,8 +250,6 @@ pub(crate) async fn stop_holds_unwind() {
 }
 
 pub(crate) async fn stop_spares_sibling() {
-    // === Start A Two-Case Cycle === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(MemberStopExecutor::default());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -300,8 +270,6 @@ pub(crate) async fn stop_spares_sibling() {
         .expect("first execution is running")
         .test_execution_id
         .clone();
-
-    // === Stop One Execution === //
 
     let stop = runtime.stop_execution(stopped_id.clone(), CommandContext::default()).await;
     let during = cycle_snapshot(&runtime, &test_cycle_id).await;
@@ -417,5 +385,3 @@ pub(crate) async fn group_continues_after_failure() {
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
     assert!(cycle.test_executions[1].started_at.is_some());
 }
-
-/* === Tests === */

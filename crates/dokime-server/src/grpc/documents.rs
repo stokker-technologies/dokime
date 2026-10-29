@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod wire;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
-// Local Imports
 use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::DocumentId;
 use dokime::domain::model::identity::Identifier;
@@ -32,30 +23,16 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::documents as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(contract::CaptureCurrentDocument),
     Operation1(contract::UpdatePlotSettings),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<contract::CaptureCurrentDocument> for Resources {
     fn serve<'a>(
@@ -118,8 +95,6 @@ impl Serve<contract::UpdatePlotSettings> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), super::Error> {
@@ -131,8 +106,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn owner(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
@@ -150,5 +123,3 @@ fn scope(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -
     let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
 }
-
-/* === Tests === */

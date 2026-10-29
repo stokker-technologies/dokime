@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createContext, type ReactNode, useContext } from "react";
-
-/* === Local Imports === */
 
 import { DocumentGrid } from "@/components/document/Document";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,15 +20,11 @@ import {
 import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, DocumentViewSection, Metadata } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/* === Constants === */
-
 /**
  * A control a surface places in one section's header, by section id — the
  * live plot window beside the plots it scales. Absent, headers are plain.
  */
 export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(() => null);
-
-/* === Types === */
 
 /** Renders one card; `section` is the enclosing section, absent at the top level. */
 export type DocumentCardRenderer = (card: DocumentViewCard, section: Metadata | null) => ReactNode;
@@ -61,8 +53,6 @@ type DocumentViewBlockProps = {
   chrome?: DocumentBlockChrome;
   contentClassName?: string;
 };
-
-/* === Components === */
 
 export function DocumentViewRenderer({
   document,

@@ -10,20 +10,11 @@
 // The file watch built-in through `ctx.host()` with no host behind it: a
 // watch a step leaves running for the step-end sweep.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 use std::time::Duration;
 
-// Third Party Imports
 use dokime_runtime::harmos::operations::Host;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::host::StepHandleCancelled;
 use dokime_runtime::plugin::testing::Harness;
@@ -34,18 +25,12 @@ use {
     model::files::wire::LocalWatchSource,
 };
 
-/* === Constants === */
 const SUITE: &str = "steps.checks";
 const TAIL: &str = "steps.checks.tail";
 
 const BEFORE: &[u8] = b"before the watch\n";
 const APPENDED: &[u8] = b"temp=41.5 state=charging\nFAULT E7\n";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Checks;
 
 struct LeaveWatch;
@@ -80,7 +65,6 @@ struct TailParameters {
     copy_truncate: bool,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
@@ -111,9 +95,6 @@ enum Records {
     Fault(Fault),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::suite(id = SUITE, label = "Step Built-Ins", templates = Templates)]
 impl Checks {}
 
@@ -174,12 +155,6 @@ impl LeaveWatch {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn harness_mirror_arms_before_rotation_and_retains_both_segments() {
     let directory = tempfile::tempdir().unwrap();

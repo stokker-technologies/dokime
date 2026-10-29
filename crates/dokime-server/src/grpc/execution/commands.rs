@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::loan;
 use crate::grpc::value::canonical;
 use dokime::app::LiveRuntime;
@@ -33,25 +24,11 @@ use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::Error;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::SubmitExecutionCommand),
     Operation1(wire::GetExecutionCommand),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::SubmitExecutionCommand> for super::Resources {
     fn serve<'a>(
@@ -69,8 +46,6 @@ impl Serve<wire::GetExecutionCommand> for super::Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -85,8 +60,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn submit(
     resources: &super::Resources, request: &wire::SubmitExecutionCommand,
@@ -182,5 +155,3 @@ fn project(
         detail: receipt.detail.clone(),
     })
 }
-
-/* === Tests === */

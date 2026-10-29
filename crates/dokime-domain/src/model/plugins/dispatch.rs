@@ -7,23 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
 
 product_error!(ActionDispatcherError, formatter {
     Self::Refused { code, message } => write!(formatter, "action was refused: {message} ({code})"),
@@ -34,12 +19,6 @@ product_error!(ActionDispatcherError, formatter {
     Self::UnknownEntrypoint(entrypoint) => write!(formatter, "action entrypoint `{entrypoint}` is unknown"),
 });
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActionDispatcherError {
     Refused { code: i64, message: String },
@@ -49,13 +28,3 @@ pub enum ActionDispatcherError {
     InvalidInput(String),
     UnknownEntrypoint(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

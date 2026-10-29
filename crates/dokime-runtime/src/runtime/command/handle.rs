@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Instant;
 
-// Third Party Imports
 use harmos::{Error as HarmosError, state::Position, state::RequestKey};
 
-// Local Imports
 use crate::{
     CommandContext, CommandId, CommandReceipt, JobRunId, RuntimeHandle, commands::accepted_receipt,
     execution_runtime::provider::admission::RunProvider, internal_rejection, rejected_receipt, runtime::Error, unavailable_rejection,
@@ -27,20 +18,6 @@ use crate::{
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     fn provider_availability_rejection(
@@ -334,10 +311,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn harmos_commit_rejection(error: HarmosError<String>) -> Error {
     match error {
         HarmosError::Rejected(message) => Error::conflict("runtime_conflict", message),
@@ -348,5 +321,3 @@ fn harmos_commit_rejection(error: HarmosError<String>) -> Error {
         other => internal_rejection(format!("commit command: {other}")),
     }
 }
-
-/* === Tests === */

@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use dokime_domain::model::execution::EvidenceOrigin;
 use dokime_domain::model::execution::RecordScope;
 
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeRecordFrame {
@@ -40,14 +22,6 @@ pub struct RuntimeRecordFrame {
     pub returned_records: usize,
     pub truncated: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn record_frame<'a>(
     records: impl Iterator<Item = &'a RecordEntry>, window: &RuntimeWindow, resolution: &RuntimeResolution,
@@ -97,8 +71,6 @@ pub(crate) fn view_filter<'a>(
     }
 }
 
-/* === Private Functions === */
-
 // Every Selected Owner Field Equals The Record's; A Default Origin Selects Any Origin.
 fn native_match(record: Option<&RecordScope>, selected: &RecordScope) -> bool {
     let Some(record) = record else {
@@ -117,5 +89,3 @@ fn native_match(record: Option<&RecordScope>, selected: &RecordScope) -> bool {
         && equal(&record.suite_id, &selected.suite_id)
         && (selected.origin == EvidenceOrigin::Default || record.origin == selected.origin)
 }
-
-/* === Tests === */

@@ -9,32 +9,13 @@
 
 // Saved-Window And Follow-Frontier Volume Fixtures
 
-/* === Modules === */
-
 #[cfg(feature = "testing")]
 mod history;
-
-/* === Re-Exports === */
 
 #[cfg(feature = "testing")]
 pub use history::telemetry;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use harmos::Application;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct TestApp;
 
@@ -48,12 +29,6 @@ pub(super) struct StorageConfig {
 pub(super) struct Reading {
     pub(super) value: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Application for TestApp {
     type Lanes = crate::app::Lanes;
@@ -82,9 +57,3 @@ impl harmos::Lifecycle for TestApp {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

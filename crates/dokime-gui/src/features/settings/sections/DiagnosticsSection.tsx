@@ -7,14 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Download, TriangleAlert } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,15 +22,8 @@ import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/
 import { bootOrganization, organizationPack } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
+import { toast } from "@/lib/notifications";
 import { useSettingsFrameQuery } from "../settings-queries";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 
 export function DiagnosticsSection() {
   const session = useNativeSessionOptional();
@@ -209,9 +196,3 @@ function StorageResetRow({ directory }: { directory: string }) {
     </SettingsRow>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

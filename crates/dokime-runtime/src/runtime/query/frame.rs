@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::{
     queries::RuntimeOverviewSnapshot,
     queries::{
@@ -27,14 +17,6 @@ use crate::{
         RuntimeResourceFrame, RuntimeTelemetryRead, RuntimeTraceabilityRead, RuntimeWindow,
     },
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RuntimeViewFrame {
@@ -71,8 +53,6 @@ pub struct RuntimeListFrame {
     pub items: Vec<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeViewPayload {
@@ -96,13 +76,3 @@ pub enum RuntimeViewPayload {
     Traceability { frame: RuntimeTraceabilityRead },
     Notes { frame: Box<RuntimeNoteFrame> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

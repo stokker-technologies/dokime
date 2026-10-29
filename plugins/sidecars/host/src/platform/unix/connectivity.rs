@@ -9,34 +9,7 @@
 
 // Internet Connectivity As NetworkManager Last Determined It.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // `nmcli networking connectivity` Reports The Cached State Without Checking Again.
 pub fn internet(timeout: Duration) -> Option<bool> {
@@ -49,8 +22,6 @@ pub fn internet(timeout: Duration) -> Option<bool> {
     parse(&String::from_utf8_lossy(&output.stdout))
 }
 
-/* === Private Functions === */
-
 fn parse(state: &str) -> Option<bool> {
     match state.trim() {
         "full" => Some(true),
@@ -58,8 +29,6 @@ fn parse(state: &str) -> Option<bool> {
         _ => None,
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

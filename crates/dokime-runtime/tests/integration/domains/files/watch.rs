@@ -10,18 +10,8 @@
 // Stream, Mirror and Snapshot watches over a local tree that grows, rotates
 // and gains files while the watch runs.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::SystemTime;
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
 use dokime_operations::files::FileWatch;
@@ -35,23 +25,6 @@ use {
     model::files::wire::LineMatcher, model::files::wire::WatchedArtifact,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // A Host-Routed Watch Carries A Ticket In Its Call Context; Its Readiness Request Repeats It.
 fn ticketed(bench: &Bench) -> (harmos::operations::OperationManager<dokime_runtime::app::Lanes>, u64) {
     let ticket = dokime_runtime::execution::WatchTicket::issue();
@@ -83,8 +56,6 @@ fn phases(events: &[WatchEvent], wanted: Phase) -> Vec<(String, u64)> {
 fn code(error: &Error) -> &str {
     error.code().unwrap_or_default()
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {

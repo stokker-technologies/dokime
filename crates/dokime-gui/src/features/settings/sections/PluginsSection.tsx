@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
@@ -38,9 +32,8 @@ import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import type { PluginSource } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { toast } from "@/lib/notifications";
 import type { PluginEntry } from "@/lib/types/view-contracts";
-
-/* === Components === */
 
 export function PluginsSection() {
   const brand = useBrand();
@@ -305,8 +298,6 @@ export function PluginsSection() {
     </>
   );
 }
-
-/* === Private Functions === */
 
 function errorMessage(error: unknown, fallback: string): string | null {
   if (!error) {

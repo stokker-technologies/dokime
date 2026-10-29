@@ -9,31 +9,13 @@
 
 // Save Explicitly Owned Evidence After An Interrupt
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     future::{Future, poll_fn},
     path::PathBuf,
 };
 
-// Third Party Imports
-
-// Local Imports
 use dokime::client::{Client, TestExecutionHandle};
 use dokime::domain::model::identity::{TestCycleId, TestExecutionId};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Default, clap::Args)]
 #[group(id = "interrupt_recovery")]
@@ -53,12 +35,6 @@ pub(crate) struct Plan {
     executions: Vec<(TestExecutionId, PathBuf)>,
     cycle_output: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Args {
     pub(crate) fn prepare(&self, execution: &TestExecutionId) -> crate::Result<Option<Plan>> {
@@ -178,8 +154,6 @@ impl Plan {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn observe<'a, T: 'a>(
     client: &'a Client, execution: &'a TestExecutionHandle, recovery: Option<&'a Plan>, subject: &'a str,
     operation: impl Future<Output = crate::Result<T>> + 'a,
@@ -222,10 +196,6 @@ pub(crate) async fn interrupted(identity: &str, subject: &str, recovery: bool) -
     })
     .await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

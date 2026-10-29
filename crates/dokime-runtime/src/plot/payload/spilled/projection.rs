@@ -9,33 +9,15 @@
 
 // Exact Disk-Sorted Telemetry Projection
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::query::{Accumulator, scalar::Agg};
 use rusqlite::params;
 
-// Local Imports
 use super::super::{self as payload, PlotPayloadRequest, PlotPoint, PlotSeries};
 use super::{
     input::{Read, failure},
     series::{Points, Series, scalar_number},
 };
 use crate::{expressions::DataExpression, runtime::Result, telemetry::TelemetrySample};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Projection<'a> {
     pub request: &'a PlotPayloadRequest,
@@ -55,17 +37,11 @@ pub(super) struct Row<'a> {
     pub exact: Option<crate::Value>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 pub(super) enum Input<'a> {
     Field(&'a str),
     Expression(&'a DataExpression),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Input<'a> {
     fn value(self, sample: &TelemetrySample) -> Option<f64> {
@@ -244,8 +220,6 @@ impl<'a> Projection<'a> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn reset(read: &Read<'_>) -> Result<()> {
     read.connection
         .execute_batch(
@@ -333,8 +307,6 @@ pub(super) fn rows(
     Ok(())
 }
 
-/* === Private Functions === */
-
 pub(super) fn selected(sample: &TelemetrySample, request: &PlotPayloadRequest) -> bool {
     sample.stream.as_str() == request.stream
         && payload::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
@@ -364,8 +336,6 @@ fn z_value(read: &Read<'_>, sample: &TelemetrySample, request: &PlotPayloadReque
     })?;
     Ok(other.and_then(|sample| payload::sample_value(&sample, field).and_then(payload::numeric_value)))
 }
-
-/* === Tests === */
 
 fn number(bytes: Option<Vec<u8>>) -> Result<Option<f64>> {
     bytes

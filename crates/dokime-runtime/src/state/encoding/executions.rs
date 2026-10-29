@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// Local Imports
 use super::{intern, position, resolve};
 use crate::definition::{ParameterDefinition, TestCaseTemplate};
 use crate::document::DocumentDefinition;
@@ -29,16 +20,8 @@ use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Executions = crate::state::shared::Map<TestExecutionId, TestExecution>;
 type DocumentRefs = BTreeMap<DocumentId, u32>;
-
-/* === Structs === */
 
 // Every member of a cycle copies its template, its planned documents and its
 // parameter definitions, and each execution starts with its own copy of those
@@ -97,12 +80,6 @@ struct DecodedMember {
     planned_documents: DocumentRefs,
     documents: DocumentRefs,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> Shared<'a> {
     fn collect(executions: &'a Executions) -> Self {
@@ -176,8 +153,6 @@ impl DecodedShared {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn serialize<S: Serializer>(executions: &Executions, serializer: S) -> Result<S::Ok, S::Error> {
     let shared = Shared::collect(executions);
     Encoded {
@@ -196,8 +171,6 @@ pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<
         .collect::<Result<_, String>>()
         .map_err(serde::de::Error::custom)
 }
-
-/* === Private Functions === */
 
 // Clones Every Field The Pool Does Not Hold; Pooled Ones Stay Empty
 fn lean_clone(execution: &TestExecution) -> TestExecution {
@@ -256,5 +229,3 @@ fn lean_clone(execution: &TestExecution) -> TestExecution {
         result: result.clone(),
     }
 }
-
-/* === Tests === */

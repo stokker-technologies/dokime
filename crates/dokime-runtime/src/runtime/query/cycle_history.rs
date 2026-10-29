@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::MemorySize;
 use harmos::storage::{ObjectRead, StorageCursor, query::ObjectVersions};
 
-// Local Imports
 use super::cycles::{CycleFilter, matches_cycle};
 use crate::storage::objects::cycle::Cycle;
 use crate::{
@@ -29,14 +19,6 @@ use crate::{
 use dokime_domain::model::execution::result::{CyclePhase, TestCycle};
 use dokime_domain::model::identity::{Metadata, TestCycleId};
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct CycleBrowseQuery {
     pub at: Option<StorageCursor>,
@@ -61,12 +43,6 @@ pub struct SavedCycleSummary {
     pub execution_count: usize,
     pub archived: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for SavedCycleSummary {
     fn memory_size(&self) -> usize {
@@ -176,9 +152,3 @@ impl RuntimeHandle {
         at.try_map(|at| Ok::<_, Error>(CycleBrowsePage { entries: entries.into(), at, next: None }))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

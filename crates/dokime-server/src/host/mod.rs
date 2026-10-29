@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod args;
 mod error;
 mod hub_log;
@@ -19,39 +17,23 @@ pub mod version;
 #[cfg(debug_assertions)]
 mod profiles;
 
-/* === Re-Exports === */
-
 pub use args::{Args, NetworkArgs};
 pub use error::{Error, Result};
 
 // Applications install tracing once and retain its guards for their process.
 pub use logging::{LoggingGuards, init as install_logging};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
 use futures_util::future::BoxFuture;
-
-// Local Imports
-
-/* === Constants === */
 
 // The run's settle budget plus the final checkpoint; the desktop waits ten seconds longer.
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
 const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::operations::STOP_SETTLEMENT.timeout.as_secs() + 20);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Session {
     executor: tokio::runtime::Handle,
@@ -73,12 +55,6 @@ struct ExpectedPlugin {
     digest: String,
     owners: Vec<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Session {
     pub async fn start(
@@ -247,10 +223,6 @@ impl Drop for Session {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) -> String {
     let cycles = handle.cycles().await;
     let latest = cycles
@@ -346,8 +318,6 @@ async fn verify_plugins(handle: &dokime::RuntimeHandle, expected: &[ExpectedPlug
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

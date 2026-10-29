@@ -11,8 +11,6 @@
 // stream is not `Send`, so one dedicated thread owns it from open to close; a
 // supervisor task seals the file when asked, or when its execution closes.
 
-/* === Modules === */
-
 #[cfg(feature = "media-native")]
 mod device {
     use std::{
@@ -169,11 +167,6 @@ mod device {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     sync::{
         Arc,
@@ -184,27 +177,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use tempfile::TempPath;
 use tokio::sync::oneshot;
 
-// Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 
-/* === Constants === */
-
 const WAV_HEADER_BYTES: u64 = 44;
 const BYTES_PER_SAMPLE: u64 = 2;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // One running recording. `finish` seals it as an artifact, and so does closing
 // its execution; dropping it unsettled stops the device and discards the file.
@@ -233,16 +216,10 @@ struct Supervisor {
     registration: u64,
 }
 
-/* === Enums === */
-
 enum Command {
     Finish,
     Discard,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl AudioRecording {
     pub(super) async fn start(runtime: RuntimeHandle, scope: RecordScope, filename: String, input: Option<u32>) -> Result<Self> {
@@ -390,9 +367,3 @@ impl Recorder {
         tokio::task::spawn_blocking(move || thread.join()).await?.map_err(|_| Error::Operation("audio recording thread panicked".into()))?
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

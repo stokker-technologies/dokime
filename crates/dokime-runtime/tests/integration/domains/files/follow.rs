@@ -11,24 +11,14 @@
 // the viewer before the owner seals or abandons the production, or the owner may
 // settle before the viewer is admitted. Every ordering reports the same terminal.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::*;
 use dokime_domain::model::content::wire;
 use dokime_runtime::ExecutionFileFollower;
 
-/* === Constants === */
 // The followed native output.
 const PATH: &str = "follow.bin";
 
@@ -38,21 +28,6 @@ const ORIGINAL: &[u8] = b"original retained prefix";
 // A rewrite of the retained prefix that abandons the original production.
 const REWRITTEN: &[u8] = b"changed retained prefix with extra bytes";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // The running execution of a blocked cycle and its followed output path, holding `ORIGINAL`.
 async fn producing(handle: &RuntimeHandle, cycle: &TestCycleId) -> (TestExecutionId, String) {
     let cycle = wait_for_cycle_lifecycle(handle, cycle, CycleStatus::Running).await;
@@ -114,8 +89,6 @@ fn assert_abandoned(frame: &harmos::operations::Response<wire::ExecutionFileFoll
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
     assert!(terminal.sealed.is_none(), "an abandoned production is never sealed");
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread")]
 async fn live_growth_resumes_one_identity_and_seals_exact_prefix() {

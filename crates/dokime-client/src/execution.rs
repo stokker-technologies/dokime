@@ -7,25 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod listeners;
 mod prompts;
 mod run;
 mod saved;
 
-/* === Re-Exports === */
-
 pub(super) use listeners::{read_records, read_samples, validate_filters, validate_sample_page};
 pub use run::{RunCallbacks, RunOptions};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Client, Error, ResponseStream, Result, contracts, validate_observed_cursor};
 use dokime_domain::model::execution::ExecutionMode;
 use dokime_domain::model::execution::StepCommand;
@@ -34,29 +23,15 @@ use dokime_domain::model::identity::StepAttemptId;
 use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
 const CHECKPOINT_BYTES: u64 = 4_096;
 const IDENTITY_BYTES: u64 = 4_096;
 const REQUEST_POLL_MS: u64 = 200;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct TestExecutionHandle {
     client: Client,
     id: TestExecutionId,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub fn execution(&self, id: TestExecutionId) -> TestExecutionHandle {
@@ -223,8 +198,6 @@ impl TestExecutionHandle {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn admission(
     epoch: &str, reply: dokime_domain::model::execution::wire::RunReply,
 ) -> Result<dokime_domain::model::execution::wire::Admission> {
@@ -237,8 +210,6 @@ pub(super) fn admission(
         None => Err(invalid("execution admission has no outcome")),
     }
 }
-
-/* === Private Functions === */
 
 fn poll_interval(interval: Option<std::time::Duration>, default_ms: u64) -> Result<std::time::Duration> {
     let interval = interval.unwrap_or_else(|| std::time::Duration::from_millis(default_ms));
@@ -379,5 +350,3 @@ fn validate_outcome(
 fn invalid(message: &'static str) -> Error {
     Error::Rpc(tonic::Status::data_loss(message))
 }
-
-/* === Tests === */

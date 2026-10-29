@@ -9,18 +9,8 @@
 
 // Structural Prompt Definition, Field And Rule Validation.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
-
-// Local Imports
 use crate::model::diagnostics::ValidationIssue;
 use crate::model::expressions::ExpressionContext;
 use crate::model::prompts::PromptArchetype;
@@ -32,22 +22,6 @@ use crate::model::values::Value;
 use crate::model::values::ValueType;
 use crate::model::values::numeric_cmp;
 use crate::model::values::value_matches_type;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn validate_fields(fields: &[PromptField], values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
@@ -204,8 +178,6 @@ pub fn collect_definitions<'a>(
     Ok(declarations.into_values().collect())
 }
 
-/* === Private Functions === */
-
 fn validate_item(field: &PromptField, value: &Value, name: &str, issues: &mut Vec<ValidationIssue>) {
     // The field's value type describes each item, not the collection envelope.
     if !value_matches_type(value, &field.value_type) {
@@ -259,5 +231,3 @@ fn rule_issue(index: usize, message: &str) -> ValidationIssue {
         expected: None,
     }
 }
-
-/* === Tests === */

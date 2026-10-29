@@ -7,27 +7,10 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::domain::model::chamber::ChamberReading;
 use dokime::prelude::Discovered;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::operation(
     id = "{{crate}}.get_chamber",
@@ -48,15 +31,3 @@ pub struct ReadChamber {}
 )]
 #[derive(Clone, PartialEq)]
 pub struct DetectPort {}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

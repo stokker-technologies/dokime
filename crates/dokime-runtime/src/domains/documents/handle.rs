@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
-
-// Local Imports
 use super::ExecutionFileStream;
 use super::saved::SavedOutputs;
 use crate::document::{DocumentPayload, DocumentSelection};
@@ -33,20 +23,6 @@ use crate::{
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn update_plot_settings(
@@ -212,9 +188,3 @@ impl RuntimeHandle {
         self.execution_storage.retire_outputs(test_execution_id).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === DocumentOverviewCards barrel — per-card files live in ./overview === */
-
 export { DocumentMetricFlow } from "./overview/DocumentMetricFlow";
 export { DocumentMetricGroup } from "./overview/DocumentMetricGroup";
 export type { OverviewMetric, OverviewMetricGroup } from "./overview/metric-model";

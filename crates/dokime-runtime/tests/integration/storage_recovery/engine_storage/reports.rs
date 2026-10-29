@@ -7,42 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{
     Application, Runtime,
     state::Never,
     storage::{FileMetadata, StorageBackends},
 };
 
-// Local Imports
 use {
     dokime_runtime::Identifier, dokime_runtime::TestCycleId, dokime_runtime::Timestamp, dokime_runtime::storage::Backend,
     dokime_runtime::storage::Manager, dokime_runtime::storage::reports,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Reader;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Application for Reader {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
@@ -76,12 +55,6 @@ impl harmos::Lifecycle for Reader {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn report_publication_reopens() {
     let root = tempfile::tempdir().unwrap();

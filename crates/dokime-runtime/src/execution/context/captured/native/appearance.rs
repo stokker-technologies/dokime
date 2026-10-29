@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::domains::{OrganizationIdentity, ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 use crate::installed_plugins::{RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeThemeFamily};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -105,12 +87,6 @@ struct Radii {
     three_xl: Option<String>,
     four_xl: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
     type Error = Error;
@@ -288,10 +264,6 @@ impl From<Radii> for ThemeCornerRadii {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("appearance slot allocation failed"))?;
@@ -341,8 +313,6 @@ fn mode(value: u32) -> Result<ThemeModePolicy> {
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

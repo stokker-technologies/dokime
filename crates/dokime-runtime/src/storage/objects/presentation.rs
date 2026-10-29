@@ -7,10 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use super::templates::analysis::Selection as AnalysisSelection;
 
 // The Native Leaves Keep Their Existing Schemas And Conversion Owners.
@@ -27,28 +23,14 @@ pub use super::templates::{Map as Values, Unit as MeasurementUnit, Value};
 pub use crate::storage::records::ScopeRow as Scope;
 pub use crate::storage::telemetry::Sample as TelemetrySample;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-// Local Imports
 use crate::prompts::{PromptInstance as DomainPrompt, PromptKind};
 use crate::storage::{Error, Result};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::ContractId;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -63,12 +45,6 @@ pub struct PromptInstance {
     created_at: String,
     contract_id: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PromptInstance {
     pub fn encoding_memory(value: &DomainPrompt) -> Result<usize> {
@@ -170,10 +146,6 @@ impl TryFrom<PromptInstance> for DomainPrompt {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn kind(value: u32) -> Result<PromptKind> {
     match value {
         1 => Ok(PromptKind::Confirmation),
@@ -184,5 +156,3 @@ fn kind(value: u32) -> Result<PromptKind> {
         _ => Err(Error::Invalid("captured prompt kind is unknown")),
     }
 }
-
-/* === Tests === */

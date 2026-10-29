@@ -9,38 +9,11 @@
 
 // Original Report Points Remain Available For Zoom At Both Lane Volumes
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use crate::Value;
 use crate::model::identity::new_id;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn report_points(count: usize) {
     let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
@@ -108,7 +81,3 @@ pub async fn report_points(count: usize) {
     assert_eq!(restored, shared);
     assert_eq!(shared, restored);
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

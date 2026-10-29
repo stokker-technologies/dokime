@@ -9,16 +9,8 @@
 
 // Paged Exact Plot Series Reduction
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use arrow_array::{Array, Float64Array, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema};
 use harmos::storage::query::{
@@ -30,21 +22,12 @@ use harmos::storage::query::{
     },
 };
 
-// Local Imports
 use super::super::{DownsampleTechnique, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, analyses};
 use super::input::failure;
 use crate::runtime::Result;
 
-/* === Constants === */
-
 const PAGE_ROWS: usize = 1024;
 const PAGE_BYTES: usize = 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Points {
     writer: TableWriter,
@@ -61,12 +44,6 @@ pub(super) struct Series {
     pub metadata: PlotSeries,
     pub table: Table,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Points {
     pub(super) fn new() -> Result<Self> {
@@ -229,8 +206,6 @@ impl Series {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn scalar(exact: Option<&crate::Value>, fallback: f64) -> ScalarValue {
     match exact {
         Some(crate::Value::Integer(value)) => ScalarValue::Signed(*value),
@@ -250,8 +225,6 @@ pub(super) fn scalar_number(value: ScalarValue) -> Option<f64> {
         _ => None,
     }
 }
-
-/* === Private Functions === */
 
 pub(super) fn visit_table(table: &Table, mut visit: impl FnMut(PlotPoint) -> Result<()>) -> Result<()> {
     visit_values(table, |point, _| visit(point))
@@ -274,5 +247,3 @@ fn visit_values(table: &Table, mut visit: impl FnMut(PlotPoint, Option<crate::Va
     }
     Ok(())
 }
-
-/* === Tests === */

@@ -7,37 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn cycle_edits_state() {
     let Gated {
@@ -374,5 +345,3 @@ async fn completed(handle: &dokime::RuntimeHandle, client: &mut WireClient, id: 
     })
     .await;
 }
-
-/* === Tests === */

@@ -7,36 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Client, RequestStream, ResponseStream, Result, contracts};
 use dokime_operations::Endpoint;
 use harmos::MemorySize;
 use harmos::domain::Portable;
 use harmos::operations::Direction;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     /// Calls any unary endpoint; the request type selects the operation.
@@ -127,9 +102,3 @@ impl Client {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

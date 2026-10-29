@@ -9,32 +9,16 @@
 
 // Backend Profile Selection, Pairing And Atomic Edit Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, fs::OpenOptions, sync::Mutex};
 
-// Third Party Imports
 use serde::Deserialize;
 use zeroize::Zeroizing;
 
-// Local Imports
 use dokime_client::{
     profiles::{self, Error, Secret, Store},
     secrets::{Error as SecretError, SecretStore},
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Default)]
 struct Secrets {
     values: Mutex<BTreeMap<String, String>>,
@@ -48,11 +32,6 @@ struct Case {
     valid: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl SecretStore for Secrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
         if self.unavailable {
@@ -76,11 +55,6 @@ impl SecretStore for Secrets {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[test]
 fn profiles() {
     let directory = tempfile::tempdir().unwrap();

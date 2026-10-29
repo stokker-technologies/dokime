@@ -7,16 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::RecordSelection;
@@ -27,25 +17,9 @@ use {
     model::records::product::ProductConnectionState, model::records::product::ProductRecordDraft,
 };
 
-/* === Constants === */
 const WIFI: &str = "host.wifi.scan";
 
-/* === Macros === */
-
-/* === Type Aliases === */
 type JournalRecords = dokime_runtime::runtime::RecordSubscription;
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(super) async fn evidence_write_revision(runtime: &RuntimeHandle) {
     let revision = || async { runtime.runtime_overview().await.expect("runtime overview query succeeds").revision };
@@ -257,5 +231,3 @@ async fn selected(subscription: &mut JournalRecords, selection: &RecordSelection
         }
     }
 }
-
-/* === Tests === */

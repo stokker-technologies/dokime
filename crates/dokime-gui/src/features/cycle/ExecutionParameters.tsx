@@ -20,31 +20,21 @@
  * baseline. No table chrome: no header row, no rules.
  */
 
-/* === External Imports === */
-
 import type { CSSProperties } from "react";
-
-/* === Local Imports === */
 
 import { PathPill } from "@/components/PathPill";
 import { isPathLike } from "@/lib/path-display";
 import { type ExecutionParameterRow, executionParameterColumns } from "./execution-sections-model";
 
-/* === Types === */
-
 export type ExecutionParametersProps = {
   rows: ExecutionParameterRow[];
 };
-
-/* === Constants === */
 
 /** The narrowest label a half keeps before the grid falls back to one half. */
 const LABEL_MIN = "12rem";
 
 /** The air between the two halves. */
 const HALF_GAP = "2.5rem";
-
-/* === Components === */
 
 export function ExecutionParameters({ rows }: ExecutionParametersProps) {
   const columns = executionParameterColumns(rows);

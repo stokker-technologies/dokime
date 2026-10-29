@@ -7,27 +7,20 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { useNativeSession } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
 import { exploreQueryKeys, useExploreHistoryQuery } from "@/features/explore/explore-queries";
 import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
 import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
+import { toast } from "@/lib/notifications";
 import type { ExecutionBrowsePage } from "@/lib/types/view-contracts";
 import { PageNotice, PageShell } from "@/shell/PageShell";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explore-contracts";
 
 const GUI_FILTER_DEBOUNCE_MS = 250;
-
-/* === Types === */
 
 type ExploreSurfaceProps = {
   comparing: boolean;
@@ -37,8 +30,6 @@ type ExploreSurfaceProps = {
   onToggleSelected: (entryKey: string) => void;
   selectedIds: Set<string>;
 };
-
-/* === Components === */
 
 /**
  * Browse execution history, grouped by cycle where associated, and compare
@@ -131,8 +122,6 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
     </PageShell>
   );
 }
-
-/* === Private Components === */
 
 /**
  * One quiet line above the list, and the reasons only when there are any: a

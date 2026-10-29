@@ -7,36 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-// Local Imports
 use super::*;
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn selection(suite: &dokime::definition::TestSuite, index: usize) -> model::planning::wire::RegisteredSelection {
     model::planning::wire::RegisteredSelection {
@@ -203,8 +175,6 @@ pub(crate) async fn append_cases_preserve_ordinals() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */
 
 pub(crate) async fn explicit_append_retries() {
     explicit_append_scenario(None, None).await;

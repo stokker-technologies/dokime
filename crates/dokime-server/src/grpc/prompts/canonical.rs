@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::value::canonical::timestamp;
 use super::value::{Budget, canonical, projection};
 use dokime::definition::RuntimeCondition;
@@ -30,22 +21,6 @@ use dokime::domain::model::values::ValueType;
 use dokime::domains::prompts;
 use dokime::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
 use dokime::telemetry::TelemetryConditionOperator;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime::domain::model::prompts::wire::PromptDefinitionIdentity {
     dokime::domain::model::prompts::wire::PromptDefinitionIdentity {
@@ -87,8 +62,6 @@ pub(super) fn response(value: &prompts::PromptResponse) -> Result<dokime::domain
         accepted: value.accepted,
     })
 }
-
-/* === Private Functions === */
 
 fn definition_with_budget(
     value: &prompts::PromptDefinition, budget: &mut Budget,
@@ -297,5 +270,3 @@ fn metadata(source: &dokime::domain::model::identity::Metadata) -> Result<common
 fn project_value(source: &Value, budget: &mut Budget, depth: usize) -> Result<dokime::domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
 }
-
-/* === Tests === */

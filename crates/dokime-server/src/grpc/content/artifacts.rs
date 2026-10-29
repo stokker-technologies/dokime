@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
@@ -32,29 +23,15 @@ use dokime::operations::content as content_wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::ArtifactReader;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(content_wire::DownloadArtifact),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<content_wire::DownloadArtifact> for Resources {
     fn serve<'a>(&'a self, request: content_wire::DownloadArtifact, ctx: Context<'a, content_wire::DownloadArtifact>) -> Served<'a, ()> {
@@ -89,8 +66,6 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
@@ -133,7 +108,3 @@ pub(in crate::grpc) async fn deliver(
     .run(output)
     .await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

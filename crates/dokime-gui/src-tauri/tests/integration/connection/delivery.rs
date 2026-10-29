@@ -9,44 +9,14 @@
 
 // Native Save Round Trip And Refusal Boundaries
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
 
-// Third Party Imports
-
-// Local Imports
 use super::fixture::{
     Gate, Listener, Service,
     delivery::{DownloadConfig, bytes},
 };
 use dokime_gui::connection::{ConnectionError, ConnectionSession};
 use dokime_gui::testing::{ArtifactSource, DeliveryFailure, DeliveryStage, move_verified_file, save_verified};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn delivery() {

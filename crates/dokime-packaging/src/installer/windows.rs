@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{io, os::windows::ffi::OsStrExt, path::Path, ptr};
 
-// Third Party Imports
 use windows_sys::Win32::{
     Foundation::{FreeLibrary, HANDLE, HMODULE},
     System::LibraryLoader::{
@@ -25,22 +17,13 @@ use windows_sys::Win32::{
     },
 };
 
-// Local Imports
 use super::artwork::Icon;
 use crate::Error;
-
-/* === Constants === */
 
 const ICON: u16 = 3;
 const GROUP_ICON: u16 = 14;
 // Tauri Loads Its Default Window Icon From This Application Resource.
 const APPLICATION_ICON_ID: u16 = tauri_utils::platform::WINDOWS_APP_ICON_RESOURCE_ID;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Module(HMODULE);
 
@@ -58,16 +41,10 @@ struct Enumeration {
     error: Option<io::Error>,
 }
 
-/* === Enums === */
-
 enum Name {
     Id(u16),
     Text(Vec<u16>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Module {
     fn drop(&mut self) {
@@ -91,8 +68,6 @@ impl Name {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn replace(path: &Path, icon: &Icon) -> Result<(), Error> {
     // Remove Invalidated Authenticode
@@ -146,8 +121,6 @@ pub(super) fn verify(path: &Path, icon: &Icon) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn check(result: i32) -> Result<(), Error> {
     if result == 0 {
@@ -326,8 +299,6 @@ fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, Error> {
 fn invalid_pe() -> Error {
     Error::Invalid("GUI payload has an invalid PE header or Authenticode certificate directory".into())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

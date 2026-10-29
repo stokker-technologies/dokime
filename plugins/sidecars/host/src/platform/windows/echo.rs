@@ -9,13 +9,6 @@
 
 // One ICMP Echo Through The IP Helper API, Without Starting ping.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     ffi::c_void,
     mem::size_of,
@@ -23,7 +16,6 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use windows::Win32::{
     Foundation::HANDLE,
     NetworkManagement::IpHelper::{
@@ -33,29 +25,13 @@ use windows::Win32::{
     Networking::WinSock::{AF_INET6, IN6_ADDR, IN6_ADDR_0, SOCKADDR_IN6},
 };
 
-// Local Imports
-
-/* === Constants === */
-
 // The Request Payload Matches ping's Default 32 Bytes.
 const PAYLOAD: [u8; 32] = [b'a'; 32];
 
 // Room For The ICMP Error Message And The IO_STATUS_BLOCK The API Appends.
 const REPLY_SLACK_BYTES: usize = 64;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct IcmpHandle(HANDLE);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for IcmpHandle {
     fn drop(&mut self) {
@@ -63,8 +39,6 @@ impl Drop for IcmpHandle {
         let _ = unsafe { IcmpCloseHandle(self.0) };
     }
 }
-
-/* === Public Functions === */
 
 // The Round Trip In Milliseconds, Or None When No Reply Arrived Within The Wait.
 pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, String> {
@@ -87,8 +61,6 @@ pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, Strin
     // A Sub-Millisecond Reply Reports 1 ms, As ping's "time<1ms" Did.
     Ok(Some(f64::from(round_trip.max(1))))
 }
-
-/* === Private Functions === */
 
 fn echo_v4(address: Ipv4Addr, timeout_ms: u32) -> windows::core::Result<(u32, u32)> {
     // SAFETY: Opening an ICMP handle has no preconditions; the guard closes it.
@@ -144,8 +116,6 @@ fn lost_or_failed() -> windows::core::Result<(u32, u32)> {
     }
     Err(error)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -11,20 +11,11 @@
  * Notification History, Faults And Delivery.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { forceCloseDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
-// Third Party Imports
+
 import { createElement } from "react";
 import { afterEach, beforeEach, test, vi } from "vitest";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const shown = vi.hoisted(() => ({
   error: vi.fn((_title: string, options?: { id?: string | number; duration?: number }) => options?.id ?? "error"),
@@ -50,14 +41,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 function record(index: number) {
   return {
     id: String(index).padStart(3, "0"),
@@ -68,8 +51,6 @@ function record(index: number) {
     unread: 1 as const,
   };
 }
-
-/* === Entry Point === */
 
 test("History Paging", async () => {
   const history = await import("@/lib/notifications");

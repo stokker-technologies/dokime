@@ -7,36 +7,13 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::Bench;
 use crate::domain::model::chamber::ChamberReading;
 use crate::domain::operations::{DetectPort, ReadChamber};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Operation for ReadChamber {
     type Error = Refusal;
@@ -60,9 +37,3 @@ impl Operation for DetectPort {
         Ok(Response::new(Discovered::of(ctx.resource::<Bench>().sensor.port().to_owned())))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

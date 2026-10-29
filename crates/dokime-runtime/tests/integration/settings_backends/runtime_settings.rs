@@ -7,41 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
-// Third Party Imports
+
 use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
 use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, RedactedSecretBinding, SecretBackendKind, Value};
-// Local Imports
+
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::settings::RuntimeSettingsCardState;
 
 use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 use dokime_runtime::settings::{SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[derive(Clone)]
 struct FixtureStatusDispatcher {
     status: Result<StatusResponse, ActionDispatcherError>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl ActionDispatcher for FixtureStatusDispatcher {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse> {
         Box::pin(async move { self.status.clone() })
@@ -52,9 +33,6 @@ impl ActionDispatcher for FixtureStatusDispatcher {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn saved_metadata(handle: &RuntimeHandle) -> String {
     let connection =
         rusqlite::Connection::open_with_flags(handle.storage_root().join("local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
@@ -115,8 +93,6 @@ fn installed_plugin(identifier: &str) -> dokime_runtime::InstalledPlugin {
 fn metadata(identifier: &str, label: &str) -> Metadata {
     Metadata::new(Identifier::new(identifier).unwrap(), label, None)
 }
-
-/* === Tests === */
 
 // live status supplies the state and every row the probe answered.
 

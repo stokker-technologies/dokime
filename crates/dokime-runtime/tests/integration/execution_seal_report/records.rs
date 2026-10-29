@@ -7,38 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
-// Local Imports
+
 use dokime_runtime::domains::evidence::RecordPublishRequest;
 use dokime_runtime::records::RecordSeverity;
 use dokime_runtime::transactions::PublishRecord;
 use dokime_runtime::{Identifier, Timestamp};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::RuntimeState {
     let mut state = dokime_runtime::state::RuntimeState::new(dokime_runtime::model::identity::new_id());
     let bundles = declarations
@@ -60,7 +35,6 @@ fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::Runtime
     state
 }
 
-/* === Tests === */
 // a plugin may only narrate the records its own catalog declares.
 
 pub(crate) fn plugin_may_declares() {

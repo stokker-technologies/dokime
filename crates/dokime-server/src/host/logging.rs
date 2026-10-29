@@ -7,34 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 
-// Third Party Imports
 use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-// Local Imports
 use crate::host::{Error, Result};
-
-/* === Constants === */
 
 const SERVER_RETAINED_LOG_FILES: u64 = 14;
 
 const LOG_FORMAT_ENV: &str = "DOKIME_LOG_FORMAT";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(crate) type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
-
-/* === Structs === */
 
 pub struct LoggingGuards {
     journal: std::sync::Arc<crate::trace::Journal>,
@@ -58,17 +41,11 @@ struct ConsoleFields {
     details: Vec<String>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LogFormat {
     Pretty,
     Json,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl LogFormat {
     fn from_env() -> Self {
@@ -146,8 +123,6 @@ impl LoggingGuards {
     }
 }
 
-/* === Public Functions === */
-
 pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<LoggingGuards> {
     let journal = crate::trace::Journal::new(crate::trace::Limits::default());
     let (layer, appender_guard) = stderr_fmt_layer(ansi)?;
@@ -184,8 +159,6 @@ pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<Loggi
         _profile: profile,
     })
 }
-
-/* === Private Functions === */
 
 fn stderr_fmt_layer(ansi: bool) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
     let (writer, guard) = tracing_appender::non_blocking(std::io::stderr());
@@ -227,5 +200,3 @@ fn fmt_layer(format: LogFormat, writer: tracing_appender::non_blocking::NonBlock
         LogFormat::Pretty => fmt::layer().event_format(CompactConsole).with_ansi(ansi).with_writer(writer).with_filter(filter).boxed(),
     })
 }
-
-/* === Tests === */

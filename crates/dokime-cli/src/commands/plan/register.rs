@@ -9,28 +9,9 @@
 
 // Register A Canonical Selection Request
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::operations::planning::RegisterSelection;
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -52,17 +33,8 @@ pub(crate) struct Args {
     json: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
-    // === Read Request === //
 
     let mut input = args.input;
     let (planned, idempotency_key) = match input.input_file.take() {
@@ -77,8 +49,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     dokime::domain::model::execution::command::validate_idempotency_key(&idempotency_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
 
-    // === Resolve And Register === //
-
     let client = args.connection.connect().await?;
     let result = async {
         let plan = planned.resolve(&client).await?;
@@ -89,7 +59,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     client.close_and_wait().await;
     result
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

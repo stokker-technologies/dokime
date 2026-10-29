@@ -7,35 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::telemetry::{TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator, TelemetrySample};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[TelemetrySample]) -> TelemetryConditionEvaluation {
     for sample in samples.iter().rev() {
@@ -62,8 +35,6 @@ pub fn evaluate_telemetry_condition(condition: &TelemetryCondition, samples: &[T
         reason: Some(format!("no telemetry sample matched condition {}.{}", condition.stream.as_str(), condition.field)),
     }
 }
-
-/* === Private Functions === */
 
 fn matches_operator(value: &Value, condition: &TelemetryCondition) -> bool {
     match condition.operator {
@@ -107,5 +78,3 @@ fn numeric(value: &Value) -> Option<f64> {
         _ => None,
     }
 }
-
-/* === Tests === */

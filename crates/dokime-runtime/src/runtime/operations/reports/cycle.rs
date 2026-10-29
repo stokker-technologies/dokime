@@ -9,20 +9,11 @@
 
 // Cycle Report Materialization
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use harmos::storage::StorageCursor;
 
-// Local Imports
 use super::Resources;
 use crate::report::Scope;
 use crate::{
@@ -38,16 +29,6 @@ use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
 // How One Member Of An Active Cycle Enters Its Current Report.
 enum Member {
     Planned(Box<TestExecution>),
@@ -55,12 +36,6 @@ enum Member {
     // Its Materialization Gate Stays Held Until Its Evidence Is Materialized.
     Captured(crate::runtime::storage::execution::ExecutionView, tokio::sync::OwnedMutexGuard<()>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn materialize(
     ctx: &Scope, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
@@ -77,8 +52,6 @@ pub(super) async fn materialize(
         None => current(ctx, resources, id, at, progress, gate).await,
     }
 }
-
-/* === Private Functions === */
 
 // A Finalizing Cycle Renders From Its Frozen Snapshot; A Published Report Is Reused.
 async fn sealed(
@@ -278,5 +251,3 @@ fn unstarted(execution: &TestExecution) -> bool {
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
-
-/* === Tests === */

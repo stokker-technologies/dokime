@@ -7,41 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
-// Third Party Imports
+
 use serde_json::Value;
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn hub_log(root: &Path) -> std::path::PathBuf {
     root.join("logs").join("dokime.jsonl")
 }
-
-/* === Tests === */
 
 #[test]
 fn serve_writes_records() {

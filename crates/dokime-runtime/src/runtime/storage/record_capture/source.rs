@@ -7,24 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 #[path = "history.rs"]
 mod history;
 
-/* === Re-Exports === */
-
 pub use history::CapturedRecord;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
 
-// Third Party Imports
 use futures_util::StreamExt;
 use harmos::{
     Identifier, Message,
@@ -33,20 +25,11 @@ use harmos::{
 use tokio::sync::watch;
 use tracing::Instrument;
 
-// Local Imports
 use super::error;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use crate::storage::records;
 use dokime_domain::model::records::evidence::RecordEntry;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Source {
     schema_settings: harmos::config::SchemaSettings,
@@ -74,12 +57,6 @@ pub(crate) struct Process {
     physical: u64,
     last: Option<history::CapturedRecord>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Source {
     pub(crate) fn new(
@@ -286,10 +263,6 @@ impl Process {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> harmos::Error {
     harmos::Error::Backend {
         operation: "project Dokime record",
@@ -333,5 +306,3 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
     let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;
     Ok(Some((item, payload)))
 }
-
-/* === Tests === */

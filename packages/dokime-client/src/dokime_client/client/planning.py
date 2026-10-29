@@ -8,32 +8,17 @@
 
 """Materialize Template Cases Without Creating Executions"""
 
-# === Imports === #
-
-# Standard Library Imports
 import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-# Third Party Imports
-# Local Imports
 from . import _wire
 from ._transport import Transport, _cursor
 from .errors import ProtocolError
 from .models import Backend, Value
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 VALUE_DEPTH = 64
-
-# === Types === #
-
-# === Classes === #
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,10 +115,3 @@ class Template:
         if not cases:
             raise ProtocolError("template materialization returned no cases")
         return tuple(cases)
-
-
-# === Public Functions === #
-
-# === Private Functions === #
-
-# === Entry Point === #

@@ -9,23 +9,11 @@
 
 // Transactional Record Visibility And Capture Indexes.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{StorageCursor, StoredRecord};
 use rusqlite::{Connection, params};
 
-// Local Imports
 use super::{Entry, blob, check_digest, position, saved};
 use crate::storage::{Error, records::RecordRow};
-
-/* === Constants === */
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_record_visibility (
@@ -45,18 +33,6 @@ CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility
 const CAPTURE_PAGE_SQL: &str = "SELECT e.body,e.digest FROM storage_record_captures c
     JOIN storage_data_entries e ON e.position=c.position
     WHERE c.execution=?1 AND c.ordinal>?2 AND c.position<=?3 ORDER BY c.ordinal LIMIT 512";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl super::State {
     // The Index And Evidence Body Commit In The Same Serialized Transaction.
@@ -91,8 +67,6 @@ impl super::State {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), Error> {
     if row.schema != crate::storage::records::schema() {
         return Ok(());
@@ -125,10 +99,6 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

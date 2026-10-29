@@ -7,29 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-// Local Imports
 use super::{Client, contracts};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug)]
 pub struct Download<T> {
@@ -46,8 +29,6 @@ struct Policy {
     overwrite: bool,
     maximum_bytes: u64,
 }
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -78,10 +59,6 @@ enum Frame<T> {
     Chunk(u64, Vec<u8>),
     Complete(u64, String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Partial {
     fn drop(&mut self) {
@@ -286,8 +263,6 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
 pub fn validate_destination(destination: &Path, overwrite: bool) -> Result<(), Error> {
     if destination.file_name().is_none() {
         return Err(Error::Invalid("destination has no filename"));
@@ -315,8 +290,6 @@ pub fn validate_destination(destination: &Path, overwrite: bool) -> Result<(), E
         Err(error) => Err(error.into()),
     }
 }
-
-/* === Private Functions === */
 
 async fn receive<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
     next: impl FnMut() -> F, destination: PathBuf, frame: impl Fn(T) -> Result<Frame<M>, Error>,
@@ -415,5 +388,3 @@ fn publish(source: &Path, destination: &Path, overwrite: bool) -> Result<(), Err
     }
     Ok(())
 }
-
-/* === Tests === */

@@ -8,29 +8,8 @@
 
 """Private execution identity and timeout validation."""
 
-# === Imports === #
-
-# Standard Library Imports
 import math
 from uuid import UUID
-
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
-
-# === Private Functions === #
 
 
 def _interval(value: float) -> None:
@@ -49,6 +28,3 @@ def _identity(value: str) -> None:
         raise ValueError("a registered UUID is required") from error
     if str(identity) != value:
         raise ValueError("a canonical registered UUID is required")
-
-
-# === Entry Point === #

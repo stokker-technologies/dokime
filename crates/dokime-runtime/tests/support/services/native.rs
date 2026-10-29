@@ -7,33 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::{RuntimeHandle, runtime::ExecutionView};
 use {dokime_domain::model::execution::saved::ExecutionCheckpoint, dokime_runtime::TestExecutionId};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn record_page(
     rows: harmos::storage::ReadBatch<Vec<harmos::storage::StoredRecord<dokime_runtime::storage::records::RecordRow>>>,
@@ -110,7 +86,3 @@ pub async fn report(handle: &RuntimeHandle, id: &TestExecutionId) -> String {
     let bytes = dokime_runtime::storage::read_file_bytes(handle.storage(), file).await.unwrap();
     String::from_utf8(bytes.as_slice().to_vec()).unwrap()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

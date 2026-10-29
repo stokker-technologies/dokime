@@ -7,26 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
-// Third-Party Imports
 use crate::error::Error;
 use crate::suites::common::system::{self, SystemInputs};
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
-
-/* === Constants === */
 
 pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
 const LABEL: &str = "Pulse";
@@ -35,12 +22,6 @@ pub const SAMPLE_INTERVAL_MS: u64 = 100;
 pub const DEFAULT_TOLERANCE: f64 = 1e-9;
 const MAX_SAMPLE_COUNT: u64 = 64;
 const PROGRESS_POLL: Duration = Duration::from_millis(5);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Records
 
@@ -125,8 +106,6 @@ pub struct PulseParameters {
 )]
 pub struct ConfirmPulse;
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Records {
     RunStarted(RunStarted),
@@ -142,10 +121,6 @@ pub enum Prompts {
 pub enum ObserverStreams {
     PulseRow(PulseRow),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::template(
     id = "obc.checks.pulse",
@@ -191,13 +166,9 @@ impl Pulse {
         description = "The first phase: say the run has begun.\nThe host advances its checklist on the step's id, which the engine reports before it calls this. What the step itself does is emit the record this template declared."
     )]
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Confirm Capture === //
-
         if ctx.parameters().require_confirmation && !ctx.ask(ConfirmPulse).await? {
             return Err(Error::ConfirmationDeclined);
         }
-
-        // === Start Signal Capture === //
 
         ctx.publish(RunStarted {}).await;
         ctx.resources().armed.store(true, Ordering::Release);
@@ -268,12 +239,6 @@ impl Pulse {
     }
 }
 
-/* === Public Functions === */
-
 pub fn pulse_value(index: u64) -> f64 {
     (index as f64 * 0.5).sin() + index as f64 * 0.05
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod core;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use harmos::Message;
 
-// Local Imports
 use super::BackgroundTask;
 use crate::RuntimeHandle;
 use crate::records::RecordPublication;
@@ -29,14 +20,6 @@ use crate::transport::{DeliverRecordRequest, ExecutionSignal};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct PublicationIngest {
@@ -55,12 +38,6 @@ struct RecordDemandSource {
     ready: tokio::sync::watch::Receiver<bool>,
     _watch: BackgroundTask,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PublicationIngest {
     fn frontier(&self) -> harmos::storage::Cursor {
@@ -172,8 +149,6 @@ impl RecordDemands {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn spawn_lease_gap_watch(
     handle: RuntimeHandle,
@@ -306,8 +281,6 @@ pub(super) fn record_publication(artifact_id: &str, publication: RecordPublicati
     Some((request, produced_at))
 }
 
-/* === Private Functions === */
-
 fn publication_bytes(row: &harmos::streams::PublicationRow) -> usize {
     let context_bytes = row.context.as_ref().map_or(0, String::len);
     let payload_bytes = std::mem::size_of_val(row).saturating_add(row.payload.len());
@@ -437,5 +410,3 @@ fn listeners(handle: &RuntimeHandle, record: &dokime_domain::model::records::evi
         .map(|listener| listener.operation.clone())
         .collect()
 }
-
-/* === Tests === */

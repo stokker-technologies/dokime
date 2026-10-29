@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
-// Third Party Imports
+
 use harmos::Message;
-// Local Imports
+
 use super::*;
 use dokime_runtime::execution::Signal;
 use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
@@ -24,15 +18,9 @@ use dokime_runtime::transport::{ExecutionSignal, SignalReply};
 use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime};
 
-/* === Constants === */
 // One attribute line: rustfmt re-indents a continued attribute inside a macro body on every pass.
 const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::OperationDeclaration>::POLICY;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct GatewayRow {
@@ -46,7 +34,6 @@ struct RecordingSidecar {
 
 struct Recorders(std::collections::BTreeMap<&'static str, Arc<RecordingSidecar>>);
 
-/* === Enums === */
 #[harmos::catalog]
 enum Deliveries {
     Gateway(GatewayDelivery),
@@ -54,9 +41,6 @@ enum Deliveries {
     Probe(ProbeDelivery),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl RecordingSidecar {
     fn delivered(&self) -> Vec<TelemetrySample> {
         self.calls
@@ -72,9 +56,6 @@ impl RecordingSidecar {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
         #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [Recorders])]
@@ -488,5 +469,4 @@ pub(crate) async fn foreign_stream_refuses() {
     runtime.shutdown().await.expect("the runtime stops");
 }
 
-/* === Tests === */
 // template record demand captures startup and releases on cancellation.

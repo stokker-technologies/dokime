@@ -20,11 +20,7 @@
  * document.
  */
 
-/* === External Imports === */
-
 import { useMemo } from "react";
-
-/* === Local Imports === */
 
 import { ArtifactTree } from "@/components/ArtifactTree";
 import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
@@ -42,8 +38,6 @@ import type { ExecutionMenu } from "./NodeMenu";
 import { usePlotWindow } from "./PlotWindowSlider";
 import { PromptQueue } from "./PromptQueue";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
-
-/* === Types === */
 
 export type ExecutionSectionsProps = {
   cycleId: string;
@@ -64,8 +58,6 @@ export type ExecutionSectionsProps = {
   onSelectExecution: (executionId: string) => void;
   /** Returns to the cycle viewer. */
 };
-
-/* === Components === */
 
 export function ExecutionSections({
   cycleId,
@@ -180,8 +172,6 @@ export function ExecutionSections({
     />
   );
 }
-
-/* === Private Functions === */
 
 /** The bar's primary action: the card's first, unless it is destructive. */
 function primaryAction(actions: ExecutionActions) {

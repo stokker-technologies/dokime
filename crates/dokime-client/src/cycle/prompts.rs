@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{TestCycleHandle, invalid};
 use crate::{Error, ResponseStream, Result, contracts, validate_observed_cursor};
 use dokime_domain::model::identity::CommandId;
@@ -25,21 +14,7 @@ use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
 const PAGE_ITEMS: u64 = 100;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestCycleHandle {
     pub async fn prompt(&self, id: &PromptId) -> Result<dokime_domain::model::prompts::wire::PromptView> {
@@ -125,10 +100,6 @@ impl TestCycleHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_view(epoch: &str, id: &PromptId, view: &dokime_domain::model::prompts::wire::PromptView) -> Result<()> {
     validate_observed_cursor(epoch, view.observed_cursor.as_ref())?;
     let prompt = view.prompt.as_ref().ok_or_else(|| invalid("prompt view has no admitted prompt"))?;
@@ -201,5 +172,3 @@ fn validate_receipt(epoch: &str, id: &PromptId, receipt: &dokime_domain::model::
     }
     Ok(())
 }
-
-/* === Tests === */

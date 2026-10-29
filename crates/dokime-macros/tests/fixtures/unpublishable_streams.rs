@@ -7,41 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
 
 extern crate dokime_host;
-// Standard Library Imports
 
-// Third Party Imports
 
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[sdk::stream(id = "other.gateway.rssi", window = 4096, foreign)]
 struct GatewayRssi {
     #[row(unit = "dBm")]
     rssi: f64,
 }
 
-/* === Enums === */
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn published<T: sdk::Publishable>() {}
 
 fn pushed<T: sdk::telemetry::OwnedStream>() {}
@@ -54,5 +30,3 @@ fn main() {
     published::<dokime_host::System>();
     pushed::<dokime_host::System>();
 }
-
-/* === Tests === */

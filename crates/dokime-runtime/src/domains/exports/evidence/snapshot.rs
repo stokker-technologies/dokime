@@ -9,19 +9,9 @@
 
 // Pin Sealed Evidence Revisions And Verify Exact Dependencies
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{ObjectRevision, ObjectVersion, ReadBatch};
 use serde::Serialize;
 
-// Local Imports
 use super::error::{Error, Result};
 use crate::{runtime::storage::execution::ExecutionView, storage::Manager};
 use dokime_domain::model::{
@@ -29,14 +19,6 @@ use dokime_domain::model::{
     exports::EvidenceSubject,
     identity::{NodeId, TestCycleId, TestExecutionId},
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Snapshot {
     pub subject: EvidenceSubject,
@@ -53,12 +35,6 @@ pub(super) struct Snapshot {
 pub(super) struct CycleRevision {
     source: ReadBatch<ObjectRevision<dokime_domain::model::execution::result::TestCycle>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serialize for CycleRevision {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
@@ -159,9 +135,3 @@ impl Snapshot {
         &self.storage
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

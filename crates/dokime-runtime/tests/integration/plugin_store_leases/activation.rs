@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
 use tempfile::tempdir;
-// Local Imports
+
 use super::*;
 use dokime_runtime::Runtime;
 use dokime_runtime::plugins::PluginBundle;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 pub(crate) async fn broken_configured_loud() {
     let root = tempdir().unwrap();
     let invalid = root.path().join("invalid-sidecar");

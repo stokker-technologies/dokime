@@ -12,13 +12,6 @@
 // capture becomes an artifact of that execution instead of outliving its
 // admission.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{
@@ -28,34 +21,18 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use tokio::sync::oneshot;
 
-// Local Imports
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 // Asks a capture to seal now; it answers once its artifact is stored.
 pub(crate) type SealRequest = oneshot::Sender<oneshot::Sender<()>>;
-
-/* === Structs === */
 
 pub(crate) struct Captures {
     open: Mutex<BTreeMap<TestExecutionId, Vec<(u64, SealRequest)>>>,
     next: AtomicU64,
     seal_timeout: Duration,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Captures {
     pub(crate) fn new() -> Self {
@@ -101,9 +78,3 @@ impl Captures {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

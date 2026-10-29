@@ -18,8 +18,6 @@
  * imports nothing at runtime, so a node test can load it directly.
  */
 
-/* === Types === */
-
 export type BackendOperationStatus = "running" | "finished" | "failed";
 
 export type BackendOperation = {
@@ -48,8 +46,6 @@ export type OperationFrame = {
   status?: { HarmosVariant: { case: string | undefined } };
   failure?: string;
 };
-
-/* === Public Functions === */
 
 /** The operations of one runtime state frame, in the order the backend sent. */
 export function operationsFromFrame(frames: readonly OperationFrame[] | undefined): BackendOperation[] {
@@ -102,8 +98,6 @@ export function operationPhaseLabel(operation: BackendOperation): string {
 export function operationsCountLabel(count: number): string {
   return `${count} Operations`;
 }
-
-/* === Private Functions === */
 
 function fractionOf(value: number | undefined): number | null {
   if (value === undefined || !Number.isFinite(value)) return null;

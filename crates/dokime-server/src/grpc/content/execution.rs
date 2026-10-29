@@ -7,53 +7,30 @@
  * ***
  */
 
-/* === Modules === */
-
 mod frames;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::error::detailed;
 use dokime::app::LiveRuntime;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::Error;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::DownloadExecutionFile),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::DownloadExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadExecutionFile, ctx: Context<'a, wire::DownloadExecutionFile>) -> Served<'a, ()> {
@@ -115,8 +92,6 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -127,8 +102,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
@@ -141,5 +114,3 @@ fn stream_failure(error: Error) -> Status {
 
     detailed(status, &error)
 }
-
-/* === Tests === */

@@ -10,37 +10,11 @@
 // Prompt definitions and answers checked against their declared rules: text
 // patterns compile with `regex`, so the checks live with the runtime.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::prompts::{self, PromptDefinition, PromptField};
 use dokime_domain::model::values::{Value, ValueType};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn validate_fields(fields: &[PromptField], values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     let mut issues = prompts::validate_fields(fields, values);
@@ -90,8 +64,6 @@ pub fn validate_answers(definition: &PromptDefinition, values: &BTreeMap<String,
     prompts::validate_answer_rules(definition, values)
 }
 
-/* === Private Functions === */
-
 fn validate_pattern(pattern: &str, value: &Value, name: &str, issues: &mut Vec<ValidationIssue>) {
     let Value::Text(text) = value else {
         return;
@@ -107,5 +79,3 @@ fn validate_pattern(pattern: &str, value: &Value, name: &str, issues: &mut Vec<V
         expected: None,
     });
 }
-
-/* === Tests === */

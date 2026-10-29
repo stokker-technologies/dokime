@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { PathPill } from "@/components/PathPill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { isPathLike } from "@/lib/path-display";
 import type { MetricState } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type MetricProps = {
   label: string;
@@ -26,8 +22,6 @@ type MetricProps = {
   presentation?: "value" | "progress" | "badge";
   state?: MetricState | null;
 };
-
-/* === Components === */
 
 export function Metric({ label, value, rawValue, detail, presentation = "value", state = null }: MetricProps) {
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;

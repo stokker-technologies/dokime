@@ -9,32 +9,10 @@
 
 // Preview And Register Canonical Selection Plans
 
-/* === Modules === */
-
 pub(crate) mod input;
 mod materialize;
 mod preview;
 mod register;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
@@ -48,12 +26,6 @@ pub(crate) enum Command {
     Materialize(materialize::Args),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
         Command::Preview(args) => preview::run(args, settings).await,
@@ -61,7 +33,3 @@ pub(crate) async fn run(command: Command, settings: &dokime::domain::model::sett
         Command::Materialize(args) => materialize::run(args, settings).await,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

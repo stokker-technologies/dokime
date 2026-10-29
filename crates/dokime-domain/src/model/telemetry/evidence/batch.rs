@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::TelemetrySample;
 use crate::model::identity::Identifier;
 use crate::model::identity::TelemetryBatchId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryBatch {
@@ -39,12 +21,6 @@ pub struct TelemetryBatch {
     pub schema_version: u32,
     pub samples: Vec<TelemetrySample>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for TelemetryBatch {
     fn memory_size(&self) -> usize {
@@ -69,9 +45,3 @@ impl TelemetryBatch {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

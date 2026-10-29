@@ -7,36 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt::Write as _;
 
-// Third Party Imports
 use dokime::harmos::operations::{Response, StreamOutput};
 use dokime::harmos::storage::{ByteRange, ReadBatch};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
 use dokime::operations::content;
 use dokime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 
-/* === Constants === */
-
 const SERVER_APPEARANCE_ASSET_BYTES: u64 = 8_388_608;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Asset {
     pub metadata: ReadBatch<dokime::domain::model::appearance::wire::AppearanceAssetMetadata>,
@@ -46,12 +29,6 @@ pub(super) struct Asset {
 struct AssetFrames {
     metadata: Response<dokime::domain::model::content::wire::AppearanceAssetFrame>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl chunked::Frames for AssetFrames {
     type Frame = dokime::domain::model::content::wire::AppearanceAssetFrame;
@@ -80,8 +57,6 @@ impl chunked::Frames for AssetFrames {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn capture(
     session: &dokime::storage::Manager, source: &RuntimeInstalledPluginAsset, plugin_id: &str, asset_id: &str, maximum_bytes: usize,
@@ -224,8 +199,6 @@ pub(crate) async fn download(
     })
 }
 
-/* === Private Functions === */
-
 fn allocation() -> dokime::harmos::storage::Error {
     dokime::harmos::storage::Error::ResourceExhausted {
         resource: "appearance asset construction",
@@ -248,5 +221,3 @@ fn io_failure(error: std::io::Error) -> Status {
         dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable
     })
 }
-
-/* === Tests === */

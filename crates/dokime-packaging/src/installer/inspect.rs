@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Read,
@@ -21,27 +14,17 @@ use std::{
     process::Command,
 };
 
-// Third Party Imports
 use nsis::{
     NsisInstaller,
     strings::{NsisString, StringSegment},
 };
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::payload::{self, Identity};
 use crate::Error;
 
-/* === Constants === */
-
 // NSIS Addresses File Data With 32-Bit Signed Offsets, So No Valid Solid Stream Exceeds 2 GiB.
 const NSIS_PAYLOAD_LIMIT: usize = i32::MAX as usize;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,12 +55,6 @@ struct Members<'a> {
     files: BTreeSet<String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl<'a> Members<'a> {
     fn new(root: &'a Path) -> Self {
         Self { root, files: BTreeSet::new() }
@@ -105,8 +82,6 @@ impl<'a> Members<'a> {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub fn inspect(package: &Path) -> Result<Inspection, Error> {
     let original = package.canonicalize()?;
@@ -276,8 +251,6 @@ pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error>
     }
     Ok(())
 }
-
-/* === Private Functions === */
 
 pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
     let result = dokime::domain::process::command("rpmkeys")
@@ -480,8 +453,6 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

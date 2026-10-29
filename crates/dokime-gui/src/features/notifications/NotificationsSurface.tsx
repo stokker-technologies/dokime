@@ -11,14 +11,9 @@
  * Read And Clear Notification History A Bounded Page At A Time.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useEffect, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-// Local Imports
+
 import { Button } from "@/components/ui/button";
 import {
   clearNotifications,
@@ -30,15 +25,7 @@ import {
 } from "@/lib/notifications";
 import { PageShell } from "@/shell/PageShell";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 type Selection = { cursor?: NotificationCursor; direction: "older" | "newer" };
-
-/* === Components === */
 
 export function NotificationsSurface() {
   const summary = useNotificationSummary();
@@ -127,9 +114,3 @@ export function NotificationsSurface() {
     </PageShell>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

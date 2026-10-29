@@ -7,14 +7,10 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatNumber } from "@/lib/format";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Types === */
 
 type BarReading = {
   key: string;
@@ -22,8 +18,6 @@ type BarReading = {
   label: string;
   value: number;
 };
-
-/* === Components === */
 
 export function BarPlot({ plot }: { plot: PlotCardSpec }) {
   const bars = latestBars(plot);
@@ -77,8 +71,6 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
   );
 }
 
-/* === Public Functions === */
-
 export function latestBars(plot: PlotCardSpec): BarReading[] {
   return plot.series
     .flatMap((series, index) => {
@@ -96,8 +88,6 @@ export function latestBars(plot: PlotCardSpec): BarReading[] {
     })
     .sort(compareBarLabels);
 }
-
-/* === Private Functions === */
 
 function compareBarLabels(left: BarReading, right: BarReading): number {
   const leftNumber = Number(left.label);

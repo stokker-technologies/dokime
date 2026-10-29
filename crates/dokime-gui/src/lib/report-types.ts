@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import type { DocumentCapturePayload } from "./document-normalizer";
 import type { HubSnapshot, PlotPayload, ResolvedCycleSummary, TestCyclePlan, TestExecution, TraceabilitySnapshot } from "./types";
-
-/* === Types === */
 
 export type ReportCaseRunPayload = {
   queue_item_id: string;

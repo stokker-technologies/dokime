@@ -11,32 +11,15 @@
 // what it captures into lines and offers each line here; a matcher yields one
 // row for its stream, a marker one record of its type.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use regex::{Regex, RegexBuilder};
 
-// Local Imports
 use dokime_domain::model::files::wire::LineFieldKind;
 use dokime_domain::model::files::wire::LineMarker;
 use dokime_domain::model::files::wire::LineMatcher;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default)]
 pub struct LineMatchers {
@@ -59,8 +42,6 @@ pub struct LineBuffer {
     pending: Vec<u8>,
     maximum: NonZeroUsize,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineMatch {
@@ -91,10 +72,6 @@ pub enum InvalidLineMatcher {
     #[error("marker {index} names no record type")]
     RecordType { index: usize },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl LineMatchers {
     pub fn compile(
@@ -251,10 +228,6 @@ impl LineBuffer {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn pattern(index: usize, source: &str, maximum_bytes: usize, regex_size_bytes: usize) -> Result<Regex, InvalidLineMatcher> {
     if source.is_empty() || source.len() > maximum_bytes {
         return Err(InvalidLineMatcher::Shape { index });
@@ -279,8 +252,6 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
         LineFieldKind::Unspecified => None,
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

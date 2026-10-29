@@ -11,33 +11,16 @@
  * The active cycle: shell state the Library adds cases to.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 /** The characters of a cycle identifier the shell shows beside its name. */
 const SHORT_ID_LENGTH = 8;
-
-/* === Types === */
 
 /** An open cycle as the shell and the picker show it. */
 export type OpenCycle = CycleRow & {
   createdLabel: string;
   shortId: string;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /** The cycles that still admit cases, newest first as the server ordered them. */
 export function openCycles(rows: readonly CycleRow[]): OpenCycle[] {
@@ -68,7 +51,3 @@ export function createdLabel(createdAtIso: string | null): string {
 export function caseCountLabel(count: number): string {
   return count === 1 ? "1 Case" : `${count} Cases`;
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

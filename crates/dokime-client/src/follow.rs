@@ -7,37 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     future::Future,
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-// Local Imports
 use super::{Client, DownloadError as Error, contracts::content};
-
-/* === Constants === */
 
 const FOLLOW_BUFFER_BYTES: u64 = 65_536;
 const FOLLOW_COMMIT_BYTES: u64 = 1_048_576;
 const IDENTITY_BYTES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // A Caller-Owned Receipt For One Local Recording's Committed Prefix.
 //
@@ -52,12 +35,6 @@ pub struct FileResume {
     offset: u64,
     sha256: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FileResume {
     pub fn new(path: PathBuf) -> Self {
@@ -188,10 +165,6 @@ impl Client {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_identity(
     identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile, maximum: u64,
 ) -> Result<(), Error> {
@@ -279,8 +252,6 @@ fn validate_terminal(
 fn hash(digest: &Sha256) -> String {
     digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

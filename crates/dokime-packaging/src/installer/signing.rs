@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{io::Write, path::Path, process::Stdio};
 
-// Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
 
-// Local Imports
 use super::{inspect, manifest::Manifest, payload::Payload};
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn updater(manifest: &Manifest, payload: &Payload, package: &Path, output: &Path) -> Result<(), Error> {
     let Some(settings) = manifest.signing.as_ref().and_then(|s| s.updater.as_ref()) else {
@@ -157,7 +132,3 @@ pub fn verify_updater(package: &Path, compiled_key: &str) -> Result<(), Error> {
         "updater signature does not match finished package bytes and compiled trust",
     )
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

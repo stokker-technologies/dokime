@@ -7,38 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::{Application, Runtime, state::Never, storage::StorageBackends};
 
-// Local Imports
 use {
     dokime_runtime::CaseId, dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::TemplateId, dokime_runtime::Value,
     dokime_runtime::definition::TestCase, dokime_runtime::definition::TestSuite, dokime_runtime::storage::Backend,
     dokime_runtime::storage::Manager, dokime_runtime::storage::objects::case, dokime_runtime::storage::objects::case::Case,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Reader;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Application for Reader {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
@@ -72,12 +52,6 @@ impl harmos::Lifecycle for Reader {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn materialized_cases_reader() {
     let root = tempfile::tempdir().unwrap();

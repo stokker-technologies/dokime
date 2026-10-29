@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-/* === Types === */
-
 export type KeyedValue<T> = { key: string; value: T };
-
-/* === Public Functions === */
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

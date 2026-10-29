@@ -11,34 +11,17 @@
  * Shared Table Behavior
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { type ReactTable, useTable } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
-// Local Imports
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /** The first element in a returned tree, without rendering, whose props match. */
 function findElement(node: ReactNode, match: (props: Record<string, unknown>) => boolean): Record<string, unknown> | null {
@@ -54,8 +37,6 @@ function findElement(node: ReactNode, match: (props: Record<string, unknown>) =>
   if (match(props)) return props;
   return findElement(props.children as ReactNode, match);
 }
-
-/* === Entry Point === */
 
 const column = dataTableColumns<{ id: string; value: string }>();
 const columns = column.columns([column.accessor("value", { header: "Value", meta: { filter: "text" } })]);

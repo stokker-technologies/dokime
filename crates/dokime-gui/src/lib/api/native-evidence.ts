@@ -9,10 +9,6 @@
 
 /* Native captured-record adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import { fallbackRecordDisplay } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
@@ -31,12 +27,8 @@ import {
   timestampIso,
 } from "./native-values";
 
-/* === Canonical Types === */
-
 type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceListRecords>>>;
 type CapturedRecord = RecordPage["records"][number];
-
-/* === Constants === */
 
 const GUI_RECORD_TAIL_ITEMS = 1_000;
 
@@ -46,8 +38,6 @@ const GUI_RECORD_TAIL_ITEMS = 1_000;
  * record stream instead of a fresh replay.
  */
 export const RECORD_TAIL = GUI_RECORD_TAIL_ITEMS;
-
-/* === Public API === */
 
 /** A scope's latest records and the cursor its live tail continues from. */
 export type RecordTail = { records: HubRecord[]; cursor: Cursor | null };
@@ -78,8 +68,6 @@ export function appendRecordTail(tail: RecordTail, appended: readonly HubRecord[
   const records = fresh.length ? [...tail.records, ...fresh].slice(-RECORD_TAIL) : tail.records;
   return { cursor: cursor ?? tail.cursor, records };
 }
-
-/* === Streams === */
 
 /** A record subscription owned by the connection that opened it. */
 export interface NativeEvidenceSession extends SessionIdentity {
@@ -138,8 +126,6 @@ export async function openNativeRecordStream(
     [Symbol.asyncIterator]: () => forward,
   };
 }
-
-/* === Mapping === */
 
 export function mapNativeRecord(record: CapturedRecord): HubRecord {
   const timestamp = timestampIso(record.timestamp);

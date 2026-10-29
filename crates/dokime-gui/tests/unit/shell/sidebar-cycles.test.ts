@@ -11,32 +11,14 @@
  * Sidebar Active Cycle Listing.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { expect, test } from "vitest";
 
-// Local Imports
-
 import { type SidebarCycleSource, sidebarCycles } from "@/shell/sidebar-cycles";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const OLD = row("old", "Active", "2026-01-01T00:00:00.000Z");
 const NEW = row("new", "Active", "2026-03-01T00:00:00.000Z");
 const SEALING = row("sealing", "Sealing", "2026-02-01T00:00:00.000Z");
 const SEALED = row("sealed", "Sealed", "2026-04-01T00:00:00.000Z");
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 test("lists unsealed cycles newest first on any route", () => {
   expect(sidebarCycles([OLD, SEALED, NEW, SEALING], null).map((cycle) => [cycle.cycleId, cycle.current])).toEqual([
@@ -70,10 +52,6 @@ test("keeps the routed cycle even when sealed or not yet listed", () => {
   ]);
 });
 
-/* === Private Functions === */
-
 function row(cycleId: string, phase: SidebarCycleSource["phase"], createdAtIso: string): SidebarCycleSource {
   return { createdAtIso, cycleId, label: cycleId, phase };
 }
-
-/* === Entry Point === */

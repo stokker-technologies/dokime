@@ -7,32 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
-// Local Imports
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
     let identity = Identity {
         name: package.into(),
@@ -104,7 +80,3 @@ fn built_bundle(relative: &str) -> std::path::PathBuf {
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

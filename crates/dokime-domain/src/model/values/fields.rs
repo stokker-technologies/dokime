@@ -7,25 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
 
 product_error!(FieldError, formatter {
     Self { field, declared, found: Some(found) } => write!(
@@ -38,20 +24,12 @@ product_error!(FieldError, formatter {
     ),
 });
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldError {
     pub field: String,
     pub declared: ValueType,
     pub found: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait FieldValue: Sized {
     const VALUE_TYPE: ValueType;
@@ -60,8 +38,6 @@ pub trait FieldValue: Sized {
 
     fn from_value(value: Option<&Value>) -> Result<Self, FieldError>;
 }
-
-/* === Implementations === */
 
 impl FieldError {
     #[must_use]
@@ -259,13 +235,9 @@ impl<T: FieldValue> FieldValue for Option<T> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn field<T: FieldValue>(values: &BTreeMap<String, Value>, name: &str) -> Result<T, FieldError> {
     T::from_value(values.get(name)).map_err(|error| error.named(name))
 }
-
-/* === Private Functions === */
 
 fn described(value: &Value) -> String {
     match value {
@@ -288,5 +260,3 @@ fn narrowed(value: Option<&Value>) -> Result<i64, FieldError> {
         other => Err(FieldError::of(ValueType::Integer, other)),
     }
 }
-
-/* === Tests === */

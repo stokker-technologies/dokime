@@ -7,20 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(super) use super::value::canonical::metadata;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::definition::{MaterializedParameter, ParameterSource};
 use dokime::domain::model::execution::result::TestExecution;
@@ -29,25 +19,9 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::model::identity::wire::Diagnostic;
 use dokime::domain::model::values::Value;
 
-/* === Constants === */
-
 const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
 
 const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn execution<'a>(
     state: &'a dokime::state::RuntimeState, id: &str,
@@ -223,8 +197,6 @@ pub(super) async fn list_case_parameters(
     case_parameters(service, &case.parameters, &request.after_name, limit, parameter_cursor(&snapshot, selection))
 }
 
-/* === Private Functions === */
-
 fn reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.wire_len()? > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
@@ -343,5 +315,3 @@ fn case_parameters(
         },
     )
 }
-
-/* === Tests === */

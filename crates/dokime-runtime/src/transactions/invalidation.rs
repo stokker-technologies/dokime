@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
 use crate::transactions::records::draft::Drafts;
@@ -30,14 +20,6 @@ use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[harmos::transaction(id = "dokime.execution.invalidate")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InvalidateExecutions {
@@ -45,12 +27,6 @@ pub struct InvalidateExecutions {
     pub current: Option<ExecutionPluginIdentity>,
     pub invalidated_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl InvalidateExecutions {
     fn invalidates(&self, execution: &TestExecution) -> bool {
@@ -117,9 +93,3 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

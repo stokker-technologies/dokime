@@ -9,41 +9,17 @@
 
 // Immutable State Sharing With Copy-On-Write Mutation.
 
-/* === Modules === */
-
 mod map;
-
-/* === Re-Exports === */
 
 pub use map::Map;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-// Third Party Imports
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shared<T>(Arc<T>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<T: Serialize> Serialize for Shared<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -103,12 +79,6 @@ where
         (&mut **self).into_iter()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,47 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::process::Stdio;
-// Third Party Imports
+
 use crate::support::wire::WireMessage;
 use serde_json::json;
-// Local Imports
+
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
 use dokime::domain::model;
 use dokime_gui::rpc::Bridge;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn base64(bytes: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn typescript_facade_bridge() {

@@ -7,39 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
 mod error;
 mod output;
 
-/* === Re-Exports === */
-
 pub use error::{Error, Result};
 pub use output::{ColorMode, Progress, Terminal, color_mode, set_color_mode};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // A byte count the way a person reads one: binary units, one decimal from
 // kibibytes upwards, whole bytes below.
@@ -53,10 +25,6 @@ pub fn size_label(bytes: u64) -> String {
     }
     if unit == 0 { format!("{bytes} B") } else { format!("{value:.1} {}", UNITS[unit]) }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

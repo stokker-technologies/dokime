@@ -7,21 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     DefinitionId, Identified,
     storage::{ObjectRetention, StoredObject},
 };
 
-// Local Imports
 use super::{Error, Result};
 use dokime_domain::model::execution::request::AttemptClaim;
 use dokime_domain::model::execution::request::RunPhase;
@@ -38,14 +28,6 @@ use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone)]
@@ -97,12 +79,6 @@ pub struct Command {
     updated_at: String,
     detail: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Identified for Request {
     fn definition() -> (DefinitionId, u32) {
@@ -434,10 +410,6 @@ impl TryFrom<Request> for RunReceipt {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn run_phase_text(value: &RunPhase) -> &'static str {
     match value {
         RunPhase::Queued => "queued",
@@ -476,5 +448,3 @@ fn timestamp(value: String) -> Result<Timestamp> {
     timestamp.to_datetime()?;
     Ok(timestamp)
 }
-
-/* === Tests === */

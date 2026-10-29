@@ -7,44 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use dokime::domain::model::identity::IdentifierPattern;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::records::evidence::RecordEntry;
 
-/* === Constants === */
-
 const SERVER_EVIDENCE_SELECTION_ITEMS: u64 = 64;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Selection {
     value: dokime::domain::model::evidence::wire::CapturedRecordSelection,
     record_types: Vec<IdentifierPattern>,
     pub(super) stream: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Selection {
     pub(super) fn new(value: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
@@ -136,9 +112,3 @@ impl Selection {
         .all(|(selected, actual)| selected.as_ref().is_none_or(|v| actual.as_ref() == Some(v)))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

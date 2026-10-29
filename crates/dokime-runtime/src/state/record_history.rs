@@ -7,44 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::RecordContract;
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub(super) struct RecordHistory(BTreeMap<Identifier, BTreeMap<u32, RecordContract>>);
-
-/* === Enums === */
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Redefinition {
     Refuse,
     Supersede,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordHistory {
     pub(super) fn from_contracts(contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>) -> Self {
@@ -83,9 +60,3 @@ impl RecordHistory {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

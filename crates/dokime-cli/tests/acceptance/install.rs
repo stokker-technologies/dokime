@@ -7,36 +7,23 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::{OperationDeclaration, Response};
 use dokime::operations::hosting::{Serve, Served};
 use harmos_packaging::bundle::Bundle;
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use dokime::client::contracts::{self, Endpoint, backend, plugins as v1, runtime};
 use dokime::domain::model;
-
-/* === Constants === */
 
 const ID: &str = "01900000-0000-7000-8000-000000000001";
 const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
 const CHUNK_LIMIT_BYTES: u32 = 256 * 1024;
-
-/* === Macros === */
 
 macro_rules! operation {
     ($declaration:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
@@ -56,10 +43,6 @@ macro_rules! operation {
     };
 }
 
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 struct Host {
     entry: model::plugins::wire::PluginInstallation,
@@ -76,17 +59,11 @@ struct Outcome {
     output: String,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::lanes(harmos_path = dokime::harmos)]
 enum Lanes {
     #[default]
     Open,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl dokime::harmos::Application for Fixture {
     type Lanes = Lanes;
@@ -248,10 +225,6 @@ impl dokime::harmos::Lifecycle for Fixture {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn install_bundle(schema: u32) -> Bundle {
     use harmos_packaging::bundle::{Executable, Facility, Identity, Limits, Source};
     let owner = "fixture_worker";
@@ -393,8 +366,6 @@ async fn install() {
 fn cli_executable() -> String {
     std::env::var("NEXTEST_BIN_EXE_dokime").ok().or_else(|| std::env::var("CARGO_BIN_EXE_dokime").ok()).expect("workspace executable")
 }
-
-/* === Tests === */
 
 #[harmos_sdk::catalog(harmos_path = dokime::harmos)]
 enum Discovery {

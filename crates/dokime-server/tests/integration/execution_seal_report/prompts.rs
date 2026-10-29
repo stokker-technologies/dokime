@@ -7,20 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
-// Third Party Imports
+
 use crate::support::wire::WireMessage;
 use clap::Parser;
 use prost::Message;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use {
@@ -30,27 +23,7 @@ use {
     dokime::runtime::command::CommandContext,
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 pub(crate) async fn execution_prompt_identity() {
-    // === Admit One Execution And Keep Its Provider Running === //
-
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let definition = dokime::domains::prompts::ConfirmationPrompt::new("fixture.confirm", "Start Capture").definition();
@@ -118,8 +91,6 @@ pub(crate) async fn execution_prompt_identity() {
         assert_eq!(std::fs::read_dir(&recovery_directory).unwrap().count(), 0);
     }
 
-    // === Read And Answer Only The Explicit Execution's Question === //
-
     let id = dokime::model::identity::new_id::<PromptId>();
     handle
         .request_prompt(PromptRequest {
@@ -153,8 +124,6 @@ pub(crate) async fn execution_prompt_identity() {
     );
     assert!(execution.prompt(&id).await.unwrap().response.is_some());
 
-    // === Wait For The Durable Result Without Sealing The Container === //
-
     gate.release.notify_one();
     let command = [
         "dokime",
@@ -174,8 +143,6 @@ pub(crate) async fn execution_prompt_identity() {
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
     assert_eq!(std::fs::read_dir(&recovery_directory).unwrap().count(), 0, "normal wait never seals or exports the owned cycle");
-
-    // === Stop A Different Execution While Its Question Waits === //
 
     let command = ["dokime", "execution", "start", &sibling, "--endpoint", &endpoint];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
@@ -206,8 +173,6 @@ pub(crate) async fn execution_prompt_identity() {
     let values = model::values::wire::Value::try_from(Value::Object(BTreeMap::new())).unwrap();
     assert!(other.respond_prompt(&waiting_id, "yes".into(), values, true).await.is_err());
     assert_eq!(execution.wait(None, None).await.unwrap().checkpoint, execution.checkpoint().await.ok());
-
-    // === Materialize Plain Parameters And Append The Explicit Case === //
 
     let cycle_text = cycle.id().to_string();
     let command = [
@@ -473,8 +438,6 @@ pub(crate) async fn prompt_condition_commit() {
 pub(crate) async fn prompt_level_watched() {
     use dokime::records::RecordSeverity;
 
-    // === Ask A Warning Prompt === //
-
     let root = tempfile::tempdir().unwrap();
     let definition =
         FormPrompt::<BTreeMap<String, bool>>::new("fixture.level", "Check the bench").level(RecordSeverity::Warning).definition();
@@ -493,8 +456,6 @@ pub(crate) async fn prompt_level_watched() {
         .unwrap();
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-
-    // === Read The Prompt And Its Request Record === //
 
     let view = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: id.to_string() }))
@@ -517,8 +478,6 @@ pub(crate) async fn prompt_level_watched() {
         watched = follow.message().await.unwrap().unwrap().records;
     }
 
-    // === Compare === //
-
     let level = view.prompt.unwrap().definition.unwrap().level;
     assert_eq!(level, model::identity::wire::Severity::Warn);
     assert_eq!(watched.len(), 1);
@@ -530,8 +489,6 @@ pub(crate) async fn prompt_level_watched() {
 }
 
 pub(crate) async fn settled_prompt_refused() {
-    // === Ask A Cycle's Question With No Cancel Action === //
-
     let root = tempfile::tempdir().unwrap();
     let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.settle", "Inspect Charging State").definition();
     definition.actions.retain(|action| action.id != "cancel");
@@ -567,11 +524,7 @@ pub(crate) async fn settled_prompt_refused() {
     let waiting = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert_eq!(waiting.prompts.len(), 1);
 
-    // === Seal The Cycle === //
-
     handle.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
-
-    // === Nothing Waits, And A Late Answer Is A Failed Precondition === //
 
     let settled = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert!(settled.prompts.is_empty());
@@ -613,5 +566,3 @@ fn prompt_config(root: &std::path::Path, definition: dokime::domains::prompts::P
         .with_declared_plugin("prompt_fixture", "1.0.0", "Questions", declarations)
         .unwrap()
 }
-
-/* === Tests === */

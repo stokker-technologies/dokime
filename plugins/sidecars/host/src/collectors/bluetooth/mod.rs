@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
 
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
 
-// Third Party Imports
-
-// Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result};
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct BluetoothCollector {
     sample_index: u64,
@@ -46,12 +28,6 @@ pub struct BluetoothCollector {
     last_deep_refresh: Option<Instant>,
     cached_values: Option<BTreeMap<String, Value>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl BluetoothCollector {
     pub fn new(options: HostOptions) -> Self {
@@ -101,9 +77,3 @@ impl BluetoothCollector {
         Ok(HostStreamSample::new(HostTelemetryStream::Bluetooth, values))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

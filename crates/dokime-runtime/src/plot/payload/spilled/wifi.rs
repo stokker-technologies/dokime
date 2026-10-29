@@ -9,41 +9,16 @@
 
 // Disk-Grouped WiFi Occupancy Analysis
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use rusqlite::params;
 
-// Local Imports
 use super::super::analyses::{PlotAnalysis, wifi};
 use super::{
     input::{Read, failure},
     series::Series,
 };
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn reset(read: &Read<'_>) -> Result<()> {
     read.connection.execute_batch(
@@ -130,7 +105,3 @@ pub(super) fn finish(read: &Read<'_>) -> Result<PlotAnalysis> {
         scans,
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,32 +7,23 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod checks;
 mod rules;
 mod validation;
 pub mod wire;
-
-/* === Re-Exports === */
 
 pub use checks::{validate_answer_rules, validate_answers, validate_definition, validate_fields};
 pub use rules::Rule;
 pub use rules::validate_rules;
 pub use validation::FieldValidation;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
-// Local Imports
 use crate::model::definition::RuntimeCondition;
 use crate::model::execution::RecordScope;
 use crate::model::identity::ContractId;
@@ -46,14 +37,6 @@ use crate::model::records::RecordSeverity;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinition {
@@ -147,8 +130,6 @@ pub struct PromptAction {
     pub requires_condition: bool,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PromptArchetype {
@@ -194,10 +175,6 @@ pub enum PromptFieldKind {
     Choice,
     Boolean,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for PromptInstance {
     fn memory_size(&self) -> usize {
@@ -273,13 +250,7 @@ impl PromptDefinition {
     }
 }
 
-/* === Public Functions === */
-
 pub fn pending_stream(cycle: Option<&TestCycleId>, execution: Option<&TestExecutionId>) -> String {
     let selection = serde_json::to_vec(&(cycle, execution)).expect("prompt selection encodes");
     format!("prompts.pending:{}", Sha256::digest(selection).iter().map(|byte| format!("{byte:02x}")).collect::<String>())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

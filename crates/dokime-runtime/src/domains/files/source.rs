@@ -11,32 +11,14 @@
 // modification time and, where the platform has one, file identity, and copies
 // byte ranges of one file into a spool.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, time::SystemTime};
 
-// Third Party Imports
-
-// Local Imports
 use super::{ftp::FtpSource, local::LocalSource};
 use crate::files::FileMatcher;
 use crate::{runtime::Error, runtime::Result};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 // Matched files by forward-slash path relative to the source root.
 pub(super) type Listing = BTreeMap<String, Entry>;
-
-/* === Structs === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
@@ -46,8 +28,6 @@ pub(super) struct Entry {
     // path now names a different file.
     pub(super) identity: Option<(u64, u64)>,
 }
-
-/* === Enums === */
 
 pub(super) enum Source {
     Local(LocalSource),
@@ -59,10 +39,6 @@ pub(super) enum ReadFailure {
     ResumeUnsupported,
     Failed(Error),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Source {
     pub(super) async fn local(root: &str, wait: bool) -> Result<Self> {
@@ -104,9 +80,3 @@ impl From<Error> for ReadFailure {
         Self::Failed(error)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

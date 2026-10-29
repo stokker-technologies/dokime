@@ -7,36 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::value::{Budget, canonical};
 use dokime::telemetry::TelemetrySample;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime::domain::model::telemetry::wire::TelemetrySample, Status> {
     Ok(dokime::domain::model::telemetry::wire::TelemetrySample {
@@ -53,7 +27,3 @@ pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime::domain
         metadata: Some(canonical::object(&sample.metadata, &mut Budget::new()?)?),
     })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

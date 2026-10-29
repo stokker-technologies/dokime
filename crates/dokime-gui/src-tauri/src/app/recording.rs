@@ -7,35 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
-// Standard Library Imports
-
-// Third Party Imports
 use tauri::WebviewWindow;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-// Local Imports
 use super::content;
 use super::desktop::ensure_main_window;
 
-/* === Constants === */
-
 const DESKTOP_MP4_PROBE_BYTES: u64 = 4_194_304;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-// === Private Functions: MP4 (ISO BMFF) box walking === //
 
 // A byte-for-byte port of the box reader/writer pair in
 // `fix-recording-duration.ts`; offsets are the ISO/IEC 14496-12 layouts for
@@ -46,14 +26,6 @@ struct Mp4Box {
     end: usize,
     payload: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn desktop_recording_finish(
     window: WebviewWindow, bridge: tauri::State<'_, crate::rpc::Bridge>, generation: String, duration_ms: u64, media_type: String,
@@ -87,8 +59,6 @@ pub(crate) async fn patch_mp4_duration_in_place(path: &std::path::Path, duration
     let file_len = file.metadata().await.map_err(|error| error.to_string())?.len();
     patch_duration(file, file_len, duration_ms, probe_bytes).await
 }
-
-/* === Private Functions === */
 
 fn is_mp4(media_type: &str) -> bool {
     let lower = media_type.to_ascii_lowercase();
@@ -246,5 +216,3 @@ fn patch_mdia_duration(data: &mut [u8], start: usize, end: usize, duration_ms: u
         data[payload + 24..payload + 32].copy_from_slice(&duration.to_be_bytes());
     }
 }
-
-/* === Tests === */

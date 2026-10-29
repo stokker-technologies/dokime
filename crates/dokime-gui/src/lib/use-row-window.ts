@@ -20,18 +20,7 @@
  * and keeps every row in the document for keyboard focus and search.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "react";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const GUI_ROW_OVERSCAN = 16;
 const GUI_ROW_WINDOW_THRESHOLD = 200;
@@ -48,8 +37,6 @@ const UNMEASURED_ROWS = GUI_UNMEASURED_ROWS;
 
 /** The attribute every windowed row carries, so the pitch is read off a real row. */
 export const WINDOW_ROW_ATTRIBUTE = "data-window-row";
-
-/* === Types === */
 
 /** The slice that renders, and the space the rows outside it hold. */
 export type RowWindow = {
@@ -68,10 +55,6 @@ export type RowWindowState = {
   /** Brings row `index` into the window and the viewport, then focuses it. */
   focusIndex: (index: number, focus: (row: HTMLElement) => void) => void;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * The slice of `count` rows of `pitch` pixels that a viewport of `height`
@@ -143,8 +126,6 @@ export function useRowWindow(count: number): RowWindowState {
   return { anchor, focusIndex, window: slice };
 }
 
-/* === Private Functions === */
-
 /** The nearest ancestor that scrolls vertically, or `null` for the page itself. */
 function scrollingAncestor(node: HTMLElement): HTMLElement | null {
   for (let parent = node.parentElement; parent; parent = parent.parentElement) {
@@ -153,5 +134,3 @@ function scrollingAncestor(node: HTMLElement): HTMLElement | null {
   }
   return null;
 }
-
-/* === Entry Point === */

@@ -9,19 +9,10 @@
 
 // Project Bounded Native Values Into Canonical Messages
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::Budget;
 use dokime::domain::model::definition::wire as schema;
 use dokime::domain::model::execution::wire_cursor::Cursor;
@@ -30,22 +21,6 @@ use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::values::ElapsedUnit;
 use dokime::domain::model::values::Value;
 use dokime::domain::model::values::ValueFormat;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn decode(
     value: dokime::domain::model::values::wire::Value, budget: &mut Budget, depth: usize,
@@ -285,8 +260,6 @@ pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
     }
 }
 
-/* === Private Functions === */
-
 fn exact_text(value: &str) -> Result<String, Status> {
     super::projection::text(value).map_err(|source| Status::resource_exhausted(source.to_string()))
 }
@@ -430,8 +403,6 @@ pub(in crate::grpc) fn validate(value: &Value, budget: &mut Budget, depth: usize
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

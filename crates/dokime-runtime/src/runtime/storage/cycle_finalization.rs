@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
 
-// Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
 use crate::RuntimeHandle;
 use crate::runtime::Error;
@@ -34,14 +25,6 @@ use dokime_domain::model::execution::saved::CycleSeal;
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::identity::TestCycleId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
@@ -61,12 +44,6 @@ pub(crate) struct CompletedCycle {
 }
 
 pub(crate) struct CompletedHeader(harmos::storage::ReadBatch<TestCycle>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for CompletedHeader {
     type Target = TestCycle;
@@ -420,8 +397,6 @@ impl super::executions::ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
     TestCycle {
         saved,
@@ -440,8 +415,6 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
     }
 }
 
-/* === Private Functions === */
-
 fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
     left.test_cycle_id == right.test_cycle_id
         && left.session_id == right.session_id
@@ -459,5 +432,3 @@ fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */

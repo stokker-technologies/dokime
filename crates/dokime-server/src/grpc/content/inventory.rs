@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::projection;
 use dokime::ExecutionFileEntry;
@@ -29,14 +20,6 @@ use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
@@ -49,16 +32,10 @@ struct Count {
     more: bool,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::ListExecutionFiles),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListExecutionFiles> for Resources {
     fn serve<'a>(
@@ -84,8 +61,6 @@ impl Serve<wire::ListExecutionFiles> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -96,8 +71,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn project(
     entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, limit: usize, maximum: usize,
@@ -197,5 +170,3 @@ fn invalid_wire() -> dokime::harmos::Error {
         reason: "original order or encoded length differs",
     }
 }
-
-/* === Tests === */

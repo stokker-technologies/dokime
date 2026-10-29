@@ -7,40 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod appearance;
 pub(crate) mod context;
 pub(crate) mod records;
 pub(crate) mod source;
 pub(crate) mod telemetry;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

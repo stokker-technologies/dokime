@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::value::Value;
 use crate::document::capture::Capture;
 use crate::telemetry::TelemetrySample;
@@ -32,14 +23,6 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportInput {
@@ -105,13 +88,3 @@ pub struct ReportArtifactLink {
     #[serde(default)]
     pub scope: Option<RecordScope>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-/* === Private Functions === */
-/* === Tests === */

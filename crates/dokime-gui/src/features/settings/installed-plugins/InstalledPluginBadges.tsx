@@ -9,13 +9,9 @@
 
 /* Installed-plugin status badges. */
 
-/* === Local Imports === */
-
 import { Badge } from "@/components/ui/badge";
 import { type InstalledPluginRuntimeKind, RUNTIME_LABELS } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { cn } from "@/lib/utils";
-
-/* === Constants === */
 
 const RUNTIME_CLASS: Record<InstalledPluginRuntimeKind, string> = {
   code: "border-info/30 bg-info/10 text-info",
@@ -28,8 +24,6 @@ const STATUS_DISPLAY: Record<string, { className: string; label: string }> = {
   },
   disabled: { className: "text-muted-foreground", label: "Disabled" },
 };
-
-/* === Components === */
 
 export function InstalledPluginRuntimeBadge({ runtime }: { runtime: string }) {
   const kind = runtime as InstalledPluginRuntimeKind;

@@ -11,22 +11,13 @@
  * Responsive Navigation Behavior.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { Children, isValidElement, type ReactElement } from "react";
-// Local Imports
+
 import { expect, test, vi } from "vitest";
 import { navigationMode, settingsParent, sidebarWidth } from "@/shell/navigation-model";
 import { Sidebar } from "@/shell/Sidebar";
 import { SidebarFrame } from "@/shell/SidebarFrame";
 
-/* === Re-Exports === */
-
-/* === Constants === */
 const fixture = vi.hoisted(() => ({ width: 500, pathname: "/cycles", navigate: vi.fn() }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -43,11 +34,6 @@ vi.mock("@/shell/use-sidebar-state", async () => {
   };
 });
 
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 test("breakpoint transitions", () => {
   expect([599, 600, 1023, 1024, 600, 599].map(navigationMode)).toEqual(["phone", "tablet", "tablet", "desktop", "tablet", "phone"]);
 });
@@ -83,7 +69,3 @@ test("destination switching", () => {
   fixture.width = 599;
   expect((Sidebar({}) as ReactElement).type).toBe("nav");
 });
-
-/* === Private Functions === */
-
-/* === Entry Point === */

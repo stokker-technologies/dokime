@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
@@ -30,14 +20,6 @@ use crate::model::identity::wire::*;
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
 use crate::model::values::wire::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -353,8 +335,6 @@ pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
 }
 
-/* === Enums === */
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentCardKind {
@@ -502,13 +482,3 @@ pub enum DocumentFrameFrame {
     RepeatInstance(DocumentRepeatInstance),
     SectionIdentity(DocumentSectionIdentity),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

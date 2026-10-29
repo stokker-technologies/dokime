@@ -9,42 +9,11 @@
 
 // Artifact transfer, upload, report opening, operator media and file watches against a running execution.
 
-/* === Modules === */
-
 mod content;
 mod file_watch;
 mod media;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn execution_artifacts() {

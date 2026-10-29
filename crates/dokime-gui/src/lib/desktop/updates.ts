@@ -7,18 +7,6 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
 export type UpdateMode = "disabled" | "manual" | "automatic_check";
 
 export type UpdateSelection = { mode: UpdateMode; source: string | null };
@@ -38,11 +26,3 @@ export type UpdateStatus = UpdateSelection & {
   lastCheck: UpdateCheck | null;
   error: string | null;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */

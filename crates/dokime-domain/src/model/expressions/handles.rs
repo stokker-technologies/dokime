@@ -7,28 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::model::expressions::data::DataExpression;
 use crate::model::expressions::data::DataSource;
 use crate::model::expressions::data::DataTransform;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordMarker {
@@ -40,12 +21,6 @@ pub struct RecordField {
     record_type: String,
     detail: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordMarker {
     pub fn new(record_type: impl Into<String>) -> Self {
@@ -118,8 +93,6 @@ impl From<RecordField> for RecordMarker {
     }
 }
 
-/* === Public Functions === */
-
 pub fn marker(record_type: impl Into<String>) -> RecordMarker {
     RecordMarker::new(record_type)
 }
@@ -127,7 +100,3 @@ pub fn marker(record_type: impl Into<String>) -> RecordMarker {
 pub fn detail(record_type: impl Into<String>, detail: impl Into<String>) -> RecordField {
     RecordField::new(record_type, detail)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

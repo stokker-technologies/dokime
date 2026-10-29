@@ -9,17 +9,6 @@
 
 // Streaming Plot Spectrum Projection
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::super::PlotPayloadRequest;
 #[cfg(feature = "fft")]
 use super::super::{PlotPoint, analyses, parse_timestamp};
@@ -30,14 +19,6 @@ use super::series::{Points, Series};
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
 use crate::runtime::Result;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[cfg(feature = "fft")]
 struct Parameters {
     n: usize,
@@ -45,14 +26,6 @@ struct Parameters {
     rate: f64,
     scale: f64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 #[cfg(feature = "fft")]
 pub(super) fn transform(series: &mut Series, request: &PlotPayloadRequest) -> Result<Option<String>> {
@@ -146,8 +119,6 @@ pub(super) fn transform(series: &mut Series, _: &PlotPayloadRequest) -> Result<O
     Ok(Some("FFT analysis is unavailable in this build".into()))
 }
 
-/* === Private Functions === */
-
 #[cfg(feature = "fft")]
 fn input(series: &Series, request: &PlotPayloadRequest) -> Result<std::result::Result<Parameters, &'static str>> {
     let options = &request.fft;
@@ -214,5 +185,3 @@ fn input(series: &Series, request: &PlotPayloadRequest) -> Result<std::result::R
     };
     Ok(Ok(Parameters { n, size, rate, scale }))
 }
-
-/* === Tests === */

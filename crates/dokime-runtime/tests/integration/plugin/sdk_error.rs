@@ -7,30 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::time::Duration;
-// Third Party Imports
 
-// Local Imports
 use dokime_runtime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::StreamExt;
 
-/* === Constants === */
 const SUITE: &str = "sdk_error.checks";
 const TEMPLATE: &str = "sdk_error.checks.boundary";
 const PROMPT: &str = "sdk_error.checks.checkpoint";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[dokime_runtime::prompt(id = PROMPT, label = "Continue?")]
 struct Checkpoint;
 
@@ -51,16 +37,12 @@ struct Boundary {
     note: String,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -147,10 +129,6 @@ impl Boundary {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 #[tokio::test]
 async fn sdk_error_boundary() {
     let report = Harness::template(TEMPLATE)
@@ -170,5 +148,3 @@ async fn sdk_error_boundary() {
         "the innermost cause — the io::Error `Artifacts::create` names — still renders: {diagnostics}"
     );
 }
-
-/* === Tests === */

@@ -10,22 +10,15 @@
 /* Remembered inputs belong to the operator, keyed by stable template and
    parameter IDs. Desktop persistence is native; browser previews remain local. */
 
-/* === External Imports === */
-
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { commands } from "@/lib/desktop/commands";
 import type { ParameterOverrides } from "@/lib/desktop/settings";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { toast } from "@/lib/notifications";
 import type { ParameterDefinition } from "@/lib/types";
 import { isReportBuild } from "@/lib/ui-mode";
-
-/* === Constants === */
 
 export const PARAMETER_OVERRIDES_STORAGE_KEY = "dokime.parameter-overrides";
 
@@ -42,8 +35,6 @@ const initialParameterOverridesState: ParameterOverridesStoreState = {
   overrides: {},
 };
 
-/* === Types === */
-
 type ParameterOverridesStoreState = {
   overrides: ParameterOverrides;
 };
@@ -55,8 +46,6 @@ type ParameterOverridesStore = ParameterOverridesStoreState & {
   setParameterOverride: (templateId: string, definition: ParameterDefinition, raw: string) => void;
 };
 
-/* === Private State === */
-
 let pending: ParameterOverrides | null = null;
 let writing: Promise<void> | null = null;
 
@@ -64,8 +53,6 @@ export const useParameterOverridesStatus = create<{ ready: boolean; error: strin
   ready: false,
   error: null,
 }));
-
-/* === Public Functions === */
 
 /** Refuse Unsupported Stored Values Without Replacing The Operator's Inputs. */
 export function readPersistedParameterOverrides(value: unknown): ParameterOverrides {
@@ -152,8 +139,6 @@ export const useParameterOverridesStore = create<ParameterOverridesStore>()(
     },
   ),
 );
-
-/* === Private Functions === */
 
 function writeDesktop(values: ParameterOverrides): Promise<void> {
   pending = values;

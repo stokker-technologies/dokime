@@ -9,38 +9,21 @@
 
 // Persistent Remote Listener Ownership And Rollback
 
-/* === Modules === */
-
 pub(super) mod operations;
 pub(super) mod pairing;
 pub(super) mod sessions;
 mod store;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, sync::Arc};
 
-// Third Party Imports
 use tokio::sync::Mutex;
 
-// Local Imports
 use super::{Config, Error, Server, Service, TlsIdentity};
 use dokime::RuntimeHandle;
 use dokime::domain::model::remote::{RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 
-/* === Constants === */
-
 const SERVER_REMOTE_HEARTBEAT_MS: u64 = 5_000;
 const SERVER_REMOTE_NAMES: u64 = 32;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Controller {
     runtime: RuntimeHandle,
@@ -59,16 +42,10 @@ struct State {
     closing: bool,
 }
 
-/* === Enums === */
-
 enum Change {
     Settings(RemoteListenerSettings),
     Certificate(Vec<String>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     fn status(&self) -> RemoteListenerStatus {
@@ -314,8 +291,6 @@ impl Controller {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Result<Arc<Controller>, Error> {
     let path = runtime.application_root().join("remote").join("access.json");
     let read_path = path.clone();
@@ -356,8 +331,6 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
     Ok(controller)
 }
 
-/* === Private Functions === */
-
 // Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
 fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbeat: std::time::Duration) {
     tokio::spawn(async move {
@@ -372,5 +345,3 @@ fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbea
         }
     });
 }
-
-/* === Tests === */

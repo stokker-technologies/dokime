@@ -7,23 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod assets;
 mod source;
 
-/* === Re-Exports === */
-
 pub(super) use assets::capture_logo;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
@@ -31,26 +21,10 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Captured {
     pub(super) context: ExecutionContext,
     pub(super) logos: Vec<crate::installed_plugins::RuntimeInstalledPluginAsset>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn capture(
     state: &crate::RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
@@ -150,8 +124,6 @@ pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
         || owns_projection(scope, execution)
 }
 
-/* === Private Functions === */
-
 // Each execution owns its own projections and copies only its cycle/case ancestors.
 // Global items are deliberately outside the cycle export selection.
 fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
@@ -164,5 +136,3 @@ fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
 fn error(value: impl ToString) -> Error {
     Error::Operation(value.to_string())
 }
-
-/* === Tests === */

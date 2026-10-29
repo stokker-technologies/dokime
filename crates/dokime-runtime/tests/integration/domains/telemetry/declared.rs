@@ -7,17 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use async_trait::async_trait;
-// Local Imports
+
 use crate::service_support::prelude::*;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
@@ -28,7 +19,6 @@ use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::{Refusal, Supervisor};
 use harmos::sidecar::StreamDeclaration;
 
-/* === Constants === */
 const SOURCE: &str = "fixture_declaring";
 const SUITE: &str = "fixture.declaring.checks";
 const RECORD: &str = "fixture.declaring.measured";
@@ -39,11 +29,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     retries: RetryPolicy::Never,
 };
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[dokime_runtime::stream(id = "fixture.declaring.samples", window = 32, label = "Samples")]
 struct Sample {
     value: f64,
@@ -78,7 +63,6 @@ struct DeclaringProvider {
     catalog: InstalledPlugin,
 }
 
-/* === Enums === */
 #[dokime_runtime::catalog]
 enum Streams {
     Sample(Sample),
@@ -105,9 +89,6 @@ enum Suites {
     Checks(Checks),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::suite(id = "fixture.declaring.checks", label = "Checks", templates = Templates)]
 impl Checks {}
 
@@ -246,11 +227,6 @@ impl EmbeddedProvider for DeclaringProvider {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[tokio::test]
 async fn template_declarations_register() {
     // The Plugin Grants The Shared Stream Once

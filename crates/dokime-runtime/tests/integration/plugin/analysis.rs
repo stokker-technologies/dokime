@@ -7,38 +7,22 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 
-// Third Party Imports
 use harmos::plugin::Contribution;
 
-// Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::analysis::{Analysis, Axis, Definition, Limits, Operation, Output, Request, Response, ResultData, Samples, Values};
-
-/* === Constants === */
 
 static RELEASE: Mutex<Option<mpsc::Receiver<()>>> = Mutex::new(None);
 static STARTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 static CALLS: AtomicUsize = AtomicUsize::new(0);
 static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Host;
 struct Scale;
 struct Held;
@@ -53,7 +37,6 @@ struct Parameters {
     factor: f64,
 }
 
-/* === Enums === */
 #[harmos::catalog]
 enum Analyses {
     Scale(Operation<Scale>),
@@ -66,9 +49,6 @@ enum Lanes {
     Open,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 impl ResultData for Scaled {
     fn outputs() -> Vec<Output> {
         vec![Output {
@@ -168,9 +148,6 @@ impl harmos::Lifecycle for Host {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn request(parameters: BTreeMap<String, Value>) -> Request {
     Request {
         samples: Some(Samples {
@@ -190,8 +167,6 @@ async fn serve() -> harmos::Runtime<Host> {
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
     operations.call::<Operation<A>>(Operation::new(request)).await.map(|response| response.into_owned())
 }
-
-/* === Tests === */
 
 #[test]
 fn named_analysis_params() {

@@ -7,43 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::{
     Query, StorageCursor,
     query::{RowSlice, Source, StreamSelection, transform::Transform},
 };
 
-// Local Imports
 use super::invalid;
 use crate::runtime::Result;
 use crate::storage::telemetry::TypedCodec;
 use crate::storage::telemetry::decode_positioned;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transforms: Vec<Transform>) -> Result<Query> {
     Ok(Query {
@@ -77,8 +51,6 @@ pub(in crate::report) async fn visit(
     })
     .await
 }
-
-/* === Private Functions === */
 
 pub(in crate::report) async fn saved_codec(
     ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, contract: &TelemetryContract,
@@ -138,4 +110,3 @@ pub(in crate::report) fn sort(
         Ok(samples)
     })
 }
-/* === Tests === */

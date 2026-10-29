@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
@@ -33,14 +24,6 @@ use dokime_domain::model::execution::notes::note_identity;
 use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.evidence.note.add")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -62,12 +45,6 @@ pub struct EditOperatorNote {
     pub message: String,
     pub edited_at: Timestamp,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for AddOperatorNote {
     type Error = String;
@@ -210,15 +187,11 @@ impl EditOperatorNote {
     }
 }
 
-/* === Public Functions === */
-
 pub fn admission_fits(state: &RuntimeState, next: &NoteAdmission) -> bool {
     state.note_admissions.len() < crate::state::notes::NOTE_RECEIPT_LIMIT
         && state.note_admissions.values().fold(receipt_bytes(next), |bytes, item| bytes.saturating_add(receipt_bytes(item)))
             <= crate::state::notes::NOTE_RECEIPT_BYTES
 }
-
-/* === Private Functions === */
 
 fn same_creation(first: &NoteAdmission, next: &NoteAdmission) -> bool {
     first.mutation_id == next.mutation_id
@@ -240,5 +213,3 @@ fn receipt_bytes(receipt: &NoteAdmission) -> usize {
         })
         .saturating_add(receipt.checkpoint_targets.len().saturating_mul(64))
 }
-
-/* === Tests === */

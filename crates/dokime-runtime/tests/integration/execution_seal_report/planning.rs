@@ -7,35 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 // A cycle is created empty, refuses to run until cases are appended, then
 // runs the appended cases to completion.
@@ -113,5 +85,3 @@ pub(crate) async fn empty_cycle_seals() {
     );
     assert!(payload["test_executions"].as_array().is_none_or(|executions| executions.is_empty()));
 }
-
-/* === Tests === */

@@ -11,24 +11,12 @@
  * The active cycle: shell state the Library adds cases to.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useCallback, useMemo } from "react";
 
-// Local Imports
 import { cycleRows, promptCountsByCycle } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { type OpenCycle, openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { useUiStore } from "@/stores/ui-store";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type ActiveCycleState = {
   /** The active cycle, once the open cycles have confirmed it is still open. */
@@ -40,10 +28,6 @@ export type ActiveCycleState = {
   choose: (cycleId: string | null) => void;
   openPicker: () => void;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * The persisted active cycle, checked against the open cycles on every read.
@@ -70,7 +54,3 @@ export function useActiveCycle(): ActiveCycleState {
 
   return { choose, cycle, cycles, failed: cyclesQuery.isError, loading: cyclesQuery.isPending, openPicker };
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

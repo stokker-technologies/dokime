@@ -8,33 +8,16 @@
 
 """Read Pending Operator Prompts Of A Cycle"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import ProtocolError, RpcError, _wire
 
 from .backend import CYCLE_ID, EXECUTION_ID
 from .capture_backend import serve
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 PROMPT_ID = "0199d6a4-6f1e-7c3a-9a51-2b7c4e8f1d20"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def test_prompt_selection() -> None:
@@ -132,8 +115,3 @@ def test_execution_prompt_scope() -> None:
             assert backend.created == backend.run_calls == 0
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

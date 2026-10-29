@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::runtime::storage::context_records::ContextRecord;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
 use crate::{RuntimeHandle, runtime::Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,12 +30,6 @@ pub struct ExecutionRecordPage {
     pub issues_truncated: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl RuntimeHandle {
     pub async fn execution_checkpoint_records(
         &self, checkpoint: ExecutionCheckpoint, query: ExecutionRecordQuery,
@@ -62,9 +38,3 @@ impl RuntimeHandle {
         crate::runtime::storage::record_pages::read(&view, query).await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -9,10 +9,6 @@
 
 /* Native cycle-history projection for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { Wire } from "@/lib/rpc/canonical";
 import type * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -20,13 +16,9 @@ import type { CycleHistorySummary } from "@/lib/types";
 import { listNativeCycles, mapCyclePhase } from "./native-planning";
 import { durationSeconds, safeNumber, timestampIso } from "./native-values";
 
-/* === Types === */
-
 type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
 type CycleStatus = CycleSummary["status"];
 type ResultStatus = NonNullable<CycleSummary["result"]>["status"];
-
-/* === Public API === */
 
 /**
  * Read the native cycle index and project its summary fields, running and
@@ -37,8 +29,6 @@ export async function fetchNativeCycleHistory(session: SessionIdentity): Promise
   const cycles = await listNativeCycles(session);
   return cycles.map(mapCycleHistorySummary).sort(compareCycleHistorySummary);
 }
-
-/* === Mapping === */
 
 function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
   const caseCount = safeNumber(cycle.caseCount, "Execution.ListCycles case count");

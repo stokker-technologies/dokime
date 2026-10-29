@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Bluetooth, Collected, Samples, State};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Operation for Bluetooth {
     type Error = Refusal;
@@ -60,9 +35,3 @@ impl Operation for Bluetooth {
         Ok(Response::new(Samples { rows }))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

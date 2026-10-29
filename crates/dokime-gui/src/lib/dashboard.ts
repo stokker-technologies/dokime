@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { numericValue } from "@/lib/utils";
 
 import { formatDuration, formatNumber } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
 import { parseTimestampMs } from "./time-format";
 import type { HubRecord } from "./types";
-
-/* === Types === */
-
-/* === Constants === */
 
 const ARTIFACT_LABEL_WORDS: Record<string, string> = {
   api: "API",
@@ -40,8 +34,6 @@ const ARTIFACT_LABEL_WORDS: Record<string, string> = {
   yml: "YAML",
   zip: "ZIP",
 };
-
-/* === Public Functions === */
 
 export function formatValue(value: unknown, unit?: string | null, key = ""): string {
   // A datetime value serializes as `{"$datetime": "<rfc3339>"}`; without this it
@@ -119,8 +111,6 @@ export function artifactLabel(label: string): string {
   }
   return words.map(titleCaseArtifactWord).join(" ");
 }
-
-/* === Private Functions === */
 
 function numeric(value: unknown): number | null {
   value = numericValue(value) ?? value;

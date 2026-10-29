@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
@@ -36,14 +27,6 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.cycle.policy")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -75,8 +58,6 @@ struct CycleControlPlan {
     settled: SettledPrompts,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleControlAction {
@@ -90,10 +71,6 @@ pub enum CycleControlAction {
 pub enum CycleResetAction {
     Delete { test_case_id: CaseId },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for UpdateCyclePolicy {
     type Error = String;
@@ -156,8 +133,6 @@ impl Transaction<RuntimeState> for ResetCycle {
     }
 }
 
-/* === Public Functions === */
-
 pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result<Vec<TestExecutionId>, Error> {
     let (cycle, removed) = plan_cycle_reset(state, reset)?;
     state.replace_cycle(cycle).map_err(conflict)?;
@@ -189,8 +164,6 @@ pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) ->
 pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
     cycle.ensure_active().map_err(str::to_owned)
 }
-
-/* === Private Functions === */
 
 fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Result<(), Error> {
     let CycleControlPlan { cycle, records, settled } = prepare_cycle_control(state, control)?;
@@ -367,5 +340,3 @@ fn record_request(records: &mut Drafts, cycle: &CycleView, record_type: BuiltinR
 fn conflict(message: String) -> Error {
     Error::conflict("conflict", message)
 }
-
-/* === Tests === */

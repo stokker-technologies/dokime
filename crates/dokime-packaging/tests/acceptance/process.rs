@@ -9,42 +9,16 @@
 
 // One Process-Ownership Story Covers Output, Refusal, Deadline And Descendant Cleanup.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_packaging::{Error, process::run};
 
-/* === Constants === */
 // A bounded wait for a process that has already been signalled to disappear;
 // the operating system exposes no portable exit notification for a process
 // this story does not own.
 const GONE_POLL: Duration = Duration::from_millis(5);
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 #[cfg(unix)]
 fn shell(script: &str) -> std::process::Command {
     let mut command = dokime::domain::process::command("sh");
@@ -224,8 +198,6 @@ async fn fixture(mode: String) {
         }
     }
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn process() {

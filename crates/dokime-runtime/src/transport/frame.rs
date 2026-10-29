@@ -7,19 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, MutexGuard, PoisonError};
 
-// Third Party Imports
-
-// Local Imports
 use super::buffer::{BufferedFrame, Executions, LeaseOutcome, PromptOutcome, lock, settled};
 use crate::artifacts::ArtifactSink;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
@@ -34,15 +24,7 @@ use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 // Rows of one stream that publish together without waiting for the window.
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct FrameTransport {
     executions: Executions,
@@ -99,12 +81,6 @@ pub(crate) struct FrameProgressSink {
     executions: Executions,
     token: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FrameTransport {
     pub(crate) fn new(executions: Executions, token: String) -> Self {
@@ -527,10 +503,6 @@ impl LeaseRelease for FrameLeaseRelease {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // The publication clock Harmos stamps rows with: system time in Unix
 // microseconds, negative before the epoch.
 fn unix_micros() -> i64 {
@@ -554,8 +526,6 @@ fn park_at_gate<'a>(
         executions = condvar.wait(executions).unwrap_or_else(PoisonError::into_inner);
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

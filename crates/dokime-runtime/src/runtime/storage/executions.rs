@@ -7,26 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
 
-// Third Party Imports
 use harmos::{
     state::Position,
     storage::{FileReference, ObjectReceipt, ReadBatch, StorageCursor},
 };
 use tokio::sync::Mutex;
 
-// Local Imports
 use crate::app::StateManager;
 use crate::installed_plugins::RuntimeAppearanceFrame;
 use crate::report::PreparedExecutionReport;
@@ -46,14 +37,6 @@ use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct TailStop {
     pub(crate) lease: Mutex<Option<crate::services::Lease>>,
@@ -137,16 +120,10 @@ struct PublishedReport {
     appearance: RuntimeAppearanceFrame,
 }
 
-/* === Enums === */
-
 pub(crate) enum FrozenExecution {
     Live(Arc<TestExecution>),
     Saved(harmos::storage::ReadBatch<harmos::storage::ObjectRevision<TestExecution>>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TailStopPreparation {
     pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
@@ -747,10 +724,6 @@ impl ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn retained_execution(execution: &TestExecution) -> Result<(Arc<TestExecution>, ReadBatch<Arc<TestExecution>>)> {
     let owner = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Arc::new(execution.clone())))?;
     let value = owner.as_ref().clone();
@@ -1013,5 +986,3 @@ fn validate_existing(owner: &Acquisition, execution: &TestExecution) -> Result<(
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
-
-/* === Tests === */

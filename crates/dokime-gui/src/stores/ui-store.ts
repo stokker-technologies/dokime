@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-/* === Local Imports === */
-
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { DensityPreference } from "@/lib/theme";
-
-/* === Types === */
 
 /**
  * The console drawer's own state.
@@ -83,8 +77,6 @@ type UiStore = UiStoreState & {
   resetUiStore: () => void;
   setUiState: (patch: Partial<UiStoreState>) => void;
 };
-
-/* === Constants === */
 
 export const INITIAL_CONSOLE_STATE: ConsoleState = {
   follow: true,
@@ -153,14 +145,10 @@ const persistedUiStateSchema = z.object({
   themeFamily: z.string().nullable().optional(),
 });
 
-/* === Private Functions === */
-
 /** Under Tauri the WebView copy is a sidebar-only sidecar of the store's key. */
 function storageKey(name: string): string {
   return isTauriDesktop() ? `${name}.sidebar` : name;
 }
-
-/* === Public Functions === */
 
 export const useUiStore = create<UiStore>()(
   persist(

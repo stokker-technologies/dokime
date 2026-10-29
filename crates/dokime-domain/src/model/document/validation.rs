@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::model::document::definition::DocumentCardBody;
 use crate::model::document::definition::DocumentCardDefinition;
 use crate::model::document::definition::DocumentCardLayout;
@@ -29,14 +18,6 @@ use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::validation::diagnostic::{size as diagnostic_size, text as diagnostic};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Default)]
 struct ValidationMemory {
     bytes: usize,
@@ -44,14 +25,6 @@ struct ValidationMemory {
     issues: usize,
     sections: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn validate_document_definition(
     definition: &DocumentDefinition, maximum_depth: usize, maximum_plot_points: usize,
@@ -103,8 +76,6 @@ pub fn normalized_validation_memory(
         .saturating_add(memory.issues.saturating_mul(std::mem::size_of::<String>()))
         .saturating_add(cards.len().saturating_add(memory.sections).saturating_mul(std::mem::size_of::<(&Identifier, usize)>()))
 }
-
-/* === Private Functions === */
 
 fn first(index: &[(&Identifier, usize)], id: &Identifier) -> Option<usize> {
     let start = index.partition_point(|(candidate, _)| *candidate < id);
@@ -231,8 +202,6 @@ fn validate_card_layout(layout: &DocumentCardLayout, issues: &mut Vec<String>) {
         }
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use model::execution::notes::NoteOwner;
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, NotePublication};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
     let runtime = owner.handle();
@@ -73,7 +47,3 @@ pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
         .unwrap();
     assert_eq!(after.version, before.version, "notes and retries do not rewrite an unrelated cycle projection");
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

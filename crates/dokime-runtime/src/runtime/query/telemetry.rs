@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::queries::{
     RuntimeCursor, RuntimeResolution, RuntimeViewFrame, RuntimeViewPayload, RuntimeWindow, reduction::reduce_timestamped_items,
 };
@@ -26,14 +16,6 @@ use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeTelemetryFrame {
@@ -51,12 +33,6 @@ pub struct RuntimeTelemetryStreamFrame {
 
 #[derive(Clone)]
 pub struct RuntimeTelemetryRead(harmos::storage::ReadBatch<RuntimeTelemetryFrame>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for RuntimeTelemetryRead {
     type Target = RuntimeTelemetryFrame;
@@ -79,8 +55,6 @@ impl Serialize for RuntimeTelemetryRead {
         self.0.serialize(serializer)
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn telemetry_sample_matches(sample: &TelemetrySample, stream_filter: Option<&Identifier>, scope: Option<&RecordScope>) -> bool {
     if stream_filter.is_some_and(|filter| &sample.stream != filter) {
@@ -152,6 +126,3 @@ pub(crate) fn telemetry_view_frame(
         payload: RuntimeViewPayload::Telemetry { frame: RuntimeTelemetryRead(frame) },
     })
 }
-/* === Private Functions === */
-
-/* === Tests === */

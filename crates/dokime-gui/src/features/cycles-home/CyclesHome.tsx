@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
@@ -37,9 +31,8 @@ import {
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
+import { toast } from "@/lib/notifications";
 import { PageNotice, PageShell } from "@/shell/PageShell";
-
-/* === Constants === */
 
 const GUI_FILTER_DEBOUNCE_MS = 250;
 
@@ -47,8 +40,6 @@ const GUI_FILTER_DEBOUNCE_MS = 250;
    room for the longest state label (16 characters at under 0.7em each), the
    pill's padding and the cell's. */
 const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_--spacing(6))]";
-
-/* === Components === */
 
 /**
  * Home. Three fixed groups over every loaded cycle, a filter box, and one way
@@ -208,8 +199,6 @@ function CycleGroupSection({
 function CycleTitle({ row }: { row: CycleRow }) {
   return <span className="block truncate">{row.label}</span>;
 }
-
-/* === Private Functions === */
 
 function rowId(row: CycleRow): string {
   return row.cycleId;

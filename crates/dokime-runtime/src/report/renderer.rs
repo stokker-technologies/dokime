@@ -9,36 +9,11 @@
 
 // Report Renderer
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{CapturedExecutionReportInput, PreparedExecutionReport, html::HtmlReport};
 use dokime_domain::model::execution::saved::ExecutionOutput;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Renderer;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Renderer {
     pub fn execution(
@@ -61,9 +36,3 @@ impl Renderer {
         tracing::info_span!("report.render.html").in_scope(|| PreparedExecutionReport::prepare_html(html, outputs, saved))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

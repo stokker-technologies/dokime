@@ -7,47 +7,24 @@
  * ***
  */
 
-/* === Modules === */
-
 mod upload;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use crate::wire::WireMessage;
 use serde_json::json;
 use sha2::Digest;
-// Local Imports
+
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
 use dokime::domain::model;
 use dokime::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
 
-/* === Constants === */
-
 const INSTALL: &str = "/dokime.v1.Plugins/Install";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct InstallInput {
     entered: Option<tokio::sync::oneshot::Sender<()>>,
     dropped: Option<tokio::sync::oneshot::Sender<()>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl tokio_stream::Stream for InstallInput {
     type Item = model::plugins::wire::InstallPluginFrame;
@@ -74,10 +51,6 @@ impl Drop for InstallInput {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn large_bundle(resource_bytes: usize) -> Vec<u8> {
     bundle_for_target(resource_bytes, dokime::plugins::NATIVE_TARGET)
@@ -192,8 +165,6 @@ fn install(harness: &Harness, generation: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {

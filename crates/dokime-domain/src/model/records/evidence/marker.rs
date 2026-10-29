@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
 use crate::model::records::RecordSeverity;
 use crate::model::records::evidence::RecordEntry;
 use crate::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordMarker {
@@ -42,12 +24,6 @@ pub struct RecordMarker {
     pub severity: RecordSeverity,
     pub scope: Option<RecordScope>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for RecordMarker {
     fn memory_size(&self) -> usize {
@@ -75,9 +51,3 @@ impl RecordMarker {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

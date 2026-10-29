@@ -10,18 +10,8 @@
 // File watches against a running execution over the listener: a bounded
 // watch streams progress and seals, and a cancelled watch still seals.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::content::UploadGate;
 use super::*;
 use dokime::domain::model;
@@ -30,22 +20,6 @@ use {
     model::files::wire::FileWatchFramePayload, model::files::wire::FileWatchPhase, model::files::wire::FileWatchPolicy,
     model::files::wire::FileWatchSource, model::files::wire::FileWatchSourcePayload, model::files::wire::LocalWatchSource,
 };
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn file_watch_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -191,8 +165,6 @@ pub(crate) async fn file_watch_artifacts() {
     owner.shutdown().await.unwrap();
 }
 
-/* === Private Functions === */
-
 async fn watch(client: &WireClient, request: FileWatch) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::files::FileWatch>(authenticated(request)).await?.into_inner();
 
@@ -212,5 +184,3 @@ fn append(path: &std::path::Path, bytes: &[u8]) {
     let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
     file.write_all(bytes).unwrap();
 }
-
-/* === Tests === */

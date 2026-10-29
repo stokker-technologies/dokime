@@ -12,8 +12,6 @@
 
 #![recursion_limit = "256"]
 
-/* === Modules === */
-
 #[path = "../support/engine/evidence_durability.rs"]
 pub mod evidence_support;
 
@@ -42,33 +40,3 @@ pub mod engine_support;
 
 #[path = "../support/services/mod.rs"]
 pub mod service_support;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

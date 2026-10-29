@@ -11,21 +11,12 @@
 // Contract And Downloads In Bounded Frames; Integration Keeps The 2 MiB Guard
 // Of The Same Path At Two Frame Limits (`integration/content.rs`).
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use futures_util::FutureExt;
 use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;
 
-// Local Imports
 use crate::support::{self, wire::*};
 use dokime::artifacts::ArtifactUploadInput;
 use dokime::client::contracts;
@@ -34,24 +25,10 @@ use dokime::domain::model::execution::result::CycleView;
 use dokime::domains::ExecutionProviderTarget;
 use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, RecordScope, Runtime};
 
-/* === Constants === */
-
 const ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
 const UPLOAD_CHUNK_BYTES: usize = 1024 * 1024;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct LargeArtifact;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFixture for LargeArtifact {
     fn run_cycle<'a>(
@@ -84,18 +61,12 @@ impl ExecutionFixture for LargeArtifact {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn failed(cycle: &model::execution::wire::CycleSummary) -> bool {
     let Some(result) = cycle.result.as_ref() else {
         return false;
     };
     matches!(result.status, model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked)
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn artifact_transfer() {

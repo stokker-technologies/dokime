@@ -15,14 +15,8 @@
  * where it came from, and its settings button goes to that page.
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import type { PluginEntry, RuntimeSettingsFrame } from "@/lib/types/view-contracts";
-
-/* === Types === */
 
 /** One row of programs that no installed plugin entry already lists. */
 export type ProgramRow = {
@@ -31,8 +25,6 @@ export type ProgramRow = {
   /** The contributed settings page any program of the row owns; null without one. */
   settingsSection: string | null;
 };
-
-/* === Public Functions === */
 
 /** Groups the programs into rows, one per host, bundle package or lone
     program, each carrying the settings page one of its programs contributes.

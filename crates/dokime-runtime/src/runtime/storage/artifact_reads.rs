@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::FileRead;
 use harmos::storage::{ByteRange, FileReadBatch, FileReader, ReadBatch};
 
-// Local Imports
 use super::execution::ExecutionView;
 use crate::artifacts::ArtifactRecord;
 use crate::{runtime::Error, runtime::Result};
@@ -29,14 +20,6 @@ use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::Metadata;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct ArtifactReader {
     descriptor: ReadBatch<ExecutionOutput>,
     reader: FileReader,
@@ -44,12 +27,6 @@ pub struct ArtifactReader {
     pending: Option<FileReadBatch>,
     offset: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ArtifactReader {
     pub(super) async fn from_output(session: crate::storage::Manager, descriptor: ReadBatch<ExecutionOutput>) -> Result<Self> {
@@ -146,9 +123,3 @@ impl ArtifactReader {
         Ok(count)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

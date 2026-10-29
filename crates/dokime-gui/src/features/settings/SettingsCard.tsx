@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type SettingsCardProps = {
   children: ReactNode;
@@ -25,8 +19,6 @@ type SettingsCardProps = {
   footer?: ReactNode;
   title?: ReactNode;
 };
-
-/* === Components === */
 
 /** A grouped settings card: an optional header, a divided body of rows, and an optional footer. */
 export function SettingsCard({ actions, children, className, description, footer, title }: SettingsCardProps) {

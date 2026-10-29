@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createFileRoute, redirect } from "@tanstack/react-router";
-
-/* === Route === */
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {

@@ -7,36 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::files;
 use crate::grpc::transcode::Transcode;
 use dokime::ExecutionFileContent;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn owned(
     content: dokime::harmos::storage::ReadBatch<ExecutionFileContent>, maximum: usize,
@@ -68,12 +41,8 @@ pub(in crate::grpc) fn project(
     Ok(response)
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted {
         resource: "canonical file window projection",
     }
 }
-
-/* === Tests === */

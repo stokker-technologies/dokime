@@ -9,29 +9,11 @@
 
 // Prepare Native Runtime Resources
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use super::BootParts;
 use crate::app::{Dokime, Lanes, LiveRuntime};
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Prepared {
     pub(super) provider_invocations: Arc<crate::runtime::operations::provider::ProviderInvocations>,
@@ -41,16 +23,10 @@ pub(crate) struct Prepared {
     pub(super) record_ingress: Arc<crate::runtime::sidecars::core::RecordIngress>,
 }
 
-/* === Enums === */
-
 #[harmos::catalog]
 enum Catalog {
     Catalog(harmos::builtins::host::Catalog),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Prepared {
     pub(crate) fn configure(setup: &mut harmos::Setup<Dokime>, parts: &BootParts, live: &LiveRuntime) -> Result<Self> {
@@ -80,9 +56,3 @@ impl Prepared {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     io,
     path::PathBuf,
@@ -21,9 +14,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::{
     artifacts::{ArtifactSink, Artifacts},
     definition::{Step, TemplateContext},
@@ -32,25 +22,6 @@ use dokime_runtime::{
     transport::{MAX_ARTIFACT_BYTES, RunExecution, StepAdmission},
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 const GROWTH_FLOOR: u64 = 64 * 1024;
 const TEMPLATE: &str = "artifacts.capture";
 const WORKFLOW: &str = "artifacts";

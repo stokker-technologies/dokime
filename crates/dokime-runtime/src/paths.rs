@@ -7,45 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_domain::model::identity::distribution::DistributionIdentity;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     env, io,
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
 pub const DEFAULT_APPLICATION_ID: &str = "com.stokker.dokime";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct ApplicationPaths {
     pub root: PathBuf,
     logs: PathBuf,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ApplicationPaths {
     pub fn resolve(application_id: &str) -> std::io::Result<Self> {
@@ -120,8 +95,6 @@ impl ApplicationPaths {
     }
 }
 
-/* === Public Functions === */
-
 pub fn distribution_identity(executable: &Path, compiled_identifier: &str) -> io::Result<DistributionIdentity> {
     let directory = executable.parent().ok_or_else(|| io::Error::other("executable has no parent directory"))?;
     let bytes = match std::fs::read(directory.join("distribution.json")) {
@@ -135,10 +108,6 @@ pub fn distribution_identity(executable: &Path, compiled_identifier: &str) -> io
     identity.validate().map_err(io::Error::other)?;
     Ok(identity)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod distribution_tests {

@@ -7,35 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod wifi;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::signal::{Series, Summary};
 use serde::Serialize;
 
-// Local Imports
 use super::{PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp};
 use crate::document::PlotType;
 
 #[cfg(feature = "fft")]
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistogramBin {
@@ -123,8 +106,6 @@ pub struct WifiBandWindow {
     pub occupied_channels: usize,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
@@ -134,12 +115,6 @@ pub enum PlotAnalysis {
     SigmaInterval { series: Vec<SigmaSeries> },
     WifiOccupancy { channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<WifiBandWindow>, scans: Vec<WifiScan> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
     if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
@@ -319,8 +294,6 @@ pub(super) fn fft(entry: &mut PlotSeries, _: &PlotPayloadRequest) -> Result<(), 
     entry.points.clear();
     Err("FFT analysis is unavailable in this build".into())
 }
-
-/* === Private Functions === */
 
 #[cfg(feature = "fft")]
 fn fft_frequency(index: usize, size: usize, rate: f64, request: &PlotPayloadRequest) -> Option<f64> {
@@ -540,7 +513,6 @@ fn interval_slots<T>(count: usize) -> Result<Vec<T>, &'static str> {
 
 #[cfg(feature = "storage")]
 #[cfg(feature = "storage")]
-/* === Tests === */
 #[cfg(all(test, feature = "fft"))]
 mod tests {
     use super::*;

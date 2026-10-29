@@ -9,37 +9,12 @@
 
 // Settle Execution Publications, Cancellation And Capture Leases.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{
     ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
     ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
 };
 use crate::domains::telemetry::DeclaredLeases;
 use dokime_domain::model::execution::health::HealthSeverity;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for ProgressCleanup {
     fn drop(&mut self) {
@@ -224,10 +199,6 @@ impl HostCapture {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // A Refused Stream Is Told To The Operator As The Execution's Own Health Item, Not Only Logged.
 async fn refuse_stream(context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, stream: &Identifier, reason: &str) {
     tracing::warn!(plugin_id = source, stream = stream.as_str(), reason, "a declared stream could not be leased");
@@ -261,5 +232,3 @@ fn remove_matching_lease(held: &mut std::collections::BTreeMap<String, String>, 
         held.remove(token);
     }
 }
-
-/* === Tests === */

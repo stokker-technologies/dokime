@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::request::request_needs_dimension_context;
 use crate::plot::{PlotPayloadRequest, enrich_plot_samples_with_cycle_context, enrich_plot_samples_with_traceability_context};
 use crate::runtime::handle::RuntimeHandle;
@@ -28,14 +17,6 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::ValueFormat;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub(super) struct RuntimePlotEnvelopeContext {
     pub(super) generated_at: harmos::storage::ReadBatch<String>,
@@ -43,12 +24,6 @@ pub(super) struct RuntimePlotEnvelopeContext {
     cycle_context: bool,
     traceability: Option<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimePlotEnvelopeContext {
     pub(super) async fn load_at(
@@ -122,10 +97,6 @@ impl RuntimePlotEnvelopeContext {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn request_needs_elapsed_origin(request: &PlotPayloadRequest) -> bool {
     fn is_elapsed(format: Option<&ValueFormat>) -> bool {
         matches!(format, Some(ValueFormat::ElapsedSinceRun { .. } | ValueFormat::ElapsedSinceCycle { .. }))
@@ -133,5 +104,3 @@ fn request_needs_elapsed_origin(request: &PlotPayloadRequest) -> bool {
 
     is_elapsed(request.x_format.as_ref()) || is_elapsed(request.y_format.as_ref())
 }
-
-/* === Tests === */

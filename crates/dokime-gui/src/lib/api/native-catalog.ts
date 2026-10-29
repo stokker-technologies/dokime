@@ -9,10 +9,6 @@
 
 /* Native catalog and parameter-default adapters for the original routed UI. */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type {
   Row8 as GeneratedFileParameterDefinition,
   Row7 as GeneratedParameterSchema,
@@ -47,8 +43,6 @@ type ParameterSchema = Wire<GeneratedParameterSchema>;
 type FileParameterDefinition = Wire<GeneratedFileParameterDefinition>;
 type Cursor = Wire<GeneratedCursor>;
 
-/* === Catalog === */
-
 export async function fetchNativeSuites(session: SessionIdentity): Promise<TestSuiteEntry[]> {
   const identities = await listSuites(session);
   const definitions = await mapBounded(identities, (identity) => rpc.catalogGetSuite(session, { suiteId: identity.suiteId }));
@@ -60,8 +54,6 @@ export async function fetchNativeSuite(session: SessionIdentity, suiteId: string
   if (!identity) return null;
   return mapSuite(await rpc.catalogGetSuite(session, { suiteId }), identity);
 }
-
-/* === Private catalog mapping === */
 
 async function listSuites(session: SessionIdentity): Promise<SuiteIdentity[]> {
   const result: SuiteIdentity[] = [];

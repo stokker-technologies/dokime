@@ -10,16 +10,12 @@
 /* What a plot shows before the backend has delivered anything to draw. Every
  * plot kind words and places its wait the same way. */
 
-/* === Types === */
-
 export type PlotPlaceholderText = {
   label: string;
   detail: string;
   /** `error` when the plot failed rather than waits: the box reads as a failure. */
   tone?: "error";
 };
-
-/* === Constants === */
 
 /** The label of every plot whose backend payload has no samples yet. */
 export const WAITING_FOR_SAMPLES = "Waiting For Samples";
@@ -29,8 +25,6 @@ export const STREAM_ERROR = "Stream Error";
 
 /** The detail of a numeric plot with no samples in its window. */
 export const NO_NUMERIC_SAMPLES = "No numeric samples are available in the selected window.";
-
-/* === Public Functions === */
 
 /** The placeholder of a plot the backend could not produce, with its reason. */
 export function plotUnavailableText(message: string): PlotPlaceholderText {

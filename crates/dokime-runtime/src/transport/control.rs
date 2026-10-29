@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
-// Third Party Imports
 use harmos::sidecar::Refusal;
 use tokio::sync::Notify;
 
-// Local Imports
 use super::{CommandExecutionReply, CommandExecutionRequest};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::StepAttemptId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Command {
@@ -55,18 +38,12 @@ struct State {
     receipts: BTreeMap<CommandId, (Action, CommandExecutionReply)>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Action {
     Next,
     Step(Identifier),
     Finish,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Command {
     pub fn parse(request: &CommandExecutionRequest) -> Result<Self, Refusal> {
@@ -184,9 +161,3 @@ impl Controls {
         self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

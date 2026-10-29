@@ -9,29 +9,9 @@
 
 // Typed Refusals At The Domain Admission Boundary.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use thiserror::Error;
 
-// Local Imports
 use super::ValidationIssue;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, Error)]
 pub enum AdmissionFailure {
@@ -62,10 +42,6 @@ pub enum AdmissionFailure {
     #[error("{message}")]
     Internal { code: String, message: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl AdmissionFailure {
     pub fn code(&self) -> &str {
@@ -146,9 +122,3 @@ impl AdmissionFailure {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

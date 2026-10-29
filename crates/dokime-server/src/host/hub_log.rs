@@ -7,37 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
 use tracing_appender::non_blocking::{NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::{EnvFilter, Layer, fmt};
 
-// Local Imports
 use super::logging::BoxedLayer;
 use crate::host::{Error, Result};
-
-/* === Constants === */
 
 const SERVER_HUB_LOG_BYTES: u64 = 33_554_432;
 const SERVER_HUB_LOG_RECORDS: u64 = 8_192;
 
 const ROTATED_SUFFIX: &str = ".1";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct RotatingFile {
     maximum_bytes: u64,
@@ -46,12 +29,6 @@ struct RotatingFile {
     file: File,
     written: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RotatingFile {
     fn open(directory: &Path, filename: &str, maximum_bytes: u64) -> Result<Self> {
@@ -102,8 +79,6 @@ impl Write for RotatingFile {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn hub_log_layer(paths: &dokime::paths::ApplicationPaths) -> Result<(BoxedLayer, WorkerGuard)> {
     let path = paths.logs().join(dokime::domains::exports::storage::HUB_LOG_FILENAME);
     let directory = path.parent().ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?.to_path_buf();
@@ -134,8 +109,6 @@ pub(crate) fn hub_log_layer(paths: &dokime::paths::ApplicationPaths) -> Result<(
     Ok((layer, guard))
 }
 
-/* === Private Functions === */
-
 fn append(path: &Path) -> Result<File> {
     OpenOptions::new()
         .create(true)
@@ -143,5 +116,3 @@ fn append(path: &Path) -> Result<File> {
         .open(path)
         .map_err(|error| Error::Setup(format!("failed to open the hub log {}: {error}", path.display())))
 }
-
-/* === Tests === */

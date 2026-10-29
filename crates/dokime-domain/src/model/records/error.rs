@@ -7,24 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::diagnostics::StructuredErrorDetail;
 use crate::model::records::RecordSeverity;
-
-/* === Constants === */
-
-/* === Macros === */
 
 product_error!(RecordFailure, formatter {
     Self::UnknownRecordType { record_type } => write!(formatter, "record type {record_type:?} is not registered"),
@@ -39,11 +25,7 @@ product_error!(RecordFailure, formatter {
     Self::InvalidProductState { field, value } => write!(formatter, "product record field {field:?} has invalid state {value:?}"),
 });
 
-/* === Type Aliases === */
-
 pub type Result<T> = std::result::Result<T, RecordFailure>;
-
-/* === Structs === */
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("record {record:?} detail {field:?}: {reason}")]
@@ -64,8 +46,6 @@ pub struct RecordErrorDetail {
     pub correlation_id: Option<crate::model::identity::CorrelationId>,
 }
 
-/* === Enums === */
-
 #[derive(Debug, PartialEq)]
 pub enum RecordFailure {
     UnknownRecordType { record_type: String },
@@ -79,10 +59,6 @@ pub enum RecordFailure {
     IncompatibleContract(String),
     InvalidProductState { field: String, value: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for RecordErrorDetail {
     fn memory_size(&self) -> usize {
@@ -120,9 +96,3 @@ impl From<StructuredErrorDetail> for RecordErrorDetail {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

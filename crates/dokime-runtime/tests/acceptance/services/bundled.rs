@@ -9,42 +9,11 @@
 
 // Stories Over The Built OBC Plugin Bundle, Which Only The Acceptance Lane Receives.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::plugins::PluginStore;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn fixture_bytes() -> Vec<u8> {
     std::fs::read(crate::service_support::bundles::obc_plugin_bundle()).unwrap()
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn external_analysis_reload() {

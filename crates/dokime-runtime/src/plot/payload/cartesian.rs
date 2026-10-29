@@ -7,38 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde_json::Value as JsonValue;
 
-// Local Imports
 use super::{PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotDomain, PlotSeries, parse_timestamp};
 use crate::document::{AxisScale, PlotType};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct OrderedFloat(f64);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Eq for OrderedFloat {}
 
@@ -54,8 +31,6 @@ impl Ord for OrderedFloat {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn cartesian_frame(
     series: &[PlotSeries], plot_type: Option<&PlotType>, x_scale: &AxisScale, y_scale: &AxisScale,
 ) -> Result<Option<PlotCartesianFrame>, String> {
@@ -65,8 +40,6 @@ pub(super) fn cartesian_frame(
         PlotCartesianMode::Faceted => faceted_cartesian_frame(series, x_scale, y_scale).map(Some),
     }
 }
-
-/* === Private Functions === */
 
 fn cartesian_point(point: &super::PlotPoint, index: usize, x_scale: &AxisScale, y_scale: &AxisScale) -> Option<(f64, f64)> {
     let x = plot_point_x_value(&point.x, index)?;
@@ -204,5 +177,3 @@ fn cartesian_signature(series: &[PlotCartesianSeriesFrame]) -> Result<String, St
     write!(&mut signature, "{:016x}", hash.finish()).map_err(|error| error.to_string())?;
     Ok(signature)
 }
-
-/* === Tests === */

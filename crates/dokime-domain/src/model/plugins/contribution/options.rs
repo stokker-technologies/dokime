@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::PluginEntrypoint;
 use crate::model::identity::Metadata;
 use crate::model::plugins::Permission;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OptionProviderContribution {
@@ -61,8 +43,6 @@ pub struct OptionProviderOption {
     pub metadata: Option<Value>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum OptionProviderSource {
@@ -74,13 +54,3 @@ pub enum OptionProviderSource {
         entrypoint: PluginEntrypoint,
     },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

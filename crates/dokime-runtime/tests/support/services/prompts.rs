@@ -7,36 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::{PromptId, Value};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub async fn assert_late_answer_refused(runtime: &RuntimeHandle, id: &PromptId) {
     let error = runtime
         .submit_prompt_response(
@@ -73,7 +48,3 @@ pub async fn settlement_records(runtime: &RuntimeHandle, id: &PromptId) -> Vec<(
         })
         .collect()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

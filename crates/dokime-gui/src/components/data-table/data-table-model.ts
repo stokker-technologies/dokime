@@ -14,8 +14,6 @@
  * own row models.
  */
 
-/* === External Imports === */
-
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -26,15 +24,15 @@ import {
   createFacetedRowModel,
   createFacetedUniqueValues,
   createFilteredRowModel,
+  createPaginatedRowModel,
   createSortedRowModel,
   type FilterFn,
   filterFn_includesString,
+  globalFilteringFeature,
   metaHelper,
   type RowData,
-  rowSortingFeature,
   rowPaginationFeature,
-  createPaginatedRowModel,
-  globalFilteringFeature,
+  rowSortingFeature,
   sortFn_alphanumeric,
   sortFn_basic,
   sortFn_datetime,
@@ -42,8 +40,6 @@ import {
   tableFeatures,
 } from "@tanstack/react-table";
 import type { ReactNode } from "react";
-
-/* === Types === */
 
 /** How a column reads, sorts and filters; everything is opt-in. */
 export type DataTableColumnMeta = {
@@ -103,8 +99,6 @@ export type DataTableProps<TData extends RowData> = {
 
 export type DataTableFeatures = typeof dataTableFeatures;
 
-/* === Constants === */
-
 export const dataTableFeatures = tableFeatures({
   rowPaginationFeature,
   paginatedRowModel: createPaginatedRowModel(),
@@ -131,8 +125,6 @@ export const dataTableFeatures = tableFeatures({
 export const facetFilter: FilterFn<DataTableFeatures, any> = (row, columnId, picked) =>
   Array.isArray(picked) && picked.includes(row.getValue(columnId));
 facetFilter.autoRemove = (picked) => !Array.isArray(picked) || picked.length === 0;
-
-/* === Public Functions === */
 
 export function dataTableColumns<TData extends RowData>() {
   return createColumnHelper<DataTableFeatures, TData>();

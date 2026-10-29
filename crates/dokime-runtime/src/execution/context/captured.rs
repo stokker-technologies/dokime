@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod native;
 pub(crate) mod read;
 pub(crate) mod source;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use base64::Engine;
 use cssparser::{Parser, Token};
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::TestCase;
 use crate::document::DocumentDefinition;
 use crate::installed_plugins::RuntimeAppearanceFrame;
@@ -40,14 +31,6 @@ use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -78,12 +61,6 @@ pub struct ExecutionCycleContext {
     pub cases: Vec<TestCase>,
     pub execution_order: Vec<TestExecutionId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl AppearancePolicy {
     pub fn capture() -> Self {
@@ -141,8 +118,6 @@ impl ExecutionContext {
         validate_appearance(&self.appearance, &self.appearance_policy)
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
     (scope.test_cycle_id.is_some() || scope.test_execution_id.is_some())
@@ -207,7 +182,6 @@ pub(crate) fn css_values(theme: &crate::installed_plugins::RuntimeThemeFamily) -
             .flatten(),
         )
 }
-/* === Private Functions === */
 
 fn validate_css(css: &str, maximum: u64) -> std::result::Result<(), &'static str> {
     let mut input = Parser::new(css);
@@ -300,8 +274,6 @@ fn validate_logo(url: &str, maximum: u64) -> Result<()> {
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

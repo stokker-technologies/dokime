@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-// Third Party Imports
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-// Local Imports
 use crate::plugin::settings::PluginSettings;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
@@ -46,12 +29,6 @@ pub struct Configuration {
     #[serde(default)]
     pub saved: BTreeSet<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
@@ -133,12 +110,6 @@ impl fmt::Debug for Configuration {
             .finish()
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

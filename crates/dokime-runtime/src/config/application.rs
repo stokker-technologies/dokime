@@ -7,24 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{env, io, path::PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use super::{ApplicationPaths, DEFAULT_APPLICATION_ID, organization};
 
 #[cfg(feature = "native")]
 use super::Config;
-
-/* === Constants === */
 
 #[cfg(feature = "native")]
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
@@ -32,24 +20,12 @@ const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 #[cfg(feature = "native")]
 const PLUGIN_LOOKUP_ENV: &str = "DOKIME_PLUGINS_DIR";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, Default)]
 pub struct ApplicationOptions {
     pub application_root: Option<PathBuf>,
     pub storage_root: Option<PathBuf>,
     pub plugins_root: Option<PathBuf>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ApplicationOptions {
     #[cfg(feature = "native")]
@@ -103,10 +79,6 @@ impl ApplicationOptions {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn environment_path(name: &str) -> Option<PathBuf> {
     let value = env::var_os(name)?;
     if value.is_empty() {
@@ -114,5 +86,3 @@ fn environment_path(name: &str) -> Option<PathBuf> {
     }
     Some(PathBuf::from(value))
 }
-
-/* === Tests === */

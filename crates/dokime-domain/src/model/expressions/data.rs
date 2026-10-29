@@ -7,25 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::Aggregate;
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::expressions::Expression;
 use crate::model::expressions::ExpressionKind;
 use crate::model::values::Value;
-
-/* === Constants === */
 
 const FN_DATA_TELEMETRY: &str = "data.telemetry";
 const FN_DATA_PARAMETER: &str = "data.parameter";
@@ -41,15 +29,9 @@ const FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE: &str = "data.transform.telemetry_at_o
 const FN_TRANSFORM_DETAIL: &str = "data.transform.detail";
 const FN_TRANSFORM_PER_CASE: &str = "data.transform.per_case";
 
-/* === Macros === */
-
 product_error!(DataExpressionError, formatter {
     Self::UnsupportedExpression => formatter.write_str("expression cannot be represented as a data expression"),
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DataExpression {
@@ -61,8 +43,6 @@ pub struct DataExpression {
     #[serde(default)]
     pub transforms: Vec<DataTransform>,
 }
-
-/* === Enums === */
 
 // Errors
 
@@ -93,10 +73,6 @@ pub enum DataTransform {
     Detail { name: String },
     PerCase,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for DataSource {
     fn memory_size(&self) -> usize {
@@ -261,8 +237,6 @@ impl TryFrom<Expression> for DataExpression {
     }
 }
 
-/* === Public Functions === */
-
 pub fn telemetry(stream: impl Into<String>, field: impl Into<String>) -> DataExpression {
     DataExpression {
         label: None,
@@ -309,8 +283,6 @@ pub fn artifact(artifact: impl Into<String>) -> DataExpression {
 pub fn per_case(expression: impl Into<DataExpression>) -> DataExpression {
     expression.into().per_case()
 }
-
-/* === Private Functions === */
 
 fn data_source_expression(source: DataSource) -> Expression {
     match source {
@@ -462,5 +434,3 @@ fn text_literal(expression: &Expression) -> Result<String, DataExpressionError> 
 
     Ok(value.clone())
 }
-
-/* === Tests === */

@@ -18,15 +18,10 @@
  * each time it opens, saves through the caller, and reports a refusal through notifications while retaining the draft.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { type FormEvent, useEffect, useId, useState } from "react";
-// Third Party Imports
+
 import { NotificationMessage } from "@/components/NotificationMessage";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -34,13 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 export const EMPTY_SETTINGS_TITLE_ERROR = "A title is required.";
-
-/* === Types === */
 
 /** The values the form edits; a field absent here is not shown. */
 export type SettingsValues = {
@@ -74,8 +63,6 @@ export type SettingsDialogProps = {
   onSubmit: (values: SettingsValues) => Promise<unknown>;
   submitLabel?: string;
 };
-
-/* === Components === */
 
 export function SettingsFields({ idPrefix, onChange, readOnly = {}, titleInvalid = false, values }: SettingsFieldsProps) {
   const generated = useId();
@@ -195,10 +182,6 @@ export function SettingsDialog({
   );
 }
 
-/* === Hooks === */
-
-/* === Public Functions === */
-
 /**
  * What a cycle's Settings may change. Its description is written once, when
  * the cycle is created; everything is read-only once it seals or archives.
@@ -211,8 +194,6 @@ export function cycleSettingsReadOnly(phase: "active" | "sealing" | "sealed", ar
   }
   return archived ? { description, title: "Unarchive the cycle to rename it." } : { description };
 }
-
-/* === Private Functions === */
 
 function ReadOnlyHint({ text }: { text?: string }) {
   return text ? <p className="text-xs text-muted-foreground">{text}</p> : null;

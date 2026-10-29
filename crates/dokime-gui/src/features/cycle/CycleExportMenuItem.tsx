@@ -11,29 +11,18 @@
  * Export Sealed Evidence Through Native Verified Delivery
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { FileArchive } from "lucide-react";
-// Local Imports
+
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { toast } from "@/lib/notifications";
 import { useCycleCommands } from "./cycle-queries";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 type Props = {
   cycleId: string;
   executionId: string | null;
   sealed: boolean;
 };
 
-/* === Components === */
 export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
   const { exportEvidence } = useCycleCommands(cycleId);
   const title = sealed
@@ -60,9 +49,3 @@ export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
     </DropdownMenuItem>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

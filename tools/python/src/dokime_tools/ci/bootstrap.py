@@ -8,9 +8,6 @@
 
 """Prepare Native CI Platform Prerequisites"""
 
-# === Imports === #
-
-# Standard Library Imports
 from __future__ import annotations
 
 import argparse
@@ -25,15 +22,6 @@ import urllib.request
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
-
-# Third Party Imports
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 # Debian Build And Installer Prerequisites
 GUI_MARKER_PACKAGE = "libwebkit2gtk-4.1-dev"
@@ -91,12 +79,6 @@ DESKTOP_PACKAGES = (
 )
 # Google's Stable Chrome For Testing Release, Used Only When The Hosted Browser Is Absent.
 CHROME_VERSION = "156.0.8078.47"
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -245,9 +227,6 @@ def prepare_windows_desktop(root: Path) -> Path:
     return driver
 
 
-# === Private Functions === #
-
-
 def _webview_version() -> str | None:
     if sys.platform != "win32":
         return None
@@ -305,8 +284,6 @@ def _run(command: Sequence[str]) -> None:
 def _step(message: str) -> None:
     print(f"[ci:bootstrap] {message}", flush=True)
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     sys.exit(main())

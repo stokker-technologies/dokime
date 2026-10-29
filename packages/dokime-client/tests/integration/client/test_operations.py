@@ -8,36 +8,19 @@
 
 """Exercise Live External Contracts Through Actual Canonical gRPC Calls"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import copy
 import json
 
-# Third Party Imports
 import grpc
 import pytest
 
-# Local Imports
 import dokime_client
 from dokime_client.client import DokimeClient, ProtocolError
 from dokime_client.dynamic import from_contract
 
 from .backend import BackendFixture
 from .canonical import register
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("mode", ["unary", "client_stream", "server_stream", "bidi"])
@@ -183,9 +166,6 @@ def test_external_operation(mode: str) -> None:
     asyncio.run(scenario())
 
 
-# === Private Functions === #
-
-
 def _contract(mode: str) -> dict:
     def message(index):
         return {"type": "message", "definition": index}
@@ -220,6 +200,3 @@ def _contract(mode: str) -> dict:
             "definitions": [root, [field("wide", 1, {"type": "u64"})]],
         },
     }
-
-
-# === Entry Point === #

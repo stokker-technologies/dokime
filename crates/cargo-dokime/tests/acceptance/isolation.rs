@@ -7,37 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 use std::process::Command;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile {
     let configuration = tempfile::Builder::new().prefix("dokime-mise-").suffix(".toml").tempfile().unwrap();
@@ -62,8 +33,6 @@ fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile
         .env_remove("MISE_ENABLE_TOOLS");
     configuration
 }
-
-/* === Tests === */
 
 #[test]
 fn mise_ignores_machine_tools() {

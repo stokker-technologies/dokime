@@ -14,21 +14,16 @@
  * and closing the drawer stops the stream without forgetting what it showed.
  */
 
-/* === External Imports === */
 import { useCallback, useEffect } from "react";
 import { useStore } from "zustand";
 
-/* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
 import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
-/* === Constants === */
-
 const GUI_CONSOLE_RECONNECT_MAX_MS = 30_000;
 const GUI_RECONNECT_MS = 1_000;
 
-/* === Hooks === */
 export function useConsoleRecords({
   cycleId,
   enabled,
@@ -132,7 +127,6 @@ export function useConsoleRecords({
   return { clear, dropped: buffer.dropped, error: buffer.error, records: buffer.records };
 }
 
-/* === Private Functions === */
 function grpcCode(error: unknown): number | undefined {
   if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) return undefined;
   const detail = error.detail;

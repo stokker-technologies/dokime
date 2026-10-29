@@ -7,39 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Stdio};
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct StandaloneDirectory {
     path: PathBuf,
     owner: Child,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl StandaloneDirectory {
     pub fn path(&self) -> &Path {
@@ -53,8 +28,6 @@ impl Drop for StandaloneDirectory {
         let _ = self.owner.wait();
     }
 }
-
-/* === Public Functions === */
 
 pub fn tool() -> std::path::PathBuf {
     artifact("cargo-dokime")
@@ -89,8 +62,6 @@ pub fn standalone_directory() -> StandaloneDirectory {
     StandaloneDirectory { path, owner }
 }
 
-/* === Private Functions === */
-
 fn artifact(name: &str) -> std::path::PathBuf {
     let platform = if cfg!(windows) { "windows" } else { "linux" };
     let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".to_owned());
@@ -105,5 +76,3 @@ fn artifact(name: &str) -> std::path::PathBuf {
     assert!(path.is_file(), "{} is missing: run mise run build", path.display());
     path
 }
-
-/* === Tests === */

@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::RecordHealth;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{RuntimeHandle, runtime::Error, runtime::Result as RuntimeResult};
 use dokime_domain::model::execution::health::HealthItem;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn record_health_item(&self, mut health: HealthItem) -> RuntimeResult<()> {
@@ -116,9 +91,3 @@ impl RuntimeHandle {
         failure.map_or(Ok(()), |error| Err(Error::Operation(format!("annotation committed but checkpoint failed: {error}"))))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

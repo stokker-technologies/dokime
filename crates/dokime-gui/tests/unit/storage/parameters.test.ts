@@ -7,15 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test, vi } from "vitest";
 
-// Local Imports
 import {
   PARAMETER_OVERRIDES_STORAGE_KEY,
   parameterOverride,
@@ -23,8 +18,6 @@ import {
   useParameterOverridesStatus,
   useParameterOverridesStore,
 } from "@/stores/parameter-overrides-store";
-
-/* === Constants === */
 
 const fixture = vi.hoisted(() => {
   const values = new Map<string, string>();
@@ -38,14 +31,10 @@ const fixture = vi.hoisted(() => {
   return { values, read: vi.fn(async () => null), write: vi.fn() };
 });
 
-/* === Entry Point === */
-
 vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
 vi.mock("@/lib/desktop/commands", () => ({
   commands: { desktopParametersRead: fixture.read, desktopParametersWrite: fixture.write },
 }));
-
-/* === Tests === */
 
 test("Typed Remembered Parameters", () => {
   const values = { template: { voltage: { raw: "115", valueType: "int", unit: "V" } } };

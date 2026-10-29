@@ -11,44 +11,13 @@
 // through the runtime and read back through the evidence snapshot, journal
 // subscriptions and traceability projections.
 
-/* === Modules === */
-
 mod model;
 mod notes;
 mod publication;
 mod records;
 mod traceability;
 
-/* === Re-Exports === */
 pub(crate) use crate::service_support::prelude::*;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // One runtime with the host wifi contracts carries the publication stages. The refusals run
 // first because they assert an empty evidence set; later stages scope their counts to what

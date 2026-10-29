@@ -9,26 +9,7 @@
 
 // Install-Time Distribution Identity
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -40,12 +21,6 @@ pub struct DistributionIdentity {
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 #[error("distribution identity requires schema 1 and a lowercase reverse-DNS identifier")]
 pub struct DistributionIdentityError;
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DistributionIdentity {
     pub fn new(identifier: impl Into<String>) -> Result<Self, DistributionIdentityError> {
@@ -75,12 +50,6 @@ impl DistributionIdentity {
         self.identifier.replace('.', "-")
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

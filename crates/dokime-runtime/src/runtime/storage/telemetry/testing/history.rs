@@ -9,38 +9,11 @@
 
 // Pending Admission, Window Reads And Follow On One Saved History
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Reading, StorageConfig, TestApp};
 use crate::runtime::storage::telemetry::{ReadOptions, collect_page, prepare_staged, visit_saved};
 use crate::storage::{Manager, telemetry};
 use harmos::{Runtime, storage::StorageBackends};
 use std::sync::Arc;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn telemetry(days: u64, per_day: u64) {
     use std::num::NonZeroUsize;
@@ -218,7 +191,3 @@ pub async fn telemetry(days: u64, per_day: u64) {
     assert_eq!(read, days * per_day);
     runtime.shutdown().await.unwrap();
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

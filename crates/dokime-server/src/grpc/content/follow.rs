@@ -7,53 +7,30 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::{Response, StreamOutput};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::error::detailed;
 use dokime::app::LiveRuntime;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::Error;
 
-/* === Constants === */
-
 // A Quiet Follow Sends An Empty Chunk Well Inside The Client's 30 s Idle Deadline.
 const FOLLOW_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::FollowExecutionFile),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::FollowExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::FollowExecutionFile, ctx: Context<'a, wire::FollowExecutionFile>) -> Served<'a, ()> {
@@ -123,8 +100,6 @@ impl Serve<wire::FollowExecutionFile> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -135,8 +110,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn send(
     output: &StreamOutput<dokime::domain::model::content::wire::ExecutionFileFollowFrame>,
@@ -161,5 +134,3 @@ fn failure(error: Error) -> Status {
     };
     detailed(status, &error)
 }
-
-/* === Tests === */

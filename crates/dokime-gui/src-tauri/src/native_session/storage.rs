@@ -7,27 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fs::{File, OpenOptions, TryLockError},
     io::{Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
-// Local Imports
 use super::{DesktopSessionError as Error, StorageResetReason as Reason};
 use dokime::paths::ApplicationPaths;
-
-/* === Constants === */
 
 const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
 
@@ -38,12 +27,6 @@ const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 const LEASE: &str = "local.lock";
 
 // How many archive bytes pass between two progress reports.
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageRoot {
@@ -60,12 +43,6 @@ struct Counted<W, F> {
     reported: u64,
     report: F,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl StorageRoot {
     pub fn new(data: PathBuf, application: PathBuf) -> Self {
@@ -278,10 +255,6 @@ impl<W: Seek, F> Seek for Counted<W, F> {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn refusal(reason: Reason, message: String) -> Error {
     Error::StorageReset { reason, message }
 }
@@ -297,5 +270,3 @@ fn archive_failure(path: &Path, error: &std::io::Error) -> Error {
 fn zip_failure(path: &Path, error: zip::result::ZipError) -> Error {
     refusal(Reason::Failed, format!("{} could not be archived: {error}.", path.display()))
 }
-
-/* === Tests === */

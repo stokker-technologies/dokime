@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod objects;
 pub(crate) mod projection;
 mod read_rows;
@@ -19,32 +17,12 @@ pub mod sqlite;
 pub mod telemetry;
 mod values;
 
-/* === Re-Exports === */
-
 pub use read_rows::{ReadRows, RowsIter};
 pub(crate) use values::{datetime_memory, encode_datetime};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
 
 pub type Manager = harmos::storage::StorageManager<objects::Objects>;
 pub type Backend = sqlite::Backend<objects::Objects>;
 pub type Result<T> = std::result::Result<T, Error>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -121,12 +99,6 @@ pub enum Error {
     Contract(#[from] dokime_domain::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
     let mut reader = storage
         .read_file(harmos::storage::FileRead {
@@ -171,7 +143,3 @@ pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileRefe
     }
     Ok(harmos::storage::ReadBatch::new(Vec::new()))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

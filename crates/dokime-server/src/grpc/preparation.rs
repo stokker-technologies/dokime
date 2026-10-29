@@ -9,40 +9,16 @@
 
 // Prepare And Activate Server Handler Resources
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, OnceLock};
 
-// Third Party Imports
-
-// Local Imports
 use super::{Config, Error, Service, authorization};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(super) type Owner = tokio::sync::RwLock<Option<Service>>;
-
-/* === Structs === */
 
 pub struct PreparedService {
     composition: dokime::app::Composition,
     owner: Arc<Owner>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PreparedService {
     pub fn composition(&self) -> dokime::app::Composition {
@@ -62,8 +38,6 @@ impl PreparedService {
         self.owner.read().await.clone().ok_or(Error::Configuration("server lifecycle has not initialized"))
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn prepare(config: Config) -> Result<PreparedService, Error> {
     config.validate()?;
@@ -119,10 +93,6 @@ pub(super) async fn controller(owner: &Owner) -> Result<Arc<super::remote::Contr
         .ok_or_else(|| tonic::Status::unavailable("remote listener controller is not active"))
 }
 
-/* === Private Functions === */
-
 fn hosting(source: Error) -> dokime::runtime::Error {
     dokime::runtime::Error::Hosting { source: Box::new(source) }
 }
-
-/* === Tests === */

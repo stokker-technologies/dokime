@@ -7,23 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { deliverNativeContent } from "./native-delivery";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type NativeReportSource = Extract<ArtifactSource, { kind: "cycle_report" | "execution_report" }>;
 
@@ -31,14 +18,6 @@ export interface SavedReport {
   path: string;
   openFailure: string | null;
 }
-
-/* === Classes === */
-
-/* === Components === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
 
 /** Pull and verify a report into the native cache before opening it. */
 export async function openNativeReport(session: SessionIdentity, source: NativeReportSource): Promise<"Current" | "Sealed" | undefined> {
@@ -66,7 +45,3 @@ export async function downloadNativeReport(
     return { path: delivered.path, openFailure: error instanceof Error ? error.message : String(error) };
   }
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

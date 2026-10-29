@@ -8,19 +8,14 @@
 
 """Cycle-owned control, interaction, evidence and report operations."""
 
-# === Imports === #
-
-# Standard Library Imports
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import aclosing
 from pathlib import Path
 from typing import Any
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
-# Local Imports
 from .. import _wire, prompts
 from .._transport import Transport, _cursor
 from ..errors import (
@@ -40,20 +35,10 @@ from .handle import Execution
 from .listeners import read_records, read_samples
 from .request import _identity
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 MAXIMUM_SAMPLE_PAGE_ITEMS = 5000
 PAGE_ITEMS = 100
 SAMPLE_PAGE_ITEMS = 1000
 VALUE_DEPTH = 64
-
-# === Types === #
-
-# === Classes === #
 
 
 class Cycle:
@@ -292,11 +277,3 @@ class Cycle:
         ):
             for item in page.samples:
                 yield _wire.sample(item, VALUE_DEPTH)
-
-
-# === Public Functions === #
-
-# === Private Functions === #
-
-
-# === Entry Point === #

@@ -11,15 +11,11 @@
  * Recent Remote Sessions Of This Host
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import { useQuery } from "@tanstack/react-query";
-// Third Party Imports
+
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
-// Local Imports
+
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
@@ -37,10 +33,6 @@ import {
   sessionRow,
 } from "@/features/settings/sections/remote-sessions";
 import * as rpc from "@/lib/rpc/generated/client";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const column = dataTableColumns<RemoteSessionRow>();
 const COLUMNS: DataTableColumns<RemoteSessionRow> = column.columns([
@@ -71,10 +63,6 @@ const COLUMNS: DataTableColumns<RemoteSessionRow> = column.columns([
     meta: { label: "Outcome", width: "w-56" },
   }),
 ]);
-
-/* === Types === */
-
-/* === Components === */
 
 /** Who reached this host remotely, newest first, with mount, focus and manual refresh. */
 export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
@@ -121,12 +109,6 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
     </SettingsCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function rowKey(row: RemoteSessionRow): string {
   return row.key;

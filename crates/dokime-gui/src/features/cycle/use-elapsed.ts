@@ -17,26 +17,14 @@
  * measured durations only and leaves running and pending ones empty.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useEffect, useState } from "react";
 
-// Local Imports
 import { formatDuration } from "@/lib/format";
 import { parseTimestampMs } from "@/lib/time-format";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const GUI_ELAPSED_TICK_MS = 1_000;
 
 const TICK_MS = GUI_ELAPSED_TICK_MS;
-
-/* === Types === */
 
 /** What a duration cell is decided from. */
 export type DurationSubject = {
@@ -44,10 +32,6 @@ export type DurationSubject = {
   started_at?: string | null;
   duration_s?: number | null;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * The text of a duration cell: empty while pending, the ticking elapsed time
@@ -83,7 +67,3 @@ export function useElapsedSeconds(startedAt: string | null | undefined, running:
   }, [running, startedAt]);
   return elapsed;
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

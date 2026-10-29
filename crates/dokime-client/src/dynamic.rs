@@ -7,41 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use harmos::grpc::dynamic::Event;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use futures_util::{StreamExt, stream};
 use harmos::grpc::dynamic::Operation;
 
-// Local Imports
 use super::operations::{Error, Result};
 use super::{Client, ResponseStream, stream::Input};
 
-/* === Constants === */
-
 const INPUT_BYTES: u64 = 16_777_216;
 const INPUT_FRAMES: u64 = 4_096;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Client {
     pub async fn call_operation(
@@ -147,9 +124,3 @@ impl Client {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

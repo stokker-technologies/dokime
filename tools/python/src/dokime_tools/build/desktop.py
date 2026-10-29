@@ -8,9 +8,6 @@
 
 """Prepare Desktop Development Commands For The Native Owner"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import json
 import os
@@ -18,23 +15,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.build import configuration, outputs
 from dokime_tools.build.frontend import ROOT, WEB_ROOT
 from dokime_tools.prepare.resources import refresh
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def merge_config(base: object, override: object) -> object:
@@ -163,10 +146,6 @@ def main() -> int:
     launch(commands, cwd=WEB_ROOT, environment=environment, messages=messages)
     return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(main())

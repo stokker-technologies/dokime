@@ -15,21 +15,7 @@
  * order stay testable away from the query layer.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type SidebarCycleSource = Pick<CycleRow, "createdAtIso" | "cycleId" | "label" | "phase">;
 
@@ -39,10 +25,6 @@ export type SidebarCycle = {
   current: boolean;
   label: string;
 };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /**
  * Every cycle that has not sealed, newest first, plus the cycle the route
@@ -64,11 +46,7 @@ export function sidebarCycles(rows: readonly SidebarCycleSource[], currentCycleI
   return cycles;
 }
 
-/* === Private Functions === */
-
 function byNewest(left: SidebarCycleSource, right: SidebarCycleSource): number {
   const created = (right.createdAtIso ?? "").localeCompare(left.createdAtIso ?? "");
   return created !== 0 ? created : left.cycleId.localeCompare(right.cycleId);
 }
-
-/* === Entry Point === */

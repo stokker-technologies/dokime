@@ -9,34 +9,16 @@
 
 // Local Machine Diagnostics That Need No Backend
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::storage::{
     BackendFailure, ByteRange, CaptureConsistency, FileMetadata, Identifier, StorageBackend, StorageBackends, StorageFuture, Worker,
     WorkerOwner,
 };
 
-// Local Imports
-
-/* === Constants === */
-
 const PROBE_BYTES: &[u8] = b"dokime storage probe\n";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct StorageArgs {
@@ -53,17 +35,11 @@ struct Report {
 // Runs The Scratch Store's One Worker For The Diagnostic's Lifetime.
 struct WorkerTask(tokio::sync::Mutex<Option<tokio::task::JoinHandle<dokime::harmos::storage::Result<()>>>>);
 
-/* === Enums === */
-
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Probe Each Directory Dokime Writes With The Same File Operations Its Storage Uses.")]
     Storage(StorageArgs),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Report {
     fn step<T, E: std::error::Error + 'static>(&mut self, location: &Path, step: &str, result: Result<T, E>) -> Option<T> {
@@ -93,15 +69,11 @@ impl WorkerOwner for WorkerTask {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn run(command: Command, configuration: dokime::config::Config) -> crate::Result<()> {
     match command {
         Command::Storage(args) => storage(args, configuration).await,
     }
 }
-
-/* === Private Functions === */
 
 async fn storage(args: StorageArgs, configuration: dokime::config::Config) -> crate::Result<()> {
     let temp_root = std::env::temp_dir();
@@ -285,5 +257,3 @@ fn describe(error: &(dyn std::error::Error + 'static)) -> String {
         _ => error.to_string(),
     }
 }
-
-/* === Tests === */

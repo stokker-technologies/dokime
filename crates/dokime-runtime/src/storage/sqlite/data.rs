@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod backend;
 mod entry;
 mod files;
@@ -18,27 +16,18 @@ mod records;
 mod retention;
 mod telemetry;
 
-/* === Re-Exports === */
-
 pub use backend::Backend;
 pub(crate) use entry::Entry;
 pub(super) use files::VerifiedPrefix;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 
-// Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, params, types::Value};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::{Error, State};
 use entry::{Borrowed, Encoded, key, timestamp_key};
-
-/* === Constants === */
 
 pub(super) const FORMAT: &str = "dokime.sqlite.storage.v1";
 pub(super) const HISTORY_BYTES: usize = 4096;
@@ -94,12 +83,6 @@ CREATE INDEX IF NOT EXISTS storage_data_stream_scope_time ON storage_data_entrie
     WHERE kind='stream';
 ";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub(crate) struct SavedData {
     pub history: StoreHistory,
@@ -116,12 +99,6 @@ pub(super) struct Scan {
     pub latest_objects: bool,
     pub page: ScanPage,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl State {
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
@@ -188,8 +165,6 @@ impl Scan {
         self
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     let exists: bool =
@@ -269,8 +244,6 @@ pub(super) fn sequence(value: &str) -> Result<u64, Error> {
     }
     u64::from_str_radix(value, 16).map_err(|_| Error::Corrupt("invalid saved sequence"))
 }
-
-/* === Private Functions === */
 
 // The Backend Must Own Its Durable Identity Before The Native Manager Exists.
 // Only This Bounded Identity Decode Runs Outside Manager-Admitted Scratch.
@@ -575,8 +548,6 @@ fn read_scan(connection: &Connection, scan: &Scan, metrics: &super::ReadMetrics)
     }
     Ok(entries)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

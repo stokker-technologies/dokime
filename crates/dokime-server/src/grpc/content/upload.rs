@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::StreamInput;
 use tonic::Status;
 
-// Local Imports
 use super::{metadata, transfer_chunk_bytes};
 use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
@@ -36,14 +27,6 @@ use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::ArtifactUpload;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
@@ -54,16 +37,10 @@ struct Abandoning {
     upload: Option<ArtifactUpload>,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::UploadArtifact),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::UploadArtifact> for Resources {
     fn serve<'a>(
@@ -158,8 +135,6 @@ impl Drop for Abandoning {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -218,8 +193,6 @@ pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status 
 
     detailed(status, &error)
 }
-
-/* === Private Functions === */
 
 fn upload_header(
     header: &dokime::domain::model::content::wire::UploadArtifactHeader,
@@ -290,5 +263,3 @@ fn operation_status(message: &str) -> Status {
         Status::internal("artifact upload failed")
     }
 }
-
-/* === Tests === */

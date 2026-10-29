@@ -11,19 +11,8 @@
  * Durable, Paged Notification History And Toast Delivery.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { isValidElement, type ReactNode, useSyncExternalStore } from "react";
 import { toast as displayToast, type ExternalToast } from "sonner";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const PAGE_SIZE = 25;
 
@@ -44,8 +33,6 @@ export const toast = {
   warning: (title: string, options?: NotificationOptions) => publish("warning", title, options),
 };
 
-/* === Types === */
-
 export type NotificationTone = "error" | "info" | "success" | "warning";
 
 export type NotificationRecord = {
@@ -65,10 +52,6 @@ export type NotificationPage = { records: NotificationRecord[]; older: boolean; 
 type NotificationOptions = Omit<ExternalToast, "description"> & { description?: string | null; source?: string };
 
 type Summary = { count: number; unread: number; revision: number; error?: string };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export async function recordNotification(record: NotificationRecord): Promise<void> {
   const connection = await open();
@@ -154,8 +137,6 @@ export function notificationText(node: ReactNode): string {
   if (isValidElement<{ children?: ReactNode }>(node)) return notificationText(node.props.children);
   return "";
 }
-
-/* === Private Functions === */
 
 function open(): Promise<IDBDatabase> {
   if (database) return database;
@@ -262,5 +243,3 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
   }).catch(historyFailure);
   return id;
 }
-
-/* === Entry Point === */

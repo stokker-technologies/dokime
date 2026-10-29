@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::cmp::Ordering;
 use std::fmt;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -40,12 +22,6 @@ pub struct Timestamp(String);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DurationMillis(pub u64);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for Timestamp {
     fn memory_size(&self) -> usize {
@@ -135,16 +111,12 @@ impl From<Timestamp> for crate::model::values::Value {
     }
 }
 
-/* === Public Functions === */
-
 pub fn datetime_text(value: time::OffsetDateTime) -> String {
     value
         .to_offset(time::UtcOffset::UTC)
         .format(&time::format_description::well_known::Rfc3339)
         .expect("a stored datetime is representable as RFC3339")
 }
-
-/* === Private Functions === */
 
 fn parse_rfc3339(value: &str) -> Option<i128> {
     time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok().map(|value| value.unix_timestamp_nanos())
@@ -155,5 +127,3 @@ fn format_rfc3339(unix_nanos: i128) -> String {
         time::OffsetDateTime::from_unix_timestamp_nanos(unix_nanos).expect("a system timestamp is within the supported time range"),
     )
 }
-
-/* === Tests === */

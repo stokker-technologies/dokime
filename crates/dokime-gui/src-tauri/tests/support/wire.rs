@@ -7,28 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
@@ -71,11 +49,3 @@ impl<T: dokime::harmos::domain::Portable> WireMessage for T {
         Ok((item, admitted_memory))
     }
 }
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::streams::AggregateOutput;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::Aggregate;
 use harmos::storage::query::{
     Accumulator,
     scalar::{Agg, ScalarValue},
 };
 
-// Local Imports
 use crate::telemetry::TelemetryContract;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct AggregateCancellation(std::sync::Arc<std::sync::atomic::AtomicBool>);
 
@@ -46,14 +28,6 @@ impl Drop for AggregateCancellation {
         self.0.store(true, std::sync::atomic::Ordering::Release);
     }
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn project_saved(
     session: &crate::storage::Manager, local: &crate::storage::sqlite::State, settings: &harmos::config::SchemaSettings,
@@ -184,8 +158,6 @@ pub(crate) async fn project_saved(
     Ok(outputs)
 }
 
-/* === Private Functions === */
-
 fn decode_page(
     rows: Vec<harmos::storage::StoredRow>, codecs: &[crate::storage::telemetry::TypedCodec],
 ) -> crate::runtime::Result<Vec<(u64, crate::telemetry::TelemetrySample)>> {
@@ -225,5 +197,3 @@ fn valid_identifier(value: &str) -> String {
         .map(|character| if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') { character } else { '_' })
         .collect()
 }
-
-/* === Tests === */

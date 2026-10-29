@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<AudioRecording>], response = (), output = RecordingFrame, id = "dokime.media.audio_recording",
         policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
@@ -43,20 +25,6 @@ pub struct AudioRecording {
     #[row(description = "Recording stops and seals after this many seconds: default 600, maximum 3600.")]
     pub maximum_seconds: Option<u32>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

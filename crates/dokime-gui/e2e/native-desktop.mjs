@@ -58,10 +58,6 @@
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
 //     Downloads folder and the shell writes the archive there itself.
 
-/* === Imports === */
-
-// Standard Library Imports
-
 import assert from "node:assert/strict";
 
 import { execFile, spawn } from "node:child_process";
@@ -85,14 +81,7 @@ import { fileURLToPath } from "node:url";
 
 import { parseArgs, promisify } from "node:util";
 
-// Third Party Imports
-
-// Local Imports
 import { ReportBrowser } from "./report-browser.ts";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -211,14 +200,6 @@ let evidence;
 let installation;
 
 let installerAttempted = false;
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /* Process And Session Helpers */
 
@@ -2521,8 +2502,6 @@ async function cycleJourney(session, cycleId) {
  * untouched.
  */
 async function executionStopJourney(session, cycleId) {
-  // === Copy The Cycle And Run It === //
-
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await openMenu(session, "Cycle Actions");
   await session.clickNamed("menuitem", "Copy Cycle");
@@ -2541,8 +2520,6 @@ async function executionStopJourney(session, cycleId) {
     120000,
   );
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "Explicit Start admits the selected execution");
-
-  // === Select The Running Execution === //
 
   /* The startup case holds its run open on the operator's inspection prompt,
      so a stop always lands while it is still running. */
@@ -2566,8 +2543,6 @@ async function executionStopJourney(session, cycleId) {
     },
     300000,
   );
-
-  // === An Explicit Selection Beats Follow Active === //
 
   /* Selecting a queued execution while another runs must stay there: Follow
      Active only moves a selection that is following. The queued attempt shows
@@ -2607,15 +2582,11 @@ async function executionStopJourney(session, cycleId) {
   assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
   await until("Stop Execution", () => session.exists("button", "Stop Execution"), 120000);
 
-  // === Stop Only That Execution === //
-
   await session.clickNamed("button", "Stop Execution");
   await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 120000);
   await writeFile(join(evidence, "invokes-execution-stop.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
-
-  // === Stop Seals Only The Selected Execution And Preserves Unstarted Siblings === //
 
   const stoppedRow = await session.execute(
     `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2625,8 +2596,6 @@ async function executionStopJourney(session, cycleId) {
   assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must keep its truthful outcome: ${stoppedRow}`);
   const rows = await sidebarText(session);
   assert.ok(/\b(Queued|Planned)\b/.test(rows), "Stop must preserve unstarted sibling attempts");
-
-  // === Cancel Skips One Unstarted Sibling And Leaves The Cycle Active === //
 
   const cancelled = await session.execute(`
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -5017,8 +4986,6 @@ async function main() {
   });
   await journey("restart", restartJourney);
 }
-
-/* === Entry Point === */
 
 try {
   await main();

@@ -7,32 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl WifiLinkCollector {
     // The Current Connection Through WlanQueryInterface; Answers The Adapter For Throughput.
@@ -86,13 +61,7 @@ impl WifiLatencyCollector {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // The Scan Completes Within The Collection Bound, Leaving Room To Read The List.
 fn scan_window() -> Duration {
     crate::host::wifi_scan::POLICY.attempt_timeout / 2
 }
-
-/* === Tests === */

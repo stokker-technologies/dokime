@@ -7,11 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
 import type { MetricState } from "@/lib/types";
-
-/* === Metric-flow model: overview metric types, layout consts, storage ordering === */
 
 export type OverviewMetric = {
   label: string;

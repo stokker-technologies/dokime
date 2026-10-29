@@ -9,34 +9,8 @@
 
 // Segmented Log Volume Fixture
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub async fn logs(days: u64, per_day: u64) {
     use dokime_domain::model::execution::result::CycleView;
 
@@ -100,6 +74,3 @@ pub async fn logs(days: u64, per_day: u64) {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
-/* === Private Functions === */
-
-/* === Tests === */

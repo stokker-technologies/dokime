@@ -16,19 +16,13 @@
  * to this machine — an Open button that hands it to the file manager.
  */
 
-/* === External Imports === */
-
 import { Check, Copy, FolderOpen } from "lucide-react";
 import { useState } from "react";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { openLocalPath } from "@/lib/desktop-open";
 
 const GUI_COPIED_INDICATOR_MS = 1_500;
-
-/* === Types === */
 
 type SettingsPathFieldProps = {
   id?: string;
@@ -38,8 +32,6 @@ type SettingsPathFieldProps = {
   placeholder?: string;
   value: string | null;
 };
-
-/* === Components === */
 
 export function SettingsPathField({ id, openable = false, placeholder = "Not set", value }: SettingsPathFieldProps) {
   const [copied, setCopied] = useState(false);

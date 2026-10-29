@@ -9,15 +9,8 @@
 
 // Execute Remote Examples Against The Built OBC Plugin
 
-/* === Modules === */
-
 mod interruption;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::Read,
@@ -25,13 +18,11 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-// Third Party Imports
 use rusqlite::OptionalExtension;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::process::Command;
 
-// Local Imports
 use crate::support::artifacts;
 use dokime::client::{Client, dynamic::Event};
 use dokime::domain::model::{
@@ -39,26 +30,10 @@ use dokime::domain::model::{
     identity::{PromptId, TestCycleId},
 };
 
-/* === Constants === */
-
 const PROFILE_IDENTIFIER: &str = "lab";
 
 // The Identity The Examples' Pairing Files Expect From The Host Under Test
 static BACKEND_IDENTIFIER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
@@ -84,8 +59,6 @@ pub async fn interruptions(client: &Client, endpoint: &str, root: &Path) {
     *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
     Box::pin(interruption::scripts(client, endpoint, root)).await;
 }
-
-/* === Private Functions === */
 
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {
     let mut command = if extension == "bat" && workflow == "test" {
@@ -505,5 +478,3 @@ fn checksum(reader: &mut impl Read) -> String {
     }
     digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-/* === Tests === */

@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{sync::Arc, time::Instant};
 
-// Third Party Imports
 use harmos::storage::{ByteRange, CaptureConsistency, FilePhase, FileReference, OpenedCapture, ProductionFollower, ReadBatch, StagedFile};
 
-// Local Imports
 use super::{NativeOutput, error, file_metadata, open_file};
 use crate::storage::Manager;
 use crate::{
@@ -30,14 +21,6 @@ use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Production {
     pub(crate) staged: StagedFile,
@@ -54,8 +37,6 @@ pub(crate) struct LiveOutput {
     pub(crate) identity: Arc<StagedFile>,
 }
 
-/* === Enums === */
-
 // How A Follow Was Admitted, Decided Under The Original Owner's Lock.
 pub(crate) enum NativeAdmission {
     // Capture Settled First; Its Descriptor Alone Decides Finished Or Abandoned.
@@ -71,10 +52,6 @@ pub(crate) enum Settlement {
     Abandoned,
     Finished(ReadBatch<FileReference>),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionStorage {
     pub(crate) async fn native_follower(
@@ -225,8 +202,6 @@ impl LiveOutput {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) async fn capture(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
     let started = Instant::now();
     let identity = output.production.as_ref().expect("registered original production");
@@ -243,8 +218,6 @@ pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<(
     // Preserve Only The Original Already Admitted Prefix After Source Failure.
     seal(path, output, Some(SavedStreamState::Interrupted), None).await
 }
-
-/* === Private Functions === */
 
 async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>, visible: Option<u64>) -> Result<()> {
     let production = output.production.as_mut().expect("registered original production");
@@ -307,5 +280,3 @@ fn capture_error(failure: harmos::storage::Error) -> crate::runtime::Error {
         other => other.into(),
     }
 }
-
-/* === Tests === */

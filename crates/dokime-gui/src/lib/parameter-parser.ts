@@ -10,8 +10,6 @@
 import { NativeIntegerValue, NativeNumberValue, parseNativeInteger, reviveNativeValues } from "@/lib/api/native-values";
 import { numericValue } from "@/lib/utils";
 
-/* === Types === */
-
 import type { ParameterDefinition, ParameterListDefinition } from "./types";
 
 const GUI_RANGE_ITEMS = 10_000;
@@ -22,8 +20,6 @@ const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
 const BOOL_TYPES = new Set(["bool", "boolean"]);
 
 const RANGE_HARD_CAP = GUI_RANGE_ITEMS;
-
-/* === Public === */
 
 /**
  * Parse the user-typed parameter input into a list of values.
@@ -266,8 +262,6 @@ export function emptyListItem(elementType: string): unknown {
   }
   return "";
 }
-
-/* === Private === */
 
 /**
  * The candidate lists one chip of an expanded list parameter contributes.

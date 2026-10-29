@@ -7,16 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
 use tempfile::tempdir;
-// Local Imports
+
 use super::*;
 use dokime_runtime::definition::{
     Parameter, ParameterDefault, RustTemplate, Step, TemplateContext, authored_criterion as criterion, authored_metadata as metadata,
@@ -26,15 +18,6 @@ use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::execution::authoring::{RuntimeResource, SidecarStepContext, StepContextError};
 use dokime_runtime::{RecordScope, Value};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-/* === Doc Example: Template Authoring === */
-
 // --8<-- [start:template]
 struct TrackingTestTemplate;
 
@@ -42,16 +25,9 @@ struct ToolSession {
     connected: bool,
 }
 
-/* === Doc Example: Parameter Spaces And Case Expansion === */
-
 // --8<-- [start:parameter-spaces]
 struct MatrixTemplate;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl RustTemplate for TrackingTestTemplate {
     fn define(&self, ctx: &mut TemplateContext) {
         ctx.set_metadata(metadata(
@@ -72,8 +48,6 @@ impl RustTemplate for TrackingTestTemplate {
 }
 
 // --8<-- [end:template]
-
-/* === Doc Example: Runtime Step Bodies === */
 
 // --8<-- [start:steps]
 impl TrackingTestTemplate {
@@ -112,9 +86,6 @@ impl RustTemplate for MatrixTemplate {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 // --8<-- [end:steps]
 async fn open_tool_session(_ctx: &SidecarStepContext) -> Result<ToolSession, StepContextError> {
     Ok(ToolSession { connected: true })
@@ -166,7 +137,6 @@ pub(crate) async fn doc_example_context() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-/* === Tests === */
 // --8<-- [end:parameter-spaces]
 
 // --8<-- [start:parameter-spaces-expand]

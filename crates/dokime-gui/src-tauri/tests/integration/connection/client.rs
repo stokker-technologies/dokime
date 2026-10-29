@@ -7,40 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{future::Future, net::Ipv4Addr, sync::Arc, time::Duration};
-// Third Party Imports
+
 use tokio::sync::Notify;
-// Local Imports
+
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
 use crate::wire::WireMessage;
 use dokime::client::contracts::{backend, catalog};
 use dokime::client::{Client, Error, Target};
 use dokime::domain::model;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 async fn install_with_deadline(client: Client, mode: &str) -> String {
     let frame = model::plugins::wire::InstallPluginFrame::default();
@@ -68,8 +43,6 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
     assert!(std::pin::Pin::new(future).poll(&mut context).is_pending(), "the future completed before its release");
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn uploads_use_stream_deadlines() {

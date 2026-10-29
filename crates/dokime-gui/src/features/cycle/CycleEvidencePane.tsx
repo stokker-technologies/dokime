@@ -20,11 +20,7 @@
  * consult: the plot window is stated as a sentence instead of a slider.
  */
 
-/* === External Imports === */
-
 import { type ReactNode, useMemo } from "react";
-
-/* === Local Imports === */
 
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan } from "@/lib/types";
 import { CycleEvidenceView } from "./CycleEvidenceView";
@@ -33,8 +29,6 @@ import { evidencePaneState } from "./document-query-model";
 import { usePlotWindow } from "./PlotWindowSlider";
 import { PromptQueue } from "./PromptQueue";
 import { useCycleDocumentQuery } from "./server-state";
-
-/* === Types === */
 
 export type CycleEvidencePaneProps = {
   cycleId: string;
@@ -50,8 +44,6 @@ export type CycleEvidencePaneProps = {
   trail: string[];
   pageActions?: ReactNode;
 };
-
-/* === Components === */
 
 export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, plan, prompts, snapshot, trail }: CycleEvidencePaneProps) {
   const plotWindow = usePlotWindow();
@@ -96,5 +88,3 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
     />
   );
 }
-
-/* === Private Functions === */

@@ -7,36 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
 const READY: &str = "dokime-child-story-ready";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 pub struct ChildStory(Child);
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl ChildStory {
     pub fn spawn(story: &str, environment: &[(&str, &OsStr)]) -> Self {
         let child = dokime_domain::process::command(std::env::current_exe().expect("current test executable"))
@@ -82,12 +60,8 @@ impl Drop for ChildStory {
     }
 }
 
-/* === Public Functions === */
 pub fn announce_ready() {
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "{READY}").expect("the parent reads the child's stdout");
     stdout.flush().expect("the parent reads the child's stdout");
 }
-/* === Private Functions === */
-
-/* === Tests === */

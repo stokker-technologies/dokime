@@ -11,24 +11,16 @@
  * filter when it has one. The `th` around it carries `aria-sort`.
  */
 
-/* === External Imports === */
-
 import { FlexRender, type Header, type RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
-
-/* === Local Imports === */
 
 import { DataTableColumnFilter } from "@/components/data-table/DataTableColumnFilter";
 import type { DataTableFeatures } from "@/components/data-table/data-table-model";
 import { cn } from "@/lib/utils";
 
-/* === Types === */
-
 type DataTableColumnHeaderProps<TData extends RowData> = {
   header: Header<DataTableFeatures, TData, unknown>;
 };
-
-/* === Components === */
 
 export function DataTableColumnHeader<TData extends RowData>({ header }: DataTableColumnHeaderProps<TData>) {
   const column = header.column;

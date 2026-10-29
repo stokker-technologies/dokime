@@ -9,23 +9,9 @@
 
 /* Suite selection model. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 import type { TestCyclePlanSelectionDraft } from "@/components/start-cycle-form-model";
 
 import type { SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 /* SuitePicker model: draft-store, search/filter, sanitize, guards */
 
@@ -36,10 +22,6 @@ export type TestSuiteRow = {
 
 /** Additional searchable text for a suite, such as its registering plugin's label. */
 export type SuiteSearchExtra = (suite: TestSuiteEntry) => unknown[];
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function selectionDraftKey(suiteId: string, templateId: string): string {
   return `${suiteId}::${templateId}`;
@@ -86,8 +68,6 @@ export function formatTagLabel(tag: string): string {
   return tag.toLowerCase() === "plt400" ? "PLT400" : tag;
 }
 
-/* === Private Functions === */
-
 function searchTokens(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
@@ -111,5 +91,3 @@ function templateSearchText(template: SuiteTemplateEntry, suite: TestSuiteEntry,
     template.tags,
   ]);
 }
-
-/* === Entry Point === */

@@ -7,16 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod contract;
 pub mod declared;
 pub mod host;
 pub mod inbox;
 pub mod route;
 pub mod view;
-
-/* === Re-Exports === */
 
 pub use crate::values::{FieldError, FieldValue, field};
 pub use contract::{
@@ -30,31 +26,3 @@ pub use dokime_domain::model::validation::CompatibilityStatus;
 pub use dokime_domain::model::validation::ValidationMode;
 pub use inbox::{Deliveries, RecordSource};
 pub use route::{RECORD_PUBLICATION_VERSION, RecordPublication};
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

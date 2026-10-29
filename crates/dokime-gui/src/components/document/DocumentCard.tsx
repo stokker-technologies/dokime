@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { documentCardLayoutAttributes, documentCardLayoutStyle } from "@/lib/document-layout";
 import type { DocumentCardLayout } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 type DocumentCardProps = {
   children: ReactNode;
@@ -30,8 +24,6 @@ type DocumentCardProps = {
   icon?: ReactNode;
   layout?: DocumentCardLayout;
 };
-
-/* === Components === */
 
 export function DocumentCard({ children, title, className, contentClassName, description, eyebrow, icon, layout }: DocumentCardProps) {
   return (

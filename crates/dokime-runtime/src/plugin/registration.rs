@@ -7,23 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::domains::PluginListener as ListenerRegistration;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::domains::{AppCustomizationContribution, AppThemeContribution};
-
-/* === Constants === */
 
 pub const SUITES_NAMESPACE: &str = "dokime.suites";
 pub const PERMISSIONS_NAMESPACE: &str = "dokime.permissions";
@@ -37,12 +25,6 @@ pub const OPTIONS_NAMESPACE: &str = "dokime.options";
 pub const APPEARANCE_NAMESPACE: &str = "dokime.appearance";
 pub const DOMAIN_SCHEMA: u32 = 1;
 pub const ROUTE_SCHEMA: u32 = 2;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SettingsRegistration {
@@ -65,14 +47,6 @@ pub struct AppearanceRegistration {
     pub themes: Vec<AppThemeContribution>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub fn domain_schema(namespace: &str) -> u32 {
     match namespace {
         SUITES_NAMESPACE => 2,
@@ -82,7 +56,3 @@ pub fn domain_schema(namespace: &str) -> u32 {
         _ => DOMAIN_SCHEMA,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

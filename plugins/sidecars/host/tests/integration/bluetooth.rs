@@ -12,24 +12,13 @@
 // every story in a process of its own. The fixture's `time.sleep(30)` is the
 // lifetime of the stalled child the collector must time out and reap.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::os::unix::fs::PermissionsExt;
 
-// Third Party Imports
 use model::values::Value;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_host::HostStreamSample;
 use dokime_host::collectors::bluetooth::BluetoothCollector;
-
-/* === Constants === */
 
 const FIXTURE: &str = r#"#!/usr/bin/env python3
 import os, sys, time
@@ -45,22 +34,6 @@ sys.stderr.write("e" * (512 * 1024))
 sys.stderr.flush()
 sys.exit(7 if os.environ["DOKIME_PROBE_CASE"] == "failure" else 0)
 "#;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn collect_case(mode: &str) -> HostStreamSample {
     // Scripted Probe On PATH
@@ -85,8 +58,6 @@ fn collect_case(mode: &str) -> HostStreamSample {
     assert!(!std::path::Path::new("/proc").join(pid).exists(), "probe must be reaped before collection returns");
     sample
 }
-
-/* === Tests === */
 
 #[test]
 fn probe_child_succeeds() {

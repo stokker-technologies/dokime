@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterGroup;
 use crate::model::document::DocumentDefinition;
@@ -31,14 +22,6 @@ use crate::model::identity::Metadata;
 use crate::model::identity::StepId;
 use crate::model::identity::TemplateId;
 use crate::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestSuite {
@@ -144,8 +127,6 @@ pub struct CriterionDefinition {
     pub expected: Option<Value>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "identifier", rename_all = "snake_case")]
 pub enum Subscription {
@@ -159,10 +140,6 @@ pub enum TemplateIdentifierRefusal {
     OutsideSuite,
     InvalidSegment,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for TestCaseTemplate {
     fn memory_size(&self) -> usize {
@@ -289,8 +266,6 @@ impl std::fmt::Display for TemplateIdentifierRefusal {
 
 impl std::error::Error for TemplateIdentifierRefusal {}
 
-/* === Public Functions === */
-
 // The public template reference is `<suite id>.<segment>`: the suite owns the
 // prefix and the segment is `[a-z][a-z0-9_]*`. Const so the SDK refuses a
 // foreign or malformed id while the plugin compiles.
@@ -309,8 +284,6 @@ pub const fn template_identifier(suite: &str, template: &str) -> Result<(), Temp
     template_segment(template, suite.len() + 1)
 }
 
-/* === Private Functions === */
-
 const fn template_segment(identifier: &[u8], start: usize) -> Result<(), TemplateIdentifierRefusal> {
     if start >= identifier.len() || !identifier[start].is_ascii_lowercase() {
         return Err(TemplateIdentifierRefusal::InvalidSegment);
@@ -325,5 +298,3 @@ const fn template_segment(identifier: &[u8], start: usize) -> Result<(), Templat
     }
     Ok(())
 }
-
-/* === Tests === */

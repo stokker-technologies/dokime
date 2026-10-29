@@ -20,22 +20,10 @@
  * directly below.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import type { ReactNode } from "react";
 
-// Local Imports
 import { Progress } from "@/components/ui/progress";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type ControlCardProps = {
   /** What the actions fieldset is called, "Execution #2 Controls". */
@@ -51,8 +39,6 @@ export type ControlCardProps = {
   /** Detail across the whole card, under the state row. */
   children?: ReactNode;
 };
-
-/* === Components === */
 
 /**
  * One row on one vertical centre line: the state, the bar with rounded ends,
@@ -93,9 +79,3 @@ export function ControlCard({ actions, children, detail, label, progress, state 
     </ExecutionSectionCard>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

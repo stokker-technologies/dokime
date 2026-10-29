@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
-
-// Local Imports
 use super::backend::Backend;
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
 use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct DesktopSession(Arc<Inner>);
@@ -65,12 +47,6 @@ struct Resources {
     local: Option<dokime_server::host::Session>,
     settings_client: Option<dokime::client::Client>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl DesktopSession {
     pub fn attached(connection: ConnectionSession) -> Self {
@@ -529,12 +505,6 @@ impl Resources {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

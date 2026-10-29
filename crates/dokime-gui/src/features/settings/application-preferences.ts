@@ -11,30 +11,12 @@
  * Scoped Settings State
  */
 
-/* === Imports === */
-
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { connectionError } from "@/app/native-session/errors";
 import { useNativeSessionOptional } from "@/app/native-session/context";
+import { connectionError } from "@/app/native-session/errors";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { useUiStore } from "@/stores/ui-store";
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function preferencesKey(scope: SettingsScope, generation?: string) {
   return ["settings", "preferences", scope, scope === "local" ? "local" : (generation ?? "offline")] as const;
@@ -77,7 +59,3 @@ export function preferencesError(error: unknown): string {
   }
   return connectionError(error);
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

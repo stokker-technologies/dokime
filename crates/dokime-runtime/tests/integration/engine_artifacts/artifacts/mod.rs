@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
 pub(crate) mod directory;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use dokime_runtime::artifacts::Artifacts;
 use dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 use dokime_runtime::transport::recording::RecordingSink;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn grant(token: &str) -> (Artifacts, Arc<RecordingSink>) {
     let sink = Arc::new(RecordingSink::default());
 
@@ -53,8 +27,6 @@ fn io_kind(error: dokime_runtime::Error) -> std::io::ErrorKind {
         other => panic!("expected an artifact error, got {other}"),
     }
 }
-
-/* === Tests === */
 
 pub(crate) fn importing_file_whole() {
     let (artifacts, sink) = grant("import-test");

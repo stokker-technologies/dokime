@@ -7,20 +7,15 @@
    call is one `rpc` command. A stream is one `rpc_stream_open` whose frames
    arrive on a Tauri channel, released in batches of acknowledged credit. */
 
-/* === External Imports === */
 import { create, type DescMessage, fromBinary, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
-import { Channel, invoke } from "@tauri-apps/api/core";
-
-/* === Local Imports === */
-
 import { FRAME_BYTES as DESKTOP_FRAME_BYTES, STREAM_CREDIT as DESKTOP_STREAM_CREDIT } from "@generated/desktop-protocol";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { RpcError } from "../desktop/rpc";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
 import { descriptorSha256 } from "./generated/identity";
 import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";
 
-/* === Types === */
 interface Call {
   /** The next message, or undefined once the call ended with an OK status. */
   next(): Promise<Uint8Array | undefined>;
@@ -28,8 +23,6 @@ interface Call {
   finish(): Promise<void>;
   cancel(): Promise<void>;
 }
-
-/* === Constants === */
 
 const DESKTOP_STREAM_TIMEOUT_MS = 86_400_000;
 const DESKTOP_UNARY_TIMEOUT_MS = 10_000;
@@ -52,7 +45,6 @@ const headers = {
 const descriptor = Uint8Array.from(descriptorSha256.match(/../g) ?? [], (byte) => Number.parseInt(byte, 16));
 const text = new TextDecoder("utf-8", { fatal: true });
 
-/* === Public Functions === */
 export async function invokeOwned<T>(
   session: SessionIdentity,
   command: string,
@@ -249,7 +241,6 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   return { write, finish, cancel };
 }
 
-/* === Private Functions === */
 async function openCall(path: string, session: SessionIdentity, opening: Uint8Array, keepInput: boolean, timeoutMs: number): Promise<Call> {
   const generation = integer(session.generation);
   const frames: Uint8Array[] = [];

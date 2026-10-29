@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
 };
 
-// Third Party Imports
 use super::Scope;
 
-// Local Imports
 use crate::domains::ActionDispatcher;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
@@ -35,25 +26,11 @@ use crate::{
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub(crate) struct Resources {
     pub(crate) dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
     pub(crate) unavailable: Arc<RwLock<BTreeSet<String>>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Resources {
     pub(crate) fn new() -> Self {
@@ -92,8 +69,6 @@ impl Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) async fn materialize(
     ctx: &Scope, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
     contract: Option<&TelemetryContract>, position: &harmos::storage::StorageCursor,
@@ -113,7 +88,3 @@ pub(crate) async fn materialize(
         .execute_in(crate::runtime::query::plots::analysis::Environment::Report { resources }, request, position, payload, contract)
         .await
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

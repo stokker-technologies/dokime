@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::SuiteSet;
 use crate::state::RuntimeState;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.catalog.set")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,12 +25,6 @@ pub struct SetSuiteSet {
 pub struct RemoveSuiteSet {
     pub source: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for SetSuiteSet {
     type Error = String;
@@ -81,10 +57,6 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
         remove_suites(state, &self.source).expect("Harmos checked suite removal before applying it");
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn ensure_host_source(state: &RuntimeState, source: &str) -> Result<(), String> {
     if matches!(
@@ -122,5 +94,3 @@ fn remove_suites(state: &mut RuntimeState, source: &str) -> Result<(), String> {
         Ok(())
     }
 }
-
-/* === Tests === */

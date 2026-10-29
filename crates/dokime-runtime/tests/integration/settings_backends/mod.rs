@@ -9,43 +9,12 @@
 
 // Settings, identity, installed-plugin settings, branding, themes and secret transfer persist and reopen through the real backends.
 
-/* === Modules === */
 pub(crate) mod config_application;
 mod distribution;
 pub(crate) mod identity;
 pub(crate) mod installed_plugins;
 pub(crate) mod runtime_settings;
 pub(crate) mod secrets_transfer;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[tokio::test]
 async fn settings_backends() {

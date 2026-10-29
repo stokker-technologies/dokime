@@ -11,27 +11,15 @@
  * Organization Pack Row Of The Brand Card
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { type OrganizationPackPresentation, organizationPackPresentation } from "@/features/settings/sections/organization-pack";
 import { commands } from "@/lib/desktop/commands";
 import type { OrganizationStatus } from "@/lib/desktop/organization";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const STATUS_KEY = ["settings", "organization-pack"] as const;
-
-/* === Types === */
 
 type OrganizationPackViewProps = {
   presentation: OrganizationPackPresentation;
@@ -42,8 +30,6 @@ type OrganizationPackViewProps = {
   remove: () => void;
   restart: () => void;
 };
-
-/* === Components === */
 
 /** The desktop shell's organization pack: chosen here, applied on the next start. */
 export function OrganizationPackRow() {
@@ -100,12 +86,6 @@ export function OrganizationPackView({ presentation, choiceError, busy, choose, 
     </SettingsRow>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : typeof error === "string" ? error : "The organization pack could not be changed.";

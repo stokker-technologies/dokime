@@ -9,41 +9,13 @@
 
 // Execution Input And Interrupt-Recovery Admission Story
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 
-// Third Party Imports
 use clap::Parser;
 
-// Local Imports
 use crate::configuration::resolve as configuration;
 use dokime_cli::{Cli, Error};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 #[tokio::test]
 async fn execution_inputs() {
     // Parse Execution And Cycle Requests.

@@ -17,21 +17,15 @@
  * Diagnostics section decides what to do with them.
  */
 
-/* === Local Imports === */
-
 import { NativeApiUnsupportedError } from "@/lib/api/native-values";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-
-/* === Types === */
 
 export type DiagnosticsBundle = {
   /** The name the backend suggests for the archive; never a backend path. */
   filename: string;
   bytes: Uint8Array;
 };
-
-/* === Public Functions === */
 
 /** Whether this client can ask the backend for a support archive at all. */
 export function diagnosticsBundleSupported(): boolean {

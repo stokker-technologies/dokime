@@ -7,20 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::{BufWriter, Read, Seek, SeekFrom, Write},
     sync::{Arc, LazyLock},
 };
 
-// Third Party Imports
 use harmos::{
     Message,
     storage::{FileChunk, FileMetadata, FileReference, StorageCursor, StorageFile},
@@ -28,7 +20,6 @@ use harmos::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::{CycleReportInput, html::HtmlReport};
 use crate::records::RecordContract;
 use crate::storage::Manager;
@@ -53,19 +44,11 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
 static REPORT_PREFIX_DIGEST: LazyLock<Sha256> = LazyLock::new(|| {
     let mut digest = Sha256::new();
     digest.update(super::output::REPORT_PARTS.0.as_bytes());
     digest
 });
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -116,12 +99,6 @@ struct ReportFileIdentity<'a> {
     suffix: &'a str,
     media_type: &'a str,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ReportFileData {
     fn context(source: &NativeSource, identity: ReportFileIdentity<'_>, length: usize) -> Result<Self> {
@@ -524,10 +501,6 @@ impl Write for ReportWriter {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // The Producer Retains An Admitted Chunk Across Failures, So A Retry Resends The
 // Same Offset And Bytes. A Refused Chunk Admitted Nothing: Await Durability Of
 // The Accepted Data Queue Only (No File Checkpoint, No Exclusive Lifecycle Lock),
@@ -557,8 +530,6 @@ fn report_invalid(message: &'static str) -> Error {
 fn report_allocation_error(_: std::collections::TryReserveError) -> Error {
     report_invalid("report allocation failed")
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

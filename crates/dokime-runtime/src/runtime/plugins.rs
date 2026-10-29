@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod lifecycle;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::Arc,
 };
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::{Runtime, progress::Operation};
 use crate::domains::installed_plugins::contributions::decode_registrations;
 use crate::plugins::{PluginBundle, PluginProvenance, PluginStore};
@@ -39,18 +30,10 @@ use crate::{
     transactions::{ReconcileProviders, ReloadProviderCatalog},
 };
 
-/* === Constants === */
-
 const PLUGIN_LOG_VARIABLE: &str = "DOKIME_PLUGIN_LOG";
 
 // Extraction Cache
 const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Package {
     input: PluginBundle,
@@ -101,17 +84,11 @@ struct ExtractionMarker {
     mtime_unix_ms: i64,
 }
 
-/* === Enums === */
-
 enum Extraction {
     Ephemeral(tempfile::TempDir),
     Cached(std::path::PathBuf),
     Closed,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Extraction {
     fn path(&self) -> &std::path::Path {
@@ -734,10 +711,6 @@ impl Runtime {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
     #[cfg(windows)]
     let delays = [0, 10, 25, 50, 100, 200, 400, 800];
@@ -1138,5 +1111,3 @@ async fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>
 fn operation(error: impl std::fmt::Display) -> Error {
     Error::Operation(error.to_string())
 }
-
-/* === Tests === */

@@ -7,20 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_host::collectors::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
-
-/* === Constants === */
 
 const HE_160_LINK: &str = "Connected to a4:ce:da:c0:83:f0 (on wlp5s0)
 \tSSID: Arcadia
@@ -55,24 +42,6 @@ const PROC_WIRELESS: &str = "Inter-| sta-|   Quality        |   Discarded packet
 wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
   wlan1: 0000    0.  -256.  -256        0      0      0      0      0        0
 ";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[test]
 fn iw_link_parsing() {

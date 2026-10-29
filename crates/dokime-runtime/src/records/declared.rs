@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use crate::records::RecordContract;
 use crate::records::RecordSeverity;
 use crate::values::FieldError;
@@ -26,18 +16,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait DeclaredRecord: Sized {
     const RECORD_TYPE: &'static str;
@@ -81,8 +59,6 @@ pub trait RecordMessage {
     fn stated(&self, label: &str) -> String;
 }
 
-/* === Implementations === */
-
 impl RecordMessage for String {
     fn stated(&self, _label: &str) -> String {
         self.clone()
@@ -95,12 +71,6 @@ impl RecordMessage for Option<String> {
     }
 }
 
-/* === Public Functions === */
-
 pub fn message_of(marked: &impl RecordMessage, label: &str) -> String {
     marked.stated(label)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

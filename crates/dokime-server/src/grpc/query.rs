@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod codec;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime::app::LiveRuntime;
@@ -31,29 +22,15 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::query as wire;
 use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::Aggregate),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::Aggregate> for Resources {
     fn serve<'a>(
@@ -71,8 +48,6 @@ impl Serve<wire::Aggregate> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -86,8 +61,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new()?;
@@ -161,5 +134,3 @@ fn status(error: dokime::runtime::Error) -> Status {
     };
     detailed(status, &error)
 }
-
-/* === Tests === */

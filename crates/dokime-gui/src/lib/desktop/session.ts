@@ -10,15 +10,9 @@
 /* Desktop lifecycle ownership, mirroring `src-tauri/src/native_session/contract.rs`
    and the launch preferences in `src-tauri/src/native_session/launch.rs`. */
 
-/* === Local Imports === */
-
 import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./connection";
 
-/* === Constants === */
-
 export const DESKTOP_SESSION_STATUS_EVENT = "desktop://session-status";
-
-/* === Types === */
 
 export type BackendSelection =
   | { kind: "owned_local" }

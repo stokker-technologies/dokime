@@ -7,28 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
-// Third Party Imports
+
 use harmos_packaging::{
     proto::Artifacts,
     python::{self, Settings},
 };
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -56,19 +40,11 @@ pub struct PythonArgs {
     protoc: PathBuf,
 }
 
-/* === Enums === */
-
 #[derive(clap::Subcommand)]
 enum Command {
     #[command(about = "Generate The Python Client Package From One Contract Export")]
     Python(PythonArgs),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run(args: Args) -> Result<(), crate::error::Error> {
     let Command::Python(args) = args.command;
@@ -90,7 +66,3 @@ pub fn run(args: Args) -> Result<(), crate::error::Error> {
     println!("{}", python::generate(catalog, &args.output)?.display());
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

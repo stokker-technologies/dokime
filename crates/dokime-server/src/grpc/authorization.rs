@@ -9,36 +9,19 @@
 
 // Authorize External Calls From Canonical Operation Declarations
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::catalog::{Catalog, Projection};
 use dokime::harmos::operations::authorization::{Authorization, Authorizer, Provider};
 use dokime::harmos::operations::{CallContext, OperationDeclaration};
 
-// Local Imports
 use super::Error;
 use super::access::{Listeners, Principal};
 use dokime::operations::Endpoints;
 use dokime::operations::Operations;
 
-/* === Constants === */
-
 const HOST_OWNER: &str = "host";
 const PRODUCT_NAMESPACE: &str = "dokime.";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Policy {
     requirements: Vec<Requirement>,
@@ -49,12 +32,6 @@ struct Requirement {
     local_only: bool,
     contract: dokime::harmos::operations::Contract,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Policy {
     fn new(settings: &dokime::harmos::config::SchemaSettings) -> Result<Self, Error> {
@@ -106,8 +83,6 @@ impl Authorizer for Policy {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, settings: &dokime::harmos::config::SchemaSettings,
 ) -> Result<(Arc<Listeners>, Arc<Policy>), Error> {
@@ -123,7 +98,3 @@ pub(super) fn activate(runtime: &dokime::RuntimeHandle, listeners: Arc<Listeners
     runtime.grpc().register_middleware(Arc::new(dokime::harmos::grpc::authentication::Authenticate::new(listeners)))?;
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

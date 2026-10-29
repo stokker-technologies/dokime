@@ -16,15 +16,9 @@
  * page under Settings › Plugins, so the navigation stays the fixed list.
  */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { useSettingsFrameQuery } from "@/features/settings/settings-queries";
 import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/settings-sections";
-
-/* === Types === */
 
 export type SettingsSectionsState = {
   /** The message to show when the frame could not be read; null otherwise. */
@@ -36,8 +30,6 @@ export type SettingsSectionsState = {
   /** The fixed navigation; plugins contribute pages, not sections. */
   sections: SettingsSection[];
 };
-
-/* === Public Functions === */
 
 export function useSettingsSections(enabled = true): SettingsSectionsState {
   const query = useSettingsFrameQuery(undefined, enabled);

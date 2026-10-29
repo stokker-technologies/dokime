@@ -11,25 +11,13 @@
  * Shared Declaration And Binding Assembly
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import { documentView, unavailableReason } from "./document-presentation";
 import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, Metadata } from "./types";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EVALUATION_WORK = 256_000_000;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
 
-/* === Types === */
 export type DeclaredNode =
   | { type: "section"; node_id: string; repeat: boolean; children: DeclaredNode[] }
   | Extract<DocumentViewNode, { type: "card" }>;
@@ -44,9 +32,6 @@ export interface CaptureAssembly {
   sections: ReadonlyMap<string, { metadata: Metadata; unavailable?: string | null }>;
 }
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   const sources = new Set(capture.sources);
   if (
@@ -142,7 +127,3 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
     layout,
   );
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

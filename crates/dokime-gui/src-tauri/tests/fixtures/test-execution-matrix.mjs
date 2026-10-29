@@ -11,31 +11,14 @@
  * Desktop client driver for shared execution scenarios
  */
 
-/* === Imports === */
 
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-// Third Party Imports
 
-// Local Imports
 import { openHarness } from "./rpc-harness.mjs";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
 
 const harness = await openHarness();
 try {

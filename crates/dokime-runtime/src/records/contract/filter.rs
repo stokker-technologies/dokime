@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::records::RecordPattern;
 use crate::records::RecordSeverity;
 use dokime_domain::model::execution::RecordScope;
@@ -27,14 +17,6 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TelemetryStreamId;
 use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordFilter {
@@ -51,12 +33,6 @@ pub struct RecordFilter {
     pub related_artifact_id: Option<ArtifactId>,
     pub related_stream_id: Option<TelemetryStreamId>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RecordFilter {
     pub fn matches(&self, record: &RecordEntry) -> bool {
@@ -106,9 +82,3 @@ impl RecordFilter {
         true
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,15 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::ext::IdentExt;
@@ -23,19 +14,10 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Meta, Token, Type, Variant};
 
-// Local Imports
 use crate::arguments::Shape;
-
-/* === Constants === */
 
 const FIELD_ARGUMENTS: &[&str] = &["label", "description", "unit", "default", "expansion", "min", "max", "min_items", "max_items"];
 const VARIANT_ARGUMENTS: &[&str] = &["id", "label"];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct ParameterDeclaration {
     name: Ident,
@@ -66,14 +48,6 @@ struct ChoiceVariant {
     identifier: LitStr,
     label: TokenStream,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn parameters(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
@@ -112,8 +86,6 @@ pub(crate) fn underscored(name: &str) -> String {
 
     written
 }
-
-/* === Private Functions === */
 
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
@@ -503,5 +475,3 @@ fn spaced(name: &str) -> String {
 fn stripped_choice(input: &DeriveInput) -> TokenStream {
     crate::arguments::stripped(input, "choice").to_token_stream()
 }
-
-/* === Tests === */

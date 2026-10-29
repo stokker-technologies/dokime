@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::OrganizationIdentity;
 use super::ThemeCornerRadii;
 use super::ThemeModePolicy;
 use super::ThemeVariant;
 use crate::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeAppearanceFrame {
@@ -95,12 +78,6 @@ pub struct RuntimeThemeFamily {
     pub dark: ThemeVariant,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl harmos::MemorySize for RuntimeAppearanceFrame {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -150,9 +127,3 @@ impl harmos::MemorySize for RuntimeThemeFamily {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

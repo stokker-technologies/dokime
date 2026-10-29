@@ -7,46 +7,23 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::mem::size_of;
 
-// Third Party Imports
 use base64::Engine;
 use harmos::domain::{Error, Result};
 use sha2::Digest;
 use sha2::Sha256;
 
-// Local Imports
 use super::ExecutionCheckpoint;
-
-/* === Constants === */
 
 const VERSION: u8 = 1;
 const BYTES: usize = 1 + 32 + size_of::<u64>();
 const TEXT: usize = BYTES.div_ceil(3) * 4 - 1;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct PageCursor {
     identity: [u8; 32],
     after: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for PageCursor {
     fn memory_size(&self) -> usize {
@@ -104,10 +81,6 @@ impl PageCursor {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn decode(after: &str) -> Result<([u8; 32], u64)> {
     if after.len() != TEXT {
         return Err(invalid("native page cursor length differs"));
@@ -158,5 +131,3 @@ fn invalid(message: &'static str) -> Error {
 fn exhausted() -> Error {
     Error::ResourceExhausted { resource: "native page cursor" }
 }
-
-/* === Tests === */

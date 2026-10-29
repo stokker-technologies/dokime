@@ -8,28 +8,9 @@
 
 """Select Packageable Native Outputs From The Original Compiler Record"""
 
-# === Imports === #
-
-# Standard Library Imports
 import json
 from collections.abc import Sequence
 from pathlib import Path
-
-# Third Party Imports
-
-# Local Imports
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
@@ -53,8 +34,3 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
             raise ValueError(f"Cargo must report exactly one {name} executable")
         result[name] = next(iter(paths))
     return result
-
-
-# === Private Functions === #
-
-# === Entry Point === #

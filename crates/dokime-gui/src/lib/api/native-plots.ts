@@ -9,11 +9,7 @@
 
 /* Typed native plot and telemetry adapters for the original routed UI. */
 
-/* === External Imports === */
-
 import { create } from "@bufbuild/protobuf";
-
-/* === Local Imports === */
 
 import * as plotWire from "@generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
 import type { Row3 as WatchFrame } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
@@ -57,8 +53,6 @@ import {
   safeNumber,
 } from "./native-values";
 
-/* === Canonical Types === */
-
 type PlotRequest = Wire<plotWire.Row3>;
 type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsQuerySnapshots>>>["envelopes"][number];
 type DataExpression = NonNullable<PlotRequest["xExpression"]>;
@@ -91,15 +85,11 @@ const PlotWindowSchema = plotWire.Row15Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 
-/* === Constants === */
-
 const GUI_PLOT_REQUESTS = 32;
 const GUI_PLOT_TRANSFORMS = 32;
 
 export const NATIVE_PLOT_MAX_REQUESTS = GUI_PLOT_REQUESTS;
 const MAX_PLOT_TRANSFORMS = GUI_PLOT_TRANSFORMS;
-
-/* === Types === */
 
 /** Input shape retained for the original plot renderer and document model. */
 export type PlotPayloadRequestInput = {
@@ -159,8 +149,6 @@ export type NativePlotReadOptions = {
 };
 
 export type NativePlotWatchOptions = NativePlotReadOptions;
-
-/* === Public API === */
 
 /** Build one typed protobuf plot request from the document-facing input. */
 export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
@@ -373,8 +361,6 @@ function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEn
   };
 }
 
-/* === Request mapping === */
-
 function dataExpression(value: DocumentDataExpression): DataExpression {
   const input = object(value, "data expression");
   const source = object(input.source, "data expression source");
@@ -579,8 +565,6 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
       throw new Error(`Unsupported plot filter operator: ${String(value)}`);
   }
 }
-
-/* === Response mapping === */
 
 function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
   return {
@@ -802,8 +786,6 @@ function cartesianMode(value: PlotCartesianMode | undefined): PlotCartesianFrame
       throw new Error("Native Cartesian frame returned an unspecified mode.");
   }
 }
-
-/* === Telemetry and lifecycle helpers === */
 
 function boundedRequestCount(count: number, operation: string): void {
   if (count > NATIVE_PLOT_MAX_REQUESTS) {

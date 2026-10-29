@@ -9,35 +9,9 @@
 
 // Bounded Transport Receipt And Evidence Volume Fixtures
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::{execution::RecordScope, identity::Identifier, time::Timestamp, values::Value};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn records(count: u64) {
     let (cancel, _) = tokio::sync::watch::channel(false);
     let mut state = super::ExecutionState::new(Default::default(), cancel);
@@ -141,6 +115,3 @@ pub fn stream(count: u64) {
         assert_eq!(receipt.row.read().unwrap().sample_id.as_str(), receipt.sample_id);
     }
 }
-/* === Private Functions === */
-
-/* === Tests === */

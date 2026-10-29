@@ -11,43 +11,12 @@
 // captured at their cut, rendered into cycle and execution reports, sealed,
 // downloaded and read back after a reboot.
 
-/* === Modules === */
-
 mod capture;
 mod construction;
 mod report_payloads;
 mod reports;
 
-/* === Re-Exports === */
 pub(crate) use crate::service_support::prelude::*;
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 // One runtime carries the stages that build and read reports of executions the
 // publishing executor settles on its own; each stage runs its own cycle.

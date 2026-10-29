@@ -19,17 +19,11 @@
  * A long name is given two lines before anything is cut; the row grows.
  */
 
-/* === External Imports === */
-
 import type { LucideIcon } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
 
-/* === Local Imports === */
-
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 /** Where the row's label starts. The tree has exactly these three lines. */
 export type SidebarRowLevel = "destination" | "overview" | "case";
@@ -51,8 +45,6 @@ export type SidebarRowProps = Omit<ComponentProps<"li">, "onSelect"> & {
   title?: string;
 };
 
-/* === Constants === */
-
 /**
  * The lead column of each level, measured from the row's own 20px inset.
  *
@@ -71,8 +63,6 @@ const LEVEL_TEXT: Record<SidebarRowLevel, string> = {
   destination: "text-sm font-medium",
   overview: "text-sm font-medium",
 };
-
-/* === Components === */
 
 export function SidebarRow({
   active,

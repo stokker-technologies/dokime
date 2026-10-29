@@ -13,12 +13,8 @@
  * obeying the same height so the column reads as one rhythm. The WiFi selector
  * keeps its dialog behaviour but now lives inside the cell contract. */
 
-/* === External Imports === */
-
 import { ChevronDown, CircleHelp, Plus, Wifi, X } from "lucide-react";
 import { useRef, useState } from "react";
-
-/* === Local Imports === */
 
 import {
   type FileRowState,
@@ -62,8 +58,6 @@ import type { FileDefinition, ParameterDefinition } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type EditorParameterRow, isExpandedParameter, parameterChoiceList, parameterValueType } from "./model";
 
-/* === Constants === */
-
 /** Every value control matches the row so the value column reads as one rule. */
 const CELL_HEIGHT = "h-[calc(var(--parameter-row-height)_-_--spacing(2))]";
 
@@ -90,8 +84,6 @@ const EXPRESSION_REFERENCE: { example: string; result: string; syntax: string }[
   { example: "linspace(0, 1, 3)", result: "0, 0.5, 1", syntax: "linspace(start, stop, n)" },
   { example: "arange(0, 3)", result: "0, 1, 2", syntax: "arange(start, stop[, step])" },
 ];
-
-/* === Components === */
 
 /** The value control for one parameter row. */
 export function ParameterValueCell({ row, onChange }: { row: EditorParameterRow; onChange: (raw: string) => void }) {
@@ -700,8 +692,6 @@ export function WifiChannelGroup({
     </section>
   );
 }
-
-/* === Private Functions === */
 
 function selectedChoiceValues(raw: string): Set<string> {
   return new Set(

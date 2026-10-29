@@ -7,36 +7,14 @@
  * ***
  */
 
-/* === Modules === */
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::{Bench, Error};
 use dokime::host::ToolConnectionAcquired;
 use dokime::plugin::ListenerContext;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct UnitConnected;
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::listener(id = "{{crate}}.unit_connected", record = ToolConnectionAcquired, resources = [Bench])]
 impl UnitConnected {
@@ -45,9 +23,3 @@ impl UnitConnected {
         Ok(())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

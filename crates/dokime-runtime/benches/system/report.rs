@@ -9,13 +9,6 @@
 
 // Report Benchmarks: Materializing And Rendering Reports Of Plugin Cycles
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     hint::black_box,
@@ -25,31 +18,21 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 use futures_util::FutureExt;
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::operations::reports::MaterializeReport;
 use dokime_runtime::{Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext, transactions::CycleDefinition};
 use dokime_runtime::{TestCycleId, TestExecutionId, Value};
 
-/* === Constants === */
-
 const STEADY_SUITE: &str = "obc.charger.steady";
 
 const STEADY_DURATION_S: f64 = 0.5;
 const SETTLE: Duration = Duration::from_secs(600);
 const POLL: Duration = Duration::from_millis(20);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct MaterializationFixture {
     _root: tempfile::TempDir,
@@ -58,12 +41,6 @@ struct MaterializationFixture {
     cycle: TestCycleId,
     request: MaterializeReport,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl MaterializationFixture {
     async fn new(concurrency: usize, duration: f64) -> Self {
@@ -91,8 +68,6 @@ impl MaterializationFixture {
         self.owner.shutdown().await.unwrap();
     }
 }
-
-/* === Public Functions === */
 
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
@@ -122,8 +97,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     drop(runtime);
     executor.block_on(owner.shutdown()).unwrap();
 }
-
-/* === Private Functions === */
 
 async fn large_cycle_save_measurement() {
     let mut fixture = MaterializationFixture::new(4, STEADY_DURATION_S).await;
@@ -344,5 +317,3 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
         tokio::time::sleep(POLL).await;
     }
 }
-
-/* === Tests === */

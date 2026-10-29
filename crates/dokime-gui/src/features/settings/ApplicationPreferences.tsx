@@ -9,8 +9,6 @@
 
 /** Scoped Preferences With Inline Autosave. */
 
-/* === Imports === */
-
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -22,8 +20,6 @@ import { preferencesError, usePreferences, useSavePreferences } from "./applicat
 import { SettingsCard } from "./SettingsCard";
 import { SettingsRow } from "./SettingsRow";
 import { createDebouncedWriter } from "./settings-autosave";
-
-/* === Types === */
 
 type PreferencesSection = "appearance" | "remote";
 type PreferenceGroup = keyof ApplicationSettings;
@@ -38,8 +34,6 @@ type PreferenceField = {
   options?: string[];
   kind?: "boolean" | "list";
 };
-
-/* === Constants === */
 
 const FIELDS: PreferenceField[] = [
   {
@@ -128,8 +122,6 @@ const FIELDS: PreferenceField[] = [
 ];
 const SELECT_CLASS =
   "h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
-
-/* === Components === */
 
 export function ApplicationPreferences({
   advanced = false,

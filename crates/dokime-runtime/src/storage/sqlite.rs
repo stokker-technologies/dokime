@@ -7,22 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 mod catalog;
 pub(crate) mod data;
 mod settings;
-
-/* === Re-Exports === */
 
 pub use crate::storage::Error;
 pub use catalog::Source;
 pub use data::Backend;
 pub use rusqlite;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fs::{File, OpenOptions},
     num::{NonZeroU32, NonZeroUsize},
@@ -34,13 +27,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Third Party Imports
 use rusqlite::{Connection, InterruptHandle};
 use tokio::sync::{Mutex, Semaphore};
-
-// Local Imports
-
-/* === Constants === */
 
 pub const SCHEMA_VERSION: i64 = 1;
 
@@ -52,12 +40,6 @@ pub(super) static RECORD_CAPTURE_PAGES: AtomicU64 = AtomicU64::new(0);
 pub(super) static RECORD_CAPTURE_ADMISSIONS: AtomicU64 = AtomicU64::new(0);
 pub(super) static TELEMETRY_ANCHOR_ROWS: AtomicU64 = AtomicU64::new(0);
 pub(super) static DATA_SCAN_ROWS: AtomicU64 = AtomicU64::new(0);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
@@ -139,12 +121,6 @@ struct Interruption {
     slot: Arc<ReaderSlot>,
     read: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Drop for Interruption {
     fn drop(&mut self) {
@@ -306,8 +282,6 @@ impl State {
     }
 }
 
-/* === Public Functions === */
-
 pub fn counters() -> StorageCounters {
     StorageCounters {
         committed_transactions: COMMITTED_TRANSACTIONS.load(Ordering::Relaxed),
@@ -320,8 +294,6 @@ pub fn counters() -> StorageCounters {
         data_scan_rows: DATA_SCAN_ROWS.load(Ordering::Relaxed),
     }
 }
-
-/* === Private Functions === */
 
 fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
     transaction.commit()?;
@@ -384,8 +356,6 @@ fn check_layout(connection: &Connection) -> Result<bool, Error> {
     data::check_format(connection)?;
     Ok(false)
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

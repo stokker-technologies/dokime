@@ -7,42 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
-// Third Party Imports
+
 use futures_util::FutureExt;
 
-// Local Imports
 use super::*;
 use dokime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime::domain::model;
 use dokime::runtime::command::CommandContext;
 use dokime::telemetry::{TelemetryBatch, TelemetryRow, TelemetrySample};
 use dokime::{Identifier, ParameterId, RecordScope, Value, ValueType};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
     ParameterDefinition {
@@ -287,5 +261,3 @@ pub(crate) async fn traceability_bounds_clone() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

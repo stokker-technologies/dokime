@@ -7,40 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::Bluetooth;
 use crate::{Error, HostPlugin, HostTelemetryStream};
 use dokime::harmos::operations::Host;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct State {
     pub(crate) collector: crate::collectors::bluetooth::BluetoothCollector,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Observer<Publisher<HostPlugin>> for Bluetooth {
     type Error = Error;
@@ -75,9 +51,3 @@ impl dokime::harmos::sidecar::inventory::observers::Declared for Bluetooth {
         demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
     };
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

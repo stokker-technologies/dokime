@@ -9,26 +9,6 @@
 
 // Show A Registered Suite Contract
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Suite ID, As The Catalog Lists It.")]
@@ -41,14 +21,6 @@ pub(crate) struct Args {
     json: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
     let client = args.connection.connect().await?;
@@ -59,7 +31,3 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     println!("{output}");
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

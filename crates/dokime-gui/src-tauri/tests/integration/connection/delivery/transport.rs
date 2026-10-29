@@ -9,33 +9,16 @@
 
 // Controlled Native Content Stream Fixture
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
 
-// Local Imports
 use super::{FixtureFuture, Gate, HttpFuture, HttpRequest, HttpResponse, Service, wire_codec};
 use dokime::client::contracts::{Endpoint, content};
 use dokime::domain::model::content::wire as model;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type Envelope = dokime::harmos::grpc::OutputEnvelope<model::ArtifactFrame, ()>;
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 pub struct DownloadConfig {
@@ -48,12 +31,6 @@ pub struct DownloadConfig {
 pub struct Content(pub Service);
 
 struct Download(Service);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl tonic::server::NamedService for Content {
     const NAME: &'static str = "dokime.v1.Content";
@@ -150,12 +127,6 @@ impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamIte
     }
 }
 
-/* === Public Functions === */
-
 pub fn bytes() -> Vec<u8> {
     (0..16_391).map(|index| (index % 251) as u8).collect()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

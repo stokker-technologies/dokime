@@ -12,11 +12,7 @@
    `src-tauri/src/bindings/mod.rs` appears here once, under the same name and
    with the same arguments in the same order. */
 
-/* === External Imports === */
-
 import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
-
-/* === Local Imports === */
 
 import type { InstallPluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
@@ -26,8 +22,6 @@ import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./
 import type { ParameterOverrides } from "./settings";
 import { settleUnlessStopping } from "./stopping";
 import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "./updates";
-
-/* === Private Functions === */
 
 /**
  * Every desktop command goes through here, so one check covers the surface.
@@ -44,8 +38,6 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
   // Once the desktop stops, a refused or interrupted command belongs to the stop.
   return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
 }
-
-/* === Public Constants === */
 
 export const commands = {
   desktopPairingCreate: (label: string, endpoint: string) => invoke<string | null>("desktop_pairing_create", { label, endpoint }),

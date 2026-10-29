@@ -9,17 +9,6 @@
 
 // Runtime Regex Admission Before Pure Prompt And Catalog Transactions.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::runtime::Error;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{self, RequestPrompt, SubmitPromptResponse};
@@ -28,22 +17,6 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::plugins::InstalledPlugin;
 use dokime_domain::model::prompts::{PromptDefinition, checks::collect_definitions};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn validate_installation(installation: &InstalledPlugin) -> Result<(), String> {
     validate_definitions(
@@ -108,8 +81,6 @@ pub(crate) fn validate_response(state: &RuntimeState, response: &SubmitPromptRes
     checked
 }
 
-/* === Private Functions === */
-
 fn validate_definitions<'a>(source: &str, definitions: impl IntoIterator<Item = &'a PromptDefinition>) -> Result<(), String> {
     for definition in collect_definitions(source, definitions)? {
         let issues = super::validate_definition(definition);
@@ -124,5 +95,3 @@ fn validate_definitions<'a>(source: &str, definitions: impl IntoIterator<Item = 
     }
     Ok(())
 }
-
-/* === Tests === */

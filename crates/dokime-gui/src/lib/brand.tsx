@@ -7,19 +7,11 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { createContext, type ReactNode, useContext } from "react";
-
-/* === Local Imports === */
 
 import type { BootOrganization, BootOrganizationPack } from "@/lib/desktop/organization";
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import defaultBrandData from "../generated/organization/default-organization.json";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const ORGANIZATION_PACK_STYLE_ID = "dokime-organization-pack";
 
@@ -49,8 +41,6 @@ export const defaultTitleTemplate: string = organizationPack?.titleTemplate ?? "
 
 const BrandContext = createContext<Brand>(defaultBrand);
 
-/* === Types === */
-
 export type LogoVariant = RuntimeAppLogo["variant"];
 export type BrandLogo = { src: string; alt?: string };
 
@@ -65,19 +55,13 @@ type DefaultBrandManifest = {
   logos: Partial<Record<LogoVariant, BrandLogo>>;
 };
 
-/* === Components === */
-
 export function BrandProvider({ brand = defaultBrand, children }: { brand?: Brand; children: ReactNode }) {
   return <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>;
 }
 
-/* === Hooks === */
-
 export function useBrand(): Brand {
   return useContext(BrandContext);
 }
-
-/* === Public Functions === */
 
 export function brandFromLogos(label: string, logos: RuntimeAppLogo[]): Brand {
   return { label, logos: Object.fromEntries(logos.map((logo) => [logo.variant, { src: logo.url, alt: logo.alt ?? label }])) };
@@ -92,8 +76,6 @@ export function selectLogo(brand: Brand, treatment: "transparent" | "contained",
 export function packLogos(pack: BootOrganizationPack): Brand["logos"] {
   return Object.fromEntries(Object.entries(pack.logos).map(([variant, src]) => [variant, { src, alt: pack.label }]));
 }
-
-/* === Private Functions === */
 
 /** Reads the shell's boot organization once and applies the pack theme before the first render. */
 function startBootOrganization(): BootOrganization {

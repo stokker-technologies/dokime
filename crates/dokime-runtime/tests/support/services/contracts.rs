@@ -7,16 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{identifier, metadata};
 use dokime_runtime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow};
@@ -26,13 +16,6 @@ use harmos::{
     schema::{Described, graph::Schema},
 };
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,13 +54,6 @@ pub struct TrackingRow {
     pub connection_acquired_distance_m: Option<f64>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 pub fn fixture_schema(stream: &str) -> Option<Schema> {
     let settings = harmos::config::SchemaSettings::default();
     let definition = match stream {
@@ -280,7 +256,6 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
     contract
 }
 
-/* === Private Functions === */
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample: &dokime_runtime::telemetry::TelemetrySample) -> Vec<u8> {
     let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
     let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
@@ -291,5 +266,3 @@ fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample:
     }
     serde_json::from_value::<T>(values).unwrap().encode()
 }
-
-/* === Tests === */

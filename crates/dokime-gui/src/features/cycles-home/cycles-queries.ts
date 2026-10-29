@@ -10,13 +10,8 @@
 /* Shared live-cycle server state. The Cycles home and the status bar read the
    same two queries so the shell never fetches the cycle list twice. */
 
-/* === External Imports === */
-
-import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-/* === Local Imports === */
-
 import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
@@ -25,8 +20,6 @@ import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
 
 type CycleSummary = Wire<GeneratedCycleSummary>;
-
-/* === Types === */
 
 export type CyclesQuerySelection = {
   /** Matched server-side against the cycle's label and identifier. */
@@ -38,17 +31,11 @@ export type CyclesQuerySelection = {
   archived?: boolean;
 };
 
-/* === Query Keys === */
-
 export const cyclesHomeQueryKeys = {
   all: ["cycles-home"] as const,
   cycles: (generation: string, selection: CyclesQuerySelection = {}) =>
     [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false, text: selection.text ?? "" }] as const,
 };
-
-/* === Constants === */
-
-/* === Public Functions === */
 
 /**
  * The selection and order every page of one read repeats.
@@ -68,8 +55,6 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
     order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
   };
 }
-
-/* === Query Hooks === */
 
 /**
  * Every page of Execution.ListCycles under one server-side selection.
@@ -101,8 +86,6 @@ export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
-
-/* === Mutation Hooks === */
 
 /** Creates an empty Ready cycle and refreshes every cycle list that shows it. */
 export function useCreateCycleMutation() {

@@ -8,33 +8,16 @@
 
 """Refuse Incomplete Canonical Streams And Preserve Remote Failure Details"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 
-# Third Party Imports
 import grpc
 import pytest
 
-# Local Imports
 import dokime_client
 from dokime_client.client import DokimeClient, ProtocolError, RpcError
 
 from .backend import BackendFixture
 from .canonical import register
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("failure", ["missing_response", "trailing_item", "status_after_response"])
@@ -87,8 +70,3 @@ def test_incomplete_stream_refused(failure: str) -> None:
             await server.stop(0)
 
     asyncio.run(scenario())
-
-
-# === Private Functions === #
-
-# === Entry Point === #

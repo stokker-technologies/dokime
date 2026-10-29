@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::metadata;
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::storage::{Error, Result, records::ScopeRow};
@@ -26,14 +15,6 @@ use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::UploadId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -62,12 +43,6 @@ struct Record {
     status: String,
     created_at: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Content {
     pub(super) fn is_artifact(&self) -> bool {
@@ -239,10 +214,6 @@ impl TryFrom<Record> for ArtifactRecord {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn status(value: &ArtifactStatus) -> &'static str {
     match value {
         ArtifactStatus::Staged => "staged",
@@ -251,5 +222,3 @@ fn status(value: &ArtifactStatus) -> &'static str {
         ArtifactStatus::Rejected => "rejected",
     }
 }
-
-/* === Tests === */

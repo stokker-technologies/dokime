@@ -21,30 +21,17 @@
  * only while live: a file has nothing to command.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
 import type { ReactNode } from "react";
-import { toast } from "@/lib/notifications";
-
-// Local Imports
-
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/notifications";
 import type { PromptRequest, TestExecution } from "@/lib/types";
 import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
 import { type CycleExecutionRow, caseActionTooltip, progressStepLabel } from "./cycle-workspace-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
   Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
@@ -63,8 +50,6 @@ const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
   Start: <Play data-icon="inline-start" />,
   Stop: <Square data-icon="inline-start" />,
 };
-
-/* === Types === */
 
 export type ExecutionActions = {
   state: ExecutionControlState;
@@ -85,8 +70,6 @@ export type ExecutionActionButtonProps = {
   action: ExecutionAction;
   actions: ExecutionActions;
 };
-
-/* === Components === */
 
 export function ExecutionControl({ actions, ordinal }: ExecutionControlProps) {
   return (
@@ -116,8 +99,6 @@ export function ExecutionActionButton({ action, actions }: ExecutionActionButton
     </Button>
   );
 }
-
-/* === Hooks === */
 
 /** The one decision both the Control card and the page bar read. */
 export function useExecutionActions({
@@ -197,12 +178,8 @@ export function useExecutionActions({
   };
 }
 
-/* === Public Functions === */
-
 /** The running step's human label, as the Steps card names it; the phase for an opaque id. */
 export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string, phase: string): string {
   const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
   return record ? stepRecordLabel(record, false) : progressStepLabel(stepId, phase);
 }
-
-/* === Private Functions === */

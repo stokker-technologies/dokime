@@ -7,21 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::operations::StreamOutput;
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::chunked;
 use super::error::detailed;
 use super::value::canonical;
@@ -35,15 +26,7 @@ use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::reports as wire;
 
-/* === Constants === */
-
 const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     pub(super) runtime: LiveRuntime,
@@ -52,17 +35,11 @@ struct Resources {
 
 struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::DownloadCycleReport),
     Operation1(wire::DownloadExecutionReport),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::DownloadCycleReport> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadCycleReport, ctx: Context<'a, wire::DownloadCycleReport>) -> Served<'a, ()> {
@@ -129,8 +106,6 @@ impl chunked::Frames for HtmlFrames {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -145,8 +120,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
@@ -220,8 +193,6 @@ fn report_identifier(value: &str) -> Result<Identifier, Status> {
 fn required_identifier(value: &str) -> Result<Identifier, Status> {
     Identifier::new(value.to_owned()).map_err(|_| Status::invalid_argument("invalid report identifier"))
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

@@ -9,20 +9,12 @@
 
 // Shared Fixtures For SQLite Backend And Storage Manager Scenarios
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
     sync::Arc,
 };
 
-// Third Party Imports
 use harmos::{
     Identifier,
     schema::{
@@ -32,27 +24,12 @@ use harmos::{
     storage::{query::RecordSelection, *},
 };
 
-// Local Imports
 use dokime_runtime::storage::sqlite::Backend;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(crate) struct Store<C: ObjectCatalog = ()> {
     pub backend: Arc<Backend<C>>,
     pub history: StoreHistory,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<C: ObjectCatalog> Store<C> {
     pub(crate) async fn open(root: &Path) -> Self {
@@ -102,8 +79,6 @@ impl<C: ObjectCatalog> Store<C> {
         records
     }
 }
-
-/* === Public Functions === */
 
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
@@ -175,10 +150,6 @@ pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
     Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()
 }
 
-/* === Private Functions === */
-
 fn nonzero(value: usize) -> NonZeroUsize {
     NonZeroUsize::new(value).unwrap()
 }
-
-/* === Tests === */

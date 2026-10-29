@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     Message,
     storage::{FileReference, ObjectRevision},
 };
 
-// Local Imports
 use super::{native::source::Source, source::CapturedSource};
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::result::TestExecution;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn read_execution(
     session: &crate::storage::Manager, execution: &ObjectRevision<TestExecution>,
@@ -126,10 +100,6 @@ pub(super) async fn read_native<T: Message + harmos::MemorySize>(
     })
 }
 
-/* === Private Functions === */
-
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
-
-/* === Tests === */

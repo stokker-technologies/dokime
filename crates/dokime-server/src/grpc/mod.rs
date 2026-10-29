@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod access;
 mod appearance;
 mod authorization;
@@ -45,42 +43,18 @@ mod trace;
 mod transcode;
 mod value;
 
-/* === Re-Exports === */
-
 pub use config::{Config, TlsIdentity};
 pub use error::Error;
 pub use observation::WATCH_HEARTBEAT;
 pub use preparation::PreparedService;
 pub use server::{Server, Service};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use dokime::harmos::catalog::{Catalog, Projection};
 
-// Local Imports
 use dokime::operations::Endpoints;
 use dokime::operations::Operations;
 
-/* === Constants === */
-
 pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn methods() -> impl Iterator<Item = (&'static str, bool)> {
     let mut methods = Vec::new();
@@ -93,7 +67,3 @@ pub fn methods() -> impl Iterator<Item = (&'static str, bool)> {
         Err(impossible) => match impossible {},
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

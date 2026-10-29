@@ -7,16 +7,10 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { Label as LabelPrimitive } from "radix-ui";
 import type * as React from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Components === */
 
 function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (

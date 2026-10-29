@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::MemorySize;
 
-// Local Imports
 use crate::storage::{Error, Result, values};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -46,12 +28,6 @@ pub struct Row {
     pub(crate) created_at: Option<String>,
     pub(crate) updated_at: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TryFrom<&Metadata> for Row {
     type Error = Error;
@@ -146,9 +122,3 @@ impl Row {
         Ok(fields.into_iter().fold(std::mem::size_of::<Metadata>(), usize::saturating_add))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

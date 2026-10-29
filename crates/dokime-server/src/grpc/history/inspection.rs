@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::wire;
 use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
@@ -32,30 +23,16 @@ use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::execution_history::ExecutionCheckpoint;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     max_message_bytes: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(history::GetExecutionCheckpoint),
     Operation1(history::DeleteExecution),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<history::GetExecutionCheckpoint> for Resources {
     fn serve<'a>(
@@ -90,8 +67,6 @@ impl Serve<history::DeleteExecution> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
@@ -130,12 +105,8 @@ pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> dokime::h
     Ok(value)
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted {
         resource: "historical checkpoint response",
     }
 }
-
-/* === Tests === */

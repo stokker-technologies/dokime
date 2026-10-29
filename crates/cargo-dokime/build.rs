@@ -9,44 +9,17 @@
 
 // Embed The Plugin Scaffold Assets
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     env, fs, io,
     path::{Path, PathBuf},
 };
 
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Asset {
     source: PathBuf,
     text: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn main() -> io::Result<()> {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
     // Only This Directory Ships. Product Task Overrides And Export Registration Live Outside It.
@@ -126,5 +99,3 @@ fn inventory(root: &Path) -> io::Result<BTreeMap<String, Asset>> {
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
-
-/* === Tests === */

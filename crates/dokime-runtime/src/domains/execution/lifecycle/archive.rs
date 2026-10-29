@@ -7,37 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::state::Transaction;
 
-// Local Imports
 use crate::runtime::storage::execution::ExecutionView;
 use crate::transactions::{ArchiveSubject, SetArchived};
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn set_cycle_archived(&self, test_cycle_id: TestCycleId, archived: bool, context: CommandContext) -> Result<(), Error> {
@@ -79,9 +55,3 @@ impl RuntimeHandle {
             .is_some_and(|inspection| inspection.execution().saved.is_some()))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

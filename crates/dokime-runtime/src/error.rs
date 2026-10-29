@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::fmt;
 
-// Third Party Imports
 #[cfg(feature = "native")]
 use tokio_stream::Elapsed;
 
-// Local Imports
 use crate::document::DocumentFailure;
 use crate::values::FieldError;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::error::RecordFailure;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -120,10 +101,6 @@ pub enum TelemetryFailure {
     UnexpectedColumns { stream: String, columns: Vec<String> },
     IncompatibleContract(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Error {
     pub fn record_mismatched(wanted: &'static str, found: &Identifier) -> Self {
@@ -224,9 +201,3 @@ impl From<dokime_domain::model::execution::snapshot::SnapshotError> for Error {
         Self::Parameter { name: source.name, reason: source.reason }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

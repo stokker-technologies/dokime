@@ -7,31 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use dokime_runtime::document::DocumentNode;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 
-/* === Constants === */
 const SUITE: &str = "documents.checks";
 const TEMPLATE: &str = "documents.checks.probe";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Checks;
 
 struct Probe;
@@ -60,21 +44,17 @@ struct ProbeParameters {
     repeat: bool,
 }
 
-/* === Enums === */
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
 #[dokime_runtime::catalog]
 enum ObserveStreams {
     SampleRow(SampleRow),
 }
 
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum OwnerSuites {
     Checks(Checks),
@@ -179,9 +159,6 @@ impl Probe {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str> {
     document
         .layout
@@ -193,8 +170,6 @@ fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str
         })
         .collect()
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn step_adds_declared() {

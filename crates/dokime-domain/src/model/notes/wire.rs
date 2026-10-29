@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::execution::wire_cursor::Cursor;
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Current owners only. An execution owner never falls back to its cycle.
 #[harmos::message]
@@ -122,8 +104,6 @@ pub struct ListHealthResponse {
     pub next_after_id: String,
 }
 
-/* === Enums === */
-
 // A committed note may have no existing persisted execution dataset. Confirmation
 // verifies this exact note in all captured targets; it does not promise future
 // history or create historical annotations. Retrying Create retries publication.
@@ -143,13 +123,3 @@ pub enum AnnotationOwnerOwner {
     PlannedCase(PlannedCaseNoteOwner),
     Execution(ExecutionNoteOwner),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

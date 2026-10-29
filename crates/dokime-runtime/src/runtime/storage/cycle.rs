@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use harmos::storage::StorageCursor;
 
-// Local Imports
 use crate::{installed_plugins::RuntimeAppearanceFrame, runtime::Error, runtime::Result};
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::execution::saved::ExecutionRevision;
@@ -27,14 +18,6 @@ use dokime_domain::model::execution::saved::validate_cycle_revisions;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub(crate) struct CycleSnapshot(Arc<State>);
@@ -47,12 +30,6 @@ struct State {
     captured_at: Timestamp,
     owner_node_id: NodeId,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl CycleSnapshot {
     pub(crate) fn capture(
@@ -115,12 +92,6 @@ impl CycleSnapshot {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(message))
 }
-
-/* === Tests === */

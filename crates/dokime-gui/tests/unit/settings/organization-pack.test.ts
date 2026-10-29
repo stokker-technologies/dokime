@@ -7,24 +7,15 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
-// Local Imports
 import { OrganizationPackView } from "@/features/settings/sections/OrganizationPackRow";
 import { organizationPackPresentation } from "@/features/settings/sections/organization-pack";
 import type { OrganizationStatus } from "@/lib/desktop/organization";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const notice = vi.hoisted(() => vi.fn());
 vi.mock("@/components/NotificationMessage", () => ({
@@ -36,12 +27,6 @@ vi.mock("@/components/NotificationMessage", () => ({
 
 const NONE: OrganizationStatus = { active: null, pending: null, removed: false, error: null };
 const CUSTOM = { label: "Stokker Technologies Test Hub", organization: "Stokker Technologies" };
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Tests === */
 
 test("the brand card names the pack, what happens next and the actions that apply", () => {
   const none = row(NONE);
@@ -86,8 +71,6 @@ test("Failed Activation Retains Pack", () => {
   assert.equal(presentation.remove, true);
   assert.equal(presentation.restart, false);
 });
-
-/* === Private Functions === */
 
 function row(status: OrganizationStatus, choiceError: string | null = null): string {
   notice.mockClear();

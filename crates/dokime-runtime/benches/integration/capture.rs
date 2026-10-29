@@ -9,20 +9,12 @@
 
 // Capture Benchmarks: Record Admission And Saved Replay Through The Runtime
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::time::{Duration, Instant};
 
-// Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 use futures_util::FutureExt;
 use tempfile::TempDir;
 
-// Local Imports
 use dokime_domain::model;
 use dokime_runtime::{Identifier, Metadata};
 use {
@@ -31,25 +23,14 @@ use {
     model::records::product::ProductCalibrationPhase, model::records::product::ProductRecordDraft,
 };
 
-/* === Constants === */
 const COUNTS: [u64; 3] = [500, 1_000, 2_000];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 struct Fixture {
     _root: TempDir,
     owner: Runtime,
     handle: RuntimeHandle,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -73,7 +54,6 @@ impl Fixture {
     }
 }
 
-/* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
@@ -139,7 +119,6 @@ pub fn benchmark(criterion: &mut Criterion) {
     group.finish();
 }
 
-/* === Private Functions === */
 fn drafts(count: u64) -> Vec<ProductRecordDraft> {
     (0..count)
         .map(|_| {
@@ -148,5 +127,3 @@ fn drafts(count: u64) -> Vec<ProductRecordDraft> {
         })
         .collect()
 }
-
-/* === Tests === */

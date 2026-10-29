@@ -7,44 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(super) mod canonical;
 pub(super) mod projection;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
-
-// Local Imports
-
-/* === Constants === */
 
 const SERVER_MAXIMUM_COLLECTION_ITEMS: u64 = 256;
 const SERVER_VALUE_DEPTH: u64 = 32;
 const SERVER_VALUE_NODES: u64 = 4_096;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(super) struct Budget {
     remaining: usize,
     maximum_depth: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Budget {
     pub(super) fn new() -> Result<Self, Status> {
@@ -62,15 +37,9 @@ impl Budget {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn collection(len: usize) -> Result<(), Status> {
     if len as u64 > SERVER_MAXIMUM_COLLECTION_ITEMS {
         return Err(Status::resource_exhausted("collection exceeds its configured expansion limit"));
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

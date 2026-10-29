@@ -9,30 +9,11 @@
 
 // Answer An Execution Prompt By Identity
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::identity::{PromptId, TestExecutionId};
 use dokime::domain::model::values::{Value, wire};
 
-/* === Constants === */
-
 const PROMPT_ACTION_BYTES: u64 = 256;
 const VALUE_INPUT_BYTES: u64 = 1_048_576;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
@@ -57,14 +38,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Committed Prompt Receipt As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     args.connection = args.connection.with_settings(*settings);
@@ -92,8 +65,6 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn answer_values(input: &str, maximum: usize) -> crate::Result<wire::Value> {
     if input.len() > maximum {
         return Err(crate::Error::Input("prompt values exceed the configured byte limit".into()));
@@ -105,5 +76,3 @@ fn answer_values(input: &str, maximum: usize) -> crate::Result<wire::Value> {
     let value = Value::from_plain_json(json).map_err(|error| crate::Error::Input(error.to_string()))?;
     wire::Value::try_from(value).map_err(|error| crate::Error::Input(error.to_string()))
 }
-
-/* === Tests === */

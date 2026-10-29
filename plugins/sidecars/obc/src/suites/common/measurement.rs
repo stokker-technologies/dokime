@@ -7,29 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime::expressions::telemetry;
 use dokime::prelude::*;
 use dokime::telemetry::OwnedStream;
 use obc_runtime::device::Reading;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::row]
 #[derive(Clone)]
@@ -70,14 +51,6 @@ pub struct InputMeasurement {
     #[row(role = state)]
     pub phase: String,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn publish<C, T, O, I>(ctx: &mut StepContext<'_, T, O, I>, index: u64, reading: Reading, phase: &str)
 where
@@ -140,7 +113,3 @@ pub(crate) fn document(stream: &str, title: &str) -> Document {
 
     document
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

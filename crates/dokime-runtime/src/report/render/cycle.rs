@@ -7,37 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     io::{self, Write},
 };
 
-// Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
 
-// Local Imports
 use super::*;
 use crate::report::cycle::{AnnotationKind, Index};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 type ReadMember<'a> = dyn Fn(usize) -> Result<crate::report::html::Member> + 'a;
-
-/* === Structs === */
 
 pub(in crate::report) struct Report<'a> {
     pub report_defaults: &'a crate::config::ReportDefaults,
@@ -69,8 +52,6 @@ struct Steps<'a, 'r>(&'a Report<'r>, &'a crate::report::cycle::Member);
 
 struct Annotations<'a, 'r>(&'a Report<'r>, AnnotationKind);
 
-/* === Enums === */
-
 #[derive(Clone, Copy)]
 enum Section {
     Artifacts,
@@ -82,10 +63,6 @@ enum Section {
     PlanCases,
     Queue,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Report<'_> {
     pub(crate) fn write(&self, writer: &mut dyn Write) -> Result<()> {
@@ -667,16 +644,12 @@ impl Serialize for Samples<'_, '_> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn selection(length: usize, maximum: usize) -> impl Iterator<Item = usize> + Clone {
     let count = if length <= maximum { length } else { maximum.saturating_sub(1) };
     let indices = harmos::signal::decimate_indices(length, count);
     let endpoint = length.checked_sub(1).filter(|last| indices.clone().next_back() != Some(*last));
     indices.chain(endpoint)
 }
-
-/* === Private Functions === */
 
 fn separator(writer: &mut dyn Write, first: &mut bool) -> io::Result<()> {
     if !*first {
@@ -698,8 +671,6 @@ fn member_status(status: &ExecutionStatus, planned: bool) -> &'static str {
 fn selected_samples(samples: &[crate::report::cycle::Sample], maximum: usize) -> impl Iterator<Item = &crate::report::cycle::Sample> {
     selection(samples.len(), maximum).map(move |index| &samples[index])
 }
-
-/* === Tests === */
 
 #[test]
 fn preview_selection_preserves_order_and_terminal_endpoint() {

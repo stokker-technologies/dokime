@@ -7,33 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use dokime_domain::model::telemetry::TelemetryStream;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::telemetry::TelemetryRow;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone)]
 pub struct Streams {
@@ -73,10 +55,6 @@ struct Admission {
     streams: std::collections::BTreeSet<String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait SampleSink: Send + Sync {
     fn publish<'a>(
         &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
@@ -96,8 +74,6 @@ pub trait SampleSink: Send + Sync {
 }
 
 pub trait OwnedStream: TelemetryStream {}
-
-/* === Implementations === */
 
 impl Streams {
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
@@ -302,9 +278,3 @@ impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
         self.streams.produced(self.stream.as_str())
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

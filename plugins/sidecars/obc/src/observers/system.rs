@@ -7,29 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use sysinfo::{Pid, System as Machine};
 
-// Local Imports
-// Third-Party Imports
 use crate::ObcPlugin;
 use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::stream(
     id = "obc.system",
@@ -48,16 +29,10 @@ pub(crate) struct System {
     machine: Machine,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Streams {
     SystemRow(SystemRow),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for System {
     fn default() -> Self {
@@ -85,12 +60,6 @@ impl System {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn integer(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }
-
-/* === Tests === */

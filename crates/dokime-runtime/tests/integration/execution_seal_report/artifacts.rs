@@ -7,39 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::path::Path;
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::prelude::*;
 use crate::service_support::smoke::{Behaviour, SOURCE, SUITE, Smoke};
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 
-/* === Constants === */
 const WATCHED_CONTENT: &[u8] = b"the chamber log, rewritten in place\n";
 const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
     let provider = Smoke::new(Behaviour::new(777, 0, false).artifacts(abandoned));
     let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
@@ -135,7 +112,6 @@ async fn export_zip(
     manifest
 }
 
-/* === Tests === */
 pub(crate) async fn saved_evidence_export() {
     use dokime_domain::model::exports::EvidenceSubject;
     let root = tempfile::tempdir().unwrap();

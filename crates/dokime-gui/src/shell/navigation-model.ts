@@ -11,24 +11,8 @@
  * Breakpoint Navigation And Persisted Sidebar Bounds.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 export type NavigationMode = "phone" | "tablet" | "desktop";
 
-/* === Classes === */
-
-/* === Public Functions === */
 export function navigationMode(width: number): NavigationMode {
   if (width < 600) return "phone";
   return width < 1024 ? "tablet" : "desktop";
@@ -39,7 +23,3 @@ export function sidebarWidth(value: number): number {
 export function settingsParent(pathname: string): string {
   return /^\/settings\/plugins\/.+/.test(pathname) ? "/settings/plugins" : "/settings";
 }
-
-/* === Private Functions === */
-
-/* === Entry Point === */

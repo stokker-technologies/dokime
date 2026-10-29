@@ -13,36 +13,4 @@
 // instance cancels it with SIGTERM, a grace period and a kill on Unix, and
 // TerminateProcess on Windows.
 
-/* === Modules === */
-
 pub mod wire;
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,38 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{BackendLimits, BackendSnapshot, ConnectionError, ConnectionTarget};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Target {
     pub endpoint: String,
     pub remote: bool,
     pub inner: dokime::client::Target,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
@@ -54,8 +29,6 @@ impl Target {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn backend(value: &dokime::client::Backend) -> BackendSnapshot {
     BackendSnapshot {
@@ -78,7 +51,3 @@ pub(super) fn backend(value: &dokime::client::Backend) -> BackendSnapshot {
         },
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

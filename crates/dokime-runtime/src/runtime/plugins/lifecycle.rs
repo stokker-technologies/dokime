@@ -7,39 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use super::{ActivePackage, Extraction, Program, Running, operation};
 use crate::runtime::sidecars::{PublicationIngest, flush_publications};
 use crate::{InstalledSidecar, RuntimeHandle, runtime::Error, runtime::Result};
 
-/* === Constants === */
-
 const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
 const NATIVE_INVOCATION_ITEMS: usize = 128;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
 type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
-
-/* === Structs === */
 
 pub(in crate::runtime) struct Adapter<'a> {
     pub(in crate::runtime) handle: &'a RuntimeHandle,
@@ -66,12 +48,6 @@ pub(in crate::runtime) struct Sidecar {
     // Shared across the package's programs, but owned rather than a path lookup.
     directory: Arc<Extraction>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     type Guest = Infallible;
@@ -457,10 +433,6 @@ impl Sidecar {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn lifecycle_error(error: Error) -> harmos::Error {
     match error {
         Error::Harmos(error) => error,
@@ -500,5 +472,3 @@ fn severity(line: &str) -> Option<(&'static str, &str)> {
 
     Some((level, rest.trim_start()))
 }
-
-/* === Tests === */

@@ -9,33 +9,13 @@
 
 // Scoped Application Settings Commands
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Serialize;
 use tauri::State;
 
-// Local Imports
 use crate::connection::{ConnectionSession, registry};
 use crate::native_session::DesktopSessionControl;
 use dokime::domain::model::settings::application::{SettingsScope, SettingsSnapshot, UpdateSettings};
 use dokime::operations::settings::{ReadApplicationSettings, UpdateApplicationSettings};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -45,12 +25,6 @@ pub enum SettingsCommandError {
     Disconnected,
     Persistence { message: String },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn desktop_settings_read(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
@@ -71,8 +45,6 @@ pub async fn desktop_settings_update(
     }
     Ok(saved)
 }
-
-/* === Private Functions === */
 
 async fn client(
     owner: &DesktopSessionControl, connection: &ConnectionSession, scope: SettingsScope,
@@ -110,5 +82,3 @@ fn command_error(error: dokime::client::Error) -> SettingsCommandError {
     }
     SettingsCommandError::Persistence { message: error.to_string() }
 }
-
-/* === Tests === */

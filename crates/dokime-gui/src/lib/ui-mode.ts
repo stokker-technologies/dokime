@@ -7,13 +7,7 @@
  * ***
  */
 
-/* === Types === */
-
 export type UiSurfaceMode = "live" | "report";
-
-/* === Constants === */
-
-/* === Public Functions === */
 
 export function currentUiSurfaceMode(): UiSurfaceMode {
   /* Read the define rather than the module constant: the build folds this to a

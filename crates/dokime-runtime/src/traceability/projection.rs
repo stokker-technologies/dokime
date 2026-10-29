@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
-
-// Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::runtime::Result as ProjectionResult;
 use crate::state::RuntimeState;
@@ -33,8 +23,6 @@ use dokime_domain::model::traceability::TraceabilityEntry;
 use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::Value;
-
-/* === Constants === */
 
 pub(super) const HOST_TRACEABILITY_FIELDS: &[(&str, &str, &str, &str)] = &[
     ("host_name", "host.hostname", "Hostname", "traceability.host.info"),
@@ -63,12 +51,6 @@ pub(super) const HOST_TRACEABILITY_FIELDS: &[(&str, &str, &str, &str)] = &[
     ("battery_power_plugged", "host.power_plugged", "Plugged In", "traceability.host.power"),
 ];
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TraceabilityPageCandidate {
     pub traceability_id: String,
@@ -93,14 +75,6 @@ struct ParameterTraceabilityGroup {
     source: String,
     entries: Vec<TraceabilityEntry>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn resource_traceability(
     state: &RuntimeState, cycle: &CycleView, scope: RecordScope, created_at: Timestamp,
@@ -433,8 +407,6 @@ pub(crate) fn scope_discriminator(scope: &RecordScope) -> String {
     discriminator
 }
 
-/* === Private Functions === */
-
 pub(super) fn scope_values(scope: &RecordScope) -> [Option<&str>; 8] {
     [
         scope.session_id.as_ref().map(|id| id.as_str()),
@@ -738,5 +710,3 @@ pub(super) fn resource_traceability_value_visible(value: &Value) -> bool {
         Value::Bool(_) | Value::Integer(_) | Value::Unsigned(_) | Value::Number(_) | Value::Datetime(_) => true,
     }
 }
-
-/* === Tests === */

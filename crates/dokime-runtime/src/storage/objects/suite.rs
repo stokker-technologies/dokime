@@ -7,32 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::{
     DefinitionId, Identified,
     storage::{ObjectRetention, ObjectVersion, StoredObject},
 };
 
-// Local Imports
 use super::templates;
 use crate::definition::TestSuite;
 use crate::storage::{Error, Manager, Result};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -40,12 +22,6 @@ pub struct Suite {
     suite_id: String,
     definition: Option<templates::Definition>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Identified for Suite {
     fn definition() -> (DefinitionId, u32) {
@@ -99,17 +75,11 @@ impl Suite {
     }
 }
 
-/* === Public Functions === */
-
 pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<harmos::storage::ReadBatch<TestSuite>>> {
     let session = storage.clone();
     let saved = session.read_object::<Suite>(suite_id, ObjectVersion::Latest).await?;
     saved.map(|saved| saved.try_map(|saved| saved.value.into_suite())).transpose()
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

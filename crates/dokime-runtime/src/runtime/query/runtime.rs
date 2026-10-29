@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::RuntimeHandle;
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
 use crate::evidence_runtime::EvidenceCounts;
@@ -40,14 +31,6 @@ use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeOverviewSnapshot {
@@ -123,16 +106,10 @@ pub struct RuntimeExecutionSummary {
     pub result: Option<ResultSummary>,
 }
 
-/* === Enums === */
-
 pub enum RuntimeChange {
     State(RuntimeStateSnapshot),
     Operations(OperationSnapshot),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeStateSnapshot {
     pub(crate) fn new(state: Arc<RuntimeState>, revision: u64) -> Self {
@@ -239,10 +216,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn public_parameters(parameters: &BTreeMap<String, MaterializedParameter>) -> BTreeMap<String, MaterializedParameter> {
     parameters
         .iter()
@@ -263,5 +236,3 @@ fn public_parameters(parameters: &BTreeMap<String, MaterializedParameter>) -> BT
         .map(|(key, parameter)| (key.clone(), parameter.clone()))
         .collect()
 }
-
-/* === Tests === */

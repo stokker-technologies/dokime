@@ -11,13 +11,6 @@
  * Shared Document Presentation Assembly
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
@@ -32,13 +25,7 @@ import type {
 } from "./types";
 import { isRecord, numericValue } from "./utils";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const DOCUMENTS_UNAVAILABLE_REASON_BYTES = 512;
-
-/* === Types === */
 
 type SummaryTile = Omit<TelemetrySummaryTilePayload_Serialize, "value" | "stat" | "metadata"> & {
   metadata: Metadata;
@@ -63,10 +50,6 @@ type PlotDeclaration = Omit<Partial<DocumentViewPlot>, "fft" | "interval" | "his
       color?: string | null;
     })[];
   };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 export function documentView(
   documentId: string,
@@ -270,8 +253,6 @@ export function documentTableRows(cardId: string, rows: readonly Record<string, 
   }));
 }
 
-/* === Private Functions === */
-
 function nonEmptyString(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -314,5 +295,3 @@ function summaryValue(value: unknown, format: SummaryTile["format"], unit?: stri
   if (format === "duration") return `${rendered}${unit ?? "s"}`;
   return `${rendered}${unit ? ` ${unit}` : ""}`;
 }
-
-/* === Entry Point === */

@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use crate::error::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 #[command(about = "Assemble Or Inspect Native Dokime Installers")]
@@ -71,19 +53,11 @@ pub struct InspectArgs {
     json: bool,
 }
 
-/* === Enums === */
-
 #[derive(clap::Subcommand)]
 enum Command {
     Package(PackageArgs),
     Inspect(InspectArgs),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn run(args: Args) -> Result<(), Error> {
     match args.command {
@@ -134,10 +108,6 @@ pub async fn run(args: Args) -> Result<(), Error> {
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

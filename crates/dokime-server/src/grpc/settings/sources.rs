@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::preferences::Resources;
 use dokime::app::LiveRuntime;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
-/* === Constants === */
-
 const SERVER_SETTINGS_RESPONSE_BYTES: u64 = 4_194_304;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -44,10 +25,6 @@ enum PreparedOperations {
     Operation1(wire::ReorderStorageSources),
     Operation2(wire::SetStorageSourceEnabled),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListStorageSources> for Resources {
     fn serve<'a>(
@@ -87,8 +64,6 @@ impl Serve<wire::SetStorageSourceEnabled> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -105,8 +80,6 @@ pub(super) fn prepare(
     Ok(())
 }
 
-/* === Private Functions === */
-
 async fn sources(resources: &Resources) -> Result<Response<dokime::domain::model::settings::wire::StorageSources>, Status> {
     let sources = dokime::app::live_runtime(&resources.runtime).await?.storage_sources().await.map_err(super::super::execution::status)?;
     resources.produce(|| {
@@ -122,5 +95,3 @@ async fn sources(resources: &Resources) -> Result<Response<dokime::domain::model
         dokime::domain::model::settings::wire::StorageSources { sources: output }
     })
 }
-
-/* === Tests === */

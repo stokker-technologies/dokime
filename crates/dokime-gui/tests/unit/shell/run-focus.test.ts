@@ -11,26 +11,10 @@
  * Run Focus Selection And Clock Behavior.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-import { test, expect } from "vitest";
-import { activeRunFocus, elapsedMinutes, runDestination } from "@/shell/run-focus";
+import { expect, test } from "vitest";
 import type { TestCyclePlan, TestExecution } from "@/lib/types";
+import { activeRunFocus, elapsedMinutes, runDestination } from "@/shell/run-focus";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
 test("execution lifecycle", () => {
   const plan = { test_cycle: { test_cycle_id: "cycle", metadata: {} }, cases: [], templates: [] } as unknown as TestCyclePlan;
   const execution = {
@@ -82,7 +66,3 @@ test("multi day elapsed", () => {
   expect(elapsedMinutes(start, Date.parse(start) - 1000)).toBe(0);
   expect(elapsedMinutes(undefined, now)).toBeNull();
 });
-
-/* === Private Functions === */
-
-/* === Entry Point === */

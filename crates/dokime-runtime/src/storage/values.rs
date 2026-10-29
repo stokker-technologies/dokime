@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub(crate) mod map {
     use super::*;
     use serde::{Deserialize, Serialize};
@@ -24,28 +22,12 @@ pub(crate) mod map {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
-
-// Local Imports
 use super::{Error, Result};
 use dokime_domain::model::values::Value;
 
-/* === Constants === */
-
 const MAX_DEPTH: usize = 64;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
@@ -64,14 +46,6 @@ struct Encoding {
     cells: usize,
     strings: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn encoding_memory(details: &BTreeMap<String, Value>) -> Result<usize> {
     let plan = encoding(details)?;
@@ -181,8 +155,6 @@ pub(crate) fn decode_owned(cells: Vec<Cell>) -> Result<BTreeMap<String, Value>> 
     };
     Ok(value)
 }
-
-/* === Private Functions === */
 
 fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
     let mut plan = Encoding { cells: 1, strings: "object".len() };
@@ -471,8 +443,6 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
         _ => return Err(error("unknown stored value kind")),
     })
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

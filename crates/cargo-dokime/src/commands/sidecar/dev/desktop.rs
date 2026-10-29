@@ -9,13 +9,6 @@
 
 //! Run the frontend's prepared commands under the configured native development owner.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     future::poll_fn,
@@ -25,23 +18,13 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use serde::Deserialize;
 use tokio::process::Command;
 
-// Local Imports
 use crate::error::Error;
 use dokime_packaging::process::Child;
 
-/* === Constants === */
-
 const PROCESS_STOP_MS: u64 = 5_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -73,16 +56,10 @@ struct Interrupts {
     hangup: tokio::signal::unix::Signal,
 }
 
-/* === Enums === */
-
 enum Completion {
     Child(usize, ExitStatus),
     Signal(i32),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Interrupts {
     fn open() -> std::io::Result<Self> {
@@ -113,8 +90,6 @@ impl Interrupts {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub async fn run(args: Args) -> Result<(), Error> {
     let plan: Plan = serde_json::from_str(&args.plan)?;
@@ -152,8 +127,6 @@ pub async fn run(args: Args) -> Result<(), Error> {
     };
     if code == 0 { Ok(()) } else { Err(Error::DevelopmentExit(code)) }
 }
-
-/* === Private Functions === */
 
 fn start(plan: &Plan, children: &mut Vec<Child>) -> Result<(), Error> {
     for process in &plan.commands {
@@ -246,5 +219,3 @@ fn exit_code(status: ExitStatus) -> i32 {
         status.code().unwrap_or(1)
     }
 }
-
-/* === Tests === */

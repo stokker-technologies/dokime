@@ -9,17 +9,9 @@
 
 /* Shared Destinations For Desktop Sidebar, Tablet Rail And Phone Tabs. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Bell, History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
-
-// Local Imports
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,10 +30,6 @@ import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { SidebarFrame } from "./SidebarFrame";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 const DESTINATIONS: Destination[] = [
   { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
   { icon: Library, label: "Library", prefix: "/library", to: "/library" },
@@ -54,8 +42,6 @@ const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
 
 /** The sidebar lists cycles, not their prompts; the Cycles entry counts those. */
 const NO_ATTENTION: ReadonlyMap<string, number> = new Map();
-
-/* === Types === */
 
 export type SidebarProps =
   | { live?: true }
@@ -73,8 +59,6 @@ type Destination = {
   prefix: string;
   to: "/cycles" | "/history" | "/library" | "/notifications" | "/settings";
 };
-
-/* === Components === */
 
 export function Sidebar(props: SidebarProps) {
   const { mode } = useSidebarState();
@@ -291,12 +275,6 @@ function ChildRegion({
     </ul>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function isCurrent(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

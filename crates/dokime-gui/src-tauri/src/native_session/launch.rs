@@ -7,27 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Serialize;
 
-// Local Imports
 use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,14 +19,6 @@ pub struct DesktopLaunch {
     pub local_backend_available: bool,
     pub error: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // A command line names an attach target or nothing; the owned local backend
 // is the default and shared profiles are selected from the desktop session.
@@ -119,10 +93,6 @@ pub fn configuration(arguments: impl IntoIterator<Item = String>) -> DesktopLaun
 pub fn desktop_session_launch(state: tauri::State<'_, DesktopLaunch>) -> Result<DesktopLaunch, String> {
     Ok(state.inner().clone())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

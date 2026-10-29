@@ -7,32 +7,21 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
     Arc, LazyLock, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 
-// Third Party Imports
 use dokime_runtime::harmos::catalog::Node;
 use dokime_runtime::harmos::operations::{Host, OperationDeclaration, WireDeclaration};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 
-// Local Imports
 use dokime_runtime::catalog::required_by;
 use dokime_runtime::execution::{InitializationContext, Run, SidecarTemplate, StepContext};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
-
-/* === Constants === */
 
 const OWNER: &str = "public_owner";
 const CONSUMER: &str = "public_consumer";
@@ -45,12 +34,6 @@ static PROBES: LazyLock<Mutex<BTreeMap<String, Arc<Probed>>>> = LazyLock::new(||
 
 // Woken whenever a probed operation starts, answers or is cancelled.
 static CHANGED: tokio::sync::Notify = tokio::sync::Notify::const_new();
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Default)]
 struct Probed {
@@ -93,8 +76,6 @@ struct InFlight {
     completed: bool,
 }
 
-/* === Enums === */
-
 #[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Provided {
     ReadPublic(ReadPublic),
@@ -131,10 +112,6 @@ enum ConsumerTemplates {
 enum ConsumerRequired {
     ReadPublic(ReadPublic),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime_runtime::operation(id = "public_owner.read_public", policy = super::native::POLICY, response = Reading, visibility = Public)]
 #[derive(Clone, PartialEq)]
@@ -300,10 +277,6 @@ impl Drop for InFlight {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 // Doubles `value`, or waits for cancellation when asked to.
 async fn answer(probe: &str, value: u64, wait: bool) -> Result<Reading, Refusal> {
     let probed = PROBES.lock().unwrap().get(probe).cloned();
@@ -379,8 +352,6 @@ fn definition<A: Attach>(attach: &A, version: &str) -> dokime_runtime::harmos::p
         requires: vec![],
     }
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn template_calls_own_public() {

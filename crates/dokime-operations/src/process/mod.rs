@@ -13,29 +13,11 @@
 // instance cancels it with SIGTERM, a grace period and a kill on Unix, and
 // TerminateProcess on Windows.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
 use dokime_domain::model::process::wire::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Shared, so a template reaches it through `ctx.host()` without listing it.
 #[harmos::operation(resources = [crate::hosting::Host<RunProcess>], response = ProcessExit, id = "dokime.process.run",
@@ -60,12 +42,6 @@ pub struct RunProcess {
     #[row(description = "Milliseconds between SIGTERM and the kill when cancelled: default 2000.")]
     pub grace_ms: Option<u32>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RunProcess {
     pub fn new(program: impl Into<String>) -> Self {
@@ -122,14 +98,6 @@ impl RunProcess {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

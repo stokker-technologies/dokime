@@ -9,9 +9,6 @@
 
 """Pure Python Client For Shared Rust Backend Execution Scenarios"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import hashlib
 import json
@@ -19,22 +16,7 @@ import sys
 from contextlib import aclosing
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_client.client import DokimeClient, Execution, _wire
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
@@ -164,9 +146,6 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         await client.close()
 
 
-# === Private Functions === #
-
-# === Entry Point === #
 if __name__ == "__main__":
     contract = json.loads(Path(sys.argv[2]).read_text())
     scenario = next(item for item in contract["scenarios"] if item["name"] == sys.argv[3])

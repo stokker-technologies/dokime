@@ -7,37 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::{collections::BTreeSet, fs, path::Path};
-// Third Party Imports
+
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
-// Local Imports
+
 use crate::service_support::bundles::bundle;
 use dokime_runtime::config::Settings;
 use dokime_runtime::plugins::{PluginError, PluginLastBoot, PluginState, PluginStore, inspect};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn store(root: &Path) -> (PluginStore, dokime_runtime::storage::sqlite::State) {
     let database = dokime_runtime::storage::sqlite::State::open(&root.join("data")).await.unwrap();
     let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root), database.clone()).await.unwrap();
@@ -112,8 +89,6 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
     .bytes()
     .to_vec()
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn bundled_upgrades() {

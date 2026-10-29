@@ -9,34 +9,15 @@
 
 """Run One Remote Execution And Drain Its Records And Samples"""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 import json
 from pathlib import Path
 
-# Third Party Imports
 from dokime_client.client import DokimeClient, Record, Sample
-
-# Local Imports
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
 
 PAIRING_FILE = Path("lab.dokime-pair")
 EXECUTION_ID = "00000000-0000-0000-0000-000000000001"
 WAIT_SECONDS: float | None = None
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 async def run() -> int:
@@ -69,10 +50,6 @@ async def run() -> int:
         )
         return 0
 
-
-# === Private Functions === #
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     try:

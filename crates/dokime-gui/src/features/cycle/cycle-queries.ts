@@ -19,11 +19,7 @@
  * not there. The return shape is identical either way.
  */
 
-/* === External Imports === */
-
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { deliverNativeArtifact } from "@/lib/api/native-delivery";
@@ -51,12 +47,8 @@ import { reportFilename } from "./cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
-/* === Constants === */
-
 /** One identity, so a frozen prompt list never re-renders the banner. */
 const EMPTY_PROMPTS: Awaited<ReturnType<typeof fetchNativePendingPrompts>> = [];
-
-/* === Private Functions === */
 
 /** The identity a live read needs. Unreachable while a snapshot stands in. */
 function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
@@ -68,8 +60,6 @@ function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
 function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
   return session?.identity.generation ?? "frozen";
 }
-
-/* === Query Hooks === */
 
 /** The cycle's cases and every attempt of each, read to completion. */
 export function useCycleDetailQuery(cycleId: string, enabled = true) {
@@ -107,8 +97,6 @@ export function useCyclePendingPromptsQuery(cycleId: string) {
   });
   return snapshot ? frozenQuery(EMPTY_PROMPTS) : query;
 }
-
-/* === Mutation Hooks === */
 
 export function useCycleCommands(cycleId: string) {
   /* A frozen report renders no control that fires one of these, so the set is

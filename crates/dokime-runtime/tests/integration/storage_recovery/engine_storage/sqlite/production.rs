@@ -7,43 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     num::NonZeroUsize,
     time::{Duration, SystemTime},
 };
 
-// Third Party Imports
 use harmos::storage::*;
 use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
 
-// Local Imports
 use super::storage::Store;
 use super::storage::id;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn metadata(name: &str) -> FileMetadata {
     FileMetadata {
         id: id(name),
@@ -75,8 +49,6 @@ fn checkpoint(metadata: FileMetadata, file: &StagedFile, generation: u64, bytes:
 fn limits() -> ReadLimits {
     ReadLimits { rows: bound(8), bytes: bound(32 * 1024) }
 }
-
-/* === Tests === */
 
 pub(crate) async fn file_retry_checks_entire_overlap_before_append() {
     let root = tempfile::tempdir().unwrap();

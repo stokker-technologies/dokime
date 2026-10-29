@@ -7,18 +7,12 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatNumber, formatTime } from "@/lib/format";
 import type { RecordDisplay, RecordTone, ValueFormat } from "@/lib/types";
 import { cn, isRecord, numericValue } from "@/lib/utils";
 
-/* === Types === */
-
 /** A datetime value on the wire: the one-key tagged map `{"$datetime": "<rfc3339>"}`. */
 type DatetimeValue = { $datetime: string };
-
-/* === Public Functions === */
 
 export function recordToneShellClass(tone: RecordTone, className?: string): string {
   return cn(
@@ -122,8 +116,6 @@ export function formatRecordValue(value: unknown, format?: ValueFormat | null): 
   }
   return JSON.stringify(value);
 }
-
-/* === Private Functions === */
 
 function recordTone(value: string | null | undefined, severity: string): RecordTone {
   if (

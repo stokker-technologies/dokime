@@ -9,8 +9,6 @@
 
 /* Native runtime shell, diagnostics, and observation stream adapters. */
 
-/* === Local Imports === */
-
 import { defaultBrand } from "@/lib/brand";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
@@ -35,8 +33,6 @@ import {
 
 const GUI_SMALL_PAGE_ITEMS = 100;
 
-/* === Types === */
-
 type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
 type ExecutionProgressFrame = Wire<
   Awaited<ReturnType<typeof rpc.observationWatchExecutionProgress>> extends NativeStream<infer Frame> ? Frame : never
@@ -45,8 +41,6 @@ type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.observation
 type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
 type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
 type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
-
-/* === Runtime shell === */
 
 export async function fetchNativeRuntimeShell(session: SessionIdentity, cycleId: string): Promise<HubLiveState> {
   const cycleSnapshots = await fetchRuntimeShellCycles(session);
@@ -384,8 +378,6 @@ export async function openNativeExecutionProgressStream(
     [Symbol.asyncIterator]: () => forward,
   };
 }
-
-/* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
   switch (status?.HarmosVariant.case) {

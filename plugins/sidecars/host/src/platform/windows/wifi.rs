@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::BTreeMap,
     ffi::c_void,
@@ -24,7 +17,6 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use windows::{
     Win32::{
         Foundation::HANDLE,
@@ -47,19 +39,10 @@ use windows::{
     core::GUID,
 };
 
-// Local Imports
 use crate::platform::ScannedNetwork;
 use crate::{Error, HostOptions, Result};
 
-/* === Constants === */
-
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct WifiLink {
@@ -95,12 +78,6 @@ struct WifiInterface {
     description: String,
     state: WLAN_INTERFACE_STATE,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl WifiLink {
     pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
@@ -268,8 +245,6 @@ impl WlanClient {
     }
 }
 
-/* === Public Functions === */
-
 pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
@@ -340,8 +315,6 @@ pub fn scan_networks(options: &HostOptions, scan_window: Option<Duration>) -> Re
     let scanned = |entry: &WLAN_BSS_ENTRY| scanned_network(entry, &interface, &security, associated);
     Ok(entries.iter().map(scanned).collect())
 }
-
-/* === Private Functions === */
 
 fn scanned_network(
     entry: &WLAN_BSS_ENTRY, interface: &WifiInterface, security: &BTreeMap<Vec<u8>, String>, associated: Option<[u8; 6]>,
@@ -492,5 +465,3 @@ fn cipher_algorithm(value: DOT11_CIPHER_ALGORITHM) -> &'static str {
         _ => "unknown",
     }
 }
-
-/* === Tests === */

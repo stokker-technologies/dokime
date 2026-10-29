@@ -7,15 +7,10 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 
-// Third Party Imports
 import { test } from "vitest";
 
-// Local Imports
 import type { HubRecord } from "@/lib/types";
 import {
   type ConsoleBuffer,
@@ -28,10 +23,6 @@ import {
 } from "@/shell/console-buffer";
 import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, consoleWindow, FOLLOW_SLACK_PX } from "@/shell/console-follow";
 
-/* === Re-Exports === */
-
-/* === Constants === */
-
 /* The keys the drawer resolves on the cycle page and on an execution page
    outside the cycle route, where the scope falls back to the instance. */
 const CYCLE_PAGE = consoleBufferKey({ cycleId: "cycle-1", executionId: null, level: "info" });
@@ -40,14 +31,6 @@ const EXECUTION_PAGE = consoleBufferKey({ cycleId: null, executionId: null, leve
 
 /* A 200 px viewport over 100 rows of 22 px scrolls to 2,000 px at its bottom. */
 const BOTTOM = 2_000;
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /** A 200 px viewport over 100 rows of 22 px, scrolled to `scrollTop`. */
 function at(scrollTop: number) {
@@ -89,8 +72,6 @@ function buffer(store: ReturnType<typeof sessionStore>, key: string): ConsoleBuf
   assert.ok(held, key);
   return held;
 }
-
-/* === Entry Point === */
 
 test("Tail Follow", () => {
   // The List Is Pinned At The Bottom And Within One Row Of It

@@ -8,9 +8,6 @@
 
 """Immutable execution evidence and verified, bounded-memory downloads."""
 
-# === Imports === #
-
-# Standard Library Imports
 import base64
 import hashlib
 import re
@@ -20,28 +17,16 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
-# Local Imports
 from . import _wire
 from ._transport import Transport
 from .errors import ProtocolError
 from .models import Backend, SavedRecord, SavedSample, Value
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 PAGE_ITEMS = 100
 VALUE_DEPTH = 64
-
-# === Types === #
-
-# === Classes === #
 
 
 @dataclass(frozen=True)
@@ -344,9 +329,6 @@ class ExecutionEvidence:
         return Download(path, size, sha256, _json(metadata))
 
 
-# === Public Functions === #
-
-
 async def download_report(
     transport: Transport,
     cycle_id: str,
@@ -358,9 +340,6 @@ async def download_report(
         destination,
     )
     return Download(destination, size, sha256, _json(metadata))
-
-
-# === Private Functions === #
 
 
 def _identifier(value: str) -> bool:
@@ -444,6 +423,3 @@ def _page_cursor(point: Checkpoint, kind: str, source: str, token: str, previous
     if raw[1:33] != digest.digest() or not previous < position <= point.evidence_through.sequence:
         raise ProtocolError("saved evidence continuation differs or does not advance")
     return position
-
-
-# === Entry Point === #

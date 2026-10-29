@@ -11,8 +11,6 @@
  * Shared Backend Registry
  */
 
-/* === Imports === */
-
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
@@ -29,20 +27,6 @@ import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { preferencesError } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Components === */
 
 export function BackendsTable({
   failure,
@@ -360,12 +344,6 @@ function AddBackend({
     </Dialog>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 export function backendValidation(
   identifier: string,

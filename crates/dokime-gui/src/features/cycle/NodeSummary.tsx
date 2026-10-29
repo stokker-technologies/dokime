@@ -9,25 +9,12 @@
 
 /** Cycle And Execution Status Beneath The Shared Panel Header. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { type ComponentProps, type ReactNode, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-// Local Imports
-import { Badge } from "@/components/ui/badge";
 import { STATUS_PILL_CLASS } from "./cycle-workspace-model";
 import { EditableLabel } from "./EditableLabel";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type NodeSummaryProps = {
   title: string;
@@ -43,8 +30,6 @@ export type NodeSummaryProps = {
   /** False in the frozen report: no pencil. */
   live: boolean;
 };
-
-/* === Components === */
 
 export function NodeSummary({ description, live, onRename, prefix, progress, status, subject, title }: NodeSummaryProps) {
   const [renaming, setRenaming] = useState(false);
@@ -89,9 +74,3 @@ export function NodeSummary({ description, live, onRename, prefix, progress, sta
     </section>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

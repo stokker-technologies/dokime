@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
@@ -27,36 +25,13 @@ pub(crate) mod updates;
 #[cfg(windows)]
 mod window_icon;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
 use tauri::Manager;
 
-// Local Imports
 use crate::bindings;
 
-/* === Constants === */
-
 const DESKTOP_RETAINED_LOG_FILES: u64 = 14;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run() {
     // WebView2 must create its UI thread in a single-threaded COM apartment.
@@ -87,8 +62,6 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
     app.request_restart();
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn start_tauri_app() -> tauri::Result<()> {
     // Resolve Identity Before Logging, Organization Or Windows.
@@ -256,5 +229,3 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
     }
     Ok(())
 }
-
-/* === Tests === */

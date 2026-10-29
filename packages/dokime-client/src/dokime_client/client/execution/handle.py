@@ -8,9 +8,6 @@
 
 """Execution controls over one authenticated client connection."""
 
-# === Imports === #
-
-# Standard Library Imports
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import aclosing
@@ -19,11 +16,9 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
-# Local Imports
 from .. import _wire, prompts
 from .._transport import Transport, _cursor
 from ..errors import ExecutionSubmissionUncertain, ProtocolError, RpcError, RunRejected
@@ -44,20 +39,10 @@ from ..planning import TestCase
 from .listeners import read_records, read_samples, validate_patterns
 from .request import _identity, _interval
 
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
 CHECKPOINT_BYTES = 4096
 REQUEST_POLL_MS = 200
 SAMPLE_PAGE_ITEMS = 1000
 VALUE_DEPTH = 64
-
-# === Types === #
-
-# === Classes === #
 
 
 @dataclass(frozen=True)
@@ -463,11 +448,6 @@ class Execution:
         await self._control("StopExecution")
 
 
-# === Public Functions === #
-
-# === Private Functions === #
-
-
 def _admission(backend: Backend, reply: Message) -> Message:
     if not reply.HasField("outcome"):
         raise ProtocolError("execution admission has no outcome")
@@ -512,6 +492,3 @@ def _command_receipt(
         except ValueError as error:
             raise ProtocolError("command receipt attempt identity is invalid") from error
     _wire.command_receipt(receipt)
-
-
-# === Entry Point === #

@@ -15,13 +15,9 @@
  * the `ui/table` primitives, so document tables share its cell padding.
  */
 
-/* === External Imports === */
-
 import { type RowData, useTable } from "@tanstack/react-table";
 import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
 import { Children, type MouseEvent, type ReactNode, useMemo, useState } from "react";
-
-/* === Local Imports === */
 
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { type ActiveFilter, DataTableToolbar } from "@/components/data-table/DataTableToolbar";
@@ -41,12 +37,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-/* === Types === */
-
 /** A row command: an icon button named by its label, which its tooltip repeats. */
 export type DataTableRowAction = { label: string; icon: LucideIcon; onSelect: () => void; disabled?: boolean };
-
-/* === Constants === */
 
 /** The outer cells carry the table inset so their text lines up with the page. */
 const EDGE_CELL = "first:pl-[var(--table-inset)] last:pr-[var(--table-inset)]";
@@ -59,8 +51,6 @@ const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox
 
 /** Fits a row's icon commands, centered under the header. */
 const ACTIONS_WIDTH = "w-24";
-
-/* === Components === */
 
 export function DataTable<TData extends RowData>({
   actions,
@@ -396,8 +386,6 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
     </TooltipProvider>
   );
 }
-
-/* === Private Functions === */
 
 /** A Tailwind width hint as a CSS length, capped against the table's container. */
 function widthLength(width: string | undefined): string | undefined {

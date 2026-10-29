@@ -7,19 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::storage::ObjectVersion;
 
-// Local Imports
 use super::execution::ExecutionView;
 use super::executions::{CaptureInputs, ExecutionStorage};
 use crate::RuntimeHandle;
@@ -30,21 +21,7 @@ use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub(crate) struct ReportSource(harmos::storage::ReadBatch<CycleView>);
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl std::ops::Deref for ReportSource {
     type Target = CycleView;
@@ -262,12 +239,6 @@ impl ExecutionStorage {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
-
-/* === Tests === */

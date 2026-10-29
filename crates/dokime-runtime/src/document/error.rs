@@ -7,29 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type Result<T> = crate::Result<T>;
-
-/* === Structs === */
-
-/* === Enums === */
 
 #[derive(Debug)]
 pub enum DocumentFailure {
@@ -38,10 +16,6 @@ pub enum DocumentFailure {
     InvalidIdentifier { source: dokime_domain::Error },
     InvalidDefinition { issues: Vec<String> },
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<dokime_domain::Error> for DocumentFailure {
     fn from(source: dokime_domain::Error) -> Self {
@@ -72,9 +46,3 @@ impl std::error::Error for DocumentFailure {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

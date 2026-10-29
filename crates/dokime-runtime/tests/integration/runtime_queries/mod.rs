@@ -9,46 +9,18 @@
 
 // Runtime commands, lifecycle and queries run against one runtime and read back their records.
 
-/* === Modules === */
 pub(crate) mod commands;
 pub(crate) mod lifecycle;
 pub(crate) mod queries;
 pub(crate) mod query_records;
 
-/* === Re-Exports === */
 pub(crate) use crate::service_support::prelude::*;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 async fn record_health(runtime: &RuntimeHandle, message: &str) -> dokime_runtime::runtime::Result<()> {
     runtime.add_health_item(RecordScope::default(), model::execution::HealthSeverity::Info, message.to_owned(), None).await
 }
-
-/* === Tests === */
 
 #[tokio::test]
 async fn runtime_queries() {

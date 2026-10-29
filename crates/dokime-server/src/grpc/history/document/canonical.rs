@@ -7,38 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::enums::canonical as enums;
 use crate::grpc::value::projection;
 use crate::grpc::value::{self, canonical};
 use dokime::domain::model::identity::wire as common;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(in crate::grpc) fn wire(
     value: &dokime::document::DocumentDefinition, scope: &dokime::domain::model::execution::RecordScope,
@@ -152,8 +126,6 @@ pub(in crate::grpc) fn repeat(
         filters: collect(source.filters.iter().map(plot_filter))?,
     })
 }
-
-/* === Private Functions === */
 
 fn layout_count(nodes: &[dokime::document::DocumentNode]) -> Result<usize, Status> {
     nodes.iter().try_fold(0usize, |count, node| {
@@ -557,5 +529,3 @@ fn analysis_selection(selection: &dokime::analysis::Selection) -> Result<dokime:
         parameters: Some(canonical::object(&selection.parameters, &mut value::Budget::new()?)?),
     })
 }
-
-/* === Tests === */

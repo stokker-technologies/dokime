@@ -7,39 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::ExecutionMode;
 use dokime_domain::model::execution::result::CyclePhase;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn refusal_code(result: Result<(), dokime_runtime::runtime::Error>) -> String {
     match result {
@@ -49,8 +20,6 @@ fn refusal_code(result: Result<(), dokime_runtime::runtime::Error>) -> String {
 }
 
 pub(crate) async fn cancel_skips_unstarted() {
-    // === Plan Three Unstarted Attempts === //
-
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -64,8 +33,6 @@ pub(crate) async fn cancel_skips_unstarted() {
     let ids = planned.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect::<Vec<_>>();
     assert_eq!(ids.len(), 3);
     assert!(planned.continue_automatically);
-
-    // === Cancel The First Before Anything Runs === //
 
     let cancel = runtime.cancel_execution(ids[0].clone(), CommandContext::default()).await;
     let repeated = runtime.cancel_execution(ids[0].clone(), CommandContext::default()).await;
@@ -87,8 +54,6 @@ pub(crate) async fn cancel_skips_unstarted() {
     assert!(cancelled.saved.is_some(), "Cancel seals the skipped attempt");
     assert!(cancelled_cycle.test_executions[1..].iter().all(|execution| execution.started_at.is_none() && execution.saved.is_none()));
     assert!(evidence.records.iter().any(|record| record.record_type.as_str() == "test.execution.stopped"));
-
-    // === Start The Second And Queue The Third Behind It === //
 
     let started = runtime.start_execution(ids[1].clone(), ExecutionMode::Automatic, CommandContext::default()).await;
     assert_eq!(started.status, CommandStatus::Accepted, "{:?}", started.rejection);
@@ -116,5 +81,3 @@ pub(crate) async fn cancel_skips_unstarted() {
     assert!(settled.test_executions[1].finished_at.is_some());
     assert_eq!(settled.test_executions[2].started_at, None, "continuation skips the cancelled member");
 }
-
-/* === Tests === */

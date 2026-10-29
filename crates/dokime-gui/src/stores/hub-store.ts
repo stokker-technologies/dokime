@@ -7,15 +7,9 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { create } from "zustand";
 
-/* === Local Imports === */
-
 import type { BackendOperation } from "@/shell/status-bar-operations";
-
-/* === Types === */
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting";
 export type SubmittingPrompt = { action: string; correlationId: string } | null;
@@ -39,8 +33,6 @@ type HubStore = HubStoreState & {
   setHubState: (patch: Partial<HubStoreState>) => void;
 };
 
-/* === Constants === */
-
 const initialHubStoreState: HubStoreState = {
   connection: "connecting",
   error: null,
@@ -49,8 +41,6 @@ const initialHubStoreState: HubStoreState = {
   runtimePolicyBusy: false,
   submittingPrompt: null,
 };
-
-/* === Public Functions === */
 
 export const useHubStore = create<HubStore>((set) => ({
   ...initialHubStoreState,

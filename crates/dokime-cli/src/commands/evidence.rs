@@ -9,27 +9,9 @@
 
 // Download And Publish Sealed Evidence Atomically
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::PathBuf;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::domain::model::exports::EvidenceSubject;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Debug, clap::Args)]
 #[group(id = "evidence_download")]
@@ -49,14 +31,6 @@ pub(crate) struct Args {
     #[arg(long, help = "Emit The Verified Archive Path, Size And SHA-256 As JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) async fn run(
     mut args: Args, subject: fn(String) -> EvidenceSubject, recovery_args: Option<super::execution::recovery::Args>,
@@ -102,7 +76,3 @@ pub(crate) async fn run(
     }
     Ok(())
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,30 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::Write;
 
-// Third Party Imports
 use harmos::MemorySize;
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use crate::document::{DocumentDataInput, DocumentSelection, bounded::document_size};
 use crate::telemetry::TelemetrySample;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Acquired {
     pub data: DocumentDataInput,
@@ -40,8 +23,6 @@ pub(super) struct Acquired {
     pub telemetry: Option<harmos::storage::ReadBatch<Vec<TelemetrySample>>>,
     pub artifacts_sha256: Option<String>,
 }
-
-/* === Enums === */
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum DocumentAcquisitionFailure {
@@ -57,10 +38,6 @@ pub(super) enum DocumentAcquisitionFailure {
     #[error("document evidence is unavailable: {0}")]
     Source(String),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl From<harmos::storage::Error> for DocumentAcquisitionFailure {
     fn from(error: harmos::storage::Error) -> Self {
@@ -78,8 +55,6 @@ impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
         }
     }
 }
-
-/* === Public Functions === */
 
 pub(super) async fn acquire(
     runtime: &crate::RuntimeHandle, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records_needed: bool,
@@ -224,8 +199,6 @@ pub(super) async fn acquire(
     Ok(captured)
 }
 
-/* === Private Functions === */
-
 fn validate_cycle_artifacts(
     selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
     evaluation_work: usize,
@@ -292,5 +265,3 @@ fn native_error(error: crate::runtime::Error) -> DocumentAcquisitionFailure {
         error => source(error),
     }
 }
-
-/* === Tests === */

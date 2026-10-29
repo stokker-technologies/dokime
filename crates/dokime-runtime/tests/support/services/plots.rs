@@ -9,39 +9,12 @@
 
 // The Saved-Telemetry Plot Paths, Shared By Their Integration Guards And Full-Scale System Stories.
 
-/* === Modules === */
-
 mod history;
-
-/* === Re-Exports === */
 
 pub use history::telemetry_history;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::prelude::*;
 use dokime_runtime::runtime::query::{DownsampleTechnique, PlotPayloadRequest};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn register_plot_suite(runtime: &RuntimeHandle) {
     let definition = TestSuiteDefinition {
@@ -91,7 +64,3 @@ pub fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>) -> Pl
         ..Default::default()
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

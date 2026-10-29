@@ -7,37 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-// Third Party Imports
 use tracing_subscriber::prelude::*;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime_server::trace::{Capture, Journal};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn emit(journal: std::sync::Arc<Journal>, execution_id: &str, count: usize) {
     let subscriber = tracing_subscriber::registry().with(Capture::new(journal));
@@ -59,8 +33,6 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
         follow,
     }
 }
-
-/* === Tests === */
 
 pub(super) async fn roundtrip(environment: &support::TestEnvironment, client: &WireClient, journal: &std::sync::Arc<Journal>) {
     let execution = uuid::Uuid::now_v7().to_string();

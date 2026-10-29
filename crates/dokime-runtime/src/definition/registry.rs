@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::{SuiteSet, SuiteSnapshot, TestCase};
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding, TestSuiteDefinition, resolve_suite_plot_axes};
 use crate::records::RecordContract;
 use crate::telemetry::TelemetryContract;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuiteRegistry {
@@ -47,12 +30,6 @@ pub struct SuiteRegistry {
 
     case_revisions: BTreeMap<CaseId, String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl SuiteRegistry {
     // The Registry's Parts, For The State Encoding That Stores Each Suite Once
@@ -260,10 +237,6 @@ impl SuiteRegistry {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn validate_record_contract(existing: &[RecordContract], candidate: &RecordContract) -> Result<(), String> {
     if existing.iter().any(|contract| contract.record_schema() == candidate.record_schema()) {
         return Ok(());
@@ -283,5 +256,3 @@ fn validate_telemetry_contract(existing: &[TelemetryContract], candidate: &Telem
     }
     Ok(())
 }
-
-/* === Tests === */

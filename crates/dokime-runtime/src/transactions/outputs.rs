@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 
-// Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::state::RuntimeState;
 use crate::streams::AggregateOutput;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.outputs.execution.finalize")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,12 +24,6 @@ pub struct FinalizeExecutionOutputs {
     pub test_execution_id: TestExecutionId,
     pub outputs: Vec<AggregateOutput>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
     type Error = String;
@@ -59,10 +36,6 @@ impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
         finalize_execution_outputs(state, &self.test_execution_id, self.outputs.clone());
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn finalize_execution_outputs(state: &mut RuntimeState, test_execution_id: &TestExecutionId, outputs: Vec<AggregateOutput>) {
     if let Some(execution) = state.executions.get_mut(test_execution_id) {
@@ -91,5 +64,3 @@ fn replace_aggregate_parameters(parameters: &mut BTreeMap<String, MaterializedPa
 fn aggregate_group_id() -> Option<Identifier> {
     Some(Identifier::new("telemetry.aggregate").expect("aggregate group id is valid"))
 }
-
-/* === Tests === */

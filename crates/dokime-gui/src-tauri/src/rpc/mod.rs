@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
 mod artifact_upload;
 mod calls;
 pub mod protocol;
-
-/* === Re-Exports === */
 
 pub use crate::Error as RpcError;
 pub use artifact_upload::RecordingHandle;
@@ -21,18 +17,14 @@ pub use calls::{
     CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, INPUT_HEADER, PATH_HEADER, STREAM_HEADER,
 };
 
-/* === Imports === */
-
 use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
-// Standard Library Imports
 use std::{
     collections::HashMap,
     future::Future,
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::grpc::{Transcoded, Wire};
 use harmos_sdk::grpc::DecodeInput;
@@ -40,12 +32,9 @@ use sha2::{Digest, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-// Local Imports
 use crate::connection::{ConnectionError, ConnectionSession, SessionLease};
 use artifact_upload::{ArtifactUploads, RecordingSinks};
 use calls::Streams;
-
-/* === Constants === */
 
 const DESKTOP_CALLS: u64 = 8;
 const DESKTOP_STREAMS: u64 = 24;
@@ -71,12 +60,6 @@ pub const COMMANDS: &[&str] = &[
 // Long-Lived Streams And Uploads Have Separate Admission From Unary Calls.
 const REQUEST_HEADER: usize = 40;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Clone)]
 pub struct Bridge {
     owners: Arc<Mutex<HashMap<String, CancellationToken>>>,
@@ -93,12 +76,6 @@ struct Context {
     lease: SessionLease,
     _permit: Option<OwnedSemaphorePermit>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Default for Bridge {
     fn default() -> Self {
@@ -239,8 +216,6 @@ impl Bridge {
     }
 }
 
-/* === Public Functions === */
-
 pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         calls::rpc,
@@ -258,8 +233,6 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
         artifact_upload::recording_cancel,
     ]
 }
-
-/* === Private Functions === */
 
 fn rpc_error(status: tonic::Status) -> RpcError {
     RpcError::Grpc {
@@ -296,5 +269,3 @@ fn decode<M: Portable>(bytes: &[u8], maximum: usize) -> Result<M, RpcError> {
     }
     harmos_sdk::grpc::decode::<M>(DecodeInput::new(bytes)).map_err(|_| RpcError::InvalidRequest)
 }
-
-/* === Tests === */

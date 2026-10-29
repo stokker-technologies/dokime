@@ -7,29 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::state::PluginOwner;
 use crate::{InstalledPlugin, RuntimeState};
 use dokime_domain::model::identity::Identifier;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeInstalledPluginFrame {
@@ -51,12 +33,6 @@ pub struct RuntimeInstalledPluginRecord {
     pub error: Option<String>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl RuntimeInstalledPluginRecord {
     fn from_plugin(plugin: &InstalledPlugin, owner: Option<PluginOwner>) -> Self {
         Self {
@@ -72,8 +48,6 @@ impl RuntimeInstalledPluginRecord {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn installed_plugin_frame(state: &RuntimeState) -> RuntimeInstalledPluginFrame {
     let plugins = state
         .installed_plugins
@@ -87,7 +61,3 @@ pub(crate) fn installed_plugin_frame(state: &RuntimeState) -> RuntimeInstalledPl
         truncated: false,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,34 +7,7 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-// Third Party Imports
-
-// Local Imports
 use super::*;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn native_history_index() {
     let root = tempdir().unwrap();
@@ -125,8 +98,6 @@ pub(crate) async fn stored_telemetry_reboot() {
     rebooted.shutdown().await.unwrap();
 }
 
-/* === Helpers === */
-
 fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
     let stream = Identifier::new("tracking").unwrap();
     let samples = (0..count)
@@ -145,5 +116,3 @@ fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
         .collect();
     TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
-
-/* === Tests === */

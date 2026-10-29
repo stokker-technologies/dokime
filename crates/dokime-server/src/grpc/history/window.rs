@@ -7,20 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::{Context, Response};
 use tonic::Status;
 
-// Local Imports
 use super::{inspection, wire};
 use crate::grpc::content::window;
 use crate::grpc::transcode::Transcode;
@@ -29,29 +20,15 @@ use dokime::app::LiveRuntime;
 use dokime::operations::history;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(history::ReadCheckpointOutput),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<history::ReadCheckpointOutput> for Resources {
     fn serve<'a>(
@@ -171,8 +148,6 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
 ) -> Result<(), crate::grpc::Error> {
@@ -184,12 +159,8 @@ pub(super) fn prepare(
     Ok(())
 }
 
-/* === Private Functions === */
-
 fn exhausted() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted {
         resource: "canonical checkpoint file window",
     }
 }
-
-/* === Tests === */

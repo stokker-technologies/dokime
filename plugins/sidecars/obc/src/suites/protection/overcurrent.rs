@@ -7,17 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::TEMPLATE;
 use crate::error::Error;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
@@ -27,15 +16,7 @@ use dokime::definition::ParameterDefault;
 use dokime::prelude::*;
 use obc_runtime::device::{Device, Fault, Power, Reading};
 
-/* === Constants === */
-
-/* === Macros === */
-
 bench!(Parameters);
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
@@ -132,8 +113,6 @@ pub struct Parameters {
     pub sample_interval_s: f64,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
@@ -151,10 +130,6 @@ pub enum Records {
 pub enum Streams {
     Samples(Samples),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
@@ -253,13 +228,7 @@ impl Overcurrent {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
     measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
     *published += 1;
 }
-
-/* === Tests === */

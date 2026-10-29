@@ -7,13 +7,9 @@
  * ***
  */
 
-/* === Local Imports === */
-
 import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
 import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
-
-/* === Types === */
 
 export type TestCyclePlanSelectionDraft = TestCycleSelection & {
   key: string;
@@ -47,8 +43,6 @@ export type TestcasePayload = {
   errors: string[];
   key: string;
 };
-
-/* === Public Functions === */
 
 export function createPlanSelection({
   suiteId,
@@ -142,8 +136,6 @@ export function formatPreview(values: unknown[], valueType: string): string {
   return values.map((v) => formatPreviewValue(v, valueType)).join(", ");
 }
 
-/* === Private Functions === */
-
 function initialParameterRaw(definition: ParameterDefinition): string {
   if (definition.metadata.kind === "parameter_group") {
     const first = definition.values[0];
@@ -205,8 +197,6 @@ function formatSelectionValues(values: unknown[]): string {
   }
   return `${values.length} values`;
 }
-
-/* === Parameter helpers === */
 
 export function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;

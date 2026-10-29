@@ -7,25 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
 };
 
-// Third Party Imports
 use harmos::{ServiceContext, services::Resident};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::Instant;
 
-// Local Imports
 use crate::app::Dokime;
 use crate::runtime::error::{Error, Result};
 use crate::runtime::handle::RuntimeHandle;
@@ -36,15 +27,7 @@ use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type SettlementError = Box<dyn std::error::Error + Send + Sync>;
-
-/* === Structs === */
 
 struct ReceiptDetail<'a> {
     receipt: &'a crate::evidence_runtime::PublishReceipt,
@@ -141,8 +124,6 @@ struct SamplingBorrow<'a> {
     owner: Option<SamplingOwner>,
 }
 
-/* === Enums === */
-
 #[derive(Debug, thiserror::Error)]
 enum ProduceError {
     #[error("sampling preferences could not be read: {0}")]
@@ -196,8 +177,6 @@ enum ProduceError {
     },
 }
 
-/* === Traits === */
-
 pub trait Sampler: Send + Sync + 'static {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String>;
 }
@@ -215,8 +194,6 @@ pub trait SamplerSession: Send {
     // Request Cancellation Without Releasing The Original Collection Owner.
     fn abandon(&mut self) {}
 }
-
-/* === Implementations === */
 
 impl SamplingQuiescence {
     fn release(&self) {
@@ -992,10 +969,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn settle_session(session: &mut dyn SamplerSession, key: &str) -> std::result::Result<Vec<TelemetryBatch>, ProduceError> {
     session.settle().await.map_err(|source| ProduceError::SourceSettle { producer_key: key.to_owned(), source })?;
     collect_samples(key, session)
@@ -1135,8 +1108,6 @@ async fn record_destination_failure(
         tracing::error!(lease = lease_id, %error, "failed to record capture destination health");
     }
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod destination_tests {

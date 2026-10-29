@@ -7,36 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{path::PathBuf, sync::Arc};
 
-// Third Party Imports
 use serde::Serialize;
 use tauri::{Manager, State};
 
-// Local Imports
 use dokime::paths::ApplicationPaths;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct DesktopSettingsState {
     parameters: PathBuf,
     serial: Arc<tokio::sync::Mutex<()>>,
 }
-
-/* === Enums === */
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -45,17 +26,11 @@ pub enum DesktopSettingsError {
     Persistence { message: String },
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl From<String> for DesktopSettingsError {
     fn from(message: String) -> Self {
         Self::Unavailable { message }
     }
 }
-
-/* === Public Functions === */
 
 pub fn setup(app: &tauri::App) {
     let parameters = app.state::<ApplicationPaths>().root.join("parameters.json");
@@ -92,7 +67,3 @@ pub async fn desktop_parameters_write(
     .map_err(|error| error.to_string())?
     .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

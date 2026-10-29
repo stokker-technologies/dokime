@@ -7,18 +7,8 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
 use crate::service_support::suites::ExecutionFixtureStart;
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::service_support::waits::until_telemetry;
 use async_trait::async_trait;
 use dokime_runtime::InstalledPlugin;
@@ -29,26 +19,6 @@ use dokime_runtime::schema::Described;
 use dokime_runtime::{Identifier, Value};
 use harmos::sidecar::StreamDeclaration;
 use std::sync::{Arc, Mutex};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 #[derive(Clone, Default)]
 struct Signals {

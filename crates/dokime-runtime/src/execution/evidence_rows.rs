@@ -9,8 +9,6 @@
 
 // Disk-Spooled Execution Evidence And Indexed Replay Receipts.
 
-/* === Modules === */
-
 #[cfg(feature = "testing")]
 pub(crate) mod testing;
 
@@ -43,34 +41,18 @@ mod tests {
     }
 }
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 #[cfg(feature = "native")]
 use std::{
     io::{Read, Seek, SeekFrom, Write},
     sync::{Arc, Mutex},
 };
 
-// Third Party Imports
 use serde::{Serialize, de::DeserializeOwned, ser::SerializeSeq};
-
-// Local Imports
-
-/* === Constants === */
 
 const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
 // One Read Fills Many Rows: Iteration Costs One Seek And Read Per Window, Not Per Row Or Byte.
 #[cfg(feature = "native")]
 const READ_WINDOW_BYTES: u64 = 1024 * 1024;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 // Payloads And Identity Receipts Live On Disk; Clones Share The Same Owner.
 #[derive(Debug)]
@@ -111,12 +93,6 @@ pub struct Rows<'a, T> {
     #[cfg(feature = "native")]
     window_start: u64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<T: Clone> Clone for EvidenceRows<T> {
     fn clone(&self) -> Self {
@@ -462,8 +438,6 @@ impl<'a, T: Serialize + DeserializeOwned> IntoIterator for &'a EvidenceRows<T> {
     }
 }
 
-/* === Public Functions === */
-
 pub(crate) fn encoded_bytes(value: &impl Serialize) -> usize {
     struct Counter(usize);
     impl std::io::Write for Counter {
@@ -479,7 +453,3 @@ pub(crate) fn encoded_bytes(value: &impl Serialize) -> usize {
     serde_json::to_writer(&mut counter, value).expect("captured evidence serializes");
     counter.0
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

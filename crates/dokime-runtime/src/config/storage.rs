@@ -7,40 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
 mod defaults;
-
-/* === Re-Exports === */
 
 pub use defaults::storage_defaults;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::{NonZeroU64, NonZeroUsize};
 
-// Third Party Imports
 use harmos::config::{ManagedStorageSettings, StorageStateSettings};
 use harmos::storage::{ReadLimits, SchemaKey};
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn managed_storage_defaults() -> ManagedStorageSettings {
     let limits = ReadLimits {
@@ -78,7 +52,3 @@ pub fn storage_state_defaults() -> StorageStateSettings {
         max_checkpoint_bytes: NonZeroUsize::new(1_463_640).unwrap(),
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

@@ -7,42 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
 use harmos::storage::StorageBackend;
 
-// Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model::execution::request::RunSummary;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::storage::requests::Request;
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn prepared_start_refusal() {
     use sha2::{Digest, Sha256};
@@ -296,5 +269,3 @@ pub(crate) async fn queued_execution_request() {
     assert_eq!(receipt.claimed, 0);
     runtime.shutdown().await.unwrap();
 }
-
-/* === Tests === */

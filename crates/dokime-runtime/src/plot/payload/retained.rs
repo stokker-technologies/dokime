@@ -7,37 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use harmos::storage::ReadBatch;
 
-// Local Imports
 use super::{DownsampleTechnique, PlotPayload, PlotPayloadRequest, PlotPoint, analyses, cartesian};
 use crate::document::PlotType;
 use crate::runtime::Result;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub(crate) fn project(
     telemetry: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
@@ -107,8 +81,6 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
     Ok(payload)
 }
 
-/* === Private Functions === */
-
 fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique, spectrum: bool) -> Result<Option<Vec<usize>>> {
     if maximum == 0 || points.len() <= maximum {
         return Ok(None);
@@ -166,5 +138,3 @@ fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique,
 fn memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted { resource: "plot construction" }.into()
 }
-
-/* === Tests === */

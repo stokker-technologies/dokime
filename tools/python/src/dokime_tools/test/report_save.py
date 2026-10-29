@@ -9,9 +9,7 @@
 
 """Measure Large-Cycle Report Saves From Verified Bench Artifacts"""
 
-# === Imports === #
 
-# Standard Library Imports
 import argparse
 import json
 import os
@@ -19,24 +17,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Third Party Imports
 
-# Local Imports
 from ..build import paths
 from . import archive, policy
-
-# Type Checking Imports
-
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def main() -> int:
@@ -68,9 +51,6 @@ def main() -> int:
     return result.returncode
 
 
-# === Private Functions === #
-
-
 def report_binary(messages: Path) -> Path:
     binaries = set()
     for line in messages.read_text(encoding="utf-8").splitlines():
@@ -89,8 +69,6 @@ def report_binary(messages: Path) -> Path:
         raise policy.TestError("expected one built system-runtime benchmark")
     return binaries.pop()
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     raise SystemExit(main())

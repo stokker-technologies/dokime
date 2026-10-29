@@ -17,35 +17,18 @@
  * only once it outlasts a moment, so an idle close shows nothing at all.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { listen } from "@tauri-apps/api/event";
 import { useSyncExternalStore } from "react";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 export const STOPPING_EVENT = "desktop://stopping";
 
 const listeners = new Set<() => void>();
 let phase: "running" | "hidden" | "visible" = "running";
 
-/* === Types === */
-
 /** `hidden` from the first announcement, `visible` once the stop is shown. */
 export type DesktopStopping = "running" | "hidden" | "visible";
 
 export type StoppingAnnouncement = { stopping: boolean; visible: boolean };
-
-/* === Classes === */
-
-/* === Public Functions === */
 
 /** Apply one shell announcement. A kept-open window runs normally again. */
 export function announceStopping(announcement: StoppingAnnouncement): void {
@@ -97,8 +80,6 @@ export function useDesktopStopping(): DesktopStopping {
   return useSyncExternalStore(subscribeStopping, desktopStopping);
 }
 
-/* === Private Functions === */
-
 /** The shell's own refusal once its stop has begun, bare or as an RPC session error. */
 function shuttingDown(error: unknown): boolean {
   if (!error || typeof error !== "object" || !("kind" in error)) return false;
@@ -107,5 +88,3 @@ function shuttingDown(error: unknown): boolean {
   const detail = error.detail;
   return !!detail && typeof detail === "object" && "kind" in detail && detail.kind === "shutting_down";
 }
-
-/* === Entry Point === */

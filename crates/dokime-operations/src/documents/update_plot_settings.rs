@@ -9,29 +9,11 @@
 
 // Update Mutable Plot Presentation Before Evidence Sealing.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use super::*;
 use dokime_domain::model::document::DownsampleTechnique;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<UpdatePlotSettings>], response = (), id = "dokime.documents.update_plot_settings",
     policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
@@ -44,20 +26,6 @@ pub struct UpdatePlotSettings {
     pub display_points: Option<u32>,
     pub downsample: DownsampleTechnique,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
-/* === --- === Runtime Module === --- === */
 
 #[cfg(feature = "runtime")]
 mod runtime {

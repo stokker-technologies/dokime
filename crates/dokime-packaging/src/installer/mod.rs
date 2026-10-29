@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 mod artwork;
 mod inspect;
 mod manifest;
@@ -20,28 +18,12 @@ mod signing;
 #[cfg(windows)]
 mod windows;
 
-/* === Re-Exports === */
-
 pub use inspect::{Inspection, inspect};
 pub use manifest::{Format, Manifest};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::{Path, PathBuf};
 
-// Third Party Imports
-
-// Local Imports
 use crate::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct PackageOptions {
     pub artifacts: Option<PathBuf>,
@@ -51,14 +33,6 @@ pub struct PackageOptions {
     pub formats: Vec<Format>,
     pub target: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBuf>, Error> {
     let mut manifest = Manifest::read(path)?;
@@ -129,7 +103,3 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     scratch.close()?;
     Ok(published)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

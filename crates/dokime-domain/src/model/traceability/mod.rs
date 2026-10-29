@@ -7,27 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-// Third-Party Imports
 use serde::{Deserialize, Serialize};
 
-// Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::TraceabilityId;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-
-/* === Constants === */
 
 const TRACEABILITY_SOURCE_PREFIX: &str = "traceability.";
 pub const TEST_DEFINITION_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup {
@@ -48,12 +35,6 @@ pub const HOST_TRACEABILITY: DerivedTraceabilityGroup = DerivedTraceabilityGroup
 };
 pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
     &[TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY, LEASES_TRACEABILITY, HOST_TRACEABILITY];
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilitySection {
@@ -104,12 +85,6 @@ pub struct TraceabilityEntry {
     #[serde(default)]
     pub unit: Option<String>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for TraceabilitySection {
     fn memory_size(&self) -> usize {
@@ -234,8 +209,6 @@ impl DerivedTraceabilityGroup {
     }
 }
 
-/* === Public Functions === */
-
 pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGroup> {
     let name = source.strip_prefix(TRACEABILITY_SOURCE_PREFIX)?;
     let name = name.split('.').next()?;
@@ -245,7 +218,3 @@ pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGro
 pub fn derived_traceability_group_named(identifier: &str) -> Option<DerivedTraceabilityGroup> {
     DERIVED_TRACEABILITY_GROUPS.iter().copied().find(|group| group.identifier() == identifier)
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

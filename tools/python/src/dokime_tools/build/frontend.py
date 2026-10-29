@@ -8,9 +8,6 @@
 
 """Prepare Frontend And Report Assets"""
 
-# === Imports === #
-
-# Standard Library Imports
 import argparse
 import hashlib
 import subprocess
@@ -18,17 +15,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Third Party Imports
-# Local Imports
 from dokime_tools.package.staging import clear_output, sync_output
 
 from . import organization, paths
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
 
 ROOT = Path(__file__).resolve().parents[5]
 WEB_ROOT = ROOT / "crates/dokime-gui"
@@ -47,12 +36,6 @@ INPUT_ROOTS = [
     WEB_ROOT / "src/generated/organization/default-organization.json",
     WEB_ROOT / "pnpm-lock.yaml",
 ]
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 # The Stamp Records The Inputs And The Committed Template They Produced, So A Template
@@ -168,9 +151,6 @@ def main() -> None:
         check_assets()
 
 
-# === Private Functions === #
-
-
 def _template_digest() -> str:
     return hashlib.sha256(REPORT.read_bytes()).hexdigest() if REPORT.is_file() else "absent"
 
@@ -187,8 +167,6 @@ def _files(root: Path) -> list[Path]:
         files.extend(_files(path))
     return files
 
-
-# === Entry Point === #
 
 if __name__ == "__main__":
     main()

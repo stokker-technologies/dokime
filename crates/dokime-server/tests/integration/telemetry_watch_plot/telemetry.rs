@@ -7,38 +7,9 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::*;
 use dokime::domain::model;
 use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn sequences(reply: &model::telemetry::wire::TelemetrySamplesReply) -> Vec<u64> {
     reply.samples.iter().map(|sample| sample.sequence).collect()
@@ -148,5 +119,3 @@ pub(crate) async fn telemetry_pages_window() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
-
-/* === Tests === */

@@ -7,33 +7,16 @@
  * ***
  */
 
-/* === Modules === */
-
 mod object;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::result::Result;
 use std::{io::Write, time::UNIX_EPOCH};
 
-// Third Party Imports
 use harmos::storage::*;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::super::Error;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub(super) struct Encoded<'a> {
     pub position: u64,
@@ -60,8 +43,6 @@ struct Buffer {
     length: usize,
 }
 
-/* === Enums === */
-
 pub(crate) enum Entry {
     Schema(StorageSchema),
     Object(ObjectEntry),
@@ -79,10 +60,6 @@ pub(super) enum Borrowed<'a> {
     Stream(&'a StoredRow),
     File(&'a FileReference),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl<'a> From<&'a StorageSchema> for Borrowed<'a> {
     fn from(value: &'a StorageSchema) -> Self {
@@ -252,8 +229,6 @@ impl<'a> Encoded<'a> {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn read_exhausted() -> Error {
     Error::Data("SQLite size overflows")
 }
@@ -284,7 +259,6 @@ pub(super) fn key(value: &str) -> Result<String, Error> {
     key.push_str(value);
     Ok(key)
 }
-/* === Private Functions === */
 
 // Store Native Stream Payloads As Bytes, Not A JSON Integer For Every Byte.
 fn stream_header(value: &StoredRow) -> StoredRow<&[u8]> {
@@ -381,5 +355,3 @@ fn identity(value: Borrowed<'_>, position: u64, item: &str) -> Result<String, Er
     }
     Ok(identity)
 }
-
-/* === Tests === */

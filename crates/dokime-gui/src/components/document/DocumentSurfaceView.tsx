@@ -7,17 +7,7 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-/* === External Imports === */
-
 import type { ReactNode } from "react";
-
-/* === Local Imports === */
 
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { DataTable } from "@/components/data-table/DataTable";
@@ -49,8 +39,6 @@ import type {
 } from "@/lib/types";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-
-/* === Types === */
 
 type DocumentSurfaceSharedProps = {
   captureControls?: ReactNode;
@@ -93,10 +81,6 @@ type ReportDocumentSurfaceProps = DocumentSurfaceSharedProps & {
 };
 
 export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocumentSurfaceProps;
-
-/* === Constants === */
-
-/* === Public Functions === */
 
 export function DocumentCardContentView(props: DocumentCardContentProps) {
   const reportMode = isReportDocumentSurface(props);
@@ -318,8 +302,6 @@ export function RecordListContent({ live = true, records }: { live?: boolean; re
   return <RecordTimeline live={live} records={records} />;
 }
 
-/* === Private Functions === */
-
 /**
  * The records the plots mark, prompts among them. Spread rather than named,
  * so this view passes them whether or not the grid it is built against
@@ -366,11 +348,3 @@ function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record
 function isReportDocumentSurface(props: DocumentCardContentProps): props is ReportDocumentSurfaceProps {
   return props.renderMode === "report";
 }
-
-/* === Re-Exports === */
-
-/* === Components === */
-
-/* === Hooks === */
-
-/* === Private Functions === */

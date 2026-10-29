@@ -7,12 +7,8 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-
-/* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
@@ -27,8 +23,6 @@ import {
   type RuntimeProjectionRefreshCoordinator,
 } from "./runtime-refresh";
 
-/* === Constants === */
-
 const GUI_DOCUMENT_REFRESH_MS = 5_000;
 const GUI_RECONNECT_MS = 1_000;
 
@@ -39,8 +33,6 @@ const DOCUMENT_REFRESH_MS = GUI_DOCUMENT_REFRESH_MS;
    The single live subscription. Native frames carry an observed cursor and
    lifecycle flags; the generation-scoped queries re-read each affected
    projection through the same native session. */
-
-/* === Public Functions === */
 
 export function useRuntimeStream(): void {
   /* Optional, because the frozen report mounts the same shell with nothing to
@@ -116,8 +108,6 @@ export function useRuntimeStream(): void {
     };
   }, [queryClient, session, setHubState]);
 }
-
-/* === Private Functions === */
 
 function handleRuntimeFrame(
   frame: RuntimeStateFrame,

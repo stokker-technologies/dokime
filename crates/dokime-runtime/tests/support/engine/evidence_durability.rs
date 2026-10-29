@@ -9,17 +9,6 @@
 
 // Evidence Transactions, Indexed Admissions And Reopen Fault Boundaries
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model::{
     execution::RecordScope,
     identity::{Identifier, RecordId, TestExecutionId},
@@ -36,25 +25,9 @@ use harmos::{
     storage::{StorageBackend, StorageBatch, StorageCursor},
 };
 
-/* === Constants === */
-
 pub const CRASH_READY: &str = "DOKIME_EVIDENCE_READY";
 const EXECUTION: &str = "durability.execution";
 const OTHER: &str = "durability.other";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub async fn evidence_durability(days: usize, rows_per_day: usize) {
     use dokime_runtime::storage::records;
@@ -246,8 +219,6 @@ pub async fn recovered_after_crash(root: std::path::PathBuf, committed: bool) {
     store.close().await.unwrap();
 }
 
-/* === Private Functions === */
-
 async fn open(root: &std::path::Path) -> Backend<()> {
     let backend = Backend::primary(root.to_path_buf()).await.unwrap();
     backend.open().await.unwrap();
@@ -332,5 +303,3 @@ pub(crate) fn announce_and_wait() -> ! {
         std::thread::park();
     }
 }
-
-/* === Tests === */

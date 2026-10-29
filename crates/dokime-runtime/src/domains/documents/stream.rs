@@ -7,28 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::num::NonZeroUsize;
 
-// Third Party Imports
-
-// Local Imports
 use super::saved::SavedOutputFile;
 use crate::{ExecutionFileContent, runtime::Result, runtime::storage::native_outputs::reader::Reader};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct ExecutionFileStream {
     source: Source,
@@ -36,16 +18,10 @@ pub struct ExecutionFileStream {
     offset: u64,
 }
 
-/* === Enums === */
-
 enum Source {
     Live(Reader),
     Saved(SavedOutputFile),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ExecutionFileStream {
     pub(crate) fn live(reader: Reader) -> Result<Self> {
@@ -106,10 +82,6 @@ impl ExecutionFileStream {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn end(content: &ExecutionFileContent) -> harmos::Result<u64> {
     content.offset.checked_add(content.bytes.len() as u64).ok_or_else(|| invalid("chunk offset overflows"))
 }
@@ -117,5 +89,3 @@ fn end(content: &ExecutionFileContent) -> harmos::Result<u64> {
 fn invalid(reason: &'static str) -> harmos::Error {
     harmos::Error::InvalidInput { field: "execution stream", reason }
 }
-
-/* === Tests === */

@@ -7,17 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { toast } from "@/lib/notifications";
-
-/* === Local Imports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Public Functions === */
 
 /**
  * Copy traceability text and say so in a toast.
@@ -36,5 +26,3 @@ export async function copyTraceabilityText(value: string): Promise<void> {
     toast.error("Could Not Copy To Clipboard");
   }
 }
-
-/* === Private Functions === */

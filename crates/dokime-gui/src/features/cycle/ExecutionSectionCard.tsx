@@ -16,15 +16,9 @@
  * dashed well, below whatever controls it keeps live (Add a note, capture).
  */
 
-/* === External Imports === */
-
 import { type ReactNode, useId } from "react";
 
-/* === Local Imports === */
-
 import { cn } from "@/lib/utils";
-
-/* === Types === */
 
 export type ExecutionSectionCardProps = {
   title: string;
@@ -36,8 +30,6 @@ export type ExecutionSectionCardProps = {
   /** What the section says while it has nothing to show; `null` when it does. */
   empty?: string | null;
 };
-
-/* === Components === */
 
 export function ExecutionSectionCard({ title, action, children, className, description, empty = null }: ExecutionSectionCardProps) {
   const titleId = useId();

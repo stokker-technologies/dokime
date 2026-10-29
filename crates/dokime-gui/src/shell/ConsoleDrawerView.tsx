@@ -11,16 +11,9 @@
  * Shared Live And Frozen Console Presentation; Reads Arrive From Its Owner.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { ArrowDownToLine, Eraser, X } from "lucide-react";
 import { type UIEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-
-/* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +25,6 @@ import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
 import { type ConsoleRecords, consoleRecordsStore } from "./console-buffer";
 import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-follow";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const GUI_CONSOLE_OVERSCAN = 12;
 
@@ -82,9 +69,6 @@ const SCROLL_AREA_CLASS =
   "overflow-y-scroll [overflow-anchor:none] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60";
 const MAX_HEIGHT = 900;
 
-/* === Types === */
-
-/* === Components === */
 export function LiveConsoleView({
   cycleId,
   executionId,
@@ -375,8 +359,6 @@ function HeightHandle({ height, onHeightChange }: { height: number; onHeightChan
   );
 }
 
-/* === Private Functions === */
-
 function clampHeight(value: number): number {
   return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.round(value)));
 }
@@ -394,9 +376,6 @@ function scopeDisabled(scope: ConsoleScope, cycleId: string | null, executionId:
   return !executionId;
 }
 
-/* === Hooks === */
-
-/* === Public Functions === */
 export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel, filter: string): HubRecord[] {
   const threshold = LEVEL_ORDER[level];
   const needle = filter.trim().toLowerCase();
@@ -415,5 +394,3 @@ export function consoleAttentionCount(records: HubRecord[], since: number): numb
     return !Number.isFinite(at) || at > since;
   }).length;
 }
-
-/* === Private Functions === */

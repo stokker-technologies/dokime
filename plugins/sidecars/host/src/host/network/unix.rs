@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use super::{Collected, Network, Samples, State};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Operation for Network {
     type Error = Refusal;
@@ -60,9 +35,3 @@ impl Operation for Network {
         Ok(Response::new(Samples { rows }))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

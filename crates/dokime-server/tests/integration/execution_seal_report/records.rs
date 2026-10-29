@@ -7,35 +7,20 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 use std::time::Duration;
-// Third Party Imports
+
 use tokio::sync::Notify;
 use tokio_stream::StreamExt as _;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::host::ToolConnectionAcquired;
 use dokime::runtime::command::CommandContext;
 
-/* === Constants === */
-
 const SOURCE: &str = "fixture_bench";
 const SUITE: &str = "fixture.bench";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Expectation {
     budget: Duration,
@@ -53,8 +38,6 @@ struct Waiting {
     expectation: Arc<Expectation>,
 }
 
-/* === Enums === */
-
 #[dokime::catalog]
 enum Templates {
     Waiting(Waiting),
@@ -64,10 +47,6 @@ enum Templates {
 enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::suite(id = "fixture.bench", label = "Fixture Bench", templates = Templates)]
 impl BenchSuite {}
@@ -123,10 +102,6 @@ impl dokime::runtime::EmbeddedProvider for Bench {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime::TestCycleId) {
     let config =
         support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host")).register(Arc::new(Bench { expectation }));
@@ -154,8 +129,6 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
     ]);
     record
 }
-
-/* === Tests === */
 
 // A step waiting on a host record proceeds when the host publishes it from
 // outside the execution.

@@ -7,23 +7,14 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::sync::Arc;
 
-// Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::{InvocationError, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
-// Local Imports
 use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::wire::Timestamp;
@@ -31,27 +22,17 @@ use dokime::operations::backend as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::runtime as native;
 
-/* === Constants === */
-
 const DOCUMENT_EVIDENCE_EXPORT_BYTES: u64 = 8_589_934_592;
 const PAGINATION_MAXIMUM_PAGE_ITEMS: u64 = 500;
 const PAGINATION_PAGE_ITEMS: u64 = 50;
 const SERVER_DISCOVERY_PAGE_BYTES: u64 = 4_194_304;
 const SERVER_DISCOVERY_WORK_BYTES: u64 = 16_777_216;
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     maximum: usize,
     logs: Arc<crate::grpc::logs::Tail>,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -61,10 +42,6 @@ enum PreparedOperations {
     Operation3(wire::WatchLogs),
     Operation4(wire::CollectDiagnostics),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::GetIdentity> for Resources {
     fn serve<'a>(
@@ -225,8 +202,6 @@ impl Serve<wire::CollectDiagnostics> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(in crate::grpc) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize, config: &dokime::RuntimeConfig,
 ) -> Result<(), crate::grpc::Error> {
@@ -254,8 +229,6 @@ pub(super) fn produce_result<T: Portable + Send + Sync + 'static>(
     Ok(output.into())
 }
 
-/* === Private Functions === */
-
 fn produce<T: Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
     produce_result(maximum, || Ok(build()))
 }
@@ -278,8 +251,6 @@ fn discovery_failure(source: InvocationError) -> Status {
     };
     crate::grpc::error::detailed_error(status, &source)
 }
-
-/* === Tests === */
 
 impl Resources {
     async fn identity(&self) -> Result<Response<dokime::domain::model::backend::wire::BackendIdentity>, Status> {

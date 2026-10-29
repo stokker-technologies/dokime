@@ -8,28 +8,10 @@
 
 """Provision GUI Prerequisites Independently Of The CI Provider"""
 
-# === Imports === #
-
-# Standard Library Imports
 import subprocess
 
-# Third Party Imports
 import pytest
-
-# Local Imports
 from dokime_tools.ci import bootstrap
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.fixture
@@ -87,8 +69,3 @@ def test_sudo_refusal(monkeypatch: pytest.MonkeyPatch, host) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         bootstrap.install_gui_packages()
     assert host == [["sudo", "-n", "apt-get", "update"]]
-
-
-# === Private Functions === #
-
-# === Entry Point === #

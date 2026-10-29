@@ -9,38 +9,10 @@
 
 // A plot declaration is refused at authoring time when its axes cannot draw it.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use dokime_domain::model;
 use model::document::{Plot, PlotDefinition, format, validate_plot_definition};
 use model::expressions::telemetry;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn reconnection(field: &str) -> model::expressions::DataExpression {
     telemetry("bench.reconnection", field)
 }
@@ -48,8 +20,6 @@ fn reconnection(field: &str) -> model::expressions::DataExpression {
 fn refusal(plot: &PlotDefinition) -> String {
     validate_plot_definition(plot).expect_err("plot is refused")
 }
-
-/* === Tests === */
 
 // A histogram bins the one value it declares on x; the host counts it on y.
 #[test]

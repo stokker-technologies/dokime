@@ -8,27 +8,9 @@
 
 """Preserve Watch Selection, Optional Waiting And Empty Armed Baselines On The Wire"""
 
-# === Imports === #
-
-# Standard Library Imports
-
-# Third Party Imports
 import pytest
 
-# Local Imports
 from dokime_client.client import _contracts
-
-# Type Checking Imports
-
-# === Public Exports === #
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 @pytest.mark.parametrize("selection", ["All", "Latest", "New"])
@@ -64,8 +46,3 @@ def test_armed_baseline_is_an_explicit_frame(baseline: list[str]) -> None:
     assert encoded != operation.output().SerializeToString()
     assert _contracts.variant(received.payload) == "Armed"
     assert list(received.payload.Armed.field_0.baseline) == baseline
-
-
-# === Private Functions === #
-
-# === Entry Point === #

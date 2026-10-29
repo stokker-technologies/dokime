@@ -7,28 +7,20 @@
  * ***
  */
 
-/* === External Imports === */
-
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { fetchNativeCyclePage, type NativeCycleContinuation, type NativeExecutionSelection } from "@/lib/api/native-checkpoints";
 import { fetchExecutionPage, groupExecutions } from "./explore-data-source";
 
-/* === Types === */
-
 /** Which rows a history read admits by their archive mark. */
 export type HistoryArchiveView = "Unarchived" | "Archived" | "All";
-
-/* === Query Keys === */
 
 export const exploreQueryKeys = {
   all: ["explore"] as const,
   history: (text = "", archive: HistoryArchiveView = "Unarchived") => ["explore", "executions", { archive, text }] as const,
   cycles: (text = "", archive: HistoryArchiveView = "Unarchived") => ["explore", "cycles", { archive, text }] as const,
 };
-
-/* === Query Hooks === */
 
 /**
  * The merged execution browse, selected and ordered server-side.

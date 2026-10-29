@@ -7,31 +7,19 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod connections;
 pub mod device;
 pub mod readiness;
 pub mod status;
-
-/* === Re-Exports === */
 
 pub use connections::ListConnections;
 pub use device::{ReadDevice, SetPower};
 pub use readiness::AskReadiness;
 pub use status::GetStatus;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
-
-/* === Constants === */
 
 // The policy every bench operation declares.
 pub const POLICY: OperationPolicy = OperationPolicy {
@@ -39,14 +27,6 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: Duration::from_millis(2_000),
     retries: RetryPolicy::Never,
 };
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
 
 // The bench operations this plugin declares; each request is its operation.
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
@@ -57,13 +37,3 @@ pub enum Operations {
     AskReadiness(AskReadiness),
     ListConnections(ListConnections),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

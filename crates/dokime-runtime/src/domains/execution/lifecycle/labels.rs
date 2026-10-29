@@ -7,35 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::transactions::labels::{LabelSubject, RenameLabel};
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl RuntimeHandle {
     pub async fn rename_cycle(&self, test_cycle_id: TestCycleId, label: String, context: CommandContext) -> Result<String, Error> {
@@ -85,10 +60,6 @@ impl RuntimeHandle {
     }
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn admitted_label(label: &str) -> Result<String, Error> {
     let label = label.trim();
     if label.is_empty() || label.len() > 4096 {
@@ -100,5 +71,3 @@ fn admitted_label(label: &str) -> Result<String, Error> {
 fn unsaved(error: &crate::runtime::Error) -> Error {
     unavailable_rejection(format!("label committed but its revision was not saved: {error}"))
 }
-
-/* === Tests === */

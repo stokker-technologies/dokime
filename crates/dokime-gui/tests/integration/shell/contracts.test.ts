@@ -7,37 +7,19 @@
  * ***
  */
 
-/* === Imports === */
-
-// Standard Library Imports
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Third Party Imports
 import type { DescFile } from "@bufbuild/protobuf";
 import { beforeAll, test } from "vitest";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const descriptors = resolve(gui, "../../target/generated/typescript");
 
 const facadePath = "src/lib/rpc/generated/client.ts";
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function generatedSources(directory: string, found = new Map<string, string>()) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -51,8 +33,6 @@ function generatedSources(directory: string, found = new Map<string, string>()) 
 function isFile(value: unknown): value is DescFile {
   return typeof value === "object" && value !== null && (value as DescFile).kind === "file";
 }
-
-/* === Entry Point === */
 
 let files: DescFile[];
 

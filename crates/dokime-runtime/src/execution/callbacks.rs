@@ -7,39 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-// Third Party Imports
-
-// Local Imports
 use crate::diagnostics::Diagnostic;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Default)]
 pub struct Callbacks {
     tasks: Arc<Mutex<Vec<Arc<dyn CallbackTask>>>>,
     settling: Arc<tokio::sync::Mutex<()>>,
 }
-
-/* === Enums === */
-
-/* === Traits === */
 
 pub trait CallbackTask: Send + Sync {
     fn is_settled(&self) -> bool;
@@ -48,8 +26,6 @@ pub trait CallbackTask: Send + Sync {
 
     fn join(&self) -> Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + '_>>;
 }
-
-/* === Implementations === */
 
 impl Callbacks {
     pub fn register(&self, task: Arc<dyn CallbackTask>) {
@@ -94,9 +70,3 @@ impl Callbacks {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

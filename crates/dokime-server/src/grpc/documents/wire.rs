@@ -7,41 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::VecDeque;
 
-// Third Party Imports
 use tonic::Status;
 
-// Local Imports
 use super::super::value::{self, canonical};
 use dokime::domain::model::documents::wire::DocumentFrameFrame as Frame;
 use dokime::{CurrentDocumentCapture, document as native};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Frames {
     frames: VecDeque<dokime::domain::model::documents::wire::DocumentFrame>,
     limit: usize,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Frames {
     fn push(&mut self, frame: Frame) -> Result<(), Status> {
@@ -55,8 +32,6 @@ impl Frames {
         Ok(())
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn frames(
     captured: CurrentDocumentCapture, limit: usize,
@@ -278,8 +253,6 @@ pub(super) fn frames(
     Ok(output.frames)
 }
 
-/* === Private Functions === */
-
 fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
     use dokime::expressions::{DataSource, DataTransform};
     let mut streams = std::collections::BTreeSet::new();
@@ -397,5 +370,3 @@ fn summary_state(value: native::TelemetrySummaryState) -> dokime::domain::model:
         native::TelemetrySummaryState::Muted => dokime::domain::model::documents::wire::DocumentSummaryState::Muted,
     }
 }
-
-/* === Tests === */

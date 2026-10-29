@@ -15,17 +15,11 @@
  * `false` and keeps its page bar.
  */
 
-/* === External Imports === */
-
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { z } from "zod";
 
-/* === Local Imports === */
-
 import { cycleIdOfPathname } from "@/shell/route-scope";
-
-/* === Types === */
 
 export type FocusPresentation = {
   /** The page bar's actions: Start, Stop and the focus toggle. A frozen report has none. */
@@ -43,8 +37,6 @@ export type FocusMode = {
   setFocused: (next: boolean) => void;
 };
 
-/* === Constants === */
-
 /**
  * `focus=1` and nothing else.
  *
@@ -57,8 +49,6 @@ export const focusSearchSchema = z
     return candidate === true || candidate === "1" || candidate === "true" ? true : undefined;
   }, z.literal(true).optional())
   .catch(undefined);
-
-/* === Public Functions === */
 
 /**
  * What the page bar keeps in each mode.

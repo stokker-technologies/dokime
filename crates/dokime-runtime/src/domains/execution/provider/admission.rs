@@ -7,38 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub(crate) use crate::transactions::RunProvider;
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 use crate::commands::{CommandResult, rejected_receipt};
 use crate::runtime_state::RuntimeState;
 use crate::transactions::provider::request::RunSummary;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 // Plans The Admission Against The Current State; The Commit Applies The Same Plan.
 pub(crate) fn plan(state: &RuntimeState, transaction: &RunProvider) -> CommandResult<(super::ProviderCycleAdmission, RunSummary)> {
@@ -54,7 +27,3 @@ pub(crate) fn plan(state: &RuntimeState, transaction: &RunProvider) -> CommandRe
     };
     Ok((admission, plan.summary))
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

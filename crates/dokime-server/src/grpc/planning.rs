@@ -7,22 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
 mod bounds;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::transcode::Transcode;
 use super::{
     execution,
@@ -39,15 +30,7 @@ use dokime::operations::planning as wire;
 use dokime::runtime::Error;
 use dokime::state::RuntimeState;
 
-/* === Constants === */
-
 const PARAMETER_MATERIALIZED_CASES: u64 = 1_000;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 struct Resources {
     runtime: LiveRuntime,
@@ -60,18 +43,12 @@ pub(super) struct ResolvedPlan {
     pub(super) revisions: BTreeMap<CaseId, String>,
 }
 
-/* === Enums === */
-
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::MaterializeTemplate),
     Operation1(wire::RegisterSelection),
     Operation2(wire::PreviewSelection),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::MaterializeTemplate> for Resources {
     fn serve<'a>(
@@ -159,8 +136,6 @@ impl Serve<wire::PreviewSelection> for Resources {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
@@ -313,8 +288,6 @@ pub(super) fn resolve(
     Ok(resolved(cases, preview))
 }
 
-/* === Private Functions === */
-
 fn checked_preview(
     reply: dokime::domain::model::planning::wire::PreviewSelectionReply, maximum: usize,
 ) -> Result<dokime::domain::model::planning::wire::PreviewSelectionReply, Status> {
@@ -425,5 +398,3 @@ fn rejection(code: &str, message: impl Into<String>) -> Status {
     };
     execution::status(error)
 }
-
-/* === Tests === */

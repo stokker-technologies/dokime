@@ -9,33 +9,9 @@
 
 // Reconcile Bundled Installer Plugins Once Per Distribution
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeSet, path::Path};
 
-// Third Party Imports
-
-// Local Imports
 use super::{PluginError, PluginMetadata, PluginStore, digest, read_bounded};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl PluginStore {
     /// Reconcile Installer Plugins Once Per Distribution, Retrying Incomplete Starts.
@@ -97,9 +73,3 @@ impl PluginStore {
             .await
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

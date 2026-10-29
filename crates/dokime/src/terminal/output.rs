@@ -7,13 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{
     fmt::Display,
     io::{self, IsTerminal, Write},
@@ -22,21 +15,10 @@ use std::{
     time::Duration,
 };
 
-// Third Party Imports
 use anstyle::{AnsiColor, Style};
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 
-// Local Imports
-
-/* === Constants === */
-
 static COLOR_MODE: AtomicU8 = AtomicU8::new(0);
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct Terminal {
@@ -48,8 +30,6 @@ pub struct Progress {
     terminal: Terminal,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ColorMode {
     #[default]
@@ -58,10 +38,6 @@ pub enum ColorMode {
     Always,
     Never,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl FromStr for ColorMode {
     type Err = super::Error;
@@ -186,8 +162,6 @@ impl Drop for Progress {
     }
 }
 
-/* === Public Functions === */
-
 pub fn set_color_mode(mode: ColorMode) {
     COLOR_MODE.store(
         match mode {
@@ -206,7 +180,3 @@ pub fn color_mode() -> ColorMode {
         _ => ColorMode::Auto,
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

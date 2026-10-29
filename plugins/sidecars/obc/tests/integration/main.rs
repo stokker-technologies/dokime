@@ -7,25 +7,15 @@
  * ***
  */
 
-/* === Modules === */
-
 mod charger;
 mod lifecycle;
 mod operations;
 mod plugin;
 mod runs;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-// Third Party Imports
-
-// Local Imports
 use dokime::definition::{SuiteSet, materialize_template_cases};
 use dokime::execution::{Answering, Caller};
 use dokime::harmos::operations::OperationDeclaration;
@@ -33,14 +23,6 @@ use dokime::{ValidationMode, ValueType};
 use obc_plugin::domain::model::readiness::Readiness;
 use obc_plugin::domain::operations::AskReadiness;
 use obc_plugin::{ObcChecks, Pulse};
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[dokime::stream(
     id = "obc.system",
@@ -54,16 +36,6 @@ struct SystemRow {
     system_cpu_percent: f64,
     system_memory_used_bytes: i64,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 fn answering<O, F>(answer: F) -> (String, Answering)
 where
@@ -101,8 +73,6 @@ fn road() -> Caller {
 fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item = C::Row>) -> dokime::plugin::testing::Harness {
     dokime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
 }
-
-/* === Tests === */
 
 #[test]
 fn suite_export_bound() {

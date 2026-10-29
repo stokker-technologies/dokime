@@ -7,8 +7,6 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod appearance;
 pub mod backend;
 pub mod catalog;
@@ -37,14 +35,8 @@ pub mod secrets;
 pub mod settings;
 pub mod telemetry;
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::time::Duration;
 
-// Third Party Imports
 use harmos::catalog::Member;
 use harmos::catalog::Visitor;
 use harmos::operations::OperationDeclaration;
@@ -52,10 +44,6 @@ use harmos::operations::OperationPolicy;
 use harmos::operations::RetryPolicy;
 use harmos::operations::WireDeclaration;
 use harmos::schema::Described;
-
-// Local Imports
-
-/* === Constants === */
 
 pub const PACKAGE: &str = "dokime.v1";
 
@@ -81,12 +69,6 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 // Inside An `ORDINARY` Stop With Room To Save The Evidence; The Desktop And Server Stops Build On It.
 pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct Endpoints;
 
 pub struct Declaration {
@@ -94,8 +76,6 @@ pub struct Declaration {
     pub local_only: bool,
     pub wire: WireDeclaration,
 }
-
-/* === Enums === */
 
 #[harmos::catalog]
 pub enum Operations {
@@ -170,16 +150,12 @@ pub enum Operations {
     Telemetry(telemetry::Operations),
 }
 
-/* === Traits === */
-
 // Public Transport Binding And Its Native-Only Boundary.
 pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
     // Native Listener Trust Never Comes From A Remote Call's Loopback Address.
     const LOCAL_ONLY: bool = false;
 }
-
-/* === Implementations === */
 
 impl Endpoint for harmos::builtins::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
@@ -201,10 +177,6 @@ where
     };
 }
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy {
         timeout,
@@ -212,5 +184,3 @@ const fn policy(timeout: Duration) -> OperationPolicy {
         retries: RetryPolicy::Never,
     }
 }
-
-/* === Tests === */

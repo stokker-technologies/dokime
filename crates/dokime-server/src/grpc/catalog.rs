@@ -7,45 +7,26 @@
  * ***
  */
 
-/* === Modules === */
-
 mod parameters;
 pub(super) mod schemas;
 
-/* === Re-Exports === */
-
 pub(super) use parameters::{unit, wire as parameters};
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc};
 
-// Third Party Imports
 use dokime::harmos::Context;
 use tonic::Status;
 
-// Local Imports
 use super::value::{Budget, canonical};
 use dokime::app::LiveRuntime;
 use dokime::domain::model::definition::wire as schema;
 use dokime::operations::catalog as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 struct Resources {
     runtime: LiveRuntime,
     max_message_bytes: usize,
 }
-
-/* === Enums === */
 
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
@@ -56,10 +37,6 @@ enum PreparedOperations {
     Operation4(wire::ListTelemetrySchemas),
     Operation5(wire::GetTelemetrySchema),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListSuites> for Resources {
     fn serve<'a>(
@@ -131,8 +108,6 @@ impl Serve<wire::GetTelemetrySchema> for Resources {
     }
 }
 
-/* === Public Functions === */
-
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
 ) -> Result<(), super::Error> {
@@ -151,8 +126,6 @@ pub(super) fn prepare(
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
-
-/* === Private Functions === */
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut target = canonical::slots(source.len())?;
@@ -377,5 +350,3 @@ fn suite_tags(entry: &dokime::definition::SuiteSnapshot) -> Result<Vec<String>, 
     }
     Ok(values)
 }
-
-/* === Tests === */

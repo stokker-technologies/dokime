@@ -7,39 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 #[derive(Debug, clap::Args)]
 pub struct Args {
     #[arg(long, help = "Emit CLI version metadata as JSON.")]
     json: bool,
 }
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
 
 pub fn run(args: Args) {
     if args.json {
@@ -53,7 +25,3 @@ pub fn run(args: Args) {
         println!("{}", env!("CARGO_PKG_VERSION"));
     }
 }
-
-/* === Private Functions === */
-
-/* === Tests === */

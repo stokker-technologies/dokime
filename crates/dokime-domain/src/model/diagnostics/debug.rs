@@ -7,30 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::ArtifactId;
 use crate::model::identity::CorrelationId;
 use crate::model::identity::TraceId;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorCause {
@@ -50,8 +32,6 @@ pub struct StructuredErrorDetail {
     pub correlation_id: Option<CorrelationId>,
 }
 
-/* === Enums === */
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DebugLevel {
@@ -63,10 +43,6 @@ pub enum DebugLevel {
     Warning,
     Error,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl harmos::MemorySize for ErrorCause {
     fn memory_size(&self) -> usize {
@@ -121,9 +97,3 @@ impl StructuredErrorDetail {
         }
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

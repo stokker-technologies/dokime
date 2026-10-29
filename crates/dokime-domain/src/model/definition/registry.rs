@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::definition::TestSuite;
 use crate::model::plugins::TestSuiteDefinition;
 use crate::model::records::RecordContract;
 use crate::model::telemetry::TelemetryContract;
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuiteSet {
@@ -50,12 +32,6 @@ pub struct SuiteSnapshot {
     pub telemetry_contracts: Vec<TelemetryContract>,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 impl SuiteSet {
     pub fn new(suites: impl IntoIterator<Item = TestSuiteDefinition>) -> Self {
         Self { suites: suites.into_iter().collect() }
@@ -66,9 +42,3 @@ impl SuiteSet {
         self
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

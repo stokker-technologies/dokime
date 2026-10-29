@@ -7,31 +7,13 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
-// Local Imports
 use crate::model::identity::Identifier;
 use crate::model::values::Value;
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
 pub type TelemetryConditionEvaluation = crate::model::validation::ConditionEvaluation;
-
-/* === Structs === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryCondition {
@@ -41,8 +23,6 @@ pub struct TelemetryCondition {
     pub target: Option<Value>,
     pub tolerance: Option<f64>,
 }
-
-/* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,10 +36,6 @@ pub enum TelemetryConditionOperator {
     Within,
 }
 
-/* === Traits === */
-
-/* === Implementations === */
-
 impl harmos::MemorySize for TelemetryCondition {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -72,9 +48,3 @@ impl harmos::MemorySize for TelemetryCondition {
         })
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

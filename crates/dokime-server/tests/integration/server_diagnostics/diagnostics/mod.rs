@@ -7,17 +7,10 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::io::{Cursor, Read as _, Write as _};
-// Third Party Imports
+
 use sha2::Digest as _;
-// Local Imports
+
 use super::*;
 use dokime::domain::model;
 use {
@@ -26,27 +19,9 @@ use {
     dokime::settings::TextArea,
 };
 
-/* === Constants === */
-
 const SECRET: &str = "diagnostics-fake-secret-material";
 
 const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(super) async fn fixture(journal: std::sync::Arc<dokime_server::trace::Journal>) -> (support::TestEnvironment, Server, WireClient) {
     let prepared_environment = dokime_server::grpc::Service::prepare(Config::default().with_trace_journal(journal)).unwrap();
@@ -112,8 +87,6 @@ fn record(level: &str, message: &str) -> String {
         r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#
     )
 }
-
-/* === Tests === */
 
 pub(super) async fn collected_archive_material(client: &WireClient) {
     let mut stream = client

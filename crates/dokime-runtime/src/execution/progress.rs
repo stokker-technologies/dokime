@@ -7,30 +7,11 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
 pub use crate::operations::execution::transport::ExecutionProgress;
 
-/* === Imports === */
-
-// Standard Library Imports
 use std::iter::FusedIterator;
 use std::sync::Arc;
 use std::time::Instant;
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 pub struct Progress<I> {
     warmup: u64,
@@ -44,15 +25,9 @@ pub struct Progress<I> {
     finished: bool,
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
 pub trait ProgressSink: Send + Sync {
     fn update(&self, progress: ExecutionProgress);
 }
-
-/* === Implementations === */
 
 impl<I: ExactSizeIterator> Progress<I> {
     pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>, warmup: u64) -> Self {
@@ -138,12 +113,6 @@ impl<I: ExactSizeIterator> ExactSizeIterator for Progress<I> {
 
 impl<I: ExactSizeIterator> FusedIterator for Progress<I> {}
 
-/* === Public Functions === */
-
-/* === Private Functions === */
-
 fn saturating_u64(value: u128) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
 }
-
-/* === Tests === */

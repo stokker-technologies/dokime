@@ -8,18 +8,13 @@
 
 """Conversion at the private protobuf boundary."""
 
-# === Imports === #
-
-# Standard Library Imports
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-# Third Party Imports
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
-# Local Imports
 from ._contracts import copy, equal, nested, request, variant
 from .errors import ProtocolError
 from .models import (
@@ -34,19 +29,7 @@ from .models import (
     Value,
 )
 
-# Type Checking Imports
-
-# === Public Exports === #
-
 __all__ = ["copy", "equal", "nested", "request", "variant"]
-
-# === Constants === #
-
-# === Types === #
-
-# === Classes === #
-
-# === Public Functions === #
 
 
 def encode(item: Value, maximum_depth: int) -> dict:
@@ -236,8 +219,3 @@ def sample(item: Message, maximum_depth: int) -> Sample:
         metadata=fields(item.metadata, maximum_depth) if item.HasField("metadata") else {},
         scope=scope(item.scope),
     )
-
-
-# === Private Functions === #
-
-# === Entry Point === #

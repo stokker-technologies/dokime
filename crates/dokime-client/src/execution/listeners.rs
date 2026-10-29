@@ -7,41 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::{collections::HashMap, future::Future, time::Duration};
 
-// Third Party Imports
 use tokio::sync::mpsc;
 
-// Local Imports
 use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, invalid, poll_interval, validate_observed_cursor};
 use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::TestExecutionId;
-
-/* === Constants === */
 
 const FILTER_BYTES: u64 = 4_096;
 const FILTER_ITEMS: u64 = 64;
 const MAXIMUM_SAMPLE_PAGE_ITEMS: u64 = 5_000;
 const REQUEST_POLL_MS: u64 = 200;
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl TestExecutionHandle {
     pub fn records(
@@ -81,8 +58,6 @@ impl TestExecutionHandle {
         })
     }
 }
-
-/* === Public Functions === */
 
 pub(crate) fn validate_filters(filters: &[String]) -> Result<Vec<IdentifierPattern>> {
     let bytes = filters.iter().fold(0usize, |bytes, filter| bytes.saturating_add(filter.len()));
@@ -256,8 +231,6 @@ where
     }
 }
 
-/* === Private Functions === */
-
 fn record_scope(id: &TestExecutionId) -> dokime_domain::model::identity::wire::EvidenceScope {
     dokime_domain::model::identity::wire::EvidenceScope {
         execution_id: Some(id.to_string()),
@@ -349,8 +322,6 @@ fn validate_samples(
     }
     Ok(())
 }
-
-/* === Tests === */
 
 #[cfg(test)]
 mod tests {

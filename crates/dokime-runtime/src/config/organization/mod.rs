@@ -7,26 +7,17 @@
  * ***
  */
 
-/* === Modules === */
-
 mod pack;
 pub mod policy;
 pub mod theme;
 
 pub use pack::{ResolvedPack, brand, installation_directory, resolve, resolve_with_base};
 
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::path::Path;
 
-// Third Party Imports
 use serde::Deserialize;
 use thiserror::Error;
 
-// Local Imports
 use crate::domains::{
     AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity, ThemeActivationPolicy, ThemeCornerRadii,
     ThemeModePolicy,
@@ -36,19 +27,11 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::plugins::LogoVariant;
 use theme::{Bundled, Directory, Error as ThemeCssError, Source, load_from as load_authored_theme_css};
 
-/* === Constants === */
-
 #[cfg(feature = "native")]
 pub(crate) const BRAND_ARTIFACT_ID: &str = "brand";
 const BRAND_MANIFEST_FILE: &str = "organization.toml";
 const BRAND_THEME_ID: &str = "brand.theme";
 const BRAND_CUSTOMIZATION_ID: &str = "brand.customization";
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
 
 #[derive(Clone, Debug)]
 pub struct ResolvedBrand {
@@ -147,8 +130,6 @@ struct ThemeSection {
     corner_radii: ThemeCornerRadii,
 }
 
-/* === Enums === */
-
 #[derive(Debug, Error)]
 pub enum BrandLoadError {
     #[error("could not read {path}: {source}")]
@@ -177,10 +158,6 @@ enum BrandThemePolicy {
 
     Required,
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl ResolvedBrand {
     pub fn materialize_logos(&mut self, directory: &Path) -> std::io::Result<()> {
@@ -258,8 +235,6 @@ impl BrandManifest {
     }
 }
 
-/* === Public Functions === */
-
 pub fn compiled_brand() -> Option<ResolvedBrand> {
     let resolved = parse(Bundled::manifest(), &Bundled).and_then(|(mut brand, logos)| {
         brand.logos = logos
@@ -317,8 +292,6 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
     }
     Ok(brand)
 }
-
-/* === Private Functions === */
 
 pub(crate) fn resolved_pack_brand(pack: &crate::config::organization::ResolvedPack) -> Result<ResolvedBrand, BrandLoadError> {
     let text = toml::to_string(&pack.manifest).expect("TOML values serialize");
@@ -398,5 +371,3 @@ fn theme_activation_policy(theme: Option<&ThemeSection>, theme_id: &Identifier) 
         None => ThemeActivationPolicy::RegisterOnly,
     }
 }
-
-/* === Tests === */

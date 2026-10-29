@@ -9,26 +9,14 @@
 
 /** Primary Lifecycle Command, Focus Control And Secondary Menu. */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
 import { Maximize2, Minimize2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-// Local Imports
 import { Button } from "@/components/ui/button";
 import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
 import { CycleExportMenuItem } from "./CycleExportMenuItem";
 import { CycleReportMenuItem } from "./CycleReportMenuItem";
 import { type CycleMenu, type ExecutionMenu, NodeMenu } from "./NodeMenu";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
 
 export type NodeActionClusterProps = {
   cycleId: string;
@@ -38,8 +26,6 @@ export type NodeActionClusterProps = {
   subject: { executionId: string | null; label: string; sealed: boolean } | null;
   menu: CycleMenu | ExecutionMenu;
 };
-
-/* === Components === */
 
 export function NodeActionCluster({ cycleId, menu, primary, subject }: NodeActionClusterProps) {
   const focus = useFocusMode();
@@ -76,9 +62,3 @@ export function NodeActionCluster({ cycleId, menu, primary, subject }: NodeActio
     </div>
   );
 }
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */

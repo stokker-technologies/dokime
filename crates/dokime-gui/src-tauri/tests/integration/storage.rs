@@ -7,37 +7,12 @@
  * ***
  */
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::fs;
-// Third Party Imports
 
-// Local Imports
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::native_session::storage::StorageRoot;
 use dokime_gui::native_session::{DesktopSession, DesktopSessionError, StorageResetReason};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, DesktopSessionError>) -> Option<StorageResetReason> {
     match result {
         Err(DesktopSessionError::StorageReset { reason, .. }) => Some(reason),
@@ -45,7 +20,6 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
     }
 }
 
-/* === Tests === */
 #[tokio::test]
 async fn reset_refuses_unowned() {
     let root = tempfile::tempdir().unwrap();

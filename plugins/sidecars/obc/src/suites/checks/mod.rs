@@ -7,45 +7,18 @@
  * ***
  */
 
-/* === Modules === */
-
 pub mod pulse;
-
-/* === Re-Exports === */
 
 pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-// Third-Party Imports
 pub const ID: &str = "obc.checks";
 
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
 pub struct ObcChecks;
-
-/* === Enums === */
 
 #[dokime::catalog]
 pub enum Templates {
     Pulse(pulse::Pulse),
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 #[dokime::suite(
     id = ID,
@@ -61,9 +34,3 @@ pub enum Templates {
 // records its template publishes are declared beside the steps that publish
 // them. The suite publishes what its templates declared.
 impl ObcChecks {}
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

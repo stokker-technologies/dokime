@@ -10,40 +10,14 @@
 // SQLite Backend Contract Scenarios: Paging, Retries, Durability, Integrity,
 // Snapshots, Finished Files And Read Cancellation.
 
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-
-// Standard Library Imports
 use std::future::Future;
 
-// Third Party Imports
 use harmos::storage::{query::FileSelection, *};
 use sha2::{Digest, Sha256};
 
-// Local Imports
 use super::storage::{Store, id, key, page, read_records, rows};
 use super::{Backend, Error, State};
 
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 // A Store Holding The Fixture Schema And Records `2..=last`.
 async fn seeded(root: &std::path::Path, last: u64) -> (Store, Vec<StoredRecord>) {
     let store = Store::<()>::open(root).await;
@@ -72,8 +46,6 @@ fn file_metadata(name: &str, bytes: &[u8]) -> FileMetadata {
         expected_sha256: Some(Sha256::digest(bytes).into()),
     }
 }
-
-/* === Tests === */
 
 // Pages ascend by position, always carry at least one entry, and an empty page
 // means the selection is exhausted at the snapshot's frontier.
