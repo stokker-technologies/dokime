@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:c63f180d84c40bcd06a044d7128b73632076fa977f662746b79b27e404083634
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:51cc09e4fdc95f62acd5a51aea9eff14ab106a625f1cd647da671530fe89f908
 # ***
 #
 # Dokime
@@ -24,6 +24,7 @@ from pathlib import Path
 from ..process import spawn_flags
 from .. import temporary
 from ..build import storage
+from ..release import policy as release_policy
 from . import policy
 
 # Type Checking Imports
@@ -49,11 +50,9 @@ def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> l
                 cwd=directory,
             )
         )
-        members = set(metadata["workspace_members"])
         command = ["cargo", "publish", "--dry-run", "--locked"]
-        for package in metadata["packages"]:
-            if package["id"] in members and package.get("publish") != []:
-                command.extend(["--package", package["name"]])
+        for package in release_policy.publishable(directory, metadata).values():
+            command.extend(["--package", package["name"]])
         if "--package" in command:
             commands.append(command)
     commands.extend(
