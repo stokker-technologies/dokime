@@ -60,8 +60,11 @@ Assigned source inventory: host radio/adapter operation definitions, native hand
 Assigned source inventory: existing Bluetooth presence collectors (reuse), host power and CPU operations, bounded startup calibration, operation documentation and focused proofs. Power-plan set shares the item 5 lifecycle decision. Triage: Bluetooth presence already exists in `platform/windows/bluetooth.rs` and `platform/unix/bluetooth.rs`; native Windows power-plan read already exists in `platform/windows/power.rs`. Also update canonical `dokime-fast-release` guidance and its generated copies: PRs target `dev`, channel builds and consumers use `dev`.
 
 - [ ] 6.1 Bluetooth on/off through the radio operation; device presence.
+  Triage: presence is already implemented in `plugins/sidecars/host/src/platform/windows/bluetooth.rs:66` and `platform/unix/bluetooth.rs:42`; retain it. On/off depends on 5.1 and the lifecycle/context decision.
 - [ ] 6.2 Power plan read and invertible set.
-- [ ] 6.3 CPU load in GFLOP/s from a documented calibration.
+  Public read is implemented at `host/power/windows.rs::active_plan` through the existing native Power Management reader and at `host/power/unix.rs::active_plan` through the ACPI platform profile. Windows `cpu::active_power_plan` passes; invertible set remains dependent on 5.3.
+- [x] 6.3 CPU load in GFLOP/s from a documented calibration.
+  Evidence: `host/cpu/runtime.rs::calibrate` bounds a per-logical-CPU f64 FMA kernel by half the operation attempt policy; `app.rs::prepare` runs it once on an owned blocking worker. The shared system collector scales capacity by measured OS utilization for the Public `host.cpu.load` query and system stream. The method and estimate's limits are beside `CpuLoad` and in `plugins/README.md`; no root README claim changes. Windows targeted `cpu::` integration passes 2 stories (calibration/readings and native power read); the CPU scaling unit selection passes 1. Task-owned Clippy and the no-feature/all-targets guard pass; Rust formatting check passes. Linux native paths remain for CI.
 
 ## 6A. Host As An Ordinary Plugin
 

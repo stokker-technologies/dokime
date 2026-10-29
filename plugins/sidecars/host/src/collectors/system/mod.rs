@@ -53,6 +53,7 @@ use dokime_domain::model::values::Value;
 
 pub struct SystemCollector {
     sample_index: u64,
+    capacity_gflops: Option<f64>,
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
@@ -90,11 +91,24 @@ impl SystemCollector {
     pub fn new() -> Self {
         Self {
             sample_index: 0,
+            capacity_gflops: None,
             system: System::new_all(),
             components: Components::new_with_refreshed_list(),
             battery_manager: BatteryManager::new().ok(),
             git_identity: None,
         }
+    }
+
+    pub fn calibrate_cpu(&mut self, budget: std::time::Duration) -> Result<()> {
+        self.capacity_gflops = Some(crate::host::cpu::calibrate(budget)?);
+        Ok(())
+    }
+
+    pub fn cpu_load(&mut self) -> Result<crate::host::cpu::Load> {
+        let capacity = self.capacity_gflops.ok_or_else(|| crate::Error::Probe("CPU capacity has not been calibrated".into()))?;
+        self.system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
+        let utilization = f64::from(self.system.global_cpu_usage()).clamp(0.0, 100.0);
+        Ok(crate::host::cpu::Load::measured(capacity, utilization))
     }
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {
@@ -129,6 +143,11 @@ impl SystemCollector {
             ("cpu_architecture".to_owned(), Value::from(std::env::consts::ARCH)),
             ("logical_cpu_count".to_owned(), Value::Integer(self.system.cpus().len() as i64)),
         ]);
+        if let Some(capacity) = self.capacity_gflops {
+            let load = crate::host::cpu::Load::measured(capacity, f64::from(self.system.global_cpu_usage()).clamp(0.0, 100.0));
+            values.insert("cpu_capacity_gflops".into(), Value::from(capacity));
+            values.insert("cpu_load_gflops".into(), Value::from(load.load_gflops));
+        }
         maybe_insert(&mut values, "physical_cpu_count", System::physical_core_count().map(|count| Value::Integer(count as i64)));
         maybe_insert(&mut values, "cpu_name", first_cpu.map(|cpu| cpu.name().trim()).filter(|value| !value.is_empty()).map(Value::from));
         maybe_insert(&mut values, "cpu_brand", first_cpu.map(|cpu| cpu.brand().trim()).filter(|value| !value.is_empty()).map(Value::from));

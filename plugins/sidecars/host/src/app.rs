@@ -86,7 +86,13 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let workers = Arc::new(Workers(tracker));
         setup.resource::<Workers>(workers.clone());
 
-        let collector = collectors::system::SystemCollector::new();
+        // Calibrate Once At Plugin Start, Away From The Async Runtime Thread.
+        let task = workers.0.spawn_blocking(|| {
+            let mut collector = collectors::system::SystemCollector::new();
+            collector.calibrate_cpu(host::system::POLICY.attempt_timeout / 2)?;
+            Ok::<_, crate::Error>(collector)
+        });
+        let collector = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
         let state = host::system::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::system::State>>(state);
