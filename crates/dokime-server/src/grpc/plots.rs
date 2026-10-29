@@ -259,6 +259,8 @@ impl Serve<contract::Watch> for Resources {
                 let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let epoch = runtime.process_epoch().as_str().to_owned();
                 let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
+                // Live Plots Hold Their Streams; Streams Nobody Views Or Runs Stay Stopped.
+                let _viewing = runtime.view_plot_streams(&requests, "plots.watch").await;
                 let original = requests.clone();
                 let mut waiting = requests.clone();
                 self.send_pending(output, &waiting, &selections, &original, &epoch).await?;

@@ -82,7 +82,6 @@ struct Running {
 
 pub(super) struct ActivePackage {
     running: Vec<Running>,
-    telemetry: BTreeMap<String, super::native_telemetry::Subscriptions>,
     // Keep the extraction directory after every handle that can retain a
     // sidecar transport. On Windows, a TempDir cannot be removed while one of
     // those handles is still alive; declaration order is also drop order.
@@ -175,12 +174,10 @@ impl ActivePackage {
             }
         }
         self.running.clear();
-        self.telemetry.clear();
     }
 
     pub(super) async fn close(&mut self) -> std::io::Result<()> {
         self.running.clear();
-        self.telemetry.clear();
         self.package.close().await
     }
 }
@@ -330,14 +327,7 @@ impl Runtime {
             if removed.contains(&index) {
                 self.pending_plugins.extend(vec![package]);
             } else {
-                self.plugins.insert(
-                    package.catalog.package.clone(),
-                    ActivePackage {
-                        package,
-                        running: Vec::new(),
-                        telemetry: BTreeMap::new(),
-                    },
-                );
+                self.plugins.insert(package.catalog.package.clone(), ActivePackage { package, running: Vec::new() });
             }
         }
         let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), self.embedded.values(), [])?;
@@ -461,7 +451,7 @@ impl Runtime {
                     handle.discover_plugin_settings(&id, &dispatcher).await;
                 });
                 live.exposed = true;
-                active.telemetry.insert(live.source.clone(), super::native_telemetry::observe(&self.handle, &live.source));
+                self.handle.engage_owned_demand(&live.source);
             }
         }
         for (source, provider) in &mut self.embedded {
@@ -493,9 +483,7 @@ impl Runtime {
         )?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
-        if let Some(previous) = self.embedded.insert(source.clone(), candidate) {
-            self.embedded.get_mut(&source).expect("replacement catalog is retained").retain_observers(previous);
-        }
+        self.embedded.insert(source.clone(), candidate);
         let mut lifecycle = lifecycle::Adapter {
             handle: &self.handle,
             publications: &self.publications,
@@ -651,16 +639,11 @@ impl Runtime {
         let definitions = graph(programs.iter().copied(), self.embedded.values(), rebuilt)?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
-        let mut desired = ActivePackage {
-            package: candidate,
-            running: Vec::new(),
-            telemetry: BTreeMap::new(),
-        };
+        let mut desired = ActivePackage { package: candidate, running: Vec::new() };
         if let Some(previous) = self.plugins.remove(&name) {
             // Manager backends retain old physical generations and their files.
             // These entries are only the domain projections for exposure.
             desired.running = previous.running;
-            desired.telemetry = previous.telemetry;
             drop(previous.package);
         }
         self.plugins.insert(name.clone(), desired);

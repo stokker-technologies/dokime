@@ -15,7 +15,6 @@
 
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 // Third Party Imports
@@ -34,9 +33,6 @@ use dokime_domain::model::values::Value;
 /* === Macros === */
 
 /* === Type Aliases === */
-
-pub(super) type Subscriptions =
-    Vec<Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>>;
 
 /* === Structs === */
 
@@ -241,28 +237,6 @@ pub(super) fn validate(
         }
     }
     Ok(())
-}
-
-pub(super) fn observe(handle: &RuntimeHandle, owner: &str) -> Subscriptions {
-    let state = handle.state_read();
-    let Some(artifact) = state.installed_plugins.get(owner) else { return Vec::new() };
-    let contracts = &artifact.telemetry_contracts;
-    handle
-        .streams()
-        .definitions()
-        .into_iter()
-        .filter(|definition| {
-            definition.owner() == Some(owner)
-                && contracts
-                    .iter()
-                    .any(|contract| contract.stream.as_str() == definition.id() && contract.schema_version == definition.version())
-        })
-        .filter_map(|definition| {
-            let stream = handle.streams().publication(definition.id(), definition.version())?;
-            Some(Box::pin(stream.watch())
-                as Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>)
-        })
-        .collect()
 }
 
 pub(super) async fn incomplete(handle: &RuntimeHandle, owner: &str, stream: &Identifier, reason: &str) {

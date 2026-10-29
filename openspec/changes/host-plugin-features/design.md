@@ -31,6 +31,8 @@ pub fn command(program: impl AsRef<OsStr>) -> std::process::Command;
 
 Every host observer declares `Activation::Demand` with its stream as the demand key. Harmos holds one resident activation per observer only while the stream is wanted and drops it when the last lease releases, which cancels the observe invocation. The plugin lifecycle's `submit_resident` keeps the sidecar service (process) resident; it does not want any stream, so no observer runs while idle.
 
+The telemetry lease table owns publication demand: its first holder engages a watch, its last release drops it, and plugin exposure re-engages held streams after reload. Live plot watches retain viewer leases until they close. A stopped observer has zero resident leases and `OperationPhase::Stopped`; its status remains until scope retirement, so key removal is not a stop signal. Spin-down proof uses the stream's existing collection policy bound.
+
 ## Adapters (Read)
 
 ```text

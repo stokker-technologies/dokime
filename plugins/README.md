@@ -39,6 +39,10 @@ in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation 
 The host sidecar declares no automatic restart: a process fault deactivates it
 until an explicit reload or the next startup.
 
+Host observers run only while their streams are leased. Execution subscriptions
+and live plot viewers hold those leases; releasing the last lease stops the
+observer while the plugin process can remain idle.
+
 `sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
 the simulated testbench. It is built explicitly for tests and is never included
 in the product's default bundles or installer.
