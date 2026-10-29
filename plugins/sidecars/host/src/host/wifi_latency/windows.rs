@@ -7,12 +7,33 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use super::{Collected, Samples, State, WifiLatency};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -40,3 +61,9 @@ impl Operation for WifiLatency {
         Ok(Response::new(Samples { rows }))
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

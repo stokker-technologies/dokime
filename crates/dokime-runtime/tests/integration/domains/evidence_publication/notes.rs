@@ -16,13 +16,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime_domain::model::identity::CommandId;
+use model::execution::notes::NoteOwner;
 
 // Local Imports
+use dokime_domain::model::identity::CommandId;
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_runtime::domains::evidence::notes::{CreateNote, NotePublication};
-use model::execution::notes::NoteOwner;
 
 /* === Constants === */
 
@@ -40,7 +40,6 @@ use model::execution::notes::NoteOwner;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
     let runtime = owner.handle();
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
@@ -74,3 +73,7 @@ pub(super) async fn empty_cycle_datasets(owner: &Runtime) {
         .unwrap();
     assert_eq!(after.version, before.version, "notes and retries do not rewrite an unrelated cycle projection");
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

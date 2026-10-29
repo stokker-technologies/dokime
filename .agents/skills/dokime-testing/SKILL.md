@@ -5,7 +5,7 @@ description: Validate Dokime runtime boundaries, built plugins and the native de
 
 # Dokime Testing
 
-Apply `stkr-testing` for layers and lanes. Run the full lanes locally on the combined tree before opening or updating a review; CI confirms.
+Apply `stkr-test` for layers and lanes. Use targeted proof during implementation; combined required native validation follows `stkr-ci` after source closure and authorized delivery.
 
 Dokime's system coverage has two stories: Plugin And Host, using explicitly built OBC and host sidecars with the server; Desktop Shell And Backend, using the native shell and server. OBC is test-only under `plugins/sidecars/obc`; the shipping host plugin lives under `plugins/sidecars/host`. Test artifacts prepare OBC under `fixtures/plugins/`, while the product build exports only `plugins/host.dokime`.
 

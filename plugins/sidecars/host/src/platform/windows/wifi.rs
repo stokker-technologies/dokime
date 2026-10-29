@@ -268,6 +268,8 @@ impl WlanClient {
     }
 }
 
+/* === Public Functions === */
+
 pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
@@ -338,6 +340,8 @@ pub fn scan_networks(options: &HostOptions, scan_window: Option<Duration>) -> Re
     let scanned = |entry: &WLAN_BSS_ENTRY| scanned_network(entry, &interface, &security, associated);
     Ok(entries.iter().map(scanned).collect())
 }
+
+/* === Private Functions === */
 
 fn scanned_network(
     entry: &WLAN_BSS_ENTRY, interface: &WifiInterface, security: &BTreeMap<Vec<u8>, String>, associated: Option<[u8; 6]>,

@@ -19,7 +19,7 @@ Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model
 | `dokime-packaging` | Packaging implementation; depends on the entry library. |
 | `dokime-macros` | Authoring declarations; no production runtime dependency. |
 
-The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and raw release assets.
+The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and target-specific tool archives.
 
 Declare product contracts once in `dokime-domain`; implement handlers in `dokime-runtime`. Interfaces consume `dokime` and expose the same operation contracts through their hosts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 

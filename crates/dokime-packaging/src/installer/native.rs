@@ -401,7 +401,7 @@ fn finish_package(
     manifest: &Manifest, payload: &Payload, kind: PackageType, source: &Path, output: &Path, sign: bool,
 ) -> Result<PathBuf, Error> {
     let name = match kind {
-        PackageType::Nsis => format!("dokime-{}-windows-x86_64-setup.exe", manifest.installer.version),
+        PackageType::Nsis => format!("dokime-{}-{}-setup.exe", manifest.installer.version, manifest.dokime.target),
         PackageType::Deb => format!("dokime_{}_amd64.deb", manifest.installer.version),
         PackageType::Rpm => format!("dokime-{}-1.x86_64.rpm", manifest.installer.version),
         _ => {

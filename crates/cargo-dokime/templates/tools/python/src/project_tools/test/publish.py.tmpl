@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:8cfa8806330001123745e760c0b4ea659ea26b07b1722bce37ac781175fd3760
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:2fb6ad40c9a228ab1be20519943daefe3cbcac6abc4f77509ac15cb5fe2a1ec1
 # ***
 #
 # {{package}}
@@ -21,6 +21,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from .. import temporary
 from ..build import storage
 from . import policy
@@ -44,7 +45,7 @@ def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> l
         metadata = json.loads(
             subprocess.check_output(
                 ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
             )
         )
@@ -92,7 +93,7 @@ def main() -> None:
                 stdin=sys.stdin,
                 stdout=sys.stdout,
                 stderr=sys.stderr,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
                 check=True,
                 env=environment,

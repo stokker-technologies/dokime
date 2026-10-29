@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/policy.py; sha256:558a71db25223a8aa2172c932f89938ba79cb0bc552be15822be73a50072f1a8
+# Rendered by stkr project update from templates/python/release/policy.py; sha256:bd57a2a69f5ba485610c8d0e32ba36801e46166390a23cdbe5137d519bd78d31
 # ***
 #
 # Dokime
@@ -25,6 +25,7 @@ from typing import Any
 # Third Party Imports
 
 # Local Imports
+from ..process import spawn_flags
 
 # Type Checking Imports
 
@@ -87,7 +88,7 @@ def command(value: object, name: str) -> list[str]:
 def execute(directory: Path, arguments: Sequence[str], *, capture: bool = False) -> str:
     result = subprocess.run(
         list(arguments),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         cwd=directory,
         check=False,
         text=True,

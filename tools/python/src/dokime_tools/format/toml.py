@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/format/toml.py; sha256:fc9f88742cf0456d18760a3814877dc9ed0baef310d8041d0af8c1a515ef2a1e
+# Rendered by stkr project update from templates/python/format/toml.py; sha256:7950eece5df5aaa4304d9d23c8b80d7a62dfa6b451cd3aabae02479fae858b45
 # ***
 #
 # Dokime
@@ -19,6 +19,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from ..source import files
 
 # Type Checking Imports
@@ -47,7 +48,7 @@ def main() -> None:
     subprocess.run(
         [*command, "--", *paths],
         check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
