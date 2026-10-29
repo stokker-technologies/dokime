@@ -36,7 +36,7 @@ import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placehold
 import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
 import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
-import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
+import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Constants === */
 
@@ -103,7 +103,6 @@ type CartesianPlotProps = {
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
   resetKey?: string;
-  lockYZoom?: boolean;
   /** Per-plot controls the host places beside the follow button. */
   actions?: ReactNode;
   badge?: string;
@@ -563,6 +562,17 @@ export const CartesianPlot = memo(function CartesianPlot({
     resetKeyRef.current = resetKey;
     viewportModeRef.current = viewportMode;
 
+    const detachPan = attachPan(plot, {
+      logX: xScale === "log",
+      logY: yScale === "log",
+      panY: !timeAxis,
+      onPan: (next) => {
+        const held = { x: next.x, y: next.y ?? heldRangeRef.current?.y ?? null };
+        heldRangeRef.current = held;
+        setFollowing(false);
+        onViewportChangeRef.current?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+      },
+    });
     const resize = () => {
       const nextSize = chartSize();
       if (plot.width === nextSize.width && plot.height === nextSize.height) {
@@ -596,6 +606,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     };
     root.addEventListener("dblclick", resume);
     return () => {
+      detachPan();
       root.removeEventListener("dblclick", resume);
       if (resizeFrameRef.current !== null) {
         window.cancelAnimationFrame(resizeFrameRef.current);
