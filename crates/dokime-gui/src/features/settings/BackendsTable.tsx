@@ -66,6 +66,7 @@ export function BackendsTable({
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [mutating, setBusy] = useState(false);
+  const deletingProfile = document?.profiles.find((profile) => profile.identifier === deleting);
   const busy = mutating || state.phase === "connecting";
   const connectionFailure = failure ?? (state.phase === "failed" ? connectionError(state.error) : null);
   const failedProfile = document?.profiles.find((profile) => profile.identifier === (lastSelected.current ?? document.default));
@@ -192,7 +193,10 @@ export function BackendsTable({
         >
           <DialogHeader>
             <DialogTitle>Delete Backend</DialogTitle>
-            <DialogDescription>Delete {deleting}? An active connection will disconnect.</DialogDescription>
+            <DialogDescription>
+              Delete {deletingProfile?.label || deleting}? An active connection will disconnect.
+              {deletingProfile && <span className="mt-2 block break-all font-mono text-xs">{deletingProfile.identifier}</span>}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
             <Button ref={deleteButton} disabled={busy} variant="outline" onClick={() => setDeleting(null)}>

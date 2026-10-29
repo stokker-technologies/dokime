@@ -11,6 +11,10 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+#[doc(hidden)]
+pub mod testing;
+
 // Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
 #[cfg(all(test, feature = "native"))]
 #[path = "../tests/support/services/mod.rs"]

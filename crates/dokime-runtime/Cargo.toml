@@ -59,6 +59,8 @@ derive = ["dep:dokime-macros"]
 runtime = []
 configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+# Canonical Tests Enable This Fixture Surface; Product Never Does.
+testing = ["native"]
 fault-injection = ["native"]
 fft = ["native", "harmos/signal-fft"]
 media-native = ["native", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
@@ -179,7 +181,7 @@ unftp-core = { workspace = true }
 unftp-sbe-fs = { workspace = true }
 
 # Storage
-rusqlite = { workspace = true }
+rusqlite = { workspace = true, features = ["hooks"] }
 
 # UI
 

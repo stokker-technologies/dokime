@@ -16,7 +16,7 @@ mod serialization;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 // Third Party Imports
 use serde::{
@@ -47,6 +47,8 @@ pub enum Value {
     String(String),
     Array(Vec<Value>),
     Object(BTreeMap<String, Value>),
+    /// An Immutable Tree Serialized With The Same JSON As Its Owned Value.
+    Shared(Arc<Value>),
 }
 
 /* === Traits === */
@@ -63,6 +65,8 @@ impl Value {
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Shared(left), right) => left.as_ref() == right,
+            (left, Self::Shared(right)) => left == right.as_ref(),
             (Self::Null, Self::Null) => true,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Integer(left), Self::Integer(right)) => left == right,
@@ -91,6 +95,7 @@ impl Serialize for Value {
             Self::String(value) => serializer.serialize_str(value),
             Self::Array(values) => values.serialize(serializer),
             Self::Object(values) => values.serialize(serializer),
+            Self::Shared(value) => value.as_ref().serialize(serializer),
         }
     }
 }

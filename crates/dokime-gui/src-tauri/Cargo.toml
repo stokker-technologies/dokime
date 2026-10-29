@@ -36,6 +36,8 @@ updater = ["dep:tauri-plugin-updater"]
 # Keep a Windows console attached for `tauri dev`; installer builds of any
 # profile leave it off so the desktop never opens a terminal window.
 console = []
+# Private Native Delivery Port For The Tests Archive Only.
+testing = []
 
 # === Dependencies === #
 

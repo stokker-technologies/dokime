@@ -10,6 +10,8 @@
 /* === Modules === */
 
 mod client;
+#[cfg(feature = "testing")]
+mod delivery;
 mod fixture;
 mod session;
 

@@ -14,6 +14,14 @@
 
 /* === Modules === */
 
+#[path = "../support/engine/evidence_durability.rs"]
+pub mod evidence_support;
+
+#[path = "../support/engine/managed_durability.rs"]
+pub mod managed_support;
+
+mod evidence_durability;
+
 #[cfg(feature = "fault-injection")]
 mod cycle_restart;
 mod engine;

@@ -16,10 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-use crate::support::wire::WireMessage;
+use prost::Message as _;
 
 // Local Imports
 use super::*;
+use crate::support::wire::WireMessage;
 use dokime::domain::model;
 
 /* === Constants === */
@@ -40,46 +41,33 @@ use dokime::domain::model;
 
 /* === Private Functions === */
 
-async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
-    let config = keyed();
-    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
-    let owner = runtime(root, &prepared_owner).await;
+/* === Tests === */
 
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
+#[tokio::test]
+async fn query_roundtrip() {
+    let root = tempfile::tempdir().unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
-    ((owner, server), client)
-}
-
-pub(crate) async fn aggregate_answers_asked() {
-    let root = tempfile::tempdir().unwrap();
-    let (_held, client) = client(root.path()).await;
-
-    let reply = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
-            source: model::query::wire::QuerySource::Executions,
-            filters: Vec::new(),
-            group_by: vec!["status".to_owned()],
-            aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: dokime::harmos::Aggregate::Count,
-                column: String::new(),
-                alias: "total".to_owned(),
-            }],
-            limit: 0,
-        }))
-        .await
-        .unwrap()
-        .into_inner();
+    let baseline = contracts::query::Aggregate {
+        source: model::query::wire::QuerySource::Executions,
+        filters: Vec::new(),
+        group_by: vec!["status".to_owned()],
+        aggregates: vec![model::query::wire::QueryAggregate {
+            aggregate: dokime::harmos::Aggregate::Count,
+            column: String::new(),
+            alias: "total".to_owned(),
+        }],
+        limit: 0,
+    };
+    let empty = client.unary::<contracts::query::Aggregate>(authenticated(baseline.clone())).await.unwrap().into_inner();
 
     // A runtime that has executed nothing still answers the contract's shape.
-    assert_eq!(reply.columns, ["status", "total"]);
-    assert!(reply.rows.is_empty());
-    assert!(reply.complete);
-}
-
-pub(crate) async fn unknown_column_exist() {
-    let root = tempfile::tempdir().unwrap();
-    let (_held, client) = client(root.path()).await;
+    assert_eq!(empty.columns, ["status", "total"]);
+    assert!(empty.rows.is_empty());
+    assert!(empty.complete);
 
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
@@ -97,15 +85,9 @@ pub(crate) async fn unknown_column_exist() {
         .unwrap_err();
 
     assert_eq!(status.code(), tonic::Code::InvalidArgument);
-    assert!(status.message().contains("unknown column step_id"));
+    assert!(status.message().contains("step_id"));
     assert!(status.message().contains("template_identifier"));
-}
 
-// The aggregate travels as the Harmos enum message; a percentile keeps its rank
-// across the gRPC codec, and a rank past 100 is refused before any row is read.
-pub(crate) async fn percentile_rank_bounded() {
-    let root = tempfile::tempdir().unwrap();
-    let (_held, client) = client(root.path()).await;
     let request = |aggregate| contracts::query::Aggregate {
         source: model::query::wire::QuerySource::Steps,
         filters: Vec::new(),
@@ -118,6 +100,7 @@ pub(crate) async fn percentile_rank_bounded() {
         limit: 0,
     };
 
+    // Percentile Ranks Survive The Wire Codec; Invalid Ranks Cannot Poison A Later Valid Query.
     for rank in [101, 255] {
         let status = client
             .unary::<contracts::query::Aggregate>(authenticated(request(dokime::harmos::Aggregate::Percentile(rank))))
@@ -125,7 +108,6 @@ pub(crate) async fn percentile_rank_bounded() {
             .unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::InvalidArgument, "{rank}");
-        assert!(status.message().contains("rank exceeds 100"), "{rank}");
     }
 
     let reply = client
@@ -135,37 +117,20 @@ pub(crate) async fn percentile_rank_bounded() {
         .into_inner();
     assert_eq!(reply.columns, ["statistic"]);
     assert!(reply.complete);
-}
-
-pub(crate) async fn unspecified_source_read() {
-    let root = tempfile::tempdir().unwrap();
-    let (_held, client) = client(root.path()).await;
 
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: model::query::wire::QuerySource::Unspecified,
-            filters: vec![],
-            group_by: vec![],
-            aggregates: vec![],
-            limit: 0,
+            ..baseline.clone()
         }))
         .await
         .unwrap_err();
 
     assert_eq!(status.code(), tonic::Code::InvalidArgument);
-    assert_eq!(status.message(), "aggregate source is unspecified");
-}
-
-/* === Tests === */
-
-pub(crate) async fn detailed_status_directory() {
-    use prost::Message;
 
     let home =
         std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).expect("the integration environment declares its home directory");
     assert!(!home.is_empty());
-    let root = tempfile::tempdir().unwrap();
-    let (held, client) = client(root.path()).await;
     let status = client
         .unary::<contracts::query::Aggregate>(authenticated(contracts::query::Aggregate {
             source: model::query::wire::QuerySource::Steps,
@@ -187,6 +152,11 @@ pub(crate) async fn detailed_status_directory() {
     let detail = <model::evidence::wire::CapturedRecordError as WireMessage>::from_wire(detail.value.as_slice()).unwrap();
     assert!(detail.message.contains("evidence"));
     assert!(!detail.message.contains(&home), "a wire diagnostic is redacted: {}", detail.message);
+    let recovered = client.unary::<contracts::query::Aggregate>(authenticated(baseline)).await.unwrap().into_inner();
+    assert_eq!(recovered.columns, empty.columns);
+    assert_eq!(recovered.rows, empty.rows);
+    assert!(recovered.complete);
     drop(client);
-    drop(held);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
 }

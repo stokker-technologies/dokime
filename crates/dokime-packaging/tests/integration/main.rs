@@ -12,6 +12,8 @@
 /* === Modules === */
 mod bundle;
 mod installer;
+#[cfg(windows)]
+mod resources;
 
 /* === Re-Exports === */
 

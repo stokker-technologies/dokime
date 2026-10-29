@@ -9,6 +9,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -1300,110 +1303,6 @@ mod tests {
         assert_eq!(state.settlement_progress(), 4);
         assert!(!state.receive(late).unwrap());
         assert_eq!(state.settlement_progress(), 4);
-    }
-
-    #[test]
-    fn seven_day_records_keep_bounded_receipts_and_exact_evidence() {
-        let (cancel, _) = tokio::sync::watch::channel(false);
-        let mut state = super::ExecutionState::new(Default::default(), cancel);
-        let scope = RecordScope::default();
-        let record = |ordinal| {
-            dokime_domain::model::records::evidence::Record::new(
-                dokime_domain::model::identity::RecordId::from_seed(format!("record:{ordinal}")),
-                Timestamp::new("2000-01-01T00:00:00Z"),
-                Identifier::new("reading").unwrap(),
-                1,
-                "fixture",
-                dokime_domain::model::records::RecordSeverity::Info,
-            )
-        };
-        for ordinal in 1..=7 * 1440_u64 {
-            let row = record(ordinal);
-            assert!(state.deliver_captured(ordinal, &row, "host", Some(&scope)));
-            assert!(!state.deliver_captured(ordinal, &row, "host", Some(&scope)));
-            assert_eq!(state.record_ordinal, ordinal);
-            assert!(state.recent_records.len() <= super::RECENT_STREAM_SAMPLES);
-        }
-        assert_eq!(state.captured_records.len(), 7 * 1440);
-        assert_eq!(state.captured_records.retained_rows(), 0);
-        assert_eq!(state.captured_records.iter().count(), 7 * 1440);
-        let captured = state.captured_records.clone();
-        assert!(!state.deliver_captured(1, &record(1), "host", Some(&scope)));
-        assert!(state.cancelled());
-        assert_eq!(captured.len(), 7 * 1440);
-    }
-
-    #[test]
-    fn seven_day_stream_bounds_dedup_and_rejects_out_of_order_rows() {
-        let (cancel, _) = tokio::sync::watch::channel(false);
-        let mut state = super::ExecutionState::new(Default::default(), cancel);
-        let stream = Identifier::new("reading").unwrap();
-        let timestamp = Timestamp::new("2000-01-01T00:00:00Z");
-        let first = TelemetrySample::new(
-            dokime_domain::model::identity::TelemetrySampleId::from_seed("minute:0"),
-            stream.clone(),
-            0,
-            timestamp.clone(),
-            "fixture",
-        );
-        for minute in 0..7 * 1440_u64 {
-            let sample = TelemetrySample::new(
-                dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{minute}")),
-                stream.clone(),
-                minute,
-                timestamp.clone(),
-                "fixture",
-            );
-            assert!(state.receive(sample.clone()).unwrap());
-            assert!(!state.receive(sample).unwrap());
-            let held = &state.sample_streams["reading"];
-            assert!(held.recent.len() <= super::RECENT_STREAM_SAMPLES);
-            assert_eq!(held.high_water, Some(minute));
-        }
-
-        assert_eq!(state.sample_streams.len(), 1);
-        let receipts = state.sample_receipts();
-        assert_eq!(receipts.len(), 1);
-        assert_eq!(receipts[0].stream, "reading");
-        let last = dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{}", 7 * 1440 - 1));
-        assert_eq!(receipts[0].sample_id, last.as_str());
-        assert_eq!(state.stream_rows.retained_rows(), 0);
-        assert_eq!(state.stream_rows.len(), 7 * 1440);
-        assert_eq!(state.receive(first.clone()).unwrap_err(), "sample stream sequence is out of order");
-        let mut reused_sequence = first;
-        reused_sequence.sample_id = dokime_domain::model::identity::TelemetrySampleId::from_seed("other");
-        reused_sequence.sequence = 7 * 1440 - 1;
-        assert_eq!(state.receive(reused_sequence).unwrap_err(), "sample stream sequence is out of order");
-        let oldest_recent = 7 * 1440 - super::RECENT_STREAM_SAMPLES as u64;
-        let recent = TelemetrySample::new(
-            dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{oldest_recent}")),
-            stream,
-            oldest_recent,
-            timestamp,
-            "fixture",
-        );
-        assert!(!state.receive(recent.clone()).unwrap());
-        let mut conflicting = recent.clone();
-        conflicting.values.insert("value".into(), Value::from(2.0));
-        assert!(state.receive(conflicting).unwrap_err().starts_with("sample identity was reused"));
-        assert_eq!(state.produced("reading"), 7 * 1440);
-
-        let progress = state.settlement_progress();
-        state.subscriptions_settling = true;
-        assert!(!state.receive(recent.clone()).unwrap());
-        assert_eq!(state.settlement_progress(), progress + 1);
-        assert!(!state.receive(recent).unwrap());
-        assert_eq!(state.settlement_progress(), progress + 1);
-
-        let staged = state.take_staged();
-        assert_eq!(staged.retained_rows(), 0);
-        for (minute, sample) in staged.iter().enumerate() {
-            assert_eq!(sample.sequence, minute as u64);
-        }
-        drop(staged);
-        for receipt in &state.sample_streams["reading"].recent {
-            assert_eq!(receipt.row.read().unwrap().sample_id.as_str(), receipt.sample_id);
-        }
     }
 
     #[test]
