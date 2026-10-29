@@ -28,7 +28,8 @@ no crate rename or plugin-prefix inference occurs.
 Feed v2 contains plugins with name, kind, version, requires_dokime and targets
 mapping target triples to archive/member/sha256. Sidecars use the native target;
 future guest archives are target-independent (a wasm target is selected explicitly).
-Guests still obey existing runtime admission limits; no guest execution is added.
+Guests use targets.any for target-independent selection and still obey existing
+runtime admission limits; no guest execution is added.
 SHA256SUMS is authoritative for archive hashes and covers plugins.json too.
 Archives are verified before opening; only a requested, unique regular member is
 read, then checked against its feed hash and inspected identity. No per-plugin URL
@@ -52,11 +53,13 @@ distribution.json (schema v1). Installed distribution.json remains the existing
 identity file; installer staging writes that separately.
 
 Hub owns generated tools/python/src/dokime_tools/release and scaffold copies.
-Assume its refreshed layout accepts kind=distribution, sidecars/guests declarations,
+Assume its refreshed layout accepts kind=distribution/sidecars/guests asset declarations,
 emits format 2 for multiple plugins, uses unversioned member names from declared
 bundles, hashes members, and publishes matching SHA256SUMS. Product packaging
 produces distribution and native sidecars archives from existing build bytes.
-No generated release files or templates are edited here.
+No generated release files or templates are edited here. The product declares the
+sidecars archives as release assets; Hub must consume those once without emitting
+duplicate names while inspecting the declared bundle paths for feed generation.
 
 ## Triage
 
