@@ -7,7 +7,7 @@
  * ***
  */
 
-// Finite Pending-Write Admission Under Retained History
+// Pending Admission, Window Reads And Follow On One Saved History
 
 /* === Modules === */
 
@@ -20,7 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use super::*;
+use super::{Reading, StorageConfig, TestApp};
+use crate::runtime::storage::telemetry::{ReadOptions, collect_page, prepare_staged, visit_saved};
+use crate::storage::{Manager, telemetry};
+use harmos::{Runtime, storage::StorageBackends};
+use std::sync::Arc;
 
 /* === Constants === */
 
@@ -38,7 +42,7 @@ use super::*;
 
 /* === Public Functions === */
 
-pub async fn pending(days: u64, per_day: u64) {
+pub async fn telemetry(days: u64, per_day: u64) {
     use std::num::NonZeroUsize;
     let root = tempfile::tempdir().unwrap();
     let backend = Arc::new(crate::storage::Backend::primary(root.path().to_owned()).await.unwrap());
@@ -70,7 +74,24 @@ pub async fn pending(days: u64, per_day: u64) {
         .typed(&Reading { value: "bounded".into() });
         prepare_staged(&epoch, &sample, None, minute, &codec).unwrap().into_input()
     };
+    assert!(per_day > 100);
+    let streams = vec![contract.stream.clone().into()];
+    let selection = crate::evidence_runtime::TelemetrySelection {
+        streams: streams.clone(),
+        ..Default::default()
+    };
+    let paged = crate::evidence_runtime::TelemetrySelection {
+        streams: streams.clone(),
+        limit: Some(100),
+        ..Default::default()
+    };
+    let whole = crate::evidence_runtime::TelemetrySelection {
+        streams,
+        limit: Some(per_day as usize),
+        ..Default::default()
+    };
     let (mut peak_bytes, mut peak_batches) = (0, 0);
+    let (mut settled, mut window_work, mut follow_work) = (0, None, None);
     for day in 0..days {
         // Hold The Actual SQLite Writer; Admission Must Respect Its Finite Queue.
         let gate = local.clone();
@@ -125,6 +146,51 @@ pub async fn pending(days: u64, per_day: u64) {
         assert_eq!(saved.sequence, before.accepted.sequence + per_day);
         assert_eq!(storage.status().pending_bytes, 0);
         assert_eq!(storage.status().pending_batches, 0);
+
+        // The Same History Supports A Fixed Window With Constant Anchor And Row Work.
+        let before = local.read_counters();
+        let mut rows = Vec::new();
+        let options = ReadOptions {
+            window: Some(("fixture.pending", 300.0)),
+            ..Default::default()
+        };
+        visit_saved(&storage, &saved, &selection, &Default::default(), options, &local, |sample| {
+            rows.push(sample);
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let after = local.read_counters();
+        let scanned = after.data_scan_rows - before.data_scan_rows;
+        assert_eq!(rows.len(), 6);
+        assert_eq!(after.telemetry_anchor_rows - before.telemetry_anchor_rows, 1);
+        assert!(scanned <= 16);
+        if let Some(previous) = window_work {
+            assert_eq!(scanned, previous);
+        }
+        window_work = Some(scanned);
+
+        // Follow Stops At The Limited Page, Then Resumes Only The Unsettled Day.
+        let options = ReadOptions { after: settled, ..Default::default() };
+        let page = collect_page(&storage, &saved, &paged, &Default::default(), options, &local).await.unwrap();
+        assert!(page.limited);
+        assert_eq!(page.samples.len(), 100);
+        assert_eq!(page.samples.first().map(|sample| sample.sequence), Some(first));
+        let last = *page.positions.last().unwrap();
+        assert!(page.positions.windows(2).all(|pair| pair[0] < pair[1]));
+        let before = local.read_counters();
+        let options = ReadOptions { after: last, ..Default::default() };
+        let rest = collect_page(&storage, &saved, &whole, &Default::default(), options, &local).await.unwrap();
+        let scanned = local.read_counters().data_scan_rows - before.data_scan_rows;
+        assert!(!rest.limited);
+        assert_eq!(rest.samples.len(), per_day as usize - 100);
+        assert_eq!(rest.samples.first().map(|sample| sample.sequence), Some(first + 100));
+        assert!(scanned <= per_day);
+        if let Some(previous) = follow_work {
+            assert_eq!(scanned, previous);
+        }
+        follow_work = Some(scanned);
+        settled = saved.sequence;
     }
     assert!(peak_bytes > 0 && peak_bytes <= capacity);
     assert_eq!(peak_batches, 2);
