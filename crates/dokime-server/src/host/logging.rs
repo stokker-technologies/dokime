@@ -148,16 +148,16 @@ impl LoggingGuards {
 
 /* === Public Functions === */
 
-pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
+pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<LoggingGuards> {
     let journal = crate::trace::Journal::new(crate::trace::Limits::default());
     let (layer, appender_guard) = stderr_fmt_layer(ansi)?;
-    let (file_layer, file_appender_guard) = file_fmt_layer(root)?;
-    let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(root)?;
+    let (file_layer, file_appender_guard) = file_fmt_layer(&paths.logs())?;
+    let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(paths)?;
     #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(journal.clone())];
 
     #[cfg(debug_assertions)]
-    let profile = match super::profiles::dev_profile_layers(root)? {
+    let profile = match super::profiles::dev_profile_layers(&paths.root)? {
         Some((mut profile_layers, guards)) => {
             layers.append(&mut profile_layers);
             Some(guards)
@@ -192,16 +192,15 @@ fn stderr_fmt_layer(ansi: bool) -> Result<(BoxedLayer, tracing_appender::non_blo
     Ok((fmt_layer(LogFormat::from_env(), writer, ansi)?, guard))
 }
 
-fn file_fmt_layer(root: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
-    let directory = root.join("logs");
-    std::fs::create_dir_all(&directory)
+fn file_fmt_layer(directory: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
+    std::fs::create_dir_all(directory)
         .map_err(|error| Error::Setup(format!("failed to create log directory {}: {error}", directory.display())))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("dokime-serve")
         .filename_suffix("log")
         .max_log_files(usize::try_from(SERVER_RETAINED_LOG_FILES).expect("validated log retention count"))
-        .build(&directory)
+        .build(directory)
         .map_err(|error| Error::Setup(format!("failed to open a log file under {}: {error}", directory.display())))?;
     let (writer, guard) = tracing_appender::non_blocking(appender);
     Ok((fmt_layer(LogFormat::from_env(), writer, false)?, guard))

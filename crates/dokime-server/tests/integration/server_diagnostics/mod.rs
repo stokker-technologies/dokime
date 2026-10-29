@@ -47,14 +47,13 @@ use super::*;
 
 #[tokio::test]
 async fn server_diagnostics() {
-    Box::pin(diagnostics::collected_archive_material()).await;
-    Box::pin(diagnostics::collected_tail_preserves_selected_bytes()).await;
-    Box::pin(diagnostics::log_stream_file()).await;
-    Box::pin(diagnostics::quiet_log_watch_outlives_the_idle_deadline()).await;
-    Box::pin(diagnostics::level_filter_stream()).await;
-    Box::pin(diagnostics::missing_file_live()).await;
-    Box::pin(trace::trace_watch_replays()).await;
-    Box::pin(trace::trace_watch_follows()).await;
-    trace::journal::capture_scrubs_secrets();
-    trace::journal::capture_filters_independently();
+    let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());
+    let (environment, server, client) = diagnostics::fixture(journal.clone()).await;
+    diagnostics::collected_archive_material(&client).await;
+    let mut logs = diagnostics::log_roundtrip(&environment, &client).await;
+    trace::roundtrip(&environment, &client, &journal).await;
+    diagnostics::collected_tail_preserves_selected_bytes(&environment, &client).await;
+    server.shutdown().await.unwrap();
+    assert_eq!(logs.message().await.unwrap_err().code(), Code::Unavailable);
+    drop(environment);
 }

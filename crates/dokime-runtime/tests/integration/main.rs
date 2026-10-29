@@ -14,6 +14,18 @@
 
 /* === Modules === */
 
+#[path = "../support/engine/evidence_durability.rs"]
+pub mod evidence_support;
+
+#[path = "../support/engine/managed_durability.rs"]
+pub mod managed_support;
+
+#[cfg(feature = "testing")]
+mod retained_evidence;
+
+mod evidence_durability;
+mod managed_durability;
+
 mod domains;
 mod engine_artifacts;
 mod execution_seal_report;

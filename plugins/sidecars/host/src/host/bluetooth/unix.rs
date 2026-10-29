@@ -7,12 +7,33 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use super::{Bluetooth, Collected, Samples, State};
 use dokime::harmos::{Context, Operation, Response};
 use dokime::prelude::Refusal;
 use dokime::telemetry::TelemetryRow;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -30,7 +51,7 @@ impl Operation for Bluetooth {
                     let timestamp = sample.timestamp.to_datetime().map_err(|error| crate::Error::Probe(error.to_string()))?;
                     let timestamp_micros =
                         i64::try_from(timestamp.unix_timestamp_nanos() / 1_000).map_err(|error| crate::Error::Probe(error.to_string()))?;
-                    let row = dokime::host::Bluetooth::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    let row = crate::Bluetooth::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))?;
                     Ok(Collected { row, timestamp_micros })
                 })
                 .collect::<crate::Result<Vec<_>>>()
@@ -39,3 +60,9 @@ impl Operation for Bluetooth {
         Ok(Response::new(Samples { rows }))
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

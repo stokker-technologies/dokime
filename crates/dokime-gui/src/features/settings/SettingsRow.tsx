@@ -11,14 +11,14 @@
  *
  * Two columns: a fixed label column and the value. The description lives
  * inside the label cell and wraps in full, so a row is 40px when it needs no
- * explanation and grows when it does. A field error sits under its control,
- * and the autosave state sits at the row's right edge, where the eye already
- * is after changing the value.
+ * explanation and grows when it does. Feedback goes to notifications; retry
+ * controls retain a stable slot beside the edited value.
  */
 
 /* === External Imports === */
 
 import type { ReactNode } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -31,7 +31,7 @@ type SettingsRowProps = {
   className?: string;
   control?: ReactNode;
   description?: ReactNode;
-  /** An inline problem with this field, shown under its control. */
+  /** A problem with this field, delivered through notifications. */
   error?: ReactNode;
   htmlFor?: string;
   label: ReactNode;
@@ -64,11 +64,7 @@ export function SettingsRow({ children, className, control, description, error, 
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{control ?? children}</div>
         </div>
         {status ? <div className="text-right">{status}</div> : null}
-        {error ? (
-          <div className="max-w-[var(--settings-value-max)] text-xs leading-snug text-destructive" role="alert">
-            {error}
-          </div>
-        ) : null}
+        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
       </div>
     </div>
   );

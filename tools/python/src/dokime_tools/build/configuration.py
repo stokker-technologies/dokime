@@ -47,6 +47,8 @@ def features(profile: str, *, desktop: bool = True, extended: bool = False) -> l
     selected = []
     if desktop:
         selected.append(declaration["rust_desktop_features"])
+    else:
+        selected.append(declaration["rust_plugin_features"])
     if profile == "release":
         selected.append(declaration["rust_release_features"])
     if extended:

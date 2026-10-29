@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:19cfab2cf13bb1c1dfe3eb372d8f1fa3610339acdf80fd4f7c669c764319c8e2
+# Rendered by stkr project update from templates/python/test/run.py; sha256:cb86999f55bfaa2251928a545d046ef208c2b036a942b732147cbf8d974f851f
 # ***
 #
 # Dokime
@@ -27,6 +27,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from .. import temporary
 from ..build import paths, storage
 from . import archive, nextest, policy, pytest, report, vitest
@@ -435,7 +436,7 @@ def _console() -> dict:
     startup.wShowWindow = subprocess.SW_HIDE
     return {
         "startupinfo": startup,
-        "creationflags": subprocess.CREATE_NEW_CONSOLE,
+        "creationflags": spawn_flags(subprocess.CREATE_NEW_CONSOLE),
         "stdin": sys.stdin,
         "stdout": sys.stdout,
         "stderr": sys.stderr,

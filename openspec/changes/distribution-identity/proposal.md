@@ -6,7 +6,7 @@ Branded distributions reuse unchanged Dokime binaries, so every installation sto
 
 ## What Changes
 
-Locked by the owner on 2026-10-29; deferred (not scheduled yet).
+Locked by the owner on 2026-10-29; scheduled for implementation.
 
 - The distributor's installer manifest declares the distribution identifier (`[installer] identifier = "com.hilti.dokime"`). It becomes the installation's storage and install identity.
 - `cargo dokime installer package` writes the identifier into an installed distribution file beside the executable and uses it for the NSIS install folder and uninstall registry keys and for DEB/RPM package names.

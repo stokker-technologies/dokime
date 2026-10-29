@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/stkr/__main__.py; sha256:082ba0257b7b33030249b0dc8beb14d43cd9ca547bd1d04b6940c5b5e099631f
+# Rendered by stkr project update from templates/python/stkr/__main__.py; sha256:40115df661761eafdaa8479496553c02dcc487046ba5f9bfd76356bd2f06eda5
 # ***
 #
 # Dokime
@@ -25,8 +25,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
+from ..process import spawn_flags
 
 # Type Checking Imports
 
@@ -70,7 +70,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
     )
 
 

@@ -84,7 +84,14 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
         downloaded
     };
     let payload = payload::validate(&source, &manifest.dokime)?;
-    let plugins = plugins::stage(&options.plugins, scratch.path())?;
+    let plugins = plugins::stage(
+        &options.plugins,
+        &source.join("organization"),
+        manifest.installer.organization.as_deref(),
+        scratch.path(),
+        &payload.target,
+        &payload.version,
+    )?;
     std::fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let staged = scratch.path().join("installers");

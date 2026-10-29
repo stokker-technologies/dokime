@@ -232,11 +232,8 @@ impl Adapter<'_> {
         // Physical Shutdown Is Retained By Each Backend, Independent Of This Adapter.
         for source in &sources {
             self.handle.remove_record_demand_source(source);
-            if let Some(provider) = self.embedded.get_mut(source) {
-                provider.release_observers();
-            }
+            self.handle.release_owned_demand(source);
             for package in self.packages.values_mut() {
-                package.telemetry.remove(source);
                 package.running.retain(|live| &live.source != source);
             }
             self.handle.remove_action_dispatcher(&crate::Identifier::new(source).map_err(operation)?);

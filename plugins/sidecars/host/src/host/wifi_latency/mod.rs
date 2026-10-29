@@ -11,20 +11,29 @@
 
 #[cfg(feature = "runtime")]
 mod observing;
-#[cfg(feature = "runtime")]
-pub use observing::State;
 
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
+
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
+/* === Re-Exports === */
+
+#[cfg(feature = "runtime")]
+pub use observing::State;
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::time::Duration;
+
+// Third Party Imports
+
+// Local Imports
 use crate::HostTelemetryStream;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
-use std::time::Duration;
 
 /* === Constants === */
 
@@ -34,6 +43,10 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: BUDGET,
     retries: RetryPolicy::Never,
 };
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -55,26 +68,34 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::WifiLatency,
+    pub row: crate::WifiLatency,
     pub timestamp_micros: i64,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
 impl dokime::StreamSpec for WifiLatency {
-    type Row = dokime::host::WifiLatency;
+    type Row = crate::WifiLatency;
     const ID: &'static str = "host.wifi.latency";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::WifiLatency as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::WifiLatency as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiLatency {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<dokime::host::WifiLatency>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<crate::WifiLatency>()
     }
 }
 
 impl dokime::telemetry::OwnedStream for WifiLatency {}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 /* === Tests === */
 
@@ -90,6 +111,6 @@ mod tests {
         assert!(<WifiLatency as OperationDeclaration>::POLICY.timeout >= <WifiLatency as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<WifiLatency as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == WifiLatency::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(WifiLatency::contract().storage_schema, <dokime::host::WifiLatency as TelemetryStream>::contract().storage_schema);
+        assert_eq!(WifiLatency::contract().storage_schema, <crate::WifiLatency as TelemetryStream>::contract().storage_schema);
     }
 }

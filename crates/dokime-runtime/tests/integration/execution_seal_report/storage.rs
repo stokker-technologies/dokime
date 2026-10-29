@@ -266,7 +266,10 @@ pub(crate) async fn unsealed_cycle_survives_restart() {
     drop(watch);
 
     // The Diagnostic Lands After The Freeze, As Host Sampling Failures Do On A Wedged Machine.
-    runtime.add_health_item(member.scope.clone(), dokime_domain::model::execution::HealthSeverity::Error, "late diagnostic".into(), None).await.unwrap();
+    runtime
+        .add_health_item(member.scope.clone(), dokime_domain::model::execution::HealthSeverity::Error, "late diagnostic".into(), None)
+        .await
+        .unwrap();
     drop(runtime);
     owner.shutdown().await.unwrap();
     drop(owner);

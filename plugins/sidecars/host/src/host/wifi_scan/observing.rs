@@ -7,19 +7,38 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::time::Duration;
+
+// Third Party Imports
+
+// Local Imports
 use super::WifiScan;
 use crate::{Error, HostPlugin, HostTelemetryStream};
 use dokime::harmos::operations::Host;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
-use std::time::Duration;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
 pub struct State {
     pub(crate) collector: crate::collectors::wifi::WifiScanCollector,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -56,3 +75,9 @@ impl dokime::harmos::sidecar::inventory::observers::Declared for WifiScan {
         demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
     };
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

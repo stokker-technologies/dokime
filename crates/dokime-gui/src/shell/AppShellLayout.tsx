@@ -21,11 +21,11 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { focusPresentation, useFocusMode } from "./focus-mode";
-import { useNavigationMode } from "./use-sidebar-state";
 import { settingsParent } from "./navigation-model";
 import { PanelHeader } from "./PageShell";
 import { PageChromeProvider, usePageChromeState } from "./page-chrome";
 import type { FrozenCycleStatus } from "./StatusBarFrame";
+import { useNavigationMode } from "./use-sidebar-state";
 
 // Local Imports
 
@@ -102,7 +102,7 @@ function AppFrame({ children, frozen, menuBar, sidebar, statusBar, console }: Ap
       {menuBar}
       <div className="flex min-h-0 min-w-0">
         {sidebar}
-        <div className="m-2 tablet:ml-0 flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
           <PageBar focused={focused} frozen={frozen} />
           {/* overflow-anchor:none — live plot canvases redraw at stream rate
               inside this region; native scroll anchoring reacts to those

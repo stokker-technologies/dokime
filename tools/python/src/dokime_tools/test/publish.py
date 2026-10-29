@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:d6b72b27c6884d903347b67eb42e11dd23e0c9e80a2fbcb1ac6e5aea0aac60b8
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:51cc09e4fdc95f62acd5a51aea9eff14ab106a625f1cd647da671530fe89f908
 # ***
 #
 # Dokime
@@ -21,8 +21,10 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..process import spawn_flags
 from .. import temporary
 from ..build import storage
+from ..release import policy as release_policy
 from . import policy
 
 # Type Checking Imports
@@ -44,15 +46,13 @@ def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> l
         metadata = json.loads(
             subprocess.check_output(
                 ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
             )
         )
-        members = set(metadata["workspace_members"])
         command = ["cargo", "publish", "--dry-run", "--locked"]
-        for package in metadata["packages"]:
-            if package["id"] in members and package.get("publish") != []:
-                command.extend(["--package", package["name"]])
+        for package in release_policy.publishable(directory, metadata).values():
+            command.extend(["--package", package["name"]])
         if "--package" in command:
             commands.append(command)
     commands.extend(
@@ -92,7 +92,7 @@ def main() -> None:
                 stdin=sys.stdin,
                 stdout=sys.stdout,
                 stderr=sys.stderr,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
                 check=True,
                 env=environment,

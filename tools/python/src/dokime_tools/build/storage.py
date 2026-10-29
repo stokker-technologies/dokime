@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/storage.py; sha256:4fbdb383dafcec0c737acc174d01deb8063912e352af0eedb6483243bc925822
+# Rendered by stkr project update from templates/python/build/storage.py; sha256:12caceaccdf1f8e667c917b1f5dea7e4164164d04f70ba6b34becdff0ef92205
 # ***
 #
 # Dokime
@@ -42,6 +42,7 @@ PRESERVED = frozenset(
 
 
 def preflight(directory: Path, *, target: Path | None = None) -> None:
+    print("Build: Storage Preflight", flush=True)
     root = directory.resolve()
     selected = Path(os.environ.get("CARGO_TARGET_DIR", "target")) if target is None else target
     target = selected if selected.is_absolute() else root / selected

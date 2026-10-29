@@ -379,9 +379,9 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
             }
         }
         let session = acquisition.storage.clone();
-        let frozen = freeze(&session, source)
-            .await
-            .inspect_err(|error| tracing::warn!(output = path.as_str(), file = %source.file.path().display(), %error, "native output freeze failed"));
+        let frozen = freeze(&session, source).await.inspect_err(
+            |error| tracing::warn!(output = path.as_str(), file = %source.file.path().display(), %error, "native output freeze failed"),
+        );
         let frozen = match frozen {
             Ok(frozen) => frozen,
             Err(failure) if finalizing => {

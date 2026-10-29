@@ -50,7 +50,10 @@ use crate::Error;
 pub fn assemble(
     manifest: &Manifest, payload: &Payload, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path, sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
-    let pack = resolve_organization(manifest, source)?;
+    let identity = manifest.identity(&payload.identity)?;
+    let mut pack = resolve_organization(manifest, source)?;
+    // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
+    pack.files.retain(|name, _| !name.starts_with("plugins/"));
     let Some((_, application_bytes)) = pack.asset("application") else {
         return Err(Error::Invalid("organization application artwork is required".into()));
     };
@@ -63,15 +66,15 @@ pub fn assemble(
     validate_label(&label)?;
     let windows = payload.target.contains("windows");
     let suffix = if windows { ".exe" } else { "" };
-    let installed_bin_prefix = if windows { "" } else { "usr/bin/" };
-    let installed_resource_prefix = if windows { "" } else { "usr/lib/dokime/" };
+    let installed_resource_prefix = if windows { String::new() } else { format!("usr/lib/{}/", identity.slug) };
+    let mut linux_files = HashMap::new();
     let bin_dir = scratch.join("build");
-    std::fs::create_dir_all(&bin_dir)?;
+    std::fs::create_dir_all(bin_dir.join("payload"))?;
     let mut files = BTreeMap::new();
     for name in ["dokime", "dokime-gui"] {
         let file = format!("{name}{suffix}");
         let bytes = std::fs::read(source.join("bin").join(&file))?;
-        let destination = bin_dir.join(&file);
+        let destination = if windows { bin_dir.join(&file) } else { bin_dir.join("payload").join(&file) };
         std::fs::write(&destination, &bytes)?;
         #[cfg(unix)]
         {
@@ -85,18 +88,31 @@ pub fn assemble(
                 sign_installer(manifest, &destination)?;
             }
         }
-        let installed = format!("{installed_bin_prefix}{file}");
+        let installed = format!("{installed_resource_prefix}{file}");
+        if !windows {
+            linux_files.insert(PathBuf::from(format!("/{installed}")), destination.clone());
+            let launcher = if name == "dokime" { identity.slug.clone() } else { format!("{}-gui", identity.slug) };
+            let script = format!("#!/bin/sh\nexec /usr/lib/{}/{file} \"$@\"\n", identity.slug);
+            let path = bin_dir.join(launcher);
+            std::fs::write(&path, &script)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+            }
+            let installed = format!("usr/bin/{}", path.file_name().unwrap().to_string_lossy());
+            files.insert(installed, payload::digest(script.as_bytes()));
+        }
         let final_bytes = std::fs::read(&destination)?;
         let digest = payload::digest(&final_bytes);
         files.insert(installed, digest);
     }
     // Stage Resolved Organization
     let mut resources = HashMap::new();
-    let mut linux_files = HashMap::new();
     for (name, staged) in plugins {
         let relative = format!("plugins/{name}");
         resources.insert(staged.to_string_lossy().into_owned(), relative.clone());
-        let linux_path = PathBuf::from(format!("/usr/lib/dokime/{relative}"));
+        let linux_path = PathBuf::from(format!("/{installed_resource_prefix}{relative}"));
         linux_files.insert(linux_path, staged.clone());
         let bytes = std::fs::read(staged)?;
         let installed = format!("{installed_resource_prefix}{relative}");
@@ -108,7 +124,7 @@ pub fn assemble(
         let staged = pack_dir.join(pack_path);
         let resource = staged.to_string_lossy().into_owned();
         resources.insert(resource, relative.clone());
-        let installed = format!("/usr/lib/dokime/{relative}");
+        let installed = format!("/{installed_resource_prefix}{relative}");
         linux_files.insert(PathBuf::from(installed), staged.clone());
         let bytes = std::fs::read(staged)?;
         let digest = payload::digest(&bytes);
@@ -123,11 +139,21 @@ pub fn assemble(
         staged
     };
     resources.insert(license.to_string_lossy().into_owned(), "LICENSE".into());
-    linux_files.insert(PathBuf::from("/usr/lib/dokime/LICENSE"), license.clone());
+    linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}LICENSE")), license.clone());
     let license_bytes = std::fs::read(&license)?;
     let license_digest = payload::digest(&license_bytes);
     let installed_license = format!("{installed_resource_prefix}LICENSE");
     files.insert(installed_license, license_digest);
+
+    // Stage Startup Identity In The Verified Inventory
+    let distribution =
+        dokime::paths::DistributionIdentity::new(identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+    let identity_bytes = serde_json::to_vec_pretty(&distribution)?;
+    let identity_path = scratch.join("distribution.json");
+    std::fs::write(&identity_path, &identity_bytes)?;
+    resources.insert(identity_path.to_string_lossy().into_owned(), "distribution.json".into());
+    linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}distribution.json")), identity_path);
+    files.insert(format!("{installed_resource_prefix}distribution.json"), payload::digest(&identity_bytes));
 
     // Describe Distribution
     let (installer_signed, updater_signed) = match &manifest.signing {
@@ -140,16 +166,16 @@ pub fn assemble(
         dokime_version: payload.version.clone(),
         target: payload.target.clone(),
         label: label.clone(),
-        identity: payload.identity.clone(),
+        identity: identity.clone(),
         files,
         installer_signed,
         updater_signed,
     };
-    let metadata_path = scratch.join("distribution.json");
+    let metadata_path = scratch.join("installer.json");
     let metadata_bytes = serde_json::to_vec_pretty(&metadata)?;
     std::fs::write(&metadata_path, metadata_bytes)?;
-    resources.insert(metadata_path.to_string_lossy().into_owned(), "distribution.json".into());
-    linux_files.insert(PathBuf::from("/usr/lib/dokime/distribution.json"), metadata_path);
+    resources.insert(metadata_path.to_string_lossy().into_owned(), "installer.json".into());
+    linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}installer.json")), metadata_path);
 
     // Generate Assembly Artwork
     let image_path = scratch.join("icon.png");
@@ -184,7 +210,7 @@ pub fn assemble(
         icons.into_iter().map(|path| resource_path(Path::new(&path), &root)).collect::<Result<Vec<_>, _>>()?
     };
     let mut bundle = BundleSettings {
-        identifier: Some(payload.identity.identifier.clone()),
+        identifier: Some(identity.identifier.clone()),
         icon: Some(icons),
         license: Some("Apache-2.0".into()),
         license_file: Some(license),
@@ -196,6 +222,16 @@ pub fn assemble(
         sidebar_image: windows.then_some(sidebar),
         ..NsisSettings::default()
     });
+    if !windows {
+        let template = scratch.join("application.desktop");
+        let contents = format!(
+            "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
+            identity.slug, identity.slug
+        );
+        std::fs::write(&template, contents)?;
+        bundle.deb.desktop_template = Some(template.clone());
+        bundle.rpm.desktop_template = Some(template);
+    }
     if windows {
         #[cfg(windows)]
         let resources = {
@@ -242,15 +278,17 @@ pub fn assemble(
         .collect();
     let authors = vec!["Stokker Technologies".into()];
     let package = PackageSettings {
-        product_name: label,
+        product_name: if windows { identity.identifier.clone() } else { identity.slug.clone() },
         version: manifest.installer.version.clone(),
         description: "Dokime Test Hub".into(),
         homepage: None,
         authors: Some(authors),
-        default_run: Some("dokime-gui".into()),
+        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
     };
-    let application = BundleBinary::new("dokime-gui".into(), true);
-    let command = BundleBinary::new("dokime".into(), false);
+    let application_name = if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) };
+    let command_name = if windows { "dokime".into() } else { identity.slug.clone() };
+    let application = BundleBinary::new(application_name, true);
+    let command = BundleBinary::new(command_name, false);
     let binaries = vec![application, command];
     let settings = SettingsBuilder::new()
         .project_out_directory(&bin_dir)
@@ -310,7 +348,7 @@ pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Erro
     }
 
     let Some(signing) = &manifest.signing else {
-        let error = Error::Invalid("--sign requires explicit signing configuration".into());
+        let error = Error::SigningConfiguration;
         return Err(error);
     };
     if signing.installer.is_none() && signing.updater.is_none() {
@@ -400,10 +438,12 @@ fn explicit_update_mode(folder: &Path) -> Result<bool, Error> {
 fn finish_package(
     manifest: &Manifest, payload: &Payload, kind: PackageType, source: &Path, output: &Path, sign: bool,
 ) -> Result<PathBuf, Error> {
+    let identity = manifest.identity(&payload.identity)?;
+    let slug = &identity.slug;
     let name = match kind {
-        PackageType::Nsis => format!("dokime-{}-windows-x86_64-setup.exe", manifest.installer.version),
-        PackageType::Deb => format!("dokime_{}_amd64.deb", manifest.installer.version),
-        PackageType::Rpm => format!("dokime-{}-1.x86_64.rpm", manifest.installer.version),
+        PackageType::Nsis => format!("{slug}-{}-{}-setup.exe", manifest.installer.version, manifest.dokime.target),
+        PackageType::Deb => format!("{slug}_{}_amd64.deb", manifest.installer.version),
+        PackageType::Rpm => format!("{slug}-{}-1.x86_64.rpm", manifest.installer.version),
         _ => {
             let error = Error::Invalid("unexpected native package type".into());
             return Err(error);

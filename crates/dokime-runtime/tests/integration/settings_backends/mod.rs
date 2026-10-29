@@ -11,6 +11,7 @@
 
 /* === Modules === */
 pub(crate) mod config_application;
+mod distribution;
 pub(crate) mod identity;
 pub(crate) mod installed_plugins;
 pub(crate) mod runtime_settings;

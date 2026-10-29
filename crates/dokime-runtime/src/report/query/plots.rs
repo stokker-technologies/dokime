@@ -9,12 +9,15 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
+
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
 
@@ -43,13 +46,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Structs === */
 
 pub(in crate::report) struct ReadCache {
-    reduced: OnceCell<harmos::storage::ReadBatch<PlotPayload>>,
-}
-
-impl ReadCache {
-    pub(in crate::report) fn new() -> Self {
-        Self { reduced: OnceCell::new() }
-    }
+    captured: OnceCell<Arc<crate::report::value::Value>>,
 }
 
 /* === Enums === */
@@ -64,6 +61,26 @@ pub(in crate::report) enum ReadPlan {
 
 /* === Implementations === */
 
+impl ReadCache {
+    pub(in crate::report) fn new() -> Self {
+        Self { captured: OnceCell::new() }
+    }
+
+    async fn capture(
+        &self, input: &crate::plot::spilled::Input, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext<'_>,
+    ) -> Result<harmos::storage::ReadBatch<crate::report::value::Value>> {
+        let value = self
+            .captured
+            .get_or_try_init(|| async {
+                let payload = saved(input, request, generated_at, context)?;
+                crate::report::value::Value::from_serializable(&*payload, 128).map(Arc::new)
+            })
+            .await?;
+        // Each Metadata Transfer Has A Unique Batch; Only The Immutable Tree Is Shared.
+        Ok(harmos::storage::ReadBatch::new(crate::report::value::Value::Shared(Arc::clone(value))))
+    }
+}
+
 /* === Public Functions === */
 
 pub(in crate::report) async fn materialize(
@@ -71,16 +88,11 @@ pub(in crate::report) async fn materialize(
     input: &crate::plot::spilled::Input, telemetry: &crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
     shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<crate::report::value::Value>> {
-    let payload = if let Some((canonical, _)) = direct(&request, &source.telemetry_contracts) {
-        shared
-            .reduced
-            .get_or_try_init(|| async {
-                let context = payload_context(source, execution, &canonical, source.report_defaults.plot_points as usize);
-                saved(input, &canonical, source.captured_at.as_str(), &context)
-            })
-            .await?
-            .clone()
-    } else {
+    if let Some((canonical, _)) = direct(&request, &source.telemetry_contracts) {
+        let context = payload_context(source, execution, &canonical, source.report_defaults.plot_points as usize);
+        return shared.capture(input, &canonical, source.captured_at.as_str(), &context).await;
+    }
+    let payload = {
         let context = payload_context(source, execution, &request, source.report_defaults.plot_points as usize);
         let samples = if request.analysis.is_some() {
             let streams = crate::plot::plot_streams(&request);
@@ -215,82 +227,4 @@ fn direct<'a>(
     Some((canonical, contract))
 }
 
-#[cfg(test)]
-fn full_retained(
-    samples: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
-    generated_at: &str, context: &PlotPayloadContext,
-) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
-    let input = crate::plot::spilled::Input::new()?;
-    for sample in samples {
-        input.append(sample)?;
-    }
-    for record in records.iter() {
-        input.append_record(record)?;
-    }
-    saved(&input, request, generated_at, context)
-}
-
-// Saved Series Preserve Zoomable Evidence; The Viewer Applies The Display Bound.
-#[cfg(test)]
-fn full(
-    samples: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
-    generated_at: &str, context: &PlotPayloadContext,
-) -> harmos::storage::ReadBatch<PlotPayload> {
-    full_retained(samples, records, request, generated_at, context).expect("fixture plot construction")
-}
-
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Value;
-    use crate::model::identity::new_id;
-    use crate::telemetry::TelemetrySample;
-    use dokime_domain::model::time::Timestamp;
-
-    #[tokio::test]
-    async fn captured_series_preserves_original_points_for_zoom() {
-        let count = 100_000 + 101;
-        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
-        let stream = Identifier::new("fixture.capture").unwrap();
-        let samples = (0..count)
-            .map(|index| {
-                let mut sample = TelemetrySample::new(new_id(), stream.clone(), index as u64, timestamp.clone(), "fixture");
-                let value = if index == 25 { 1_000_000.0 } else { index as f64 };
-                sample.values.insert("index".into(), Value::Number(index as f64));
-                sample.values.insert("value".into(), Value::Number(value));
-                sample
-            })
-            .collect::<Vec<_>>();
-        let request = PlotPayloadRequest {
-            stream: stream.to_string(),
-            x_key: Some("index".into()),
-            y_keys: vec!["value".into()],
-            plot_type: Some(PlotType::TimeSeries),
-            max_points: Some(32),
-            technique: crate::plot::DownsampleTechnique::MinMax,
-            ..Default::default()
-        };
-
-        let payload = full(
-            &samples,
-            crate::records::view::View::default(),
-            &request,
-            timestamp.as_str(),
-            &PlotPayloadContext {
-                default_max_points: 2000,
-                x_format: None,
-                series_format: None,
-                run_started_at: None,
-                cycle_started_at: None,
-            },
-        );
-        let series = &payload.series[0];
-        assert_eq!(series.points.len(), count);
-        assert_eq!(series.raw_points, count);
-        assert!(!series.downsampled);
-        assert!(series.points.iter().any(|point| point.y == Some(1_000_000.0)));
-        assert_eq!(payload.max_points, 32);
-    }
-}

@@ -1,6 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
+
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
 import { watchStopping } from "@/lib/desktop/stopping";
@@ -89,7 +91,7 @@ function Connected({ session, children }: { session: ConnectedSession; children:
           {error ? (
             <main className="mx-auto max-w-xl space-y-4 p-8">
               <h1 className="font-heading text-2xl">Appearance Unavailable</h1>
-              <p role="alert">{connectionError(error)}</p>
+              <NotificationMessage>{connectionError(error)}</NotificationMessage>
               <div className="flex gap-3">
                 <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>
                 <Button variant="outline" onClick={() => void owner.disconnect()}>

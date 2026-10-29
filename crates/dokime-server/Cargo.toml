@@ -12,6 +12,7 @@
 name = "dokime-server"
 edition.workspace = true
 rust-version.workspace = true
+publish = false
 description.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -134,6 +135,7 @@ serde_json = { workspace = true }
 [dev-dependencies]
 # Local
 dokime-cli = { path = "../dokime-cli" }
+dokime-host = { workspace = true }
 
 # Git
 

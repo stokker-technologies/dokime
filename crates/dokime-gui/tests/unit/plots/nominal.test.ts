@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 
 // Local Imports
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
@@ -34,7 +34,7 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
-import { groupRepeatsPlotTitle } from "@/plots/grouping";
+import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -48,7 +48,7 @@ import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingL
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { lttbIndices, m4Indices, minMaxIndices, reduceIndices, windowIndices } from "@/plots/reduce";
-import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
+import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
 
 /* === Re-Exports === */
 
@@ -819,5 +819,100 @@ test("Stream Errors Replace Retained Charts", () => {
   );
   assert.match(html, /role="alert"/);
   assert.match(html, /Voltage channel disconnected/);
-  assert.doesNotMatch(html, /Trace statistics/);
+  assert.doesNotMatch(html, /Trace Statistics/);
+});
+
+test("Viewport Panning", () => {
+  assert.deepEqual(pannedRange({ min: 0, max: 100 }, -0.25, false), { min: -25, max: 75 });
+  const logarithmic = pannedRange({ min: 1, max: 100 }, 0.5, true);
+  assert.ok(logarithmic);
+  assert.ok(Math.abs(logarithmic.min - 10) <= Number.EPSILON * 10 * 8);
+  assert.ok(Math.abs(logarithmic.max - 1000) <= Number.EPSILON * 1000 * 8);
+  assert.equal(pannedRange({ min: 0, max: 100 }, 0.5, true), null);
+  assert.equal(pannedRange({ min: 1, max: 100 }, Infinity, false), null);
+});
+
+test("Pan Listener Ownership", () => {
+  const view = new EventTarget();
+  const over = Object.assign(new EventTarget(), { clientWidth: 100, clientHeight: 100, ownerDocument: { defaultView: view } });
+  const scales = { x: { min: 0, max: 100 }, y: { min: 0, max: 10 } };
+  const setScale = vi.fn((axis: "x" | "y", range: { min: number; max: number }) => {
+    scales[axis] = range;
+  });
+  const onPan = vi.fn();
+  const setCursor = vi.fn();
+  const plot = {
+    over,
+    scales,
+    setScale,
+    cursor: { left: 75, top: 70 },
+    setCursor,
+    batch: (effect: () => void) => effect(),
+  } as unknown as Parameters<typeof attachPan>[0];
+  const detach = attachPan(plot, { logX: false, logY: false, panY: true, onPan });
+  const mouse = (type: string, values: Partial<MouseEvent>) => Object.assign(new Event(type, { cancelable: true }), values);
+  const ordinary = mouse("mousedown", { button: 0, shiftKey: false, clientX: 50, clientY: 50 });
+  over.dispatchEvent(ordinary);
+  assert.equal(ordinary.defaultPrevented, false);
+  const shifted = mouse("mousedown", { button: 0, shiftKey: true, clientX: 50, clientY: 50 });
+  over.dispatchEvent(shifted);
+  assert.equal(shifted.defaultPrevented, true);
+  view.dispatchEvent(mouse("mousemove", { buttons: 1, clientX: 75, clientY: 70 }));
+  assert.deepEqual(scales, { x: { min: -25, max: 75 }, y: { min: 2, max: 12 } });
+  assert.deepEqual(onPan.mock.calls[0][0], { x: scales.x, y: scales.y });
+  assert.deepEqual(setCursor.mock.calls[0], [{ left: 75, top: 70 }]);
+  view.dispatchEvent(new Event("mouseup"));
+  view.dispatchEvent(mouse("mousemove", { buttons: 1, clientX: 90, clientY: 90 }));
+  assert.equal(onPan.mock.calls.length, 1);
+  over.dispatchEvent(mouse("mousedown", { button: 1, shiftKey: false, clientX: 10, clientY: 50 }));
+  view.dispatchEvent(mouse("mousemove", { buttons: 4, clientX: 0, clientY: 50 }));
+  assert.deepEqual(scales.x, { min: -15, max: 85 });
+  view.dispatchEvent(new Event("blur"));
+  assert.equal(onPan.mock.calls.length, 2);
+  detach();
+  const removed = mouse("mousedown", { button: 1, clientX: 10, clientY: 50 });
+  over.dispatchEvent(removed);
+  assert.equal(removed.defaultPrevented, false);
+  view.dispatchEvent(mouse("mousemove", { buttons: 4, clientX: 0, clientY: 50 }));
+  assert.equal(onPan.mock.calls.length, 2);
+});
+
+test("Declared Occupancy Context", () => {
+  const plot: DocumentViewPlot = {
+    plot_id: "occupancy",
+    title: "Occupancy",
+    stream: "fixture.scan",
+    plot_type: "wifi_channel_occupancy",
+    style: "points",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    x: "timestamp",
+    y: ["network_count"],
+  };
+  const telemetry = {
+    "fixture.scan": {
+      stream: "fixture.scan",
+      summary: {},
+      samples: [{ active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" }],
+      max_samples: 1,
+      total_samples: 1,
+      dropped_samples: 0,
+      updated_at: "2026-10-29T00:00:00Z",
+    },
+    "host.wifi.link": {
+      stream: "host.wifi.link",
+      summary: {},
+      samples: [{ wifi_channel: 6, wifi_ssid: "link" }],
+      max_samples: 1,
+      total_samples: 1,
+      dropped_samples: 0,
+      updated_at: "2026-10-29T00:00:00Z",
+    },
+  };
+  const spec = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  assert.deepEqual(spec.context, { active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" });
+  delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
+  const absent = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  assert.deepEqual(absent.context, {});
 });

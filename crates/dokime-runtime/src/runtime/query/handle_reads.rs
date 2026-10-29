@@ -140,7 +140,11 @@ impl RuntimeHandle {
     }
 
     pub fn application_root(&self) -> std::path::PathBuf {
-        self.config().application_root.clone()
+        self.config().application.root.clone()
+    }
+
+    pub fn application_paths(&self) -> crate::paths::ApplicationPaths {
+        self.config().application.clone()
     }
 
     pub fn hub_metadata(&self) -> Metadata {

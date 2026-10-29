@@ -527,7 +527,8 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
     // Name The Artifact Whose Capture Failed; The Storage Error Carries No Path.
     let finished = upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await;
     let artifact = upload.record.artifact_id.as_str();
-    let reference = finished.inspect_err(|error| tracing::warn!(artifact, filename = %upload.record.filename, %error, "artifact capture failed"))?;
+    let reference =
+        finished.inspect_err(|error| tracing::warn!(artifact, filename = %upload.record.filename, %error, "artifact capture failed"))?;
     let mut record = upload.record.clone();
     record.status = status.clone();
     let relative_path = format!("{UPLOAD_PREFIX}{}/{}", record.artifact_id.as_str(), record.filename);

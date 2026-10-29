@@ -12,9 +12,10 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useNavigationMode } from "@/shell/use-sidebar-state";
 import { useId, useMemo, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Switch } from "@/components/ui/switch";
+import { useNavigationMode } from "@/shell/use-sidebar-state";
 import { useUiStore } from "@/stores/ui-store";
 
 /* === Local Imports === */
@@ -24,8 +25,8 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
-import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
+import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
@@ -33,11 +34,11 @@ import type { RuntimeSettingsFrame } from "@/features/settings/settings-contract
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
-import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
 import { PluginSettingsCards } from "./PluginSettingsCards";
+import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 
 /* === Types === */
 
@@ -144,7 +145,7 @@ function SectionContent({
   if (loading) {
     return (
       <SettingsCard title="Settings">
-        <div className="px-4 py-3 text-sm text-muted-foreground">Loading settings...</div>
+        <div className="px-4 py-3 text-sm text-muted-foreground">Loading Settings...</div>
       </SettingsCard>
     );
   }
@@ -153,7 +154,7 @@ function SectionContent({
     return (
       <SettingsCard title="Settings">
         <div className="grid justify-items-start gap-3 px-4 py-3">
-          <p className="text-sm text-destructive">{loadError}</p>
+          <NotificationMessage>{loadError}</NotificationMessage>
           <Button onClick={retry} variant="outline">
             Try Again
           </Button>
@@ -164,9 +165,7 @@ function SectionContent({
 
   return (
     <SettingsCard title="Settings">
-      <p role="alert" className="p-4">
-        This settings section is unavailable.
-      </p>
+      <NotificationMessage>This settings section is unavailable.</NotificationMessage>
     </SettingsCard>
   );
 }
@@ -177,7 +176,7 @@ export function SettingsAdvancedSwitch() {
   const advanced = useUiStore((state) => state.showAdvancedSettings);
   return (
     <div className="flex items-center gap-3 text-sm">
-      <label htmlFor={id}>Show advanced</label>
+      <label htmlFor={id}>Show Advanced</label>
       <Switch
         id={id}
         checked={advanced}

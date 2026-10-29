@@ -1,5 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
+
 import { createRoot, type Root } from "react-dom/client";
+import { DokimeToaster } from "@/components/DokimeToaster";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { defaultBrand } from "@/lib/brand";
 import "@/styles.css";
 
@@ -16,5 +19,12 @@ void (async () => {
   const { AppRoot } = await import("@/app/AppRoot");
   root.render(<AppRoot />);
 })().catch((error: unknown) => {
-  root.render(<p role="alert">{error instanceof Error ? error.message : String(error)}</p>);
+  root.render(
+    <>
+      <DokimeToaster />
+      <NotificationMessage source="Startup" title="Application Could Not Start">
+        {error instanceof Error ? error.message : String(error)}
+      </NotificationMessage>
+    </>,
+  );
 });

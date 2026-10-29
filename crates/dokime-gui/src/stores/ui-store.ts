@@ -45,20 +45,6 @@ export type ConsoleState = {
   scope: ConsoleScope;
 };
 
-export type AppNotificationTone = "error" | "info" | "loading" | "success" | "warning";
-
-export type AppNotificationRecord = {
-  /** Durable action target (e.g. a download href) rendered in the notification center. */
-  actionHref?: string;
-  actionLabel?: string;
-  /** Wall-clock ms when the notification was raised. */
-  at?: number;
-  description?: string;
-  id: string;
-  title: string;
-  tone: AppNotificationTone;
-};
-
 type UiStoreState = {
   console: ConsoleState;
   cycleSummaryCardBusy: boolean;
@@ -76,7 +62,6 @@ type UiStoreState = {
   desktopUpdateDialogOpen: boolean;
   leftRailCollapsed: boolean;
   noteText: string;
-  notificationLog: AppNotificationRecord[];
   rightRailCollapsed: boolean;
   railCollapseMode: "auto" | "manual";
   /**
@@ -94,17 +79,12 @@ type UiStoreState = {
 };
 
 type UiStore = UiStoreState & {
-  clearNotifications: () => void;
   setConsoleState: (patch: Partial<ConsoleState>) => void;
-  pushNotification: (notification: AppNotificationRecord) => void;
-  removeNotification: (id: string) => void;
   resetUiStore: () => void;
   setUiState: (patch: Partial<UiStoreState>) => void;
 };
 
 /* === Constants === */
-
-const GUI_TOAST_ITEMS = 50;
 
 export const INITIAL_CONSOLE_STATE: ConsoleState = {
   follow: true,
@@ -130,7 +110,6 @@ const initialUiStoreState: UiStoreState = {
   desktopUpdateDialogOpen: false,
   leftRailCollapsed: false,
   noteText: "",
-  notificationLog: [],
   rightRailCollapsed: false,
   railCollapseMode: "auto",
   sidebarCollapsed: {},
@@ -187,19 +166,7 @@ export const useUiStore = create<UiStore>()(
   persist(
     (set) => ({
       ...initialUiStoreState,
-      clearNotifications: () => set({ notificationLog: [] }),
       setConsoleState: (patch) => set((state) => ({ console: { ...state.console, ...patch } })),
-      pushNotification: (notification) =>
-        set((state) => ({
-          notificationLog: [
-            ...state.notificationLog.filter((item) => item.id !== notification.id),
-            { at: Date.now(), ...notification },
-          ].slice(-GUI_TOAST_ITEMS),
-        })),
-      removeNotification: (id) =>
-        set((state) => ({
-          notificationLog: state.notificationLog.filter((notification) => notification.id !== id),
-        })),
       resetUiStore: () =>
         set((state) => ({
           ...initialUiStoreState,

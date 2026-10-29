@@ -16,13 +16,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use model::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode};
+use model::values::Value;
 
 // Local Imports
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
 use dokime_host::{HostOptions, HostTelemetryStream, host_telemetry_contracts};
-use model::telemetry::{TelemetryBatch, TelemetrySample, ValidationMode};
-use model::values::Value;
 
 /* === Constants === */
 
@@ -33,6 +33,7 @@ use model::values::Value;
 /* === Structs === */
 
 /* === Enums === */
+
 pub enum Field {
     Integer(&'static str),
     Number(&'static str),
@@ -44,6 +45,7 @@ pub enum Field {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBatch {
     use dokime_host::collectors::bluetooth::BluetoothCollector;
     use dokime_host::collectors::wifi::{WifiLatencyCollector, WifiLinkCollector, WifiScanCollector};

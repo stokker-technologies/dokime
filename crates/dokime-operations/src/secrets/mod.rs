@@ -32,7 +32,7 @@ use dokime_domain::model::secrets::transfer::{Archive, Choice, Preview as Import
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<Lookup>], response = Value, id = "dokime.secrets.lookup", policy = ORDINARY,
-    visibility = harmos::operations::Visibility::Shared,
+    visibility = harmos::operations::Visibility::Public,
     grpc(package = "dokime.v1", service = "Secrets", method = "Lookup"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

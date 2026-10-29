@@ -27,3 +27,39 @@ Replace `ReadSession` use with the existing storage manager and ordinary owned/b
 Locked Harmos interface transformation: in `harmos-storage/src/backend.rs`, remove every `RetainedMemory` parameter and `Inner::backend_memory`; keep every other parameter, return type, lifetime, cursor, limit and durability guarantee. Exact examples: `fn open(&self) -> StorageFuture<'_, StorageCursor>`; `fn read_records<'a>(&'a self, snapshot: &'a BackendSnapshot, selection: &'a RecordSelection, page: ScanPage) -> StorageFuture<'a, Vec<StoredRecord>>`. For Dokime payload constructors, remove session/claim-only arguments, retaining remaining order and return/error types. For methods that perform reads, replace `&ReadSession` with `&Manager` in the same argument position and invoke its ordinary read methods; for example `async fn read_file_bytes(storage: &Manager, file: &FileReference) -> Result<ReadBatch<Vec<u8>>>`. Never replace removed reservations with dummy claims or no-op compatibility types.
 
 Preserve `read_opened_file(file: std::fs::File, range: ByteRange)` behavior and opened capture/follow lifecycle, including original inode, growth/truncation checks, acknowledged prefixes and cancellation settlement. Preserve one borrowed SQLite row encoding per transaction iteration, position-based record identity for repeated items, rollback, exact retry comparison, borrowed canonical/JSON serializers, Harmos waveform reduction without allocations, exact full-envelope `wire_len`, time-range filtering at storage query construction and live plot reads from saved storage. Delete only estimator/claim portions of mixed files; never revert whole files to HEAD.
+
+### Requirement: Atomic Saved Evidence Frontiers
+
+Native evidence rows, capture membership and their saved frontier SHALL commit together. Retrying a committed batch SHALL preserve its exact identities and membership without inserting duplicates.
+
+#### Scenario: Writer Stops Before Commit
+
+- **WHEN** the writer process stops after a row insert, during capture indexing or before publishing the saved frontier
+- **THEN** reopening retains the previous durable frontier and exposes no membership for the interrupted batch
+- **AND** retrying the same batch commits it exactly once
+
+#### Scenario: Acknowledgement Is Lost After Commit
+
+- **WHEN** the writer process stops after committing evidence but before acknowledging the caller
+- **THEN** reopening exposes the committed rows, membership and frontier
+- **AND** an exact retry preserves that evidence without duplication
+
+### Requirement: Durable Checkpoint Publication
+
+Checkpoint publication SHALL preserve the durable evidence dependency and all uncovered recovery entries. A refused or uncertain publication SHALL be recoverable without resetting storage.
+
+#### Scenario: Publication Fails Before Replacement
+
+- **WHEN** checkpoint encoding exceeds its configured bound
+- **THEN** the prior checkpoint and its complete recovery tail remain readable
+
+#### Scenario: The Journal Cannot Reopen After Replacement
+
+- **WHEN** reopening the named journal fails after checkpoint and journal replacement
+- **THEN** a fresh owner recovers the published checkpoint and exactly the uncovered tail
+- **AND** an exact checkpoint retry preserves that boundary
+
+#### Scenario: Evidence Dependency Is Not Durable
+
+- **WHEN** a checkpoint refers beyond the saved evidence frontier
+- **THEN** the manager refuses to publish or restore that checkpoint

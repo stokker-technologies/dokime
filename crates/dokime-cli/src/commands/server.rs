@@ -79,10 +79,11 @@ pub async fn run(args: Args, configuration: dokime::config::Config) -> crate::Re
 
 async fn run_server(args: host::Args, config: dokime::config::Config) -> host::Result<()> {
     let network = args.network.config()?;
-    let application_root = config.application_root.clone().expect("resolved application root");
+    let paths = config.application.clone().expect("resolved application paths");
+    let application_root = paths.root.clone();
     let storage_root = config.output_root.clone();
     let terminal = dokime::terminal::Terminal::new(crate::terminal::color_mode());
-    let _guards = host::install_logging(&application_root, terminal.color_enabled())?;
+    let _guards = host::install_logging(&paths, terminal.color_enabled())?;
     let network = network.with_trace_journal(_guards.journal());
 
     let start = host::Session::start(&args, config, network, |name| emit_phase(args.dev_control, name));

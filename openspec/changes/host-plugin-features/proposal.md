@@ -24,4 +24,4 @@ Locked by the owner on 2026-10-29.
 
 ## Impact
 
-`dokime-domain` (`process`, host stream table and identities, host document defaults, Wi-Fi occupancy plot binding), `plugins/sidecars/host` (collectors, platform code, observers, operations, settings), `dokime-runtime` plot context and test fixtures, the GUI Wi-Fi plot context, the OBC suites and soak template, the product guide's host telemetry section and every crate that starts a child process. Linux paths are proven by CI only.
+`dokime-domain` (`process` and generic plot validation), `plugins/sidecars/host` (host stream rows, contracts and cadences, host document defaults, Wi-Fi occupancy binding, collectors, platform code, observers, operations, settings), `dokime-runtime` plot context and test fixtures, the GUI Wi-Fi plot context, the OBC suites and soak template, the product guide's host telemetry section and every crate that starts a child process. Linux paths are proven by CI only.

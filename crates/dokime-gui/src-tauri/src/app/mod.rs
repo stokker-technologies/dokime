@@ -91,22 +91,17 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
 /* === Private Functions === */
 
 fn start_tauri_app() -> tauri::Result<()> {
-    // Bound before the builder: a plugin drop that stalls before the webview
-    // reaches a single command still needs its bridge-open/write/finish
-    // lines, so the subscriber cannot wait for `setup()`. `generate_context!`
-    // already carries the bundle identifier the file layer resolves its
-    // directory from; the same `context` value is later handed to `.build`.
+    // Resolve Identity Before Logging, Organization Or Windows.
     let mut context = tauri::generate_context!();
-    if let Some(root) = std::env::var_os("DOKIME_APPLICATION_ROOT").filter(|root| !root.is_empty()) {
-        let root = std::path::absolute(root)?;
-        context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(root));
-    }
-    let _log_guards = logging::init(&context.config().identifier, DESKTOP_RETAINED_LOG_FILES as usize);
+    let paths = dokime::paths::ApplicationPaths::resolve(&context.config().identifier)?;
+    context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(paths.root.clone()));
+    let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
-    let root = settings::application_root(&context.config().identifier)?;
     let instance = if launch.target.is_none() && launch.error.is_none() {
-        match tauri::async_runtime::block_on(instance::Instance::acquire(&root))? {
+        // Single-Instance Identity Remains Compiled For This Release.
+        let instance_paths = dokime::paths::ApplicationPaths::resolve_identifier(&context.config().identifier, None)?;
+        match tauri::async_runtime::block_on(instance::Instance::acquire(&instance_paths.root))? {
             Some(instance) => Some(instance),
             None => return Ok(()),
         }
@@ -124,6 +119,7 @@ fn start_tauri_app() -> tauri::Result<()> {
         .manage(plugins::DroppedFiles::default())
         .manage(crate::connection::registry::Registry::default())
         .manage(launch)
+        .manage(paths)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
                 window.state::<plugins::DroppedFiles>().record(window.label(), paths);
@@ -220,6 +216,7 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         let navigation_config = app.config().clone();
         let brand = app.state::<organization::OrganizationState>().initialization_script();
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
+            .data_directory(app.state::<dokime::paths::ApplicationPaths>().webview())
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
         let organization = app.state::<organization::OrganizationState>();
@@ -239,15 +236,11 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         // Existing WebDriver Opt-In Through The Native Environment Options.
         #[cfg(windows)]
         let builder = if std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true") {
-            let builder = match std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+            match std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
                 Ok(arguments) if !arguments.is_empty() => builder.additional_browser_args(&format!(
                     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required {arguments}"
                 )),
                 _ => builder,
-            };
-            match std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").filter(|directory| !directory.is_empty()) {
-                Some(directory) => builder.data_directory(directory.into()),
-                None => builder,
             }
         } else {
             builder

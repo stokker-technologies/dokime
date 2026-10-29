@@ -7,7 +7,7 @@
  * ***
  */
 
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 /**
  * How a reader may interact with the plots inside one surface.
@@ -24,12 +24,15 @@ export type PlotInteraction = {
    * Both surfaces support box zoom on both axes.
    */
   zoom: boolean;
+  /** Compatible plots in one group share only cursor movement. */
+  syncKey?: string;
 };
 
 const PlotInteractionContext = createContext<PlotInteraction>({ zoom: false });
 
-export function PlotInteractionProvider({ children, ...interaction }: PlotInteraction & { children: ReactNode }) {
-  return <PlotInteractionContext.Provider value={interaction}>{children}</PlotInteractionContext.Provider>;
+export function PlotInteractionProvider({ children, zoom, syncKey }: PlotInteraction & { children: ReactNode }) {
+  const value = useMemo(() => ({ zoom, syncKey }), [zoom, syncKey]);
+  return <PlotInteractionContext.Provider value={value}>{children}</PlotInteractionContext.Provider>;
 }
 
 export function usePlotInteraction(): PlotInteraction {

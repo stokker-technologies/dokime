@@ -89,7 +89,7 @@ export function documentPlotSpec({
     contextSummary: plotContextSummary({ stream: plot.stream, telemetry }),
     context: {
       ...(payload?.context ?? {}),
-      ...(plotContext({ stream: plot.stream, telemetry }) ?? {}),
+      ...(plotContext({ stream: plot.stream, plotType: plot.plot_type, telemetry }) ?? {}),
     },
     liveWindowS: payload ? (payload.window_s ?? null) : (plot.live_window_s ?? null),
     xFormat,
@@ -253,26 +253,20 @@ function referenceLineSourceValue(
 
 function plotContext({
   stream,
+  plotType,
   telemetry,
 }: {
   stream: string;
+  plotType: DocumentViewPlot["plot_type"];
   telemetry?: Record<string, TelemetryStream> | null;
 }): Record<string, unknown> | undefined {
-  if (stream !== "host.wifi.scan") {
-    return undefined;
-  }
-  const occupancySamples = telemetry?.["host.wifi.scan"]?.samples ?? [];
-  const wifiSamples = telemetry?.["host.wifi.link"]?.samples ?? [];
-  const latestOccupancy = occupancySamples[occupancySamples.length - 1];
-  const latestWifi = wifiSamples[wifiSamples.length - 1];
-  const latest = latestOccupancy ?? latestWifi;
-  if (!latest) {
-    return undefined;
-  }
+  if (plotType !== "wifi_channel_occupancy") return undefined;
+  const latest = latestSample(telemetry, stream);
+  if (!latest) return undefined;
   return {
-    active_wifi_channel: latest.active_wifi_channel ?? latest.wifi_channel,
-    active_wifi_band: latest.active_wifi_band ?? latest.wifi_band,
-    active_wifi_ssid: latest.active_wifi_ssid ?? latest.wifi_ssid,
+    active_wifi_channel: latest.active_wifi_channel,
+    active_wifi_band: latest.active_wifi_band,
+    active_wifi_ssid: latest.active_wifi_ssid,
   };
 }
 

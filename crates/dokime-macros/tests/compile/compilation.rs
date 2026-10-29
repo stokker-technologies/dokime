@@ -33,6 +33,7 @@
 struct SdkArtifact {
     library: std::path::PathBuf,
     serde: std::path::PathBuf,
+    host: std::path::PathBuf,
     native_paths: Vec<std::path::PathBuf>,
 }
 
@@ -67,6 +68,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
         let closure = sdk_closure(&built_tests.join("metadata.json"), &manifest);
         let mut artifacts = Vec::new();
         let mut serde = None;
+        let mut host = Vec::new();
         let mut native_paths = Vec::new();
         for line in built.lines() {
             let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
@@ -106,6 +108,13 @@ fn sdk_artifact() -> &'static SdkArtifact {
                 }
             }
 
+            if value["reason"] == "compiler-artifact" && value["target"]["name"] == "dokime_host" {
+                let features = value["features"].as_array().unwrap().len();
+                let libraries = value["filenames"].as_array().unwrap().iter().filter_map(|name| name.as_str());
+                let libraries = libraries.filter(|name| name.ends_with(".rlib"));
+                host.extend(libraries.map(|name| (features, std::path::PathBuf::from(name))));
+            }
+
             if value["reason"] != "compiler-artifact"
                 || !value["manifest_path"].as_str().is_some_and(|path| same_path(&manifest, path))
                 || value["target"]["name"] != "dokime"
@@ -137,10 +146,16 @@ fn sdk_artifact() -> &'static SdkArtifact {
         );
         let library = artifacts.pop().unwrap().1;
         let serde = serde.expect("Cargo must identify the SDK serde library").1;
+        host.sort();
+        let widest = host.last().map(|(features, _)| *features);
+        let matching = host.iter().filter(|(features, _)| Some(*features) == widest).count();
+        assert_eq!(matching, 1, "Cargo must identify exactly one workspace host definitions rlib");
+        let host = host.pop().expect("Cargo must identify the host definitions library").1;
         let target = target.canonicalize().unwrap();
         assert!(library.canonicalize().unwrap().starts_with(&target));
         assert!(serde.canonicalize().unwrap().starts_with(&target));
-        SdkArtifact { library, serde, native_paths }
+        assert!(host.canonicalize().unwrap().starts_with(&target));
+        SdkArtifact { library, serde, host, native_paths }
     })
 }
 
@@ -209,6 +224,8 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
         .arg(format!("sdk={}", sdk.library.display()))
         .arg("--extern")
         .arg(format!("serde={}", sdk.serde.display()))
+        .arg("--extern")
+        .arg(format!("dokime_host={}", sdk.host.display()))
         .arg("-L")
         .arg(format!("dependency={}", dependencies.display()))
         .args(sdk.native_paths.iter().flat_map(|path| ["-L".to_owned(), format!("native={}", path.display())]))
@@ -507,8 +524,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime_host::System: Publishable` is not satisfied",
+        "the trait bound `dokime_host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -538,10 +555,10 @@ fn mount_refuses_unserved() {
     assert!(!built.status.success());
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The template says which operations it calls and the plugin says which it
-    // requires or serves privately; binding the suite compares them once, as a
+    // requires or serves to plugin callers; binding the suite compares them once, as a
     // constant read after monomorphization.
     assert!(
-        diagnostics.contains("a template requires an operation its plugin neither names in `requires(...)` nor provides privately"),
+        diagnostics.contains("a template requires an operation its plugin neither names in `requires(...)` nor provides to plugin callers"),
         "{diagnostics}"
     );
     assert!(diagnostics.contains("TemplateBindings<Plugin>"), "{diagnostics}");

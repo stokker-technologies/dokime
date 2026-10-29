@@ -59,7 +59,9 @@ pub(crate) async fn concurrent_creators_identity() {
             let barrier = Arc::clone(&barrier);
             tokio::spawn(async move {
                 barrier.wait().await;
-                let settings = dokime_runtime::config::Settings::open(application, database).await.unwrap();
+                let settings = dokime_runtime::config::Settings::open(dokime_runtime::paths::ApplicationPaths::new(application), database)
+                    .await
+                    .unwrap();
                 settings.read(|metadata| metadata.identity.clone()).await.unwrap()
             })
         })

@@ -11,6 +11,8 @@
 
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { DokimeToaster } from "@/components/DokimeToaster";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -59,5 +61,12 @@ async function start(): Promise<void> {
 }
 
 void start().catch((error: unknown) => {
-  root.render(<p role="alert">{error instanceof Error ? error.message : String(error)}</p>);
+  root.render(
+    <>
+      <DokimeToaster />
+      <NotificationMessage source="Report" title="Report Could Not Open">
+        {error instanceof Error ? error.message : String(error)}
+      </NotificationMessage>
+    </>,
+  );
 });

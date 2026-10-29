@@ -81,7 +81,7 @@ impl Collector<'_> {
     async fn collect(&self, log_tail_bytes: u64) -> Result<bundle::Bundle, Status> {
         let generated_at = dokime::model::time::now_utc();
         let source = |key: DiagnosticPathKey| {
-            dokime::domains::exports::storage::path_conventions(&self.runtime.application_root())
+            dokime::domains::exports::storage::path_conventions(&self.runtime.application_paths())
                 .into_iter()
                 .find(|convention| convention.key == key)
                 .and_then(|convention| convention.absolute_path)
@@ -139,12 +139,8 @@ pub(super) async fn collect(
     Collector { runtime, identity }.collect(log_tail_bytes).await
 }
 
-pub(super) fn hub_log_path(application_root: &std::path::Path) -> std::path::PathBuf {
-    dokime::domains::exports::storage::path_conventions(application_root)
-        .into_iter()
-        .find(|convention| convention.key == DiagnosticPathKey::HubLog)
-        .and_then(|convention| convention.absolute_path)
-        .map_or_else(|| application_root.join("logs").join("dokime.jsonl"), std::path::PathBuf::from)
+pub(super) fn hub_log_path(paths: &dokime::paths::ApplicationPaths) -> std::path::PathBuf {
+    paths.logs().join(dokime::domains::exports::storage::HUB_LOG_FILENAME)
 }
 
 /* === Private Functions === */

@@ -12,10 +12,10 @@
 
 /* === External Imports === */
 
-import { toast } from "sonner";
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -165,7 +165,7 @@ function writeDesktop(values: ParameterOverrides): Promise<void> {
         try {
           await commands.desktopParametersWrite(next);
         } catch (error) {
-          toast.error("Could not save remembered parameters.", { description: String(error) });
+          toast.error("Could Not Save Remembered Parameters", { description: String(error) });
         }
       }
     })().finally(() => {

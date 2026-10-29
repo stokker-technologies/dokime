@@ -99,7 +99,9 @@ Thumbs.db
 
 # BEGIN Stkr CI
 /.cache/
-/.mise/
+/.mise/*
+!/.mise/locks/
+!/.mise/locks/**
 # END Stkr CI
 
 # OpenSpec Changes And Specs Are Tracked; Uncomment To Keep Them Local.

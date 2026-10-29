@@ -485,9 +485,10 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
  * WebKitWebDriver 2.52 serializes commands per session and a concurrent pair
  * can leave one of them pending forever.
  */
-async function startSession(work, endpoint, evidence) {
+async function startSession(work, endpoint, evidence, distribution) {
   const home = join(work, "shell");
   const downloads = join(evidence, "downloads");
+  const applicationRoot = distribution ? join(home, "data", distribution.identifier) : join(home, "application");
   for (const directory of ["config", "data", "state", "cache", "bin"]) {
     await mkdir(join(home, directory), { recursive: true });
   }
@@ -517,10 +518,11 @@ async function startSession(work, endpoint, evidence) {
         ...process.env,
         TAURI_WEBVIEW_AUTOMATION: "true",
         DOKIME_AUTOMATION_REPORT_OPENER: reportBrowser.endpoint,
-        DOKIME_APPLICATION_ROOT: join(home, "application"),
+        DOKIME_APPLICATION_ROOT: distribution ? "" : applicationRoot,
+        ...(distribution ? { DOKIME_OUTPUT_ROOT: "", DOKIME_PLUGINS_DIR: "" } : {}),
         ...(windows
           ? {
-              WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+              WEBVIEW2_USER_DATA_FOLDER: "",
               APPDATA: join(home, "data"),
               LOCALAPPDATA: join(home, "data"),
             }
@@ -579,7 +581,7 @@ async function startSession(work, endpoint, evidence) {
             browserName: "webview2",
             "ms:edgeChromium": true,
             "ms:edgeOptions": {
-              binary: resolve(shellBinary),
+              binary: resolve(distribution?.shell ?? shellBinary),
               args: endpoint ? [`--endpoint=${endpoint}`] : [],
               excludeSwitches: ["enable-logging"],
             },
@@ -588,7 +590,7 @@ async function startSession(work, endpoint, evidence) {
             browserName: "wry",
             "webkitgtk:browserOptions": {
               args: endpoint ? [`--endpoint=${endpoint}`] : [],
-              binary: resolve(shellBinary),
+              binary: resolve(distribution?.shell ?? shellBinary),
             },
           },
     },
@@ -596,7 +598,7 @@ async function startSession(work, endpoint, evidence) {
 
   const session = {
     closed: false,
-    applicationRoot: join(home, "application"),
+    applicationRoot,
     downloads,
     id: created.sessionId,
     lastBody: "",
@@ -2244,11 +2246,11 @@ async function cycleJourney(session, cycleId) {
     "the plot identity to configure",
     () =>
       session.execute(`
-    return document.querySelector('button[aria-label^="Plot settings for "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+    return document.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
   `),
     120000,
   );
-  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot settings for ']`;
+  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
   await session.clickCss(settingsSelector);
   const settingsText = await until(
     "plot settings dialog",
@@ -2295,7 +2297,7 @@ async function cycleJourney(session, cycleId) {
         `
     const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
       .find((node) => node.dataset.plotId === arguments[0]);
-    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot settings for "]'));
+    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot Settings For "]'));
   `,
         [plotId],
       ),
@@ -2354,7 +2356,7 @@ async function cycleJourney(session, cycleId) {
     "the native trace statistics headers",
     () =>
       session.execute(`
-        const tables = [...document.querySelectorAll('table[aria-label="Trace statistics"]')];
+        const tables = [...document.querySelectorAll('table[aria-label="Trace Statistics"]')];
         if (!tables.length) return null;
         return tables.flatMap(table => [...table.querySelectorAll('th')].map(header => {
           const leaves = [...header.querySelectorAll('span')].filter(node => !node.children.length && node.textContent.trim());
@@ -3163,10 +3165,10 @@ async function remoteAccessJourney() {
     await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
   }
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions for desktop-pairing");
+  await openMenu(session, "Actions For desktop-pairing");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
-  await until("paired backend removed", async () => !(await session.exists("button", "Actions for desktop-pairing")));
+  await until("paired backend removed", async () => !(await session.exists("button", "Actions For desktop-pairing")));
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -3298,7 +3300,7 @@ async function settingsJourney(session, notes) {
       await session.type(input, text);
     }
     await session.clickNamed("button", "Save Secret");
-    await until("shared keyring entry saved", () => session.exists("button", `Actions for ${name}`));
+    await until("shared keyring entry saved", () => session.exists("button", `Actions For ${name}`));
     assert.ok(
       await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Edit' and not(@disabled)]`),
       "The saved secret remains editable",
@@ -3306,10 +3308,10 @@ async function settingsJourney(session, notes) {
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
   }
   for (const name of ["e2e.settings.first", "e2e.settings.second"]) {
-    await openMenu(session, `Actions for ${name}`);
+    await openMenu(session, `Actions For ${name}`);
     await session.clickNamed("menuitem", "Delete");
     await session.clickNamed("button", "Confirm Delete");
-    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions for ${name}`)));
+    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions For ${name}`)));
   }
 
   /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
@@ -3368,7 +3370,7 @@ async function settingsJourney(session, notes) {
 
   await add("native-recovery");
   await add("native-stale", "deliberately-wrong-native-identity");
-  await openMenu(session, "Actions for native-stale");
+  await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
@@ -3389,7 +3391,7 @@ async function settingsJourney(session, notes) {
     return status.connection.phase === "connected";
   });
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions for native-stale");
+  await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("stale profile removed", async () => {
@@ -3597,7 +3599,7 @@ async function reportJourney(session, cycleId) {
     reportButtons = await evaluate(`
       [...document.querySelectorAll('button')].map(button => ({
         label: button.innerText.trim(),
-        trace: Boolean(button.closest('table[aria-label="Trace statistics"]')),
+        trace: Boolean(button.closest('table[aria-label="Trace Statistics"]')),
       }))
     `);
     // A Controlled Analysis Failure Uses The Packaged Report's Actual Renderer And Styles.
@@ -4642,6 +4644,45 @@ for index in range(desktop.get_child_count()):
   return outcome === "closed";
 }
 
+async function distributionIdentityJourney() {
+  await closeSession();
+  const directory = join(work, "distributions");
+  const shared = join(directory, "user");
+  const suffix = windows ? ".exe" : "";
+  const identities = ["com.stokker.dokime", "com.hilti.dokime"];
+  const roots = [];
+  for (const identifier of identities) {
+    const installation = join(directory, identifier);
+    await mkdir(installation, { recursive: true });
+    const shell = join(installation, `dokime-gui${suffix}`);
+    await copyFile(shellBinary, shell);
+    if (identifier !== identities[0]) {
+      await writeFile(join(installation, "distribution.json"), JSON.stringify({ schema: 1, identifier }));
+    }
+    session = await startSession(shared, undefined, evidence, { identifier, shell });
+    await session.connected();
+    const application = session.applicationRoot;
+    roots.push(application);
+    assert.ok(existsSync(join(application, "data")), "The owned backend uses this distribution's data directory");
+    const logs = windows ? join(application, "logs") : join(shared, "shell", "state", identifier, "logs");
+    assert.ok(
+      (await readdir(logs)).some((name) => name.startsWith("dokime-gui.")),
+      "Desktop logging uses this distribution's log directory",
+    );
+    const webview = join(application, windows ? "EBWebView" : "webview");
+    assert.ok(existsSync(webview), "The native WebView uses this distribution's profile");
+    await writeFile(join(application, "identity-proof"), identifier);
+    await closeSession();
+  }
+  assert.notEqual(roots[0], roots[1]);
+  for (let index = 0; index < identities.length; index += 1) {
+    assert.equal(await readFile(join(roots[index], "identity-proof"), "utf8"), identities[index]);
+    assert.ok(existsSync(join(roots[index], "data")), "Opening the other distribution preserves this one's data");
+  }
+  session = await startSession(work, backend.endpoint, evidence);
+  await session.connected();
+}
+
 async function organizationJourney() {
   const root = join(work, "shell", "application", "organization");
   const archive = join(work, "organization.zip");
@@ -4703,7 +4744,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   assert.equal(
     await readFile(join(root, "active", "organization.toml"), "utf8"),
     manifest,
-    "Compiled storage identity owns the active pack",
+    "The resolved application root owns the active pack",
   );
   assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
   await session.screenshot("organization-active");
@@ -4943,6 +4984,7 @@ async function main() {
   await journey("settings", () => settingsJourney(session, notes));
   await journey("plugin-install", pluginInstallJourney);
   await journey("organization", organizationJourney);
+  await journey("distribution-identity", distributionIdentityJourney);
   await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a
@@ -5002,7 +5044,7 @@ try {
           ["desktop", work],
           ["independent-desktop", join(work, "independent-desktop")],
         ]) {
-          const directory = join(root, "shell", "data", "com.stokker.dokime", "logs");
+          const directory = join(root, "shell", "application", "logs");
           if (!existsSync(directory)) continue;
           for (const file of await readdir(directory)) {
             if (!/^dokime-gui\..*\.log$/.test(file)) continue;

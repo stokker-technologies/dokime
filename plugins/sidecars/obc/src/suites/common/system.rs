@@ -33,12 +33,12 @@ use dokime::prelude::*;
 
 #[dokime::catalog]
 pub enum SystemInputs {
-    System(host::System),
-    Network(host::Network),
-    WifiLink(host::WifiLink),
-    WifiLatency(host::WifiLatency),
-    WifiScan(host::WifiScan),
-    Bluetooth(host::Bluetooth),
+    System(dokime_host::System),
+    Network(dokime_host::Network),
+    WifiLink(dokime_host::WifiLink),
+    WifiLatency(dokime_host::WifiLatency),
+    WifiScan(dokime_host::WifiScan),
+    Bluetooth(dokime_host::Bluetooth),
 }
 
 /* === Traits === */
@@ -50,17 +50,21 @@ pub enum SystemInputs {
 pub fn section(owner: &str) -> Section {
     let mut section = Section::new("System Information");
 
-    section.plot(series(owner, "cpu_load", "CPU Load", "%", 1, [host::System::cpu_load_percent()]));
-    section.plot(series(owner, "memory_pressure", "Memory Pressure", "%", 1, [host::System::memory_pressure_percent()]));
-    section.plot(series(owner, "battery_power", "Battery Power", "W", 2, [host::System::battery_energy_rate_w()]));
-    section.plot(series(owner, "battery_voltage", "Battery Voltage", "V", 2, [host::System::battery_voltage_v()]));
+    section.plot(series(owner, "cpu_load", "CPU Load", "%", 1, [dokime_host::System::cpu_load_percent()]));
+    section.plot(series(owner, "memory_pressure", "Memory Pressure", "%", 1, [dokime_host::System::memory_pressure_percent()]));
+    section.plot(series(owner, "battery_power", "Battery Power", "W", 2, [dokime_host::System::battery_energy_rate_w()]));
+    section.plot(series(owner, "battery_voltage", "Battery Voltage", "V", 2, [dokime_host::System::battery_voltage_v()]));
     section.plot(series(
         owner,
         "battery_energy",
         "Battery Energy",
         "Wh",
         1,
-        [host::System::battery_energy_wh(), host::System::battery_energy_full_wh(), host::System::battery_energy_full_design_wh()],
+        [
+            dokime_host::System::battery_energy_wh(),
+            dokime_host::System::battery_energy_full_wh(),
+            dokime_host::System::battery_energy_full_design_wh(),
+        ],
     ));
     section.plot(series(
         owner,
@@ -68,17 +72,17 @@ pub fn section(owner: &str) -> Section {
         "Battery State of Charge",
         "ratio",
         2,
-        [host::System::battery_state_of_charge_ratio()],
+        [dokime_host::System::battery_state_of_charge_ratio()],
     ));
-    section.plot(series(owner, "battery_temperature", "Battery Temperature", "°C", 1, [host::System::battery_temperature_c()]));
-    section.plot(series(owner, "wifi_rssi", "Wi-Fi RSSI", "dBm", 0, [host::WifiLink::wifi_rssi_dbm()]));
+    section.plot(series(owner, "battery_temperature", "Battery Temperature", "°C", 1, [dokime_host::System::battery_temperature_c()]));
+    section.plot(series(owner, "wifi_rssi", "Wi-Fi RSSI", "dBm", 0, [dokime_host::WifiLink::wifi_rssi_dbm()]));
     section.plot(series(
         owner,
         "wifi_phy_rate",
         "Wi-Fi PHY Rate",
         "Mbps",
         1,
-        [host::WifiLink::wifi_rx_phy_mbps(), host::WifiLink::wifi_tx_phy_mbps()],
+        [dokime_host::WifiLink::wifi_rx_phy_mbps(), dokime_host::WifiLink::wifi_tx_phy_mbps()],
     ));
     section.plot(series(
         owner,
@@ -86,13 +90,13 @@ pub fn section(owner: &str) -> Section {
         "Wi-Fi Throughput",
         "Mbps",
         2,
-        [host::WifiLink::wifi_rx_mbps(), host::WifiLink::wifi_tx_mbps()],
+        [dokime_host::WifiLink::wifi_rx_mbps(), dokime_host::WifiLink::wifi_tx_mbps()],
     ));
     // The Scan Itself: Every Channel With Its Network Count And Strongest Signal
-    let mut occupancy = Plot::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
+    let mut occupancy = dokime_host::domain::document::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
     occupancy.id(format!("{owner}.system.wifi_channel_occupancy"));
     section.plot(occupancy);
-    section.plot(series(owner, "wifi_latency", "Wi-Fi Latency", "ms", 1, [host::WifiLatency::wifi_latency_ms()]));
+    section.plot(series(owner, "wifi_latency", "Wi-Fi Latency", "ms", 1, [dokime_host::WifiLatency::wifi_latency_ms()]));
 
     section
 }

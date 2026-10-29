@@ -124,7 +124,7 @@ pub(super) fn admit(window: &WebviewWindow, state: &ConnectionSession, generatio
 }
 
 fn pick_bundle(app: AppHandle) -> Result<Option<PathBuf>, String> {
-    let dialog = app.dialog().file().add_filter("Plugin bundle", &["dokime"]);
+    let dialog = app.dialog().file().add_filter("Plugin Bundle", &["dokime"]);
     let Some(path) = dialog.blocking_pick_file() else {
         return Ok(None);
     };

@@ -42,6 +42,8 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. The desktop remembers that choice; operators do not need a source checkout.
 
+Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+
 #### Examples
 
 ![Test templates and cases in the Dokime library](screenshots/library.png)
@@ -83,7 +85,7 @@ backend profiles and execution APIs; the [runnable examples](packages/dokime-cli
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(pinned to development revision `648b3c7b79dc15c858666d1117c2abc97253910c` until the next Harmos release)
+(currently pinned to the published `0.1.13` release)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -92,8 +94,33 @@ The test-only [OBC plugin](plugins/sidecars/obc/) simulates a charger without ph
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
 
-Custom installers select bundles explicitly with repeatable `cargo dokime installer
-package --plugin <bundle>` arguments. See the [installer guide](docs/product-guide.md#native-installers)
+Use the starter's `dokime` dependency with the `plugin-sidecar` feature. Authoring
+macros and contracts come through that facade. For example, the
+[capture template](plugins/sidecars/obc/src/suites/benchmarks/capture.rs) declares
+validated parameters and cartesian expansion with:
+
+```rust
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(label = "Rows", default = 100_000, min = 1, max = 200_000)]
+    pub rows: u64,
+
+    #[parameter(label = "Member", default = 0, expansion = "cartesian")]
+    pub member: u64,
+}
+```
+
+The same plugin uses `#[dokime::observer]` for its
+[system measurements](plugins/sidecars/obc/src/observers/system.rs) and
+`#[dokime::criterion]` for its
+[pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
+
+Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
+keep their installation and storage separate from plain Dokime. They include
+verified bundles from an organization pack's `plugins/` folder or repeatable
+`cargo dokime installer package --plugin <bundle>` arguments. Bundled plugins
+install on startup without replacing newer installed versions. See the
+[installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
 ## Quick Start
@@ -107,6 +134,10 @@ Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the
 [product guide](docs/product-guide.md) for the detailed model and limitations.
 
+CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
+(Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
+for archive selection and the release download inventory.
+
 ### Configuration
 
 Dokime stores application preferences in its SQLite storage root. Use Settings
@@ -114,8 +145,9 @@ in the desktop application to change appearance, client timeouts, report plot
 defaults, telemetry cadence and remote listener preferences. Updates carry a
 revision; conflicting edits require refreshing before saving again.
 
-The application folder defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows
-or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
+The application folder derives from the installed distribution identifier, falling
+back to the compiled identifier when `distribution.json` is absent. Plain Dokime
+defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing the older JSON stream-row format require a fresh storage root. Dokime reports incompatible data and never resets an existing root.

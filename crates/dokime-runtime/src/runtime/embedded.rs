@@ -47,7 +47,6 @@ pub(super) struct Active {
     pub(super) catalog: ProviderCatalog,
     pub(super) definition: harmos::plugin::PluginDefinition,
     pub(super) streams: Vec<StreamDeclaration>,
-    observers: native_telemetry::Subscriptions,
 }
 
 pub(super) struct Instance {
@@ -166,7 +165,6 @@ impl Active {
             catalog: ProviderCatalog::Embedded { plugin: Box::new(catalog), generation },
             definition,
             streams,
-            observers: Vec::new(),
         })
     }
 
@@ -181,18 +179,8 @@ impl Active {
         }
     }
 
-    pub(super) fn expose(&mut self, handle: &RuntimeHandle) {
-        if self.observers.is_empty() {
-            self.observers = native_telemetry::observe(handle, &self.definition.id);
-        }
-    }
-
-    pub(super) fn release_observers(&mut self) {
-        self.observers.clear();
-    }
-
-    pub(super) fn retain_observers(&mut self, previous: Self) {
-        self.observers = previous.observers;
+    pub(super) fn expose(&self, handle: &RuntimeHandle) {
+        handle.engage_owned_demand(&self.definition.id);
     }
 }
 

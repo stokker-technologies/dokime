@@ -311,34 +311,26 @@ pub async fn desktop_artifact_deliver(
     ensure_generation_token(&generation).map_err(prepare)?;
     ensure_picker_kind(request.kind).map_err(prepare)?;
     let session = state.inner().clone();
-    let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
     let filename = sanitize_filename(&request.filename, request.kind, DESKTOP_REPORT_FILENAME_CHARS as usize).map_err(prepare)?;
-    let selected = if request.action == DeliveryAction::Save {
+    if request.action == DeliveryAction::Save {
         let picker_app = app.clone();
-        let filename = filename.clone();
+        let picker_filename = filename.clone();
         let kind = request.kind;
-        let selected = tauri::async_runtime::spawn_blocking(move || pick_destination(picker_app, filename, kind, true))
-            .await
-            .map_err(|error| prepare(error.to_string()))?
-            .map_err(prepare)?;
-        let Some(selected) = selected else { return Ok(None) };
-        Some(selected)
-    } else {
-        None
-    };
-    ensure_document_session(&session, &generation).map_err(prepare)?;
-    let directory = match &selected {
-        Some((destination, _)) => destination.parent().ok_or_else(|| prepare("Destination has no parent".into()))?.to_path_buf(),
-        None => {
-            let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
-            let directory = cache.clone();
-            tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&directory))
+        let picked = async move {
+            tauri::async_runtime::spawn_blocking(move || pick_destination(picker_app, picker_filename, kind, true))
                 .await
-                .map_err(|error| prepare(error.to_string()))?
-                .map_err(prepare)?;
-            cache
-        }
-    };
+                .map_err(|error| error.to_string())?
+        };
+        return save_verified(session, generation, request.source, filename, picked).await;
+    }
+    let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+    let directory = app.state::<dokime::paths::ApplicationPaths>().cache().join("documents");
+    let cache = directory.clone();
+    tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&cache))
+        .await
+        .map_err(|error| prepare(error.to_string()))?
+        .map_err(prepare)?;
     let staged = tempfile::Builder::new()
         .prefix(".dokime-")
         .suffix(&format!("-{filename}"))
@@ -353,75 +345,86 @@ pub async fn desktop_artifact_deliver(
     let cleanup = staged;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
-    // Rename Or Open: Hand The Verified File To Its Destination
-    match request.action {
-        DeliveryAction::Save => {
-            let (destination, overwrite) = selected.expect("save destination selected before download");
-            ensure_document_session(&session, &generation).map_err(prepare)?;
-            let origin = verified.report_origin();
-            move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
-                .await
-                .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
-            Ok(Some(Delivered {
-                path: destination.to_string_lossy().into_owned(),
-                origin,
-            }))
+    // Open The Verified Cache File
+    let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
+    let path = verified.path.clone();
+    tauri::async_runtime::spawn_blocking(move || set_private_file(&path)).await.map_err(|error| open(error.to_string()))?.map_err(open)?;
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+    // The opener call itself forks/execs a launcher process; run it
+    // on the blocking pool so it never occupies a Tokio worker
+    // thread other in-flight async commands need.
+    let path = verified.path.to_string_lossy().into_owned();
+    let launched = path.clone();
+    let automation = (std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true"))
+        .then(|| std::env::var("DOKIME_AUTOMATION_REPORT_OPENER").ok())
+        .flatten();
+    if let Some(endpoint) = automation {
+        let endpoint = url::Url::parse(&endpoint).map_err(|error| open(error.to_string()))?;
+        if endpoint.scheme() != "http"
+            || endpoint.host_str() != Some("127.0.0.1")
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.path() != "/open"
+        {
+            return Err(open("The automation report opener must be an owned loopback endpoint.".to_owned()));
         }
-        DeliveryAction::Open => {
-            let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
-            let path = verified.path.clone();
-            tauri::async_runtime::spawn_blocking(move || set_private_file(&path))
-                .await
-                .map_err(|error| open(error.to_string()))?
-                .map_err(open)?;
-            ensure_document_session(&session, &generation).map_err(prepare)?;
-            // The opener call itself forks/execs a launcher process; run it
-            // on the blocking pool so it never occupies a Tokio worker
-            // thread other in-flight async commands need.
-            let path = verified.path.to_string_lossy().into_owned();
-            let launched = path.clone();
-            let automation = (std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true"))
-                .then(|| std::env::var("DOKIME_AUTOMATION_REPORT_OPENER").ok())
-                .flatten();
-            if let Some(endpoint) = automation {
-                let endpoint = url::Url::parse(&endpoint).map_err(|error| open(error.to_string()))?;
-                if endpoint.scheme() != "http"
-                    || endpoint.host_str() != Some("127.0.0.1")
-                    || !endpoint.username().is_empty()
-                    || endpoint.password().is_some()
-                    || endpoint.path() != "/open"
-                {
-                    return Err(open("The automation report opener must be an owned loopback endpoint.".to_owned()));
-                }
-                ensure_document_session(&session, &generation).map_err(prepare)?;
-                let client = crate::app::http::client()
-                    .no_proxy()
-                    .redirect(reqwest::redirect::Policy::none())
-                    .build()
-                    .map_err(|error| open(error.to_string()))?;
-                let response = client
-                    .post(endpoint)
-                    .json(&serde_json::json!({ "path": launched }))
-                    .timeout(std::time::Duration::from_millis(DESKTOP_DOCUMENT_TIMEOUT_MS))
-                    .send()
-                    .await
-                    .map_err(|error| open(error.to_string()))?;
-                response.error_for_status().map_err(|error| open(error.to_string()))?;
-            } else {
-                tauri::async_runtime::spawn_blocking(move || {
-                    let opener = app.opener();
-                    let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
-                    let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
-                    opened.map_err(|error| error.to_string())
-                })
-                .await
-                .map_err(|error| open(error.to_string()))?
-                .map_err(open)?;
-            }
-            cleanup.keep().map_err(|error| open(error.to_string()))?;
-            Ok(Some(Delivered { path, origin: verified.report_origin() }))
-        }
+        ensure_document_session(&session, &generation).map_err(prepare)?;
+        let client = crate::app::http::client()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| open(error.to_string()))?;
+        let response = client
+            .post(endpoint)
+            .json(&serde_json::json!({ "path": launched }))
+            .timeout(std::time::Duration::from_millis(DESKTOP_DOCUMENT_TIMEOUT_MS))
+            .send()
+            .await
+            .map_err(|error| open(error.to_string()))?;
+        response.error_for_status().map_err(|error| open(error.to_string()))?;
+    } else {
+        tauri::async_runtime::spawn_blocking(move || {
+            let opener = app.opener();
+            let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
+            let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
+            opened.map_err(|error| error.to_string())
+        })
+        .await
+        .map_err(|error| open(error.to_string()))?
+        .map_err(open)?;
     }
+    cleanup.keep().map_err(|error| open(error.to_string()))?;
+    Ok(Some(Delivered { path, origin: verified.report_origin() }))
+}
+
+// This Workflow Owns Picker Ordering, Adjacent Staging And Fenced Publication.
+// Tests Supply A Picker Result; Download And Publication Stay On The Real Path.
+pub async fn save_verified(
+    session: ConnectionSession, generation: String, source: ArtifactSource, filename: String,
+    picked: impl std::future::Future<Output = Result<Option<(PathBuf, bool)>, String>>,
+) -> Result<Option<Delivered>, DeliveryError> {
+    let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
+    let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
+    let Some((destination, overwrite)) = picked.await.map_err(prepare)? else { return Ok(None) };
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+    let directory = destination.parent().ok_or_else(|| prepare("Destination has no parent".into()))?;
+    let staged = tempfile::Builder::new()
+        .prefix(".dokime-")
+        .suffix(&format!("-{filename}"))
+        .tempfile_in(directory)
+        .map_err(|error| prepare(error.to_string()))?
+        .into_temp_path();
+    std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
+    let verified = content::fetch_verified(&lease, &source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+    let origin = verified.report_origin();
+    move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
+        .await
+        .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
+    Ok(Some(Delivered {
+        path: destination.to_string_lossy().into_owned(),
+        origin,
+    }))
 }
 
 pub fn desktop_set_title(window: WebviewWindow, title: String) -> Result<(), String> {
@@ -477,8 +480,8 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
     ensure_generation_token(generation)?;
     let (max_bytes, label) = match document.kind {
         DesktopSaveKind::HtmlReport => return Err("Report HTML is delivered through desktop_artifact_deliver".into()),
-        DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics bundle"),
-        DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON document"),
+        DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics Bundle"),
+        DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON Document"),
         DesktopSaveKind::SecretArchive => (699_052u64 as usize, "Secret archive"),
         DesktopSaveKind::Artifact => return Err("Artifact is delivered through desktop_artifact_deliver".into()),
     };
@@ -500,11 +503,11 @@ fn apply_dialog_filter(
     dialog: tauri_plugin_dialog::FileDialogBuilder<tauri::Wry>, kind: DesktopSaveKind,
 ) -> tauri_plugin_dialog::FileDialogBuilder<tauri::Wry> {
     match kind {
-        DesktopSaveKind::HtmlReport => dialog.add_filter("HTML report", &["html"]),
+        DesktopSaveKind::HtmlReport => dialog.add_filter("HTML Report", &["html"]),
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
-        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
-        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
+        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["zip"]),
+        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON Document", &["json"]),
         DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
     }
@@ -711,7 +714,7 @@ fn pick_destination(
     Ok(confirmed.then_some((destination, true)))
 }
 
-async fn move_verified_file(
+pub async fn move_verified_file(
     session: ConnectionSession, generation: String, source: PathBuf, destination: PathBuf, overwrite: bool,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -791,6 +794,6 @@ mod tests {
 
         let error = validate_save_document("7", &document).unwrap_err();
 
-        assert!(error.contains("JSON document"), "{error}");
+        assert!(error.contains("JSON Document"), "{error}");
     }
 }

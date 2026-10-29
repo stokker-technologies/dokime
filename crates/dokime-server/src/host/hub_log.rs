@@ -104,8 +104,8 @@ impl Write for RotatingFile {
 
 /* === Public Functions === */
 
-pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
-    let path = hub_log_path(root);
+pub(crate) fn hub_log_layer(paths: &dokime::paths::ApplicationPaths) -> Result<(BoxedLayer, WorkerGuard)> {
+    let path = paths.logs().join(dokime::domains::exports::storage::HUB_LOG_FILENAME);
     let directory = path.parent().ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?.to_path_buf();
     let filename = path
         .file_name()
@@ -135,15 +135,6 @@ pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
 }
 
 /* === Private Functions === */
-
-fn hub_log_path(root: &Path) -> PathBuf {
-    use dokime::domains::exports::storage::DiagnosticPathKey;
-    dokime::domains::exports::storage::path_conventions(root)
-        .into_iter()
-        .find(|convention| convention.key == DiagnosticPathKey::HubLog)
-        .and_then(|convention| convention.absolute_path)
-        .map_or_else(|| root.join("logs").join("dokime.jsonl"), PathBuf::from)
-}
 
 fn append(path: &Path) -> Result<File> {
     OpenOptions::new()

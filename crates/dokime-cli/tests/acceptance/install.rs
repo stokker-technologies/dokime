@@ -65,7 +65,7 @@ struct Host {
     entry: model::plugins::wire::PluginInstallation,
     bytes: Vec<u8>,
     calls: Arc<Mutex<Vec<&'static str>>>,
-    install_code: tonic::Code,
+    install_code: Arc<Mutex<tonic::Code>>,
     descriptor_sha256: Vec<u8>,
 }
 
@@ -110,8 +110,9 @@ operation!(v1::Install, host, _request, input, {
         bytes.extend_from_slice(&chunk.data);
     }
     assert_eq!(bytes, host.bytes);
-    if host.install_code != tonic::Code::Ok {
-        return Err(tonic::Status::new(host.install_code, "installation acknowledgement unavailable"));
+    let code = *host.install_code.lock().unwrap();
+    if code != tonic::Code::Ok {
+        return Err(tonic::Status::new(code, "installation acknowledgement unavailable"));
     }
     Ok(host.entry.clone().into())
 });
@@ -323,7 +324,9 @@ fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
     })
 }
 
-async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
+#[tokio::test]
+async fn install() {
+    let install_code = Arc::new(Mutex::new(tonic::Code::Ok));
     let bundle = install_bundle(3);
     let digest = Sha256::digest(bundle.bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let file = tempfile::NamedTempFile::new().unwrap();
@@ -352,7 +355,7 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
         },
         bytes: bundle.bytes().to_vec(),
         calls: calls.clone(),
-        install_code,
+        install_code: Arc::clone(&install_code),
         descriptor_sha256: {
             let catalog = dokime::harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
             let artifacts = harmos_packaging::proto::Artifacts::new(&catalog).unwrap();
@@ -369,28 +372,21 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
         .await
         .unwrap();
     let endpoint = format!("http://{}", attachment.local_addr());
-    let output = tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint)).await;
+    // One Provider And Bundle Exercise Success Followed By An Uncertain Acknowledgement.
+    for (index, code) in [tonic::Code::Ok, tonic::Code::Unavailable].into_iter().enumerate() {
+        *install_code.lock().unwrap() = code;
+        let path = file.path().to_owned();
+        let endpoint = endpoint.clone();
+        let outcome = tokio::task::spawn_blocking(move || run_cli(&path, &endpoint)).await.unwrap().unwrap();
+        assert_eq!(outcome.success, code == tonic::Code::Ok, "{}", outcome.output);
+        if outcome.success {
+            assert!(outcome.output.contains(ID));
+        }
+        assert!(!outcome.output.contains(SECRET_VALUE));
+        assert_eq!(*calls.lock().unwrap(), vec!["install"; index + 1]);
+    }
     attachment.detach().await.unwrap();
     runtime.shutdown().await.unwrap();
-    let calls = calls.lock().unwrap().clone();
-    (output.unwrap().unwrap(), calls)
-}
-
-#[tokio::test]
-async fn direct_noninteractive_install() {
-    let (outcome, calls) = scenario(tonic::Code::Ok).await;
-    assert!(outcome.success, "{}", outcome.output);
-    assert!(outcome.output.contains(ID));
-    assert!(!outcome.output.contains(SECRET_VALUE));
-    assert_eq!(calls, ["install"]);
-}
-
-#[tokio::test]
-async fn uncertain_install_retained() {
-    let (outcome, calls) = scenario(tonic::Code::Unavailable).await;
-    assert!(!outcome.success);
-    assert!(!outcome.output.contains(SECRET_VALUE));
-    assert_eq!(calls, ["install"]);
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.

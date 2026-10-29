@@ -21,8 +21,10 @@ use std::sync::Mutex;
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model::execution::result::CycleView;
+use dokime_runtime::ValueType;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 
 /* === Constants === */
 // The Steady Charging Cycle That Stranded Its Root Had 9 Members, One With 637
@@ -138,13 +140,23 @@ async fn reboot(root: &Path) -> (Runtime, RuntimeHandle) {
 }
 
 fn wide_config(root: &Path) -> RuntimeConfig {
-    let columns = (0..COLUMNS).map(|index| fixture_host_column(&format!("value_{index:02}"), &format!("Value {index}"))).collect();
+    let columns = (0..COLUMNS)
+        .map(|index| {
+            TelemetryColumn::new(metadata(&format!("value_{index:02}"), &format!("Value {index}")), ValueType::Number, TelemetryRole::Value)
+                .optional()
+        })
+        .collect();
+    let contract = TelemetryContract {
+        columns,
+        interval: Some(dokime_runtime::DurationMillis(1_000)),
+        ..TelemetryContract::declared(STREAM, "Fixture Wide").with_storage_schema(wide_schema())
+    };
     config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
         source: "fixture_host".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Host".to_owned(),
         enabled: true,
-        telemetry_contracts: vec![fixture_host_contract(STREAM, "Fixture Wide", columns).with_storage_schema(wide_schema())],
+        telemetry_contracts: vec![contract],
         ..Default::default()
     }])
 }

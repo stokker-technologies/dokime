@@ -76,6 +76,7 @@ syn = { workspace = true }
 
 [dev-dependencies]
 # Local
+dokime-host = { workspace = true }
 sdk = { package = "dokime", path = "../dokime", features = ["plugin-sidecar"] }
 
 # Git

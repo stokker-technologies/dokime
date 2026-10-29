@@ -21,7 +21,9 @@ from urllib.parse import urlsplit
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
+from dokime_tools.release import policy
 
 # Type Checking Imports
 
@@ -29,7 +31,6 @@ from dokime_tools.package.staging import clear_output
 
 # === Constants === #
 
-SHIPPING = ("dokime-host",)
 FIXTURES = ("obc-plugin",)
 
 # === Types === #
@@ -39,9 +40,14 @@ FIXTURES = ("obc-plugin",)
 # === Public Functions === #
 
 
-def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] = SHIPPING) -> list[Path]:
+def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] | None = None) -> list[Path]:
     """Collect The Product Build's Plugin Executables Without Another Compiler."""
     root = root.resolve()
+    if packages is None:
+        declarations = policy.config(root).get("release", {}).get("plugins", [])
+        target = paths.target()
+        packages = tuple(item["package"] for item in declarations if target in item["targets"])
+
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
         subprocess.run(
@@ -56,7 +62,7 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
     clear_output(output)
     output.mkdir(parents=True)
     staged: list[Path] = []
-    for package in packages:
+    for package in sorted(set(packages)):
         build_json = output / f"{package}.build.json"
         collector = [str(tool), "dokime", "sidecar", "build", "--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
         collector += ["--profile", profile, "--package", package, "--json"]

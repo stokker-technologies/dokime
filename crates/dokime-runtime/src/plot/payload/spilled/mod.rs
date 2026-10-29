@@ -56,7 +56,7 @@ pub(crate) fn project(
     input: &Input, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext,
 ) -> Result<ReadBatch<PlotPayload>> {
     input.read(|read| {
-        let mut payload = super::payload_from_series(&[], &[], Default::default(), request, generated_at, context, Vec::new());
+        let mut payload = super::payload_from_series(&[], Default::default(), request, generated_at, context, Vec::new());
         if request.analysis.is_none() {
             payload.analysis = analyses::analyze(&mut [], request);
         }
@@ -179,11 +179,7 @@ fn analyze(read: &Read<'_>, payload: &mut PlotPayload, series: &mut Series, requ
 
 fn wifi_context(read: &Read<'_>, request: &PlotPayloadRequest) -> Result<std::collections::BTreeMap<String, crate::Value>> {
     let mut occupancy = None;
-    let mut wifi = None;
     read.samples(|sample| {
-        if sample.stream.as_str() == super::WIFI_CONTEXT_STREAM {
-            wifi = Some(sample.clone());
-        }
         if projection::selected(&sample, request) {
             let newer = occupancy.as_ref().is_none_or(|previous: &crate::telemetry::TelemetrySample| {
                 (sample.timestamp.as_str(), sample.sequence) >= (previous.timestamp.as_str(), previous.sequence)
@@ -195,8 +191,7 @@ fn wifi_context(read: &Read<'_>, request: &PlotPayloadRequest) -> Result<std::co
         Ok(())
     })?;
     let samples: Vec<_> = occupancy.iter().collect();
-    let telemetry: Vec<_> = wifi.into_iter().collect();
-    Ok(super::plot_context(request, &samples, &telemetry))
+    Ok(super::plot_context(request, &samples))
 }
 
 /* === Tests === */

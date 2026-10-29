@@ -42,6 +42,7 @@ pub struct Manifest {
 #[serde(deny_unknown_fields)]
 pub struct Distribution {
     pub version: String,
+    pub identifier: Option<String>,
     pub organization: Option<PathBuf>,
     pub formats: Vec<Format>,
 }
@@ -95,6 +96,17 @@ pub enum Format {
 /* === Implementations === */
 
 impl Manifest {
+    pub(super) fn identity(&self, compiled: &super::payload::Identity) -> Result<super::payload::Identity, Error> {
+        let mut identity = compiled.clone();
+        if let Some(identifier) = &self.installer.identifier {
+            let distribution =
+                dokime::paths::DistributionIdentity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+            identity.slug = distribution.slug();
+            identity.identifier = distribution.identifier;
+        }
+        Ok(identity)
+    }
+
     pub fn read(path: &Path) -> Result<Self, Error> {
         let text = std::fs::read_to_string(path)?;
         let mut manifest: Self =
@@ -114,6 +126,9 @@ impl Manifest {
         Ok(manifest)
     }
     pub fn validate(&self) -> Result<(), Error> {
+        if let Some(identifier) = &self.installer.identifier {
+            dokime::paths::DistributionIdentity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+        }
         for version in [&self.installer.version, &self.dokime.version] {
             if cargo_metadata::semver::Version::parse(version).is_err() {
                 return Err(Error::Invalid("versions must be exact semantic versions".into()));
@@ -148,6 +163,26 @@ impl Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn distribution_identifier() {
+        let text = "[installer]\nversion='1.2.3'\nidentifier='com.hilti.dokime'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        let compiled = super::super::payload::Identity {
+            identifier: "com.stokker.dokime".into(),
+            slug: "dokime".into(),
+            updater_public_key: "trust".into(),
+        };
+        let identity = manifest.identity(&compiled).unwrap();
+        assert_eq!(identity.identifier, "com.hilti.dokime");
+        assert_eq!(identity.slug, "com-hilti-dokime");
+        assert_eq!(identity.updater_public_key, compiled.updater_public_key);
+        manifest.installer.identifier = None;
+        assert_eq!(manifest.identity(&compiled).unwrap().slug, "dokime");
+        manifest.installer.identifier = Some("../outside".into());
+        assert!(manifest.identity(&compiled).is_err());
+        assert!(manifest.validate().is_err());
+    }
+
     #[test]
     fn native_formats() {
         let format = if cfg!(target_os = "windows") { "nsis" } else { "deb" };

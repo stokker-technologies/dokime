@@ -38,6 +38,8 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Type Aliases === */
 
+type StreamDemand = std::pin::Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>;
+
 /* === Structs === */
 
 pub(crate) struct StreamLeases {
@@ -65,6 +67,9 @@ struct Hold {
 
 struct Instance {
     owner: String,
+
+    // The Publication Watch That Wants This Stream From Its Owner While The Stream Is Held.
+    demand: Option<StreamDemand>,
 
     #[allow(dead_code, reason = "the declared cadence the running instance was started at")]
     interval: Duration,
@@ -111,6 +116,14 @@ pub struct DeclaredLeases {
     pub refused: Vec<(Identifier, String)>,
 }
 
+// A Viewer's Holds On The Streams It Watches; Dropping It Releases Them, So A Closed View
+// Stops The Streams Nobody Else Holds.
+#[must_use = "the viewed streams run only while their holds live"]
+pub struct ViewerLeases {
+    table: Arc<StreamLeases>,
+    ids: Vec<String>,
+}
+
 pub(crate) struct LeasedRows {
     holders: BTreeMap<Identifier, Vec<Holder>>,
 }
@@ -140,6 +153,14 @@ impl Drop for PendingLeases {
         let mut state = self.table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         for lease_id in &self.ids {
             state.release(lease_id);
+        }
+    }
+}
+
+impl Drop for ViewerLeases {
+    fn drop(&mut self) {
+        for lease_id in &self.ids {
+            self.table.release(lease_id);
         }
     }
 }
@@ -290,6 +311,7 @@ impl StreamLeases {
         let started = matches!(entry, std::collections::btree_map::Entry::Vacant(_));
         let instance = entry.or_insert_with(|| Instance {
             owner: owner.clone(),
+            demand: None,
             interval,
             holders: BTreeSet::new(),
             generation: 0,
@@ -386,7 +408,10 @@ impl RuntimeHandle {
             let LeaseTarget::Sampled { owner, interval } = self.lease_target(stream)? else {
                 return Err(Error::Operation(format!("telemetry stream {stream} declares no cadence, so nothing samples it to lease")));
             };
-            let (lease_id, _) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+            let (lease_id, started) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+            if started {
+                self.engage_stream_demand(stream);
+            }
             pending.ids.push(lease_id);
         }
 
@@ -401,7 +426,10 @@ impl RuntimeHandle {
         for stream in streams {
             match self.lease_target(stream) {
                 Ok(LeaseTarget::Sampled { owner, interval }) => {
-                    let (lease_id, _) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+                    let (lease_id, started) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+                    if started {
+                        self.engage_stream_demand(stream);
+                    }
                     declared.leases.push(lease_id);
                 }
                 Ok(LeaseTarget::Published) => declared.published.push(stream.clone()),
@@ -427,6 +455,23 @@ impl RuntimeHandle {
             self.execution_storage.acquire(&cycle, execution).await?;
         }
         Ok(record_scope)
+    }
+
+    // Holds Every Sampled Stream The Plots Read For As Long As The Viewer Keeps The Holds.
+    pub async fn view_plot_streams(&self, requests: &[crate::plot::PlotPayloadRequest], viewer: &str) -> ViewerLeases {
+        let requested = requests.iter().flat_map(crate::plot::plot_streams);
+        let mut streams = requested.filter_map(|stream| Identifier::new(stream).ok()).collect::<Vec<_>>();
+        streams.sort();
+        streams.dedup();
+        let scope = SamplingScope {
+            test_cycle_id: None,
+            test_case_id: None,
+            test_execution_id: None,
+        };
+        // A Stream That Cannot Be Leased Is Simply Not Viewed Live; Its Stored Rows Still Plot.
+        let declared = self.lease_declared_streams(scope, &streams, viewer).await;
+        let ids = declared.map(|declared| declared.leases).unwrap_or_default();
+        ViewerLeases { table: self.stream_leases(), ids }
     }
 
     pub async fn release_stream_leases(&self, leases: Vec<String>) -> Result<()> {
@@ -750,6 +795,41 @@ impl RuntimeHandle {
         };
         let interval = Duration::from_millis(interval.0.max(1));
         Ok(LeaseTarget::Sampled { owner, interval })
+    }
+
+    // Wants A Held Stream From Its Owner's Current Publication; A Stream Whose Owner Is Not
+    // Serving Yet Is Engaged When The Owner Is Exposed.
+    fn engage_stream_demand(&self, stream: &Identifier) {
+        let version = self.state_read().telemetry_definitions.get(stream).map(|contract| contract.schema_version);
+        let Some(publication) = version.and_then(|version| self.streams().publication(stream.as_str(), version)) else {
+            return;
+        };
+        let demand: StreamDemand = Box::pin(publication.watch());
+        let table = self.stream_leases();
+        let mut state = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(instance) = state.instances.get_mut(stream) {
+            // The New Watch Is Engaged Before The Previous One Drops, So A Held Stream Never Pauses.
+            instance.demand = Some(demand);
+        }
+    }
+
+    // A Newly Serving Owner Takes Over Demand For Every Stream Of Its That Is Already Held.
+    pub(crate) fn engage_owned_demand(&self, owner: &str) {
+        for stream in self.streams_owned_by(owner) {
+            let table = self.stream_leases();
+            let held = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner).instances.contains_key(&stream);
+            if held {
+                self.engage_stream_demand(&stream);
+            }
+        }
+    }
+
+    pub(crate) fn release_owned_demand(&self, owner: &str) {
+        let table = self.stream_leases();
+        let mut state = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for instance in state.instances.values_mut().filter(|instance| instance.owner == owner) {
+            instance.demand.take();
+        }
     }
 
     pub(crate) fn streams_owned_by(&self, source: &str) -> Vec<Identifier> {

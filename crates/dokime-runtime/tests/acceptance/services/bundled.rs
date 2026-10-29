@@ -114,7 +114,7 @@ async fn frozen_catalog_multiply() {
         let root = tempfile::tempdir().unwrap();
         let store = PluginStore::with_archive_limit(
             dokime_runtime::config::Settings::open(
-                root.path(),
+                dokime_runtime::paths::ApplicationPaths::new(root.path()),
                 dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap(),
             )
             .await
@@ -153,7 +153,7 @@ async fn unsupported_schema_refused() {
             let root = tempfile::tempdir().unwrap();
             let store = PluginStore::with_archive_limit(
                 dokime_runtime::config::Settings::open(
-                    root.path(),
+                    dokime_runtime::paths::ApplicationPaths::new(root.path()),
                     dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap(),
                 )
                 .await

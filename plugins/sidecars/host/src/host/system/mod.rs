@@ -11,20 +11,29 @@
 
 #[cfg(feature = "runtime")]
 mod observing;
-#[cfg(feature = "runtime")]
-pub use observing::State;
 
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
+
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
+/* === Re-Exports === */
+
+#[cfg(feature = "runtime")]
+pub use observing::State;
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::time::Duration;
+
+// Third Party Imports
+
+// Local Imports
 use crate::HostTelemetryStream;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
-use std::time::Duration;
 
 /* === Constants === */
 
@@ -34,6 +43,10 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: BUDGET,
     retries: RetryPolicy::Never,
 };
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -55,26 +68,34 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::System,
+    pub row: crate::System,
     pub timestamp_micros: i64,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
 impl dokime::StreamSpec for System {
-    type Row = dokime::host::System;
+    type Row = crate::System;
     const ID: &'static str = "host.system";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::System as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::System as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for System {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::System).typed::<dokime::host::System>()
+        crate::host_telemetry_contract(HostTelemetryStream::System).typed::<crate::System>()
     }
 }
 
 impl dokime::telemetry::OwnedStream for System {}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 /* === Tests === */
 
@@ -90,6 +111,6 @@ mod tests {
         assert!(<System as OperationDeclaration>::POLICY.timeout >= <System as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<System as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == System::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(System::contract().storage_schema, <dokime::host::System as TelemetryStream>::contract().storage_schema);
+        assert_eq!(System::contract().storage_schema, <crate::System as TelemetryStream>::contract().storage_schema);
     }
 }

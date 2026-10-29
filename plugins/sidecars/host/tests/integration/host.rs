@@ -16,9 +16,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+use dokime_host::host_telemetry_contract;
+use model::telemetry::ValidationMode;
+use model::telemetry::{TelemetryBatch, TelemetrySample};
 
 // Local Imports
 use crate::support::*;
@@ -26,8 +30,6 @@ use dokime::telemetry::TelemetryRow;
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
 use dokime_host::HostTelemetryStream;
-use model::telemetry::{TelemetryBatch, TelemetrySample};
-use model::telemetry::{ValidationMode, host_telemetry_contract};
 
 /* === Constants === */
 
@@ -46,6 +48,7 @@ use model::telemetry::{ValidationMode, host_telemetry_contract};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
     assert_eq!(batch.samples.len(), 1);
     &batch.samples[0]
@@ -110,6 +113,6 @@ fn collected_battery_columns() {
             assert!(declared.contains(&key.as_str()), "{key} is not declared");
         }
         validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict).unwrap();
-        dokime::host::System::from_row(&sample.values).unwrap();
+        dokime_host::System::from_row(&sample.values).unwrap();
     }
 }

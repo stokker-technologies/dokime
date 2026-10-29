@@ -147,7 +147,7 @@ pub(super) fn project(
     // Percentile/Sort Workspace Has No Public Planner And Remains Separate.
     let output = harmos::storage::ReadBatch::new(()).try_map(|_| {
         let series = build(&plans, request)?;
-        Ok::<_, Error>(super::payload_from_series(telemetry, &selected, records, request, generated_at, context, series))
+        Ok::<_, Error>(super::payload_from_series(&selected, records, request, generated_at, context, series))
     })?;
     Ok(Some(output))
 }

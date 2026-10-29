@@ -7,16 +7,29 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::sync::Arc;
+
+// Third Party Imports
+use tokio::sync::Mutex;
+use tokio_util::task::TaskTracker;
+
+// Local Imports
 use crate::{HostOptions, Result, collectors, host};
 use dokime::harmos::operations::OperationPolicy;
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::{Configuration, Refusal, Supervisor};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio_util::task::TaskTracker;
+
+/* === Constants === */
+
+/* === Macros === */
 
 /* === Type Aliases === */
 
@@ -30,6 +43,10 @@ pub struct HostPlugin {
     workers: Arc<Workers>,
     observers: Option<Arc<Observing>>,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
@@ -121,3 +138,9 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         Ok(())
     }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

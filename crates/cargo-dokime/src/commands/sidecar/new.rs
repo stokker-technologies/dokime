@@ -96,6 +96,7 @@ pub fn run(args: Args) -> Result<(), Error> {
                     .replace("{{package}}", name)
                     .replace("{{crate}}", &crate_name)
                     .replace("{{repository}}", REPOSITORY)
+                    .replace("{{sdk_version}}", env!("CARGO_PKG_VERSION"))
                     .replace("{{selection}}", &selection);
                 if workspace.is_some() && path.file_name().is_some_and(|name| name == "Cargo.toml") {
                     let mut manifest = contents

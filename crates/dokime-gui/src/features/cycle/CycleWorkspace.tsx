@@ -33,7 +33,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -71,8 +71,8 @@ import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
 import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
-import { NodeSummary } from "./NodeSummary";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
+import { NodeSummary } from "./NodeSummary";
 import { answerablePrompts } from "./prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 
@@ -175,7 +175,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         }),
       )
       .catch((error: unknown) =>
-        toast.error("The report could not be opened.", {
+        toast.error("The Report Could Not Be Opened", {
           description: error instanceof Error ? error.message : String(error),
         }),
       );
@@ -191,8 +191,8 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     onToggle: () =>
       run(
         archived
-          ? { done: "Unarchived", failed: "The archive mark could not be removed." }
-          : { done: "Archived", failed: "The archive mark could not be set." },
+          ? { done: "Unarchived", failed: "The Archive Mark Could Not Be Removed" }
+          : { done: "Archived", failed: "The Archive Mark Could Not Be Set" },
         () => commit(!archived),
       ),
     refusal: archiveRefusal(allowed, subject),
@@ -309,7 +309,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     kind: "cycle",
     onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
     onCopyCycle: () =>
-      run({ done: "Cycle copied", failed: "The cycle could not be copied." }, async () => {
+      run({ done: "Cycle Copied", failed: "The Cycle Could Not Be Copied" }, async () => {
         const response = await commands.copyCycle.mutateAsync();
         await navigate({
           to: "/cycles/$cycleId",

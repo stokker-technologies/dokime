@@ -26,8 +26,6 @@ use super::Config;
 
 /* === Constants === */
 
-const APPLICATION_ROOT_ENV: &str = "DOKIME_APPLICATION_ROOT";
-
 #[cfg(feature = "native")]
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 
@@ -61,7 +59,6 @@ impl ApplicationOptions {
             if explicit { None } else { environment_path(name) }
         };
         let (brand, paths) = self.load()?;
-        let root = paths.root;
 
         // Compose The Launch
         let configured_data = match self.storage_root {
@@ -70,7 +67,7 @@ impl ApplicationOptions {
         };
         let data = match configured_data {
             Some(data) => std::path::absolute(data)?,
-            None => ApplicationPaths::new(&root).default_data(),
+            None => paths.default_data(),
         };
         // Keep The Root In The Form It Was Configured: Canonicalizing Only
         // Once It Exists Gave Windows A Verbatim `\\?\` Root From The Second
@@ -85,23 +82,14 @@ impl ApplicationOptions {
             None => ambient(PLUGIN_LOOKUP_ENV),
         };
         config.plugin_lookup = plugins.map(std::path::absolute).transpose()?;
-        config.application_root = Some(root);
+        config.application = Some(paths);
         config.brand = brand;
         Ok(config)
     }
 
     fn load(&self) -> io::Result<(Option<organization::ResolvedBrand>, ApplicationPaths)> {
-        let configured_root = match &self.application_root {
-            Some(root) => Some(root.clone()),
-            None => environment_path(APPLICATION_ROOT_ENV),
-        };
-        let application_id = DEFAULT_APPLICATION_ID;
-        let root = match configured_root {
-            Some(root) => std::path::absolute(root)?,
-            None => ApplicationPaths::resolve(application_id)?.root,
-        };
-
-        let paths = ApplicationPaths::new(root);
+        let executable = env::current_exe()?;
+        let paths = ApplicationPaths::resolve_for(&executable, DEFAULT_APPLICATION_ID, self.application_root.clone())?;
         let active = paths.root.join("organization/active");
         let pack = match organization::resolve(active.is_dir().then_some(active.as_path())) {
             Ok(pack) => pack,

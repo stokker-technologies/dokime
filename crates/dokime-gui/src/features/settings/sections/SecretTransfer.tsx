@@ -15,14 +15,14 @@
 
 // Standard Library Imports
 
-// Third Party Imports
-import { useState } from "react";
-
 // Local Imports
 import { MoreHorizontal } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { useState } from "react";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   exportSecrets,
   importSecrets,
@@ -129,9 +129,9 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
         </DropdownMenuContent>
       </DropdownMenu>
       {notice ? (
-        <span role="status" className="sr-only">
+        <NotificationMessage source="Secrets" title="Secret Transfer Updated" tone="info">
           {notice}
-        </span>
+        </NotificationMessage>
       ) : null}
       <Dialog
         open={mode !== null}
@@ -143,16 +143,8 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
           <DialogHeader>
             <DialogTitle>{mode === "export" ? "Export Secrets" : "Import Secrets"}</DialogTitle>
           </DialogHeader>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p role="status" className="text-sm">
-              {notice}
-            </p>
-          )}
+          {error && <NotificationMessage>{error}</NotificationMessage>}
+
           {mode === "export" && (
             <form
               className="grid gap-3"

@@ -171,7 +171,7 @@ impl ExecutionStorage {
             let write = move || -> Result<()> {
                 for attempt in 0..3 {
                     let opened = file.try_clone().map_err(error)?;
-                    #[cfg(any(test, feature = "fault-injection"))]
+                    #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
                     let injected = {
                         let mut faults = storage.log_faults.lock().unwrap();
                         let injected = faults.get_mut(&ingress.execution).and_then(|(remaining, kind)| {
@@ -186,7 +186,7 @@ impl ExecutionStorage {
                         }
                         injected
                     };
-                    #[cfg(not(any(test, feature = "fault-injection")))]
+                    #[cfg(not(any(test, feature = "fault-injection", feature = "testing")))]
                     let injected = None::<std::io::Error>;
                     let result = match injected {
                         Some(error) => Err(error),
@@ -260,7 +260,7 @@ impl ExecutionStorage {
     }
 }
 
-#[cfg(any(test, feature = "fault-injection"))]
+#[cfg(any(test, feature = "fault-injection", feature = "testing"))]
 impl crate::RuntimeHandle {
     pub fn inject_log_write_faults(&self, execution: &TestExecutionId, count: usize, kind: std::io::ErrorKind) {
         let mut faults = self.execution_storage.log_faults.lock().unwrap();

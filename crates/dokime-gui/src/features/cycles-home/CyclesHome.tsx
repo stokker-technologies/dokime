@@ -13,7 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -137,7 +137,7 @@ export function CyclesHome() {
                     .mutateAsync(cycleId)
                     .then(() => toast.success("Unarchived"))
                     .catch((error: unknown) =>
-                      toast.error("The archive mark could not be removed.", {
+                      toast.error("The Archive Mark Could Not Be Removed", {
                         description: error instanceof Error ? error.message : String(error),
                       }),
                     )
@@ -228,7 +228,7 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
       cell: ({ row }) =>
         row.original.attentionCount ? (
           <Badge className={LIST_STATUS_PILL_CLASS} variant="warning">
-            {row.original.attentionCount} prompts
+            {row.original.attentionCount} Prompts
           </Badge>
         ) : null,
       header: "Attention",
@@ -241,7 +241,7 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases finished, of the cases this cycle plans">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases Finished, Of The Cases This Cycle Plans">
           {row.original.finishedCount} / {row.original.caseCount}
         </span>
       ),

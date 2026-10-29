@@ -13,7 +13,7 @@ mod artifacts;
 mod commands;
 pub(crate) mod host;
 mod lifecycle;
-mod logs;
+pub(crate) mod logs;
 mod replay;
 mod session;
 mod supervision;

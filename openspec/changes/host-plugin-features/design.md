@@ -21,7 +21,7 @@ pub fn command(program: impl AsRef<OsStr>) -> std::process::Command;
 | `host.wifi.latency` | target, RTT, loss | `IcmpSendEcho2`/`Icmp6SendEcho2` / `ping` through the process helper | 10 s |
 | `host.network` | existing counters plus `internet` | Network List Manager `GetConnectivity` (IPv4/IPv6 internet flags) / NetworkManager connectivity (`nmcli networking connectivity`) | 1 s |
 
-- Cadences have one source: `HostTelemetryStream::interval()` in `dokime-domain`, read by each observer's `INTERVAL`.
+- Cadences have one source: `HostTelemetryStream::interval()` in the `dokime-host` definitions crate, read by each observer's `INTERVAL`.
 - Bounds come from each collect operation's `POLICY`; the echo waits half the latency attempt timeout so a lost reply is a `loss` sample, not a timed-out collection.
 - Settings (`host_telemetry` → Collection): `latency_host` (default `1.1.1.1`), `minimum_scan_interval_s` (default 30). A scan request inside the minimum interval reuses the cached BSS list without a new active scan and reports `scan_status = "cached"`.
 - The link no longer carries scan-derived congestion; the scan computes it per scan from its own associated BSS. The Wi-Fi occupancy plot binds to `host.wifi.scan` (`y = network_count`, grouped by `wifi_channel`); the congestion map joins `host.wifi.scan`.
@@ -30,6 +30,8 @@ pub fn command(program: impl AsRef<OsStr>) -> std::process::Command;
 ## Spin-Down
 
 Every host observer declares `Activation::Demand` with its stream as the demand key. Harmos holds one resident activation per observer only while the stream is wanted and drops it when the last lease releases, which cancels the observe invocation. The plugin lifecycle's `submit_resident` keeps the sidecar service (process) resident; it does not want any stream, so no observer runs while idle.
+
+The telemetry lease table owns publication demand: its first holder engages a watch, its last release drops it, and plugin exposure re-engages held streams after reload. Live plot watches retain viewer leases until they close. A stopped observer has zero resident leases and `OperationPhase::Stopped`; its status remains until scope retirement, so key removal is not a stop signal. Spin-down proof uses the stream's existing collection policy bound.
 
 ## Adapters (Read)
 
@@ -64,9 +66,9 @@ host.network.adapter.set { adapter_id, enabled }                            // W
 
 Every parameter comes from operation policy or settings; no spawned processes where a native API exists.
 
-## Shared Operations
+## Public Operations
 
-`host.network.adapters`, `host.network.radio.set`, `host.network.adapter.set`, the power-plan read and set and CPU load declare `visibility = Shared` so other plugins may call them. The periodic `*.collect` operations stay private.
+`host.network.adapters`, `host.network.radio.set`, `host.network.adapter.set`, the power-plan read and set and CPU load declare `visibility = Public` so other plugins may call them. The periodic `*.collect` operations stay private.
 
 ## Definitions Crate
 
@@ -92,7 +94,9 @@ dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v
 
 ## Host Is An Ordinary Plugin
 
-Locked 2026-10-29. The runtime has no host special case. `dokime-host` ships only as per-target `.dokime` bundles in the Dokime release (with `plugins.json`) and installs like any other plugin; the runtime no longer links `dokime_host` and no longer installs it at boot. `PluginOwner::Host`, `StreamOwner::Host`, the built-in host sampling and the GUI `<brand> Host` labels are removed; host streams, leases, settings and labels follow ordinary plugin ownership and the plugin's own manifest name. A host without the plugin simply has no host telemetry. Clean break: data written under the built-in host owner is not migrated.
+Locked 2026-10-29, clarified by the owner on 2026-10-29 for 6A.1. `dokime-host` ships as ordinary per-target `.dokime` bundles; the runtime production library neither links nor boot-installs it. `PluginOwner::Host` stays for catalogs registered by the embedding application, with GUI `<brand> Built-in` and server `Built-in` labels. It does not identify the host plugin. `StreamOwner::Host` and built-in sampling remain removed.
+
+`state::is_host_stream` is removed: each `host.*` subscription without a publisher receives the same visible refusal as any other unpublished stream, independently of other subscriptions and their leases. Host rows, contracts, cadences, document defaults and the Wi-Fi occupancy binding move to `dokime-host` definitions; all runtime fixtures, GUI bindings, OBC suites, templates and guidance migrate without `dokime::host` stream re-exports. Application lifecycle records remain owned by Dokime. Default features remain definitions only, `runtime` gates implementations, and `publish = false` stays; external plugins use a git release tag. Clean breaks retain schema v1 and never reset existing storage.
 
 Organization packs carry an optional `plugins/` folder of `.dokime` bundles (for example the host plugin downloaded from a Dokime release). `cargo dokime installer package` verifies each bundle's digest, target and Dokime compatibility against the installer and fails packaging on any mismatch, then embeds them. On first start and after an installer upgrade, bundled plugins install as ordinary bundle-owned plugins under their own names when absent or older; a newer installed version is never downgraded. Later updates come from the configured release source.
 

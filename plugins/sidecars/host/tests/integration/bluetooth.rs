@@ -22,14 +22,15 @@
 use std::os::unix::fs::PermissionsExt;
 
 // Third Party Imports
+use model::values::Value;
 
 // Local Imports
 use dokime_domain::model;
 use dokime_host::HostStreamSample;
 use dokime_host::collectors::bluetooth::BluetoothCollector;
-use model::values::Value;
 
 /* === Constants === */
+
 const FIXTURE: &str = r#"#!/usr/bin/env python3
 import os, sys, time
 from pathlib import Path
@@ -60,6 +61,7 @@ sys.exit(7 if os.environ["DOKIME_PROBE_CASE"] == "failure" else 0)
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn collect_case(mode: &str) -> HostStreamSample {
     // Scripted Probe On PATH
     let root = tempfile::tempdir().unwrap();

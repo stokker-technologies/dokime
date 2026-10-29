@@ -59,7 +59,7 @@ import {
   X,
 } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 // Local Imports
 
@@ -305,7 +305,7 @@ export function CycleSidebarCasesView({
                 {plan.test_cycle.title}
               </button>
               <span aria-hidden />
-              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} cases finished`}>
+              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} Of ${total} Cases Finished`}>
                 {finished}/{total}
               </span>
               <span aria-hidden />
@@ -403,7 +403,7 @@ export function CycleSidebarCasesView({
                 if (!row) return;
                 const selected = rows.find((candidate) => candidate.key === selectedKey);
                 if (selected?.case.caseId === row.case.caseId) select({ view: "cycle" });
-                report({ done: "Case deleted", failed: "The case could not be deleted." }, () =>
+                report({ done: "Case Deleted", failed: "The Case Could Not Be Deleted" }, () =>
                   liveActions(actions).deleteCase(row.case.caseId),
                 );
               }}

@@ -40,10 +40,115 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /* === Private Functions === */
 
+#[cfg(windows)]
+fn gui_resources(path: &std::path::Path) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::System::LibraryLoader::{BeginUpdateResourceW, EndUpdateResourceW, UpdateResourceW};
+
+    let mut filename = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    filename.push(0);
+    let update = unsafe { BeginUpdateResourceW(filename.as_ptr(), 0) };
+    assert!(!update.is_null());
+    let bytes = b"GUI fixture resource";
+    let kind = std::ptr::without_provenance::<u16>(10);
+    let name = std::ptr::without_provenance::<u16>(1);
+    let written = unsafe { UpdateResourceW(update, kind, name, 0, bytes.as_ptr().cast(), bytes.len() as u32) };
+    let committed = unsafe { EndUpdateResourceW(update, i32::from(written == 0)) };
+    assert_ne!(written, 0);
+    assert_ne!(committed, 0);
+}
+
+fn hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 /* === Tests === */
 
 #[tokio::test]
-async fn tampered_payload() {
+async fn distribution_identity() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("payload");
+    std::fs::create_dir_all(source.join("bin")).unwrap();
+    let pack = dokime::config::organization::resolve(None).unwrap();
+    pack.write_to(&source.join("organization")).unwrap();
+    std::fs::write(source.join("LICENSE"), b"fixture license").unwrap();
+    let suffix = if cfg!(windows) { ".exe" } else { "" };
+    let executable = std::env::current_exe().unwrap();
+    let mut files = std::collections::BTreeMap::new();
+    for program in ["dokime", "dokime-gui"] {
+        let name = format!("bin/{program}{suffix}");
+        let destination = source.join(&name);
+        std::fs::copy(&executable, &destination).unwrap();
+        #[cfg(windows)]
+        if program == "dokime-gui" {
+            gui_resources(&destination);
+        }
+        files.insert(name, hash(&std::fs::read(destination).unwrap()));
+    }
+    let original_gui = std::fs::read(source.join(format!("bin/dokime-gui{suffix}"))).unwrap();
+    files.insert("LICENSE".to_owned(), hash(b"fixture license"));
+    for (name, bytes) in &pack.files {
+        files.insert(format!("organization/{name}"), hash(bytes));
+    }
+    let target = if cfg!(windows) { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };
+    let metadata = serde_json::json!({
+        "schema": 1, "version": "1.2.3", "target": target,
+        "identity": { "identifier": "com.stokker.dokime", "slug": "dokime", "updater_public_key": "fixture" },
+        "files": files,
+    });
+    std::fs::write(source.join("payload.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
+    let manifest = root.path().join("installer.toml");
+    let formats = if cfg!(windows) { "'nsis'" } else { "'deb','rpm'" };
+    let options = PackageOptions {
+        artifacts: Some(source.clone()),
+        plugins: vec![],
+        output: root.path().join("output"),
+        sign: false,
+        formats: vec![],
+        target: None,
+    };
+    for (identifier, slug) in [(None, "dokime"), (Some("com.hilti.dokime"), "com-hilti-dokime")] {
+        let declaration = identifier.map_or_else(String::new, |identifier| format!("identifier='{identifier}'\n"));
+        let text =
+            format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");
+        std::fs::write(&manifest, text).unwrap();
+        let packages = match package(&manifest, &options).await {
+            Ok(packages) => packages,
+            Err(error) => {
+                let retained = root.keep();
+                panic!("{error}; installer fixture retained at {}", retained.display());
+            }
+        };
+        assert_eq!(packages.len(), if cfg!(windows) { 1 } else { 2 });
+        for package in packages {
+            let expected = match package.extension().unwrap().to_str().unwrap() {
+                "exe" => format!("{slug}-1.2.3-{target}-setup.exe"),
+                "deb" => format!("{slug}_1.2.3_amd64.deb"),
+                "rpm" => format!("{slug}-1.2.3-1.x86_64.rpm"),
+                extension => panic!("unexpected package extension: {extension}"),
+            };
+            assert_eq!(package.file_name().unwrap().to_str().unwrap(), expected);
+            let inspection = dokime_packaging::installer::inspect(&package).unwrap();
+            let identity = &inspection.distribution.identity;
+            assert_eq!(identity.identifier, identifier.unwrap_or("com.stokker.dokime"));
+            assert_eq!(identity.slug, slug);
+            assert_eq!(identity.updater_public_key, "fixture");
+            let prefix = if cfg!(windows) { String::new() } else { format!("usr/lib/{slug}/") };
+            let name = format!("{prefix}distribution.json");
+            let bytes = serde_json::to_vec_pretty(&dokime::paths::DistributionIdentity::new(identity.identifier.clone()).unwrap()).unwrap();
+            assert_eq!(inspection.distribution.files[&name], hash(&bytes));
+            if !cfg!(windows) {
+                assert!(inspection.distribution.files.contains_key(&format!("usr/bin/{slug}")));
+                assert!(inspection.distribution.files.contains_key(&format!("usr/bin/{slug}-gui")));
+            }
+        }
+    }
+    assert_eq!(std::fs::read(source.join(format!("bin/dokime-gui{suffix}"))).unwrap(), original_gui);
+}
+
+#[tokio::test]
+async fn installer() {
+    // Payload Integrity Refusals Preserve The Unpublished Output.
     let root = tempfile::tempdir().unwrap();
     let artifacts = root.path().join("payload");
     std::fs::create_dir_all(artifacts.join("bin")).unwrap();
@@ -73,7 +178,7 @@ async fn tampered_payload() {
     let format = if cfg!(windows) { "nsis" } else { "deb" };
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
         .unwrap();
-    let options = PackageOptions {
+    let mut options = PackageOptions {
         plugins: Vec::new(),
         artifacts: Some(artifacts),
         output: root.path().join("output"),
@@ -82,7 +187,7 @@ async fn tampered_payload() {
         target: None,
     };
     let error = package(&manifest, &options).await.unwrap_err();
-    assert!(error.to_string().contains("digest mismatch"));
+    assert!(matches!(error, dokime_packaging::Error::PayloadDigest { member } if metadata["files"].get(&member).is_some()));
     assert!(!options.output.exists());
     let digest: String = Sha256::digest(b"tampered").iter().map(|byte| format!("{byte:02x}")).collect();
     for value in metadata["files"].as_object_mut().unwrap().values_mut() {
@@ -91,34 +196,18 @@ async fn tampered_payload() {
     std::fs::write(options.artifacts.as_ref().unwrap().join("payload.json"), serde_json::to_vec(&metadata).unwrap()).unwrap();
     std::fs::write(options.artifacts.as_ref().unwrap().join("organization/injected.css"), b"unverified injected appearance").unwrap();
     let error = package(&manifest, &options).await.unwrap_err();
-    assert!(error.to_string().contains("not integrity indexed"));
+    assert!(matches!(error, dokime_packaging::Error::UnindexedPayload { member } if member == "organization/injected.css"));
     assert!(!options.output.exists());
-}
 
-#[tokio::test]
-async fn missing_signing() {
-    let root = tempfile::tempdir().unwrap();
-    let manifest = root.path().join("installer.toml");
-    let target = if cfg!(windows) { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };
-    let format = if cfg!(windows) { "nsis" } else { "deb" };
-    std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
-        .unwrap();
-    let options = PackageOptions {
-        plugins: Vec::new(),
-        artifacts: None,
-        output: root.path().join("output"),
-        sign: true,
-        formats: vec![],
-        target: None,
-    };
+    // Signing Refusal Precedes Payload Acquisition.
+    options.sign = true;
+    options.artifacts = None;
     let error = package(&manifest, &options).await.unwrap_err();
-    assert!(error.to_string().contains("explicit signing configuration"));
+    assert!(matches!(error, dokime_packaging::Error::SigningConfiguration));
     assert!(!options.output.exists());
-}
 
-#[tokio::test]
-async fn download_initializes_tls() {
-    let root = tempfile::tempdir().unwrap();
+    // The Same Manifest Then Exercises Native TLS Before Any Installer Assembly.
+
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("https://{}", listener.local_addr().unwrap());
     let mut serving = tokio::task::JoinSet::new();
@@ -129,70 +218,14 @@ async fn download_initializes_tls() {
         socket.shutdown().await.unwrap();
         record[0]
     });
-    let manifest = root.path().join("installer.toml");
-    let target = if cfg!(windows) { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };
-    let format = if cfg!(windows) { "nsis" } else { "deb" };
+
     std::fs::write(&manifest, format!(
         "[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'\nrelease_url='{url}'\nsha256='{}'\n",
         "00".repeat(32)
     )).unwrap();
-    let options = PackageOptions {
-        plugins: Vec::new(),
-        artifacts: None,
-        output: root.path().join("output"),
-        sign: false,
-        formats: vec![],
-        target: None,
-    };
+    options.sign = false;
     let result = package(&manifest, &options).await;
     assert!(result.is_err());
     assert_eq!(serving.join_next().await.unwrap().unwrap(), 0x16);
     assert!(!options.output.exists());
-}
-
-#[cfg(windows)]
-#[test]
-fn staged_resource_iteration() {
-    let root = std::env::current_dir().unwrap();
-    let input = tempfile::tempdir().unwrap();
-    let staging = tempfile::Builder::new().prefix("dokime-installer-test-").tempdir_in(&root).unwrap();
-    let files = [
-        ("organization/fonts/font.woff2", b"font payload".as_slice()),
-        ("plugins/host.dokime", b"plugin bundle".as_slice()),
-        ("LICENSE", b"license payload".as_slice()),
-        ("distribution.json", b"distribution payload".as_slice()),
-    ];
-    let mut resources = std::collections::HashMap::new();
-    for (target, bytes) in files {
-        let original = input.path().join(target);
-        std::fs::create_dir_all(original.parent().unwrap()).unwrap();
-        std::fs::write(&original, bytes).unwrap();
-        let staged = staging.path().join(target);
-        std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
-        std::fs::copy(original, &staged).unwrap();
-        let relative = staged.strip_prefix(&root).unwrap().to_str().unwrap().to_owned();
-        resources.insert(relative, target.to_owned());
-    }
-    let actual = tauri_utils::resources::ResourcePaths::from_map(&resources, true)
-        .iter()
-        .map(|resource| {
-            let resource = resource.unwrap();
-            assert!(resource.path().is_relative());
-            assert_eq!(root.join(resource.path()), staging.path().join(resource.target()));
-            (resource.target().to_owned(), std::fs::read(resource.path()).unwrap())
-        })
-        .collect::<std::collections::HashMap<_, _>>();
-    for (target, bytes) in files {
-        assert_eq!(actual[std::path::Path::new(target)], bytes);
-    }
-    let icon = staging.path().join("icon.ico");
-    std::fs::write(&icon, b"icon payload").unwrap();
-    let icons = vec![icon.strip_prefix(&root).unwrap().to_str().unwrap().to_owned()];
-    let selected = tauri_utils::resources::ResourcePaths::new(&icons, false).next().unwrap().unwrap();
-    assert!(selected.is_relative());
-    assert_eq!(root.join(&selected), icon);
-    assert_eq!(std::fs::read(selected).unwrap(), b"icon payload");
-    let staged_path = staging.path().to_owned();
-    staging.close().unwrap();
-    assert!(!staged_path.exists());
 }

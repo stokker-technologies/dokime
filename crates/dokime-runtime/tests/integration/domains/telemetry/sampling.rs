@@ -238,3 +238,84 @@ async fn host_plugin_stream() {
     runtime.release_stream_leases(leases).await.unwrap();
     owner.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn host_observer_spins_down() {
+    use dokime_runtime::domains::evidence::TelemetrySelection;
+    use dokime_runtime::harmos::operations::OperationPhase;
+
+    let root = tempfile::tempdir().unwrap();
+    let metadata = Metadata::new(Identifier::new("fixture.host.spin_down").unwrap(), "Host Spin Down", None);
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata)
+        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+    let mut owner = Runtime::start(config).await.unwrap();
+    let runtime = owner.handle();
+    let mut residents = runtime.operations().watch_residents();
+    let is_host_observer = |id: &str| dokime_host::HOST_STREAMS.iter().any(|stream| stream.as_str() == id);
+    assert!(!residents.borrow().keys().any(|key| is_host_observer(&key.definition)), "the idle plugin holds no observer");
+
+    let system = Identifier::new("host.system").unwrap();
+    let selection = TelemetrySelection {
+        streams: vec![system.clone().into()],
+        ..Default::default()
+    };
+    let leases = runtime.lease_streams(scope(None), std::slice::from_ref(&system), "fixture.viewer").await.unwrap();
+    until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&selection).await.unwrap().is_empty()).then_some(()) }).await;
+    let held =
+        residents.borrow().keys().filter(|key| is_host_observer(&key.definition)).map(|key| key.definition.clone()).collect::<Vec<_>>();
+    assert_eq!(held, [system.to_string()], "only the leased stream's observer ran");
+
+    let plot = dokime_runtime::runtime::query::PlotPayloadRequest {
+        stream: system.to_string(),
+        ..Default::default()
+    };
+    let viewing = runtime.view_plot_streams(&[plot], "fixture.plot").await;
+    runtime.release_stream_leases(leases).await.unwrap();
+    assert!(residents.borrow().iter().any(|(key, status)| key.definition == system.as_str() && status.leases > 0));
+    drop(viewing);
+
+    let stopped = residents.wait_for(|map| {
+        map.iter()
+            .filter(|(key, _)| is_host_observer(&key.definition))
+            .all(|(_, status)| status.leases == 0 && status.lifecycle.phase() == OperationPhase::Stopped)
+    });
+    tokio::time::timeout(dokime_host::host::system::POLICY.timeout, stopped)
+        .await
+        .expect("the released observer stops within its collection policy")
+        .unwrap();
+    // Harmos Retains The Stopped Status Until The Plugin Scope Retires.
+    assert!(residents.borrow().keys().any(|key| key.definition == system.as_str()));
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn host_publishers_required() {
+    use crate::service_support::prelude::fixture_suite;
+    use dokime_runtime::InstalledPlugin;
+    use dokime_runtime::definition::{Subscription, SuiteSet};
+    use dokime_runtime::domains::TestSuiteDefinition;
+
+    let streams =
+        ["host.system", "host.network", "host.wifi.link", "host.wifi.scan", "host.wifi.latency", "host.bluetooth", "fixture.unpublished"];
+    for stream in streams {
+        let root = tempfile::tempdir().unwrap();
+        let mut suite = fixture_suite(&["passed"]);
+        suite.test_case_templates[0].subscriptions = vec![Subscription::Stream(Identifier::new(stream).unwrap())];
+        let reader = InstalledPlugin {
+            source: "fixture.reader".into(),
+            enabled: true,
+            suites: SuiteSet::new([TestSuiteDefinition::new("fixture.reader", suite).unwrap()]),
+            ..Default::default()
+        };
+        let metadata = Metadata::new(Identifier::new("fixture.absent_host").unwrap(), "Absent Host", None);
+        let config = crate::service_support::budgets::runtime_config(root.path(), metadata).with_installed_plugins([reader]);
+        let error = match Runtime::start(config).await {
+            Ok(mut owner) => {
+                owner.shutdown().await.unwrap();
+                panic!("unpublished subscription {stream} was admitted");
+            }
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains(stream), "{error}");
+    }
+}

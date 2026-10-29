@@ -5,12 +5,9 @@ attempts with record and sample readers, and answer a confirmation. Begin with t
 [shared walkthrough](../README.md) to obtain the matching candidate artifacts,
 install/configure the host plugin and transfer the public certificate and key.
 
-This environment uses the **bundled candidate wheel**, not a published-registry
-claim. Its exact `dokime-client` dependency resolves to the matching wheel in
-`../wheels/`. The accompanying `uv.lock` records
-that wheel's exact SHA-256 and the dependency versions. Keep the entire
-extracted examples tree together; a copied script by itself is not the locked
-tutorial environment.
+These source examples use a locally built wheel from the same revision as the
+backend. Tutorials and Python distributions are not release downloads. Prepare
+the wheel and refresh the tutorial lock before transferring the example tree.
 
 ## Prepare The Environment
 
@@ -28,23 +25,31 @@ terminal after setup and check:
 uv --version
 ```
 
-From the extracted `remote-demo/python/` directory, on either platform:
+In the matching source checkout, build the client:
 
 ```sh
+mise run build:python
+```
+
+Copy `packages/dokime-client/examples/remote/` to a standalone `remote-demo/`
+directory outside the checkout. Create `remote-demo/wheels/` and copy the single
+`dokime_client-<version>-py3-none-any.whl` from `target/build/dev/any/python/`
+into it. The version must match the tutorial's exact dependency and wheel path
+in `python/pyproject.toml`. From `remote-demo/python/`, refresh the
+lock for those wheel bytes, then prepare the environment:
+
+```sh
+uv lock --upgrade-package dokime-client
 uv python install 3.13
 uv sync --locked --python 3.13
 uv run --locked python -c "from dokime_client import DokimeClient, Execution; print('Dokime Candidate Imports Ready')"
 ```
 
-uv creates a local `.venv/`; activation is unnecessary. The import check opens
-no server connection and runs no device work. The first setup needs internet
-access for Python and locked third-party dependencies, or those inputs already
-in uv's cache. The bundled Dokime wheel is portable Python, but this ZIP is
-not a complete offline wheelhouse. Installing this client does not require a
-Rust compiler or a Dokime source checkout.
-
-The tutorial uses the bundled client wheel and uv's ordinary dependency lock.
-Use the complete examples artifact for its matching package version and dependencies.
+Transfer the complete `remote/` tree, including the refreshed `python/uv.lock`
+and `wheels/`, to the remote PC as `remote-demo/`. Run `uv sync --locked --python 3.13`
+there before running the scripts. uv creates a local `.venv/`; activation is
+unnecessary. Setup needs internet access for Python and locked dependencies or
+those inputs already in uv's cache. The remote PC needs no Rust compiler.
 
 ## Edit Connection Globals
 

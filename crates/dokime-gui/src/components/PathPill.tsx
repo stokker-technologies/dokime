@@ -43,9 +43,9 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
       <span className="min-w-0 truncate">{compactPath(value)}</span>
       {copy ? (
         <button
-          aria-label="Copy full path"
+          aria-label="Copy Full Path"
           className={action}
-          title="Copy full path"
+          title="Copy Full Path"
           type="button"
           onClick={(event) => {
             event.stopPropagation();
@@ -57,9 +57,9 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
       ) : null}
       {onOpen ? (
         <button
-          aria-label="Open with default application"
+          aria-label="Open With Default Application"
           className={action}
-          title="Open with default application"
+          title="Open With Default Application"
           type="button"
           onClick={(event) => {
             event.stopPropagation();

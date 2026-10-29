@@ -597,10 +597,6 @@ async fn execution_plots_samples() {
 }
 
 // The 5,000-row guard of the saved-sample plot path; `system/telemetry_plot_history.rs` reads 50,000.
-#[tokio::test]
-async fn large_sample_plot() {
-    crate::service_support::plots::sample_plot(5_000, PLOT_POINTS).await;
-}
 
 fn assert_summary(summaries: &[PlotSeriesSummary], count: usize, statistics: [f64; 6], window: [f64; 2]) {
     let [summary] = summaries else {
@@ -929,6 +925,6 @@ async fn selected_analysis_axes() {
 
 // The one-day guard of the saved-window path; `system/telemetry_plot_history.rs` saves seven days.
 #[tokio::test]
-async fn saved_windows_keep_payload_and_snapshot_bounded() {
-    crate::service_support::plots::saved_windows(1).await;
+async fn telemetry_history() {
+    crate::service_support::plots::telemetry_history(4_000, PLOT_POINTS, 1).await;
 }

@@ -11,20 +11,29 @@
 
 #[cfg(feature = "runtime")]
 mod observing;
-#[cfg(feature = "runtime")]
-pub use observing::State;
 
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
+
 #[cfg(all(feature = "runtime", target_os = "windows"))]
 mod windows;
 
+/* === Re-Exports === */
+
+#[cfg(feature = "runtime")]
+pub use observing::State;
+
 /* === Imports === */
 
+// Standard Library Imports
+use std::time::Duration;
+
+// Third Party Imports
+
+// Local Imports
 use crate::HostTelemetryStream;
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
-use std::time::Duration;
 
 /* === Constants === */
 
@@ -34,6 +43,10 @@ pub const POLICY: OperationPolicy = OperationPolicy {
     attempt_timeout: BUDGET,
     retries: RetryPolicy::Never,
 };
+
+/* === Macros === */
+
+/* === Type Aliases === */
 
 /* === Structs === */
 
@@ -55,26 +68,34 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::WifiScan,
+    pub row: crate::WifiScan,
     pub timestamp_micros: i64,
 }
+
+/* === Enums === */
+
+/* === Traits === */
 
 /* === Implementations === */
 
 impl dokime::StreamSpec for WifiScan {
-    type Row = dokime::host::WifiScan;
+    type Row = crate::WifiScan;
     const ID: &'static str = "host.wifi.scan";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::WifiScan as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::WifiScan as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiScan {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<dokime::host::WifiScan>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<crate::WifiScan>()
     }
 }
 
 impl dokime::telemetry::OwnedStream for WifiScan {}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 /* === Tests === */
 
@@ -90,6 +111,6 @@ mod tests {
         assert!(<WifiScan as OperationDeclaration>::POLICY.timeout >= <WifiScan as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<WifiScan as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == WifiScan::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(WifiScan::contract().storage_schema, <dokime::host::WifiScan as TelemetryStream>::contract().storage_schema);
+        assert_eq!(WifiScan::contract().storage_schema, <crate::WifiScan as TelemetryStream>::contract().storage_schema);
     }
 }

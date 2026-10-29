@@ -52,7 +52,7 @@ mod one_prelude {
 
     fn slot<T>(_: &Slot<T>) {}
 
-    fn host_module(_: &host::System) {}
+    fn host_module(_: &host::ToolConnectionAcquired) {}
 }
 
 #[allow(dead_code)]

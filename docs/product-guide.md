@@ -2,6 +2,43 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+## Install Tools With Mise
+
+Dokime has no published release yet. After publication, select matching CLI and
+authoring-tool archives in your mise configuration. For Windows x86-64:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+cargo-dokime = "github:stokker-technologies/dokime"
+
+[tools]
+dokime = { version = "0.1.0", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+cargo-dokime = { version = "0.1.0", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+```
+
+For Linux x86-64, use `dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz`
+and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its command at the root,
+LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
+The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
+own installation directory. Cargo-binstall metadata selects the same archive names, although this
+unpublished Cargo subcommand is distributed through release assets and mise.
+
+Release downloads include native installers, tool archives,
+`dokime-payload-<version>-<Rust-target>.zip` distributor inputs, shipped plugin
+`<package>-<version>-<Rust-target>.dokime` bundles and their `plugins.json` feed,
+`latest.json` for the desktop updater, CHANGELOG and SHA256SUMS. Installer
+signatures are embedded in `latest.json`; standalone `.sig` files are not
+downloads. OBC and remote examples remain candidate/source fixtures. Python
+distributions publish to PyPI. CI transports `upload.json` between publication
+and verification jobs; it is not a release download.
+
+`mise run release:rehearse` consumes existing release-profile packages for every
+configured target and runs staging and registry dry runs with credentials
+removed. It does not create a remote rehearsal release. The integration owner
+must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
+environment `release`, before the first publication under this workflow.
+
 ## The Test Domain
 
 Definitions describe what can be tested. Execution captures what happened when
@@ -92,6 +129,12 @@ settings, with TLS and access-key authentication selected independently;
 browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
+## Notifications
+
+Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
+
+The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
 ## Native Remote Access
 
 Settings → Remote Access owns the saved listener settings and explicit restart.
@@ -135,6 +178,8 @@ capabilities. A grant must name the operation being called. Discovery and
 invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
+
+The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
 machine **Identifier** and a human **Label**. Import a pairing file as the primary
@@ -455,7 +500,7 @@ then run without arguments. Their names, grouping and meanings match the
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
 The [candidate walkthrough](../packages/dokime-client/examples/remote/README.md) explains
-how to obtain one matching CI artifact set and use its bundled Python wheel.
+how to obtain matching native CI artifacts and prepare a local Python wheel from the same revision.
 
 `--parameters-json` supplies single template parameter values as a plain
 JSON object. The default pulse has no prompt. To require one confirmation,
@@ -718,7 +763,7 @@ the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
-freezes the table with its plot.
+freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -821,13 +866,14 @@ replaced by the `sidecar` group.
 | `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
-An installer manifest selects the distribution version, optional organization
-override and exact Dokime binary version/target. For example, save
+An installer manifest selects the distribution version, optional installation
+identifier, organization override and exact Dokime binary version/target. For example, save
 `company/installer.toml` for a native Windows build:
 
 ```toml
 [installer]
 version = "0.1.0"
+identifier = "com.hilti.dokime"
 organization = "organization"
 formats = ["nsis"]
 
@@ -843,6 +889,22 @@ selected payload's organization defaults. On Linux, use `target = "x86_64-unknow
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
+`identifier` is a lowercase reverse-DNS identifier, such as `com.hilti.dokime`.
+It fixes the distribution's storage and install identity; omitting it uses the
+payload's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
+"com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
+in `installer.json`, the inventory used for inspection and bundled-plugin startup
+reconciliation. A malformed or unreadable identity file fails startup; only an absent file falls back to the compiled identifier.
+
+Explicit identifiers derive a filename/package slug by replacing dots with
+hyphens. NSIS uses the identifier for its install folder and uninstall registry
+key; DEB/RPM package names use the slug. On Linux, binaries, organization assets
+and the identity file live together under `/usr/lib/<slug>/`, with launchers
+`/usr/bin/<slug>` and `/usr/bin/<slug>-gui`. Plain Dokime retains the `dokime` slug.
+These paths let a branded distribution coexist with plain Dokime. Windows keeps
+`dokime.exe` and `dokime-gui.exe` inside each identifier's install folder; use the
+full path when choosing between distributions with the same command name.
+
 The product build exports `product/installer-payload/` under its matching
 `target/build/<profile>/<target>/` directory. It contains `payload.json`, the
 unchanged CLI and GUI executables, license and the complete authored
@@ -855,16 +917,35 @@ Using that directory requires no application compilation:
 
 ```sh
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
-cargo dokime installer inspect dist/dokime-0.1.0-windows-x86_64-setup.exe --json
+cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
-Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
-for other bundles. Only explicitly selected bundles are installed; omitting the flag
-includes no plugins. The Dokime packaging task selects `host.dokime`.
+Place downloaded `.dokime` bundles in the organization pack's optional `plugins/`
+folder, or pass repeatable `--plugin path/to/host.dokime` arguments. The Dokime
+packaging task selects `host.dokime` explicitly; OBC remains test-only. Packaging
+verifies every bundle's member digests, native target and declared Dokime version
+requirement against the installer payload before embedding any bundles. A refusal
+names the offending bundle. Organization overrides replace base bundles with the
+same filename; duplicate explicit filenames or package names are refused.
+`cargo dokime sidecar build` and `package` include integrity-indexed `dokime.json`
+metadata (schema v1) containing `requires_dokime`, taken from the plugin's Cargo
+`dokime` dependency requirement. Rebuild older bundles that lack this metadata
+before using them in an installer.
+
+On first start and after installer upgrades, bundled packages
+install through the ordinary plugin store under their own names. An absent or
+older package is installed; an equal or newer installed version is retained.
+Upgrades preserve plugin settings and disabled state. Later plugin updates use
+the configured release source. Ordinary restarts preserve removed plugins; a
+completed reconciliation is recorded against the installer's distribution digest.
+Only bundles in the installer's integrity index participate; leftover files from
+previous installers are ignored.
+Without bundled plugins, the runtime starts
+without host telemetry.
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable
-`dokime-<version>-<Rust-target>-payload.zip` beside the installers. The ZIP
+`dokime-payload-<version>-<Rust-target>.zip` beside the installers. The ZIP
 preserves the payload bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 
@@ -882,7 +963,7 @@ authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
 RPM packages with a gzip payload in-process, which are the formats packaging
 produces. Each regular file is extracted to its installed path: `$INSTDIR`
 for NSIS, the package root for DEB and RPM. Inspection then requires exactly one
-embedded distribution manifest, compares every listed file's SHA-256 with the
+embedded `installer.json` inventory, compares every listed file's SHA-256 with the
 extracted bytes, rejects any organization file the manifest does not list, and
 checks launcher and icon artwork. Links, special files, duplicate or escaping
 paths, NSIS files extracted anywhere except the installation directory or the
@@ -1077,16 +1158,18 @@ input payload and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
-The app's brand mark exposes the `.logo` class on both light and dark artwork,
-including its text fallback. Customize it in the pack's `theme/base.css`, for
-example:
+The connection screen and sidebar share a `.brand` block containing `.logo` artwork and a `.wordmark`. The text fallback also carries `.logo`. Customize this block in the pack's `theme/base.css`, for example:
 
 ```css
-.logo {
-  padding: 0.5rem 1rem;
-  object-fit: contain;
+.brand {
+  --brand-logo-size: 2.5rem;
+  --brand-flow: column;
+  --brand-align: center;
+  --brand-gap: 0.75rem;
 }
 ```
+
+The default classes `brand-row` / `brand-column` select flow and `brand-start` / `brand-center` select alignment. Organization themes can override their variables without changing components. The connection screen keeps its 2.5rem logo and the sidebar its 1.5rem logo by default.
 
 The root element carries `.light` or `.dark` for the active mode, so shared
 styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,
@@ -1108,14 +1191,27 @@ title_template = "Stokker Technologies — {app}"
 
 The desktop's label, title, window/tray artwork and newly captured reports use
 the resolved pack. Installers place their default organization folder beside the
-Windows executables or under `/usr/lib/dokime/organization` on Linux. Captured
+Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
-Compiled bundle identifier and storage identity remain owned by the build,
-alongside updater verification trust. The desktop does not register a deep-link scheme. An organization manifest
-cannot set `app.identifier`, `app.slug` or `app.deep_link_scheme`. Distributions
-sharing that compiled identity remain the same application and storage; they
-are not independent installations.
+The installer manifest's distribution identifier owns storage identity; the
+organization pack changes appearance only. An organization manifest cannot set
+`app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
+the compiled identifier is used. The desktop, CLI and server share this resolver:
+
+| Directory | Windows | Unix |
+| --- | --- | --- |
+| Application | `%LOCALAPPDATA%/<identifier>` | `${XDG_DATA_HOME:-$HOME/.local/share}/<identifier>` |
+| Data And Plugins | `<application>/data`, `<application>/plugins` | `<application>/data`, `<application>/plugins` |
+| Logs | `<application>/logs` | `${XDG_STATE_HOME:-$HOME/.local/state}/<identifier>/logs` |
+| WebView | `<application>/EBWebView` | Engine profile beneath `<application>/webview` |
+
+`DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
+runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
+installation; existing data stays under the old identifier and is never moved or
+deleted automatically. Protocol/deep-link identity, single-instance policy,
+updater verification trust and code-signing identity remain compiled. Reusing
+binaries with different distribution identities does not isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon

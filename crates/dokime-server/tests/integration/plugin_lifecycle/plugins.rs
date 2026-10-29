@@ -56,14 +56,14 @@ struct DynamicText {
 }
 
 #[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicText,
-    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY, visibility = Public,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
 struct DynamicReplacement {
     value: String,
 }
 
 #[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber,
-    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.unary", policy = DYNAMIC_POLICY, visibility = Public,
     grant = dynamic_grant,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
 struct DynamicUnary {
@@ -71,21 +71,21 @@ struct DynamicUnary {
 }
 
 #[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, output = DynamicNumber,
-    id = "fixture.dynamic.download", policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.download", policy = DYNAMIC_POLICY, visibility = Public,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Download"))]
 struct DynamicDownload {
     value: u32,
 }
 
 #[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, input = DynamicNumber,
-    id = "fixture.dynamic.upload", policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.upload", policy = DYNAMIC_POLICY, visibility = Public,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Upload"))]
 struct DynamicUpload {
     value: u32,
 }
 
 #[dokime::harmos::operation(harmos_path = harmos_sdk, resources = [std::sync::atomic::AtomicUsize], response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
-    id = "fixture.dynamic.duplex", policy = DYNAMIC_POLICY,
+    id = "fixture.dynamic.duplex", policy = DYNAMIC_POLICY, visibility = Public,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Duplex"))]
 struct DynamicDuplex {
     value: u32,

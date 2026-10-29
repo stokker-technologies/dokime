@@ -130,7 +130,7 @@ pub async fn launch_with(config: Config, composition: Vec<Composition>) -> crate
     let mut runtime_config = runtime_config;
     runtime_config.composition = composition;
     if let Some(brand) = &mut startup.brand {
-        brand.materialize_logos(&runtime_config.paths().cache().join("brand"))?;
+        brand.materialize_logos(&runtime_config.application.cache().join("brand"))?;
     }
     let runtime = crate::Runtime::start(runtime_config).await?;
     let handle = runtime.handle();

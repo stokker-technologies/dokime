@@ -40,7 +40,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
       <div className="control-buttons flex w-full flex-col gap-2">
         <Button className="h-11 w-full" disabled={!state.runtimeReady} onClick={onStart} variant="default">
           <Play data-icon="inline-start" />
-          {state.runtimeReady ? "Start" : "Runtime unavailable"}
+          {state.runtimeReady ? "Start" : "Runtime Unavailable"}
         </Button>
       </div>
     );
@@ -49,7 +49,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
   if (state.kind === "running") {
     return (
       <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-3">
-        <legend className="sr-only">Run controls</legend>
+        <legend className="sr-only">Run Controls</legend>
         <Button className="h-10 w-full" onClick={onStop} variant="danger">
           <Square data-icon="inline-start" />
           Stop
@@ -69,7 +69,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
   if (state.kind === "stopping") {
     return (
       <fieldset className="control-buttons grid w-full gap-2 sm:grid-cols-3">
-        <legend className="sr-only">Run controls</legend>
+        <legend className="sr-only">Run Controls</legend>
         <Button className="h-10 w-full" disabled onClick={onStop} variant="danger">
           <Square data-icon="inline-start" />
           Stopping...
@@ -91,7 +91,7 @@ export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart
       <div className="control-buttons flex w-full flex-col gap-2">
         <Button className="h-11 w-full" disabled={!state.runtimeReady} onClick={onRerun} variant="outline">
           <TimerReset data-icon="inline-start" />
-          {state.runtimeReady ? "Re-run" : "Runtime unavailable"}
+          {state.runtimeReady ? "Re-Run" : "Runtime Unavailable"}
         </Button>
       </div>
     );

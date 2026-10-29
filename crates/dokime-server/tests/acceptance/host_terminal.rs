@@ -250,7 +250,7 @@ async fn incompatible_storage_refused() {
 
     // The Same Refusal Is Typed In Process
     let mut config = dokime::config::Config::local(&data);
-    config.application_root = Some(application.clone());
+    config.application = Some(dokime::paths::ApplicationPaths::new(application.clone()));
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
@@ -260,7 +260,7 @@ async fn incompatible_storage_refused() {
     let fresh = root.path().join("owned");
     let owner = sqlite::State::open(&fresh).await.unwrap();
     let mut config = dokime::config::Config::local(&fresh);
-    config.application_root = Some(application);
+    config.application = Some(dokime::paths::ApplicationPaths::new(application));
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");

@@ -9,15 +9,10 @@
 
 /* === Modules === */
 
-#[cfg(feature = "runtime")]
-mod defaults {
-    pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
-    pub(crate) const BLUETOOTH_DEEP_REFRESH: std::time::Duration = std::time::Duration::from_millis(300_000);
-}
+/* === Re-Exports === */
+
 #[cfg(feature = "runtime")]
 pub(crate) use defaults::{BLUETOOTH_DEEP_REFRESH, NETWORK_LINK_INTERVAL};
-
-/* === Re-Exports === */
 
 /* === Imports === */
 
@@ -32,6 +27,7 @@ use serde::{Deserialize, Serialize};
 /* === Constants === */
 
 pub(crate) const LATENCY_HOST: &str = "1.1.1.1";
+
 // An Active Wi-Fi Scan Disturbs The Link, So Scans Never Start Closer Together Than This.
 pub(crate) const MINIMUM_SCAN_INTERVAL_S: u32 = 30;
 
@@ -52,10 +48,13 @@ pub struct Settings {
 pub struct Probes {
     #[setting(label = "Wi-Fi Adapter")]
     pub wifi_adapter_name: Option<String>,
+
     #[setting(label = "Bluetooth Adapter")]
     pub bluetooth_adapter_name: Option<String>,
+
     #[setting(label = "Latency Host", default = LATENCY_HOST)]
     pub latency_host: String,
+
     #[setting(label = "Minimum Scan Interval (s)", default = MINIMUM_SCAN_INTERVAL_S, min = 1, max = 3_600, step = 1)]
     pub minimum_scan_interval_s: u32,
 }
@@ -70,6 +69,8 @@ pub struct HostOptions {
 
 /* === Enums === */
 
+/* === Traits === */
+
 /* === Implementations === */
 
 impl From<Probes> for HostOptions {
@@ -83,6 +84,8 @@ impl From<Probes> for HostOptions {
     }
 }
 
+/* === Public Functions === */
+
 /* === Private Functions === */
 
 fn selected(value: String) -> Option<String> {
@@ -91,6 +94,44 @@ fn selected(value: String) -> Option<String> {
         return None;
     }
     Some(value.to_owned())
+}
+
+#[cfg(feature = "runtime")]
+mod defaults {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    pub(crate) const NETWORK_LINK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5_000);
+    pub(crate) const BLUETOOTH_DEEP_REFRESH: std::time::Duration = std::time::Duration::from_millis(300_000);
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */

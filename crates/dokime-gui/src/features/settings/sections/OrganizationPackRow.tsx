@@ -35,7 +35,7 @@ const STATUS_KEY = ["settings", "organization-pack"] as const;
 
 type OrganizationPackViewProps = {
   presentation: OrganizationPackPresentation;
-  /** A refused archive, shown as the field error until the next choice. */
+  /** A refused archive, delivered through notifications without replacing the current pack. */
   choiceError: string | null;
   busy: boolean;
   choose: () => void;

@@ -56,6 +56,8 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
+Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
+
 During implementation, run targeted checks for changed behavior. Once all agreed
 source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run
 the full local gate alongside hosted CI:
@@ -70,6 +72,17 @@ or thread limits. Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
 policy changes retain full selection.
+
+The Tests producer alone enables
+`dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
+window, log and report zoom owners, with no extra Harmos visibility. Integration
+exercises small histories; system uses seven days, 100,101 original report points
+and real segment-sized log volume.
+The GUI Tests feature `dokime-gui/testing` exposes the native Save workflow with
+a controlled picker result; its integration story uses real verified streams and
+atomic filesystem publication, including refusal and generation-change cleanup.
+Product enables neither testing feature. Focus one small guard with
+`mise run build:rust:focused -- test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,

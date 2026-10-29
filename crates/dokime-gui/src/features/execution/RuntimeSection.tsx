@@ -71,7 +71,7 @@ export function RuntimeSection({ connection, layout, snapshot }: RuntimeSectionP
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong className="text-sm">Artifact Artifacts</strong>
           <Badge variant={failedArtifacts ? "secondary" : "outline"}>
-            {readyArtifacts}/{artifacts.length || 0} ready
+            {readyArtifacts}/{artifacts.length || 0} Ready
           </Badge>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">

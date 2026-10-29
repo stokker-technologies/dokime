@@ -12,7 +12,7 @@ The distribution is `dokime-client`; Python imports use `dokime_client`.
 Use CPython `>=3.13,<3.16`. For the beginner host/second-PC workflow, follow the
 [candidate-artifact walkthrough](examples/remote/README.md) and its
 [locked uv setup](examples/remote/python/README.md). That environment uses a
-bundled candidate wheel and makes no published-registry availability claim.
+locally built matching wheel and makes no published-registry availability claim.
 
 Add the published distribution to a uv project with `uv add dokime-client`. For a separately supplied matching wheel:
 
@@ -32,10 +32,12 @@ compatible platform wheels as usual.
 
 ## Named Backend Profiles
 
-Read a saved profile explicitly, supplying its bearer token separately:
+Read an unsecured lab profile explicitly:
 
 ```python
-async with DokimeClient.from_profile("lab", key_file="remote.key") as client:
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_profile("lab") as client:
     backend = await client.connect()
 ```
 
@@ -45,55 +47,42 @@ OS configuration location. The Rust CLI manages these profiles through
 `dokime backend add/list/show/use/remove`. Python keeps the selected endpoint,
 CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
-Profiles marked `keyring` require a key supplied by the Python caller.
+Python does not read the native keyring. For an authenticated backend, create a
+pairing file on its host and import that file instead:
 
-Secret precedence is explicit `key_file=`, process `DOKIME_KEY`, then the
-key in an explicitly selected `env_file=`. Selected files are validated before
-any connection, even when a higher-priority source supplies the key. Keys are
-UTF-8 text with 32–4096 visible ASCII characters. Dotenv files use the configured
-`environment_bytes` bound, are never searched for automatically, and never overwrite process values.
-Constructor arguments read these local files; they open no network channel.
+```python
+async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+    backend = await client.connect()
+```
+
+The constructor reads and validates that explicit file before connecting. It
+retains the endpoint, expected backend identity, CA and independent access key
+for the connection. Protect the pairing file as a credential; revoking its
+paired client on the host prevents further use. See the
+[pairing walkthrough](examples/remote/README.md) for the host and second-PC flow.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
 and data. The listener decides independently whether a key is required. A
-profile marked `keyring` still requires its selected secrets. Public CA
-files apply only to HTTPS; certificate verification is never disabled.
+profile marked `keyring` is refused by `from_profile`; use `from_pairing`.
+CA certificates apply only to HTTPS; certificate verification is never disabled.
 
 ```python
-async with DokimeClient(endpoint, env_file=".env", ca_certificate="server.pem") as client:
+async with DokimeClient("http://127.0.0.1:8765") as client:
     backend = await client.connect()
 ```
 
 ## Client Configuration
 
-Each connection captures an immutable `ClientSettings` snapshot before reading
-credentials, profiles or CA certificates. Defaults are packaged from Rust's
-canonical client settings. When `settings` is omitted, Python overlays the local
-Dokime `config.toml` table `[operational.client]`; an absent file uses packaged
-defaults. Invalid or unknown client fields fail with the file path. Other
-application sections stay under their existing owners, and Python creates no
-configuration file.
+Each connection uses the generated application defaults for
+`connect_timeout_ms` and `request_timeout_ms`. Direct construction and
+`from_profile` also accept `preferences=`, a generated client-preferences message
+with those two fields, and an explicit `rpc_timeout` override. Streaming
+operation deadlines come from their declared contracts.
 
-The default file is `LOCALAPPDATA/com.stokker.dokime/config.toml` on Windows,
-or `XDG_DATA_HOME/com.stokker.dokime/config.toml` on Unix, falling back to
-`HOME/.local/share/com.stokker.dokime/config.toml`. This is policy for the machine
-running Python; it does not load the remote backend's TOML. Named backend
-profiles remain in their separate `backends.json` document.
-
-```python
-from dokime_client import ClientSettings, DokimeClient
-
-settings = ClientSettings.load("client-config.toml")
-async with DokimeClient(endpoint, settings=settings) as client:
-    backend = await client.connect()
-```
-
-Explicit `ClientSettings()` construction uses packaged defaults without local
-TOML lookup and accepts typed field overrides. Pass the same snapshot to
-`from_profile(..., settings=settings)` to bound profile and credential reads.
-An explicit `rpc_timeout` remains an override; streaming operation deadlines
-come from their declared contracts.
+Python does not load or create a local application-settings file. Application
+preferences belong to the backend's SQLite settings owner; named profiles remain
+in their separate `backends.json` document. Legacy TOML files are left untouched.
 
 ## Creating Cycles
 
@@ -103,7 +92,7 @@ Construct each execution locally, then append those exact attempts to a cycle:
 ```python
 from dokime_client import DokimeClient, Execution
 
-async with DokimeClient(endpoint, key_file="remote.key") as client:
+async with DokimeClient.from_pairing("lab.dokime-pair") as client:
     template = await client.template("obc.checks.pulse")
     cases = await template.materialize(parameters={"sample_count": 8})
     executions = [Execution(test_case) for test_case in cases]
@@ -253,17 +242,11 @@ drains its callbacks and saves `execution.json`.
 runs one attempt and writes `cycle.json` and `summary.json`. Edit their globals,
 then run the file without arguments.
 
-Repository Python Build stages the canonical guides, scripts, locked tutorial
-environment and bundled candidate wheel under
-`target/build/<profile>/any/python/examples/remote/`. Python Package consumes those
-files and produces
-`target/package/<profile>/any/python/dokime-remote-examples-<version>.zip`, alongside
-the client distributions in that same Python subtree, without
-rebuilding. It includes only the explicit public
-example inventory; local `.env`, key files and collected evidence are excluded.
-The archive's shared [beginner guide](examples/remote/README.md) explains the
-candidate installation and its limits. The bundled wheel pin does not establish
-published package availability or a verified release combination.
+Repository Python Build produces client distributions under
+`target/build/<profile>/any/python/`; Python Package copies those distributions to
+`target/package/<profile>/any/python/` without rebuilding. Tutorials remain in the
+[source examples](examples/remote/README.md). They are not packaged or attached to
+releases; follow their setup instructions to prepare a matching local wheel.
 
 ```python
 from dokime_client.client import DokimeClient
@@ -273,11 +256,7 @@ async def record(item):
     print(item)
 
 
-async with DokimeClient(
-    "https://dokime.example:8765",
-    key_file="remote.key",
-    ca_certificate="/path/to/ca.pem",
-) as client:
+async with DokimeClient.from_pairing("lab.dokime-pair") as client:
     execution = await client.execution(execution_id)
     outcome = await execution.run(on_record=record, record_types=("obc.run.*",), timeout=60)
 ```
@@ -312,7 +291,7 @@ The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
 ```python
-async with DokimeClient(endpoint, key_file="remote.key") as client:
+async with DokimeClient.from_pairing("lab.dokime-pair") as client:
     providers = await client.operations()
     provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
     request = provider.operation.request()

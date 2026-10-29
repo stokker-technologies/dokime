@@ -365,7 +365,7 @@ export function ListChipsCell({
           key={`${definition.name}-${chip.candidate}-${chip.index}`}
         >
           <input
-            aria-label={`${label} value ${position + 1}`}
+            aria-label={`${label} Value ${position + 1}`}
             className="min-w-6 bg-transparent py-1 font-mono text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onBlur={(event) => commit(chip, event.target.value)}
             onChange={(event) => replace(chip, [event.target.value])}
@@ -382,7 +382,7 @@ export function ListChipsCell({
           {/* The mark stays small; at touch the pseudo-element gives it the
               44px target a finger needs without inflating the chip. */}
           <Button
-            aria-label={`Remove ${label} value ${position + 1}`}
+            aria-label={`Remove ${label} Value ${position + 1}`}
             className={cn(
               "relative size-5 rounded-l-none",
               "[[data-density=touch]_&]:after:absolute [[data-density=touch]_&]:after:-inset-2.5 [[data-density=touch]_&]:after:content-['']",
@@ -397,7 +397,7 @@ export function ListChipsCell({
         </span>
       ))}
       <Button
-        aria-label={`Add ${label} value`}
+        aria-label={`Add ${label} Value`}
         className="size-6 [[data-density=touch]_&]:size-11"
         onClick={() =>
           write(expands ? [...candidates, [emptyListItem(elementType)]] : [[...(candidates[0] ?? []), emptyListItem(elementType)]])
@@ -478,7 +478,7 @@ export function FileValueCell({
     <div className={cn("flex items-center gap-2", CELL_HEIGHT)}>
       <Input
         aria-invalid={Boolean(row.error) || (definition.required && !(chosen || definition.default?.trim()))}
-        aria-label={`${label} path`}
+        aria-label={`${label} Path`}
         className={cn("min-w-0 flex-1 font-mono text-xs", CELL_HEIGHT)}
         disabled={row.uploading}
         id={`${parameterInputId(definition.name)}-file`}
@@ -489,7 +489,7 @@ export function FileValueCell({
       />
       <input
         accept={definition.media_types?.join(",")}
-        aria-label={`${label} file`}
+        aria-label={`${label} File`}
         className="sr-only"
         disabled={row.uploading}
         onChange={(event) => {

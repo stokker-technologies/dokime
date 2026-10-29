@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,10 @@ pub struct Settings {
 pub struct ApplicationMetadata {
     pub identity: DokimeNodeIdentity,
     pub plugins: BTreeMap<Uuid, PluginSettings>,
+
+    #[serde(default)]
+    pub bundled_distribution: Option<String>,
+
     pub secrets: Catalog,
 }
 
@@ -66,8 +70,7 @@ impl std::fmt::Debug for Settings {
 }
 
 impl Settings {
-    pub async fn open(application_root: impl Into<PathBuf>, database: State) -> Result<Self, Error> {
-        let paths = ApplicationPaths::new(application_root);
+    pub async fn open(paths: ApplicationPaths, database: State) -> Result<Self, Error> {
         database.initialize_settings().await?;
         database.read_application_settings().await?;
         database.read_application_metadata().await?;
@@ -97,6 +100,7 @@ impl ApplicationMetadata {
         Self {
             identity: DokimeNodeIdentity::new(crate::model::identity::new_id::<NodeId>(), label, crate::model::time::now_utc()),
             plugins: BTreeMap::new(),
+            bundled_distribution: None,
             secrets: Catalog::default(),
         }
     }
@@ -104,6 +108,12 @@ impl ApplicationMetadata {
     pub(crate) fn validate(&self) -> Result<(), String> {
         self.secrets.validate().map_err(str::to_owned)?;
         self.secrets.check_limits().map_err(str::to_owned)?;
+        if let Some(digest) = &self.bundled_distribution {
+            let hexadecimal = digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+            if digest.len() != 64 || !hexadecimal {
+                return Err("bundled distribution digest must be lowercase hexadecimal SHA-256".into());
+            }
+        }
         for (id, plugin) in &self.plugins {
             plugin.validate().map_err(|error| format!("plugin `{id}`: {error}"))?;
         }

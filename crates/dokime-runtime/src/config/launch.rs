@@ -45,7 +45,7 @@ pub struct Config {
     pub managed_storage: harmos::config::ManagedStorageSettings,
     pub storage_state: harmos::config::StorageStateSettings,
 
-    pub application_root: Option<PathBuf>,
+    pub application: Option<crate::paths::ApplicationPaths>,
     pub plugin_lookup: Option<PathBuf>,
     pub explicit_plugins: Vec<PathBuf>,
     pub brand: Option<ResolvedBrand>,
@@ -81,7 +81,7 @@ impl Config {
             storage: super::storage_defaults(),
             managed_storage: super::managed_storage_defaults(),
             storage_state: super::storage_state_defaults(),
-            application_root: None,
+            application: None,
             plugin_lookup: None,
             explicit_plugins: Vec::new(),
             brand: None,
@@ -102,10 +102,13 @@ impl Config {
         config.storage = self.storage;
         config.managed_storage = self.managed_storage;
         config.storage_state = self.storage_state;
-        if let Some(root) = self.application_root {
-            config = config.with_application_root(root);
+        if let Some(paths) = self.application {
+            config.application = paths;
         }
         config.plugin_lookup = self.plugin_lookup;
+        config.bundled_plugins = super::organization::installation_directory()
+            .and_then(|directory| directory.parent().map(|parent| parent.join("plugins")))
+            .filter(|directory| directory.parent().is_some_and(|parent| parent.join("installer.json").is_file()));
         let mut config = config.with_plugins(PluginBundle::all(&self.explicit_plugins));
 
         for provider in self.registrations.0 {

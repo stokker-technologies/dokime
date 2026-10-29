@@ -20,7 +20,8 @@
 /* === External Imports === */
 
 import { useMemo } from "react";
-import { toast } from "sonner";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -34,8 +35,8 @@ import {
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
-import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -64,17 +65,13 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         {settings.loading && !settings.frame ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <span className="text-sm text-muted-foreground" role="status">
-                Reading the settings frame.
-              </span>
+              <NotificationMessage tone="info">Reading the settings frame.</NotificationMessage>
             </SettingsRow>
           </SettingsCard>
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <span className="text-sm text-destructive" role="alert">
-                {settings.error}
-              </span>
+              <NotificationMessage>{settings.error}</NotificationMessage>
               <Button onClick={settings.retry} size="sm" variant="outline">
                 Try Again
               </Button>
@@ -122,9 +119,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground" role="status">
-            Loading settings…
-          </span>
+          <NotificationMessage tone="info">Loading settings…</NotificationMessage>
         </SettingsRow>
       </SettingsCard>
     );
@@ -133,9 +128,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <span className="text-sm text-destructive" role="alert">
-            {detailQuery.error.message}
-          </span>
+          <NotificationMessage>{detailQuery.error.message}</NotificationMessage>
         </SettingsRow>
       </SettingsCard>
     );

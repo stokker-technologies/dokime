@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:6f0e9adde2d089c26c12c033a185cb78ed16af83691e590f051109105cf83807
+# Rendered by stkr project update from templates/python/package/run.py; sha256:968d6e035be06cefb2dadefbff7614dad5af778b0aa32ecf630f3e95ae73819e
 # ***
 #
 # Dokime
@@ -13,12 +13,14 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 
@@ -26,7 +28,9 @@ from pathlib import Path
 # Local Imports
 from .. import temporary
 from ..build import paths
+from ..process import spawn_flags
 from ..release import policy
+from . import changelog
 
 # Type Checking Imports
 
@@ -53,7 +57,8 @@ def definitions(directory: Path, profile: str, target: str) -> list[dict]:
         if not version or not re.fullmatch(r"[a-zA-Z0-9_.-]+", version):
             raise policy.ToolError("executable packages require version.value")
         extension = ".exe" if "-windows-" in triple else ""
-        name = f"{item['name']}-{version}-{triple}{extension}"
+        archive = ".zip" if extension else ".tar.gz"
+        name = f"{item['name']}-{version}-{triple}{archive}"
         result.append({**item, "language": "rust", "output": name, "triple": triple, "binary": item["command"] + extension})
     for item in config.get("package", {}).get("bundles", []):
         if profile in item["profiles"] and target in item["targets"]:
@@ -74,25 +79,13 @@ def definitions(directory: Path, profile: str, target: str) -> list[dict]:
 
 
 def packaged(directory: Path, profile: str, target: str) -> list[dict]:
-    """Public Package Bytes Enter The Existing Release Manifest Unchanged."""
+    """Only Explicitly Shipped Tools Enter The Release; Bundles Need release.assets."""
     root = paths.output(directory, "package", profile, target)
     result = [
         {"target": target, "path": (root / item["language"] / item["output"]).relative_to(directory).as_posix(), "name": item["output"]}
         for item in definitions(directory, profile, target)
-        if item["release"]
+        if "triple" in item and item["release"]
     ]
-    settings = policy.config(directory).get("release", {})
-    if settings.get("targets", [None])[0] == target:
-        shared = paths.output(directory, "package", profile, "any")
-        result.extend(
-            {
-                "target": target,
-                "path": (shared / item["language"] / item["output"]).relative_to(directory).as_posix(),
-                "name": item["output"],
-            }
-            for item in definitions(directory, profile, "any")
-            if item["release"]
-        )
     return result
 
 
@@ -133,7 +126,28 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
             if actual != item["triple"]:
                 raise policy.ToolError(f"Build Rust target {actual} differs from package target {item['triple']}")
             source = regular(build, "bin/" + item["binary"])
-            shutil.copy2(source, output)
+            documentation = [(regular(directory, "LICENSE"), "LICENSE"), (regular(directory, "README.md"), "README.md")]
+            value = substitutions["version"]
+            changelog_file = staging / "CHANGELOG.md"
+            changelog_file.write_text(changelog.notes(directory, "v" + value), encoding="utf-8", newline="\n")
+            documentation.append((changelog_file, "CHANGELOG.md"))
+            contents = [(source, item["binary"]), *documentation]
+            if output.name.endswith(".zip"):
+                with zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED) as archive:
+                    for original, name in contents:
+                        metadata = zipfile.ZipInfo.from_file(original, name)
+                        metadata.create_system = 3
+                        metadata.external_attr = (stat.S_IFREG | (0o755 if original == source else 0o644)) << 16
+                        metadata.compress_type = zipfile.ZIP_DEFLATED
+                        archive.writestr(metadata, original.read_bytes())
+            else:
+                with tarfile.open(output, "x:gz") as archive:
+                    for original, name in contents:
+                        metadata = archive.gettarinfo(str(original), arcname=name)
+                        metadata.mode = 0o755 if original == source else 0o644
+                        with original.open("rb") as stream:
+                            archive.addfile(metadata, stream)
+            changelog_file.unlink()
             continue
         destinations = set()
         with zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -173,6 +187,25 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
                     shutil.copyfileobj(original, destination)
 
 
+def binary_bytes(source: Path, name: str) -> bytes:
+    """Read Only The Declared Root Binary, Without Extracting Archive Paths."""
+    if source.name.endswith(".zip"):
+        with zipfile.ZipFile(source) as archive:
+            matches = [entry for entry in archive.infolist() if entry.filename == name]
+            if len(matches) != 1 or matches[0].is_dir():
+                raise policy.ToolError("tool archive must contain one declared binary")
+            return archive.read(matches[0])
+    with tarfile.open(source, "r:gz") as archive:
+        matches = [entry for entry in archive.getmembers() if entry.name == name]
+        if len(matches) != 1 or not matches[0].isfile() or not matches[0].mode & 0o111:
+            raise policy.ToolError("tool archive must contain one executable regular binary")
+        stream = archive.extractfile(matches[0])
+        if stream is None:
+            raise policy.ToolError("tool archive binary has no file content")
+        with stream:
+            return stream.read()
+
+
 def verify(directory: Path, profile: str, target: str, root: Path | None = None) -> None:
     """Execute Packaged Native Bytes In An Isolated Installation Directory."""
     for item in definitions(directory, profile, target):
@@ -184,14 +217,14 @@ def verify(directory: Path, profile: str, target: str, root: Path | None = None)
             raise policy.ToolError("missing packaged executable")
         with temporary.directory() as install:
             executable = install / item["binary"]
-            shutil.copy2(source, executable)
+            executable.write_bytes(binary_bytes(source, item["binary"]))
             executable.chmod(0o755)
             subprocess.run(
                 [str(executable), *item["verify"]],
                 stdin=sys.stdin,
                 stdout=sys.stdout,
                 stderr=sys.stderr,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=install,
                 check=True,
             )
@@ -216,7 +249,7 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                         stdin=sys.stdin,
                         stdout=sys.stdout,
                         stderr=sys.stderr,
-                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        creationflags=spawn_flags(),
                         cwd=install.parent,
                         env=environment,
                         check=True,
@@ -244,14 +277,14 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                         stdin=sys.stdin,
                         stdout=sys.stdout,
                         stderr=sys.stderr,
-                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        creationflags=spawn_flags(),
                         cwd=install,
                         check=True,
                     )
                     matches = [install / "bin" / item["binary"]]
                 if len(matches) != 1 or not matches[0].is_file():
                     raise policy.ToolError(f"{installer} did not install the declared executable")
-                expected = hashlib.sha256((root / item["output"]).read_bytes()).digest()
+                expected = hashlib.sha256(binary_bytes(root / item["output"], item["binary"])).digest()
                 if hashlib.sha256(matches[0].read_bytes()).digest() != expected:
                     raise policy.ToolError(f"{installer} did not install the exact published asset")
                 subprocess.run(
@@ -259,7 +292,7 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                     stdin=sys.stdin,
                     stdout=sys.stdout,
                     stderr=sys.stderr,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    creationflags=spawn_flags(),
                     cwd=install,
                     check=True,
                 )
@@ -298,7 +331,12 @@ def main() -> None:
             verify(directory, options.profile, target)
         return
     if options.language == "rust":
-        with temporary.directory() as scratch:
+        metadata = json.loads(
+            policy.execute(directory, ["cargo", "metadata", "--no-deps", "--format-version", "1", "--locked"], capture=True)
+        )
+        members = set(metadata["workspace_members"])
+        crates = {item["name"]: item for item in metadata["packages"] if item["id"] in members and item.get("publish") != []}
+        with temporary.directory() as scratch, changelog.staged(directory, crates):
             subprocess.run(
                 [
                     "cargo",
@@ -306,13 +344,14 @@ def main() -> None:
                     "--workspace",
                     "--locked",
                     "--no-verify",
+                    "--allow-dirty",
                     "--target-dir",
                     str(scratch),
                 ],
                 stdin=sys.stdin,
                 stdout=sys.stdout,
                 stderr=sys.stderr,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 cwd=directory,
                 check=True,
             )
@@ -330,6 +369,7 @@ def main() -> None:
 
 
 # === Private Functions === #
+
 
 # === Entry Point === #
 

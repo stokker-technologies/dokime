@@ -39,6 +39,7 @@ use windows::Win32::{
 
 // The Request Payload Matches ping's Default 32 Bytes.
 const PAYLOAD: [u8; 32] = [b'a'; 32];
+
 // Room For The ICMP Error Message And The IO_STATUS_BLOCK The API Appends.
 const REPLY_SLACK_BYTES: usize = 64;
 
