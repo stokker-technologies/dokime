@@ -53,7 +53,6 @@ tracing = { workspace = true }
 
 # Utilities
 harmos-packaging = { workspace = true }
-sha2 = { workspace = true }
 uuid = { workspace = true }
 
 # Serialization
@@ -99,7 +98,7 @@ dokime = { workspace = true, features = ["plugin-sidecar"] }
 # Utilities
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 harmos-sdk = { workspace = true }
-time = { workspace = true }
+sha2 = { workspace = true }
 
 # Serialization
 
@@ -123,7 +122,6 @@ tonic = { workspace = true }
 # UI
 
 # Testing
-criterion = { workspace = true }
 
 # === Target Dependencies === #
 
