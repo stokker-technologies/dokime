@@ -190,7 +190,7 @@ impl TestCycleHandle {
 
     pub async fn snapshot(&self) -> Result<dokime_domain::model::execution::wire::CycleSummary> {
         self.client.verify(true).await?;
-        let snapshot = self.client.execution_get_cycle(contracts::execution::GetCycle { cycle_id: self.id.to_string() }).await?;
+        let snapshot = self.client.call(contracts::execution::GetCycle { cycle_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &snapshot)?;
         validate_observed_cursor(&self.client.backend().epoch, snapshot.observed_cursor.as_ref())?;
         Ok(snapshot)
@@ -209,7 +209,7 @@ impl TestCycleHandle {
                 let mut handles = Vec::new();
                 let mut seen = HashSet::new();
                 loop {
-                    let page = self.client.execution_list_executions(request.clone()).await?;
+                    let page = self.client.call(request.clone()).await?;
                     let ids = execution_members(&self.client.backend().epoch, &request, &page, handles.len() as u64, &mut seen)?;
                     handles.extend(ids.into_iter().map(|id| self.client.execution(id)));
                     match page.next_after_execution_id {

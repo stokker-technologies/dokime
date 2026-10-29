@@ -51,10 +51,7 @@ impl TestExecutionHandle {
     ) -> Result<dokime_domain::model::history::wire::CheckpointContext> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
-        let context = self
-            .client
-            .history_get_checkpoint_context(contracts::history::GetCheckpointContext { checkpoint: Some(checkpoint.clone()) })
-            .await?;
+        let context = self.client.call(contracts::history::GetCheckpointContext { checkpoint: Some(checkpoint.clone()) }).await?;
         same_checkpoint(checkpoint, context.checkpoint.as_ref())?;
         Ok(context)
     }
@@ -66,7 +63,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let evidence = self
             .client
-            .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
+            .call(contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
                 sections: vec![
                     dokime_domain::model::history::wire::EvidenceSection::Artifacts,
@@ -95,7 +92,7 @@ impl TestExecutionHandle {
                     handle.client.verify(false).await?;
                     let page = handle
                         .client
-                        .history_list_checkpoint_records(contracts::history::ListCheckpointRecords {
+                        .call(contracts::history::ListCheckpointRecords {
                             checkpoint: Some(checkpoint.clone()),
                             limit: PAGE_ITEMS as u32,
                             after: pages.after.clone(),
@@ -132,7 +129,7 @@ impl TestExecutionHandle {
                 handle.client.verify(false).await?;
                 let inventory = handle
                     .client
-                    .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
+                    .call(contracts::history::GetCheckpointEvidence {
                         checkpoint: Some(checkpoint.clone()),
                         sections: vec![dokime_domain::model::history::wire::EvidenceSection::TelemetryTables],
                     })
@@ -154,7 +151,7 @@ impl TestExecutionHandle {
                         handle.client.verify(false).await?;
                         let page = handle
                             .client
-                            .history_list_checkpoint_telemetry(contracts::history::ListCheckpointTelemetry {
+                            .call(contracts::history::ListCheckpointTelemetry {
                                 checkpoint: Some(checkpoint.clone()),
                                 table: table.clone(),
                                 limit: PAGE_ITEMS as u32,

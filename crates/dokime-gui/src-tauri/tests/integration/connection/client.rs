@@ -157,11 +157,11 @@ async fn client_verifies_identity() {
     let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
 
     client.verify(true).await.unwrap();
-    let health = client.backend_get_health(backend::GetHealth {}).await.unwrap();
+    let health = client.call(backend::GetHealth {}).await.unwrap();
     assert_eq!(health.backend_id, "shared");
     let calls = requests.lock().unwrap().len();
     assert!(matches!(
-        client.catalog_get_suite(catalog::GetSuite { suite_id: "absent".into() }).await,
+        client.call(catalog::GetSuite { suite_id: "absent".into() }).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::PermissionDenied
     ));
 
@@ -183,7 +183,7 @@ async fn client_response_limit() {
     let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
 
     assert!(matches!(
-        client.backend_get_health(backend::GetHealth {}).await,
+        client.call(backend::GetHealth {}).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange
     ));
 }
@@ -197,7 +197,7 @@ async fn stream_close_releases() {
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
         let stream = client
-            .backend_watch_logs(backend::WatchLogs {
+            .stream(backend::WatchLogs {
                 min_level: model::backend::wire::LogLevel::Unspecified,
                 replay_lines: 0,
             })
@@ -212,7 +212,7 @@ async fn stream_close_releases() {
             }
             "stream" => {
                 stream.close().await;
-                client.backend_get_health(backend::GetHealth {}).await.unwrap();
+                client.call(backend::GetHealth {}).await.unwrap();
             }
             "drop" => drop(stream),
             _ => unreachable!(),
@@ -231,7 +231,7 @@ async fn stream_clones_close() {
     let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
     let stream = client
-        .backend_watch_logs(backend::WatchLogs {
+        .stream(backend::WatchLogs {
             min_level: model::backend::wire::LogLevel::Unspecified,
             replay_lines: 0,
         })
@@ -251,7 +251,7 @@ async fn stream_clones_close() {
     assert!(matches!(second.await, Err(Error::Closed)));
     other.close().await;
     closed.notified().await;
-    client.backend_get_health(backend::GetHealth {}).await.unwrap();
+    client.call(backend::GetHealth {}).await.unwrap();
 }
 
 #[tokio::test]
