@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { memo, type ReactNode, useMemo } from "react";
+import { memo, type ReactNode, useId, useMemo } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
@@ -29,6 +29,7 @@ import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
+import { PlotInteractionProvider, usePlotInteraction } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
@@ -73,6 +74,8 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   viewportMode = "live",
 }: LivePlotGroupGridProps) {
   const plotPalette = usePlotPalette();
+  const interaction = usePlotInteraction();
+  const syncKey = useId();
   const prompts = useMemo(() => promptMarkers(records), [records]);
   // A lone plot titled like its group or section is already named above it.
   const titleRepeated = groupRepeatsPlotTitle(title, documentPlots);
@@ -103,7 +106,11 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
     />
   ));
   if (!showGroupHeaders) {
-    return <>{cards}</>;
+    return (
+      <PlotInteractionProvider zoom={interaction.zoom} syncKey={syncKey}>
+        {cards}
+      </PlotInteractionProvider>
+    );
   }
 
   const description = documentPlots.find((plot) => plot.description)?.description ?? documentPlotGroupDescription(title);
@@ -113,7 +120,9 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
         <h3 className="text-base font-semibold">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
-      <div className="grid gap-2">{cards}</div>
+      <PlotInteractionProvider zoom={interaction.zoom} syncKey={syncKey}>
+        <div className="grid gap-2">{cards}</div>
+      </PlotInteractionProvider>
     </section>
   );
 });

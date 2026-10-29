@@ -200,7 +200,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   legend = null,
   onViewportChange,
 }: CartesianPlotProps) {
-  const { zoom } = usePlotInteraction();
+  const { zoom, syncKey } = usePlotInteraction();
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
   const [traceColors, setTraceColors] = useState<string[]>([]);
   const [cursor, setCursor] = useState<PlotCursor | null>(null);
@@ -441,6 +441,15 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursor: {
         drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
+        sync:
+          timeAxis && syncKey
+            ? {
+                key: `${syncKey}:${xElapsedUnit ?? "wall"}`,
+                scales: ["x", null],
+                setSeries: false,
+                filters: { pub: (event) => event === "mousemove", sub: (event) => event === "mousemove" },
+              }
+            : undefined,
       },
       select: { show: true, left: 0, top: 0, width: 0, height: 0 },
       legend: {
@@ -637,6 +646,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     chartMode,
     formatsKey,
     tableLegend,
+    syncKey,
   ]);
 
   // Visibility is this card's own state: toggling a trace shows or hides its

@@ -726,7 +726,7 @@ the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
-freezes the table with its plot.
+freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
