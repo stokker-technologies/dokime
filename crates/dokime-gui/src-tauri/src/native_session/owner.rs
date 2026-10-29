@@ -249,7 +249,7 @@ impl DesktopSession {
         let target = dokime::client::Target::local(endpoint).map_err(|error| Error::Connection { error: error.into() })?;
         let client =
             dokime::client::Client::connect(target, None, None).await.map_err(|error| Error::Connection { error: error.into() })?;
-        let result = client.settings_read_application_settings(dokime::operations::settings::ReadApplicationSettings {}).await;
+        let result = client.call(dokime::operations::settings::ReadApplicationSettings {}).await;
         client.close();
         result.map(|snapshot| snapshot.settings.client).map_err(|error| Error::Connection { error: error.into() })
     }

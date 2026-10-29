@@ -36,14 +36,6 @@ use dokime_domain::model::query::wire::*;
 
 /* === Enums === */
 
-// A zero limit means the server ceiling of 10,000 rows. Larger values are
-
-// clamped to it rather than rejected. `group_by` may be empty, which
-
-// aggregates the whole filtered selection into a single row. `aggregates` must
-
-// name at least one output.
-
 #[harmos::catalog]
 pub enum Operations {
     Aggregate(Aggregate),

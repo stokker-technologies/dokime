@@ -23,7 +23,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 # isort: split
-from dokime_tools.ci.bootstrap import prepare_harmos
+from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 
 # Type Checking Imports
@@ -55,19 +55,9 @@ CONTRACT_SET = ("contracts.json", "descriptors.bin")
 # === Public Functions === #
 
 
-def generate(
-    messages: Path | None,
-    root: Path = ROOT,
-    *,
-    check: bool = False,
-    export: Path | None = None,
-    cargo_config: Path | None = None,
-) -> None:
-    tool = prepare_harmos(root, allow_install=False, cargo_config=cargo_config)
-    if export is None:
-        if messages is None:
-            raise ValueError("a selected contract build is required")
-        export = locate(messages)
+def generate(messages: Path, root: Path = ROOT, *, check: bool = False) -> None:
+    tool = executables(messages, ("cargo-dokime",))["cargo-dokime"]
+    export = locate(messages)
     project = tomllib.loads((root / "packages/dokime-client/pyproject.toml").read_text())["project"]
     destination = root / "packages/dokime-client/src/dokime_client"
     with tempfile.TemporaryDirectory(prefix="dokime-bindings-") as directory:
@@ -75,7 +65,6 @@ def generate(
         subprocess.run(
             [
                 str(tool),
-                "harmos",
                 "bindings",
                 "python",
                 "--export",
@@ -173,9 +162,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-json", type=Path, required=True, help="Compiler messages of the Cargo build that exported the contracts")
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--cargo-config", type=Path)
     args = parser.parse_args()
-    generate(args.build_json, check=args.check, cargo_config=args.cargo_config)
+    generate(args.build_json, check=args.check)
 
 
 # === Private Functions === #

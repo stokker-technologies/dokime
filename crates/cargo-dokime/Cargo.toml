@@ -44,7 +44,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true }
+harmos-packaging = { workspace = true, features = ["generate-python"] }
 semver = { workspace = true }
 sha2 = { workspace = true }
 

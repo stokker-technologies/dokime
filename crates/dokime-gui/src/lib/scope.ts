@@ -13,16 +13,7 @@ import type { RecordScope } from "@/lib/types";
 
 /* === Types === */
 
-/** Artifact ownership is determined solely by its declared scope. */
-export type ScopedArtifact = {
-  scope?: RecordScope | null;
-};
-
 /* === Public Functions === */
-
-export function artifactVisibleInScope(artifact: ScopedArtifact, filter: RecordScope): boolean {
-  return scopeVisibleIn(artifact.scope, filter);
-}
 
 /** Every selected owner must be present and equal in the record. */
 export function scopeVisibleIn(scope: RecordScope | null | undefined, filter: RecordScope): boolean {

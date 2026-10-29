@@ -118,10 +118,6 @@ impl RecordingTransport {
         self.diagnostics.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
-    pub fn progress_updates(&self) -> Vec<ExecutionProgress> {
-        self.progress.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
-    }
-
     pub fn step_attempts(&self) -> &[dokime_domain::model::execution::result::TestStepAttempt] {
         &self.step_attempts
     }
@@ -134,10 +130,6 @@ impl RecordingTransport {
         &self.traceability
     }
 
-    pub fn document_additions(&self) -> Vec<crate::document::DocumentAddition> {
-        self.documents.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
-    }
-
     pub fn leasing(streams: impl IntoIterator<Item = Identifier>) -> Self {
         Self {
             leasable: streams.into_iter().collect(),
@@ -147,14 +139,6 @@ impl RecordingTransport {
 
     pub fn interrupt(&mut self, gap: LeaseGap) {
         self.gaps.push(gap);
-    }
-
-    pub fn requested_leases(&self) -> &[Identifier] {
-        &self.leases
-    }
-
-    pub fn released_leases(&self) -> Vec<String> {
-        self.released.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 }
 

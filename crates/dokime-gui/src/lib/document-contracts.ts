@@ -17,12 +17,6 @@
  * side, so only that side is modelled here.
  */
 
-export type ArtifactListDescriptor = {
-  scope: RecordScope;
-  artifact_count: number;
-  completed_count: number;
-};
-
 export type AnalysisSelection = {
   id: Identifier;
   version: number;
@@ -110,12 +104,6 @@ export type DocumentCardPlacementPayload = {
 };
 
 export type DocumentCardRail = "main" | "right" | "left";
-
-export type DocumentCard_Serialize = {
-  metadata: Metadata;
-  layout: DocumentCardLayout;
-  filters: DocumentFilter[];
-} & DocumentCardBody_Serialize;
 
 export type DocumentFilter = {
   expression: DataExpression;
@@ -282,15 +270,6 @@ export type PlotType =
   | "box_summary"
   | "aggregate_table";
 
-export type RecordMarker = {
-  sequence: number;
-  timestamp: Timestamp;
-  record_type: Identifier;
-  label: string;
-  severity: RecordSeverity;
-  scope: RecordScope | null;
-};
-
 export type RecordScope = {
   session_id?: SessionId | null;
   test_cycle_id?: TestCycleId | null;
@@ -301,8 +280,6 @@ export type RecordScope = {
   template_id?: TemplateId | null;
   suite_id?: SuiteId | null;
 };
-
-export type RecordSeverity = "debug" | "info" | "warning" | "error";
 
 export type ReferenceAxis = "x" | "y";
 

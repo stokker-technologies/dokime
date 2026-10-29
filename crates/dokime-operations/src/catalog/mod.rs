@@ -53,16 +53,6 @@ use dokime_domain::model::identity::wire::*;
 
 /* === Enums === */
 
-// Pages are ordered by registered suite ID. A changed cursor requires restarting
-
-// pagination; pages are not pinned across runtime changes.
-
-// Current admitted schemas, ordered by type/stream ID. These catalogs exclude
-
-// retired definitions retained only for immutable historical evidence. A cursor
-
-// belongs to one runtime epoch/revision; restart pagination when it expires.
-
 #[harmos::catalog]
 pub enum Operations {
     ListSuites(ListSuites),

@@ -41,7 +41,6 @@ use crate::{
     },
     runtime::Error,
     runtime::Result,
-    runtime::storage::execution::ExecutionView,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
@@ -179,20 +178,7 @@ impl ReportFileIdentity<'_> {
     }
 }
 
-impl RuntimeHandle {
-    // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
-    pub async fn render_saved_execution_report(
-        &self, execution: &dokime_domain::model::identity::TestExecutionId,
-    ) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
-        let session = self.storage().clone();
-        let inspection = ExecutionView::open(self.storage(), execution, harmos::storage::ObjectVersion::Latest)
-            .await?
-            .ok_or_else(|| Error::InvalidReportInputs("execution is not saved".into()))?;
-        let seal =
-            inspection.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution has no published report".into()))?;
-        Ok(crate::storage::read_file_bytes(&session, &seal.report).await?)
-    }
-}
+impl RuntimeHandle {}
 
 impl CapturedExecutionReportInput {
     pub fn validate(&self) -> Result<()> {

@@ -14,7 +14,7 @@ import { numericValue } from "@/lib/utils";
 import { formatDuration, formatNumber } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
 import { parseTimestampMs } from "./time-format";
-import type { ExecutionResultSummary, HubRecord, JsonObject, Severity, TelemetryStream } from "./types";
+import type { HubRecord } from "./types";
 
 /* === Types === */
 
@@ -42,11 +42,6 @@ const ARTIFACT_LABEL_WORDS: Record<string, string> = {
 };
 
 /* === Public Functions === */
-
-export function latestSample(stream: TelemetryStream | undefined): JsonObject {
-  const latest = stream?.summary.latest_sample;
-  return isObject(latest) ? latest : {};
-}
 
 export function formatValue(value: unknown, unit?: string | null, key = ""): string {
   // A datetime value serializes as `{"$datetime": "<rfc3339>"}`; without this it
@@ -125,37 +120,7 @@ export function artifactLabel(label: string): string {
   return words.map(titleCaseArtifactWord).join(" ");
 }
 
-export function fallbackResultSummary(status: string | undefined): ExecutionResultSummary {
-  const label = status ? runStatusLabel(status) : "No Result Yet";
-  return {
-    outcome: status === "completed" || status === "failed" || status === "interrupted" || status === "stopped" ? status : "unknown",
-    headline: label,
-    warnings: [],
-    evidence: [],
-    updated_at: new Date().toISOString(),
-  };
-}
-
-export function plottableKeys(stream: TelemetryStream | undefined): string[] {
-  if (!stream) {
-    return [];
-  }
-  const sample = latestSample(stream);
-  return Object.entries(sample)
-    .filter(([key, value]) => key !== "timestamp" && numeric(value) !== null)
-    .map(([key]) => key)
-    .slice(0, 3);
-}
-
-export function countBySeverity(records: HubRecord[], level: Severity): number {
-  return records.filter((record) => record.level === level).length;
-}
-
 /* === Private Functions === */
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function numeric(value: unknown): number | null {
   value = numericValue(value) ?? value;
@@ -188,27 +153,6 @@ function dashboardNumber(value: number): string {
     return String(Number(value.toPrecision(3)));
   }
   return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
-}
-
-function runStatusLabel(status: string): string {
-  const normalized = status.toLowerCase();
-  const labels: Record<string, string> = {
-    blocked: "Run Blocked",
-    completed: "Run Completed",
-    disconnected: "Run Disconnected",
-    failed: "Session Failed",
-    finalizing: "Run Finalizing",
-    idle: "No Result Yet",
-    interrupted: "Run Interrupted",
-    paused: "Run Paused",
-    planned: "No Result Yet",
-    running: "Run In Progress",
-    stopped: "Run Stopped",
-    stopping: "Stop Requested",
-    unknown: "No Result Yet",
-    waiting_for_prompt: "Operator Prompt Pending",
-  };
-  return labels[normalized] ?? titleFromIdentifier(status);
 }
 
 function compactLifecycleMessage(message: string, record: HubRecord, fallbackSubject: string): string {

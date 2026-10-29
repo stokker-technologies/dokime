@@ -173,8 +173,6 @@ impl RuntimeHandle {
     }
 }
 
-// Read Dispatch
-
 impl RuntimeHandle {
     pub async fn evidence_snapshot(&self) -> crate::runtime::Result<harmos::storage::ReadBatch<crate::evidence_runtime::EvidenceSnapshot>> {
         let snapshot = self.capture_state().await?;
@@ -319,13 +317,6 @@ impl RuntimeHandle {
 
     pub async fn health_items(&self) -> Vec<HealthItem> {
         self.state_read().health_items()
-    }
-
-    pub async fn traceability_snapshots(&self) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
-        let state = self.state_read();
-        let session = self.storage().clone();
-        let at = self.storage().cursor_saved();
-        self.retained_traceability_at_in(&session, &state, None, &at, true).await
     }
 
     pub async fn traceability_snapshots_page_at(

@@ -227,34 +227,6 @@ impl ExecutionSeal {
             .chain(self.source.outputs.iter().map(|output| &output.file))
             .chain(std::iter::once(&self.report))
     }
-
-    pub fn check_replica_dependencies(
-        &self, execution: &TestExecution, source_received: &StorageCursor, local_data_admitted: &StorageCursor,
-        local_saved: &StorageCursor, verified: &[VerifiedReplicaFile],
-    ) -> Result<()> {
-        self.validate(execution)?;
-        require_saved(source_received, &self.dependencies_saved)?;
-        require_saved(local_saved, local_data_admitted)?;
-        if verified.len() != self.source.outputs.len() + 2 {
-            return Err(SavedEvidenceError::Invalid("replica file set differs"));
-        }
-        for required in self.files() {
-            let mut matches = verified.iter().filter(|file| &file.source == required);
-            let received = matches.next().ok_or(SavedEvidenceError::Invalid("replica is missing an exact source file"))?;
-            if matches.next().is_some()
-                || received.local.metadata.id != required.metadata.id
-                || received.local.metadata.scope != required.metadata.scope
-                || received.local.metadata.media_type != required.metadata.media_type
-                || received.local.length != required.length
-                || received.local.sha256 != required.sha256
-            {
-                return Err(SavedEvidenceError::Invalid("replica file identity or verified integrity differs"));
-            }
-            check_file(&received.local, &execution.test_execution_id)?;
-            require_saved(local_saved, &received.local.position)?;
-        }
-        Ok(())
-    }
 }
 
 impl CycleSeal {

@@ -137,16 +137,6 @@ impl<'a> Input<'a> {
         Ok(Self::grouping(source, ids))
     }
 
-    fn joined_view(source: &'a CycleView) -> Result<Self> {
-        let [execution] = source.test_executions.as_slice() else {
-            return Err(Error::Invalid("captured report requires one joined execution"));
-        };
-        if execution.test_cycle_id != source.test_cycle_id {
-            return Err(Error::Invalid("captured report execution grouping differs"));
-        }
-        Ok(Self::grouping(source, std::slice::from_ref(&execution.test_execution_id)))
-    }
-
     fn grouping(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Self {
         Self {
             saved: &source.saved,
@@ -202,24 +192,8 @@ impl Cycle {
         Self::encoding_input(&Input::from(source))
     }
 
-    pub fn membership_len(&self) -> usize {
-        self.execution_ids.len()
-    }
-
-    pub fn encoding_view_memory(source: &CycleView, ids: &[TestExecutionId]) -> Result<usize> {
-        Self::encoding_input(&Input::view(source, ids)?)
-    }
-
     pub fn from_view(source: &CycleView, ids: &[TestExecutionId]) -> Result<Self> {
         Self::from_input(&Input::view(source, ids)?)
-    }
-
-    pub fn encoding_joined_view_memory(source: &CycleView) -> Result<usize> {
-        Self::encoding_input(&Input::joined_view(source)?)
-    }
-
-    pub fn from_joined_view(source: &CycleView) -> Result<Self> {
-        Self::from_input(&Input::joined_view(source)?)
     }
 
     fn encoding_input(source: &Input<'_>) -> Result<usize> {

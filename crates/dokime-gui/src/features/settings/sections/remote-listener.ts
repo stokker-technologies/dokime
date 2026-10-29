@@ -75,11 +75,6 @@ export function listenerError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "The host rejected the remote access change.";
 }
 
-/** Typed identities, split on commas and whitespace. */
-export function certificateNames(text: string): string[] {
-  return text.split(/[\s,]+/).filter(Boolean);
-}
-
 /* === Private Functions === */
 
 function appliedSettings(status: ListenerStatus): ListenerSettings {

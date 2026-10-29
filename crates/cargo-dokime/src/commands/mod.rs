@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod bindings;
 mod installer;
 mod sidecar;
 
@@ -36,6 +37,8 @@ mod sidecar;
 pub enum Command {
     #[command(name = "__desktop-development", hide = true)]
     DesktopDevelopment(sidecar::dev::desktop::Args),
+    #[command(about = "Generate Client Bindings From Operation Contracts")]
+    Bindings(bindings::Args),
     #[command(about = "Package And Inspect Native Installers")]
     Installer(installer::Args),
 
@@ -52,6 +55,7 @@ impl Command {
     pub async fn run(self) -> Result<(), crate::error::Error> {
         match self {
             Self::DesktopDevelopment(args) => sidecar::dev::desktop::run(args).await,
+            Self::Bindings(args) => bindings::run(args),
             Self::Installer(args) => installer::run(args).await,
             Self::Sidecar(args) => sidecar::run(args).await,
         }

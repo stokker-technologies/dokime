@@ -38,20 +38,5 @@ only suggests.
 
 ## Regenerating Them
 
-```sh
-mise run screenshots:build
-mise run screenshots:capture
-```
-
-`screenshots:build` builds the `dokime` backend, the OBC charger plugin bundle, and
-the desktop shell with `tauri/custom-protocol` so the shell runs without a Vite
-development server beside it. `screenshots:capture`
-(`crates/dokime-gui/tools/capture-screenshots.mjs`) starts a backend with the plugin
-loaded, drives the real WebView through `WebKitWebDriver`, materializes two
-cycles through the template dialog, runs them, answers their operator prompts,
-switches density through the Appearance setting, and writes each image over the
-file of the same name.
-
-The capture is Linux-only and needs a running display session, `WebKitWebDriver`,
-`unshare` with unprivileged user namespaces, and ImageMagick (`magick`). It fails
-loudly rather than publishing an image that still carries personal data.
+Capture replacements by hand from a `mise run build` desktop with the
+`obc-plugin` bundle loaded, following the rules above, and keep the file names.

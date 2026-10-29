@@ -768,10 +768,10 @@ impl Plot {
         }
         let fields = [
             metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
-            plot_name(&value.plot_type).len(),
-            style_name(&value.style).len(),
-            scale_name(&value.x_scale).len(),
-            scale_name(&value.y_scale).len(),
+            name(&value.plot_type).len(),
+            name(&value.style).len(),
+            name(&value.x_scale).len(),
+            name(&value.y_scale).len(),
             fft.saturating_sub(std::mem::size_of::<Fft>()),
             histogram.saturating_sub(std::mem::size_of::<Histogram>()),
             value.y.len().saturating_mul(std::mem::size_of::<String>()),
@@ -825,10 +825,10 @@ impl Plot {
 
     fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
-        plot_type(&self.plot_type)?;
-        plot_style(&self.style)?;
-        axis_scale(&self.x_scale)?;
-        axis_scale(&self.y_scale)?;
+        parse::<crate::document::PlotType>(&self.plot_type, "invalid plot type")?;
+        parse::<crate::document::PlotStyle>(&self.style, "invalid plot style")?;
+        parse::<crate::document::AxisScale>(&self.x_scale, "invalid axis scale")?;
+        parse::<crate::document::AxisScale>(&self.y_scale, "invalid axis scale")?;
         self.fft.validate()?;
         self.interval.validate()?;
         if let Some(window) = self.live_window_s {
@@ -906,7 +906,7 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
         }
         Ok(Self {
             metadata: Some(metadata::Row::try_from(&value.metadata)?),
-            plot_type: plot_name(&value.plot_type).to_owned(),
+            plot_type: name(&value.plot_type),
             stream: value.stream.as_deref().map(str::to_owned),
             x: value.x.as_deref().map(str::to_owned),
             y: super::copied_strings(&value.y)?,
@@ -919,9 +919,9 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             series_by_expression: value.series_by_expression.as_ref().map(Data::try_from).transpose()?,
             filters,
             unit: value.unit.as_deref().map(str::to_owned),
-            style: style_name(&value.style).to_owned(),
-            x_scale: scale_name(&value.x_scale).to_owned(),
-            y_scale: scale_name(&value.y_scale).to_owned(),
+            style: name(&value.style),
+            x_scale: name(&value.x_scale),
+            y_scale: name(&value.y_scale),
             fft: Fft::try_from(&value.fft)?,
             analysis: value.analysis.as_ref().map(super::analysis::Selection::try_from).transpose()?,
             interval: Interval::try_from(&value.interval)?,
@@ -973,7 +973,7 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
         Ok(Self {
             automatic_id: false,
             metadata: row.metadata.ok_or(Error::Invalid("plot metadata is missing"))?.try_into()?,
-            plot_type: plot_type(&row.plot_type)?,
+            plot_type: parse(&row.plot_type, "invalid plot type")?,
             stream: row.stream,
             x: row.x,
             y: row.y,
@@ -986,9 +986,9 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
             series_by_expression: row.series_by_expression.map(TryInto::try_into).transpose()?,
             filters,
             unit: row.unit,
-            style: plot_style(&row.style)?,
-            x_scale: axis_scale(&row.x_scale)?,
-            y_scale: axis_scale(&row.y_scale)?,
+            style: parse(&row.style, "invalid plot style")?,
+            x_scale: parse(&row.x_scale, "invalid axis scale")?,
+            y_scale: parse(&row.y_scale, "invalid axis scale")?,
             fft: row.fft.try_into()?,
             analysis: row.analysis.map(TryInto::try_into).transpose()?,
             interval: row.interval.try_into()?,
@@ -1012,18 +1012,18 @@ impl Fft {
             finite(number)?;
         }
         Ok(std::mem::size_of::<Self>()
-            .saturating_add(fft_window_name(&value.window).len())
-            .saturating_add(fft_detrend_name(&value.detrend).len())
-            .saturating_add(level_unit_name(&value.level_unit).len()))
+            .saturating_add(name(&value.window).len())
+            .saturating_add(name(&value.detrend).len())
+            .saturating_add(name(&value.level_unit).len()))
     }
 
     pub fn validate(&self) -> Result<()> {
         for value in [self.sample_rate_hz, self.min_frequency_hz, self.max_frequency_hz].into_iter().flatten() {
             finite(value)?;
         }
-        fft_window(&self.window)?;
-        fft_detrend(&self.detrend)?;
-        level_unit(&self.level_unit)?;
+        parse::<crate::document::FftWindow>(&self.window, "invalid fft window")?;
+        parse::<crate::document::FftDetrend>(&self.detrend, "invalid fft detrend")?;
+        parse::<crate::document::FrequencyLevelUnit>(&self.level_unit, "invalid level unit")?;
         Ok(())
     }
 }
@@ -1037,9 +1037,9 @@ impl TryFrom<&crate::document::FftOptions> for Fft {
         }
         Ok(Self {
             sample_rate_hz: value.sample_rate_hz,
-            window: fft_window_name(&value.window).to_owned(),
-            detrend: fft_detrend_name(&value.detrend).to_owned(),
-            level_unit: level_unit_name(&value.level_unit).to_owned(),
+            window: name(&value.window),
+            detrend: name(&value.detrend),
+            level_unit: name(&value.level_unit),
             include_dc: value.include_dc,
             min_frequency_hz: value.min_frequency_hz,
             max_frequency_hz: value.max_frequency_hz,
@@ -1054,9 +1054,9 @@ impl TryFrom<Fft> for crate::document::FftOptions {
         row.validate()?;
         Ok(Self {
             sample_rate_hz: row.sample_rate_hz,
-            window: fft_window(&row.window)?,
-            detrend: fft_detrend(&row.detrend)?,
-            level_unit: level_unit(&row.level_unit)?,
+            window: parse(&row.window, "invalid fft window")?,
+            detrend: parse(&row.detrend, "invalid fft detrend")?,
+            level_unit: parse(&row.level_unit, "invalid level unit")?,
             include_dc: row.include_dc,
             min_frequency_hz: row.min_frequency_hz,
             max_frequency_hz: row.max_frequency_hz,
@@ -1152,14 +1152,14 @@ impl Line {
             return Ok(usize::MAX);
         }
         Ok(std::mem::size_of::<Self>()
-            .saturating_add(reference_axis_name(&value.axis).len())
+            .saturating_add(name(&value.axis).len())
             .saturating_add(source.saturating_sub(std::mem::size_of::<Data>()))
             .saturating_add(value.label.as_deref().map_or(0, str::len))
             .saturating_add(value.color.len()))
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        reference_axis(&self.axis)?;
+        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
         if let Some(value) = self.value {
             finite(value)?;
         }
@@ -1180,7 +1180,7 @@ impl TryFrom<&crate::document::ReferenceLine> for Line {
             return Err(Error::Invalid("reference line encoding memory overflows"));
         }
         Ok(Self {
-            axis: reference_axis_name(&value.axis).to_owned(),
+            axis: name(&value.axis),
             value: value.value,
             source: value.source.as_ref().map(Data::try_from).transpose()?,
             source_scale: value.source_scale,
@@ -1198,7 +1198,7 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
             return Err(Error::Invalid("reference line projection memory overflows"));
         }
         Ok(Self {
-            axis: reference_axis(&row.axis)?,
+            axis: parse(&row.axis, "invalid reference axis")?,
             value: row.value,
             source: row.source.map(TryInto::try_into).transpose()?,
             source_scale: row.source_scale,
@@ -1219,7 +1219,7 @@ impl Band {
             return Ok(usize::MAX);
         }
         Ok(std::mem::size_of::<Self>()
-            .saturating_add(reference_axis_name(&value.axis).len())
+            .saturating_add(name(&value.axis).len())
             .saturating_add(center.saturating_sub(std::mem::size_of::<Data>()))
             .saturating_add(tolerance.saturating_sub(std::mem::size_of::<Data>()))
             .saturating_add(value.label.as_deref().map_or(0, str::len))
@@ -1227,7 +1227,7 @@ impl Band {
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        reference_axis(&self.axis)?;
+        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
         for value in [self.min, self.max].into_iter().flatten() {
             finite(value)?;
         }
@@ -1249,7 +1249,7 @@ impl TryFrom<&crate::document::ReferenceBand> for Band {
             return Err(Error::Invalid("reference band encoding memory overflows"));
         }
         Ok(Self {
-            axis: reference_axis_name(&value.axis).to_owned(),
+            axis: name(&value.axis),
             min: value.min,
             max: value.max,
             center: value.center.as_ref().map(Data::try_from).transpose()?,
@@ -1268,7 +1268,7 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
             return Err(Error::Invalid("reference band projection memory overflows"));
         }
         Ok(Self {
-            axis: reference_axis(&row.axis)?,
+            axis: parse(&row.axis, "invalid reference axis")?,
             min: row.min,
             max: row.max,
             center: row.center.map(TryInto::try_into).transpose()?,
@@ -1284,7 +1284,7 @@ impl Format {
         use dokime_domain::model::values::ValueFormat;
         let fields = match value {
             ValueFormat::AbsoluteTime { pattern } => pattern.len(),
-            ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => elapsed_unit_name(unit).len(),
+            ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => name(unit).len(),
             _ => 0,
         };
         std::mem::size_of::<Self>().saturating_add(format_name(value).len()).saturating_add(fields)
@@ -1310,7 +1310,7 @@ impl Format {
             format_digits(value)?;
         }
         if let Some(unit) = &self.unit {
-            elapsed_unit(unit)?;
+            parse::<dokime_domain::model::values::ElapsedUnit>(unit, "invalid elapsed unit")?;
         }
         Ok(std::mem::size_of::<dokime_domain::model::values::ValueFormat>()
             .saturating_add(self.pattern.as_ref().map_or(0, String::capacity)))
@@ -1336,9 +1336,7 @@ impl TryFrom<&dokime_domain::model::values::ValueFormat> for Format {
             | ValueFormat::Engineering { significant_digits }
             | ValueFormat::SiPrefix { significant_digits } => format.significant_digits = Some(u32::from(*significant_digits)),
             ValueFormat::AbsoluteTime { pattern } => format.pattern = Some(pattern.as_str().to_owned()),
-            ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => {
-                format.unit = Some(elapsed_unit_name(unit).to_owned())
-            }
+            ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => format.unit = Some(name(unit)),
         }
         Ok(format)
     }
@@ -1367,10 +1365,10 @@ impl TryFrom<Format> for dokime_domain::model::values::ValueFormat {
             }),
             "absolute_time" => Ok(Self::AbsoluteTime { pattern: row.pattern.unwrap() }),
             "elapsed_since_run" => Ok(Self::ElapsedSinceRun {
-                unit: elapsed_unit(row.unit.as_deref().unwrap())?,
+                unit: parse(row.unit.as_deref().unwrap(), "invalid elapsed unit")?,
             }),
             "elapsed_since_cycle" => Ok(Self::ElapsedSinceCycle {
-                unit: elapsed_unit(row.unit.as_deref().unwrap())?,
+                unit: parse(row.unit.as_deref().unwrap(), "invalid elapsed unit")?,
             }),
             _ => Err(Error::Invalid("invalid value format")),
         }
@@ -1548,9 +1546,9 @@ impl Tile {
         let fields = [
             metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
             scalar.saturating_sub(std::mem::size_of::<Data>()),
-            summary_stat_name(&value.stat).len(),
-            summary_format_name(&value.format).len(),
-            summary_presentation_name(&value.presentation).len(),
+            name(&value.stat).len(),
+            name(&value.format).len(),
+            name(&value.presentation).len(),
             value.unit.as_deref().map_or(0, str::len),
         ];
         let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
@@ -1567,8 +1565,8 @@ impl Tile {
         if self.stat != "latest" {
             return Err(Error::Invalid("invalid summary statistic"));
         }
-        summary_format(&self.format)?;
-        summary_presentation(&self.presentation)?;
+        parse::<crate::document::TelemetrySummaryFormat>(&self.format, "invalid summary format")?;
+        parse::<crate::document::TelemetrySummaryPresentation>(&self.presentation, "invalid summary presentation")?;
         let metadata = self.metadata.as_ref().ok_or(Error::Invalid("summary tile metadata is missing"))?.projection_memory()?;
         let mut bytes = std::mem::size_of::<crate::document::TelemetrySummaryTileDefinition>()
             .saturating_add(metadata)
@@ -1605,9 +1603,9 @@ impl TryFrom<&crate::document::TelemetrySummaryTileDefinition> for Tile {
             metadata: Some(metadata::Row::try_from(&value.metadata)?),
             value: Data::try_from(&value.value)?,
             filters,
-            stat: summary_stat_name(&value.stat).to_owned(),
-            format: summary_format_name(&value.format).to_owned(),
-            presentation: summary_presentation_name(&value.presentation).to_owned(),
+            stat: name(&value.stat),
+            format: name(&value.format),
+            presentation: name(&value.presentation),
             unit: value.unit.as_deref().map(str::to_owned),
             conditions,
         })
@@ -1636,8 +1634,8 @@ impl TryFrom<Tile> for crate::document::TelemetrySummaryTileDefinition {
             value: row.value.try_into()?,
             filters,
             stat: crate::document::TelemetrySummaryStat::Latest,
-            format: summary_format(&row.format)?,
-            presentation: summary_presentation(&row.presentation)?,
+            format: parse(&row.format, "invalid summary format")?,
+            presentation: parse(&row.presentation, "invalid summary presentation")?,
             unit: row.unit,
             conditions,
         })
@@ -1651,14 +1649,14 @@ impl TileCondition {
             return Ok(usize::MAX);
         }
         Ok(std::mem::size_of::<Self>()
-            .saturating_add(filter_name(&value.operator).len())
-            .saturating_add(summary_state_name(&value.state).len())
+            .saturating_add(name(&value.operator).len())
+            .saturating_add(name(&value.state).len())
             .saturating_add(scalar.saturating_sub(std::mem::size_of::<Value>())))
     }
 
     fn projection_memory(&self) -> Result<usize> {
-        filter_operator(&self.operator)?;
-        summary_state(&self.state)?;
+        parse::<crate::document::FilterOperator>(&self.operator, "invalid document filter operator")?;
+        parse::<crate::document::TelemetrySummaryState>(&self.state, "invalid summary state")?;
         Ok(std::mem::size_of::<crate::document::TelemetrySummaryCondition>().saturating_add(self.value.projection_memory()?))
     }
 }
@@ -1671,9 +1669,9 @@ impl TryFrom<&crate::document::TelemetrySummaryCondition> for TileCondition {
             return Err(Error::Invalid("summary condition encoding memory overflows"));
         }
         Ok(Self {
-            operator: filter_name(&value.operator).to_owned(),
+            operator: name(&value.operator),
             value: Value::try_from(&value.value)?,
-            state: summary_state_name(&value.state).to_owned(),
+            state: name(&value.state),
         })
     }
 }
@@ -1686,9 +1684,9 @@ impl TryFrom<TileCondition> for crate::document::TelemetrySummaryCondition {
             return Err(Error::Invalid("summary condition projection memory overflows"));
         }
         Ok(Self {
-            operator: filter_operator(&row.operator)?,
+            operator: parse(&row.operator, "invalid document filter operator")?,
             value: row.value.try_into()?,
-            state: summary_state(&row.state)?,
+            state: parse(&row.state, "invalid summary state")?,
         })
     }
 }
@@ -1942,12 +1940,12 @@ impl Filter {
         }
         Ok(std::mem::size_of::<Self>()
             .saturating_add(expression.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(filter_name(&value.operator).len())
+            .saturating_add(name(&value.operator).len())
             .saturating_add(scalar.saturating_sub(std::mem::size_of::<Value>())))
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        filter_operator(&self.operator)?;
+        parse::<crate::document::FilterOperator>(&self.operator, "invalid document filter operator")?;
         let value = self.value.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
         Ok(std::mem::size_of::<crate::document::DocumentFilter>()
             .saturating_add(self.expression.projection_memory()?)
@@ -1964,7 +1962,7 @@ impl TryFrom<&crate::document::DocumentFilter> for Filter {
         }
         Ok(Self {
             expression: Data::try_from(&value.expression)?,
-            operator: filter_name(&value.operator).to_owned(),
+            operator: name(&value.operator),
             value: value.value.as_ref().map(Value::try_from).transpose()?,
         })
     }
@@ -1979,7 +1977,7 @@ impl TryFrom<Filter> for crate::document::DocumentFilter {
         }
         Ok(Self {
             expression: row.expression.try_into()?,
-            operator: filter_operator(&row.operator)?,
+            operator: parse(&row.operator, "invalid document filter operator")?,
             value: row.value.map(TryInto::try_into).transpose()?,
         })
     }
@@ -2084,7 +2082,7 @@ impl CardLayout {
         {
             span(u32::from(value))?;
         }
-        Ok(std::mem::size_of::<Self>().saturating_add(density_name(&value.density).len()).saturating_add(rail_name(&value.rail).len()))
+        Ok(std::mem::size_of::<Self>().saturating_add(name(&value.density).len()).saturating_add(name(&value.rail).len()))
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -2094,8 +2092,8 @@ impl CardLayout {
         {
             span(value)?;
         }
-        density(&self.density)?;
-        rail(&self.rail)?;
+        parse::<crate::document::DocumentCardDensity>(&self.density, "invalid document density")?;
+        parse::<crate::document::DocumentCardRail>(&self.rail, "invalid document rail")?;
         Ok(())
     }
 }
@@ -2109,8 +2107,8 @@ impl TryFrom<CardLayout> for crate::document::DocumentCardLayout {
             col_span: row.col_span.try_into()?,
             row_span: span(row.row_span)?,
             order: row.order,
-            density: density(&row.density)?,
-            rail: rail(&row.rail)?,
+            density: parse(&row.density, "invalid document density")?,
+            rail: parse(&row.rail, "invalid document rail")?,
         })
     }
 }
@@ -2168,18 +2166,6 @@ impl Default for CardLayout {
 
 impl From<crate::document::DocumentCardLayout> for CardLayout {
     fn from(layout: crate::document::DocumentCardLayout) -> Self {
-        use crate::document::{DocumentCardDensity, DocumentCardRail};
-
-        let density = match layout.density {
-            DocumentCardDensity::Compact => "compact",
-            DocumentCardDensity::Normal => "normal",
-            DocumentCardDensity::Spacious => "spacious",
-        };
-        let rail = match layout.rail {
-            DocumentCardRail::Main => "main",
-            DocumentCardRail::Right => "right",
-            DocumentCardRail::Left => "left",
-        };
         Self {
             col_span: Span {
                 base: u32::from(layout.col_span.base),
@@ -2190,8 +2176,8 @@ impl From<crate::document::DocumentCardLayout> for CardLayout {
             },
             row_span: u32::from(layout.row_span),
             order: layout.order,
-            density: density.into(),
-            rail: rail.into(),
+            density: name(&layout.density),
+            rail: name(&layout.rail),
         }
     }
 }
@@ -2278,129 +2264,6 @@ fn body_name(value: &crate::document::DocumentCardBody) -> &'static str {
     }
 }
 
-fn summary_stat_name(value: &crate::document::TelemetrySummaryStat) -> &'static str {
-    match value {
-        crate::document::TelemetrySummaryStat::Latest => "latest",
-    }
-}
-
-fn summary_format_name(value: &crate::document::TelemetrySummaryFormat) -> &'static str {
-    use crate::document::TelemetrySummaryFormat;
-    match value {
-        TelemetrySummaryFormat::Auto => "auto",
-        TelemetrySummaryFormat::Number => "number",
-        TelemetrySummaryFormat::Percent => "percent",
-        TelemetrySummaryFormat::Duration => "duration",
-        TelemetrySummaryFormat::Distance => "distance",
-        TelemetrySummaryFormat::Status => "status",
-        TelemetrySummaryFormat::Text => "text",
-    }
-}
-
-fn summary_presentation_name(value: &crate::document::TelemetrySummaryPresentation) -> &'static str {
-    use crate::document::TelemetrySummaryPresentation;
-    match value {
-        TelemetrySummaryPresentation::Value => "value",
-        TelemetrySummaryPresentation::Progress => "progress",
-        TelemetrySummaryPresentation::Badge => "badge",
-    }
-}
-
-fn summary_state_name(value: &crate::document::TelemetrySummaryState) -> &'static str {
-    use crate::document::TelemetrySummaryState;
-    match value {
-        TelemetrySummaryState::Ok => "ok",
-        TelemetrySummaryState::Warning => "warning",
-        TelemetrySummaryState::Critical => "critical",
-        TelemetrySummaryState::Muted => "muted",
-    }
-}
-
-fn plot_name(value: &crate::document::PlotType) -> &'static str {
-    use crate::document::PlotType;
-    match value {
-        PlotType::TimeSeries => "time_series",
-        PlotType::Bar => "bar",
-        PlotType::GroupedBar => "grouped_bar",
-        PlotType::StackedBar => "stacked_bar",
-        PlotType::Pie => "pie",
-        PlotType::Donut => "donut",
-        PlotType::Pareto => "pareto",
-        PlotType::XyScatter => "xy_scatter",
-        PlotType::XyLine => "xy_line",
-        PlotType::XyInterval => "xy_interval",
-        PlotType::Trajectory => "trajectory",
-        PlotType::Heatmap => "heatmap",
-        PlotType::XyValueHeatmap => "xy_value_heatmap",
-        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
-        PlotType::FrequencySeries => "frequency_series",
-        PlotType::Histogram => "histogram",
-        PlotType::BoxSummary => "box_summary",
-        PlotType::AggregateTable => "aggregate_table",
-    }
-}
-
-fn style_name(value: &crate::document::PlotStyle) -> &'static str {
-    use crate::document::PlotStyle;
-    match value {
-        PlotStyle::Line => "line",
-        PlotStyle::Points => "points",
-        PlotStyle::LinePoints => "line_points",
-        PlotStyle::Step => "step",
-    }
-}
-
-fn scale_name(value: &crate::document::AxisScale) -> &'static str {
-    use crate::document::AxisScale;
-    match value {
-        AxisScale::Linear => "linear",
-        AxisScale::Log => "log",
-    }
-}
-
-fn fft_window_name(value: &crate::document::FftWindow) -> &'static str {
-    use crate::document::FftWindow;
-    match value {
-        FftWindow::Hann => "hann",
-        FftWindow::Rectangular => "rectangular",
-    }
-}
-
-fn fft_detrend_name(value: &crate::document::FftDetrend) -> &'static str {
-    use crate::document::FftDetrend;
-    match value {
-        FftDetrend::None => "none",
-        FftDetrend::Mean => "mean",
-    }
-}
-
-fn level_unit_name(value: &crate::document::FrequencyLevelUnit) -> &'static str {
-    use crate::document::FrequencyLevelUnit;
-    match value {
-        FrequencyLevelUnit::Linear => "linear",
-        FrequencyLevelUnit::Db => "dB",
-        FrequencyLevelUnit::Dbu => "dBu",
-        FrequencyLevelUnit::Dbm => "dBm",
-    }
-}
-
-fn reference_axis_name(value: &crate::document::ReferenceAxis) -> &'static str {
-    use crate::document::ReferenceAxis;
-    match value {
-        ReferenceAxis::X => "x",
-        ReferenceAxis::Y => "y",
-    }
-}
-
-fn elapsed_unit_name(value: &dokime_domain::model::values::ElapsedUnit) -> &'static str {
-    use dokime_domain::model::values::ElapsedUnit;
-    match value {
-        ElapsedUnit::Seconds => "seconds",
-        ElapsedUnit::Milliseconds => "milliseconds",
-        ElapsedUnit::Minutes => "minutes",
-    }
-}
-
 fn format_name(value: &dokime_domain::model::values::ValueFormat) -> &'static str {
     match value {
         ValueFormat::Normal { .. } => "normal",
@@ -2424,36 +2287,15 @@ fn transform_name(value: &DataTransform) -> &'static str {
     }
 }
 
-fn density_name(value: &crate::document::DocumentCardDensity) -> &'static str {
-    use crate::document::DocumentCardDensity;
-    match value {
-        DocumentCardDensity::Compact => "compact",
-        DocumentCardDensity::Normal => "normal",
-        DocumentCardDensity::Spacious => "spacious",
+fn name<T: serde::Serialize>(value: &T) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(name)) => name,
+        _ => unreachable!("document enums serialize as plain strings"),
     }
 }
 
-fn rail_name(value: &crate::document::DocumentCardRail) -> &'static str {
-    use crate::document::DocumentCardRail;
-    match value {
-        DocumentCardRail::Main => "main",
-        DocumentCardRail::Right => "right",
-        DocumentCardRail::Left => "left",
-    }
-}
-
-fn filter_name(value: &crate::document::FilterOperator) -> &'static str {
-    use crate::document::FilterOperator;
-    match value {
-        FilterOperator::Exists => "exists",
-        FilterOperator::Eq => "eq",
-        FilterOperator::Ne => "ne",
-        FilterOperator::Gt => "gt",
-        FilterOperator::Gte => "gte",
-        FilterOperator::Lt => "lt",
-        FilterOperator::Lte => "lte",
-        FilterOperator::Contains => "contains",
-    }
+fn parse<T: serde::de::DeserializeOwned>(value: &str, invalid: &'static str) -> Result<T> {
+    T::deserialize(serde::de::value::StrDeserializer::<serde::de::value::Error>::new(value)).map_err(|_| Error::Invalid(invalid))
 }
 
 fn body_memory(kind: &str, data: &Option<CardData>) -> Result<usize> {
@@ -2524,51 +2366,6 @@ fn consume_body(kind: String, data: Option<CardData>) -> Result<crate::document:
     })
 }
 
-fn plot_type(value: &str) -> Result<crate::document::PlotType> {
-    use crate::document::PlotType;
-    match value {
-        "time_series" => Ok(PlotType::TimeSeries),
-        "bar" => Ok(PlotType::Bar),
-        "grouped_bar" => Ok(PlotType::GroupedBar),
-        "stacked_bar" => Ok(PlotType::StackedBar),
-        "pie" => Ok(PlotType::Pie),
-        "donut" => Ok(PlotType::Donut),
-        "pareto" => Ok(PlotType::Pareto),
-        "xy_scatter" => Ok(PlotType::XyScatter),
-        "xy_line" => Ok(PlotType::XyLine),
-        "xy_interval" => Ok(PlotType::XyInterval),
-        "trajectory" => Ok(PlotType::Trajectory),
-        "heatmap" => Ok(PlotType::Heatmap),
-        "xy_value_heatmap" => Ok(PlotType::XyValueHeatmap),
-        "wifi_channel_occupancy" => Ok(PlotType::WifiChannelOccupancy),
-        "frequency_series" => Ok(PlotType::FrequencySeries),
-        "histogram" => Ok(PlotType::Histogram),
-        "box_summary" => Ok(PlotType::BoxSummary),
-        "aggregate_table" => Ok(PlotType::AggregateTable),
-        _ => Err(Error::Invalid("invalid plot type")),
-    }
-}
-
-fn plot_style(value: &str) -> Result<crate::document::PlotStyle> {
-    use crate::document::PlotStyle;
-    match value {
-        "line" => Ok(PlotStyle::Line),
-        "points" => Ok(PlotStyle::Points),
-        "line_points" => Ok(PlotStyle::LinePoints),
-        "step" => Ok(PlotStyle::Step),
-        _ => Err(Error::Invalid("invalid plot style")),
-    }
-}
-
-fn axis_scale(value: &str) -> Result<crate::document::AxisScale> {
-    use crate::document::AxisScale;
-    match value {
-        "linear" => Ok(AxisScale::Linear),
-        "log" => Ok(AxisScale::Log),
-        _ => Err(Error::Invalid("invalid axis scale")),
-    }
-}
-
 fn finite(value: f64) -> Result<()> {
     if value.is_finite() { Ok(()) } else { Err(Error::Invalid("plot number is nonfinite")) }
 }
@@ -2577,126 +2374,8 @@ fn format_digits(value: u32) -> Result<u8> {
     u8::try_from(value).map_err(|_| Error::Invalid("value format digits exceed byte range"))
 }
 
-fn fft_window(value: &str) -> Result<crate::document::FftWindow> {
-    use crate::document::FftWindow;
-    match value {
-        "hann" => Ok(FftWindow::Hann),
-        "rectangular" => Ok(FftWindow::Rectangular),
-        _ => Err(Error::Invalid("invalid fft window")),
-    }
-}
-
-fn fft_detrend(value: &str) -> Result<crate::document::FftDetrend> {
-    use crate::document::FftDetrend;
-    match value {
-        "none" => Ok(FftDetrend::None),
-        "mean" => Ok(FftDetrend::Mean),
-        _ => Err(Error::Invalid("invalid fft detrend")),
-    }
-}
-
-fn level_unit(value: &str) -> Result<crate::document::FrequencyLevelUnit> {
-    use crate::document::FrequencyLevelUnit;
-    match value {
-        "linear" => Ok(FrequencyLevelUnit::Linear),
-        "dB" => Ok(FrequencyLevelUnit::Db),
-        "dBu" => Ok(FrequencyLevelUnit::Dbu),
-        "dBm" => Ok(FrequencyLevelUnit::Dbm),
-        _ => Err(Error::Invalid("invalid level unit")),
-    }
-}
-
-fn reference_axis(value: &str) -> Result<crate::document::ReferenceAxis> {
-    use crate::document::ReferenceAxis;
-    match value {
-        "x" => Ok(ReferenceAxis::X),
-        "y" => Ok(ReferenceAxis::Y),
-        _ => Err(Error::Invalid("invalid reference axis")),
-    }
-}
-
-fn elapsed_unit(value: &str) -> Result<dokime_domain::model::values::ElapsedUnit> {
-    use dokime_domain::model::values::ElapsedUnit;
-    match value {
-        "seconds" => Ok(ElapsedUnit::Seconds),
-        "milliseconds" => Ok(ElapsedUnit::Milliseconds),
-        "minutes" => Ok(ElapsedUnit::Minutes),
-        _ => Err(Error::Invalid("invalid elapsed unit")),
-    }
-}
-
-fn summary_format(value: &str) -> Result<crate::document::TelemetrySummaryFormat> {
-    use crate::document::TelemetrySummaryFormat;
-    match value {
-        "auto" => Ok(TelemetrySummaryFormat::Auto),
-        "number" => Ok(TelemetrySummaryFormat::Number),
-        "percent" => Ok(TelemetrySummaryFormat::Percent),
-        "duration" => Ok(TelemetrySummaryFormat::Duration),
-        "distance" => Ok(TelemetrySummaryFormat::Distance),
-        "status" => Ok(TelemetrySummaryFormat::Status),
-        "text" => Ok(TelemetrySummaryFormat::Text),
-        _ => Err(Error::Invalid("invalid summary format")),
-    }
-}
-
-fn summary_presentation(value: &str) -> Result<crate::document::TelemetrySummaryPresentation> {
-    use crate::document::TelemetrySummaryPresentation;
-    match value {
-        "value" => Ok(TelemetrySummaryPresentation::Value),
-        "progress" => Ok(TelemetrySummaryPresentation::Progress),
-        "badge" => Ok(TelemetrySummaryPresentation::Badge),
-        _ => Err(Error::Invalid("invalid summary presentation")),
-    }
-}
-
-fn summary_state(value: &str) -> Result<crate::document::TelemetrySummaryState> {
-    use crate::document::TelemetrySummaryState;
-    match value {
-        "ok" => Ok(TelemetrySummaryState::Ok),
-        "warning" => Ok(TelemetrySummaryState::Warning),
-        "critical" => Ok(TelemetrySummaryState::Critical),
-        "muted" => Ok(TelemetrySummaryState::Muted),
-        _ => Err(Error::Invalid("invalid summary state")),
-    }
-}
-
 fn span(value: u32) -> Result<u8> {
     u8::try_from(value).map_err(|_| Error::Invalid("document span exceeds byte range"))
-}
-
-fn density(value: &str) -> Result<crate::document::DocumentCardDensity> {
-    use crate::document::DocumentCardDensity;
-    match value {
-        "compact" => Ok(DocumentCardDensity::Compact),
-        "normal" => Ok(DocumentCardDensity::Normal),
-        "spacious" => Ok(DocumentCardDensity::Spacious),
-        _ => Err(Error::Invalid("invalid document density")),
-    }
-}
-
-fn rail(value: &str) -> Result<crate::document::DocumentCardRail> {
-    use crate::document::DocumentCardRail;
-    match value {
-        "main" => Ok(DocumentCardRail::Main),
-        "right" => Ok(DocumentCardRail::Right),
-        "left" => Ok(DocumentCardRail::Left),
-        _ => Err(Error::Invalid("invalid document rail")),
-    }
-}
-
-fn filter_operator(value: &str) -> Result<crate::document::FilterOperator> {
-    use crate::document::FilterOperator;
-    match value {
-        "eq" => Ok(FilterOperator::Eq),
-        "ne" => Ok(FilterOperator::Ne),
-        "gt" => Ok(FilterOperator::Gt),
-        "gte" => Ok(FilterOperator::Gte),
-        "lt" => Ok(FilterOperator::Lt),
-        "lte" => Ok(FilterOperator::Lte),
-        "contains" => Ok(FilterOperator::Contains),
-        "exists" => Ok(FilterOperator::Exists),
-        _ => Err(Error::Invalid("invalid document filter operator")),
-    }
 }
 
 /* === Tests === */

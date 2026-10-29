@@ -27,7 +27,6 @@ import {
 import type { ParameterOverrides } from "@/lib/desktop/settings";
 import { type ParseResult, parseParameterInput } from "@/lib/parameter-parser";
 import type { FileDefinition, ParameterDefinition, SuiteTemplateEntry } from "@/lib/types";
-import { useParameterOverridesStore } from "@/stores/parameter-overrides-store";
 
 /* === Constants === */
 
@@ -171,10 +170,6 @@ export function isEditedRow(row: EditorParameterRow): boolean {
   return row.raw !== row.defaultRaw;
 }
 
-export function editedParameterNames(rows: EditorParameterRow[]): string[] {
-  return rows.filter(isEditedRow).map((row) => row.name);
-}
-
 /**
  * Whether the row's value cell takes an expression, so the reference is worth
  * offering beside it.
@@ -225,9 +220,4 @@ export function expansionStatement(definition: ParameterDefinition): ExpansionSt
     default:
       return definition.list ? { badge: null, sentence: "Each value becomes a case." } : null;
   }
-}
-
-/** Reads the override map of one template without subscribing to the others. */
-export function useTemplateOverrides(templateId: string): ParameterOverrides[string] | undefined {
-  return useParameterOverridesStore((state) => state.overrides[templateId]);
 }

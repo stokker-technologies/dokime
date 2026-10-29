@@ -117,7 +117,6 @@ pub struct ExecutionFilter {
     pub started_after: Option<Timestamp>,
     pub started_before: Option<Timestamp>,
 
-    // Absent lists only unarchived executions.
     #[row(description = "Absent lists only unarchived executions.")]
     pub archive: Option<crate::model::execution::wire::ArchiveScope>,
 }
@@ -140,9 +139,6 @@ pub struct ExecutionBrowsePage {
     pub issues: Vec<HistoryIssue>,
     pub omitted_issues: u32,
 
-    // One aggregate per cycle the page's entries belong to, folded over the
-    // whole filtered selection rather than this page, so a client renders a
-    // cycle's totals without loading every page.
     #[row(
         description = "One aggregate per cycle the page's entries belong to, folded over the whole filtered selection rather than this page, so a client renders a cycle's totals without loading every page."
     )]
@@ -197,9 +193,6 @@ pub struct HistoricalExecutionMetadata {
     pub finished_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
 
-    // The frozen case template and admitted suite label this entry belongs to,
-    // so a client can read back what `ExecutionFilter` selected on. Absent when
-    // the stored row no longer resolves its case or suite revision.
     #[row(
         description = "The frozen case template and admitted suite label this entry belongs to, so a client can read back what `ExecutionFilter` selected on. Absent when the stored row no longer resolves its case or suite revision."
     )]
@@ -291,7 +284,6 @@ pub struct HistoricalExecutionSnapshot {
     pub parameters: Vec<MaterializedParameter>,
     pub documents: Vec<HistoricalDocument>,
 
-    // Captured at admission; never reconstructed from the current suite catalog.
     #[row(description = "Captured at admission; never reconstructed from the current suite catalog.")]
     pub case_definition: Option<HistoricalCaseDefinition>,
 

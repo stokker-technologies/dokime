@@ -41,7 +41,6 @@ use crate::model::values::wire::Value;
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecordSelection {
-    // Scope, Sources And Severities Are Exact; Record Type Globs Are Alternatives.
     #[row(description = "Scope, sources and severities are exact; record type globs are alternatives.")]
     pub scope: Option<EvidenceScope>,
 
@@ -55,14 +54,12 @@ pub struct CapturedRecordSelection {
 pub struct RecordPage {
     pub records: Vec<CapturedRecord>,
 
-    // Scanned journal position, including excluded records and empty ranges.
     #[row(description = "Scanned journal position, including excluded records and empty ranges.")]
     pub scanned: Option<Cursor>,
 
     pub through: Option<Cursor>,
     pub replay_complete: bool,
 
-    // This process retains all captured facts. Zero is currently the only value.
     #[row(description = "This process retains all captured facts. Zero is currently the only value.")]
     pub retained_after: u64,
 }
@@ -73,7 +70,6 @@ pub struct CapturedRecord {
     pub record_id: String,
     pub sequence: u64,
 
-    // Authored UTC occurrence time, not capture or commit time.
     #[row(description = "Authored UTC occurrence time, not capture or commit time.")]
     pub timestamp: Option<Timestamp>,
 

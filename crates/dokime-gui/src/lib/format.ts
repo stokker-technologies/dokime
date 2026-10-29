@@ -18,20 +18,12 @@ export type NumberFormatOptions = {
   increment?: number;
 };
 
-export type FormattedValueWithUnit = {
-  text: string;
-  unit: string | null;
-};
-
 export type TimeFormatOrigin = {
   runStart?: number | null;
   cycleStart?: number | null;
 };
 
 /* === Constants === */
-
-// IEC units: artifact sizes and memory readouts are counted in binary steps.
-const BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
 
 /** The units below a minute, each used while the rounded value stays under its limit (seconds). */
 const SUBSECOND_SCALES: ReadonlyArray<{ divisor: number; limit: number; unit: string }> = [
@@ -63,28 +55,6 @@ const MIN_SI_EXPONENT = SI_PREFIXES[0][0];
 const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
 
 /* === Public Functions === */
-
-/**
- * Formats a byte count for a size or memory readout: binary steps with IEC
- * units, one fraction digit below ten and none above it. An absent or
- * non-finite count renders as a dash, so a caller can drop it into a label
- * without a guard.
- */
-export function formatBytes(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-  let scaled = value;
-  let unit = 0;
-  while (Math.abs(scaled) >= 1024 && unit < BYTE_UNITS.length - 1) {
-    scaled /= 1024;
-    unit += 1;
-  }
-  if (unit === 0) {
-    return `${scaled} ${BYTE_UNITS[0]}`;
-  }
-  return `${scaled.toFixed(Math.abs(scaled) >= 10 ? 0 : 1)} ${BYTE_UNITS[unit]}`;
-}
 
 /** A duration split into the figure and the unit it is printed in. */
 export type DurationParts = { figure: string; unit: string };
@@ -166,22 +136,6 @@ export function formatNumber(value: number, format: ValueFormat | null, options?
       // A time-kind format: not this function's kind. Render the number plainly.
       return defaultPlotNumber(value, options?.increment);
   }
-}
-
-/**
- * Formats one numeric value alongside its unit. `si_prefix` folds the chosen
- * prefix into the unit (`120 µm`) rather than the number text, which is why
- * the unit travels with the call instead of being appended by the caller.
- */
-export function formatWithUnit(value: number, format: ValueFormat | null, unit?: string | null): FormattedValueWithUnit {
-  if (!Number.isFinite(value)) {
-    return { text: "", unit: unit ?? null };
-  }
-  if (format?.kind === "si_prefix") {
-    const { mantissaText, prefix } = siPrefixParts(value, format.significant_digits);
-    return { text: mantissaText, unit: unit ? `${prefix}${unit}` : prefix || null };
-  }
-  return { text: formatNumber(value, format), unit: unit ?? null };
 }
 
 /**

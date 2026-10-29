@@ -28,11 +28,8 @@
 /* === Structs === */
 
 // `clap::Args` is derived here rather than mirrored by a second struct in the
-
 // Cargo extension: `cargo dokime sidecar build`'s flags *are* these fields, and a
-
 // hand-written mapper between two identical shapes has only drift to offer.
-
 // `long_about = None` keeps this module's rationale out of `--help`.
 
 #[derive(Clone, Debug, Default, clap::Args)]

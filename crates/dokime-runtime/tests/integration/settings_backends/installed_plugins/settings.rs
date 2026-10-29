@@ -20,7 +20,6 @@
 use super::*;
 use dokime_domain::model;
 
-// Installed-plugin runtime contract tests.
 use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 
 /* === Constants === */

@@ -36,25 +36,19 @@ use super::*;
         grpc(package = "dokime.v1", service = "Observation", method = "GetTraceability"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetTraceability {
-    // Absent selects all current traceability groups. A supplied scope selects
-    // that scope and its visible ancestors/global values.
     #[row(
         description = "Absent selects all current traceability groups. A supplied scope selects that scope and its visible ancestors/global values."
     )]
     pub scope: Option<EvidenceScope>,
 
-    // Zero selects the default page size (50); the maximum is 100.
     #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
     pub limit: u32,
 
-    // Continuations require the exact cursor returned by the preceding page.
     #[row(description = "Continuations require the exact cursor returned by the preceding page.")]
     pub after_traceability_id: String,
 
     pub cursor: Option<Cursor>,
 
-    // Continuations must echo the host telemetry fingerprint returned by the
-    // preceding page; an empty-host fingerprint is still nonempty.
     #[row(
         description = "Continuations must echo the host telemetry fingerprint returned by the preceding page; an empty-host fingerprint is still nonempty."
     )]

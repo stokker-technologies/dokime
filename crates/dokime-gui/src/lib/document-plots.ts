@@ -12,7 +12,6 @@
 export {
   documentPlotGroupDescription,
   documentPlotSpec,
-  documentPlotsKey,
   plotColor,
 } from "@/plots/grouping";
 export type { PlotCardSpec } from "@/plots/types";

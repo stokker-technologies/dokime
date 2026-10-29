@@ -7,8 +7,6 @@
  * ***
  */
 
-// Runtime Creation Of Domain Values.
-
 /* === Modules === */
 
 pub mod identity;

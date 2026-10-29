@@ -77,11 +77,6 @@ description = "Prepare Native Desktop Automation"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 
-[tasks."prepare:harmos"]
-description = "Prepare The Pinned Harmos Authoring Tool"
-depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.ci.bootstrap --harmos-tools"
-
 [tasks."prepare:organization"]
 description = "Generate Default Organization And Desktop Icons"
 depends = ["prepare"]
@@ -271,7 +266,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:typescript"]
 description = "Build The Generated GUI Client And Frontend"
-depends = ["prepare:harmos"]
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 

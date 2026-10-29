@@ -157,7 +157,6 @@ async fn deadline_stops_descendants(directory: &Path) {
         .env("CARGO", &cargo);
     run(command, "packaging deadline fixture", None, 64 * 1024, 64 * 1024).await.unwrap();
 
-    // Descendant Gone
     let pid = std::fs::read_to_string(&pid).expect("descendant started");
     wait_gone(pid.trim()).await;
 }

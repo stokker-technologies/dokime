@@ -16,7 +16,7 @@ import { useEffect, useMemo } from "react";
 
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
-import { fetchNativeArtifacts, fetchNativeExecutionFiles } from "@/lib/api/native-content";
+import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import { type CompletedDocument, fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import {
   appendRecordTail,
@@ -26,7 +26,6 @@ import {
   type RecordTail,
 } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
-import { fetchNativeCycleHistory } from "@/lib/api/native-history";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
 import type { DocumentViewPayload, RecordScope } from "@/lib/types";
@@ -161,17 +160,6 @@ export function useHealthQuery(enabled: boolean, scope: RecordScope) {
   return snapshot ? frozenQuery(snapshot.health) : query;
 }
 
-export function useArtifactsQuery(enabled: boolean) {
-  const snapshot = useCycleSnapshotSource();
-  const session = useNativeSessionOptional();
-  const query = useQuery({
-    enabled: enabled && session !== null,
-    queryFn: () => fetchNativeArtifacts(identityOf(session)),
-    queryKey: [...workflowQueryKeys.artifacts(), generationOf(session)],
-  });
-  return snapshot ? frozenQuery(snapshot.artifacts) : query;
-}
-
 export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
@@ -182,14 +170,6 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     gcTime: EVIDENCE_GC_MS,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
-}
-
-export function useCycleHistoryQuery() {
-  const session = useNativeSession();
-  return useQuery({
-    queryFn: () => fetchNativeCycleHistory(session.identity),
-    queryKey: [...workflowQueryKeys.cycleHistory(), session.identity.generation],
-  });
 }
 
 export function useExecutionDetailQuery(executionId: string | null, enabled: boolean) {

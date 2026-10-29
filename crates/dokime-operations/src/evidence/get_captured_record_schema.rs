@@ -38,8 +38,6 @@ pub struct GetCapturedRecordSchema {
     pub record_type: String,
     pub schema_version: u32,
 
-    // Required process identity: a type/version from another process must not
-    // silently resolve to this process's potentially different admitted schema.
     #[row(
         description = "Required process identity: a type/version from another process must not silently resolve to this process's potentially different admitted schema."
     )]
