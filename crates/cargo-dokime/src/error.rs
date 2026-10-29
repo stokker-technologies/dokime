@@ -49,6 +49,9 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 
     #[error(transparent)]
+    Bindings(#[from] harmos_packaging::python::Error),
+
+    #[error(transparent)]
     Bundle(#[from] harmos_packaging::bundle::Error),
 }
 

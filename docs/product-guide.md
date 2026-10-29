@@ -1303,7 +1303,7 @@ A missing feed or target is reported without substituting a different package.
 
 The server contract producer generates the protobuf descriptors of every public operation;
 `mise run build` regenerates the Python package's contract files from them with
-Harmos's `cargo harmos bindings python` exporter and refuses a stale tracked
+`cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
 copy. The desktop's TypeScript client is generated from the same descriptors
 by the Buf generator before compiling its frontend and packaged shell. Ordinary wheel and source-package
 installation uses the tracked files and needs no Rust compiler.
