@@ -47,8 +47,6 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
             host: std::net::Ipv4Addr::LOCALHOST.into(),
             port: Some(0),
             message_limit_mib: None,
-            grpc_web: false,
-            allowed_origins: Vec::new(),
         },
         title: None,
         label: None,

@@ -111,24 +111,6 @@ A list can also be one parameter value. An ordered load sequence such as
 `[100, 50, 10]` Ω can describe three steps within one case; it does not have to
 mean three separate cases. Expansion is declared explicitly.
 
-## Browser Clients
-
-The desktop never needs gRPC-Web: its WebView reaches the backend only through
-the shell. A browser client is the one caller that does, so a backend serves it
-only when asked, together with each exact page origin allowed to call:
-
-```sh
-dokime server --grpc-web --allowed-origin https://frontend.example
-```
-
-Repeat `--allowed-origin` for additional origins. An origin contains only its
-scheme and authority; paths, secrets and wildcards are refused, and an
-origin without `--grpc-web` is an error. The standalone listener is native and
-requires a loopback address. Remote listeners use the persistent Remote Access
-settings, with TLS and access-key authentication selected independently;
-browser-origin permission does not grant operation access. A GUI built with
-`DOKIME_TRANSPORT=grpc-web` is such a browser client.
-
 ## Notifications
 
 Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.

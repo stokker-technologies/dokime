@@ -27,7 +27,6 @@ use super::{
 
 /* === Constants === */
 
-const SERVER_ALLOWED_ORIGINS: u64 = 32;
 const SERVER_CALLS: u64 = 32;
 const SERVER_CALLS_PER_CONNECTION: u64 = 32;
 const SERVER_CONNECTIONS: u64 = 64;
@@ -62,7 +61,6 @@ pub struct Config {
     pub(crate) max_message_bytes: usize,
     pub(crate) trace_journal: Option<Arc<crate::trace::Journal>>,
     remote: bool,
-    web: Option<Vec<dokime::harmos::grpc::Origin>>,
 }
 
 /* === Enums === */
@@ -103,7 +101,6 @@ impl Config {
             max_message_bytes: SERVER_MESSAGE_BYTES as usize,
             trace_journal: None,
             remote: false,
-            web: None,
         }
     }
 
@@ -124,7 +121,6 @@ impl Config {
             tls,
             max_message_bytes: maximum,
             remote: true,
-            web: None,
             trace_journal: None,
         }
     }
@@ -142,14 +138,6 @@ impl Config {
     pub fn with_max_message_bytes(mut self, bytes: usize) -> Self {
         self.max_message_bytes = bytes;
         self
-    }
-
-    pub fn with_grpc_web(mut self, origins: Vec<dokime::harmos::grpc::Origin>) -> Result<Self, Error> {
-        if origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
-            return Err(Error::Configuration("allowed origins must be distinct exact origins"));
-        }
-        self.web = Some(origins);
-        Ok(self)
     }
 
     pub(crate) fn into_listener_settings(mut self) -> Result<dokime::harmos::grpc::Settings, Error> {
@@ -187,8 +175,8 @@ impl Config {
                 opening_timeout: Duration::from_millis(SERVER_OPENING_TIMEOUT_MS),
             },
             reflection: false,
-            web: self.web.is_some(),
-            allowed_origins: self.web.unwrap_or_default(),
+            web: false,
+            allowed_origins: Vec::new(),
             tls,
             connections: NonZeroUsize::new(SERVER_CONNECTIONS as usize).unwrap(),
             calls_per_connection: NonZeroUsize::new(SERVER_CALLS_PER_CONNECTION as usize).unwrap(),
@@ -212,9 +200,6 @@ impl Config {
         }
         if self.max_message_bytes == 0 || self.max_message_bytes as u64 > SERVER_MAXIMUM_MESSAGE_BYTES {
             return Err(Error::Configuration("message limit must be positive and within the configured maximum"));
-        }
-        if self.web.as_ref().is_some_and(|origins| origins.len() as u64 > SERVER_ALLOWED_ORIGINS) {
-            return Err(Error::Configuration("allowed origins exceed the configured maximum"));
         }
         Ok(())
     }
