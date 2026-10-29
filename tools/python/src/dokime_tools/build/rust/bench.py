@@ -12,12 +12,15 @@
 
 # Standard Library Imports
 import argparse
+import contextlib
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import bench, frontend, paths
+from dokime_tools.build import bench, cargo, frontend, outputs, paths
 from dokime_tools.package import plugins
 from dokime_tools.test import archive
 
@@ -37,14 +40,25 @@ ROOT = frontend.ROOT
 
 
 def build() -> None:
-    """Use The Shared Bench Producer And Add The OBC Fixture Its System Stories Measure."""
-    extra = ("--exclude", "dokime-gui", "--features", "obc-plugin/benchmarks")
+    """Use The Shared Bench Producer And Stage The Host And OBC Fixtures Its System Stories Measure."""
+    extra = ("--exclude", "dokime-gui", "--features", "obc-plugin/benchmarks,dokime-host/runtime")
     messages = bench.build(ROOT, extra=extra)
     output = paths.output(ROOT, "build", "bench")
     directory = output / "bench"
     binaries = output / "bin"
     tool = binaries / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
-    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES)
+
+    fixtures = output / "fixtures/plugins"
+    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=fixtures, packages=("dokime-host",))
+
+    fixture_messages = _obc_fixture(output, binaries)
+    bundles = plugins.prepare(ROOT, fixture_messages, "bench", tool=tool, output=output / "fixtures/obc-bundles", packages=plugins.FIXTURES)
+    for bundle in bundles:
+        destination = fixtures / bundle.name
+        shutil.copy2(bundle, destination)
+        staged.append(destination)
+    staged += [path for path in fixture_messages.parent.iterdir() if path.is_file()]
+
     staged += [path for path in directory.rglob("*") if path.is_file()]
     staged += [path for path in binaries.iterdir() if path.is_file()]
 
@@ -68,6 +82,41 @@ def main(arguments: list[str] | None = None) -> int:
 
 
 # === Private Functions === #
+
+
+def _obc_fixture(output: Path, binaries: Path) -> Path:
+    # A Shared Host Runtime Feature Would Link Two Sidecar Declarations Into OBC.
+    directory = output / "fixtures/obc-build"
+    directory.mkdir(parents=True, exist_ok=True)
+    raw = directory / "compiler.raw"
+    messages = directory / "compiler.json"
+    arguments = [
+        "--locked",
+        "-p",
+        "obc-plugin",
+        "--bin",
+        "obc-plugin",
+        "--features",
+        "benchmarks",
+        "--profile",
+        "bench",
+        "--message-format=json-render-diagnostics",
+    ]
+
+    with raw.open("w", encoding="utf-8") as written, contextlib.redirect_stdout(written):
+        status = cargo.focused(ROOT, "build", arguments)
+    lines = raw.read_text(encoding="utf-8").splitlines()
+    messages.write_text("\n".join(line for line in lines if line.startswith("{")) + "\n", encoding="utf-8")
+    for line in (line for line in lines if not line.startswith("{")):
+        print(line)
+    raw.unlink()
+    if status:
+        raise subprocess.CalledProcessError(status, ["cargo", "build", *arguments])
+
+    for executable in outputs.executables(messages, plugins.FIXTURES).values():
+        shutil.copy2(executable, binaries / executable.name)
+    return messages
+
 
 # === Entry Point === #
 
