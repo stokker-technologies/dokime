@@ -86,11 +86,7 @@ fn isolated(name: &str) -> bool {
     }
     let test = format!("{}::{name}", module_path!().split_once("::").unwrap().1);
     let mut command = dokime::domain::process::command(std::env::current_exe().unwrap());
-    command
-        .args(["--exact", &test, "--nocapture"])
-        .env("DOKIME_LOG_TEST", name)
-        .env("RUST_LOG", "info")
-        .env_remove("DOKIME_LOG_FORMAT");
+    command.args(["--exact", &test, "--nocapture"]).env("DOKIME_LOG_TEST", name).env("RUST_LOG", "info").env_remove("DOKIME_LOG_FORMAT");
     let output = command.output().unwrap();
     assert!(
         output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
