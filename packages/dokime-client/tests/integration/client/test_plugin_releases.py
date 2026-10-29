@@ -13,6 +13,8 @@
 # Standard Library Imports
 import hashlib
 import json
+import subprocess
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -94,6 +96,51 @@ def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_pa
         plugins.release_feed(assets * 2, tool=tool, requires_dokime="=0.1.0")
     with pytest.raises(ValueError, match="credential-free HTTPS"):
         plugins.release_feed([(bundle, "https://token@example.test/plugin")], tool=tool, requires_dokime="=0.1.0")
+
+
+@pytest.mark.parametrize("operation", ["package", "inspect"])
+@pytest.mark.parametrize("returncode", [0, 23])
+def test_child_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], operation: str, returncode: int
+) -> None:
+    tool = tmp_path / "cargo-dokime"
+    bundle = tmp_path / "plugin.dokime"
+    bundle.write_bytes(b"bundle")
+    child_stderr = "llvm-objcopy is missing; install the llvm-tools-preview component"
+    child_stdout = "child diagnostic on stdout"
+    manifest = {"identity": {"name": "plugin", "version": "1.0.0"}, "files": [{"executable": {"target": "native"}}]}
+    commands = []
+
+    def packager(command: list[str], **kwargs: object) -> SimpleNamespace:
+        commands.append(command)
+        if operation not in command:
+            return SimpleNamespace(stdout="")
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command, output=child_stdout, stderr=child_stderr)
+        return SimpleNamespace(stdout=json.dumps([] if operation == "package" else {"manifest": manifest}), stderr=child_stderr)
+
+    monkeypatch.setattr(plugins.subprocess, "run", packager)
+
+    def invoke() -> None:
+        if operation == "package":
+            plugins.prepare(tmp_path, tmp_path / "compiler.json", "dev", tool=tool, output=tmp_path / "plugins", packages=plugins.FIXTURES)
+        else:
+            plugins.release_feed([(bundle, "https://example.test/plugin.dokime")], tool=tool, requires_dokime="=0.1.0")
+
+    expected = pytest.raises(subprocess.CalledProcessError) if returncode else nullcontext()
+    with expected as raised:
+        invoke()
+
+    captured = capsys.readouterr()
+    if raised is None:
+        assert captured.out == captured.err == ""
+        return
+    assert raised.value.returncode == returncode
+    assert raised.value.cmd == commands[-1]
+    assert child_stderr in captured.err
+    assert child_stdout in captured.err
+    assert subprocess.list2cmdline(commands[-1]) in captured.err
+    assert str(returncode) in captured.err
 
 
 # === Private Functions === #
