@@ -136,7 +136,7 @@ function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled
     return <StatsSummaryGrid row={rows[0]} titled={titled} />;
   }
 
-  return <DataTable columns={COLUMNS} data={described} emptyText="No statistics recorded." getRowId={rowLabel} />;
+  return <DataTable columns={COLUMNS} data={described} emptyText="No Statistics Recorded" getRowId={rowLabel} />;
 }
 
 function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
@@ -144,11 +144,11 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   const onToggle = legend.onToggle;
   return (
     <DataTable
-      aria-label="Trace statistics"
+      aria-label="Trace Statistics"
       className={cn("transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}
-      emptyText="No traces recorded."
+      emptyText="No Traces Recorded"
       getRowId={legendRowKey}
       onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
     />
@@ -181,7 +181,7 @@ function TraceCell({ row }: { row: SeriesLegendRow }) {
       <span className="truncate" title={row.label}>
         {row.label}
       </span>
-      {row.hidden ? <span className="sr-only">(hidden)</span> : null}
+      {row.hidden ? <span className="sr-only">(Hidden)</span> : null}
     </span>
   );
 }
@@ -191,7 +191,7 @@ function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boole
 
   return (
     <section
-      aria-label={`${row.label} statistics`}
+      aria-label={`${row.label} Statistics`}
       className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg bg-muted/20 p-3"
       data-testid="stats-summary-grid"
     >

@@ -159,7 +159,7 @@ export function DataTable<TData extends RowData>({
     id: filter.id,
     text: filterSummary(filter, table.getColumn(filter.id)?.columnDef.meta),
   }));
-  const emptyMessage = data.length > 0 && (activeFilters.length || table.state.globalFilter) ? "No rows match these filters." : emptyText;
+  const emptyMessage = data.length > 0 && (activeFilters.length || table.state.globalFilter) ? "No Rows Match These Filters" : emptyText;
 
   function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
     if (!event.currentTarget.contains(event.target as Node)) return;
@@ -385,7 +385,7 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
         {overflow.length ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button aria-label={`Actions for ${label}`} size="icon-sm" type="button" variant="ghost">
+              <Button aria-label={`Actions For ${label}`} size="icon-sm" type="button" variant="ghost">
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>

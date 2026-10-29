@@ -142,6 +142,6 @@ test("Row Actions Are Named Icon Buttons With A Menu Only For The Rest", () => {
   });
   assert.match(
     renderToStaticMarkup(withMore),
-    /aria-haspopup="menu"[^>]*aria-label="Actions for fixture"|aria-label="Actions for fixture"[^>]*aria-haspopup="menu"/,
+    /aria-haspopup="menu"[^>]*aria-label="Actions For fixture"|aria-label="Actions For fixture"[^>]*aria-haspopup="menu"/,
   );
 });

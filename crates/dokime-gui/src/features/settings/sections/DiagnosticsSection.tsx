@@ -98,14 +98,14 @@ export function DiagnosticsBundleRow() {
         bytes: bundle.bytes,
         filename: bundle.filename,
       });
-      toast.success("Diagnostics bundle saved", {
+      toast.success("Diagnostics Bundle Saved", {
         action: {
           label: "Open Folder",
           onClick: () => void openLocalPath(path),
         },
       });
     } catch (failure: unknown) {
-      toast.error("The diagnostics bundle could not be saved.", {
+      toast.error("The Diagnostics Bundle Could Not Be Saved", {
         description: failure instanceof Error ? failure.message : String(failure),
       });
     } finally {
@@ -132,7 +132,7 @@ export function DiagnosticsBundleRow() {
           <TooltipTrigger asChild>
             <span className="inline-flex">{button}</span>
           </TooltipTrigger>
-          <TooltipContent>Not available on this backend</TooltipContent>
+          <TooltipContent>Not Available On This Backend</TooltipContent>
         </Tooltip>
       )}
     </SettingsRow>
@@ -191,7 +191,7 @@ function StorageResetRow({ directory }: { directory: string }) {
             </code>
             <div className="grid gap-2">
               <label className="text-sm" htmlFor={inputId}>
-                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span> to confirm.
+                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span> To Confirm
               </label>
               <Input autoComplete="off" id={inputId} onChange={(event) => setTyped(event.target.value)} spellCheck={false} value={typed} />
             </div>

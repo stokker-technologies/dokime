@@ -323,7 +323,7 @@ function PreferencesForm({
           >
             {field.options.map((option) => (
               <option key={option} value={option}>
-                {option.replaceAll("_", " ")}
+                {option === "lttb" ? "LTTB" : option.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())}
               </option>
             ))}
           </select>

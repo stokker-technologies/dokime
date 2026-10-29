@@ -129,7 +129,7 @@ function NoteEditor({
   const ready = noteSubmission(draft) !== null;
   return (
     <div className="grid gap-2 rounded-lg border border-border/70 p-3">
-      <div aria-label="Note editor" className="flex gap-1" role="tablist">
+      <div aria-label="Note Editor" className="flex gap-1" role="tablist">
         {TABS.map((tab) => (
           <button
             aria-selected={draft.tab === tab.id}
@@ -194,10 +194,10 @@ function NoteList({
             <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
               <span className="normal-case text-foreground">{note.author || "Operator"}</span>
               <time dateTime={note.timestamp}>{timeOfDayLabel(note.timestamp)}</time>
-              {note.elapsed_since_start_label ? <span title="Elapsed since test start">T+{note.elapsed_since_start_label}</span> : null}
+              {note.elapsed_since_start_label ? <span title="Elapsed Since Test Start">T+{note.elapsed_since_start_label}</span> : null}
               {onEdit ? (
                 <Button
-                  aria-label="Edit note"
+                  aria-label="Edit Note"
                   className="ml-auto"
                   onClick={() => onEdit(note)}
                   size="icon-xs"

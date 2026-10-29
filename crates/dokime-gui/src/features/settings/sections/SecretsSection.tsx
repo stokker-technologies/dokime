@@ -186,7 +186,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           columns={columns}
           data={snapshot?.entries ?? []}
           getRowId={(entry) => entry.metadata.identifier}
-          emptyText="No shared secrets."
+          emptyText="No Shared Secrets"
         />
         {deleting && (
           <fieldset className="flex flex-wrap items-center gap-3 rounded-lg border p-3" aria-label="Confirm Secret Deletion">

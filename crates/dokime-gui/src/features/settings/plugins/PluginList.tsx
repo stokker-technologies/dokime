@@ -95,7 +95,7 @@ export function PluginList({
           variant="destructive"
         >
           <Trash2 />
-          {removalPending ? "Removal queued" : removingId === entry.install_id ? "Removing…" : "Remove"}
+          {removalPending ? "Removal Queued" : removingId === entry.install_id ? "Removing…" : "Remove"}
         </DropdownMenuItem>
       ),
     };
@@ -109,21 +109,21 @@ export function PluginList({
 export function statusPresentation(entry: PluginEntry, brandLabel: string): StatusPresentation {
   if (entry.error) {
     return {
-      label: entry.active ? "Active · Bundle unavailable" : "Unavailable",
+      label: entry.active ? "Active · Bundle Unavailable" : "Unavailable",
       reason: entry.error,
       variant: "destructive",
     };
   }
   if (entry.state === "removal_pending") {
     return {
-      label: "Removal pending",
+      label: "Removal Pending",
       reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
       variant: "warning",
     };
   }
   if (entry.restart_required) {
     return {
-      label: entry.active ? "Active · Pending restart" : "Pending restart",
+      label: entry.active ? "Active · Pending Restart" : "Pending Restart",
       reason: null,
       variant: "warning",
     };

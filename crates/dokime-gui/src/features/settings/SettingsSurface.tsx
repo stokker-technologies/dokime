@@ -145,7 +145,7 @@ function SectionContent({
   if (loading) {
     return (
       <SettingsCard title="Settings">
-        <div className="px-4 py-3 text-sm text-muted-foreground">Loading settings...</div>
+        <div className="px-4 py-3 text-sm text-muted-foreground">Loading Settings...</div>
       </SettingsCard>
     );
   }
@@ -176,7 +176,7 @@ export function SettingsAdvancedSwitch() {
   const advanced = useUiStore((state) => state.showAdvancedSettings);
   return (
     <div className="flex items-center gap-3 text-sm">
-      <label htmlFor={id}>Show advanced</label>
+      <label htmlFor={id}>Show Advanced</label>
       <Switch
         id={id}
         checked={advanced}

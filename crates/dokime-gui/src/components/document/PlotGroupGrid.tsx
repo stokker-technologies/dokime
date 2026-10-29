@@ -82,7 +82,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   if (!documentPlots.length) {
     return (
       <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-lg bg-muted/20 text-center text-muted-foreground">
-        <strong>Document plots are loading</strong>
+        <strong>Document Plots Are Loading</strong>
         <span>The selected case document has not provided plot metadata yet.</span>
       </div>
     );

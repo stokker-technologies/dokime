@@ -311,7 +311,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
         title="Paired Clients"
         data={page?.clients ?? []}
         getRowId={(client) => client.identifier}
-        emptyText={busy ? "Loading paired clients…" : "No paired clients."}
+        emptyText={busy ? "Loading Paired Clients…" : "No Paired Clients"}
         columns={columns.columns([
           columns.accessor("label", { header: "Label" }),
           columns.accessor((client) => new Date(Number(client.createdAt)).toLocaleString(), { id: "created", header: "Created" }),

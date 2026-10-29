@@ -809,7 +809,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                     setShowPrompts((current) => !current);
                     setHoveredPrompt(null);
                   }}
-                  title="Show when the operator was asked and answered"
+                  title="Show When The Operator Was Asked And Answered"
                 >
                   Prompts
                 </button>
@@ -832,7 +832,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                 {zoom ? "Reset Zoom" : "Follow"}
               </button>
               <span className="text-xs text-muted-foreground">
-                {renderedPointCount} points
+                {renderedPointCount} Points
                 {downsampledLabel(renderedSeries)}
                 {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
                 {unit ? ` - ${unit}` : ""}

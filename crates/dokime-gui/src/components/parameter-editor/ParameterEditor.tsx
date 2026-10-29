@@ -311,9 +311,9 @@ function ParameterLabelCell({ description, inputId, label }: { description: stri
 async function copyParameterId(parameterId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(parameterId);
-    toast.success("Parameter ID copied");
+    toast.success("Parameter ID Copied");
   } catch {
-    toast.error("Could not copy parameter ID");
+    toast.error("Could Not Copy Parameter ID");
   }
 }
 

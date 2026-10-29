@@ -44,7 +44,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
     <div className="grid gap-2">
       <fieldset
         aria-busy={disabled}
-        aria-label="Plugin file drop zone"
+        aria-label="Plugin File Drop Zone"
         className={cn(
           "grid min-h-40 place-items-center rounded-lg border border-dashed bg-muted/20 p-6 text-center transition-colors",
           dragging && "border-primary bg-primary/5",

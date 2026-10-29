@@ -167,7 +167,7 @@ export function PluginsSection() {
             <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
-                Loading plugins…
+                Loading Plugins…
               </span>
             </div>
           ) : pluginsQuery.isError || programsQuery.isError ? (

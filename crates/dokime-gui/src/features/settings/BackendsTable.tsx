@@ -139,7 +139,7 @@ export function BackendsTable({
         aria-label="Saved Backends"
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
-        emptyText="No saved backends."
+        emptyText="No Saved Backends"
         columns={dataTableColumns<Profile>().columns([
           dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
           dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),

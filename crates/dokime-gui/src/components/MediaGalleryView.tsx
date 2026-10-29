@@ -193,7 +193,7 @@ export function MediaGallerySurface({
                     )}
                     {preview?.errors[selectedArtifact.artifact_id] ? (
                       <Button size="sm" type="button" variant="outline" onClick={() => preview?.retry(selectedArtifact.artifact_id)}>
-                        Retry preview
+                        Retry Preview
                       </Button>
                     ) : null}
                   </div>
@@ -376,7 +376,7 @@ function MediaGalleryCard({
             {artifact.nativeTransfer ? (
               <>
                 <Button
-                  aria-label={nativeOpenError ? `Retry open ${title}` : `Open ${title}`}
+                  aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
                   title={nativeOpenError ?? "Open artifact"}
@@ -387,7 +387,7 @@ function MediaGalleryCard({
                   <ExternalLink size={13} />
                 </Button>
                 <Button
-                  aria-label={nativeDownloadError ? `Retry download ${title}` : `Download ${title}`}
+                  aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
                   title={nativeDownloadError ?? "Download artifact"}

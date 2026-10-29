@@ -122,14 +122,14 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         ) : null}
         {deleteNotice ? <NotificationMessage tone="info">{deleteNotice}</NotificationMessage> : null}
         {unrun ? (
-          <section aria-label="Case never run" className="grid gap-2 rounded-lg border p-3">
-            <h2 className="font-medium">This case was never run</h2>
+          <section aria-label="Case Never Run" className="grid gap-2 rounded-lg border p-3">
+            <h2 className="font-medium">This Case Was Never Run</h2>
             <p className="max-w-[var(--prose-measure)] text-sm text-muted-foreground">
               {unrun.metadata.title} was planned and never started, so this execution has no acquisition, no steps and no records behind it.
             </p>
             {unrunCycleId && onOpenCycle ? (
               <Button className="justify-self-start px-0" onClick={() => onOpenCycle(unrunCycleId)} variant="link">
-                Open the cycle it belongs to
+                Open The Cycle It Belongs To
               </Button>
             ) : null}
           </section>
@@ -138,7 +138,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           aria-label="History Executions"
           data={entry?.executions ?? []}
           getRowId={(execution) => execution.metadata.execution_id}
-          emptyText="No executions in the loaded history."
+          emptyText="No Executions In The Loaded History"
           columns={dataTableColumns<ExecutionBrowseEntry>().columns([
             dataTableColumns<ExecutionBrowseEntry>().accessor((execution) => execution.metadata.title, {
               id: "title",
@@ -276,7 +276,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
     return <NotificationMessage>Unable to open checkpoint: the execution document is missing.</NotificationMessage>;
   }
   return (
-    <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured execution">
+    <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured Execution">
       <h2 className="font-semibold">{query.data.document?.cycle?.metadata?.label ?? entry.metadata.title}</h2>
       <p className="break-all text-xs text-muted-foreground">
         Checkpoint {(query.data.checkpoint?.position?.sequence ?? checkpoint?.position.sequence)?.toString()}

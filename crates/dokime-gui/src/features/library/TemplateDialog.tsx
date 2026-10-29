@@ -245,7 +245,7 @@ export function TemplateDialog({
        successful add behind an open dialog whenever the toast threw. */
     onOpenChange(false);
     const label = response.plan?.test_cycle?.title ?? cycleLabel ?? append.cycleId;
-    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} to ${label}`, {
+    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} To ${label}`, {
       action: {
         label: "Open Cycle",
         onClick: () => {
@@ -359,7 +359,7 @@ export function TemplateDialog({
       </div>
       <StepIndicator step={step} />
       <span className="sr-only">
-        Step {step === "parameters" ? 1 : 2} of 2: {step === "parameters" ? "Parameters" : "Summary"}
+        Step {step === "parameters" ? 1 : 2} Of 2: {step === "parameters" ? "Parameters" : "Summary"}
       </span>
     </>
   );

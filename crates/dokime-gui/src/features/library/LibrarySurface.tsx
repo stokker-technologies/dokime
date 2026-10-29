@@ -145,7 +145,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         columns={columns}
         data={rows}
         getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-        emptyText={suites === null ? "Loading suites…" : "No templates match."}
+        emptyText={suites === null ? "Loading Suites…" : "No Templates Match"}
         search={{ label: "Filter Templates", value: suiteSearch, onChange: setSuiteSearch }}
         onRowClick={setOpenTemplate}
       />

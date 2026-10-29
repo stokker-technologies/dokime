@@ -65,13 +65,13 @@ export function CatalogIdentifier({ className, subject, value }: CatalogIdentifi
         ))}
       </span>
       <button
-        aria-label={`Copy ${subject} identifier ${value}`}
+        aria-label={`Copy ${subject} Identifier ${value}`}
         className="grid size-4 shrink-0 place-items-center rounded-lg hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(event) => {
           event.stopPropagation();
           void copyIdentifier(value);
         }}
-        title="Copy identifier"
+        title="Copy Identifier"
         type="button"
       >
         <Clipboard aria-hidden className="size-3" />
@@ -91,10 +91,10 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
 
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}>
-      <TagChip className="font-mono" label={pluginLabel} title={`Registered by plugin ${pluginLabel}`} />
+      <TagChip className="font-mono" label={pluginLabel} title={`Registered By Plugin ${pluginLabel}`} />
       {owner ? <TagChip label={owner.label} title={owner.title} /> : null}
-      {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin version" /> : null}
-      {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin is disabled" /> : null}
+      {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin Version" /> : null}
+      {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin Is Disabled" /> : null}
     </div>
   );
 }
@@ -115,13 +115,13 @@ export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefine
 function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"], brandLabel: string): OwnerDisplay | null {
   switch (owner?.kind) {
     case "host":
-      return { label: "Host", title: `Registered by the ${brandLabel} host` };
+      return { label: "Host", title: `Registered By The ${brandLabel} Host` };
     case "embedded":
-      return { label: "Built-in", title: `Built into this application (${owner.generation})` };
+      return { label: "Built-In", title: `Built Into This Application (${owner.generation})` };
     case "bundle":
       return owner.installation
-        ? { label: "Installed", title: `Installed bundle ${owner.package}` }
-        : { label: "Configured", title: `Configured bundle ${owner.package}` };
+        ? { label: "Installed", title: `Installed Bundle ${owner.package}` }
+        : { label: "Configured", title: `Configured Bundle ${owner.package}` };
     default:
       return null;
   }

@@ -450,7 +450,7 @@ function MultiplePromptFieldControl({
           {field.kind === "choice" ? (
             <Select value={entry} disabled={field.readonly} onValueChange={(next) => updateEntry(index, next)}>
               <SelectTrigger
-                aria-label={`${field.label} entry ${index + 1}`}
+                aria-label={`${field.label} Entry ${index + 1}`}
                 className="w-full"
                 id={index === 0 ? promptFieldId(field) : undefined}
               >
@@ -466,7 +466,7 @@ function MultiplePromptFieldControl({
             </Select>
           ) : (
             <Input
-              aria-label={`${field.label} entry ${index + 1}`}
+              aria-label={`${field.label} Entry ${index + 1}`}
               id={index === 0 ? promptFieldId(field) : undefined}
               type={field.kind === "text" ? "text" : "number"}
               step={field.kind === "int" ? "1" : "any"}
@@ -477,7 +477,7 @@ function MultiplePromptFieldControl({
             />
           )}
           <Button
-            aria-label={`Remove ${field.label} entry ${index + 1}`}
+            aria-label={`Remove ${field.label} Entry ${index + 1}`}
             disabled={field.readonly || entries.length <= 1}
             size="icon"
             type="button"

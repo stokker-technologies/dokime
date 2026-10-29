@@ -111,7 +111,7 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
         columns={COLUMNS}
         data={rows}
         description="Admitted and refused remote clients, newest first. A session ends after a minute without calls; the host keeps the last 500."
-        emptyText={query.isPending ? "Loading remote sessions…" : "No remote sessions yet."}
+        emptyText={query.isPending ? "Loading Remote Sessions…" : "No Remote Sessions Yet"}
         getRowId={rowKey}
         title="Recent Remote Sessions"
       />

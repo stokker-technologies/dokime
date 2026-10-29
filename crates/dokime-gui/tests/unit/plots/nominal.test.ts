@@ -819,7 +819,7 @@ test("Stream Errors Replace Retained Charts", () => {
   );
   assert.match(html, /role="alert"/);
   assert.match(html, /Voltage channel disconnected/);
-  assert.doesNotMatch(html, /Trace statistics/);
+  assert.doesNotMatch(html, /Trace Statistics/);
 });
 
 test("Viewport Panning", () => {

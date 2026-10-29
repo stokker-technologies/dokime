@@ -56,10 +56,10 @@ export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) 
   return (
     <>
       <Button
-        aria-label={`Plot settings for ${plot.title}`}
+        aria-label={`Plot Settings For ${plot.title}`}
         onClick={() => setOpen(true)}
         size="icon-sm"
-        title="Plot settings"
+        title="Plot Settings"
         type="button"
         variant="ghost"
       >

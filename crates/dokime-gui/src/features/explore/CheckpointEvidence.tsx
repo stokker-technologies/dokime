@@ -61,7 +61,7 @@ export function CheckpointEvidence({ checkpoint }: Props) {
   const [panel, setPanel] = useState<string | null>(null);
   return (
     <div className="grid min-w-0 gap-3 border-t pt-3">
-      <fieldset className="flex min-w-0 flex-wrap gap-2" aria-label="Evidence sections">
+      <fieldset className="flex min-w-0 flex-wrap gap-2" aria-label="Evidence Sections">
         {["Records", "Telemetry", "Files", "Context"].map((name) => (
           <Button
             key={name}
@@ -119,11 +119,11 @@ function Pager({
   return (
     <div className="flex items-center gap-2">
       <Button size="sm" variant="outline" disabled={cursors.length === 1} onClick={() => setCursors(cursors.slice(0, -1))}>
-        Previous page
+        Previous Page
       </Button>
       <span className="text-xs">Page {cursors.length}</span>
       <Button size="sm" variant="outline" disabled={!next} onClick={() => next && setCursors([...cursors, next])}>
-        Next page
+        Next Page
       </Button>
     </div>
   );
@@ -142,7 +142,7 @@ function Records({ checkpoint, session }: SessionProps) {
   if (query.isPending) return <NotificationMessage tone="info">Loading records…</NotificationMessage>;
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
-    <section className="grid min-w-0 gap-3" aria-label="Captured records">
+    <section className="grid min-w-0 gap-3" aria-label="Captured Records">
       <Diagnostics issues={query.data.issues} truncated={query.data.issuesTruncated} />
       {!query.data.records.length && <p>No execution records at this checkpoint.</p>}
       {query.data.records.map((row) => {
@@ -227,7 +227,7 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
   if (query.isPending) return <NotificationMessage tone="info">Loading samples…</NotificationMessage>;
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
-    <section className="grid min-w-0 gap-3" aria-label="Captured telemetry">
+    <section className="grid min-w-0 gap-3" aria-label="Captured Telemetry">
       <Diagnostics issues={query.data.issues} truncated={query.data.issuesTruncated} />
       {!query.data.rows.length && <p>No samples at this checkpoint.</p>}
       {query.data.rows.map((row) => {
@@ -339,7 +339,7 @@ function FilePreview({ checkpoint, session, path }: SessionProps & { path: strin
   const end = file.offset + BigInt(file.data.byteLength);
   const kind = checkpointFileKind(file.kind);
   return (
-    <section className="grid min-w-0 gap-2" aria-label="File preview">
+    <section className="grid min-w-0 gap-2" aria-label="File Preview">
       <p className="break-all text-sm">
         {path} · {kind} · {checkpointFileState(file.state)} · bytes {file.offset.toString()}–{end.toString()} of{" "}
         {file.observedSizeBytes.toString()}
@@ -356,7 +356,7 @@ function FilePreview({ checkpoint, session, path }: SessionProps & { path: strin
           disabled={offset === 0n}
           onClick={() => setOffset(file.offset > 65536n ? file.offset - 65536n : 0n)}
         >
-          Previous bytes
+          Previous Bytes
         </Button>
         <Button
           size="sm"
@@ -364,7 +364,7 @@ function FilePreview({ checkpoint, session, path }: SessionProps & { path: strin
           disabled={end >= file.observedSizeBytes || !file.data.byteLength}
           onClick={() => setOffset(end)}
         >
-          Next bytes
+          Next Bytes
         </Button>
       </div>
     </section>

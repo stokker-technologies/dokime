@@ -157,11 +157,11 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
   return (
     <SettingsCard>
       <DataTable
-        aria-label="Storage source priority"
+        aria-label="Storage Source Priority"
         columns={columns}
         data={sources}
         description="Higher rows have priority when resolving conflicting edits. Changing priority does not move data."
-        emptyText="No storage sources are configured."
+        emptyText="No Storage Sources Are Configured"
         getRowId={sourceId}
         title="Storage Sources"
       />
