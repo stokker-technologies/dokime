@@ -68,7 +68,7 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::Bluetooth,
+    pub row: crate::Bluetooth,
     pub timestamp_micros: i64,
 }
 
@@ -79,15 +79,15 @@ pub struct Collected {
 /* === Implementations === */
 
 impl dokime::StreamSpec for Bluetooth {
-    type Row = dokime::host::Bluetooth;
+    type Row = crate::Bluetooth;
     const ID: &'static str = "host.bluetooth";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::Bluetooth as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::Bluetooth as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for Bluetooth {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::Bluetooth).typed::<dokime::host::Bluetooth>()
+        crate::host_telemetry_contract(HostTelemetryStream::Bluetooth).typed::<crate::Bluetooth>()
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
         assert!(<Bluetooth as OperationDeclaration>::POLICY.timeout >= <Bluetooth as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<Bluetooth as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == Bluetooth::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(Bluetooth::contract().storage_schema, <dokime::host::Bluetooth as TelemetryStream>::contract().storage_schema);
+        assert_eq!(Bluetooth::contract().storage_schema, <crate::Bluetooth as TelemetryStream>::contract().storage_schema);
     }
 }

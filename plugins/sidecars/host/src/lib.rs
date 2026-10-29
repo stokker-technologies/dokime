@@ -15,6 +15,7 @@ mod app;
 #[cfg(feature = "runtime")]
 pub mod collectors;
 mod config;
+pub mod domain;
 mod error;
 pub mod host;
 
@@ -27,7 +28,10 @@ mod sample;
 #[cfg(feature = "runtime")]
 pub use app::{HostPlugin, Workers};
 pub use config::{HostOptions, Probes, Settings};
-pub use dokime_domain::model::telemetry::{HOST_STREAMS, HostTelemetryStream, host_telemetry_contract, host_telemetry_contracts};
+pub use domain::telemetry::{
+    Bluetooth, HOST_STREAMS, HostTelemetryStream, Network, System, UnknownHostStream, WifiLatency, WifiLink, WifiScan,
+    host_stream_identifiers, host_telemetry_contract, host_telemetry_contracts,
+};
 pub use error::{Error, Result};
 pub use sample::HostStreamSample;
 

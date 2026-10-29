@@ -18,16 +18,26 @@ pub(crate) mod files;
 // Standard Library Imports
 
 // Third Party Imports
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 
 /* === Constants === */
+
+pub(crate) const COMPATIBILITY_FILE: &str = "dokime.json";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Compatibility {
+    pub schema: u32,
+    pub requires_dokime: semver::VersionReq,
+}
 
 /* === Enums === */
 

@@ -68,7 +68,7 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::WifiLatency,
+    pub row: crate::WifiLatency,
     pub timestamp_micros: i64,
 }
 
@@ -79,15 +79,15 @@ pub struct Collected {
 /* === Implementations === */
 
 impl dokime::StreamSpec for WifiLatency {
-    type Row = dokime::host::WifiLatency;
+    type Row = crate::WifiLatency;
     const ID: &'static str = "host.wifi.latency";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::WifiLatency as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::WifiLatency as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiLatency {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<dokime::host::WifiLatency>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<crate::WifiLatency>()
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
         assert!(<WifiLatency as OperationDeclaration>::POLICY.timeout >= <WifiLatency as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<WifiLatency as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == WifiLatency::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(WifiLatency::contract().storage_schema, <dokime::host::WifiLatency as TelemetryStream>::contract().storage_schema);
+        assert_eq!(WifiLatency::contract().storage_schema, <crate::WifiLatency as TelemetryStream>::contract().storage_schema);
     }
 }

@@ -68,7 +68,7 @@ pub struct Samples {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Collected {
-    pub row: dokime::host::System,
+    pub row: crate::System,
     pub timestamp_micros: i64,
 }
 
@@ -79,15 +79,15 @@ pub struct Collected {
 /* === Implementations === */
 
 impl dokime::StreamSpec for System {
-    type Row = dokime::host::System;
+    type Row = crate::System;
     const ID: &'static str = "host.system";
     const VERSION: u32 = 1;
-    const WINDOW: usize = <dokime::host::System as dokime::StreamSpec>::WINDOW;
+    const WINDOW: usize = <crate::System as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for System {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::System).typed::<dokime::host::System>()
+        crate::host_telemetry_contract(HostTelemetryStream::System).typed::<crate::System>()
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
         assert!(<System as OperationDeclaration>::POLICY.timeout >= <System as OperationDeclaration>::POLICY.attempt_timeout);
         assert!(!<System as OperationDeclaration>::POLICY.timeout.is_zero());
         assert!(request == System::decode(&request.encode()).expect("request round trip"));
-        assert_eq!(System::contract().storage_schema, <dokime::host::System as TelemetryStream>::contract().storage_schema);
+        assert_eq!(System::contract().storage_schema, <crate::System as TelemetryStream>::contract().storage_schema);
     }
 }

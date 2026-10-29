@@ -138,7 +138,7 @@ pub enum Records {
 
 #[dokime::catalog]
 pub enum Inputs {
-    System(host::System),
+    System(dokime_host::System),
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
 
@@ -171,9 +171,9 @@ pub enum ObserverStreams {
     // states a cadence and every run leasing the same stream shares one
     // running instance and its tick.
     //
-    // `host::System` is the machine itself: cpu, memory and battery. The other
-    // five — `host::Network`, `host::WifiLink`, `host::WifiScan`, `host::WifiLatency`,
-    // `host::Bluetooth` — are what a bench adds
+    // `dokime_host::System` is the machine itself: cpu, memory and battery. The other
+    // five — `dokime_host::Network`, `dokime_host::WifiLink`, `dokime_host::WifiScan`, `dokime_host::WifiLatency`,
+    // `dokime_host::Bluetooth` — are what a bench adds
     // when it is correlating the machine's radios against the unit.
     subscribes = Inputs,
     // The inputs, named once. The struct above is the declaration; every stage
@@ -406,7 +406,7 @@ impl Hold {
     )]
     fn host_quiet(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         let limit = ctx.parameters().host_cpu_limit;
-        for row in ctx.samples::<host::System>() {
+        for row in ctx.samples::<dokime_host::System>() {
             let Some(load) = row.cpu_load_percent else {
                 return Err(Error::Unmeasured("cpu_load_percent"));
             };

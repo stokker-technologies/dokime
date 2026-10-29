@@ -18,7 +18,7 @@ A version string alone does not identify compatible candidate bytes.
 Open [Dokime's GitHub Actions](https://github.com/stokker-technologies/dokime/actions)
 and select the maintainer-designated pull-request run for the candidate revision.
 Record its full commit SHA. Use a completed successful run with successful
-**Package / Rust** jobs for the required platforms and **Package / Python**.
+**Package / Rust** jobs for the required platforms.
 An artifact appearing on a failed or unfinished run does not establish readiness.
 
 Download these artifacts from that same run:
@@ -27,7 +27,6 @@ Download these artifacts from that same run:
 | --- | --- | --- |
 | Windows x86-64 installer and host plugin | `package-dev-rust-windows` | `package-dev-rust-windows.tar` |
 | Linux x86-64 installers and host plugin | `package-dev-rust-linux` | `package-dev-rust-linux.tar` |
-| Portable Python client and examples | `package-dev-python-any` | `package-dev-python-any.tar` |
 
 GitHub wraps each artifact in a ZIP. Extract that ZIP, then extract its TAR,
 for example `tar -xf package-dev-rust-windows.tar` on Windows or
@@ -50,12 +49,11 @@ fixture, not a candidate download; build it with `mise run build:rust:tests`
 and transfer `target/build/dev/<target>/fixtures/plugins/obc-plugin.dokime`
 when running the OBC walkthrough below.
 
-The Python artifact contains
-`target/package/dev/any/python/dokime-remote-examples-<version>.zip` and the client
-distribution under `target/package/dev/any/python/`. Extract the examples ZIP
-on the remote PC, then rename its `remote/` directory to `remote-demo/`. That directory contains this guide,
-`cli/`, `python/` and `wheels/`. Preserve the folder layout:
-the Python environment uses the candidate wheel under `wheels/`.
+Tutorials and Python distributions are not release downloads. Check out the
+recorded candidate SHA and copy `packages/dokime-client/examples/remote/` to
+`remote-demo/` on the remote PC. For Python, follow the
+[local wheel setup](python/README.md#prepare-the-environment) before transferring
+the complete tree. Keep its `cli/`, `python/` and prepared `wheels/` directories together.
 On Windows, set `$INSTALL_DOKIME = $false` in `cli/bootstrap.ps1` for this
 unreleased candidate, then run `cli/bootstrap.bat` (or `cli/bootstrap.ps1`)
 to install PowerShell 7.6.7, mise and uv without elevation. The default
@@ -169,7 +167,7 @@ Choose one family:
   or Command Prompt. PowerShell 7 is a separate program from Windows PowerShell;
   see Microsoft's [installation instructions](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows).
 - [Python scripts](python/README.md): supported CPython versions are
-  `>=3.13,<3.16`, with a locked uv environment and bundled candidate wheel.
+  `>=3.13,<3.16`, with a uv environment and a locally built matching wheel.
 
 Edit the globals at the top of each selected script. Native CLI scripts use
 `BACKEND_IDENTIFIER = lab` after the import above. Python scripts use

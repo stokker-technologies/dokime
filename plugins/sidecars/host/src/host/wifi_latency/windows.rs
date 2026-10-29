@@ -51,8 +51,7 @@ impl Operation for WifiLatency {
                     let timestamp = sample.timestamp.to_datetime().map_err(|error| crate::Error::Probe(error.to_string()))?;
                     let timestamp_micros =
                         i64::try_from(timestamp.unix_timestamp_nanos() / 1_000).map_err(|error| crate::Error::Probe(error.to_string()))?;
-                    let row =
-                        dokime::host::WifiLatency::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))?;
+                    let row = crate::WifiLatency::from_row(&sample.values).map_err(|error| crate::Error::Probe(error.to_string()))?;
                     Ok(Collected { row, timestamp_micros })
                 })
                 .collect::<crate::Result<Vec<_>>>()

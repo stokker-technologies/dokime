@@ -18,9 +18,10 @@
 // Third Party Imports
 
 // Local Imports
-use crate::model::identity::{Identifier, Metadata};
-use crate::model::telemetry::{HOST_STREAMS, HostTelemetryStream, TelemetryColumn, TelemetryContract, TelemetryRole};
-use crate::model::values::ValueType;
+use super::{HOST_STREAMS, HostTelemetryStream};
+use dokime_domain::model::identity::{Identifier, Metadata};
+use dokime_domain::model::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime_domain::model::values::ValueType;
 
 /* === Constants === */
 
@@ -33,7 +34,7 @@ macro_rules! host_contracts {
         } } )*
     ) => {
         $(
-            #[harmos::message]
+            #[dokime::message]
             #[derive(Clone, PartialEq)]
             struct $stream { $( $field: $ty, )* }
         )*
@@ -77,7 +78,7 @@ macro_rules! host_contracts {
     };
 }
 
-crate::host_streams!(host_contracts);
+super::table::host_streams!(host_contracts);
 
 /* === Type Aliases === */
 
@@ -110,10 +111,10 @@ fn identifier(value: &str) -> Identifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use harmos::schema::{Cardinality, graph::Kind};
+    use dokime::harmos::schema::{Cardinality, graph::Kind};
 
     #[test]
-    fn native_rows_use_framework_timestamps_and_repeated_lists() {
+    fn native_row_schemas() {
         for contract in host_telemetry_contracts() {
             assert_eq!(contract.schema_version, 1);
             assert_eq!(contract.columns.iter().filter(|column| column.metadata.identifier.as_str() == "timestamp").count(), 1);

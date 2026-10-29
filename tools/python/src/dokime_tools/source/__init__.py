@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/source/__init__.py; sha256:5e26a78a8919117d739c2225f7cacab915d6840705fd13b09ee883960cee67a4
+# Rendered by stkr project update from templates/python/source/__init__.py; sha256:e596eee6b117ac0332ccfed27922fde3b17033069119820039ec3e3daa280507
 # ***
 #
 # Dokime
@@ -16,7 +16,6 @@ import subprocess
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from ..process import spawn_flags
 

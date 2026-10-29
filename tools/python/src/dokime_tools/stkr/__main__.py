@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/stkr/__main__.py; sha256:82e26f28d6fc929a7a39965ad4e7388e4f8d229d4e6ce9131eeda679e673e386
+# Rendered by stkr project update from templates/python/stkr/__main__.py; sha256:40115df661761eafdaa8479496553c02dcc487046ba5f9bfd76356bd2f06eda5
 # ***
 #
 # Dokime
@@ -25,7 +25,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from ..process import spawn_flags
 

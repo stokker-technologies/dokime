@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/bench.py; sha256:a5a7bde8b691e7e5b3ed97ff230ace90cf5ccf71d223daf299bb8a09c425e216
+# Rendered by stkr project update from templates/python/build/bench.py; sha256:3d0e62bf00058fdfec26c3ae0c639a1b19935168548e1ab6f07aa8ee6dbaf7ce
 # ***
 #
 # Dokime
@@ -22,8 +22,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from ..process import spawn_flags
 from .. import temporary
+from ..process import spawn_flags
 from ..test import archive
 from . import cargo, paths
 

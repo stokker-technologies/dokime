@@ -7,12 +7,13 @@
  * ***
  */
 
-
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+extern crate dokime_host;
 // Standard Library Imports
 
 // Third Party Imports
@@ -49,9 +50,9 @@ fn main() {
     // A foreign stream's rows are the owner's to publish.
     published::<GatewayRssi>();
     pushed::<GatewayRssi>();
-    // A host stream's rows are the runtime's to measure.
-    published::<sdk::host::System>();
-    pushed::<sdk::host::System>();
+    // Only The Host Plugin Publishes Its Rows.
+    published::<dokime_host::System>();
+    pushed::<dokime_host::System>();
 }
 
 /* === Tests === */

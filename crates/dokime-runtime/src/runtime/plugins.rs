@@ -200,6 +200,18 @@ impl Runtime {
         if let Some(directory) = &config.plugin_lookup {
             inputs.extend(lookup_bundles(directory)?);
         }
+        if let Some(directory) = &config.bundled_plugins {
+            let configured = inputs
+                .iter()
+                .map(|input| {
+                    let bytes = read_bounded(&input.path, store.archive_bytes())?;
+                    crate::plugins::inspect_with_archive_limit(&bytes, &config.schema, store.archive_bytes()).map(|(_, metadata)| metadata)
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(operation)?;
+            let host_sources = self.embedded.keys().cloned().collect();
+            store.install_distribution(directory, &configured, &host_sources).await.map_err(operation)?;
+        }
         inputs.extend(store.installed().await.map_err(operation)?);
         for input in &inputs {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {

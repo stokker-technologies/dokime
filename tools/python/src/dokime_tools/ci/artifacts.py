@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:b5e833244f4ac54bd31bfe978364804341f97074b56c076400a4eb77142318d3
+# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:69425e065096ed4faa70dfff3c271813b4f6f4207ad56d42c125ee90d874ec1d
 # ***
 #
 # Dokime
@@ -22,8 +22,8 @@ from pathlib import Path, PurePosixPath
 
 # Third Party Imports
 # Local Imports
-from ..process import spawn_flags
 from ..build.paths import target
+from ..process import spawn_flags
 
 # Type Checking Imports
 

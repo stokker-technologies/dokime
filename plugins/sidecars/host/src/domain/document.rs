@@ -19,23 +19,23 @@ use std::collections::BTreeSet;
 // Third Party Imports
 
 // Local Imports
-use crate::model::document::DocumentCard;
-use crate::model::document::DocumentCardBody;
-use crate::model::document::DocumentSection;
-use crate::model::document::Plot;
-use crate::model::document::PlotDefinition;
-use crate::model::document::PlotStyle;
-use crate::model::document::PlotType;
-use crate::model::identity::Identifier;
-use crate::model::identity::Metadata;
+use super::telemetry::HostTelemetryStream;
+use dokime_domain::model::document::DocumentCard;
+use dokime_domain::model::document::DocumentCardBody;
+use dokime_domain::model::document::DocumentSection;
+use dokime_domain::model::document::PlotDefinition;
+use dokime_domain::model::document::PlotStyle;
+use dokime_domain::model::document::PlotType;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
 
-const HOST_SYSTEM: &str = "host.system";
-const HOST_WIFI_LINK: &str = "host.wifi.link";
-const HOST_WIFI_LATENCY: &str = "host.wifi.latency";
-const HOST_WIFI_SCAN: &str = "host.wifi.scan";
-const HOST_BLUETOOTH: &str = "host.bluetooth";
+const HOST_SYSTEM: &str = HostTelemetryStream::System.as_str();
+const HOST_WIFI_LINK: &str = HostTelemetryStream::WifiLink.as_str();
+const HOST_WIFI_LATENCY: &str = HostTelemetryStream::WifiLatency.as_str();
+const HOST_WIFI_SCAN: &str = HostTelemetryStream::WifiScan.as_str();
+const HOST_BLUETOOTH: &str = HostTelemetryStream::Bluetooth.as_str();
 
 /* === Macros === */
 
@@ -62,6 +62,18 @@ struct HostPlotSpec<'a> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
+    let mut plot = PlotDefinition::with_type(label, PlotType::WifiChannelOccupancy);
+    plot.stream = Some(HOST_WIFI_SCAN.to_owned());
+    plot.x = Some("timestamp".to_owned());
+    plot.y = vec!["network_count".to_owned()];
+    plot.series_by = Some("wifi_channel".to_owned());
+    plot.z_field = Some("wifi_network_congestion_score".to_owned());
+    plot.style = PlotStyle::Points;
+
+    plot
+}
 
 pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
     let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI_LINK, HOST_WIFI_LATENCY, HOST_WIFI_SCAN, HOST_BLUETOOTH]);
@@ -167,7 +179,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
         })));
     }
     if streams.contains(HOST_WIFI_SCAN) {
-        let mut occupancy = Plot::wifi_channel_occupancy("WiFi Channel Occupancy");
+        let mut occupancy = wifi_channel_occupancy("WiFi Channel Occupancy");
         occupancy.id("hub.host.wifi.channel_occupancy");
         occupancy.metadata.description = Some(
             "Full WLAN scans count nearby networks per stream across WiFi bands. This scan is intentionally slower than PHY, throughput, and latency sampling.".to_owned(),
@@ -296,3 +308,30 @@ fn identifier(identifier_value: &str) -> Identifier {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn occupancy_contract_binding() {
+        let plot = wifi_channel_occupancy("Occupancy");
+        assert_eq!(plot.stream.as_deref(), Some(HostTelemetryStream::WifiScan.as_str()));
+        assert_eq!(plot.x.as_deref(), Some("timestamp"));
+        assert_eq!(plot.y, ["network_count"]);
+        assert_eq!(plot.series_by.as_deref(), Some("wifi_channel"));
+        assert_eq!(plot.z_field.as_deref(), Some("wifi_network_congestion_score"));
+        let contract = super::super::telemetry::host_telemetry_contract(HostTelemetryStream::WifiScan);
+        for field in
+            plot.y.iter().map(String::as_str).chain(plot.x.as_deref()).chain(plot.series_by.as_deref()).chain(plot.z_field.as_deref())
+        {
+            assert!(contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field), "{field}");
+        }
+        assert!(
+            sections(false)
+                .iter()
+                .flat_map(|section| &section.cards)
+                .any(|card| matches!(&card.body, DocumentCardBody::Plot { plot } if plot.plot_type == PlotType::WifiChannelOccupancy))
+        );
+    }
+}

@@ -63,7 +63,7 @@ export function PluginsSection() {
   // Every row, host included, opens its plugin's own contributed page.
   const builtInRows: PluginTableRow[] = programRows(programs, entries, settings.frame).map(({ key, program, settingsSection }) => ({
     key,
-    name: program.owner?.kind === "host" ? `${brand.label} Host` : program.label,
+    name: program.owner?.kind === "host" ? `${brand.label} Built-in` : program.label,
     source: programSource(program, brand.label),
     enabled: { checked: true, disabled: true, onChange: () => {} },
     onOpenSettings: settingsSection

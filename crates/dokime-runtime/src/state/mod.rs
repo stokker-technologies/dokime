@@ -582,7 +582,7 @@ impl RuntimeState {
                         }
                     }
                     for stream in template.subscriptions.iter().filter_map(crate::definition::Subscription::stream) {
-                        if self.telemetry_definitions.contains_key(stream) || is_host_stream(stream) {
+                        if self.telemetry_definitions.contains_key(stream) {
                             continue;
                         }
                         return Err(format!(
@@ -840,10 +840,6 @@ fn unestablished_node_id() -> NodeId {
 
 fn unestablished_node_identity() -> DokimeNodeIdentity {
     DokimeNodeIdentity::new(unestablished_node_id(), None, Timestamp::new("1970-01-01T00:00:00Z"))
-}
-
-fn is_host_stream(stream: &dokime_domain::model::identity::Identifier) -> bool {
-    dokime_domain::model::telemetry::HOST_STREAMS.iter().any(|host| host.as_str() == stream.as_str())
 }
 
 /* === Tests === */

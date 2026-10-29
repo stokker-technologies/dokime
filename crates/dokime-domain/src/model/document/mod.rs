@@ -13,7 +13,6 @@ pub mod addition;
 pub mod column;
 pub mod definition;
 pub mod format;
-pub mod host;
 pub mod validation;
 
 /* === Re-Exports === */

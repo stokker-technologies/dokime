@@ -4,7 +4,7 @@ Locked 2026-10-29; scheduled by the owner. Implementation in `feat/distribution-
 
 ## Source Inventory
 
-Installer identity and native assembly: `dokime-packaging/src/installer/{manifest,payload,native,inspect}.rs`, identity-only hooks and packaging tests. Plugin selection/staging remains with the host-plugin-features owner.
+Installer identity and native assembly: `dokime-packaging/src/installer/{manifest,payload,native,inspect}.rs`, identity-only hooks and packaging tests; integrate the bundled-plugin startup inventory reader and its fixtures with `installer.json`. Plugin selection/staging remains with the host-plugin-features owner.
 
 Shared identity validation: `dokime-domain/src/model/identity/distribution.rs`. Shared resolver and consumers: `dokime-runtime/src/paths.rs`, configuration snapshots and consumers (runtime settings, server diagnostics/log streams), desktop bootstrap/organization/settings/logging/local backend and native-session paths and cache consumers; server logging, CLI server startup and `dokime/src/installation.rs` GUI discovery. Preserve compiled protocol and updater identities.
 
@@ -26,7 +26,7 @@ Triage: `ApplicationPaths` already owns basic root/data/plugins paths (`crates/d
 
 ## Workflow Follow-Up
 
-- Integration preserves the distribution slug in native filenames and the release layout's Rust target in NSIS filenames. Explicit plugin selection/staging remains unchanged; Linux plugin destinations follow the distribution directory.
+- Integration preserves the distribution slug in native filenames and the release layout's Rust target in NSIS filenames. Verified organization-folder and explicit plugin staging are preserved; Linux plugin destinations follow the distribution directory. Bundled-plugin startup reads and fingerprints `installer.json`; `distribution.json` retains only the startup identity. First-start installation, upgrade-only reconciliation and preservation of disabled state/settings remain with the plugin store.
 - Keep 1.2 and 1.5 open for the NSIS decoding repair. A fixed, valid LZMA stream reproduces the header failure without packaging, files, environment variables or external processes. The full 8,196-byte stream decodes; its 4,100-byte prefix fails with `end reached but not decoder finished`, and `decompress_header` returns `UnsupportedCompression` (the public installer parser reports `none of the supported compression methods succeeded`). Two focused diagnostic runs reproduce it. This establishes a dependency defect, not environmental proof; the original failed installer was not retained, so its exact cause cannot be proven retrospectively.
 - `nsis` 0.6.0's `decompress_lzma` supplies a known final size for `DecodeLimit::Exact`, but a solid header is a prefix of a continuing stream. `lzma-rust2` 0.21.0 rejects a pending match at that artificial end. The compressed fixture below contains a little-endian 4,096-byte header length followed by 8,192 zero bytes; the header boundary cuts a match.
 - Reproduce with this temporary packaging test target (`crates/dokime-packaging/tests/nsis_diagnostic.rs`), using `mise run build:rust:focused -- test --locked -p dokime-packaging --test nsis_diagnostic -- --exact solid_header_prefix --nocapture`. The diagnostic intentionally fails at the final unwrap; it is not part of the committed test suite.

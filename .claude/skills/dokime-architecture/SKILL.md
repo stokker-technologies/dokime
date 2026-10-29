@@ -2,7 +2,7 @@
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:14fdb49f35f8ff0697df44316c7b1231ee8665c69a0c713037f27c42dbfef1cf -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:a5643970e6cc5fa88ed6d540ff6c63f30182cc1a3ab98db3fa970fb32bf44655 -->
 
 # Dokime Architecture
 
@@ -22,6 +22,8 @@ Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model
 
 The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and target-specific tool archives.
 
+Host plugin rows, contracts, cadences and document defaults belong to the definitions-only default of `dokime-host`, consumed explicitly without runtime re-exports. Application lifecycle records remain in `dokime::host`. `PluginOwner::Host` identifies embedding application catalogs, presented as Built-in.
+
 Declare product contracts once in `dokime-domain`; implement handlers in `dokime-runtime`. Interfaces consume `dokime` and expose the same operation contracts through their hosts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
 Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and shared visibility; ambiguous providers are refused.
@@ -34,5 +36,9 @@ Storage stays at development v1. Use a fresh storage root for incompatible schem
 Host telemetry belongs to `plugins/sidecars/host`, shipped as `host.dokime`.
 The runtime ingests it through the common plugin boundary and carries no host
 collector feature or dependency. OBC under `plugins/sidecars/obc` is test-only.
-Installer bundles are selected solely by repeatable `--plugin` arguments; the
-Dokime packaging task supplies the host bundle explicitly.
+Installer bundles come from the resolved organization pack's optional `plugins/`
+folder and repeatable `--plugin` arguments; the Dokime packaging task supplies the
+host bundle explicitly. Packaging verifies member digests, target and the bundle's
+declared Dokime requirement before embedding. Bundled packages install through the
+ordinary plugin store at startup when absent or older; equal or newer installed
+versions are retained, including their settings and disabled state.

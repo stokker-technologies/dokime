@@ -19,9 +19,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::telemetry::{FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow, TelemetryStream, field};
-use dokime_domain::model::telemetry::HostTelemetryStream;
-use dokime_domain::model::telemetry::host_telemetry_contract;
+use super::HostTelemetryStream;
+use super::host_telemetry_contract;
+use dokime::telemetry::{FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow, TelemetryStream, field};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
@@ -41,7 +41,7 @@ macro_rules! host_rows {
         )*
     ) => {
         $(
-            #[harmos::message]
+            #[dokime::message]
             #[derive(Clone, Debug, Default, PartialEq)]
             pub struct $stream {
                 $(
@@ -51,8 +51,8 @@ macro_rules! host_rows {
 
             impl $stream {
                 $(
-                    pub fn $field() -> crate::document::Column<Self> {
-                        crate::document::Column::new(stringify!($field))
+                    pub fn $field() -> dokime::document::Column<Self> {
+                        dokime::document::Column::new(stringify!($field))
                     }
                 )*
             }
@@ -91,7 +91,7 @@ macro_rules! host_rows {
                 }
             }
 
-            impl crate::StreamSpec for $stream {
+            impl dokime::StreamSpec for $stream {
                 type Row = Self;
                 const ID: &'static str = $id;
                 const VERSION: u32 = 1;
@@ -106,20 +106,19 @@ macro_rules! host_rows {
                 }
             }
 
-            #[cfg(feature = "native")]
-            impl crate::execution::Listenable for $stream {
+            impl dokime::execution::Listenable for $stream {
                 type Item = Self;
-                type Listening = crate::execution::ListeningRows<Self>;
+                type Listening = dokime::execution::ListeningRows<Self>;
 
-                fn subscription() -> crate::definition::Subscription {
-                    crate::definition::Subscription::Stream(<Self as TelemetryStream>::stream_id())
+                fn subscription() -> dokime::definition::Subscription {
+                    dokime::definition::Subscription::Stream(<Self as TelemetryStream>::stream_id())
                 }
 
                 fn listening(
-                    streams: &crate::telemetry::Streams,
-                    _deliveries: &crate::records::Deliveries,
+                    streams: &dokime::telemetry::Streams,
+                    _deliveries: &dokime::records::Deliveries,
                 ) -> Self::Listening {
-                    crate::execution::ListeningRows::new(streams)
+                    dokime::execution::ListeningRows::new(streams)
                 }
             }
         )*
@@ -132,7 +131,7 @@ macro_rules! host_rows {
 
 // Expansions
 
-dokime_domain::host_streams!(host_rows);
+super::table::host_streams!(host_rows);
 
 /* === Type Aliases === */
 
@@ -153,10 +152,10 @@ dokime_domain::host_streams!(host_rows);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use harmos::Message;
+    use dokime::harmos::{self, Message};
 
     #[test]
-    fn host_messages_use_native_repeated_fields() {
+    fn host_lists_roundtrip() {
         fn round_trip<T: Message + TelemetryRow>(stream: HostTelemetryStream, field: &str) {
             let contract = host_telemetry_contract(stream);
             let schema = contract.storage_schema.as_ref().unwrap();
@@ -169,7 +168,7 @@ mod tests {
                 let decoded = T::decode(&bytes).unwrap().into_row();
                 assert_eq!(decoded.get(field), values.get(field));
                 assert!(!decoded.contains_key("timestamp"));
-                assert_eq!(crate::storage::telemetry::decode_values(&validator, &bytes).unwrap(), decoded);
+                assert_eq!(dokime::storage::telemetry::decode_values(&validator, &bytes).unwrap(), decoded);
             }
         }
         round_trip::<Network>(HostTelemetryStream::Network, "local_addresses");

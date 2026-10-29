@@ -103,14 +103,21 @@ def test(profile: str) -> None:
         # Only The Disposable Consumer Uses The Current SDK Before Publication.
         manifest = plugin / "Cargo.toml"
         authored = manifest.read_text(encoding="utf-8")
-        dependency = tomllib.loads(authored)["dependencies"]["dokime"]
-        if dependency.get("git") != "https://github.com/stokker-technologies/dokime" or dependency.get("branch") != "dev":
-            raise ValueError("the starter must declare its public SDK dependency")
+        dependencies = tomllib.loads(authored)["dependencies"]
+        release = "v" + tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+        for name in ("dokime", "dokime-host"):
+            dependency = dependencies[name]
+            if dependency.get("git") != "https://github.com/stokker-technologies/dokime" or dependency.get("tag") != release:
+                raise ValueError("the starter must declare SDK and host definitions from the same release")
         lines = authored.splitlines(keepends=True)
-        selected = [index for index, line in enumerate(lines) if line.startswith("dokime = ")]
-        if len(selected) != 1:
-            raise ValueError("the starter must declare one SDK dependency")
-        lines[selected[0]] = f'dokime = {{ path = {json.dumps(str(root / "crates/dokime"))}, features = ["plugin-sidecar"] }}\n'
+        for name, local, features in (
+            ("dokime", root / "crates/dokime", ', features = ["plugin-sidecar"]'),
+            ("dokime-host", root / "plugins/sidecars/host", ", default-features = false"),
+        ):
+            selected = [index for index, line in enumerate(lines) if line.startswith(f"{name} = ")]
+            if len(selected) != 1:
+                raise ValueError(f"the starter must declare one {name} dependency")
+            lines[selected[0]] = f"{name} = {{ path = {json.dumps(str(local))}{features} }}\n"
         manifest.write_text("".join(lines), encoding="utf-8", newline="\n")
 
         # Vendor The Locked Cargo Sources Without Compiling A Second Product.

@@ -42,7 +42,7 @@ runtime = ["dep:getifs", "dep:serde_json", "dep:starship-battery", "dep:sysinfo"
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
-dokime-domain = { version = "0.1.1", path = "../../../crates/dokime-domain" }
+dokime-domain = { version = "0.1.2", path = "../../../crates/dokime-domain" }
 
 # Git
 

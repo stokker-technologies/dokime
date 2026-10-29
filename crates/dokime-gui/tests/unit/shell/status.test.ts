@@ -132,7 +132,7 @@ test("Brand Label", () => {
     owner: { kind: "host" },
     version: "1.2.0",
   } as unknown as RuntimeInstalledPluginRecord;
-  assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Host · v1.2.0");
+  assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Built-in · v1.2.0");
 
   // A Pending Removal Waits For The Brand To Restart
   const entry = {

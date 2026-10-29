@@ -64,7 +64,6 @@ use dokime_domain::model::values::datetime_seconds;
 
 /* === Constants === */
 
-const WIFI_CONTEXT_STREAM: &str = "host.wifi.link";
 const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 /* === Macros === */
@@ -150,9 +149,6 @@ fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str))
     if let Some(stream) = &request.z_stream {
         visit(stream);
     }
-    if request.plot_type == Some(PlotType::WifiChannelOccupancy) {
-        visit(WIFI_CONTEXT_STREAM);
-    }
     let expressions = request
         .x_expression
         .iter()
@@ -185,10 +181,10 @@ fn request_z_index<'a>(telemetry: &'a [TelemetrySample], request: &'a PlotPayloa
 }
 
 fn payload_from_series(
-    telemetry: &[TelemetrySample], samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
-    generated_at: &str, format_context: &PlotPayloadContext, series: Vec<PlotSeries>,
+    samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
+    format_context: &PlotPayloadContext, series: Vec<PlotSeries>,
 ) -> PlotPayload {
-    let context = plot_context(request, samples, telemetry);
+    let context = plot_context(request, samples);
     // Every series in one payload reads the same declared y axis, so they
     // share the one resolved winner: a plot override or a column's declared
     // format apply uniformly, not per series.
@@ -595,43 +591,25 @@ fn expression_field_name(expression: &DataExpression) -> Option<&str> {
     }
 }
 
-fn plot_context(request: &PlotPayloadRequest, samples: &[&TelemetrySample], telemetry: &[TelemetrySample]) -> BTreeMap<String, Value> {
+fn plot_context(request: &PlotPayloadRequest, samples: &[&TelemetrySample]) -> BTreeMap<String, Value> {
     if request.plot_type.as_ref() != Some(&PlotType::WifiChannelOccupancy) {
         return BTreeMap::new();
     }
 
     let mut context = BTreeMap::new();
-    for (key, value) in plot_context_values(samples, telemetry) {
+    for (key, value) in plot_context_values(samples) {
         copy_context_value(&mut context, key, value);
     }
     context
 }
 
-fn plot_context_values<'a>(samples: &[&'a TelemetrySample], telemetry: &'a [TelemetrySample]) -> [(&'static str, Option<&'a Value>); 3] {
+fn plot_context_values<'a>(samples: &[&'a TelemetrySample]) -> [(&'static str, Option<&'a Value>); 3] {
     let occupancy_values = samples.last().map(|sample| &sample.values);
-    let wifi_values = telemetry.iter().rev().find(|sample| sample.stream.as_str() == WIFI_CONTEXT_STREAM).map(|sample| &sample.values);
 
     [
-        (
-            "active_wifi_channel",
-            occupancy_values
-                .and_then(|values| values.get("active_wifi_channel"))
-                .or_else(|| wifi_values.and_then(|values| values.get("active_wifi_channel")))
-                .or_else(|| wifi_values.and_then(|values| values.get("wifi_channel"))),
-        ),
-        (
-            "active_wifi_band",
-            occupancy_values
-                .and_then(|values| values.get("active_wifi_band"))
-                .or_else(|| wifi_values.and_then(|values| values.get("active_wifi_band")))
-                .or_else(|| wifi_values.and_then(|values| values.get("wifi_band"))),
-        ),
-        (
-            "active_wifi_ssid",
-            occupancy_values
-                .and_then(|values| values.get("active_wifi_ssid"))
-                .or_else(|| wifi_values.and_then(|values| values.get("wifi_ssid"))),
-        ),
+        ("active_wifi_channel", occupancy_values.and_then(|values| values.get("active_wifi_channel"))),
+        ("active_wifi_band", occupancy_values.and_then(|values| values.get("active_wifi_band"))),
+        ("active_wifi_ssid", occupancy_values.and_then(|values| values.get("active_wifi_ssid"))),
     ]
 }
 

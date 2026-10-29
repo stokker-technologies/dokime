@@ -51,6 +51,14 @@ fn saved_metadata(root: &Path) -> serde_json::Value {
     serde_json::from_slice(&body).unwrap()
 }
 
+fn installer_metadata(path: &Path, version: &str, bytes: &[u8]) {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let files = serde_json::json!({"plugins/host.dokime": digest});
+    let metadata = serde_json::json!({"schema":1,"version":version,"files":files});
+    fs::write(path, serde_json::to_vec(&metadata).unwrap()).unwrap();
+}
+
 fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize) -> Vec<u8> {
     let identity = Identity {
         name: package.into(),
@@ -106,6 +114,110 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn bundled_upgrades() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let first_bytes = bundle("organization-host", "host", "1.0.0");
+    let first = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    let first_id = first.installation.install_id;
+    assert_eq!(first.metadata.unwrap().identity.name, "organization-host");
+    assert_eq!(fs::read(store.path(first_id)).unwrap(), first_bytes);
+    let repeated = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(repeated.installation.install_id, first_id);
+    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
+    settings
+        .edit(move |document| {
+            let plugin = document.plugins.get_mut(&first_id).unwrap();
+            plugin.programs.entry("host".into()).or_default().saved.insert("calibration".into());
+            Ok::<_, PluginError>(())
+        })
+        .await
+        .unwrap();
+    drop(settings);
+
+    let upgraded_bytes = bundle("organization-host", "host", "2.0.0");
+    let upgraded = store.install_bundled(&upgraded_bytes, &[], &BTreeSet::new()).await.unwrap();
+    let upgraded_id = upgraded.installation.install_id;
+    assert_ne!(upgraded_id, first_id);
+    assert_eq!(store.get(first_id).await.unwrap().installation.state, PluginState::RemovalPending);
+    assert_eq!(store.get(upgraded_id).await.unwrap().metadata.unwrap().identity.version, "2.0.0");
+    assert_eq!(
+        saved_metadata(root.path())["plugins"][upgraded_id.to_string()]["programs"]["host"]["saved"],
+        serde_json::json!(["calibration"])
+    );
+    store.set_enabled(upgraded_id, false).await.unwrap();
+    drop(store);
+    database.close().await.unwrap();
+
+    // A Fresh Application Start Retains A Newer Installed Version And Its Disabled State.
+    let (store, database) = self::store(root.path()).await;
+    let kept = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(kept.installation.install_id, upgraded_id);
+    assert_eq!(kept.installation.state, PluginState::Disabled);
+    assert_eq!(fs::read(store.path(upgraded_id)).unwrap(), upgraded_bytes);
+    let newer = bundle("organization-host", "host", "3.0.0");
+    let upgraded = store.install_bundled(&newer, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(upgraded.installation.state, PluginState::Disabled);
+    assert_eq!(upgraded.metadata.unwrap().identity.version, "3.0.0");
+
+    let fourth = bundle("organization-host", "host", "4.0.0");
+    let fifth = bundle("organization-host", "host", "5.0.0");
+    let sources = BTreeSet::new();
+    let (left, right) = tokio::join!(store.install_bundled(&fifth, &[], &sources), store.install_bundled(&fourth, &[], &sources));
+    left.unwrap();
+    right.unwrap();
+    let current = store.list().await.unwrap().into_iter().find(|entry| entry.installation.state == PluginState::Disabled).unwrap();
+    assert_eq!(current.metadata.unwrap().identity.version, "5.0.0");
+    database.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn bundled_distribution() {
+    let root = tempfile::tempdir().unwrap();
+    let installer = tempfile::tempdir().unwrap();
+    let plugins = installer.path().join("plugins");
+    fs::create_dir(&plugins).unwrap();
+    let distribution = installer.path().join("installer.json");
+    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.hilti.dokime"}"#).unwrap();
+    let bytes = bundle("organization-host", "host", "1.0.0");
+    installer_metadata(&distribution, "1.0.0", &bytes);
+    fs::write(plugins.join("host.dokime"), &bytes).unwrap();
+    fs::write(plugins.join("leftover.dokime"), b"unindexed older installer resource").unwrap();
+    let sources = BTreeSet::new();
+    let (store, database) = self::store(root.path()).await;
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    let first = store.installed().await.unwrap();
+    assert_eq!(first.len(), 1);
+    let first = store.list().await.unwrap().pop().unwrap();
+    store.remove(first.installation.install_id).await.unwrap();
+    store.sweep().await.unwrap();
+    drop(store);
+    database.close().await.unwrap();
+
+    let (store, database) = self::store(root.path()).await;
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert!(store.installed().await.unwrap().is_empty());
+    installer_metadata(&distribution, "2.0.0", &bytes);
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_eq!(store.installed().await.unwrap().len(), 1);
+    let newer = store.install(&bundle("organization-host", "host", "3.0.0"), &[], &sources).await.unwrap();
+    installer_metadata(&distribution, "3.0.0", &bytes);
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_eq!(fs::read(store.path(newer.installation.install_id)).unwrap(), bundle("organization-host", "host", "3.0.0"));
+
+    let before = saved_metadata(root.path())["bundled_distribution"].clone();
+    installer_metadata(&distribution, "4.0.0", &bytes);
+    fs::write(plugins.join("host.dokime"), b"modified archive").unwrap();
+    let refused = store.install_distribution(&plugins, &[], &sources).await.unwrap_err();
+    assert!(refused.to_string().contains("host.dokime"));
+    assert_eq!(saved_metadata(root.path())["bundled_distribution"], before);
+    fs::write(plugins.join("host.dokime"), &bytes).unwrap();
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_ne!(saved_metadata(root.path())["bundled_distribution"], before);
+    database.close().await.unwrap();
+}
 
 pub(crate) async fn direct_installation() {
     let bytes = large_bundle("fixture", "fixture", "1.0.0", 70 * 1024 * 1024);

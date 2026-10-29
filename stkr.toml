@@ -555,18 +555,6 @@ lock_commands = [
     "--no-install-package",
     "dokime-client",
   ],
-  [
-    "uv",
-    "run",
-    "--locked",
-    "--no-sync",
-    "--package",
-    "dokime-tools",
-    "python",
-    "-m",
-    "dokime_tools.package.examples",
-    "--prepare-release",
-  ],
 ]
 targets = ["linux-x86_64", "windows-x86_64"]
 signature_checks = [
@@ -587,7 +575,7 @@ signature_checks = [
 
 [[release.plugins]]
 package = "dokime-host"
-requires_dokime = ">=0.1.0, <0.2.0"
+requires_dokime = ">=0.1.1, <0.2.0"
 targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
 path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
 
@@ -630,7 +618,7 @@ name = "latest.json"
 signed_only = true
 
 [version]
-value = "0.1.1"
+value = "0.1.2"
 files = [
   "Cargo.toml",
   "pyproject.toml",
@@ -657,32 +645,3 @@ targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-
 release = true
 verify = ["--version"]
 installers = ["mise"]
-
-[[package.bundles]]
-language = "python"
-name = "dokime-remote-examples-{version}.zip"
-profiles = ["dev", "release"]
-targets = ["any"]
-inputs = [
-  { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE", destination = "remote/LICENSE" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/README.md", destination = "remote/cli/README.md" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.ps1", destination = "remote/cli/bootstrap.ps1" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.bat", destination = "remote/cli/bootstrap.bat" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.sh", destination = "remote/cli/control-device.sh", mode = 0o755 },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.sh", destination = "remote/cli/control-test.sh", mode = 0o755 },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.sh", destination = "remote/cli/control-prompt.sh", mode = 0o755 },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.ps1", destination = "remote/cli/control-device.ps1" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.ps1", destination = "remote/cli/control-test.ps1" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.ps1", destination = "remote/cli/control-prompt.ps1" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.bat", destination = "remote/cli/control-device.bat" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.bat", destination = "remote/cli/control-test.bat" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.bat", destination = "remote/cli/control-prompt.bat" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-device.py", destination = "remote/python/control-device.py" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-test.py", destination = "remote/python/control-test.py" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-prompt.py", destination = "remote/python/control-prompt.py" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/README.md", destination = "remote/python/README.md" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/pyproject.toml", destination = "remote/python/pyproject.toml" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/python/uv.lock", destination = "remote/python/uv.lock" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/wheels/dokime_client-{version}-py3-none-any.whl", destination = "remote/wheels/dokime_client-{version}-py3-none-any.whl" },
-]

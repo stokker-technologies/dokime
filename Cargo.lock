@@ -1197,7 +1197,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-dokime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap",
  "dokime",
@@ -2433,7 +2433,7 @@ checksum = "c2db04e74f0a9a93103b50e90b96024c9b2bdca8bce6a632ec71b88736d3d359"
 
 [[package]]
 name = "dokime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap",
  "criterion",
@@ -2474,7 +2474,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-client"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime-domain",
  "dokime-operations",
@@ -2498,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-domain"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "harmos",
@@ -2512,7 +2512,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-gui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-host"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime",
  "dokime-domain",
@@ -2573,9 +2573,10 @@ dependencies = [
 
 [[package]]
 name = "dokime-macros"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime",
+ "dokime-host",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
@@ -2586,7 +2587,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-operations"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime-domain",
  "harmos",
@@ -2596,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-packaging"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ar",
  "base64 0.23.1",
@@ -2612,6 +2613,7 @@ dependencies = [
  "reqwest",
  "rpm",
  "rustls",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -2631,7 +2633,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-runtime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -2642,6 +2644,7 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime-domain",
+ "dokime-host",
  "dokime-macros",
  "dokime-operations",
  "file-id",
@@ -2688,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-server"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anstream",
  "anyhow",
@@ -2697,6 +2700,7 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-cli",
+ "dokime-host",
  "dokime-packaging",
  "futures-util",
  "harmos-packaging",
@@ -6122,9 +6126,10 @@ dependencies = [
 
 [[package]]
 name = "obc-plugin"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime",
+ "dokime-host",
  "futures-util",
  "harmos-sdk",
  "obc-runtime",
@@ -6139,7 +6144,7 @@ dependencies = [
 
 [[package]]
 name = "obc-runtime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dokime",
  "serde",

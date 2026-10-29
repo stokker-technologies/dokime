@@ -183,15 +183,7 @@ pub(super) fn project(
             Operation::Rows(_) => build_series(&plan, telemetry, request)?,
             Operation::Aggregate(_) => build_aggregates(&plan, telemetry, request)?,
         };
-        Ok::<_, crate::runtime::Error>(super::payload_from_series(
-            telemetry,
-            &plan.selected,
-            records,
-            request,
-            generated_at,
-            context,
-            series,
-        ))
+        Ok::<_, crate::runtime::Error>(super::payload_from_series(&plan.selected, records, request, generated_at, context, series))
     })?;
     Ok(Some(output))
 }

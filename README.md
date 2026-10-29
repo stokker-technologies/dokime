@@ -116,8 +116,11 @@ The same plugin uses `#[dokime::observer]` for its
 [pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
 Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
-keep their installation and storage separate from plain Dokime. They select bundles
-explicitly with repeatable `cargo dokime installer package --plugin <bundle>` arguments. See the [installer guide](docs/product-guide.md#native-installers)
+keep their installation and storage separate from plain Dokime. They include
+verified bundles from an organization pack's `plugins/` folder or repeatable
+`cargo dokime installer package --plugin <bundle>` arguments. Bundled plugins
+install on startup without replacing newer installed versions. See the
+[installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
 ## Quick Start

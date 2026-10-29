@@ -210,12 +210,12 @@ pub enum Required {
 #[dokime::catalog]
 pub enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
-    System(host::System),
-    Network(host::Network),
-    WifiLink(host::WifiLink),
-    WifiLatency(host::WifiLatency),
-    WifiScan(host::WifiScan),
-    Bluetooth(host::Bluetooth),
+    System(dokime_host::System),
+    Network(dokime_host::Network),
+    WifiLink(dokime_host::WifiLink),
+    WifiLatency(dokime_host::WifiLatency),
+    WifiScan(dokime_host::WifiScan),
+    Bluetooth(dokime_host::Bluetooth),
 }
 
 #[dokime::catalog]

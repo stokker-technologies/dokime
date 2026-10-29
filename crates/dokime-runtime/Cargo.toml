@@ -68,9 +68,9 @@ simulation = ["native", "harmos/simulation"]
 
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.1", path = "../dokime-domain", features = ["diagnostics"] }
-dokime-macros = { version = "0.1.1", path = "../dokime-macros", optional = true }
-dokime-operations = { version = "0.1.1", path = "../dokime-operations", features = ["runtime"] }
+dokime-domain = { version = "0.1.2", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-macros = { version = "0.1.2", path = "../dokime-macros", optional = true }
+dokime-operations = { version = "0.1.2", path = "../dokime-operations", features = ["runtime"] }
 
 # Git
 
@@ -145,6 +145,7 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 [dev-dependencies]
 # Local
+dokime-host = { workspace = true }
 
 # Git
 
