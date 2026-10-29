@@ -574,10 +574,23 @@ signature_checks = [
 ]
 
 [[release.plugins]]
+kind = "sidecar"
 package = "dokime-host"
 requires_dokime = ">=0.1.1, <0.2.0"
 targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
 path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
+
+[[release.assets]]
+kind = "sidecars"
+target = "linux-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-sidecars-{version}-x86_64-unknown-linux-gnu.tar.gz"
+name = "{product}-sidecars-{version}-x86_64-unknown-linux-gnu.tar.gz"
+
+[[release.assets]]
+kind = "sidecars"
+target = "windows-x86_64"
+path = "target/package/{profile}/{target}/rust/dokime-sidecars-{version}-x86_64-pc-windows-msvc.zip"
+name = "{product}-sidecars-{version}-x86_64-pc-windows-msvc.zip"
 
 [[release.package_signing]]
 language = "rust"
@@ -590,16 +603,16 @@ path = "target/package/{profile}/{target}/rust/installers/dokime_{version}_amd64
 name = "{product}_{version}_amd64.deb"
 
 [[release.assets]]
-kind = "payload"
+kind = "distribution"
 target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-unknown-linux-gnu.zip"
-name = "{product}-payload-{version}-x86_64-unknown-linux-gnu.zip"
+path = "target/package/{profile}/{target}/rust/dokime-distribution-{version}-x86_64-unknown-linux-gnu.zip"
+name = "{product}-distribution-{version}-x86_64-unknown-linux-gnu.zip"
 
 [[release.assets]]
-kind = "payload"
+kind = "distribution"
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-pc-windows-msvc.zip"
-name = "{product}-payload-{version}-x86_64-pc-windows-msvc.zip"
+path = "target/package/{profile}/{target}/rust/dokime-distribution-{version}-x86_64-pc-windows-msvc.zip"
+name = "{product}-distribution-{version}-x86_64-pc-windows-msvc.zip"
 
 [[release.assets]]
 target = "linux-x86_64"
