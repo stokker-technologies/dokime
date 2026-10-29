@@ -129,8 +129,7 @@ run = "cargo fmt --all{% if usage.check %} --check{% endif %}"
 [tasks."format:toml"]
 description = "Format TOML"
 usage = 'flag "--check"'
-run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --option column_width=140{% if usage.check %} --check{% endif %}"
-run_windows = '''pwsh -NoProfile -Command "taplo fmt --option column_width=140{% if usage.check %} --check{% endif %} -- @(git ls-files -- '*.toml')"'''
+run = "{{vars.tools}} dokime_tools.format.toml{% if usage.check %} --check{% endif %}"
 
 [tasks."format:typescript"]
 description = "Format TypeScript"
