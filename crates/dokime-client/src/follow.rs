@@ -78,9 +78,6 @@ impl FileResume {
     pub fn committed_offset(&self) -> u64 {
         self.offset
     }
-    pub fn prefix_sha256(&self) -> &str {
-        &self.sha256
-    }
 
     pub fn request(&self, execution_id: String, relative_path: String) -> Result<content::FollowExecutionFile, Error> {
         Ok(content::FollowExecutionFile {

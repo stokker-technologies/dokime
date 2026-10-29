@@ -33,7 +33,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     retries: RetryPolicy::Never,
 };
 pub const PACKAGE: &str = "dokime.v1";
-pub const SERVICE: &str = "Runtime";
 
 /* === Macros === */
 
