@@ -140,6 +140,11 @@ CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 for archive selection and the release download inventory. Distributors use
 `dokime-distribution-<version>-<target>.zip`; shipping plugins share native
 `dokime-sidecars` archives described by `plugins.json` format 2.
+Custom installers select plugins through top-level `[[plugin]]` entries: set
+either `name` for a release plugin or `path` for a bundle relative to the
+organization pack. Its `plugins/` folder is storage only; files ship only when
+selected explicitly. See [Native Installers](docs/product-guide.md#native-installers)
+for the manifest and equivalent repeatable `--plugin` arguments.
 
 ### Configuration
 

@@ -35,12 +35,36 @@ installer assembly without compilation.
 
 #### Scenario: External Plugins
 
-- **WHEN** external_plugins path tables or repeatable --plugin paths are supplied
-- **THEN** local bundles receive the same target and requires_dokime checks before assembly.
+- **WHEN** top-level [[plugin]] path entries or repeatable --plugin paths are supplied
+- **THEN** local bundles receive the same integrity, target and requires_dokime checks before assembly; entry paths resolve inside the selected organization pack and CLI paths resolve against the invocation directory.
+
+### Requirement: Explicit Installer Plugin Selection
+
+The installer manifest SHALL select plugins only through top-level [[plugin]]
+entries, each setting exactly one of name (a release feed name) or path (a local
+bundle relative to the organization pack). Repeatable --plugin paths SHALL add
+equivalent explicit external inputs. The pack's plugins/ folder SHALL be storage
+only; unlisted files SHALL NOT ship, and plugin files SHALL NOT be discovered or
+overlaid automatically. Named local files SHALL remain inside the selected pack.
+
+#### Scenario: Invalid Entry
+
+- **WHEN** a plugin entry sets both name and path or neither
+- **THEN** validation fails before acquisition and identifies the one-based entry index.
+
+#### Scenario: Unlisted Storage
+
+- **WHEN** base and override organization folders contain unlisted plugin files
+- **THEN** none are bundled or installed, and a missing explicitly named override file never falls back to the base file.
+
+#### Scenario: Escaped Local Path
+
+- **WHEN** a path entry is absolute or escapes the organization pack lexically or through a link
+- **THEN** packaging refuses it before staging installer plugins.
 
 #### Scenario: Clean Manifest Break
 
-- **WHEN** release_url or sha256 appears in the organization installer manifest
+- **WHEN** release_url, sha256, [dokime] plugins or [[dokime.external_plugins]] appears in the installer manifest
 - **THEN** parsing rejects the retired keys.
 
 ### Requirement: Product Archive Outputs

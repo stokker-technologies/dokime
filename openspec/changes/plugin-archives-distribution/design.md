@@ -15,15 +15,21 @@ formats = ["nsis"]
 [dokime]
 version = "0.1.3" # "dev-channel", or omitted = cargo-dokime version
 target = "x86_64-pc-windows-msvc"
-plugins = ["plugin-host"]
-[[dokime.external_plugins]]
+[[plugin]]
+name = "plugin-host"
+[[plugin]]
 path = "plugins/acme-bench.dokime"
 ```
 
-The explicit assignment selects external_plugins tables over the brief's earlier
-string-array example. Paths resolve against the manifest. CLI --plugin paths
-resolve against the invocation directory. Names are opaque feed/declaration names;
-no crate rename or plugin-prefix inference occurs.
+The owner's amendment supersedes the earlier plugin arrays/external_plugins tables
+and organization folder discovery. Each top-level plugin entry sets exactly one
+of name/path; both or neither fail with a one-based entry index before acquisition.
+Paths stay inside installer.organization (resolved against the installer manifest),
+or the distribution's organization directory when no override is selected. Missing
+override plugins never fall back to base files. The plugins/ folder is storage only;
+unlisted files never ship and plugin selection performs no filename overlay.
+CLI --plugin paths resolve against the invocation directory. Names are opaque
+feed/declaration names; no crate rename or plugin-prefix inference occurs.
 
 Feed v2 contains plugins with name, kind, version, requires_dokime and targets
 mapping target triples to archive/member/sha256. Sidecars use the native target;
@@ -64,12 +70,19 @@ duplicate names while inspecting the declared bundle paths for feed generation.
 
 ## Triage
 
-Existing external-bundle native target, compatibility and duplicate validation is
-retained (crates/dokime-packaging/src/installer/plugins.rs:126). Existing --artifacts
-assembly and repeatable --plugin flags are retained; only acquisition changes.
-Feed v1 and payload exports require replacement; none of these are already closed.
+External-bundle target, compatibility and member hash checks remain in
+crates/dokime-packaging/src/installer/plugins.rs:120; duplicate checks remain at :74.
+Existing --artifacts assembly and repeatable --plugin flags are retained.
+Feed v2 and distribution exports landed in this change; the amendment replaces
+the superseded external_plugins tables and implicit plugin-folder selection.
+tools/python/src/dokime_tools/package/installer.py:83 already selects shipping
+bundles through --plugin and needs no manifest conversion. Archived/sibling
+change records are historical; this amendment supersedes their implicit
+plugin-folder inclusion contract.
 
 ## Proof And Handoff
 
 Only targeted mise tasks run. No full lane, CI simulation, push or release.
 Source closure does not assert Hub integration or final cross-platform proof.
+Specification retirement requires unchecked integration-owner task 6.1 to close;
+this product-only assignment cannot perform or attest that work.

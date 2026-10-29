@@ -866,9 +866,11 @@ formats = ["nsis"]
 [dokime]
 version = "0.1.3"
 target = "x86_64-pc-windows-msvc"
-plugins = ["dokime-host"]
 
-[[dokime.external_plugins]]
+[[plugin]]
+name = "dokime-host"
+
+[[plugin]]
 path = "plugins/acme-bench.dokime"
 ```
 
@@ -915,16 +917,24 @@ cargo dokime installer package --manifest company/installer.toml --artifacts tar
 cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
-Use `[dokime] plugins = ["<feed-name>"]` to select plugins from that release's
-feed. Names come from the feed; they need not match bundle filenames. External
-bundles are declared with `[[dokime.external_plugins]] path = "..."` relative to
-the manifest, placed in the organization pack's optional `plugins/` folder, or
-added with repeatable `--plugin <path>` arguments. The CLI also accepts a local
-sidecars ZIP or tar.gz and includes its `.dokime` members. Every included bundle
-receives the same native-target and `requires_dokime` checks before embedding.
-The product packaging task selects shipping plugins from `stkr.toml`; OBC is
-test-only. Organization overrides replace base bundles with the same filename;
-duplicate explicit filenames or package names fail.
+Use top-level `[[plugin]]` entries to select installer plugins. Each entry sets
+exactly one of `name` or `path`; invalid entries report their one-based index.
+`name` selects a plugin from the release feed and need not match its bundle
+filename. `path` names a local bundle relative to `[installer] organization`,
+or to the distribution's `organization/` when no override is selected. Paths
+must stay inside that pack; a missing override file never falls back to a base
+plugin with the same filename. For this example, the local bundle lives at
+`company/organization/plugins/acme-bench.dokime`.
+
+The pack's `plugins/` folder is storage only. Unlisted files are excluded from
+the installer, and plugin files are never overlaid or discovered automatically.
+Repeatable `--plugin <path>` arguments are the CLI equivalent of path entries,
+with paths relative to the invocation directory. Explicit paths also accept a
+local sidecars ZIP or tar.gz and include its `.dokime` members. Every selected
+bundle receives the same integrity, native-target and `requires_dokime` checks
+before embedding; duplicate filenames or package names fail. The product
+packaging task selects shipping plugins explicitly from `stkr.toml`; OBC is
+test-only.
 `cargo dokime sidecar build` and `package` include integrity-indexed `dokime.json`
 metadata (schema v1) containing `requires_dokime`, taken from the plugin's Cargo
 `dokime` dependency requirement. Rebuild older bundles that lack this metadata
@@ -964,7 +974,8 @@ Verified downloads are cached by SHA-256 under
 `%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or
 `${XDG_CACHE_HOME:-$HOME/.cache}/dokime/releases/sha256` on Unix. Every cache hit
 is rehashed; corrupted bytes are replaced only by a verified download. Feed v1
-and the old `release_url`/`sha256` manifest keys are rejected.
+and the old `release_url`/`sha256`, `[dokime] plugins` and
+`[[dokime.external_plugins]]` manifest keys are rejected.
 `--artifacts <dir>` retains build-tree assembly without acquiring a distribution;
 when named release plugins are requested, their release feed is still resolved.
 Native installers are outputs and cannot substitute for a distribution archive.
@@ -1201,6 +1212,10 @@ Resolve the installation's default pack with an optional organization override
 before validation. Manifest tables merge recursively; present scalar and array
 values replace defaults. Omitted fields and files inherit, while a supplied file
 replaces the whole file at the same relative path. There are no deletion markers.
+Installer plugin selection is separate: the pack's optional `plugins/` folder
+stores local bundles, and only explicit `[[plugin]] path` entries (or CLI
+`--plugin` paths) include them. Plugin storage is excluded from the installed
+organization pack. See [Native Installers](#native-installers) for the manifest.
 A partial override can therefore contain only this manifest and a replacement
 `theme/light.css`:
 

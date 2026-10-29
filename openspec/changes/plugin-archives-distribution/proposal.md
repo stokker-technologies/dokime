@@ -11,6 +11,8 @@ downloads individual plugins and requires distributor-supplied release URLs.
 - Resolve installer versions and named plugins from release assets, caching by digest.
 - Rename installer payload exports to distribution and package sidecar archives.
 - Retain local build-tree assembly and checked external bundles.
+- Select plugins only through top-level [[plugin]] name/path entries or equivalent
+  CLI inputs; remove implicit organization plugin discovery and overlays.
 - Update product guides and declarations; leave Hub-rendered release code to Hub.
 
 ## Capabilities
@@ -21,9 +23,11 @@ downloads individual plugins and requires distributor-supplied release URLs.
 
 ### Modified Capabilities
 
-None; existing installer assembly and plugin activation behavior is retained.
+Installer plugin selection replaces implicit folder inclusion; appearance merging
+and plugin activation behavior are retained.
 
 ## Impact
 
-Clean break for feed v1 and release_url/sha256 manifest keys. No storage migration,
+Clean break for feed v1, release_url/sha256 and prior [dokime] plugin selection keys.
+No storage migration,
 crate renaming, release publication or push. All data format baselines remain v1.

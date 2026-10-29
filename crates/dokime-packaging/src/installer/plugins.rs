@@ -44,13 +44,8 @@ use crate::{
 
 /* === Public Functions === */
 
-pub(super) fn stage(
-    paths: &[PathBuf], base: &Path, organization: Option<&Path>, scratch: &Path, target: &str, version: &str,
-) -> Result<BTreeMap<String, PathBuf>, Error> {
-    let mut selected = folder(&base.join("plugins"))?;
-    if let Some(organization) = organization {
-        selected.extend(folder(&organization.join("plugins"))?);
-    }
+pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &str) -> Result<BTreeMap<String, PathBuf>, Error> {
+    let mut selected = BTreeMap::new();
     let external = scratch.join("external-plugins");
     let mut bundles = Vec::new();
     for (index, path) in paths.iter().enumerate() {
@@ -119,30 +114,6 @@ pub(super) fn stage(
 }
 
 /* === Private Functions === */
-
-fn folder(directory: &Path) -> Result<BTreeMap<String, PathBuf>, Error> {
-    let metadata = match std::fs::symlink_metadata(directory) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
-        Err(error) => return Err(error.into()),
-    };
-    if !metadata.is_dir() {
-        return Err(Error::Invalid(format!("plugin folder must be a directory: {}", directory.display())));
-    }
-    let mut paths = BTreeMap::new();
-    for entry in std::fs::read_dir(directory)? {
-        let path = entry?.path();
-        let name = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .ok_or_else(|| Error::Invalid(format!("invalid plugin bundle path: {}", path.display())))?;
-        paths.insert(name.to_owned(), path.clone());
-        if paths.len() > Limits::default().files {
-            return Err(Error::Invalid(format!("too many plugin bundles in {}", directory.display())));
-        }
-    }
-    Ok(paths)
-}
 
 fn verify(path: &Path, target: &str, version: &str) -> Result<(Vec<u8>, String), Error> {
     if path.extension().is_none_or(|extension| extension != "dokime") {
@@ -228,7 +199,7 @@ mod tests {
     }
 
     fn selected(paths: &[PathBuf], scratch: &Path) -> Result<BTreeMap<String, PathBuf>, Error> {
-        stage(paths, &scratch.join("base"), None, scratch, dokime::plugins::NATIVE_TARGET, "0.1.1")
+        stage(paths, scratch, dokime::plugins::NATIVE_TARGET, "0.1.1")
     }
 
     #[test]
@@ -280,17 +251,53 @@ mod tests {
     }
 
     #[test]
-    fn organization_plugins_verified() {
-        let base = tempfile::tempdir().unwrap();
-        let organization = tempfile::tempdir().unwrap();
-        let scratch = tempfile::tempdir().unwrap();
-        std::fs::create_dir(base.path().join("plugins")).unwrap();
-        std::fs::create_dir(organization.path().join("plugins")).unwrap();
+    fn organization_entries_selected() {
+        let root = tempfile::tempdir().unwrap();
+        let base = root.path().join("base");
+        let organization = root.path().join("company/organization");
+        std::fs::create_dir_all(base.join("plugins")).unwrap();
+        std::fs::create_dir_all(organization.join("plugins")).unwrap();
         let host = bundle("host", dokime::plugins::NATIVE_TARGET, "^0.1");
-        std::fs::write(base.path().join("plugins/host.dokime"), b"replaced by overlay").unwrap();
-        std::fs::write(organization.path().join("plugins/host.dokime"), &host).unwrap();
-        let staged = stage(&[], base.path(), Some(organization.path()), scratch.path(), dokime::plugins::NATIVE_TARGET, "0.1.1").unwrap();
+        std::fs::write(base.join("plugins/host.dokime"), b"unselected base bundle").unwrap();
+        std::fs::write(organization.join("plugins/host.dokime"), &host).unwrap();
+        std::fs::write(organization.join("plugins/unlisted.dokime"), b"unselected storage").unwrap();
+
+        let path = root.path().join("company/installer.toml");
+        let text =
+            "[installer]\nversion='0.1.1'\nformats=['nsis']\norganization='organization'\n[dokime]\n[[plugin]]\npath='plugins/host.dokime'";
+        std::fs::write(&path, text).unwrap();
+        let manifest = super::super::Manifest::read(&path).unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let paths = manifest.plugin_paths(&base).unwrap();
+        let staged = selected(&paths, scratch.path()).unwrap();
+        assert_eq!(staged.len(), 1);
         assert_eq!(std::fs::read(&staged["host.dokime"]).unwrap(), host);
+
+        std::fs::remove_file(organization.join("plugins/host.dokime")).unwrap();
+        assert!(manifest.plugin_paths(&base).is_err());
+        std::fs::write(&path, text.replace("organization='organization'\n", "")).unwrap();
+        let manifest = super::super::Manifest::read(&path).unwrap();
+        assert_eq!(manifest.plugin_paths(&base).unwrap(), [base.canonicalize().unwrap().join("plugins/host.dokime")]);
+
+        for entry in ["", "name='host'\npath='plugins/host.dokime'", "path='../outside.dokime'"] {
+            std::fs::write(&path, format!("[installer]\nversion='0.1.1'\nformats=['nsis']\n[dokime]\n[[plugin]]\n{entry}")).unwrap();
+            assert!(super::super::Manifest::read(&path).unwrap_err().to_string().contains("entry 1"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn organization_plugin_escape_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let organization = root.path().join("organization");
+        let outside = root.path().join("outside");
+        std::fs::create_dir(&organization).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("host.dokime"), b"outside").unwrap();
+        std::os::unix::fs::symlink(&outside, organization.join("plugins")).unwrap();
+        let manifest: super::super::Manifest =
+            toml::from_str("[installer]\nversion='0.1.1'\nformats=['deb']\n[dokime]\n[[plugin]]\npath='plugins/host.dokime'").unwrap();
+        assert!(manifest.plugin_paths(&organization).is_err());
     }
 
     #[test]

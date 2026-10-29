@@ -77,7 +77,8 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     #[cfg(not(windows))]
     let scratch = tempfile::tempdir()?;
     let downloaded = scratch.path().join("distribution");
-    let release = if options.artifacts.is_none() || !manifest.dokime.plugins.is_empty() {
+    let names: Vec<_> = manifest.plugin.iter().filter_map(|plugin| plugin.name.clone()).collect();
+    let release = if options.artifacts.is_none() || !names.is_empty() {
         Some(release::Release::resolve(manifest.dokime.version()).await?)
     } else {
         None
@@ -93,21 +94,12 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     };
     let distribution = distribution::validate(&source, &manifest.dokime)?;
     let mut selected = options.plugins.clone();
-    selected.extend(manifest.dokime.external_plugins.iter().map(|plugin| plugin.path.clone()));
+    selected.extend(manifest.plugin_paths(&source.join("organization"))?);
     if let Some(release) = release {
-        let paths = release
-            .plugins(&manifest.dokime.plugins, &distribution.target, &distribution.version, &scratch.path().join("release-plugins"))
-            .await?;
+        let paths = release.plugins(&names, &distribution.target, &distribution.version, &scratch.path().join("release-plugins")).await?;
         selected.extend(paths);
     }
-    let plugins = plugins::stage(
-        &selected,
-        &source.join("organization"),
-        manifest.installer.organization.as_deref(),
-        scratch.path(),
-        &distribution.target,
-        &distribution.version,
-    )?;
+    let plugins = plugins::stage(&selected, scratch.path(), &distribution.target, &distribution.version)?;
     std::fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let staged = scratch.path().join("installers");

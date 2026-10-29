@@ -89,6 +89,14 @@ async fn distribution_identity() {
     for (name, bytes) in &pack.files {
         files.insert(format!("organization/{name}"), hash(bytes));
     }
+    let stored = b"unlisted distribution plugin storage";
+    std::fs::create_dir(source.join("organization/plugins")).unwrap();
+    std::fs::write(source.join("organization/plugins/unlisted.dokime"), stored).unwrap();
+    files.insert("organization/plugins/unlisted.dokime".into(), hash(stored));
+    let organization = root.path().join("company");
+    std::fs::create_dir_all(organization.join("plugins")).unwrap();
+    std::fs::write(organization.join("plugins/unlisted.dokime"), b"unlisted override storage").unwrap();
+
     let target = if cfg!(windows) { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };
     let metadata = serde_json::json!({
         "schema": 1, "version": "1.2.3", "target": target,
@@ -108,8 +116,9 @@ async fn distribution_identity() {
     };
     for (identifier, slug) in [(None, "dokime"), (Some("com.hilti.dokime"), "com-hilti-dokime")] {
         let declaration = identifier.map_or_else(String::new, |identifier| format!("identifier='{identifier}'\n"));
-        let text =
-            format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");
+        let text = format!(
+            "[installer]\nversion='1.2.3'\n{declaration}organization='company'\nformats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n"
+        );
         std::fs::write(&manifest, text).unwrap();
         let packages = match package(&manifest, &options).await {
             Ok(packages) => packages,
@@ -128,6 +137,7 @@ async fn distribution_identity() {
             };
             assert_eq!(package.file_name().unwrap().to_str().unwrap(), expected);
             let inspection = dokime_packaging::installer::inspect(&package).unwrap();
+            assert!(!inspection.distribution.files.keys().any(|name| name.contains("plugins/")));
             let identity = &inspection.distribution.identity;
             assert_eq!(identity.identifier, identifier.unwrap_or("com.stokker.dokime"));
             assert_eq!(identity.slug, slug);

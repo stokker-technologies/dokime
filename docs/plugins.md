@@ -111,10 +111,12 @@ member against the feed, then installs only that member. There is no v1 reader
 or individual-plugin release-asset fallback. See the
 [release feed example](product-guide.md#organization).
 
-Custom installers select release plugins with `[dokime] plugins = ["<feed-name>"]`.
-Use `[[dokime.external_plugins]] path = "plugins/acme.dokime"` for a local bundle,
-or repeat `--plugin <path>` for external bundles or sidecars archives. Names come
-from feed and product declarations; they do not depend on crate naming.
+Custom installers use top-level `[[plugin]]` entries with exactly one of `name`
+(a release feed name) or `path` (a local bundle relative to the organization
+pack). The pack's `plugins/` folder is storage only; unlisted files never ship
+and plugin files are not overlaid. Repeat `--plugin <path>` for equivalent
+external bundle or sidecars archive inputs relative to the invocation directory.
+Names come from feed and product declarations; they do not depend on crate naming.
 See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 
 Operators install bundles through **Settings → Plugins**. Installation validates
