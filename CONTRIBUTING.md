@@ -144,25 +144,17 @@ before and after results; these timings are not correctness-test deadlines.
 
 ### Large-Cycle Report Saves
 
-Build the benchmark and its matching plugin fixture, then run the save harness:
+Report-save timing uses the standard Criterion system benchmark task:
 
 ```sh
 mise run build:rust:bench
-mise run measure:report-save --copies 32
+mise run bench:rust:system
 ```
 
-Copies must be between 1 and 128. The harness expands the same plugin cases, freezes at the
-inspection prompt, saves the current cycle, seals it, and saves the sealed cycle.
-Use identical copies, plugin revision, build profile and native hardware for
-baseline and candidate runs. Preserve a baseline checkout before source edits;
-a later measurement cannot reconstruct a missing baseline.
-
-Each save emits JSON with total/open/first-byte timing, delivery batch and
-writer retention, bytes and delivery passes. Materialization retention, scan
-counts, materialization passes and concurrent ingest latency remain null until
-source-owned instrumentation supplies them. Null is unavailable proof. The
-harness does not assert timing or claim a speedup, and its delivery memory
-measurement excludes report construction.
+Use matching plugin revisions, build profiles and native hardware for comparisons.
+These timings are observations, not correctness-test deadlines or evidence of
+materialization memory, scan work or ingest latency. Preserve a baseline before
+source edits; a later measurement cannot recreate it.
 
 ## Pull Requests
 

@@ -467,11 +467,6 @@ run = "{{vars.tools}} dokime_tools.test.run bench --category integration --langu
 description = "Bench System Rust"
 run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust"
 
-[tasks."measure:report-save"]
-description = "Measure Current And Sealed Large-Cycle Report Saves"
-usage = 'flag "--copies <copies>" default="32"'
-run = "{{vars.tools}} dokime_tools.test.report_save --copies {{usage.copies}}"
-
 # === Docs === #
 
 # === Package === #
