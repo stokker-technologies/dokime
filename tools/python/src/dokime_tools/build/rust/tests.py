@@ -18,7 +18,7 @@ from time import perf_counter
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, paths
+from dokime_tools.build import cargo, configuration, frontend, outputs, paths
 from dokime_tools.package import plugins
 from dokime_tools.test import archive, policy
 
@@ -61,12 +61,12 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
-    staged = [built, built.with_name("compiler.json"), metadata]
+    messages = built.with_name("compiler.json")
+    staged = [built, messages, metadata]
     output = paths.output(ROOT, "build", profile)
-    tool = output / "bin" / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
-    staged += plugins.prepare(
-        ROOT, built.with_name("compiler.json"), profile, tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES
-    )
+    # Package Fixtures With The Archive's Own Collector, Never A Separately Staged Product Build.
+    tool = outputs.executables(messages, ["cargo-dokime"])["cargo-dokime"]
+    staged += plugins.prepare(ROOT, messages, profile, tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES)
     names = configuration.relative(staged)
     archive.stamp(ROOT, profile, names)
     return names

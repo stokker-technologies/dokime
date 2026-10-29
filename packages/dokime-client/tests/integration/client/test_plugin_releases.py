@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 # Local Imports
+from dokime_tools.build.rust import tests
 from dokime_tools.package import plugins
 
 # Type Checking Imports
@@ -89,6 +90,33 @@ def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monk
     assert selected == (["obc-plugin"] if fixture else ["dokime-host"])
     assert [path.name for path in staged] == (["obc-plugin.dokime"] if fixture else ["host.dokime"])
     assert staged[0].read_bytes() == b"packaged executable"
+
+
+def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    built = tmp_path / "tests/archive.tar.zst"
+    built.parent.mkdir()
+    collector = tmp_path / "target/debug/cargo-dokime"
+    artifact = {"reason": "compiler-artifact", "target": {"name": "cargo-dokime", "kind": ["bin"]}, "profile": {"test": False}}
+    record = json.dumps(artifact | {"executable": str(collector)})
+    built.with_name("compiler.json").write_text(record, encoding="utf-8")
+    prepared = []
+
+    def run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace()
+
+    def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...]) -> list[Path]:
+        prepared.append((messages, profile, tool, packages))
+        return []
+
+    monkeypatch.setattr(tests, "ROOT", tmp_path)
+    monkeypatch.setattr(tests.configuration, "ROOT", tmp_path)
+    monkeypatch.setattr(tests.configuration, "features", lambda profile, **kwargs: [])
+    monkeypatch.setattr(tests.cargo, "archive", lambda root, profile, extra: built)
+    monkeypatch.setattr(tests.subprocess, "run", run)
+    monkeypatch.setattr(tests.plugins, "prepare", prepare)
+    monkeypatch.setattr(tests.archive, "stamp", lambda root, profile, names: None)
+    tests.build("dev")
+    assert prepared == [(built.with_name("compiler.json"), "dev", collector, plugins.FIXTURES)]
 
 
 # === Entry Point === #
