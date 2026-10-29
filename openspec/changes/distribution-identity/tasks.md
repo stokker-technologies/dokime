@@ -14,7 +14,7 @@ Triage: `ApplicationPaths` already owns basic root/data/plugins paths (`crates/d
 
 ## 1. Implementation
 
-- [ ] 1.1 Installer manifest `[installer] identifier` with validation; payload identity checks accept the distribution identifier.
+- [x] 1.1 Installer manifest `[installer] identifier` with validation; payload identity checks accept the distribution identifier.
 - [ ] 1.2 `cargo dokime installer package` writes `distribution.json` into the payload inventory and uses the identifier for the NSIS install folder, uninstall registry key and DEB/RPM package names.
 - [x] 1.3 One path resolver (desktop, CLI, server) reading `distribution.json` with the compiled identifier as fallback; replace `app_data_dir()` and `app_log_dir(identifier)` uses; set the WebView data directory.
 - [ ] 1.4 Product guide: Native Installers and Organization sections; README claims.
