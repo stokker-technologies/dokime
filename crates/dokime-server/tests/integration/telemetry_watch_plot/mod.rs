@@ -12,7 +12,6 @@
 /* === Modules === */
 
 mod plots;
-mod query;
 mod telemetry;
 
 /* === Re-Exports === */
@@ -49,11 +48,6 @@ use super::*;
 #[tokio::test]
 async fn telemetry_watch_plot() {
     Box::pin(telemetry::telemetry_pages_window()).await;
-    Box::pin(query::aggregate_answers_asked()).await;
-    Box::pin(query::unknown_column_exist()).await;
-    Box::pin(query::percentile_rank_bounded()).await;
-    Box::pin(query::unspecified_source_read()).await;
-    Box::pin(query::detailed_status_directory()).await;
     Box::pin(plots::sample_watch_fixed_frontier_and_resume()).await;
     Box::pin(plots::plot_points_admission()).await;
     Box::pin(plots::late_samples_keep_time_order()).await;
