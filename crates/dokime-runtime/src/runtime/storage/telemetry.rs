@@ -350,7 +350,7 @@ pub(crate) async fn saved_codecs(
     let mut codecs = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<telemetry::TypedCodec>::new()))?;
     let mut announced = None;
     let mut rows = 0_u64;
-    while let Some(output) = catalog.next().await? {
+    while let Some(output) = Box::pin(catalog.next()).await? {
         match output {
             QueryArrow::Schema(schema) => {
                 if announced.is_some() || rows != 0 {
@@ -546,7 +546,7 @@ async fn visit_positioned(
         if query.transforms.is_empty() {
             let Source::Stream(source) = query.source else { unreachable!("telemetry uses stream storage") };
             let mut reader = session.read_stream(harmos::storage::StreamRead { at: at.clone(), selection: source }).await?;
-            while let Some(rows) = reader.next().await? {
+            while let Some(rows) = Box::pin(reader.next()).await? {
                 let page = crate::storage::projection::page(rows, |row| {
                     let position = row.record.position.sequence;
                     Ok((position, sequence.sample(codec.decode_stored(&row)?, position)))
@@ -561,7 +561,7 @@ async fn visit_positioned(
             continue;
         }
         let mut reader = session.query(query).await?;
-        while let Some(output) = reader.next().await? {
+        while let Some(output) = Box::pin(reader.next()).await? {
             let QueryArrow::Batch(batch) = output else {
                 continue;
             };

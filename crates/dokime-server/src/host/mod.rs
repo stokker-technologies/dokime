@@ -314,15 +314,15 @@ async fn verify_plugins(handle: &dokime::RuntimeHandle, expected: &[ExpectedPlug
     if expected.is_empty() {
         return Ok(());
     }
-    let frame = handle
-        .query_runtime_view(RuntimeViewQuery {
-            scope: None,
-            topic: RuntimeViewTopic::InstalledPlugins,
-            window: RuntimeWindow::Full,
-            resolution: RuntimeResolution::Raw,
-            cursor: None,
-        })
-        .await?;
+    let query = RuntimeViewQuery {
+        scope: None,
+        topic: RuntimeViewTopic::InstalledPlugins,
+        window: RuntimeWindow::Full,
+        resolution: RuntimeResolution::Raw,
+        cursor: None,
+    };
+    // Heap-Allocate The Generic View Dispatcher To Bound Nested Future Layout Depth.
+    let frame = Box::pin(handle.query_runtime_view(query)).await?;
     let RuntimeViewPayload::InstalledPlugins { frame } = frame.payload else {
         return Err(crate::host::Error::Input("runtime returned an unexpected admission view".into()));
     };
