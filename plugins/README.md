@@ -8,6 +8,11 @@ Its Collection settings retain the Wi-Fi/Bluetooth adapter selectors and latency
 host. Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 The runtime decodes these rows through the same codec as other plugins.
+Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
+canonical payload bytes. If their value map omits `timestamp`, the runtime
+infers it from the sample instant using the contract's column type: `Datetime`
+preserves the full instant, while `Number` carries seconds since the Unix epoch.
+Explicitly supplied timestamp values remain subject to contract validation.
 Its sidecar owner is `host_telemetry`; `host` names application-owned operations
 in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
