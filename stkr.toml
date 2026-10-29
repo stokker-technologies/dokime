@@ -618,7 +618,7 @@ name = "latest.json"
 signed_only = true
 
 [version]
-value = "0.1.1"
+value = "0.1.2"
 files = [
   "Cargo.toml",
   "pyproject.toml",
