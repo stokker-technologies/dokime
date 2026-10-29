@@ -821,13 +821,14 @@ replaced by the `sidecar` group.
 | `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
-An installer manifest selects the distribution version, optional organization
-override and exact Dokime binary version/target. For example, save
+An installer manifest selects the distribution version, optional installation
+identifier, organization override and exact Dokime binary version/target. For example, save
 `company/installer.toml` for a native Windows build:
 
 ```toml
 [installer]
 version = "0.1.0"
+identifier = "com.hilti.dokime"
 organization = "organization"
 formats = ["nsis"]
 
@@ -843,6 +844,22 @@ selected payload's organization defaults. On Linux, use `target = "x86_64-unknow
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
+`identifier` is a lowercase reverse-DNS identifier, such as `com.hilti.dokime`.
+It fixes the distribution's storage and install identity; omitting it uses the
+payload's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
+"com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
+in `installer.json`, the inspection inventory. A malformed or unreadable identity
+file fails startup; only an absent file falls back to the compiled identifier.
+
+Explicit identifiers derive a filename/package slug by replacing dots with
+hyphens. NSIS uses the identifier for its install folder and uninstall registry
+key; DEB/RPM package names use the slug. On Linux, binaries, organization assets
+and the identity file live together under `/usr/lib/<slug>/`, with launchers
+`/usr/bin/<slug>` and `/usr/bin/<slug>-gui`. Plain Dokime retains the `dokime` slug.
+These paths let a branded distribution coexist with plain Dokime. Windows keeps
+`dokime.exe` and `dokime-gui.exe` inside each identifier's install folder; use the
+full path when choosing between distributions with the same command name.
+
 The product build exports `product/installer-payload/` under its matching
 `target/build/<profile>/<target>/` directory. It contains `payload.json`, the
 unchanged CLI and GUI executables, license and the complete authored
@@ -855,7 +872,7 @@ Using that directory requires no application compilation:
 
 ```sh
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
-cargo dokime installer inspect dist/dokime-0.1.0-windows-x86_64-setup.exe --json
+cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-windows-x86_64-setup.exe --json
 ```
 
 Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
@@ -882,7 +899,7 @@ authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
 RPM packages with a gzip payload in-process, which are the formats packaging
 produces. Each regular file is extracted to its installed path: `$INSTDIR`
 for NSIS, the package root for DEB and RPM. Inspection then requires exactly one
-embedded distribution manifest, compares every listed file's SHA-256 with the
+embedded `installer.json` inventory, compares every listed file's SHA-256 with the
 extracted bytes, rejects any organization file the manifest does not list, and
 checks launcher and icon artwork. Links, special files, duplicate or escaping
 paths, NSIS files extracted anywhere except the installation directory or the
@@ -1108,14 +1125,27 @@ title_template = "Stokker Technologies — {app}"
 
 The desktop's label, title, window/tray artwork and newly captured reports use
 the resolved pack. Installers place their default organization folder beside the
-Windows executables or under `/usr/lib/dokime/organization` on Linux. Captured
+Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
-Compiled bundle identifier and storage identity remain owned by the build,
-alongside updater verification trust. The desktop does not register a deep-link scheme. An organization manifest
-cannot set `app.identifier`, `app.slug` or `app.deep_link_scheme`. Distributions
-sharing that compiled identity remain the same application and storage; they
-are not independent installations.
+The installer manifest's distribution identifier owns storage identity; the
+organization pack changes appearance only. An organization manifest cannot set
+`app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
+the compiled identifier is used. The desktop, CLI and server share this resolver:
+
+| Directory | Windows | Unix |
+| --- | --- | --- |
+| Application | `%LOCALAPPDATA%/<identifier>` | `${XDG_DATA_HOME:-$HOME/.local/share}/<identifier>` |
+| Data And Plugins | `<application>/data`, `<application>/plugins` | `<application>/data`, `<application>/plugins` |
+| Logs | `<application>/logs` | `${XDG_STATE_HOME:-$HOME/.local/state}/<identifier>/logs` |
+| WebView | `<application>/EBWebView` | Engine profile beneath `<application>/webview` |
+
+`DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
+runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
+installation; existing data stays under the old identifier and is never moved or
+deleted automatically. Protocol/deep-link identity, single-instance policy,
+updater verification trust and code-signing identity remain compiled. Reusing
+binaries with different distribution identities does not isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
