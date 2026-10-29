@@ -22,6 +22,11 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 
 ## 3A. Shared Operations And Definitions Crate
 
+- [x] 3A.4 Pin every Harmos dependency and lock entry to the owner-selected public Git revision to `09e72bf4df7e6f294b253b8ee193ae4880dcd506` until the Harmos release (replaces `=0.1.13`); `mise run prepare:harmos` passes and verifies the installed bytes. Inventory: workspace/nested Cargo manifests, Cargo.lock and this task inventory. Triage: all nested manifests inherit the three registry pins in `Cargo.toml:68`; `ci/bootstrap.py::harmos_pin` already accepts an exact Git `rev`.
+- [ ] 3A.5 Adopt Harmos Public visibility, runtime-computed registration, typed host caller, observer cadence and guest APIs throughout producers, consumers, fixtures and affected guidance. Proof: locked workspace/all-targets focused check and runtime plugin, telemetry and execution selections. README review: root README has no affected Harmos declarations; update affected plugin guidance only.
+- [ ] 3A.6 Adopt the framework self-call implementation in runtime catalog, macro compiler diagnostics and `plugin/shared_calls.rs`; prove own Private/Public calls, external requirements and cancellation. These four handed-off framework paths belong to this repin slice.
+
+
 - [ ] 3A.1 `visibility = Shared` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
   Declared with each operation as it lands (items 4–6); `Shared` becomes `Public` when Dokime pins the Harmos release that renames it.
 - [x] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
