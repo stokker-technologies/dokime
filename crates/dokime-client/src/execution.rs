@@ -78,7 +78,7 @@ impl TestExecutionHandle {
 
     pub async fn snapshot(&self) -> Result<dokime_domain::model::execution::wire::ExecutionDetail> {
         self.client.verify(true).await?;
-        let detail = self.client.execution_get_execution(contracts::execution::GetExecution { execution_id: self.id.to_string() }).await?;
+        let detail = self.client.call(contracts::execution::GetExecution { execution_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &detail)?;
         validate_observed_cursor(&self.client.backend().epoch, detail.observed_cursor.as_ref())?;
         Ok(detail)
@@ -88,7 +88,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
-            .history_get_execution_checkpoint(contracts::history::GetExecutionCheckpoint {
+            .call(contracts::history::GetExecutionCheckpoint {
                 execution_identifier: self.id.to_string(),
             })
             .await?;
@@ -101,10 +101,7 @@ impl TestExecutionHandle {
     ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
-        let document = self
-            .client
-            .history_get_checkpoint_document(contracts::history::GetCheckpointDocument { checkpoint: Some(checkpoint.clone()) })
-            .await?;
+        let document = self.client.call(contracts::history::GetCheckpointDocument { checkpoint: Some(checkpoint.clone()) }).await?;
         validate_outcome(&self.id, checkpoint, &document)?;
         Ok(document)
     }
@@ -141,8 +138,7 @@ impl TestExecutionHandle {
             ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
             ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
         };
-        let reply =
-            self.client.execution_start_execution(contracts::execution::StartExecution { execution_id: self.id.to_string(), mode }).await?;
+        let reply = self.client.call(contracts::execution::StartExecution { execution_id: self.id.to_string(), mode }).await?;
         admission(&self.client.backend().epoch, reply).map(|_| ())
     }
 
@@ -152,7 +148,7 @@ impl TestExecutionHandle {
         self.client.verify(false).await?;
         let receipt = self
             .client
-            .execution_get_execution_command(contracts::execution::GetExecutionCommand {
+            .call(contracts::execution::GetExecutionCommand {
                 request_id: request_id.to_string(),
                 command_id: command_id.to_string(),
             })
@@ -179,7 +175,7 @@ impl TestExecutionHandle {
             action,
             step_id,
         };
-        let receipt = self.client.execution_submit_execution_command(request.clone()).await?;
+        let receipt = self.client.call(request.clone()).await?;
         validate_command_receipt(&self.id, request_id, command_id, &receipt)?;
         if receipt.action != request.action || receipt.step_id != request.step_id {
             return Err(invalid("command receipt differs from submitted action"));
@@ -191,7 +187,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_pause_execution(contracts::execution::PauseExecution {
+            .call(contracts::execution::PauseExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -204,7 +200,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_resume_execution(contracts::execution::ResumeExecution {
+            .call(contracts::execution::ResumeExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })
@@ -217,7 +213,7 @@ impl TestExecutionHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .execution_stop_execution(contracts::execution::StopExecution {
+            .call(contracts::execution::StopExecution {
                 execution_id: self.id.to_string(),
                 context: None,
             })

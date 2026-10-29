@@ -44,7 +44,7 @@ const PAGE_ITEMS: u64 = 100;
 impl TestCycleHandle {
     pub async fn prompt(&self, id: &PromptId) -> Result<dokime_domain::model::prompts::wire::PromptView> {
         self.client.verify(true).await?;
-        let view = self.client.prompts_get_prompt(contracts::prompts::GetPrompt { prompt_id: id.to_string() }).await?;
+        let view = self.client.call(contracts::prompts::GetPrompt { prompt_id: id.to_string() }).await?;
         validate_view(&self.client.backend().epoch, id, &view)?;
         if view.prompt.as_ref().and_then(|prompt| prompt.scope.as_ref()).and_then(|scope| scope.cycle_id.as_deref())
             != Some(self.id.as_str())
@@ -74,7 +74,7 @@ impl TestCycleHandle {
                 let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), execution.as_ref());
                 loop {
                     handle.client.verify(true).await?;
-                    let page = handle.client.prompts_list_pending(request.clone()).await?;
+                    let page = handle.client.call(request.clone()).await?;
                     validate_page(&handle.client.backend().epoch, &handle.id, &selection, &request, &page)?;
                     for identity in page.prompts {
                         let id = PromptId::from_uuid(&identity.prompt_id).map_err(|_| invalid("pending prompt identity is invalid"))?;
@@ -112,7 +112,7 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let receipt = self
             .client
-            .prompts_respond(contracts::prompts::Respond {
+            .call(contracts::prompts::Respond {
                 prompt_id: id.to_string(),
                 action,
                 values: Some(values),

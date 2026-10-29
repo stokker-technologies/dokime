@@ -45,7 +45,7 @@ const LOG_TAIL_BYTES: u32 = 16 * 1024;
 pub async fn execution(client: &Client, execution_id: &str, log: &str) -> String {
     let mut lines = Vec::new();
     let steps = client
-        .execution_list_execution_steps(contracts::execution::ListExecutionSteps {
+        .call(contracts::execution::ListExecutionSteps {
             execution_id: execution_id.to_owned(),
             ..Default::default()
         })
@@ -66,7 +66,7 @@ pub async fn execution(client: &Client, execution_id: &str, log: &str) -> String
         offset: size.saturating_sub(u64::from(LOG_TAIL_BYTES)),
         max_bytes: LOG_TAIL_BYTES,
     };
-    let window = content.content_read_execution_file(request).await.unwrap();
+    let window = content.call(request).await.unwrap();
     lines.push(String::from_utf8_lossy(&window.data).into_owned());
     lines.join("\n")
 }

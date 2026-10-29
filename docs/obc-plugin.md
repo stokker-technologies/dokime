@@ -1,5 +1,7 @@
 # OBC Charger Testbench
 
+Source: `plugins/sidecars/obc/`. Paths below are relative to it.
+
 OBC is Dokime's maintained demo and validation plugin. It tests an onboard
 charger on a deterministic simulated AC testbench: connect the unit, energize
 the supply, inspect start-up, measure charging input, trip overcurrent protection,

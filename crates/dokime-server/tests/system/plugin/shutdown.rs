@@ -124,7 +124,7 @@ async fn stop_while_prompt_waits() {
     let html = String::from_utf8(report_bytes(report).await).unwrap();
     assert!(html.contains("\"stopped\"") && !html.contains("\"interrupted\""), "the report records an operator stop");
     let pending = client
-        .prompts_list_pending(contracts::prompts::ListPending {
+        .call(contracts::prompts::ListPending {
             cycle_id: Some(cycle_id.clone()),
             ..Default::default()
         })
@@ -159,7 +159,7 @@ async fn idle_stop_leaves_sealing_to_next_start() {
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.idle-stop", 1).await;
     run_cycle(&mut execution, &cycle_id).await;
     on_change(&mut changes, "the idle-stop cycle to settle", async || {
-        let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
+        let cycle = execution.call(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
         (cycle.running_count == 0 && cycle.queued_count == 0 && cycle.result.is_some()).then_some(())
     })
     .await;

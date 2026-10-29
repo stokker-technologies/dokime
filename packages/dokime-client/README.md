@@ -10,8 +10,8 @@ The distribution is `dokime-client`; Python imports use `dokime_client`.
 ## Install
 
 Use CPython `>=3.13,<3.16`. For the beginner host/second-PC workflow, follow the
-[candidate-artifact walkthrough](examples/remote/README.md) and its
-[locked uv setup](examples/remote/python/README.md). That environment uses a
+[candidate-artifact walkthrough](../../docs/remote/overview.md) and its
+[locked uv setup](../../docs/remote/python.md). That environment uses a
 locally built matching wheel and makes no published-registry availability claim.
 
 Add the published distribution to a uv project with `uv add dokime-client`. For a separately supplied matching wheel:
@@ -59,7 +59,7 @@ The constructor reads and validates that explicit file before connecting. It
 retains the endpoint, expected backend identity, CA and independent access key
 for the connection. Protect the pairing file as a credential; revoking its
 paired client on the host prevents further use. See the
-[pairing walkthrough](examples/remote/README.md) for the host and second-PC flow.
+[pairing walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
@@ -204,12 +204,12 @@ accepted=False`; stopping the execution also settles its pending prompts.
 
 Use the backend's HTTPS origin, its access key and the public certificate
 downloaded from the host. Keep the key outside source files. The scripts in
-[`examples/remote/python`](examples/remote/python/) demonstrate manual device
+[`examples/remote/python`](../../docs/remote/python.md) demonstrate manual device
 power, two executions in one cycle, and an execution confirmation. The test
 script follows filtered records and samples concurrently, drains both readers
 after the durable outcome, then exports each execution and the sealed cycle.
 Each script has editable globals in the same order as the
-[native shell examples](examples/remote/cli/README.md): connection parameters,
+[native shell examples](../../docs/remote/cli.md): connection parameters,
 case and execution parameters, observation filters where applicable, and file
 parameters. Set `ENDPOINT`, `CA_CERTIFICATE`, `KEY_FILE` and `ENV_FILE` to the
 explicit connection sources, then run without arguments:
@@ -245,7 +245,7 @@ then run the file without arguments.
 Repository Python Build produces client distributions under
 `target/build/<profile>/any/python/`; Python Package copies those distributions to
 `target/package/<profile>/any/python/` without rebuilding. Tutorials remain in the
-[source examples](examples/remote/README.md). They are not packaged or attached to
+[source examples](../../docs/remote/overview.md). They are not packaged or attached to
 releases; follow their setup instructions to prepare a matching local wheel.
 
 ```python
