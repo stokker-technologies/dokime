@@ -98,7 +98,7 @@ mod tests {
 
         assert!(stage(&[], scratch.path()).unwrap().is_empty());
         assert!(!scratch.path().join("plugins").exists());
-        let staged = stage(&[host.clone()], scratch.path()).unwrap();
+        let staged = stage(std::slice::from_ref(&host), scratch.path()).unwrap();
         assert_eq!(staged.len(), 1);
         assert_eq!(std::fs::read(&staged["host.dokime"]).unwrap(), std::fs::read(host).unwrap());
         assert!(!scratch.path().join("plugins/bench.dokime").exists());
