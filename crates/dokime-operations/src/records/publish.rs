@@ -17,7 +17,7 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos_domain::operations::OperationPolicy;
+use harmos::operations::OperationPolicy;
 
 // Local Imports
 

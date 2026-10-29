@@ -47,8 +47,8 @@ import type { ReactNode } from "react";
 
 /** How a column reads, sorts and filters; everything is opt-in. */
 export type DataTableColumnMeta = {
-  /** Numbers and dates sit on the right edge. */
-  align?: "start" | "end";
+  /** Numbers and dates sit on the right edge; row commands sit centered. */
+  align?: "start" | "center" | "end";
   /** Labels a facet value; the raw value as text otherwise. */
   facetLabel?: (value: unknown) => string;
   /** `text` matches a substring; `facet` picks among the column's values. */
@@ -90,11 +90,15 @@ export type DataTableProps<TData extends RowData> = {
   columns: DataTableColumns<TData>;
   data: TData[];
   defaultSort?: ColumnSort;
+  /** A line under the title, on the toolbar row. */
+  description?: ReactNode;
   emptyText: string;
   getRowId: (row: TData) => string;
   onRowClick?: (row: TData) => void;
   search?: DataTableSearch;
   selection?: DataTableSelection<TData>;
+  /** The table's heading, on the toolbar row left of the search box. */
+  title?: ReactNode;
 };
 
 export type DataTableFeatures = typeof dataTableFeatures;

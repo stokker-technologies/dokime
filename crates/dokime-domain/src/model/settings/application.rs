@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ApplicationSettings {
@@ -43,7 +43,7 @@ pub struct ApplicationSettings {
     pub listener: RemoteListenerSettings,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Appearance {
@@ -52,7 +52,7 @@ pub struct Appearance {
     pub density: Density,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportDefaults {
@@ -60,7 +60,7 @@ pub struct ReportDefaults {
     pub plot_downsample: DownsampleTechnique,
 }
 
-#[harmos_domain::message(skip_default)]
+#[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientPreferences {
@@ -68,14 +68,14 @@ pub struct ClientPreferences {
     pub request_timeout_ms: u64,
 }
 
-#[harmos_domain::message(skip_default)]
+#[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TelemetryPreferences {
     pub interval_ms: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SettingsSnapshot {
@@ -83,7 +83,7 @@ pub struct SettingsSnapshot {
     pub settings: ApplicationSettings,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateSettings {
@@ -99,7 +99,7 @@ pub struct SettingsConflict {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsScope {
@@ -107,7 +107,7 @@ pub enum SettingsScope {
     Backend,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeMode {
@@ -116,7 +116,7 @@ pub enum ThemeMode {
     Dark,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Density {

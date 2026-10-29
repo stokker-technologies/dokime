@@ -22,12 +22,12 @@ pub(super) use parameters::{unit, wire as parameters};
 use std::{collections::BTreeSet, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::value::{Budget, canonical};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::definition::wire as schema;
 use dokime::operations::catalog as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -41,11 +41,21 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ListSuites),
+    Operation1(wire::GetSuite),
+    Operation2(wire::ListRecordSchemas),
+    Operation3(wire::GetRecordSchema),
+    Operation4(wire::ListTelemetrySchemas),
+    Operation5(wire::GetTelemetrySchema),
+}
 
 /* === Traits === */
 
@@ -123,26 +133,22 @@ impl Serve<wire::GetTelemetrySchema> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), super::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ListSuites>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetSuite>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListRecordSchemas>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetRecordSchema>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListTelemetrySchemas>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetTelemetrySchema>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::ListSuites>()
-        .operation::<wire::GetSuite>()
-        .operation::<wire::ListRecordSchemas>()
-        .operation::<wire::GetRecordSchema>()
-        .operation::<wire::ListTelemetrySchemas>()
-        .operation::<wire::GetTelemetrySchema>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ListSuites>>(Host::<wire::ListSuites>::new(served.clone()));
+    setup.resource::<Host<wire::GetSuite>>(Host::<wire::GetSuite>::new(served.clone()));
+    setup.resource::<Host<wire::ListRecordSchemas>>(Host::<wire::ListRecordSchemas>::new(served.clone()));
+    setup.resource::<Host<wire::GetRecordSchema>>(Host::<wire::GetRecordSchema>::new(served.clone()));
+    setup.resource::<Host<wire::ListTelemetrySchemas>>(Host::<wire::ListTelemetrySchemas>::new(served.clone()));
+    setup.resource::<Host<wire::GetTelemetrySchema>>(Host::<wire::GetTelemetrySchema>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
@@ -174,7 +180,7 @@ fn page(
 async fn list_suites(
     resources: &Resources, request: &wire::ListSuites,
 ) -> Result<dokime::domain::model::catalog::wire::ListSuitesReply, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let limit = page(request.limit, &request.after_suite_id, request.cursor.as_ref(), &snapshot)?;
     if !request.after_suite_id.is_empty() && snapshot.state().suites.get(&request.after_suite_id).is_none() {
         return Err(Status::invalid_argument("after suite ID not found"));
@@ -202,7 +208,7 @@ async fn list_suites(
 async fn get_suite(
     resources: &Resources, request: &wire::GetSuite,
 ) -> Result<dokime::domain::model::catalog::wire::SuiteDefinition, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let entry = snapshot.state().suites.get(&request.suite_id).ok_or_else(|| Status::not_found("registered suite not found"))?;
     let mut budget = Budget::new()?;
     let templates = collect(entry.suite.test_case_templates.iter().map(|template| {
@@ -227,7 +233,7 @@ async fn get_suite(
 async fn list_record_schemas(
     resources: &Resources, request: &wire::ListRecordSchemas,
 ) -> Result<dokime::domain::model::catalog::wire::ListRecordSchemasReply, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let limit = page(request.limit, &request.after_record_type, request.cursor.as_ref(), &snapshot)?;
     let contracts = &snapshot.state().record_definitions;
     if !request.after_record_type.is_empty() && !contracts.values().any(|c| c.record_type.as_str() == request.after_record_type) {
@@ -257,7 +263,7 @@ async fn list_record_schemas(
 }
 
 async fn get_record_schema(resources: &Resources, request: &wire::GetRecordSchema) -> Result<schema::RecordSchema, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let contracts = &snapshot.state().record_definitions;
     let contract = contracts
         .values()
@@ -269,7 +275,7 @@ async fn get_record_schema(resources: &Resources, request: &wire::GetRecordSchem
 async fn list_telemetry_schemas(
     resources: &Resources, request: &wire::ListTelemetrySchemas,
 ) -> Result<dokime::domain::model::catalog::wire::ListTelemetrySchemasReply, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let limit = page(request.limit, &request.after_stream, request.cursor.as_ref(), &snapshot)?;
     let contracts = &snapshot.state().telemetry_definitions;
     if !request.after_stream.is_empty() && !contracts.values().any(|c| c.stream.as_str() == request.after_stream) {
@@ -299,13 +305,13 @@ async fn list_telemetry_schemas(
 }
 
 async fn get_telemetry_schema(resources: &Resources, request: &wire::GetTelemetrySchema) -> Result<schema::TelemetrySchema, Status> {
-    let snapshot = resources.runtime.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&resources.runtime).await?.watch_state().latest();
     let contracts = &snapshot.state().telemetry_definitions;
     let contract = contracts
         .values()
         .find(|c| c.stream.as_str() == request.stream)
         .ok_or_else(|| Status::not_found("registered telemetry schema not found"))?;
-    schemas::telemetry(contract, resources.runtime.schema_settings())
+    schemas::telemetry(contract, dokime::app::live_runtime(&resources.runtime).await?.schema_settings())
 }
 
 fn identity(entry: &dokime::domains::execution::SuiteSnapshot) -> Result<dokime::domain::model::catalog::wire::SuiteIdentity, Status> {

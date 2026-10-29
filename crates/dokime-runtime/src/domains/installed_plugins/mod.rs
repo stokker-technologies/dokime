@@ -10,7 +10,6 @@
 /* === Modules === */
 
 pub(crate) mod appearance;
-mod bundled;
 pub(crate) mod contributions;
 mod handle;
 pub(crate) mod management;
@@ -24,7 +23,6 @@ pub use appearance::{
     AppearanceLimitExceeded, CapturedAppearance, RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeInstalledPluginAsset, RuntimeThemeFamily,
 };
 pub use brand::{EmbeddedLogo, ResolvedBrand, compiled_brand, load_brand};
-pub(crate) use bundled::builtin_plugins;
 pub use dokime_domain::model::plugins::InstalledPluginErrorRecord;
 pub use dokime_domain::model::plugins::InstalledPluginPhase;
 pub use management::{

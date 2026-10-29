@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git
@@ -407,7 +407,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_signing_windows_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git

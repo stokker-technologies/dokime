@@ -94,9 +94,6 @@ pub struct Args {
         help = "Load every `.dokime` bundle in this development directory for this process. Nothing is installed or written there."
     )]
     pub plugins_root: Option<PathBuf>,
-
-    #[arg(long = "no-seed-validation-artifact")]
-    pub no_seed_validation_artifact: bool,
 }
 
 /* === Enums === */

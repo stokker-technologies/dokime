@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::wire;
 use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::wire_checkpoint as checkpoint;
 use dokime::domain::model::identity::TestExecutionId;
@@ -41,11 +41,17 @@ use dokime::runtime::query::execution_history::ExecutionCheckpoint;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(history::GetExecutionCheckpoint),
+    Operation1(history::DeleteExecution),
+}
 
 /* === Traits === */
 
@@ -58,12 +64,13 @@ impl Serve<history::GetExecutionCheckpoint> for Resources {
         Box::pin(async move {
             let id = TestExecutionId::from_uuid(request.execution_identifier.clone())
                 .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
-            let response = self.runtime.execution_saved_checkpoint(id).await.map_err(|source| match source {
-                dokime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
-                    detailed(Status::not_found("execution has no saved seal"), &source)
-                }
-                source => wire::query_failure(source),
-            })?;
+            let response =
+                dokime::app::live_runtime(&self.runtime).await?.execution_saved_checkpoint(id).await.map_err(|source| match source {
+                    dokime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
+                        detailed(Status::not_found("execution has no saved seal"), &source)
+                    }
+                    source => wire::query_failure(source),
+                })?;
             project(&response, self.max_message_bytes).map(Into::into).map_err(|source| wire::query_failure(source.into()))
         })
     }
@@ -74,7 +81,7 @@ impl Serve<history::DeleteExecution> for Resources {
         &'a self, mut request: history::DeleteExecution, _: Context<'a, history::DeleteExecution>,
     ) -> Served<'a, dokime::domain::model::history::wire::DeleteExecutionResponse> {
         Box::pin(async move {
-            if self.runtime.watch_state().latest().state().shutting_down {
+            if dokime::app::live_runtime(&self.runtime).await?.watch_state().latest().state().shutting_down {
                 return Err(Status::unavailable("listener is stopping"));
             }
             wire::checkpoint(request.checkpoint.take())?;
@@ -86,27 +93,27 @@ impl Serve<history::DeleteExecution> for Resources {
 
 /* === Public Functions === */
 
-pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
-    super::browse::register(runtime, max_message_bytes).await?;
-    super::cycles::register(runtime, max_message_bytes).await?;
-    super::read::register(runtime, max_message_bytes).await?;
-    super::window::register(runtime, max_message_bytes).await?;
-    super::telemetry::register(runtime, max_message_bytes).await?;
-    super::records::register(runtime, max_message_bytes).await?;
-    super::evidence::register(runtime, max_message_bytes).await?;
-    super::capture::register(runtime, max_message_bytes).await?;
-    super::context::register(runtime, max_message_bytes).await?;
+pub(in crate::grpc) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), crate::grpc::Error> {
+    super::browse::prepare(setup, runtime, max_message_bytes)?;
+    super::cycles::prepare(setup, runtime, max_message_bytes)?;
+    super::read::prepare(setup, runtime, max_message_bytes)?;
+    super::window::prepare(setup, runtime, max_message_bytes)?;
+    super::telemetry::prepare(setup, runtime, max_message_bytes)?;
+    super::records::prepare(setup, runtime, max_message_bytes)?;
+    super::evidence::prepare(setup, runtime, max_message_bytes)?;
+    super::capture::prepare(setup, runtime, max_message_bytes)?;
+    super::context::prepare(setup, runtime, max_message_bytes)?;
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<history::GetExecutionCheckpoint>::new(served.clone()))?;
-    dependencies.insert(Host::<history::DeleteExecution>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<history::GetExecutionCheckpoint>()
-        .operation::<history::DeleteExecution>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<history::GetExecutionCheckpoint>>(Host::<history::GetExecutionCheckpoint>::new(served.clone()));
+    setup.resource::<Host<history::DeleteExecution>>(Host::<history::DeleteExecution>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

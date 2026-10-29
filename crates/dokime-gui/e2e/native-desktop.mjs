@@ -111,7 +111,9 @@ const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
-const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "fixtures/plugins/obc-plugin.dokime");
+
+const hostBundle = join(built, "plugins/host.dokime");
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -408,6 +410,8 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
     [
       "server",
       "--shutdown-stdin",
+      "--plugin",
+      hostBundle,
       ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
       String(port),
@@ -3062,7 +3066,7 @@ async function remoteAccessJourney() {
   const revoke = await until("first paired client", () =>
     session.find(
       "xpath",
-      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[normalize-space(.)='Revoke']",
+      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[@aria-label='Revoke']",
     ),
   );
   await session.click(revoke);
@@ -3234,10 +3238,9 @@ async function settingsJourney(session, notes) {
     async () => {
       const state = await session.execute(`
         const buttons = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr button')]
-          .filter(button => button.textContent.trim() === 'Settings');
+          .filter(button => button.getAttribute('aria-label') === 'Settings');
         const configurable = buttons.filter(button => !button.disabled);
-        return {rows: buttons.length, configurable: configurable.length,
-          host: configurable[0]?.closest('tr')?.cells[0]?.innerText.trim().endsWith(' Host'), text: document.body.innerText};
+        return {rows: buttons.length, configurable: configurable.length, text: document.body.innerText};
       `);
       return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
         ? state
@@ -3258,17 +3261,9 @@ async function settingsJourney(session, notes) {
     );
   }
   if (plugins.configurable) {
-    await session.click(
-      await session.find("xpath", "//table[@aria-label='Plugins']//button[normalize-space(.)='Settings' and not(@disabled)]"),
-    );
-    await until(
-      "plugin page",
-      async () =>
-        plugins.host
-          ? (await session.location()).pathname === "/settings/appearance"
-          : (await session.location()).pathname.startsWith("/settings/plugins/"),
-      120000,
-    );
+    await session.click(await session.find("xpath", "//table[@aria-label='Plugins']//button[@aria-label='Settings' and not(@disabled)]"));
+    /* Every row, the host's included, opens its plugin's own page. */
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
     assert.ok(hasText(await session.text(), "Settings"), "The plugin page must carry its settings breadcrumb");
     await session.goto("/settings/plugins");
     await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 120000);
@@ -3305,7 +3300,7 @@ async function settingsJourney(session, notes) {
     await session.clickNamed("button", "Save Secret");
     await until("shared keyring entry saved", () => session.exists("button", `Actions for ${name}`));
     assert.ok(
-      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='Edit' and not(@disabled)]`),
+      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Edit' and not(@disabled)]`),
       "The saved secret remains editable",
     );
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
@@ -3325,10 +3320,7 @@ async function settingsJourney(session, notes) {
   assert.ok(endpoint);
   const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
   const rowAction = (name, action) =>
-    session.find(
-      "xpath",
-      `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action === "Select" ? "Connect" : action}']`,
-    );
+    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='${action === "Select" ? "Connect" : action}']`);
   const add = async (name, identity = "") => {
     await session.clickNamed("button", "Add Backend");
     await session.type(await field("Backend Identifier"), name);

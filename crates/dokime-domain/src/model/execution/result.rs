@@ -236,7 +236,7 @@ pub struct ExecutionInvalidation {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CyclePhase {
@@ -326,18 +326,18 @@ pub enum ResultStatus {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for CycleView {
+impl harmos::MemorySize for CycleView {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
-            (harmos_domain::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
-            (harmos_domain::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
-            (harmos_domain::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
-            (harmos_domain::MemorySize::memory_size(&self.test_executions), std::mem::size_of_val(&self.test_executions)),
-            (harmos_domain::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos::MemorySize::memory_size(&self.test_executions), std::mem::size_of_val(&self.test_executions)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -345,26 +345,26 @@ impl harmos_domain::MemorySize for CycleView {
     }
 }
 
-impl harmos_domain::MemorySize for TestExecution {
+impl harmos::MemorySize for TestExecution {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
-            (harmos_domain::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
-            (harmos_domain::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
-            (harmos_domain::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
-            (harmos_domain::MemorySize::memory_size(&self.suite), std::mem::size_of_val(&self.suite)),
-            (harmos_domain::MemorySize::memory_size(&self.snapshot), std::mem::size_of_val(&self.snapshot)),
-            (harmos_domain::MemorySize::memory_size(&self.invalidation), std::mem::size_of_val(&self.invalidation)),
-            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos_domain::MemorySize::memory_size(&self.output_parameters), std::mem::size_of_val(&self.output_parameters)),
-            (harmos_domain::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
-            (harmos_domain::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
-            (harmos_domain::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
-            (harmos_domain::MemorySize::memory_size(&self.steps), std::mem::size_of_val(&self.steps)),
-            (harmos_domain::MemorySize::memory_size(&self.step_attempts), std::mem::size_of_val(&self.step_attempts)),
-            (harmos_domain::MemorySize::memory_size(&self.active_step_attempt), std::mem::size_of_val(&self.active_step_attempt)),
-            (harmos_domain::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
+            (harmos::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
+            (harmos::MemorySize::memory_size(&self.suite), std::mem::size_of_val(&self.suite)),
+            (harmos::MemorySize::memory_size(&self.snapshot), std::mem::size_of_val(&self.snapshot)),
+            (harmos::MemorySize::memory_size(&self.invalidation), std::mem::size_of_val(&self.invalidation)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.output_parameters), std::mem::size_of_val(&self.output_parameters)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.steps), std::mem::size_of_val(&self.steps)),
+            (harmos::MemorySize::memory_size(&self.step_attempts), std::mem::size_of_val(&self.step_attempts)),
+            (harmos::MemorySize::memory_size(&self.active_step_attempt), std::mem::size_of_val(&self.active_step_attempt)),
+            (harmos::MemorySize::memory_size(&self.traceability), std::mem::size_of_val(&self.traceability)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -372,12 +372,12 @@ impl harmos_domain::MemorySize for TestExecution {
     }
 }
 
-impl harmos_domain::MemorySize for StepAttemptStart {
+impl harmos::MemorySize for StepAttemptStart {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
-            (harmos_domain::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -385,14 +385,14 @@ impl harmos_domain::MemorySize for StepAttemptStart {
     }
 }
 
-impl harmos_domain::MemorySize for TestStepAttempt {
+impl harmos::MemorySize for TestStepAttempt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
-            (harmos_domain::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
-            (harmos_domain::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
-            (harmos_domain::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
+            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -400,12 +400,12 @@ impl harmos_domain::MemorySize for TestStepAttempt {
     }
 }
 
-impl harmos_domain::MemorySize for MeasurementRecord {
+impl harmos::MemorySize for MeasurementRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -413,13 +413,13 @@ impl harmos_domain::MemorySize for MeasurementRecord {
     }
 }
 
-impl harmos_domain::MemorySize for CriterionResult {
+impl harmos::MemorySize for CriterionResult {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.observed), std::mem::size_of_val(&self.observed)),
-            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.observed), std::mem::size_of_val(&self.observed)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -427,16 +427,16 @@ impl harmos_domain::MemorySize for CriterionResult {
     }
 }
 
-impl harmos_domain::MemorySize for StepRecord {
+impl harmos::MemorySize for StepRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
-            (harmos_domain::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
-            (harmos_domain::MemorySize::memory_size(&self.measurements), std::mem::size_of_val(&self.measurements)),
-            (harmos_domain::MemorySize::memory_size(&self.criteria), std::mem::size_of_val(&self.criteria)),
-            (harmos_domain::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos::MemorySize::memory_size(&self.measurements), std::mem::size_of_val(&self.measurements)),
+            (harmos::MemorySize::memory_size(&self.criteria), std::mem::size_of_val(&self.criteria)),
+            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -444,11 +444,11 @@ impl harmos_domain::MemorySize for StepRecord {
     }
 }
 
-impl harmos_domain::MemorySize for ExecutionInvalidation {
+impl harmos::MemorySize for ExecutionInvalidation {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.previous), std::mem::size_of_val(&self.previous)),
-            (harmos_domain::MemorySize::memory_size(&self.current), std::mem::size_of_val(&self.current)),
+            (harmos::MemorySize::memory_size(&self.previous), std::mem::size_of_val(&self.previous)),
+            (harmos::MemorySize::memory_size(&self.current), std::mem::size_of_val(&self.current)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -456,18 +456,18 @@ impl harmos_domain::MemorySize for ExecutionInvalidation {
     }
 }
 
-impl harmos_domain::MemorySize for TestCycle {
+impl harmos::MemorySize for TestCycle {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
-            (harmos_domain::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
-            (harmos_domain::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
-            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos_domain::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
-            (harmos_domain::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
-            (harmos_domain::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
-            (harmos_domain::MemorySize::memory_size(&self.execution_ids), std::mem::size_of_val(&self.execution_ids)),
-            (harmos_domain::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.saved), std::mem::size_of_val(&self.saved)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos::MemorySize::memory_size(&self.started_at), std::mem::size_of_val(&self.started_at)),
+            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos::MemorySize::memory_size(&self.execution_ids), std::mem::size_of_val(&self.execution_ids)),
+            (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

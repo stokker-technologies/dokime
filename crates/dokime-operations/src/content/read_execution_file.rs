@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ReadExecutionFile>], response = ExecutionFileWindow, id = "dokime.content.read_execution_file",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "ReadExecutionFile"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReadExecutionFile {

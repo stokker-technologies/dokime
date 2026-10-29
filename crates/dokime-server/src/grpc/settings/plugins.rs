@@ -17,18 +17,16 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{Budget, canonical};
+use dokime::app::LiveRuntime;
+use dokime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
-use dokime::{
-    RuntimeHandle,
-    domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings},
-};
 
 /* === Constants === */
 
@@ -40,6 +38,14 @@ use dokime::{
 
 /* === Enums === */
 
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::GetSettings),
+    Operation1(wire::GetPluginSettings),
+    Operation2(wire::UpdatePluginSettings),
+    Operation3(wire::UpdatePluginSecret),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -49,7 +55,7 @@ impl Serve<wire::GetSettings> for Resources {
         &'a self, _: wire::GetSettings, _: Context<'a, wire::GetSettings>,
     ) -> Served<'a, dokime::domain::model::settings::wire::SettingsFrame> {
         Box::pin(async move {
-            let frame = self.runtime.settings_frame().await;
+            let frame = dokime::app::live_runtime(&self.runtime).await?.settings_frame().await;
             self.produce_result(|| projection::encode_frame(frame, self.maximum))
         })
     }
@@ -61,7 +67,7 @@ impl Serve<wire::GetPluginSettings> for Resources {
     ) -> Served<'a, dokime::domain::model::settings::wire::PluginRuntimeSettings> {
         Box::pin(async move {
             let id = plugin_id(&request.plugin_id)?;
-            let settings = self.runtime.plugin_settings(&id).await.map_err(projection::plugin_error)?;
+            let settings = dokime::app::live_runtime(&self.runtime).await?.plugin_settings(&id).await.map_err(projection::plugin_error)?;
             plugin_response(self, settings)
         })
     }
@@ -83,8 +89,11 @@ impl Serve<wire::UpdatePluginSettings> for Resources {
                     }
                 },
             };
-            let settings =
-                self.runtime.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.map_err(projection::plugin_error)?;
+            let settings = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .save_plugin_settings(&id, PluginSettingsUpdate { values })
+                .await
+                .map_err(projection::plugin_error)?;
             plugin_response(self, settings)
         })
     }
@@ -98,8 +107,11 @@ impl Serve<wire::UpdatePluginSecret> for Resources {
             let id = plugin_id(&request.plugin_id)?;
             let secret_id = std::mem::take(&mut request.secret_id);
             let secret = std::mem::take(&mut request.secret);
-            let settings =
-                self.runtime.save_plugin_secret(&id, &secret_id, PluginSecretUpdate { secret }).await.map_err(projection::plugin_error)?;
+            let settings = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .save_plugin_secret(&id, &secret_id, PluginSecretUpdate { secret })
+                .await
+                .map_err(projection::plugin_error)?;
             plugin_response(self, settings)
         })
     }
@@ -107,19 +119,17 @@ impl Serve<wire::UpdatePluginSecret> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::GetSettings>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetPluginSettings>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::UpdatePluginSettings>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::UpdatePluginSecret>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::GetSettings>()
-        .operation::<wire::GetPluginSettings>()
-        .operation::<wire::UpdatePluginSettings>()
-        .operation::<wire::UpdatePluginSecret>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::GetSettings>>(Host::<wire::GetSettings>::new(served.clone()));
+    setup.resource::<Host<wire::GetPluginSettings>>(Host::<wire::GetPluginSettings>::new(served.clone()));
+    setup.resource::<Host<wire::UpdatePluginSettings>>(Host::<wire::UpdatePluginSettings>::new(served.clone()));
+    setup.resource::<Host<wire::UpdatePluginSecret>>(Host::<wire::UpdatePluginSecret>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

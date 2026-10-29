@@ -17,15 +17,15 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::StreamInput;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use super::{metadata, transfer_chunk_bytes};
 use crate::grpc::error::detailed;
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::execution::RecordScope;
 use dokime::domain::model::identity::CaseId;
@@ -45,7 +45,7 @@ use dokime::runtime::ArtifactUpload;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -55,6 +55,11 @@ struct Abandoning {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::UploadArtifact),
+}
 
 /* === Traits === */
 
@@ -81,8 +86,8 @@ impl Serve<wire::UploadArtifact> for Resources {
                 if scope.test_execution_id.is_none() {
                     return Err(Status::invalid_argument("artifact upload execution scope is required"));
                 }
-                let upload = self
-                    .runtime
+                let upload = dokime::app::live_runtime(&self.runtime)
+                    .await?
                     .begin_artifact_upload(ArtifactUploadInput {
                         scope,
                         filename,
@@ -94,7 +99,7 @@ impl Serve<wire::UploadArtifact> for Resources {
                     .map_err(content_failure)?;
                 staged.upload = Some(upload.clone());
                 drop(first);
-                let chunk_bytes = transfer_chunk_bytes(&self.runtime, self.maximum)?;
+                let chunk_bytes = transfer_chunk_bytes(&dokime::app::live_runtime(&self.runtime).await?, self.maximum)?;
                 if chunk_bytes == 0 {
                     return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
                 }
@@ -155,12 +160,14 @@ impl Drop for Abandoning {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::UploadArtifact>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::UploadArtifact>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::UploadArtifact>>(Host::<wire::UploadArtifact>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

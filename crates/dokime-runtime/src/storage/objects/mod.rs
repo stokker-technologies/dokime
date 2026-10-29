@@ -39,7 +39,7 @@ mod templates;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[crate::catalog]
 pub enum Objects {
     Case(case::Case),
     Command(super::requests::Command),

@@ -34,7 +34,7 @@ use dokime::{
 };
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
-use dokime_server::grpc::{Config, Server};
+use dokime_server::grpc::Config;
 
 /* === Constants === */
 
@@ -269,8 +269,9 @@ async fn run_matrix(interface: &str) {
             dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
         )
         .register(Arc::new(Provider(State { root: directory.path().into() })));
-        let mut runtime = Runtime::start(config).await.unwrap();
-        let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
+        let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+        let mut runtime = Runtime::start(prepared_runtime.configuration(config)).await.unwrap();
+        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
         let endpoint = server.local_endpoint();
 
         // Client Observation

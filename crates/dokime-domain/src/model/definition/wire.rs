@@ -34,7 +34,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasurementUnit {
     pub metadata: Option<Metadata>,
@@ -44,7 +44,7 @@ pub struct MeasurementUnit {
 
 // Native catalogs currently describe object/array fields only at the top
 // level. Do not infer a nested schema when none was declared.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordField {
     pub metadata: Option<Metadata>,
@@ -61,7 +61,7 @@ pub struct RecordField {
     pub format: Option<ValueFormat>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordSchema {
     pub record_type: String,
@@ -76,14 +76,14 @@ pub struct RecordSchema {
     pub display: Option<RecordDisplay>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordDisplay {
     pub icon: RecordIcon,
     pub tone: RecordTone,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryColumn {
     pub metadata: Option<Metadata>,
@@ -97,12 +97,12 @@ pub struct TelemetryColumn {
     pub format: Option<ValueFormat>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySchema {
     pub stream: String,
     pub schema_version: u32,
-    pub storage_schema: Option<harmos_domain::schema::graph::Schema>,
+    pub storage_schema: Option<harmos::schema::graph::Schema>,
     pub metadata: Option<Metadata>,
     pub template_identifier: Option<String>,
     pub owner_suite_id: Option<String>,
@@ -125,49 +125,49 @@ pub struct TelemetrySchema {
 // pattern is deliberately not offered: `normal`/`fixed`/`scientific`/
 // `engineering`/`si_prefix` already cover every number a plot, a table cell
 // or the report draws.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValueFormat {
     pub kind: Option<ValueFormatKind>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NormalFormat {
     pub max_fraction_digits: Option<u32>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixedFormat {
     pub decimals: u32,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScientificFormat {
     pub significant_digits: u32,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EngineeringFormat {
     pub significant_digits: u32,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SiPrefixFormat {
     pub significant_digits: u32,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AbsoluteTimeFormat {
     pub pattern: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ElapsedFormat {
     pub unit: ElapsedUnit,
@@ -175,7 +175,7 @@ pub struct ElapsedFormat {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {
     Unspecified,
@@ -189,7 +189,7 @@ pub enum ValueType {
     Datetime,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValidationMode {
     Unspecified,
@@ -197,7 +197,7 @@ pub enum ValidationMode {
     Prototype,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitFamily {
     Unspecified,
@@ -212,7 +212,7 @@ pub enum UnitFamily {
     Custom,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecordIcon {
     Unspecified,
@@ -242,7 +242,7 @@ pub enum RecordIcon {
     Clock,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecordTone {
     Unspecified,
@@ -255,7 +255,7 @@ pub enum RecordTone {
     Neutral,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TelemetryRole {
     Unspecified,
@@ -267,7 +267,7 @@ pub enum TelemetryRole {
     Throughput,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElapsedUnit {
     Unspecified,
@@ -276,7 +276,7 @@ pub enum ElapsedUnit {
     Minutes,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValueFormatKind {
     Normal(NormalFormat),

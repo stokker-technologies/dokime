@@ -9,10 +9,13 @@
 
 /* === Modules === */
 
+mod preparation;
 mod records;
 mod settings;
 
 /* === Re-Exports === */
+
+pub(crate) use preparation::Prepared;
 
 pub use records::{CapturedRecord, CapturedRecords, RecordSubscription};
 
@@ -51,29 +54,28 @@ use dokime_domain::model::identity::SessionId;
 /* === Type Aliases === */
 
 #[cfg(feature = "fault-injection")]
-type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
+pub(crate) type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 
 /* === Structs === */
 
 // The Opened Owners A Boot Hands To Handle Assembly.
-struct BootParts {
-    config: RuntimeConfig,
+pub(crate) struct BootParts {
+    pub(crate) config: RuntimeConfig,
+    pub(crate) record_namespace: SessionId,
     installed_plugins: InstalledPlugins,
-    storage: crate::storage::Manager,
-    local_state: crate::storage::sqlite::State,
-    record_source: Arc<crate::runtime::storage::record_capture::Source>,
-    resources: crate::app::Resources,
+    pub(crate) storage: crate::storage::Manager,
+    pub(crate) local_state: crate::storage::sqlite::State,
+    pub(crate) record_source: Arc<crate::runtime::storage::record_capture::Source>,
+    pub(crate) resources: crate::app::Resources,
     node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
     application_settings: crate::config::Settings,
     plugin_preferences: PluginPreferences,
-    secrets: SecretStore,
+    pub(crate) secrets: SecretStore,
     sampling: Sampling,
     providers: ProviderExecutorRegistry,
     boot_started: std::time::Instant,
 }
-
-struct BootRuntime(Option<HarmosRuntime>);
 
 #[derive(Clone)]
 pub struct RuntimeHandle {
@@ -97,7 +99,6 @@ pub struct RuntimeHandle {
     pub(crate) evidence_exports: crate::domains::exports::evidence::Manager,
     pub(crate) telemetry_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) telemetry_cursors: Arc<Mutex<crate::domains::telemetry::TelemetryCursors>>,
-    pub(crate) host_telemetry_source: Arc<RwLock<Option<Arc<crate::telemetry_runtime::HostTelemetrySource>>>>,
     pub(crate) providers: Arc<ProviderExecutorRegistry>,
     pub(crate) progress: Arc<crate::domains::execution::progress::ProgressRegistry>,
     pub(crate) operation_progress: Arc<crate::runtime::progress::OperationRegistry>,
@@ -128,18 +129,6 @@ pub struct RuntimeHandle {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Drop for BootRuntime {
-    fn drop(&mut self) {
-        if let Some(runtime) = self.0.take() {
-            tokio::spawn(async move {
-                if let Err(error) = runtime.stop().await {
-                    tracing::error!(%error, "cancelled runtime initialization cleanup failed");
-                }
-            });
-        }
-    }
-}
 
 impl RuntimeHandle {
     pub(crate) fn admit_owned_work(&self) -> Option<tokio_util::task::task_tracker::TaskTrackerToken> {
@@ -224,23 +213,70 @@ impl RuntimeHandle {
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
         #[cfg(feature = "fault-injection")] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
-        let boot_started = std::time::Instant::now();
-        let installed_plugins = check_boot_config(&config)?;
-        config.storage.validate()?;
-        harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
-        let backend = Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.local_storage).await?);
-        let local_state = backend.local_state();
-        let application_settings = crate::config::Settings::open(config.application_root.clone(), local_state.clone()).await?;
-        let node_identity = application_settings.read(|document| document.identity.clone()).await?;
-        let plugin_preferences = PluginPreferences::new(application_settings.clone());
-        let secrets =
-            SecretStore::from_config(&config, application_settings.clone()).await.map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
         state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
             state.install_builtin_domains().map_err(|error| Error::Operation(format!("failed to install built-in domains: {error}")))?;
         }
 
+        let live = crate::app::LiveRuntime::default();
+        let boot = Arc::new(std::sync::Mutex::new(super::rollback::Boot::default()));
+        let receipt = super::rollback::Receipt::boot(boot.clone());
+        let mut preparing = super::rollback::Preparing(Some(receipt.clone()));
+        let launch = crate::app::LaunchConfig {
+            record_namespace: state.process_epoch().clone(),
+            config,
+            providers,
+            live: live.clone(),
+            boot,
+            #[cfg(feature = "fault-injection")]
+            decorate,
+        };
+        let outcome = HarmosRuntime::launch(state, Some(launch)).await;
+        let harmos = match outcome {
+            Ok(runtime) => {
+                preparing.0.take();
+                runtime
+            }
+            Err(source) => {
+                let source = Error::RuntimeBoot { source: Box::new(source) };
+                let cleanup = receipt.retry().await;
+                preparing.0.take();
+                return match cleanup {
+                    Ok(()) => Err(source),
+                    Err(cleanup) => Err(Error::StartupCleanup {
+                        source: Box::new(source),
+                        cleanup: Box::new(cleanup),
+                        rollback: receipt,
+                    }),
+                };
+            }
+        };
+        let handle = live
+            .try_read()
+            .expect("application initialization releases its runtime slot")
+            .clone()
+            .expect("application initialization publishes its runtime handle");
+        Ok((harmos, handle))
+    }
+
+    pub(crate) async fn prepare(launch: crate::app::LaunchConfig) -> Result<BootParts> {
+        let config = launch.config;
+        let providers = launch.providers;
+        #[cfg(feature = "fault-injection")]
+        let decorate = launch.decorate;
+        let boot_started = std::time::Instant::now();
+        let installed_plugins = check_boot_config(&config)?;
+        config.storage.validate()?;
+        harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
+        let backend = Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.local_storage).await?);
+        let local_state = backend.local_state();
+        launch.boot.lock().expect("startup owners are healthy").local = Some(local_state.clone());
+        let application_settings = crate::config::Settings::open(config.application_root.clone(), local_state.clone()).await?;
+        let node_identity = application_settings.read(|document| document.identity.clone()).await?;
+        let plugin_preferences = PluginPreferences::new(application_settings.clone());
+        let secrets =
+            SecretStore::from_config(&config, application_settings.clone()).await.map_err(|error| Error::Operation(error.to_string()))?;
         let sampling = Sampling::new();
         let providers = ProviderExecutorRegistry::new(providers);
         let settings = config.storage.clone();
@@ -259,34 +295,13 @@ impl RuntimeHandle {
             None => backends,
         };
         let storage = crate::storage::Manager::new(backends, settings)?;
+        launch.boot.lock().expect("startup owners are healthy").storage = Some(storage.clone());
         let record_source =
-            Arc::new(crate::runtime::storage::record_capture::Source::new(state.process_epoch(), storage.clone(), config.schema)?);
+            Arc::new(crate::runtime::storage::record_capture::Source::new(&launch.record_namespace, storage.clone(), config.schema)?);
         let resources = crate::app::Resources::new(config.schema);
         *resources.analysis.dispatchers.write().expect("analysis dispatcher registry is healthy") = config.action_dispatchers.clone();
-        let harmos_runtime =
-            crate::runtime::storage::build(state, record_source.clone(), &storage, resources.clone(), config.managed_storage.clone()).await;
-        let harmos_runtime = match harmos_runtime {
-            Ok(runtime) => runtime,
-            Err(mut source) => {
-                // Settle The Original Bootstrap Owner Before Closing Its Control Lease
-                if source.retry_cleanup().await.is_err() {
-                    return Err(Error::RuntimeBoot { source: Box::new(source) });
-                }
-                let source = Error::RuntimeBoot { source: Box::new(source) };
-                let rollback = crate::runtime::rollback::Receipt::boot(None, storage, local_state);
-                return Err(match rollback.retry().await {
-                    Ok(()) => source,
-                    Err(cleanup) => Error::StartupCleanup {
-                        source: Box::new(source),
-                        cleanup: Box::new(cleanup),
-                        rollback,
-                    },
-                });
-            }
-        };
-        let mut boot = BootRuntime(Some(harmos_runtime));
-        let harmos_runtime = boot.0.as_ref().expect("boot owns the runtime");
-        let parts = BootParts {
+        Ok(BootParts {
+            record_namespace: launch.record_namespace,
             config,
             installed_plugins,
             storage: storage.clone(),
@@ -300,39 +315,13 @@ impl RuntimeHandle {
             sampling,
             providers,
             boot_started,
-        };
-        let initialized = Self::initialize(harmos_runtime, parts).await;
-        match initialized {
-            Ok(runtime) => Ok((boot.0.take().expect("boot owns the runtime"), runtime)),
-            Err(source) => {
-                // Preserve the existing cancellation guard until physical cleanup
-                // settles. A failed cleanup transfers every remaining owner into
-                // the returned receipt rather than logging and discarding it.
-                let cleanup = async {
-                    harmos_runtime.stop().await?;
-                    storage.close().await?;
-                    local_state.close().await?;
-                    Ok::<_, Error>(())
-                }
-                .await;
-                match cleanup {
-                    Ok(()) => {
-                        drop(boot.0.take());
-                        Err(source)
-                    }
-                    Err(cleanup) => Err(Error::StartupCleanup {
-                        source: Box::new(source),
-                        cleanup: Box::new(cleanup),
-                        rollback: crate::runtime::rollback::Receipt::boot(boot.0.take(), storage, local_state),
-                    }),
-                }
-            }
-        }
+        })
     }
 
-    // Register Operations, Recover Receipts And Assemble The Booted Handle.
-    async fn initialize(harmos_runtime: &HarmosRuntime, parts: BootParts) -> Result<Self> {
+    // Activate Prepared Resources, Recover Receipts And Assemble The Booted Handle.
+    pub(crate) async fn initialize(harmos_runtime: &harmos::runtime::Handle<Dokime>, parts: BootParts, prepared: Prepared) -> Result<Self> {
         let BootParts {
+            record_namespace: _,
             config,
             installed_plugins,
             storage,
@@ -347,30 +336,13 @@ impl RuntimeHandle {
             providers,
             boot_started,
         } = parts;
-        harmos_runtime
-            .operations
-            .register(harmos::RegistrationExt::lane(
-                harmos::builtin::storage_registration(Arc::new(storage.clone()))?,
-                crate::app::Lanes::Open,
-            ))
-            .await?;
-        harmos_runtime
-            .operations
-            .register(harmos::RegistrationExt::lane(
-                harmos::builtin::catalog_registration(Some(Arc::new(storage.clone())))?,
-                crate::app::Lanes::Open,
-            ))
-            .await?;
-        let provider_invocations = Arc::new(crate::runtime::operations::provider::ProviderInvocations::default());
-        crate::runtime::operations::provider::register(&harmos_runtime.operations, provider_invocations.clone()).await?;
-        let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
-        crate::domains::execution::run::host::register(&harmos_runtime.operations, &execution_sessions).await?;
-        let embedded_templates = Arc::new(crate::runtime::EmbeddedTemplates::new(Arc::clone(&execution_sessions)));
-        super::embedded::register(&harmos_runtime.operations, &embedded_templates).await?;
-        crate::plot::builtins::register(&harmos_runtime.operations).await?;
-        let step_builtins = crate::domains::files::register(&harmos_runtime.operations).await?;
-        super::sidecars::core::register_publications(&harmos_runtime.operations).await?;
-        let record_ingress = super::sidecars::core::RecordIngress::register(&harmos_runtime.operations).await?;
+        let Prepared {
+            provider_invocations,
+            execution_sessions,
+            embedded_templates,
+            step_builtins,
+            record_ingress,
+        } = prepared;
 
         let initial = harmos_runtime
             .state
@@ -432,7 +404,6 @@ impl RuntimeHandle {
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
             telemetry_cursors: Arc::new(Mutex::new(crate::domains::telemetry::TelemetryCursors::default())),
             stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::new()),
-            host_telemetry_source: Arc::new(RwLock::new(None)),
             providers: Arc::new(providers),
             progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
             operation_progress: crate::runtime::progress::OperationRegistry::new(),
@@ -461,7 +432,7 @@ impl RuntimeHandle {
         Ok(runtime)
     }
 
-    // Establish Identity, Install Host Plugins And Register Late Operations.
+    // Establish Identity And Activate Prepared Host Resources.
     async fn settle_boot(
         &self, node_identity: dokime_domain::model::identity::DokimeNodeIdentity, installed_plugins: InstalledPlugins,
         step_builtins: &crate::domains::files::StepBuiltins,
@@ -474,8 +445,7 @@ impl RuntimeHandle {
         .map_err(|error| Error::Operation(format!("failed to establish node identity: {error}")))?;
 
         step_builtins.bind(self);
-        for mut plugin in installed_plugins.into_values() {
-            dokime_host::configure_contracts(&mut plugin);
+        for plugin in installed_plugins.into_values() {
             if self.state_read().host_plugin_current(&plugin) {
                 continue;
             }
@@ -486,9 +456,6 @@ impl RuntimeHandle {
         }
         let contracts = self.state_read().telemetry_contracts();
         self.execution_storage.register_schemas(&contracts).await?;
-        crate::runtime::operations::runtime::register(self).await?;
-        crate::runtime::operations::secrets::register(self).await?;
-        crate::runtime::operations::reports::register(self).await?;
         Ok(())
     }
 

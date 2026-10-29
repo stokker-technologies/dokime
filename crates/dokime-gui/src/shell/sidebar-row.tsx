@@ -132,14 +132,14 @@ export function SidebarRow({
       {onSelect ? (
         <button
           aria-current={active ? "page" : undefined}
-          className="grid min-h-[var(--control-height)] min-w-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid min-h-[var(--control-height)] min-w-0 items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onSelect}
           type="button"
         >
           {labelNode}
         </button>
       ) : (
-        <span className="grid min-w-0" title={title}>
+        <span className="grid min-w-0 items-center" title={title}>
           {labelNode}
         </span>
       )}

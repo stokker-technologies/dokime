@@ -32,9 +32,9 @@ use crate::model::identity::Metadata;
 /* === Constants === */
 
 const HOST_SYSTEM: &str = "host.system";
-const HOST_WIFI: &str = "host.wifi";
+const HOST_WIFI_LINK: &str = "host.wifi.link";
 const HOST_WIFI_LATENCY: &str = "host.wifi.latency";
-const HOST_WIFI_CHANNEL_OCCUPANCY: &str = "host.wifi.channel_occupancy";
+const HOST_WIFI_SCAN: &str = "host.wifi.scan";
 const HOST_BLUETOOTH: &str = "host.bluetooth";
 
 /* === Macros === */
@@ -64,7 +64,7 @@ struct HostPlotSpec<'a> {
 /* === Public Functions === */
 
 pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
-    let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI, HOST_WIFI_LATENCY, HOST_WIFI_CHANNEL_OCCUPANCY, HOST_BLUETOOTH]);
+    let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI_LINK, HOST_WIFI_LATENCY, HOST_WIFI_SCAN, HOST_BLUETOOTH]);
     vec![wifi_section(&streams), wifi_congestion_section(&streams, tracking_requested), bluetooth_section(), system_section()]
 }
 
@@ -85,39 +85,39 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
             style: PlotStyle::Line,
         })));
     }
-    if streams.contains(HOST_WIFI_CHANNEL_OCCUPANCY) {
+    if streams.contains(HOST_WIFI_SCAN) {
         cards.push(plot_card(plot(HostPlotSpec {
             identifier: "hub.host.wifi.stream",
             label: "WiFi Channel",
             description: "Active WiFi stream derived from the stream occupancy scan.",
             plot_type: PlotType::TimeSeries,
-            stream: HOST_WIFI_CHANNEL_OCCUPANCY,
+            stream: HOST_WIFI_SCAN,
             x: Some("timestamp"),
             y: &["active_wifi_channel"],
             unit: Some("stream"),
             style: PlotStyle::Line,
         })));
-    } else if streams.contains(HOST_WIFI) {
+    } else if streams.contains(HOST_WIFI_LINK) {
         cards.push(plot_card(plot(HostPlotSpec {
             identifier: "hub.host.wifi.stream",
             label: "WiFi Channel",
             description: "Active WiFi stream reported by the host WiFi adapter.",
             plot_type: PlotType::TimeSeries,
-            stream: HOST_WIFI,
+            stream: HOST_WIFI_LINK,
             x: Some("timestamp"),
             y: &["wifi_channel"],
             unit: Some("stream"),
             style: PlotStyle::Line,
         })));
     }
-    if streams.contains(HOST_WIFI) {
+    if streams.contains(HOST_WIFI_LINK) {
         cards.extend([
             plot_card(plot(HostPlotSpec {
                 identifier: "hub.host.wifi.signal",
                 label: "WiFi Signal",
                 description: "Current signal quality reported by the host WiFi adapter.",
                 plot_type: PlotType::TimeSeries,
-                stream: HOST_WIFI,
+                stream: HOST_WIFI_LINK,
                 x: Some("timestamp"),
                 y: &["wifi_signal_percent"],
                 unit: Some("%"),
@@ -128,7 +128,7 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
                 label: "WiFi PHY",
                 description: "Current receive and transmit PHY rates reported by the host WiFi adapter.",
                 plot_type: PlotType::TimeSeries,
-                stream: HOST_WIFI,
+                stream: HOST_WIFI_LINK,
                 x: Some("timestamp"),
                 y: &["wifi_rx_phy_mbps", "wifi_tx_phy_mbps"],
                 unit: Some("Mbps"),
@@ -139,7 +139,7 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
                 label: "Network Adapter Throughput",
                 description: "Receive and transmit throughput calculated from the host network adapter byte counters.",
                 plot_type: PlotType::TimeSeries,
-                stream: HOST_WIFI,
+                stream: HOST_WIFI_LINK,
                 x: Some("timestamp"),
                 y: &["wifi_rx_mbps", "wifi_tx_mbps"],
                 unit: Some("Mbps"),
@@ -153,20 +153,20 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
 
 fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -> DocumentSection {
     let mut cards = Vec::new();
-    if streams.contains(HOST_WIFI_CHANNEL_OCCUPANCY) {
+    if streams.contains(HOST_WIFI_SCAN) {
         cards.push(plot_card(plot(HostPlotSpec {
             identifier: "hub.host.wifi.congestion_index",
             label: "WiFi Congestion Index",
             description: "Custom 0-100% KPI computed from networks on the active host WiFi stream plus adjacent overlapping networks weighted by stream overlap.",
             plot_type: PlotType::TimeSeries,
-            stream: HOST_WIFI_CHANNEL_OCCUPANCY,
+            stream: HOST_WIFI_SCAN,
             x: Some("timestamp"),
             y: &["wifi_network_congestion_score"],
             unit: Some("%"),
             style: PlotStyle::Line,
         })));
     }
-    if streams.contains(HOST_WIFI_CHANNEL_OCCUPANCY) {
+    if streams.contains(HOST_WIFI_SCAN) {
         let mut occupancy = Plot::wifi_channel_occupancy("WiFi Channel Occupancy");
         occupancy.id("hub.host.wifi.channel_occupancy");
         occupancy.metadata.description = Some(
@@ -174,7 +174,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
         );
         cards.push(plot_card(occupancy));
     }
-    if tracking_requested && streams.contains(HOST_WIFI) {
+    if tracking_requested && streams.contains(HOST_WIFI_SCAN) {
         let mut congestion_map = plot(HostPlotSpec {
             identifier: "hub.host.wifi.congestion_map",
             label: "WiFi Network Congestion Map",
@@ -186,7 +186,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
             unit: Some("%"),
             style: PlotStyle::Points,
         });
-        congestion_map.z_stream = Some(HOST_WIFI.to_owned());
+        congestion_map.z_stream = Some(HOST_WIFI_SCAN.to_owned());
         congestion_map.z_field = Some("wifi_network_congestion_score".to_owned());
         cards.push(plot_card(congestion_map));
     }

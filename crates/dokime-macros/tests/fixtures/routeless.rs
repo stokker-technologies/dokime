@@ -34,39 +34,31 @@ struct routeless;
 
 /* === Implementations === */
 impl sdk::harmos::builtins::lifecycle::Policy for routeless {
-    const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy =
-        sdk::harmos::operations::OperationPolicy {
-            timeout: std::time::Duration::from_secs(5),
-            attempt_timeout: std::time::Duration::from_secs(5),
-            retries: sdk::harmos::operations::RetryPolicy::Never,
-        };
+    const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
+        timeout: std::time::Duration::from_secs(5),
+        attempt_timeout: std::time::Duration::from_secs(5),
+        retries: sdk::harmos::operations::RetryPolicy::Never,
+    };
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy =
         <Self as sdk::harmos::builtins::lifecycle::Policy>::INITIALIZATION_POLICY;
 }
 
-#[sdk::plugin(id = "routeless", provides = (), requires(), restart = "never", description = "No authored operations, streams or contributions.")]
+#[sdk::plugin(id = "routeless", requires(), restart = "never", description = "No authored operations, streams or contributions.")]
 impl sdk::Plugin for routeless {
+    const CATALOGS: &'static [sdk::harmos::Catalog] = &[];
+}
+
+impl sdk::harmos::Lifecycle for routeless {
     type Config = sdk::plugin::Configuration;
     type Error = sdk::Refusal;
     type Context = sdk::Supervisor;
-    type Resources = ();
-
-    fn prepare(_: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
-        Ok(Self)
+    async fn prepare(_: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<Self>) -> Result<Self, sdk::Refusal> {
+        let owner = { Self };
+        setup.resource::<()>(owner.resources());
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    fn resources(&self) -> std::sync::Arc<()> {
-        std::sync::Arc::new(())
-    }
-
-    fn bind_operations(
-        &self,
-        _: &mut sdk::harmos::operations::WireTable,
-    ) -> Result<(), sdk::harmos::operations::ServingError> {
         Ok(())
     }
 
@@ -76,6 +68,12 @@ impl sdk::Plugin for routeless {
 
     async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
         Ok(())
+    }
+}
+
+impl routeless {
+    fn resources(&self) -> std::sync::Arc<()> {
+        std::sync::Arc::new(())
     }
 }
 

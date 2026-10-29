@@ -29,13 +29,14 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use prost::Message;
 use tonic::{Code, Status};
 
 // Local Imports
 use super::value;
 use super::value::canonical;
+use dokime::app::LiveRuntime;
 use dokime::definition::TestCase;
 use dokime::domain::model::diagnostics::ValidationIssue;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
@@ -46,12 +47,12 @@ use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
+use dokime::runtime::Error;
 use dokime::runtime::RuntimeState;
 use dokime::runtime::query::{
     CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, case_projection, case_tally, cycle_page,
     historical_case_projection, select_cycles,
 };
-use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -62,11 +63,24 @@ use dokime::{RuntimeHandle, runtime::Error};
 /* === Structs === */
 
 pub(super) struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::GetCase),
+    Operation1(wire::GetExecution),
+    Operation2(wire::ListCaseParameters),
+    Operation3(wire::ListExecutionParameters),
+    Operation4(wire::ListExecutionSteps),
+    Operation5(wire::GetCycle),
+    Operation6(wire::ListCycles),
+    Operation7(wire::ListCases),
+    Operation8(wire::ListExecutions),
+}
 
 /* === Traits === */
 
@@ -76,7 +90,7 @@ impl Serve<wire::GetCase> for Resources {
     fn serve<'a>(
         &'a self, request: wire::GetCase, _: Context<'a, wire::GetCase>,
     ) -> Served<'a, dokime::domain::model::execution::wire::CaseDetail> {
-        Box::pin(async move { detail::get_case(self, &request).map(Into::into) })
+        Box::pin(async move { detail::get_case(self, &request).await.map(Into::into) })
     }
 }
 
@@ -84,7 +98,7 @@ impl Serve<wire::GetExecution> for Resources {
     fn serve<'a>(
         &'a self, request: wire::GetExecution, _: Context<'a, wire::GetExecution>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ExecutionDetail> {
-        Box::pin(async move { detail::get_execution(self, &request).map(Into::into) })
+        Box::pin(async move { detail::get_execution(self, &request).await.map(Into::into) })
     }
 }
 
@@ -92,7 +106,7 @@ impl Serve<wire::ListCaseParameters> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListCaseParameters, _: Context<'a, wire::ListCaseParameters>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListCaseParametersReply> {
-        Box::pin(async move { detail::list_case_parameters(self, &request).map(Into::into) })
+        Box::pin(async move { detail::list_case_parameters(self, &request).await.map(Into::into) })
     }
 }
 
@@ -100,7 +114,7 @@ impl Serve<wire::ListExecutionParameters> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListExecutionParameters, _: Context<'a, wire::ListExecutionParameters>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListMaterializedParametersReply> {
-        Box::pin(async move { detail::list_execution_parameters(self, &request).map(Into::into) })
+        Box::pin(async move { detail::list_execution_parameters(self, &request).await.map(Into::into) })
     }
 }
 
@@ -108,7 +122,7 @@ impl Serve<wire::ListExecutionSteps> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListExecutionSteps, _: Context<'a, wire::ListExecutionSteps>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListExecutionStepsReply> {
-        Box::pin(async move { steps::list(self, &request).map(Into::into) })
+        Box::pin(async move { steps::list(self, &request).await.map(Into::into) })
     }
 }
 
@@ -116,7 +130,7 @@ impl Serve<wire::GetCycle> for Resources {
     fn serve<'a>(
         &'a self, request: wire::GetCycle, _: Context<'a, wire::GetCycle>,
     ) -> Served<'a, dokime::domain::model::execution::wire::CycleSummary> {
-        Box::pin(async move { self.get_cycle(&request).map(Into::into) })
+        Box::pin(async move { self.get_cycle(&request).await.map(Into::into) })
     }
 }
 
@@ -124,7 +138,7 @@ impl Serve<wire::ListCycles> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListCycles, _: Context<'a, wire::ListCycles>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListCyclesReply> {
-        Box::pin(async move { self.list_cycles(&request).map(Into::into) })
+        Box::pin(async move { self.list_cycles(&request).await.map(Into::into) })
     }
 }
 
@@ -132,7 +146,7 @@ impl Serve<wire::ListCases> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListCases, _: Context<'a, wire::ListCases>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListCasesReply> {
-        Box::pin(async move { self.list_cases(&request).map(Into::into) })
+        Box::pin(async move { self.list_cases(&request).await.map(Into::into) })
     }
 }
 
@@ -140,21 +154,21 @@ impl Serve<wire::ListExecutions> for Resources {
     fn serve<'a>(
         &'a self, request: wire::ListExecutions, _: Context<'a, wire::ListExecutions>,
     ) -> Served<'a, dokime::domain::model::execution::wire::ListExecutionsReply> {
-        Box::pin(async move { self.list_executions(&request).map(Into::into) })
+        Box::pin(async move { self.list_executions(&request).await.map(Into::into) })
     }
 }
 
 impl Resources {
-    fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
+    async fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = self.runtime.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
         let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot))?;
         inspection_reply(self, value)
     }
 
-    fn list_cycles(&self, request: &wire::ListCycles) -> Result<dokime::domain::model::execution::wire::ListCyclesReply, Status> {
-        let snapshot = self.runtime.watch_state().latest();
+    async fn list_cycles(&self, request: &wire::ListCycles) -> Result<dokime::domain::model::execution::wire::ListCyclesReply, Status> {
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let filter = cycle_filter(request.filter.as_ref())?;
@@ -184,9 +198,9 @@ impl Resources {
         )
     }
 
-    fn list_cases(&self, request: &wire::ListCases) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
+    async fn list_cases(&self, request: &wire::ListCases) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = self.runtime.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_case_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
@@ -194,11 +208,11 @@ impl Resources {
         inspection_reply(self, value)
     }
 
-    fn list_executions(
+    async fn list_executions(
         &self, request: &wire::ListExecutions,
     ) -> Result<dokime::domain::model::execution::wire::ListExecutionsReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = self.runtime.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_execution_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
@@ -210,35 +224,28 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
-    control::register(runtime).await?;
-    requests::register(runtime).await?;
-    commands::register(runtime, max_message_bytes).await?;
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), super::Error> {
+    control::prepare(setup, runtime)?;
+    requests::prepare(setup, runtime)?;
+    commands::prepare(setup, runtime, max_message_bytes)?;
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::GetCase>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetExecution>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListCaseParameters>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListExecutionParameters>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListExecutionSteps>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetCycle>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListCycles>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListCases>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListExecutions>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::GetCase>()
-        .operation::<wire::GetExecution>()
-        .operation::<wire::ListCaseParameters>()
-        .operation::<wire::ListExecutionParameters>()
-        .operation::<wire::ListExecutionSteps>()
-        .operation::<wire::GetCycle>()
-        .operation::<wire::ListCycles>()
-        .operation::<wire::ListCases>()
-        .operation::<wire::ListExecutions>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::GetCase>>(Host::<wire::GetCase>::new(served.clone()));
+    setup.resource::<Host<wire::GetExecution>>(Host::<wire::GetExecution>::new(served.clone()));
+    setup.resource::<Host<wire::ListCaseParameters>>(Host::<wire::ListCaseParameters>::new(served.clone()));
+    setup.resource::<Host<wire::ListExecutionParameters>>(Host::<wire::ListExecutionParameters>::new(served.clone()));
+    setup.resource::<Host<wire::ListExecutionSteps>>(Host::<wire::ListExecutionSteps>::new(served.clone()));
+    setup.resource::<Host<wire::GetCycle>>(Host::<wire::GetCycle>::new(served.clone()));
+    setup.resource::<Host<wire::ListCycles>>(Host::<wire::ListCycles>::new(served.clone()));
+    setup.resource::<Host<wire::ListCases>>(Host::<wire::ListCases>::new(served.clone()));
+    setup.resource::<Host<wire::ListExecutions>>(Host::<wire::ListExecutions>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

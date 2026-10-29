@@ -19,8 +19,9 @@ import { test } from "vitest";
 import { startupDiagnostics } from "@/app/native-session/errors";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { statusPresentation } from "@/features/settings/plugins/PluginList";
-import { programSource } from "@/features/settings/plugins/PluginPrograms";
+import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import { announceStopping, desktopStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
+import type { RuntimeSettingsFrame } from "@/lib/types/view-contracts";
 import {
   type OperationFrame,
   operationPercent,
@@ -141,6 +142,33 @@ test("Brand Label", () => {
     state: "removal_pending",
   } as unknown as Parameters<typeof statusPresentation>[0];
   assert.equal(statusPresentation(entry, "Stokker Technologies").reason, "Active until Stokker Technologies restarts.");
+});
+
+test("Plugin Rows Open Their Own Settings Page", () => {
+  const programs = [
+    { owner: { kind: "host" }, plugin_id: "fixture.host.core", version: "1" },
+    { owner: { kind: "host" }, plugin_id: "fixture.host.settings", version: "1" },
+    { owner: { kind: "bundle", package: "fixture-bundle" }, plugin_id: "fixture.bundle", version: "1" },
+    { owner: { kind: "embedded", generation: "g" }, plugin_id: "fixture.embedded", version: "1" },
+  ] as unknown as RuntimeInstalledPluginRecord[];
+  const frame = {
+    bootstrap_paths: null,
+    cards: [],
+    sections: [
+      { owner: { kind: "installed_plugin", plugin_id: "fixture.host.settings" }, section_id: "fixture-host-section" },
+      { owner: { kind: "installed_plugin", plugin_id: "fixture.bundle" }, section_id: "fixture-bundle-section" },
+    ],
+  } as unknown as RuntimeSettingsFrame;
+
+  // The Host Row Opens The Section Any Of Its Programs Contributes
+  assert.deepEqual(
+    programRows(programs, [], frame).map((row) => [row.key, row.settingsSection]),
+    [
+      ["host", "fixture-host-section"],
+      ["bundle:fixture-bundle", "fixture-bundle-section"],
+      [JSON.stringify(["embedded", null, null, "g", "fixture.embedded"]), null],
+    ],
+  );
 });
 
 test("a failure during the desktop's stop never settles, and the stop shows only once it lasts", async () => {

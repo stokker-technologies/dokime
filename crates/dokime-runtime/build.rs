@@ -43,7 +43,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     println!("cargo:rustc-env=DOKIME_NATIVE_TARGET={}", env::var("TARGET").expect("Cargo supplies TARGET"));
 
-    if env::var_os("CARGO_FEATURE_HOST").is_some() {
+    if env::var_os("CARGO_FEATURE_NATIVE").is_some() {
         embed_report_template();
     }
     if env::var_os("CARGO_FEATURE_CONFIGURATION").is_some() {

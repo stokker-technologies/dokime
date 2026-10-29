@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::operations::StreamOutput;
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
@@ -27,7 +27,7 @@ use super::error::detailed;
 use super::value::canonical;
 use dokime::OpenedReport;
 use dokime::ReportOrigin;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::TestCycleId;
@@ -46,13 +46,19 @@ const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 /* === Structs === */
 
 struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
 struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::DownloadCycleReport),
+    Operation1(wire::DownloadExecutionReport),
+}
 
 /* === Traits === */
 
@@ -67,7 +73,7 @@ impl Serve<wire::DownloadCycleReport> for Resources {
             crate::grpc::access::during(revoked, async {
                 let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
                 let identifier = report_identifier(&request.identifier)?;
-                let report = self.runtime.open_cycle_report(&cycle).await.map_err(report_failure)?;
+                let report = dokime::app::live_runtime(&self.runtime).await?.open_cycle_report(&cycle).await.map_err(report_failure)?;
                 deliver(self, report, &identifier, output).await
             })
             .await
@@ -86,7 +92,8 @@ impl Serve<wire::DownloadExecutionReport> for Resources {
                     .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
                 let identifier =
                     Identifier::new(EXECUTION_REPORT_IDENTIFIER).map_err(|_| Status::internal("execution report identifier is invalid"))?;
-                let report = self.runtime.open_execution_report(&execution).await.map_err(report_failure)?;
+                let report =
+                    dokime::app::live_runtime(&self.runtime).await?.open_execution_report(&execution).await.map_err(report_failure)?;
                 deliver(self, report, &identifier, output).await
             })
             .await
@@ -124,18 +131,18 @@ impl chunked::Frames for HtmlFrames {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::DownloadCycleReport>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::DownloadExecutionReport>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::DownloadCycleReport>()
-        .operation::<wire::DownloadExecutionReport>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::DownloadCycleReport>>(Host::<wire::DownloadCycleReport>::new(served.clone()));
+    setup.resource::<Host<wire::DownloadExecutionReport>>(Host::<wire::DownloadExecutionReport>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

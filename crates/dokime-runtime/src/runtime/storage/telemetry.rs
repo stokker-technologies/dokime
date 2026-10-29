@@ -899,7 +899,32 @@ mod admission_tests {
         type Transaction = harmos::state::Never;
         type Record = harmos::state::Never;
         type Streams = ();
-        type Resources = ();
+    }
+
+    #[derive(Default, serde::Deserialize)]
+    struct StorageConfig {
+        #[serde(skip)]
+        storage: Option<crate::storage::Manager>,
+    }
+
+    impl harmos::Lifecycle for TestApp {
+        type Config = StorageConfig;
+        type Error = harmos::Error;
+        type Context = harmos::Startup<Self>;
+
+        async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+            setup.settings().storage(config.storage.as_ref().expect("storage fixture is configured"));
+            Ok(Self)
+        }
+        async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+            Ok(())
+        }
+        async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+            Ok(())
+        }
+        async fn cleanup(&mut self) -> harmos::Result<()> {
+            Ok(())
+        }
     }
 
     #[harmos::message]
@@ -980,7 +1005,7 @@ mod admission_tests {
             crate::config::storage_state_defaults(),
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
-        let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+        let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
         let contract = crate::telemetry::TelemetryContract::declared("fixture.longrun", "Long Run").typed::<Reading>();
         let settings = harmos::config::SchemaSettings::default();
         let codec = telemetry::codec(&contract, &settings).unwrap();
@@ -1034,7 +1059,7 @@ mod admission_tests {
             }
             work = Some(scanned);
         }
-        runtime.stop().await.unwrap();
+        runtime.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -1048,7 +1073,7 @@ mod admission_tests {
             crate::config::storage_state_defaults(),
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
-        let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+        let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
         let contract = crate::telemetry::TelemetryContract::declared("fixture.follow", "Follow").typed::<Reading>();
         let settings = harmos::config::SchemaSettings::default();
         let codec = telemetry::codec(&contract, &settings).unwrap();
@@ -1111,7 +1136,7 @@ mod admission_tests {
             work = Some(scanned);
             settled = at.sequence;
         }
-        runtime.stop().await.unwrap();
+        runtime.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -1126,7 +1151,7 @@ mod admission_tests {
             crate::config::storage_state_defaults(),
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
-        let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+        let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
         let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>();
         let codec = telemetry::codec(&contract, &Default::default()).unwrap();
         storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
@@ -1167,6 +1192,6 @@ mod admission_tests {
         assert_eq!(storage.cursor_accepted().sequence, before.sequence + 1);
         drop(result);
         storage.flush().await.unwrap();
-        runtime.stop().await.unwrap();
+        runtime.shutdown().await.unwrap();
     }
 }

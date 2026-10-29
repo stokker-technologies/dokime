@@ -15,13 +15,17 @@
 
 // Standard Library Imports
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::Read,
     path::{Path, PathBuf},
     process::Command,
 };
 
 // Third Party Imports
+use nsis::{
+    NsisInstaller,
+    strings::{NsisString, StringSegment},
+};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -29,6 +33,9 @@ use super::payload::{self, Identity};
 use crate::Error;
 
 /* === Constants === */
+
+// NSIS Addresses File Data With 32-Bit Signed Offsets, So No Valid Solid Stream Exceeds 2 GiB.
+const NSIS_PAYLOAD_LIMIT: usize = i32::MAX as usize;
 
 /* === Macros === */
 
@@ -60,11 +67,44 @@ pub struct Inspection {
     pub updater_signature: String,
 }
 
+struct Members<'a> {
+    root: &'a Path,
+    files: BTreeSet<String>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<'a> Members<'a> {
+    fn new(root: &'a Path) -> Self {
+        Self { root, files: BTreeSet::new() }
+    }
+
+    fn directory(&mut self, name: &str) -> Result<(), Error> {
+        let name = name.strip_prefix("./").unwrap_or(name).trim_end_matches('/');
+        if name.is_empty() || name == "." {
+            return Ok(());
+        }
+        std::fs::create_dir_all(self.root.join(payload::relative(name)?))?;
+        Ok(())
+    }
+
+    fn file(&mut self, name: &str, bytes: &[u8]) -> Result<(), Error> {
+        let name = name.strip_prefix("./").unwrap_or(name);
+        let path = self.root.join(payload::relative(name)?);
+        if !self.files.insert(name.to_owned()) {
+            return Err(Error::Invalid(format!("installer contains a duplicate member: {name}")));
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, bytes)?;
+        Ok(())
+    }
+}
 
 /* === Public Functions === */
 
@@ -82,33 +122,12 @@ pub fn inspect(package: &Path) -> Result<Inspection, Error> {
     if extension == "exe" && original_signature.is_file() {
         std::fs::copy(original_signature, package.with_extension("exe.sig"))?;
     }
-    let mut header = [0u8; 8];
-    std::fs::File::open(&package)?.read_exact(&mut header)?;
-    validate_native_magic(extension, &header)?;
-    validate_archive(&package)?;
+    let bytes = std::fs::read(&package)?;
+    validate_native_magic(extension, &bytes)?;
     let contents = scratch.path().join("contents");
     std::fs::create_dir(&contents)?;
-    match package.extension().and_then(|s| s.to_str()) {
-        Some("exe") => {
-            run(
-                dokime::domain::process::command("7z").arg("x").arg("-y").arg(format!("-o{}", contents.display())).arg(&package),
-                "NSIS inspection requires 7z",
-            )?;
-        }
-        Some("deb") => {
-            run(
-                dokime::domain::process::command("dpkg-deb").arg("--extract").arg(&package).arg(&contents),
-                "DEB inspection requires dpkg-deb",
-            )?;
-        }
-        Some("rpm") => {
-            run(
-                dokime::domain::process::command("bsdtar").arg("-xf").arg(&package).arg("-C").arg(&contents),
-                "RPM inspection requires bsdtar (libarchive)",
-            )?;
-        }
-        _ => return Err(Error::Invalid("inspection accepts finished NSIS .exe, .deb or .rpm packages".into())),
-    }
+    read_members(extension, &bytes, &mut Members::new(&contents))?;
+    drop(bytes);
     let mut result = inspect_tree(&package, &contents)?;
     result.package = original;
     scratch.close()?;
@@ -300,90 +319,111 @@ fn validate_native_magic(extension: &str, header: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_nsis_inventory(text: &str) -> Result<(), Error> {
-    let mut members = false;
-    let mut nsis = false;
-    for line in text.lines() {
-        if line == "----------" {
-            members = true;
-            continue;
-        }
-        if !members {
-            if line == "Type = Nsis" {
-                nsis = true;
-            }
-            continue;
-        }
-        if line.starts_with("Symbolic Link =") || line.starts_with("Hard Link =") {
-            return Err(Error::Invalid("installer contains a linked member".into()));
-        }
-        if let Some(name) = line.strip_prefix("Path = ") {
-            payload::relative(&name.replace('\\', "/"))?;
-        }
+fn read_members(extension: &str, bytes: &[u8], members: &mut Members<'_>) -> Result<(), Error> {
+    match extension {
+        "exe" => read_nsis(bytes, members),
+        "deb" => read_deb(bytes, members),
+        "rpm" => read_rpm(bytes, members),
+        _ => Err(Error::Invalid("inspection accepts finished NSIS .exe, .deb or .rpm packages".into())),
     }
-    if !members || !nsis {
-        return Err(Error::Invalid("package is not an NSIS installer with a valid member inventory".into()));
+}
+
+fn read_nsis(bytes: &[u8], members: &mut Members<'_>) -> Result<(), Error> {
+    let invalid = |error: nsis::Error| Error::Invalid(format!("could not read NSIS installer: {error}"));
+    let installer = NsisInstaller::builder(bytes).max_decompressed_size(NSIS_PAYLOAD_LIMIT).parse().map_err(invalid)?;
+    for file in installer.files() {
+        let file = file.map_err(invalid)?;
+        let destination = file.dest_path().map_err(invalid)?;
+        if let Some(name) = nsis_installed_name(&destination)? {
+            members.file(&name, &file.decompress().map_err(invalid)?)?;
+        }
     }
     Ok(())
 }
 
-fn validate_archive(package: &Path) -> Result<(), Error> {
-    let extension = package.extension().and_then(|value| value.to_str());
-    if extension == Some("exe") {
-        let listing = dokime::domain::process::command("7z")
-            .args(["l", "-slt", "-sccUTF-8"])
-            .arg(package)
-            .output()
-            .map_err(|_| Error::Invalid("NSIS inspection requires 7z".into()))?;
-        if !listing.status.success() {
-            return Err(Error::Invalid("could not list NSIS contents".into()));
-        }
-        let text = String::from_utf8(listing.stdout).map_err(|_| Error::Invalid("NSIS member listing is not UTF-8".into()))?;
-        validate_nsis_inventory(&text)?;
-        return Ok(());
-    }
-    let archive = tempfile::NamedTempFile::new()?;
-    let source = if extension == Some("deb") {
-        let file = archive.reopen()?;
-        let status = dokime::domain::process::command("dpkg-deb")
-            .arg("--fsys-tarfile")
-            .arg(package)
-            .stdout(file)
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map_err(|_| Error::Invalid("DEB inspection requires dpkg-deb".into()))?;
-        if !status.success() {
-            return Err(Error::Invalid("could not read DEB file inventory".into()));
-        }
-        archive.path()
-    } else {
-        package
+fn nsis_installed_name(destination: &NsisString) -> Result<Option<String>, Error> {
+    let rendered = destination.to_install_path();
+    let Some((StringSegment::Variable { name: root, .. }, rest)) = destination.segments.split_first() else {
+        return Err(Error::Invalid(format!("installer extracts a file outside its installation directory: {rendered}")));
     };
-    let listing = dokime::domain::process::command("bsdtar")
-        .arg("-tvf")
-        .arg(source)
-        .output()
-        .map_err(|_| Error::Invalid("installer inspection requires bsdtar (libarchive)".into()))?;
-    if !listing.status.success() {
-        return Err(Error::Invalid("could not list installer contents".into()));
+    match root.as_ref() {
+        "$INSTDIR" => {}
+        "$PLUGINSDIR" | "$TEMP" => return Ok(None),
+        _ => return Err(Error::Invalid(format!("installer extracts a file outside its installation directory: {rendered}"))),
     }
-    let text = String::from_utf8(listing.stdout).map_err(|_| Error::Invalid("installer inventory is not UTF-8".into()))?;
-    if text.lines().any(|line| !matches!(line.as_bytes().first(), Some(b'-' | b'd'))) {
-        return Err(Error::Invalid("installer contains a link or special file".into()));
+    let mut name = String::new();
+    for segment in rest {
+        let StringSegment::Literal(text) = segment else {
+            return Err(Error::Invalid(format!("installer member has an unresolved path: {rendered}")));
+        };
+        name.push_str(text);
     }
-    let listing = dokime::domain::process::command("bsdtar")
-        .arg("-tf")
-        .arg(source)
-        .output()
-        .map_err(|_| Error::Invalid("installer inspection requires bsdtar".into()))?;
-    if !listing.status.success() {
-        return Err(Error::Invalid("could not list installer paths".into()));
+    let name = name.strip_prefix('\\').ok_or_else(|| Error::Invalid(format!("installer member has an invalid path: {rendered}")))?;
+    Ok(Some(name.replace('\\', "/")))
+}
+
+fn read_deb(bytes: &[u8], members: &mut Members<'_>) -> Result<(), Error> {
+    let mut archive = ar::Archive::new(bytes);
+    let mut format = false;
+    let mut data = false;
+    while let Some(entry) = archive.next_entry() {
+        let mut entry = entry?;
+        let identifier = entry.header().identifier().to_vec();
+        match identifier.as_slice() {
+            b"debian-binary" if !format && !data => {
+                let mut version = Vec::new();
+                entry.read_to_end(&mut version)?;
+                if version != b"2.0\n" {
+                    return Err(Error::Invalid("DEB format version is not 2.0".into()));
+                }
+                format = true;
+            }
+            name if format && !data && name.starts_with(b"control.tar") => {}
+            b"data.tar.gz" if format && !data => {
+                read_tar(flate2::read::GzDecoder::new(&mut entry), members)?;
+                data = true;
+            }
+            _ => return Err(Error::Invalid("DEB members must be debian-binary, control.tar and a gzip data.tar.gz".into())),
+        }
     }
-    let text = String::from_utf8(listing.stdout).map_err(|_| Error::Invalid("installer path inventory is not UTF-8".into()))?;
-    for name in text.lines() {
-        let name = name.strip_prefix("./").unwrap_or(name).trim_end_matches('/');
-        if !name.is_empty() {
-            payload::relative(name)?;
+    if !data {
+        return Err(Error::Invalid("DEB has no data.tar.gz payload".into()));
+    }
+    Ok(())
+}
+
+fn read_tar(reader: impl Read, members: &mut Members<'_>) -> Result<(), Error> {
+    let mut archive = tar::Archive::new(reader);
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let name =
+            String::from_utf8(entry.path_bytes().into_owned()).map_err(|_| Error::Invalid("installer member path is not UTF-8".into()))?;
+        match entry.header().entry_type() {
+            tar::EntryType::Directory => members.directory(&name)?,
+            tar::EntryType::Regular => {
+                let mut bytes = Vec::new();
+                entry.read_to_end(&mut bytes)?;
+                members.file(&name, &bytes)?;
+            }
+            _ => return Err(Error::Invalid("installer contains a link or special file".into())),
+        }
+    }
+    Ok(())
+}
+
+fn read_rpm(bytes: &[u8], members: &mut Members<'_>) -> Result<(), Error> {
+    let invalid = |error: rpm::Error| Error::Invalid(format!("could not read RPM package: {error}"));
+    let package = rpm::Package::parse(&mut std::io::Cursor::new(bytes)).map_err(invalid)?;
+    package.verify_digests().map_err(invalid)?;
+    for file in package.files().map_err(invalid)? {
+        let file = file.map_err(invalid)?;
+        let entry = &file.metadata;
+        let path = format!("{}{}", entry.dirname(), entry.basename());
+        let name = path.strip_prefix('/').ok_or_else(|| Error::Invalid(format!("RPM member path is not absolute: {path}")))?;
+        match (entry.file_type(), file.content()) {
+            (rpm::FileType::Dir, _) => members.directory(name)?,
+            (rpm::FileType::Regular, Some(content)) => members.file(name, content)?,
+            _ => return Err(Error::Invalid(format!("installer contains a link, ghost or special file: {path}"))),
         }
     }
     Ok(())
@@ -416,7 +456,54 @@ fn validate_metadata(metadata: &DistributionMetadata) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::*;
+
+    fn extract(extension: &str, bytes: &[u8]) -> Result<tempfile::TempDir, Error> {
+        let root = tempfile::tempdir()?;
+        read_members(extension, bytes, &mut Members::new(root.path()))?;
+        Ok(root)
+    }
+
+    fn tar_gz(entries: &[(&str, tar::EntryType, &[u8])]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()));
+        for (name, kind, bytes) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(*kind);
+            header.set_mode(0o755);
+            header.set_size(bytes.len() as u64);
+            if *kind == tar::EntryType::Symlink {
+                header.set_link_name("dokime").unwrap();
+            }
+            header.as_gnu_mut().unwrap().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_cksum();
+            builder.append(&header, *bytes).unwrap();
+        }
+        builder.into_inner().unwrap().finish().unwrap()
+    }
+
+    fn deb(members: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut builder = ar::Builder::new(Vec::new());
+        for (name, bytes) in members {
+            builder.append(&ar::Header::new(name.as_bytes().to_vec(), bytes.len() as u64), *bytes).unwrap();
+        }
+        builder.into_inner().unwrap()
+    }
+
+    fn rpm(build: impl FnOnce(&mut rpm::PackageBuilder) -> &mut rpm::PackageBuilder) -> Vec<u8> {
+        let mut builder = rpm::PackageBuilder::new("dokime", "1.2.3", "Apache-2.0", "x86_64", "fixture");
+        builder.using_config(rpm::BuildConfig::default().compression(rpm::CompressionWithLevel::Gzip(1)));
+        let mut bytes = Vec::new();
+        build(&mut builder).build().unwrap().write(&mut bytes).unwrap();
+        bytes
+    }
+
+    fn nsis_path(root: &'static str, rest: &[&str]) -> NsisString {
+        let mut segments = vec![StringSegment::Variable { index: 0, name: Cow::Borrowed(root) }];
+        segments.extend(rest.iter().map(|text| StringSegment::Literal((*text).into())));
+        NsisString { segments }
+    }
 
     #[test]
     fn native_magic() {
@@ -429,10 +516,68 @@ mod tests {
     }
 
     #[test]
-    fn nsis_inventory() {
-        assert!(validate_nsis_inventory("Type = Nsis\n----------\nPath = dokime.exe\n").is_ok());
-        assert!(validate_nsis_inventory("Type = zip\n----------\nPath = dokime.exe\n").is_err());
-        assert!(validate_nsis_inventory("Type = Nsis\n----------\nPath = ../outside\n").is_err());
+    fn deb_members() {
+        let data = tar_gz(&[
+            ("./", tar::EntryType::Directory, b""),
+            ("./usr/bin/", tar::EntryType::Directory, b""),
+            ("./usr/bin/dokime", tar::EntryType::Regular, b"binary"),
+            ("./usr/lib/dokime/LICENSE", tar::EntryType::Regular, b"license"),
+        ]);
+        let package = deb(&[("debian-binary", b"2.0\n"), ("control.tar.gz", b"control"), ("data.tar.gz", &data)]);
+        let root = extract("deb", &package).unwrap();
+        assert_eq!(std::fs::read(root.path().join("usr/bin/dokime")).unwrap(), b"binary");
+        assert_eq!(std::fs::read(root.path().join("usr/lib/dokime/LICENSE")).unwrap(), b"license");
+
+        let linked = tar_gz(&[("./usr/bin/link", tar::EntryType::Symlink, b"")]);
+        let escaping = tar_gz(&[("../outside", tar::EntryType::Regular, b"x")]);
+        let duplicate = tar_gz(&[("./LICENSE", tar::EntryType::Regular, b"a"), ("LICENSE", tar::EntryType::Regular, b"b")]);
+        for data in [linked, escaping, duplicate] {
+            let package = deb(&[("debian-binary", b"2.0\n"), ("control.tar.gz", b"control"), ("data.tar.gz", &data)]);
+            assert!(extract("deb", &package).is_err());
+        }
+        assert!(extract("deb", &deb(&[("debian-binary", b"2.0\n"), ("data.tar.xz", b"xz")])).is_err());
+        assert!(extract("deb", &deb(&[("data.tar.gz", &data)])).is_err());
+        assert!(extract("deb", &deb(&[("debian-binary", b"2.0\n")])).is_err());
+    }
+
+    #[test]
+    fn rpm_members() {
+        let package = rpm(|builder| {
+            builder.with_file_contents("binary", rpm::FileOptions::new("/usr/bin/dokime")).unwrap();
+            builder.with_file_contents("license", rpm::FileOptions::new("/usr/lib/dokime/LICENSE")).unwrap()
+        });
+        let root = extract("rpm", &package).unwrap();
+        assert_eq!(std::fs::read(root.path().join("usr/bin/dokime")).unwrap(), b"binary");
+        assert_eq!(std::fs::read(root.path().join("usr/lib/dokime/LICENSE")).unwrap(), b"license");
+
+        let mut tampered = package.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0xff;
+        assert!(extract("rpm", &tampered).is_err());
+        let linked = rpm(|builder| builder.with_symlink(rpm::FileOptions::symlink("/usr/bin/link", "dokime")).unwrap());
+        assert!(extract("rpm", &linked).is_err());
+    }
+
+    #[test]
+    fn nsis_members() {
+        let organization = nsis_path("$INSTDIR", &["\\", "organization\\organization.toml"]);
+        assert_eq!(nsis_installed_name(&organization).unwrap().as_deref(), Some("organization/organization.toml"));
+        assert_eq!(nsis_installed_name(&nsis_path("$INSTDIR", &["\\dokime.exe"])).unwrap().as_deref(), Some("dokime.exe"));
+        assert_eq!(nsis_installed_name(&nsis_path("$PLUGINSDIR", &["\\nsDialogs.dll"])).unwrap(), None);
+        assert_eq!(nsis_installed_name(&nsis_path("$TEMP", &["\\MicrosoftEdgeWebview2Setup.exe"])).unwrap(), None);
+        assert!(nsis_installed_name(&nsis_path("$SYSDIR", &["\\dokime.dll"])).is_err());
+        assert!(nsis_installed_name(&nsis_path("$INSTDIR", &["dokime.exe"])).is_err());
+        let mut variable = nsis_path("$INSTDIR", &["\\"]);
+        variable.segments.push(StringSegment::Variable {
+            index: 0,
+            name: Cow::Borrowed("$LANGUAGE"),
+        });
+        assert!(nsis_installed_name(&variable).is_err());
+        let relative = NsisString {
+            segments: vec![StringSegment::Literal("dokime.exe".into())],
+        };
+        assert!(nsis_installed_name(&relative).is_err());
+        assert!(extract("exe", b"MZ\x90\x00 not an NSIS installer").is_err());
     }
 
     #[test]

@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2 } from "lucide-react";
+import { Eye, FileText, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
@@ -156,11 +156,10 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             dataTableColumns<ExecutionBrowseEntry>().display({
               id: "actions",
               header: "Actions",
-              meta: { width: "w-48", align: "end" },
               cell: ({ row }) => (
                 <DataTableRowActions
                   label={row.original.metadata.title}
-                  primary={{ label: "Inspect", disabled: !row.original.checkpoint, onSelect: () => setSelected(row.original) }}
+                  primary={{ label: "Inspect", icon: Eye, disabled: !row.original.checkpoint, onSelect: () => setSelected(row.original) }}
                 >
                   <DropdownMenuItem
                     variant="destructive"

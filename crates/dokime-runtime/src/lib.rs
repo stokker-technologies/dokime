@@ -12,7 +12,7 @@
 /* === Modules === */
 
 // Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
-#[cfg(all(test, feature = "host"))]
+#[cfg(all(test, feature = "native"))]
 #[path = "../tests/support/services/mod.rs"]
 pub mod service_support;
 
@@ -83,40 +83,40 @@ pub mod __answer {
     }
 }
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod app;
 
 #[cfg(feature = "configuration")]
 pub mod config;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod persistence;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod plot;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod plugins;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod report;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod runtime;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod services;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod state;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod streams;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod transactions;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod brand {
     pub use crate::domains::installed_plugins::brand::theme;
 }
@@ -182,52 +182,52 @@ pub use prost as __prost;
 #[cfg(feature = "native")]
 pub use tokio as __tokio;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use domains::{
     documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins, parameters as parameter_runtime,
     prompts as prompt_runtime, secrets, telemetry as telemetry_runtime, traceability as traceability_runtime,
 };
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::command as commands;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::command::CommandReceipt;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::query as queries;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::{handle, state as runtime_state};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use app::Dokime;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use config::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use dokime_domain::model::plugins::InstalledPlugin;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use domains::documents::{CurrentDocumentCapture, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use domains::telemetry::LeaseFact;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::RuntimeState;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
 /* === Imports === */
@@ -242,7 +242,7 @@ extern crate self as dokime_runtime;
 
 /* === Constants === */
 
-pub const MACRO_CONTRACT: u32 = 27;
+pub const MACRO_CONTRACT: u32 = 28;
 
 /* === Macros === */
 

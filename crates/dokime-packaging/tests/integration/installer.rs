@@ -74,6 +74,7 @@ async fn tampered_payload() {
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
         .unwrap();
     let options = PackageOptions {
+        plugins: Vec::new(),
         artifacts: Some(artifacts),
         output: root.path().join("output"),
         sign: false,
@@ -103,6 +104,7 @@ async fn missing_signing() {
     std::fs::write(&manifest, format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='1.2.3'\ntarget='{target}'"))
         .unwrap();
     let options = PackageOptions {
+        plugins: Vec::new(),
         artifacts: None,
         output: root.path().join("output"),
         sign: true,
@@ -135,6 +137,7 @@ async fn download_initializes_tls() {
         "00".repeat(32)
     )).unwrap();
     let options = PackageOptions {
+        plugins: Vec::new(),
         artifacts: None,
         output: root.path().join("output"),
         sign: false,
@@ -155,6 +158,7 @@ fn staged_resource_iteration() {
     let staging = tempfile::Builder::new().prefix("dokime-installer-test-").tempdir_in(&root).unwrap();
     let files = [
         ("organization/fonts/font.woff2", b"font payload".as_slice()),
+        ("plugins/host.dokime", b"plugin bundle".as_slice()),
         ("LICENSE", b"license payload".as_slice()),
         ("distribution.json", b"distribution payload".as_slice()),
     ];

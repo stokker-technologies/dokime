@@ -71,7 +71,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleBrowsePage {
     pub entries: Vec<SavedCycleSummary>,
@@ -79,7 +79,7 @@ pub struct CycleBrowsePage {
     pub next_after_sequence: Option<u64>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedCycleSummary {
     pub cycle_id: String,
@@ -91,7 +91,7 @@ pub struct SavedCycleSummary {
     pub archived: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteExecutionResponse {
     pub request_identifier: String,
@@ -107,7 +107,7 @@ pub struct DeleteExecutionResponse {
 // fields, and an empty repeated field is no constraint. The timestamp range is
 // inclusive and compares `started_at`; an entry that has not started is
 // excluded by either bound.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFilter {
     pub text: String,
@@ -122,14 +122,14 @@ pub struct ExecutionFilter {
     pub archive: Option<crate::model::execution::wire::ArchiveScope>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionOrder {
     pub key: ExecutionOrderKey,
     pub descending: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionBrowsePage {
     pub entries: Vec<ExecutionBrowseEntry>,
@@ -155,7 +155,7 @@ pub struct ExecutionBrowsePage {
 // admitted to run but not yet started; `running_count` counts live running
 // executions. `result_status` is present only once the cycle settled: FAILED
 // when any execution failed, PASSED when every execution passed.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionBrowseCycle {
     pub cycle_id: String,
@@ -176,7 +176,7 @@ pub struct ExecutionBrowseCycle {
     pub phase: Option<crate::model::execution::result::CyclePhase>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionBrowseEntry {
     pub metadata: Option<HistoricalExecutionMetadata>,
@@ -185,7 +185,7 @@ pub struct ExecutionBrowseEntry {
     pub archived: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalExecutionMetadata {
     pub execution_id: String,
@@ -208,7 +208,7 @@ pub struct HistoricalExecutionMetadata {
     pub suite_label: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoryIssue {
     pub source: Option<String>,
@@ -216,7 +216,7 @@ pub struct HistoryIssue {
     pub message: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointDocument {
     pub checkpoint: Option<ExecutionCheckpoint>,
@@ -224,21 +224,21 @@ pub struct CheckpointDocument {
     pub acquisition_finished: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalExecutionDocument {
     pub cycle: Option<HistoricalExecutionCycle>,
     pub execution: Option<HistoricalTestExecution>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalExecutionCycle {
     pub cycle_id: String,
     pub metadata: Option<Metadata>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalTestExecution {
     pub execution_id: String,
@@ -261,7 +261,7 @@ pub struct HistoricalTestExecution {
     pub mode: ExecutionMode,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalStepAttemptStart {
     pub attempt_id: String,
@@ -269,7 +269,7 @@ pub struct HistoricalStepAttemptStart {
     pub started_at: Option<Timestamp>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalStepAttempt {
     pub attempt_id: String,
@@ -280,7 +280,7 @@ pub struct HistoricalStepAttempt {
     pub detail: Option<Diagnostic>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalExecutionSnapshot {
     pub suite: Option<Metadata>,
@@ -298,7 +298,7 @@ pub struct HistoricalExecutionSnapshot {
     pub host_version: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalCaseDefinition {
     pub case_id: String,
@@ -310,7 +310,7 @@ pub struct HistoricalCaseDefinition {
     pub suite_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalStep {
     pub step_id: String,
@@ -325,7 +325,7 @@ pub struct HistoricalStep {
 // A historical document retains the standard presentation header and the
 // authored layout/card identities. Payload data remains owned by the relevant
 // evidence APIs, as it is for current DocumentFrame streams.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalDocument {
     pub presentation: Option<DocumentHeader>,
@@ -338,7 +338,7 @@ pub struct HistoricalDocument {
 // presentation/layout vocabulary. A checkpoint must remain renderable after
 // the live suite registry has changed, so plot and summary configuration is
 // explicit rather than reduced to an owner reference or fabricated defaults.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalDocumentCard {
     pub metadata: Option<Metadata>,
@@ -346,20 +346,20 @@ pub struct HistoricalDocumentCard {
     pub body: Option<HistoricalDocumentCardBody>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalTelemetrySummary {
     pub groups: Vec<HistoricalSummaryGroup>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalSummaryGroup {
     pub metadata: Option<Metadata>,
     pub tiles: Vec<HistoricalSummaryTile>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalSummaryTile {
     pub metadata: Option<Metadata>,
@@ -372,7 +372,7 @@ pub struct HistoricalSummaryTile {
     pub conditions: Vec<HistoricalSummaryCondition>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalSummaryCondition {
     pub operator: FilterOperator,
@@ -380,7 +380,7 @@ pub struct HistoricalSummaryCondition {
     pub state: DocumentSummaryState,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalDocumentFilter {
     pub expression: Option<DataExpression>,
@@ -388,14 +388,14 @@ pub struct HistoricalDocumentFilter {
     pub value: Option<Value>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointTelemetryTable {
     pub table: String,
     pub schema: Option<TelemetrySchema>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointEvidence {
     pub checkpoint: Option<ExecutionCheckpoint>,
@@ -405,14 +405,14 @@ pub struct CheckpointEvidence {
     pub telemetry_tables: Vec<CheckpointTelemetryTable>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointFileWindow {
     pub checkpoint: Option<ExecutionCheckpoint>,
     pub content: Option<ExecutionFileWindow>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointRecordPage {
     pub checkpoint: Option<ExecutionCheckpoint>,
@@ -423,14 +423,14 @@ pub struct CheckpointRecordPage {
 }
 
 // The Original Producer Epoch Qualifies The Process-Local Journal Sequence.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedRecord {
     pub epoch: String,
     pub record: Option<CapturedRecord>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointTelemetryPage {
     pub checkpoint: Option<ExecutionCheckpoint>,
@@ -442,7 +442,7 @@ pub struct CheckpointTelemetryPage {
 }
 
 // The Original Producer Epoch Qualifies The Process-Local Sample Ordinal.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedTelemetrySample {
     pub epoch: String,
@@ -450,7 +450,7 @@ pub struct SavedTelemetrySample {
     pub sample: Option<TelemetrySample>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointContext {
     pub checkpoint: Option<ExecutionCheckpoint>,
@@ -466,14 +466,14 @@ pub struct CheckpointContext {
     pub appearance: Option<AppearanceSnapshot>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalCycleContext {
     pub cycle: Option<HistoricalCycle>,
     pub execution_order: Vec<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalCycle {
     pub cycle_id: String,
@@ -493,7 +493,7 @@ pub struct HistoricalCycle {
 // execution ID ascending, so equal keys never permute between pages. An
 // unspecified key is STARTED_AT. TITLE compares the case-folded title. An
 // absent timestamp sorts after every present one in ascending order.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionOrderKey {
     Unspecified,
@@ -505,7 +505,7 @@ pub enum ExecutionOrderKey {
 // Where a browsed cycle stands, by precedence: any live running execution,
 // then any interrupted one, then work still pending (or nothing ran), then any
 // execution without a checkpoint; otherwise every execution completed.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionBrowseLifecycle {
     Unspecified,
@@ -516,7 +516,7 @@ pub enum ExecutionBrowseLifecycle {
     Completed,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionAvailability {
     Unspecified,
@@ -526,7 +526,7 @@ pub enum ExecutionAvailability {
     Uncheckpointed,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepTermination {
     Unspecified,
@@ -536,7 +536,7 @@ pub enum StepTermination {
     Interrupted,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceSection {
     Unspecified,
@@ -546,7 +546,7 @@ pub enum EvidenceSection {
     TelemetryTables,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum HistoricalDocumentCardBody {
     Markdown(String),

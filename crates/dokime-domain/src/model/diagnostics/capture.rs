@@ -85,14 +85,14 @@ struct Redaction {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for Diagnostic {
+impl harmos::MemorySize for Diagnostic {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
-            (harmos_domain::MemorySize::memory_size(&self.chain), std::mem::size_of_val(&self.chain)),
-            (harmos_domain::MemorySize::memory_size(&self.location), std::mem::size_of_val(&self.location)),
-            (harmos_domain::MemorySize::memory_size(&self.span_trace), std::mem::size_of_val(&self.span_trace)),
-            (harmos_domain::MemorySize::memory_size(&self.backtrace), std::mem::size_of_val(&self.backtrace)),
+            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos::MemorySize::memory_size(&self.chain), std::mem::size_of_val(&self.chain)),
+            (harmos::MemorySize::memory_size(&self.location), std::mem::size_of_val(&self.location)),
+            (harmos::MemorySize::memory_size(&self.span_trace), std::mem::size_of_val(&self.span_trace)),
+            (harmos::MemorySize::memory_size(&self.backtrace), std::mem::size_of_val(&self.backtrace)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

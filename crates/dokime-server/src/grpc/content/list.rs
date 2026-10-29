@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -25,10 +25,11 @@ use tonic::Status;
 use super::metadata;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
+use dokime::app::LiveRuntime;
+use dokime::artifacts::ArtifactRecord;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 
 /* === Constants === */
 
@@ -39,11 +40,16 @@ use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ListArtifacts),
+}
 
 /* === Traits === */
 
@@ -56,8 +62,8 @@ impl Serve<wire::ListArtifacts> for Resources {
         Box::pin(async move {
             let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_artifact_id)
                 .map_err(value::canonical::cursor_failure)?;
-            let epoch = self.runtime.process_epoch().to_string();
-            let records = self.runtime.artifacts().await.map_err(inventory_failure)?;
+            let epoch = dokime::app::live_runtime(&self.runtime).await?.process_epoch().to_string();
+            let records = dokime::app::live_runtime(&self.runtime).await?.artifacts().await.map_err(inventory_failure)?;
             let start = if request.after_artifact_id.is_empty() {
                 0
             } else {
@@ -76,12 +82,14 @@ impl Serve<wire::ListArtifacts> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ListArtifacts>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListArtifacts>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ListArtifacts>>(Host::<wire::ListArtifacts>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

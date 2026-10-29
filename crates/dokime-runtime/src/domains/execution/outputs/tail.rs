@@ -114,7 +114,7 @@ impl RuntimeHandle {
                 id: name.clone(),
                 policy: harmos::services::POLICY,
             };
-            let factory = move |_: Arc<()>| LogTail {
+            let factory = move |_: Arc<harmos::ExecutionContext>| LogTail {
                 poll_interval,
                 storage: Arc::clone(&storage),
                 source: source.clone(),

@@ -76,8 +76,8 @@ function plotContextStreams(documentPlots: DocumentViewCard["plots"]): string[] 
       return;
     }
     streams.add(stream);
-    if (stream === "host.wifi.channel_occupancy") {
-      streams.add("host.wifi");
+    if (stream === "host.wifi.scan") {
+      streams.add("host.wifi.link");
     }
   });
   return [...streams].sort();

@@ -70,7 +70,7 @@ pub fn wifi_request(scope: Option<RecordScope>, max_points: Option<usize>) -> Pl
         plot_type: None,
         x_scale: Default::default(),
         y_scale: Default::default(),
-        stream: "host.wifi.channel_occupancy".to_owned(),
+        stream: "host.wifi.scan".to_owned(),
         y_keys: vec!["network_count".to_owned()],
         marker_record_types: Vec::new(),
         filters: Vec::new(),
@@ -99,7 +99,7 @@ pub async fn sample_plot(samples: usize, display_points: usize) {
     register_plot_suite(&runtime).await;
     // Each Batch Continues The Stream In Time, As A Live Source Publishes It.
     for first in (0..samples).step_by(SAMPLE_BATCH) {
-        let batch = super::evidence::samples_from("host.wifi.channel_occupancy", first, SAMPLE_BATCH, None);
+        let batch = super::evidence::samples_from("host.wifi.scan", first, SAMPLE_BATCH, None);
         runtime.publish_telemetry_batch(batch).await.unwrap();
         runtime.storage().flush().await.unwrap();
     }
@@ -177,7 +177,7 @@ fn day_windows() -> Vec<PlotPayloadRequest> {
 // 120 Minute Rows From `first`, Each Carrying Its Minute As Index And Value.
 fn minute_batch(first: usize) -> TelemetryBatch {
     const MIDNIGHT: u64 = 1_767_225_600;
-    let mut batch = super::evidence::samples("host.wifi.channel_occupancy", 120, None);
+    let mut batch = super::evidence::samples("host.wifi.scan", 120, None);
     for (offset, sample) in batch.samples.iter_mut().enumerate() {
         let minute = first + offset;
         let elapsed = Duration::from_secs(MIDNIGHT + minute as u64 * 60);

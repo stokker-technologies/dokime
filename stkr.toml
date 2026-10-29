@@ -629,13 +629,13 @@ signed_only = true
 
 [[release.assets]]
 target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
-name = "obc-plugin-{version}-{target}.dokime"
+path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
+name = "host-{version}-{target}.dokime"
 
 [[release.assets]]
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
-name = "obc-plugin-{version}-{target}.dokime"
+path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
+name = "host-{version}-{target}.dokime"
 
 [[release.assets]]
 target = "linux-x86_64"

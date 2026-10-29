@@ -44,7 +44,7 @@ def build() -> None:
     directory = output / "bench"
     binaries = output / "bin"
     tool = binaries / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
-    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins")
+    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES)
     staged += [path for path in directory.rglob("*") if path.is_file()]
     staged += [path for path in binaries.iterdir() if path.is_file()]
 

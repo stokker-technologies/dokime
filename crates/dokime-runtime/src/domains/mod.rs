@@ -12,43 +12,43 @@
 pub mod authoring;
 
 mod dispatch;
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod secrets;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod documents;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod evidence;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod execution;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod exports;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod files;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod installed_plugins;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod media;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod parameters;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod prompts;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod settings;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod telemetry;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod traceability;
 
 /* === Re-Exports === */

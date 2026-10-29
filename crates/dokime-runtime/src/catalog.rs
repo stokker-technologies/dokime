@@ -60,8 +60,7 @@ pub type Publish = for<'a> fn(
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
-pub type Bind =
-    fn(&mut harmos::sidecar::operations::WireTable, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
+pub type Bind<P> = fn(&mut harmos::Setup<P>, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
 
 /* === Structs === */
 
@@ -114,6 +113,12 @@ pub struct SuiteBindings<P>(PhantomData<fn() -> P>);
 
 #[cfg(feature = "native")]
 pub struct SuiteOperations;
+
+#[cfg(feature = "native")]
+pub struct TemplateCatalogs;
+
+#[cfg(feature = "native")]
+pub struct SuiteCatalogs;
 
 #[cfg(feature = "native")]
 pub struct Publications<P>(PhantomData<fn() -> P>);
@@ -304,14 +309,14 @@ impl<T: TelemetryStream> Member<T> for StreamIdentifiers {
 }
 
 #[cfg(feature = "native")]
-impl<P> Visitor for TemplateBindings<P> {
-    type Entry = Bind;
+impl<P: harmos::Plugin> Visitor for TemplateBindings<P> {
+    type Entry = Bind<P>;
 }
 
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for TemplateBindings<P>
 where
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
     T: SidecarTemplate,
 {
     const ENTRY: Self::Entry = {
@@ -364,14 +369,14 @@ impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteOperations {
 }
 
 #[cfg(feature = "native")]
-impl<P> Visitor for SuiteBindings<P> {
-    type Entry = Bind;
+impl<P: harmos::Plugin> Visitor for SuiteBindings<P> {
+    type Entry = Bind<P>;
 }
 
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for SuiteBindings<P>
 where
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
     T: crate::definition::DeclaredSuite,
 {
     const ENTRY: Self::Entry = T::bind::<P>;
@@ -385,7 +390,7 @@ impl<P> Visitor for Publications<P> {
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for Publications<P>
 where
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
     T: TelemetryStream<Row: harmos::Message>,
 {
     const ENTRY: Self::Entry = PublicationEntry { id: T::ID, publish: publish::<T, P> };
@@ -403,7 +408,73 @@ impl<T: crate::plugin::Listener> Member<T> for Listeners {
     };
 }
 
+#[cfg(feature = "native")]
+impl Visitor for TemplateCatalogs {
+    type Entry = harmos::Catalog;
+}
+#[cfg(feature = "native")]
+impl<T: SidecarTemplate> Member<T> for TemplateCatalogs {
+    const ENTRY: Self::Entry = crate::execution::Operations::<T>::CATALOG;
+}
+#[cfg(feature = "native")]
+impl Visitor for SuiteCatalogs {
+    type Entry = &'static [harmos::Catalog];
+}
+#[cfg(feature = "native")]
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteCatalogs {
+    const ENTRY: Self::Entry = T::CATALOGS;
+}
+
 /* === Public Functions === */
+
+#[cfg(feature = "native")]
+pub const fn contribution_catalog_count(nodes: &[Node<&[harmos::Catalog]>]) -> usize {
+    let mut count = 0;
+    let mut index = 0;
+    while index < nodes.len() {
+        count += match &nodes[index] {
+            Node::Leaf(catalogs) => catalogs.len(),
+            Node::Nested(nested) => contribution_catalog_count(nested),
+        };
+        index += 1;
+    }
+    count
+}
+
+#[cfg(feature = "native")]
+pub const fn plugin_catalogs<const N: usize>(
+    authored: &[harmos::Catalog], contributed: &[Node<&[harmos::Catalog]>],
+) -> [harmos::Catalog; N] {
+    let mut catalogs = [crate::execution::Empty::CATALOG; N];
+    let mut index = 0;
+    while index < authored.len() {
+        catalogs[index] = authored[index];
+        index += 1;
+    }
+    let written = write_catalogs(contributed, &mut catalogs, index);
+    assert!(written == N, "a plugin owns exactly its authored and contributed catalogs");
+    catalogs
+}
+
+#[cfg(feature = "native")]
+const fn write_catalogs<const N: usize>(nodes: &[Node<&[harmos::Catalog]>], catalogs: &mut [harmos::Catalog; N], mut at: usize) -> usize {
+    let mut index = 0;
+    while index < nodes.len() {
+        match &nodes[index] {
+            Node::Leaf(entries) => {
+                let mut entry = 0;
+                while entry < entries.len() {
+                    catalogs[at] = entries[entry];
+                    at += 1;
+                    entry += 1;
+                }
+            }
+            Node::Nested(nested) => at = write_catalogs(nested, catalogs, at),
+        }
+        index += 1;
+    }
+    at
+}
 
 pub fn entries<C, V>() -> Vec<V::Entry>
 where
@@ -655,7 +726,7 @@ fn publish<'a, T, P>(
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>
 where
     T: TelemetryStream<Row: harmos::Message>,
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
 {
     Box::pin(async move {
         let publisher = host.publisher::<P>();

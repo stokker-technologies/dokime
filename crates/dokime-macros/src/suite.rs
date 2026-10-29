@@ -165,6 +165,14 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             const TEMPLATE_IDENTIFIERS: &'static [#sdk::catalog::Node<&'static str>] =
                 <#templates as #sdk::catalog::IdentifierCatalog<#sdk::catalog::TemplateIdentifierNodes>>::IDENTIFIERS;
 
+            const CATALOGS: &'static [#sdk::__harmos::Catalog] = {
+                const NODES: &[#sdk::catalog::Node<#sdk::__harmos::Catalog>] =
+                    <#templates as #sdk::catalog::InertCatalog<#sdk::catalog::TemplateCatalogs, #sdk::__harmos::Catalog>>::ENTRIES;
+                const COUNT: usize = #sdk::__harmos::catalog::count(NODES);
+                const CATALOGS: [#sdk::__harmos::Catalog; COUNT] = #sdk::catalog::flatten(NODES, #sdk::execution::Empty::CATALOG);
+                &CATALOGS
+            };
+
             const OPERATIONS: &'static [#sdk::catalog::Node<#sdk::__harmos::operations::WireDeclaration>] =
                 &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateOperations>>::ENTRIES;
             const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] =
@@ -174,14 +182,14 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                 <Self>::definition()
             }
 
-            fn bind<__DokimePlugin: #sdk::__harmos::plugin::Declared>(
-                table: &mut #sdk::__harmos::sidecar::operations::WireTable,
+            fn bind<__DokimePlugin: #sdk::__harmos::Plugin + #sdk::__harmos::plugin::Declared>(
+                setup: &mut #sdk::__harmos::Setup<__DokimePlugin>,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
             ) -> ::core::result::Result<(), #sdk::__harmos::sidecar::operations::ServingError> {
                 let contracts = <Self>::definition().record_contracts;
                 for bind in <#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateBindings<__DokimePlugin>>>::ENTRIES {
-                    bind(table, #identifier, &contracts)?;
+                    bind(setup, #identifier, &contracts)?;
                 }
                 ::core::result::Result::Ok(())
             }

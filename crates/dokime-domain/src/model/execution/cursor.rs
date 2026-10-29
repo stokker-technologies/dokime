@@ -18,8 +18,7 @@ use std::mem::size_of;
 
 // Third Party Imports
 use base64::Engine;
-use harmos_domain::Error;
-use harmos_domain::Result;
+use harmos::domain::{Error, Result};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -49,7 +48,7 @@ pub struct PageCursor {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for PageCursor {
+impl harmos::MemorySize for PageCursor {
     fn memory_size(&self) -> usize {
         size_of::<Self>()
     }

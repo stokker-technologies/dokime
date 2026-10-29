@@ -138,10 +138,14 @@ impl ScopedFixture {
         let root = tempfile::tempdir().unwrap();
         let metadata = || dokime::Metadata::new(dokime::Identifier::new("rpc.artifact-upload").unwrap(), "Artifact upload fixture", None);
         let execution = std::sync::Arc::new(ActiveFixture::default());
-        let runtime =
-            dokime::Runtime::with_execution_fixture(dokime::RuntimeConfig::new(root.path(), metadata()), "fixture", execution.clone())
-                .await
-                .unwrap();
+        let prepared_runtime = dokime_server::grpc::Service::prepare(dokime_server::grpc::Config::local()).unwrap();
+        let runtime = dokime::Runtime::with_execution_fixture(
+            prepared_runtime.configuration(dokime::RuntimeConfig::new(root.path(), metadata())),
+            "fixture",
+            execution.clone(),
+        )
+        .await
+        .unwrap();
         let handle = runtime.handle();
         let template = dokime::definition::TestCaseTemplate {
             test_case_template_id: dokime::model::identity::new_id::<dokime::TemplateId>(),
@@ -185,7 +189,7 @@ impl ScopedFixture {
             .await;
         assert_eq!(receipt.status, dokime::runtime::command::CommandStatus::Accepted);
         let mut state = handle.watch_state();
-        let server = dokime_server::grpc::Server::start(handle, dokime_server::grpc::Config::local()).await.unwrap();
+        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
         let session = dokime_gui::connection::ConnectionSession::default();
         session
             .connect(dokime_gui::connection::ConnectRequest {

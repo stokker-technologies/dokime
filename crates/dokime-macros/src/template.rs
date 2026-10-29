@@ -1018,7 +1018,7 @@ fn engine(
                 })
             }
 
-            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::Declared>(
+            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::Plugin + #sdk::__harmos::plugin::Declared>(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::Identifier,

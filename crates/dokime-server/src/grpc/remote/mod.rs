@@ -11,7 +11,7 @@
 
 /* === Modules === */
 
-mod operations;
+pub(super) mod operations;
 pub(super) mod pairing;
 pub(super) mod sessions;
 mod store;
@@ -316,7 +316,7 @@ impl Controller {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Result<Arc<Controller>, Error> {
+pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Result<Arc<Controller>, Error> {
     let path = runtime.application_root().join("remote").join("access.json");
     let read_path = path.clone();
     let settings = runtime.read_application_settings().await?.settings.listener;
@@ -353,7 +353,6 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
             }
         }
     });
-    operations::register(runtime, controller.clone()).await?;
     Ok(controller)
 }
 

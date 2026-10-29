@@ -89,11 +89,11 @@ pub struct Selection {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for Selection {
+impl harmos::MemorySize for Selection {
     fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(self.id.capacity()).saturating_add(
-            harmos_domain::MemorySize::memory_size(&self.parameters).saturating_sub(std::mem::size_of_val(&self.parameters)),
-        )
+        std::mem::size_of::<Self>()
+            .saturating_add(self.id.capacity())
+            .saturating_add(harmos::MemorySize::memory_size(&self.parameters).saturating_sub(std::mem::size_of_val(&self.parameters)))
     }
 }
 

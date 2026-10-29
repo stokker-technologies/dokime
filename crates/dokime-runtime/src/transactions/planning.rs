@@ -56,7 +56,7 @@ pub struct CycleDefinition {
     pub continue_automatically: bool,
 }
 
-#[harmos::transaction(id = "dokime.suite.cases.register", irreversible)]
+#[harmos::transaction(id = "dokime.suite.cases.register")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegisterCases {
     pub registration_id: CommandId,
@@ -66,7 +66,7 @@ pub struct RegisterCases {
 }
 
 // A Cycle Opens Empty; Explicit Execution Identities Join Through AppendExecutions.
-#[harmos::transaction(id = "dokime.execution.cycle.create", irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.create")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateCycle {
     pub definition: CycleDefinition,

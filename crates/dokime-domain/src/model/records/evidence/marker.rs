@@ -49,13 +49,13 @@ pub struct RecordMarker {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for RecordMarker {
+impl harmos::MemorySize for RecordMarker {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
-            (harmos_domain::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
-            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
+            (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

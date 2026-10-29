@@ -144,7 +144,7 @@ tauri-build = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../../dokime", features = ["host", "fft", "plugin-sidecar"] }
+dokime = { path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
 
 # Git
 

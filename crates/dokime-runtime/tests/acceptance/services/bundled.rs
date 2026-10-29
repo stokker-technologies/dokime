@@ -54,7 +54,7 @@ async fn external_analysis_reload() {
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     crate::service_support::plots::register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.scan", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = crate::service_support::plots::wifi_request(None, Some(1));
     request.analysis = Some(dokime_runtime::analysis::Selection {

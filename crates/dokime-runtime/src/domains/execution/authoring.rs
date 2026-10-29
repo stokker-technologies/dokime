@@ -222,10 +222,6 @@ impl SidecarStepContext {
         self.runtime.request_sampling(sampling_scope(&self.scope), params, sampler).await.map_err(StepContextError::from)
     }
 
-    pub async fn capture_host_async(&self, params: TelemetrySamplingRequest) -> Result<TelemetryCaptureLease, StepContextError> {
-        leased_host_sampling(&self.runtime, sampling_scope(&self.scope), params).await.map_err(StepContextError::from)
-    }
-
     pub async fn stop_async(&self, capture: &TelemetryCaptureLease) -> Result<bool, StepContextError> {
         self.runtime.stop_telemetry_capture(&capture.lease_id).await.map_err(StepContextError::from)
     }
@@ -490,16 +486,6 @@ impl From<crate::runtime::Error> for StepContextError {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-async fn leased_host_sampling(
-    runtime: &RuntimeHandle, scope: SamplingScope, params: TelemetrySamplingRequest,
-) -> crate::runtime::Result<TelemetryCaptureLease> {
-    runtime
-        .request_host_sampling(scope, vec![params])
-        .await?
-        .pop()
-        .ok_or_else(|| crate::runtime::Error::Operation("host telemetry capture was not leased".to_owned()))
-}
 
 fn resource_record_details(metadata: &RuntimeResourceMetadata) -> BTreeMap<String, Value> {
     let mut details = metadata.details.clone();

@@ -20,17 +20,17 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use super::content::{content_failure, metadata};
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::operations::files as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::{
-    RuntimeHandle,
     domains::files::{CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent},
     runtime::Error,
 };
@@ -44,7 +44,7 @@ use dokime::{
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
 }
 
 // Seals What An Abandoned Stream Captured: A Cancelled Or Failed Call Drops The Future.
@@ -53,6 +53,11 @@ struct Sealing {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::FileWatch),
+}
 
 /* === Traits === */
 
@@ -65,7 +70,8 @@ impl Serve<contract::FileWatch> for Resources {
             crate::grpc::access::during(revoked, async {
                 // A Step's Call Carries Its Execution; A Listener Call Names It
                 let scoped = ctx.call().value::<dokime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
-                let watch = self.runtime.open_file_watch(&request, scoped.as_deref()).await.map_err(failure)?;
+                let watch =
+                    dokime::app::live_runtime(&self.runtime).await?.open_file_watch(&request, scoped.as_deref()).await.map_err(failure)?;
                 let mut guard = Sealing { watch: Some(watch) };
                 let watch = guard.watch.as_mut().expect("file watch was just opened");
 
@@ -138,12 +144,12 @@ impl Drop for Sealing {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone() });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::FileWatch>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<contract::FileWatch>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::FileWatch>>(Host::<contract::FileWatch>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

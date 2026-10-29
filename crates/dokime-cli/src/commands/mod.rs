@@ -12,6 +12,7 @@
 mod backend;
 mod catalog;
 mod cycle;
+mod doctor;
 mod evidence;
 mod execution;
 mod gui;
@@ -70,6 +71,8 @@ pub(crate) enum Command {
     #[command(subcommand, about = "Install Plugin Bundles On A Backend.")]
     Plugin(plugin::Command),
 
+    #[command(subcommand, about = "Diagnose This Machine Without A Backend.")]
+    Doctor(doctor::Command),
     Server(server::Args),
     Gui(gui::Args),
     Version(version::Args),
@@ -100,6 +103,7 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
         Command::Operation(command) => operation::run(command, settings).await,
         Command::Plan(command) => plan::run(command, settings).await,
         Command::Plugin(command) => plugin::run(command, settings).await,
+        Command::Doctor(command) => doctor::run(command, configuration).await,
         Command::Server(args) => Box::pin(server::run(args, configuration)).await,
         Command::Gui(args) => gui::run(args),
         Command::Version(args) => {

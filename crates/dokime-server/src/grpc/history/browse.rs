@@ -17,13 +17,13 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{self, canonical};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::history as wire;
@@ -40,11 +40,16 @@ use dokime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey}
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::BrowseExecutions),
+}
 
 /* === Traits === */
 
@@ -69,7 +74,8 @@ impl Serve<wire::BrowseExecutions> for Resources {
                 filter: execution_filter(request.filter.take())?,
                 order: execution_order(request.order.take())?,
             };
-            let page = self.runtime.browse_executions(query).await.map_err(super::wire::query_failure)?;
+            let page =
+                dokime::app::live_runtime(&self.runtime).await?.browse_executions(query).await.map_err(super::wire::query_failure)?;
             project(page, self.maximum).map_err(|source| super::wire::query_failure(source.into()))
         })
     }
@@ -77,12 +83,14 @@ impl Serve<wire::BrowseExecutions> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::BrowseExecutions>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::BrowseExecutions>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::BrowseExecutions>>(Host::<wire::BrowseExecutions>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

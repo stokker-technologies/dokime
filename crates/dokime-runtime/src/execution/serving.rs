@@ -20,9 +20,8 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 // Third Party Imports
 use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
-use harmos::sidecar::operations::{ServingError, WireTable};
+use harmos::sidecar::operations::ServingError;
 use harmos::sidecar::{Refusal, Supervisor};
-use harmos::{Dependencies, RegistrationBatch};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
@@ -74,6 +73,15 @@ struct InputAdmission {
 }
 
 /* === Enums === */
+
+#[harmos::catalog]
+pub enum Operations<T: SidecarTemplate> {
+    Run(Run<T>),
+    Signal(Signal<T>),
+}
+
+#[harmos::catalog]
+pub enum Empty {}
 
 enum Answered {
     Prompt { prompt_id: String, answer: Result<OperatorAnswer, String> },
@@ -450,13 +458,13 @@ pub fn contracts_with_settings(
     Ok([named::<Run<()>>(template, "run", settings)?, named::<Signal<()>>(template, "signal", settings)?])
 }
 
-pub fn serve<P, S>(table: &mut WireTable) -> Result<(), ServingError>
+pub fn prepare<P, S>(setup: &mut harmos::Setup<P>) -> Result<(), Refusal>
 where
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
     S: crate::catalog::Catalog<crate::catalog::SuiteBindings<P>>,
 {
     for bind in crate::catalog::entries::<S, crate::catalog::SuiteBindings<P>>() {
-        bind(table, "", &[])?;
+        crate::plugin::refusal(bind(setup, "", &[]))?;
     }
     Ok(())
 }
@@ -475,19 +483,15 @@ pub fn runner<T: SidecarTemplate>(workflow: &str, records: &[crate::records::Rec
     Arc::new(Workflow::<T>::new(workflow, "").with_records(records))
 }
 
-pub fn bind<T, P>(table: &mut WireTable, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
+pub fn bind<T, P>(setup: &mut harmos::Setup<P>, workflow: &str, records: &[crate::records::RecordContract]) -> Result<(), ServingError>
 where
     T: SidecarTemplate,
-    P: harmos::plugin::Declared,
+    P: harmos::Plugin + harmos::plugin::Declared,
 {
     let workflow = Arc::new(Workflow::<T>::new(workflow, P::ID).with_records(records).with_publisher(T::publish_sample::<P>));
     registry().lock().unwrap_or_else(PoisonError::into_inner).push(Arc::clone(&workflow) as Arc<dyn Runnable>);
-    let mut dependencies = Dependencies::new();
-    dependencies.insert(workflow).map_err(|_| ServingError::Resource {
-        operation: T::RUN.to_owned(),
-        resource: std::any::type_name::<Workflow<T>>(),
-    })?;
-    table.register(RegistrationBatch::new(dependencies).operation::<Run<T>>().operation::<Signal<T>>())
+    setup.resource::<Workflow<T>>(workflow);
+    Ok(())
 }
 
 /* === Private Functions === */

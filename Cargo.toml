@@ -19,11 +19,11 @@ members = [
   "crates/cargo-dokime",
   "crates/dokime-packaging",
   "crates/dokime-gui/src-tauri",
-  "crates/dokime-host",
+  "plugins/sidecars/host",
   "crates/dokime-macros",
   "crates/dokime-server",
-  "plugins/obc-plugin",
-  "plugins/obc-plugin/runtime",
+  "plugins/sidecars/obc",
+  "plugins/sidecars/obc/runtime",
 ]
 resolver = "2"
 
@@ -50,6 +50,9 @@ dokime-runtime = { version = "0.1.1", path = "crates/dokime-runtime", default-fe
 dokime-server = { version = "0.1.1", path = "crates/dokime-server" }
 
 # Git
+harmos = "=0.1.13"
+harmos-packaging = "=0.1.13"
+harmos-sdk = "=0.1.13"
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -64,10 +67,6 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = "=0.1.12"
-harmos-domain = "=0.1.12"
-harmos-packaging = "=0.1.12"
-harmos-sdk = "=0.1.12"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -87,8 +86,8 @@ windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
-arrow-array = { version = "=60.0.0" }
-arrow-schema = { version = "=60.0.0" }
+arrow-array = { version = "=60.1.0" }
+arrow-schema = { version = "=60.1.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
@@ -105,9 +104,13 @@ clap = { version = "4.6.7", features = ["derive"] }
 dotenv = { package = "dotenvy", version = "0.15.7" }
 
 # Filesystem
+ar = { version = "0.9.0" }
 file-id = { version = "0.2.3" }
+# Uses zlib-rs, the inflate backend the NSIS and ZIP readers already share.
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 glob = { version = "0.3.4" }
 globset = { version = "0.4.20" }
+tar = { version = "0.4.46" }
 tempfile = { version = "3.27.0" }
 walkdir = { version = "2.5.0" }
 # Excludes every default compression and encryption backend; Dokime writes stored archives only.
@@ -116,9 +119,12 @@ zip = { version = "9.1.0", default-features = false }
 # Parsing
 cargo_metadata = { version = "0.23.1" }
 cssparser = { version = "0.38.0" }
+nsis = { version = "0.6.0" }
 proc-macro-crate = { version = "3.5.0" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
+# Excludes PGP signing and the xz and zstd codecs; inspection reads the gzip payloads Dokime builds.
+rpm = { version = "0.30.2", default-features = false, features = ["gzip-compression", "payload"] }
 syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 
 # Concurrency
@@ -142,8 +148,8 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "r
 rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = { version = "0.7.1" }
 suppaftp = { version = "12.0.0" }
-tonic = { version = "=0.14.7" }
-tonic-types = { version = "=0.14.7" }
+tonic = { version = "=0.14.8" }
+tonic-types = { version = "=0.14.8" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }

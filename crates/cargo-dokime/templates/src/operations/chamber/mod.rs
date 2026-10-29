@@ -46,7 +46,10 @@ impl Operation for ReadChamber {
             tracing::debug!(key = %scope.key(), "reading the chamber for a run");
         }
         let bench = ctx.resource::<Bench>();
-        Ok(Response::new(ChamberReading { celsius: dokime::plugin::refusal(bench.sensor.read_celsius())?, sensor: bench.sensor.describe() }))
+        Ok(Response::new(ChamberReading {
+            celsius: dokime::plugin::refusal(bench.sensor.read_celsius())?,
+            sensor: bench.sensor.describe(),
+        }))
     }
 }
 

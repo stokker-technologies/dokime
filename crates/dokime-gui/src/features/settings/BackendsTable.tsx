@@ -14,6 +14,7 @@
 /* === Imports === */
 
 import type { Document, Profile } from "@generated/application-settings";
+import { Plug } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { connectionError } from "@/app/native-session/errors";
@@ -157,11 +158,10 @@ export function BackendsTable({
           dataTableColumns<Profile>().display({
             id: "actions",
             header: "Actions",
-            meta: { width: "w-36" },
             cell: ({ row }) => (
               <DataTableRowActions
                 label={row.original.identifier}
-                primary={{ label: "Connect", disabled: busy, onSelect: () => connect(row.original.identifier) }}
+                primary={{ label: "Connect", icon: Plug, disabled: busy, onSelect: () => connect(row.original.identifier) }}
               >
                 <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
                   Delete

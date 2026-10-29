@@ -32,7 +32,7 @@ use super::*;
 
 // Archives or unarchives one terminal cycle, live or retired to history.
 #[harmos::operation(resources = [crate::hosting::Host<SetCycleArchived>], response = ArchiveReply, id = "dokime.execution.set_cycle_archived",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SetCycleArchived"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetCycleArchived {

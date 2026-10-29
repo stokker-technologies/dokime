@@ -97,6 +97,7 @@ dokime = { workspace = true, features = ["plugin-sidecar"] }
 # Logging
 
 # Utilities
+harmos-sdk = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 time = { workspace = true }
 

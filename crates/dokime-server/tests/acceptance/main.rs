@@ -8,8 +8,9 @@
  */
 
 /* === Modules === */
-mod host;
-mod workflow;
+mod crashed_run_replay;
+mod host_terminal;
+mod hub_log;
 
 #[path = "../support/mod.rs"]
 mod support;

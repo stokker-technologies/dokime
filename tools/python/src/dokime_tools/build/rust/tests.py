@@ -18,8 +18,8 @@ from time import perf_counter
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend
-from dokime_tools.package.staging import clear_output
+from dokime_tools.build import cargo, configuration, frontend, outputs, paths
+from dokime_tools.package import plugins
 from dokime_tools.test import archive, policy
 
 # Type Checking Imports
@@ -61,13 +61,13 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
-    staged = [built, built.with_name("compiler.json"), metadata]
-    root = ROOT.resolve()
-    resolved = [path.resolve() for path in staged]
-    relative = {path.relative_to(root) for path in resolved}
-    names = [path.as_posix() for path in relative]
-    names.sort()
-    clear_output(built.parent.parent / "fixtures")
+    messages = built.with_name("compiler.json")
+    staged = [built, messages, metadata]
+    output = paths.output(ROOT, "build", profile)
+    # Package Fixtures With The Archive's Own Collector, Never A Separately Staged Product Build.
+    tool = outputs.executables(messages, ["cargo-dokime"])["cargo-dokime"]
+    staged += plugins.prepare(ROOT, messages, profile, tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES)
+    names = configuration.relative(staged)
     archive.stamp(ROOT, profile, names)
     return names
 

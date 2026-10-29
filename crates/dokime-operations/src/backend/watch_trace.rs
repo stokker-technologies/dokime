@@ -33,7 +33,7 @@ use super::*;
 // Pages the backend's live tracing output for one scope, then optionally follows
 // it. Read access, like the hub log it complements.
 #[harmos::operation(resources = [crate::hosting::Host<WatchTrace>], response = (), output = TraceBatch, id = "dokime.backend.watch_trace",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "WatchTrace"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchTrace {

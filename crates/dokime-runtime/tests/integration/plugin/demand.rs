@@ -71,7 +71,6 @@ pub(crate) mod observers {
     }
 
     impl dokime_runtime::harmos::sidecar::Observer<Publishing> for Auxiliaries {
-        type Resources = Resource;
         type Error = Error;
         const ID: &'static str = "fixture.auxiliaries";
         const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
@@ -79,11 +78,12 @@ pub(crate) mod observers {
         const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
         const INTERVAL: Duration = Duration::from_millis(5);
 
-        async fn initialize(resource: &Resource) -> Result<Self, Error> {
+        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
+            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
             Ok(Self { probe: Arc::clone(&resource.0) })
         }
 
-        async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
             self.probe.bump(&self.probe.auxiliary_samples);
             ctx.publish_on::<Auxiliary>(&Row {
                 value: 2,
@@ -100,12 +100,13 @@ pub(crate) mod observers {
 
     #[dokime_runtime::observer(streams(Measurement), activation = "demand", interval_ms = 5)]
     impl Measurements {
-        async fn initialize(resource: &Resource) -> Result<Self, Error> {
+        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
+            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
             resource.0.bump(&resource.0.observer_starts);
             Ok(Self { probe: Arc::clone(&resource.0) })
         }
 
-        async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
             self.probe.bump(&self.probe.samples);
             let index = (ctx.tick().ordinal() - 1) as i64;
             ctx.publish_on::<Measurement>(&Row { value: 1, index }).await?;
@@ -130,7 +131,6 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{ServingError, WireTable};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use harmos::Message;
@@ -196,7 +196,7 @@ pub struct MeasuredSettings {
 
 struct Measured {
     resource: Arc<Resource>,
-    observers: Option<Arc<ObserverAttachment<Resource, Publishing>>>,
+    observers: Option<Arc<ObserverAttachment<Publishing>>>,
 }
 
 #[dokime_runtime::record(
@@ -256,7 +256,7 @@ enum MeasuredObservers {
     Records(RecordObserver),
 }
 
-#[dokime_runtime::catalog]
+#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum MeasuredListeners {
     Noted(Noted),
     Echoed(Echoed),
@@ -311,7 +311,6 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
 
 #[dokime_runtime::plugin(
     id = "owned_stream",
-    provides = (),
     requires(dokime_runtime::harmos::builtins::streams::Publish),
     contributions(
         dokime_runtime::Records<MeasuredRecords, MeasuredListeners>,
@@ -320,42 +319,36 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Measured {
     observers = MeasuredObservers,
     restart = "never", description = "Owned stream fixture.")]
 impl dokime_runtime::Plugin for Measured {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
+    }
+}
+
+impl dokime_runtime::harmos::Lifecycle for Measured {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Resource;
-
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<MeasuredSettings>())?;
-        let probe = probe(&settings.probes.token);
-        probe.bump(&probe.opens);
-        if settings.probes.refuse {
-            return dokime_runtime::plugin::refusal(Err(Error::Unavailable));
-        }
-        Ok(Self {
-            resource: Arc::new(Resource(probe)),
-            observers: None,
-        })
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let mut owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<MeasuredSettings>())?;
+            let probe = probe(&settings.probes.token);
+            probe.bump(&probe.opens);
+            if settings.probes.refuse {
+                return dokime_runtime::plugin::refusal(Err(Error::Unavailable));
+            }
+            Self {
+                resource: Arc::new(Resource(probe)),
+                observers: None,
+            }
+        };
+        setup.resource::<Resource>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<MeasuredObservers>(<Self as Declared>::STREAMS)?);
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<MeasuredObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Resource> {
-        Arc::clone(&self.resource)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-        dependencies.insert(self.resources()).map_err(|_| ServingError::Catalog)?;
-        table.register(dokime_runtime::harmos::RegistrationBatch::new(dependencies).operation::<Noted>().operation::<Echoed>())?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -381,14 +374,21 @@ impl dokime_runtime::Plugin for Measured {
     }
 }
 
+impl Measured {
+    fn resources(&self) -> Arc<Resource> {
+        Arc::clone(&self.resource)
+    }
+}
+
 #[dokime_runtime::observer(demand_keys(UNIT_NOTED), activation = "demand", interval_ms = 5)]
 impl RecordObserver {
-    async fn initialize(resource: &Resource) -> Result<Self, Error> {
+    async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
+        let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
         resource.0.bump(&resource.0.record_starts);
         Ok(Self(Arc::clone(&resource.0)))
     }
 
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Resource, Publishing>) -> Result<(), Error> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
         dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(UnitNoted { serial: "demand".into() }).await?;
         Ok(())
     }
@@ -541,10 +541,17 @@ async fn instance_opens_resources() {
     );
 }
 
-#[test]
-fn plugin_refuses_line() {
+#[tokio::test]
+async fn plugin_refuses_line() {
     let probe = Arc::new(Probe::default());
-    let Err(refused) = <Measured as dokime_runtime::Plugin>::prepare(configuration(&probe, true)) else {
+    let Err(refused) = <Measured as dokime_runtime::harmos::Lifecycle>::prepare(
+        configuration(&probe, true),
+        &mut dokime_runtime::harmos::Setup::<Measured>::new(
+            harmos_sdk::__private::WireTable::new(<Measured as dokime_runtime::harmos::plugin::Declared>::ID).unwrap(),
+        ),
+    )
+    .await
+    else {
         panic!("a plugin that cannot open its resource refuses to start");
     };
 

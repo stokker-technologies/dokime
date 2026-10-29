@@ -31,14 +31,14 @@ use super::catalog::Metadata;
 
 /* === Structs === */
 
-#[harmos_domain::message(skip_debug)]
+#[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Archive {
     pub data: Vec<u8>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Preview {
@@ -48,7 +48,7 @@ pub struct Preview {
     pub entries: Vec<Entry>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
@@ -56,7 +56,7 @@ pub struct Entry {
     pub exists: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Choice {
@@ -66,7 +66,7 @@ pub struct Choice {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {

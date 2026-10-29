@@ -36,6 +36,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
+    #[error("interface lifecycle failed: {source}")]
+    Hosting {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error(transparent)]
     Admission(#[from] AdmissionFailure),
 
@@ -72,7 +78,7 @@ pub enum Error {
     #[error("native runtime bootstrap failed: {source}")]
     RuntimeBoot {
         #[source]
-        source: Box<harmos::runtime::Incompatible>,
+        source: Box<harmos::StartupError>,
     },
 
     #[error("runtime task failed")]

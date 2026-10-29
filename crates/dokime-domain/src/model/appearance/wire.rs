@@ -32,7 +32,7 @@ use serde::Serialize;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceSnapshot {
     pub app_name: String,
@@ -47,7 +47,7 @@ pub struct AppearanceSnapshot {
     pub source_plugin_id: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrganizationIdentity {
     pub name: String,
@@ -55,7 +55,7 @@ pub struct OrganizationIdentity {
     pub website: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceLogo {
     pub variant: LogoVariant,
@@ -65,7 +65,7 @@ pub struct AppearanceLogo {
 
 // Public registered asset identity, never a path or HTTP URL. A changed digest
 // requires fetching appearance again; the download never substitutes new bytes.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceAssetReference {
     pub plugin_id: String,
@@ -73,7 +73,7 @@ pub struct AppearanceAssetReference {
     pub sha256: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceAssetMetadata {
     pub reference: Option<AppearanceAssetReference>,
@@ -81,14 +81,14 @@ pub struct AppearanceAssetMetadata {
     pub size_bytes: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThemeFamilyVariablesEntry {
     pub key: String,
     pub value: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThemeFamily {
     pub plugin_id: String,
@@ -109,7 +109,7 @@ pub struct ThemeFamily {
     pub dark: Option<ThemeVariant>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThemeCornerRadii {
     pub base: Option<String>,
@@ -122,14 +122,14 @@ pub struct ThemeCornerRadii {
     pub four_xl: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThemeVariantVariablesEntry {
     pub key: String,
     pub value: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThemeVariant {
     pub variables: Vec<ThemeVariantVariablesEntry>,
@@ -137,7 +137,7 @@ pub struct ThemeVariant {
 }
 
 // Typed details in a standard google.rpc.Status envelope.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceFailure {
     pub kind: AppearanceFailureKind,
@@ -145,7 +145,7 @@ pub struct AppearanceFailure {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeModePolicy {
     Unspecified,
@@ -155,7 +155,7 @@ pub enum ThemeModePolicy {
     ForceDark,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppearanceFailureKind {
     Unspecified,

@@ -32,7 +32,7 @@ use dokime_domain::model::secrets::transfer::{Archive, Choice, Preview as Import
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<Lookup>], response = Value, id = "dokime.secrets.lookup", policy = ORDINARY,
-    visibility = harmos_domain::operations::Visibility::Shared,
+    visibility = harmos::operations::Visibility::Shared,
     grpc(package = "dokime.v1", service = "Secrets", method = "Lookup"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -41,7 +41,7 @@ pub struct Lookup {
 }
 
 #[harmos::operation(resources = [crate::hosting::Host<List>], response = Snapshot, id = "dokime.secrets.list", policy = ORDINARY,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "List"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -49,7 +49,7 @@ pub struct List {}
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<Put>], codec = manual, response = Snapshot, id = "dokime.secrets.put", policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Put"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -60,7 +60,7 @@ pub struct Put {
 }
 
 #[harmos::operation(resources = [crate::hosting::Host<Remove>], response = Snapshot, id = "dokime.secrets.remove", policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Remove"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,7 +71,7 @@ pub struct Remove {
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<Export>], codec = manual, response = Archive, id = "dokime.secrets.export", policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Export"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,7 +82,7 @@ pub struct Export {
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<Preview>], codec = manual, response = ImportPreview, id = "dokime.secrets.preview", policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Preview"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -92,7 +92,7 @@ pub struct Preview {
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<Import>], codec = manual, response = Snapshot, id = "dokime.secrets.import", policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Import"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -17,6 +17,7 @@
 
 // Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,9 +26,8 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { Input } from "@/components/ui/input";
-import type { Wire } from "@/lib/rpc/canonical";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -41,6 +41,7 @@ import {
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 
 /* === Re-Exports === */
@@ -302,14 +303,10 @@ function PairedClients({ session }: { session: ConnectedSession }) {
   }
   const columns = dataTableColumns<Client>();
   return (
-    <SettingsCard title="Paired Clients">
-      {error && (
-        <p role="alert" className="p-4 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+    <SettingsCard>
       <DataTable
         aria-label="Paired Clients"
+        title="Paired Clients"
         data={page?.clients ?? []}
         getRowId={(client) => client.identifier}
         emptyText={busy ? "Loading paired clients…" : "No paired clients."}
@@ -326,7 +323,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
             cell: ({ row }) => (
               <DataTableRowActions
                 label={row.original.label}
-                primary={{ label: "Revoke", disabled: busy, onSelect: () => void revoke(row.original.identifier) }}
+                primary={{ label: "Revoke", icon: Ban, disabled: busy, onSelect: () => void revoke(row.original.identifier) }}
               />
             ),
           }),
@@ -337,6 +334,11 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           </Button>
         }
       />
+      {error && (
+        <p role="alert" className="p-4 text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <div className="flex gap-2 p-4">
         <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>
           First Page

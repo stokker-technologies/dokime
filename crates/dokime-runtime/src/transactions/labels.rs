@@ -38,7 +38,7 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.label.rename", irreversible)]
+#[harmos::transaction(id = "dokime.execution.label.rename")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
     pub subject: LabelSubject,

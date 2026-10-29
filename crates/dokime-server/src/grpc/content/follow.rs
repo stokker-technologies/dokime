@@ -17,15 +17,16 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::{Response, StreamOutput};
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use crate::grpc::error::detailed;
+use dokime::app::LiveRuntime;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, runtime::Error};
+use dokime::runtime::Error;
 
 /* === Constants === */
 
@@ -39,11 +40,16 @@ const FOLLOW_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10)
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::FollowExecutionFile),
+}
 
 /* === Traits === */
 
@@ -54,7 +60,7 @@ impl Serve<wire::FollowExecutionFile> for Resources {
         Box::pin(async move {
             let revoked = crate::grpc::access::revocation(ctx.call());
             crate::grpc::access::during(revoked, async {
-                let runtime = &self.runtime;
+                let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let (execution, _) = super::files::execution(runtime, &request.execution_id)?;
                 if request.relative_path.is_empty() {
                     return Err(Status::invalid_argument("output name is required"));
@@ -119,12 +125,14 @@ impl Serve<wire::FollowExecutionFile> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::FollowExecutionFile>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::FollowExecutionFile>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::FollowExecutionFile>>(Host::<wire::FollowExecutionFile>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

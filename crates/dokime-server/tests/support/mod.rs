@@ -81,19 +81,20 @@ struct FixtureProgressExecutor;
 /* === Implementations === */
 
 impl TestEnvironment {
-    pub async fn with_installed_plugins(artifacts: Vec<InstalledPlugin>) -> Self {
-        Self::with_provider(Arc::new(FakePythonExecutor), artifacts, None).await
+    pub async fn with_installed_plugins(artifacts: Vec<InstalledPlugin>, server: &dokime_server::grpc::PreparedService) -> Self {
+        Self::with_provider(Arc::new(FakePythonExecutor), artifacts, None, server).await
     }
 
     pub async fn with_installed_plugins_and_action_dispatcher(
         artifacts: Vec<InstalledPlugin>, suite_id: Identifier, dispatcher: Arc<dyn ActionDispatcher>,
+        server: &dokime_server::grpc::PreparedService,
     ) -> Self {
-        Self::with_provider(Arc::new(FakePythonExecutor), artifacts, Some((suite_id, dispatcher))).await
+        Self::with_provider(Arc::new(FakePythonExecutor), artifacts, Some((suite_id, dispatcher)), server).await
     }
 
     async fn with_provider(
         provider: Arc<dyn ExecutionFixture>, artifacts: Vec<InstalledPlugin>,
-        action_dispatcher: Option<(Identifier, Arc<dyn ActionDispatcher>)>,
+        action_dispatcher: Option<(Identifier, Arc<dyn ActionDispatcher>)>, server: &dokime_server::grpc::PreparedService,
     ) -> Self {
         let root = tempdir().unwrap();
         let mut runtime_config =
@@ -101,7 +102,8 @@ impl TestEnvironment {
         if let Some((suite_id, dispatcher)) = action_dispatcher {
             runtime_config = runtime_config.with_action_dispatcher(suite_id, dispatcher);
         }
-        let runtime_owner = dokime::Runtime::with_execution_fixture(runtime_config, "fixture", provider).boxed_local().await.unwrap();
+        let runtime_owner =
+            dokime::Runtime::with_execution_fixture(server.configuration(runtime_config), "fixture", provider).boxed_local().await.unwrap();
         let runtime = runtime_owner.handle();
 
         Self {

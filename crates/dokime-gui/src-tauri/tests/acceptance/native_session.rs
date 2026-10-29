@@ -62,7 +62,6 @@ fn arguments(root: &Path) -> Args {
         env_file: None,
         plugins: Vec::new(),
         plugins_root: None,
-        no_seed_validation_artifact: true,
     }
 }
 

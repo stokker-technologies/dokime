@@ -12,7 +12,7 @@
 mod payload;
 mod record_samples;
 mod record_timing;
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod stored;
 
 /* === Re-Exports === */

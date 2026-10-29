@@ -17,6 +17,7 @@
 
 // Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 import { useId, useState } from "react";
 
 // Local Imports
@@ -129,6 +130,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           label={row.original.metadata.identifier}
           primary={{
             label: "Edit",
+            icon: Pencil,
             disabled: busy || !snapshot,
             onSelect: () => snapshot && setEditor({ kind: "edit", entry: row.original, generation: snapshot.generation }),
           }}

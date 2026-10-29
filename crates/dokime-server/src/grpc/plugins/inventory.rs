@@ -40,7 +40,7 @@ use dokime::state::PluginOwner;
 /* === Public Functions === */
 
 pub(super) fn page(
-    runtime: &RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
+    runtime: &dokime::RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
 ) -> Result<dokime::harmos::operations::Response<plugins_model::AdmittedPluginPage>, Status> {
     let after = request.after.as_ref().map(|cursor| cursor.after_plugin_id.as_str());
     let size = dokime::domain::model::execution::wire_cursor::page_size(request.page_size, after.unwrap_or_default())

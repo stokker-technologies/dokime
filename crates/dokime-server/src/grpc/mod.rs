@@ -32,6 +32,7 @@ mod observation;
 mod planning;
 mod plots;
 mod plugins;
+mod preparation;
 mod prompts;
 mod query;
 pub(crate) mod redaction;
@@ -49,6 +50,7 @@ mod value;
 pub use config::{Config, TlsIdentity};
 pub use error::Error;
 pub use observation::WATCH_HEARTBEAT;
+pub use preparation::PreparedService;
 pub use server::{Server, Service};
 
 /* === Imports === */

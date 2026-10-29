@@ -37,7 +37,7 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.parameters.scoped.upsert", irreversible)]
+#[harmos::transaction(id = "dokime.parameters.scoped.upsert")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpsertScopedParameter {
     pub scope: RecordScope,

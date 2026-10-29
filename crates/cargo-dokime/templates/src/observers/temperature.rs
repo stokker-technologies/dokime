@@ -41,10 +41,10 @@ pub struct Temperature;
 
 #[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
 impl Temperature {
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Bench, Publisher<Plugin>>) -> Result<(), PublishError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<Plugin>>) -> Result<(), PublishError> {
         // A sensor that cannot be read publishes nothing this tick; the next
         // tick reads it again.
-        let Ok(celsius) = ctx.resources().sensor.read_celsius() else {
+        let Ok(celsius) = ctx.resource::<Bench>().expect("plugin prepares its bench").sensor.read_celsius() else {
             return Ok(());
         };
         ctx.publish_on::<TemperatureRow>(&TemperatureRow { celsius }).await

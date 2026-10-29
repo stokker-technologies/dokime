@@ -19,7 +19,7 @@ mod bounds;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
@@ -28,6 +28,7 @@ use super::{
     execution,
     value::{self, Budget, canonical},
 };
+use dokime::app::LiveRuntime;
 use dokime::definition::{CaseMaterializationOptions, CaseMaterializationSelection, TestCase, materialize_template_cases};
 use dokime::domain::model::identity::CaseId;
 use dokime::domain::model::identity::CommandId;
@@ -35,8 +36,8 @@ use dokime::domain::model::identity::TemplateId;
 use dokime::domain::model::identity::TestCycleId;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::planning as wire;
+use dokime::runtime::Error;
 use dokime::state::RuntimeState;
-use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -49,7 +50,7 @@ const PARAMETER_MATERIALIZED_CASES: u64 = 1_000;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -60,6 +61,13 @@ pub(super) struct ResolvedPlan {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::MaterializeTemplate),
+    Operation1(wire::RegisterSelection),
+    Operation2(wire::PreviewSelection),
+}
 
 /* === Traits === */
 
@@ -72,7 +80,7 @@ impl Serve<wire::MaterializeTemplate> for Resources {
         Box::pin(async move {
             let selection = request.selection.take().ok_or_else(|| Status::invalid_argument("template selection is required"))?;
             let registration_id = dokime::model::identity::new_id::<CommandId>();
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let resolved = resolve(
                 snapshot.state(),
                 Some(dokime::domain::model::planning::wire::SelectionPlan {
@@ -88,8 +96,12 @@ impl Serve<wire::MaterializeTemplate> for Resources {
                 },
                 self.maximum,
             )?;
-            self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-            reply.observed_cursor = Some(canonical::cursor(&self.runtime.watch_state().latest()));
+            dokime::app::live_runtime(&self.runtime)
+                .await?
+                .register_cases_at(registration_id, resolved.cases, resolved.revisions)
+                .await
+                .map_err(execution::status)?;
+            reply.observed_cursor = Some(canonical::cursor(&dokime::app::live_runtime(&self.runtime).await?.watch_state().latest()));
             Ok::<_, Status>(checked_preview(reply, self.maximum)?.into())
         })
     }
@@ -105,7 +117,7 @@ impl Serve<wire::RegisterSelection> for Resources {
             if request.plan.as_ref().is_some_and(|plan| !plan.case_ids.is_empty()) {
                 return Err(Status::invalid_argument("registration requires template selections"));
             }
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let registration_id =
                 CommandId::from_seed(format!("suite-registration:{}:{}", snapshot.state().identity.node.node_id, request.idempotency_key,));
             let resolved = resolve(snapshot.state(), request.plan.take(), &registration_id)?;
@@ -116,8 +128,12 @@ impl Serve<wire::RegisterSelection> for Resources {
                 },
                 self.maximum,
             )?;
-            self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-            reply.observed_cursor = Some(canonical::cursor(&self.runtime.watch_state().latest()));
+            dokime::app::live_runtime(&self.runtime)
+                .await?
+                .register_cases_at(registration_id, resolved.cases, resolved.revisions)
+                .await
+                .map_err(execution::status)?;
+            reply.observed_cursor = Some(canonical::cursor(&dokime::app::live_runtime(&self.runtime).await?.watch_state().latest()));
             Ok::<_, Status>(checked_preview(reply, self.maximum)?.into())
         })
     }
@@ -128,7 +144,7 @@ impl Serve<wire::PreviewSelection> for Resources {
         &'a self, mut request: wire::PreviewSelection, _: Context<'a, wire::PreviewSelection>,
     ) -> Served<'a, dokime::domain::model::planning::wire::PreviewSelectionReply> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let resolved = resolve(snapshot.state(), request.plan.take(), &dokime::model::identity::new_id::<CommandId>())?;
             Ok::<_, Status>(
                 checked_preview(
@@ -146,17 +162,16 @@ impl Serve<wire::PreviewSelection> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::MaterializeTemplate>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::RegisterSelection>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::PreviewSelection>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::MaterializeTemplate>()
-        .operation::<wire::RegisterSelection>()
-        .operation::<wire::PreviewSelection>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::MaterializeTemplate>>(Host::<wire::MaterializeTemplate>::new(served.clone()));
+    setup.resource::<Host<wire::RegisterSelection>>(Host::<wire::RegisterSelection>::new(served.clone()));
+    setup.resource::<Host<wire::PreviewSelection>>(Host::<wire::PreviewSelection>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

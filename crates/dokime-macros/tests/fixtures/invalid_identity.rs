@@ -37,7 +37,7 @@ struct Uppercase;
 struct Frobnicate {}
 
 /* === Enums === */
-#[sdk::catalog]
+#[sdk::harmos::catalog(harmos_path = sdk::harmos)]
 enum UppercaseOperations {
     Frobnicate(Frobnicate),
 }
@@ -58,29 +58,23 @@ impl sdk::harmos::builtins::lifecycle::Policy for Uppercase {
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
 }
 
-#[sdk::plugin(id = "Uppercase", provides = UppercaseOperations, requires(), restart = "never")]
+#[sdk::plugin(id = "Uppercase", requires(), restart = "never")]
 impl sdk::Plugin for Uppercase {
+    const CATALOGS: &'static [sdk::harmos::Catalog] = &[UppercaseOperations::CATALOG];
+}
+
+impl sdk::harmos::Lifecycle for Uppercase {
     type Config = sdk::plugin::Configuration;
     type Error = sdk::Refusal;
     type Context = sdk::Supervisor;
-    type Resources = ();
-
-    fn prepare(_: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
-        Ok(Self)
+    async fn prepare(_: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<Self>) -> Result<Self, sdk::Refusal> {
+        let owner = { Self };
+        setup.resource::<()>(owner.resources());
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
-    }
-
-    fn resources(&self) -> std::sync::Arc<()> {
-        std::sync::Arc::new(())
-    }
-
-    fn bind_operations(
-        &self, table: &mut sdk::harmos::operations::WireTable,
-    ) -> Result<(), sdk::harmos::operations::ServingError> {
-        table.register(UppercaseOperations::registration(sdk::harmos::Dependencies::new()))
     }
 
     async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
@@ -89,6 +83,12 @@ impl sdk::Plugin for Uppercase {
 
     async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
         Ok(())
+    }
+}
+
+impl Uppercase {
+    fn resources(&self) -> std::sync::Arc<()> {
+        std::sync::Arc::new(())
     }
 }
 

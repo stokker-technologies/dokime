@@ -19,11 +19,11 @@ pub(in crate::grpc) use super::super::enums::canonical::{execution_file_kind as 
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -37,11 +37,16 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ReadExecutionFile),
+}
 
 /* === Traits === */
 
@@ -52,7 +57,7 @@ impl Serve<wire::ReadExecutionFile> for Resources {
         &'a self, request: wire::ReadExecutionFile, _: Context<'a, wire::ReadExecutionFile>,
     ) -> Served<'a, dokime::domain::model::content::wire::ExecutionFileWindow> {
         Box::pin(async move {
-            let runtime = &self.runtime;
+            let runtime = &dokime::app::live_runtime(&self.runtime).await?;
             let message_limit = self.maximum;
             let (id, _) = execution(runtime, &request.execution_id)?;
             if request.relative_path.is_empty() {
@@ -79,16 +84,18 @@ impl Serve<wire::ReadExecutionFile> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ReadExecutionFile>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ReadExecutionFile>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ReadExecutionFile>>(Host::<wire::ReadExecutionFile>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
-pub(super) fn execution(runtime: &RuntimeHandle, id: &str) -> Result<(TestExecutionId, String), Status> {
+pub(super) fn execution(runtime: &dokime::RuntimeHandle, id: &str) -> Result<(TestExecutionId, String), Status> {
     let id = TestExecutionId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     let snapshot = runtime.watch_state().latest();
     if !snapshot.state().executions.contains_key(&id) {

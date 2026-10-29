@@ -36,27 +36,27 @@ use crate::model::identity::wire::*;
 /* === Structs === */
 
 // Current owners only. An execution owner never falls back to its cycle.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnnotationOwner {
     pub owner: Option<AnnotationOwnerOwner>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlannedCaseNoteOwner {
     pub cycle_id: String,
     pub case_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionNoteOwner {
     pub cycle_id: String,
     pub execution_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnnotationSelection {
     // Absent selects all current annotations. Present selects this owner and descendants.
@@ -68,7 +68,7 @@ pub struct AnnotationSelection {
     pub include_context: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OperatorNote {
     pub note_id: String,
@@ -78,7 +78,7 @@ pub struct OperatorNote {
     pub created_at: Option<Timestamp>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListNotesResponse {
     pub notes: Vec<OperatorNote>,
@@ -86,13 +86,13 @@ pub struct ListNotesResponse {
     pub next_after_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EditNoteResponse {
     pub note: Option<OperatorNote>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoteReceipt {
     pub epoch: String,
@@ -104,7 +104,7 @@ pub struct NoteReceipt {
     pub unconfirmed_targets: Vec<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HealthItem {
     pub health_item_id: String,
@@ -119,7 +119,7 @@ pub struct HealthItem {
     pub observed_at: Option<Timestamp>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListHealthResponse {
     pub items: Vec<HealthItem>,
@@ -132,7 +132,7 @@ pub struct ListHealthResponse {
 // A committed note may have no existing persisted execution dataset. Confirmation
 // verifies this exact note in all captured targets; it does not promise future
 // history or create historical annotations. Retrying Create retries publication.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NotePublication {
     Unspecified,
@@ -141,7 +141,7 @@ pub enum NotePublication {
     Unconfirmed,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum AnnotationOwnerOwner {
     CycleId(String),

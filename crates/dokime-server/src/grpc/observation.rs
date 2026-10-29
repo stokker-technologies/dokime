@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::execution;
 use super::value::canonical;
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::observation as wire;
@@ -48,11 +48,19 @@ pub(super) const STREAM: &str = "runtime.state";
 /* === Structs === */
 
 struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::GetRuntimeShell),
+    Operation1(wire::WatchRuntime),
+    Operation2(wire::WatchExecutionProgress),
+    Operation3(wire::GetTraceability),
+}
 
 /* === Traits === */
 
@@ -63,7 +71,7 @@ impl Serve<wire::GetRuntimeShell> for Resources {
         &'a self, request: wire::GetRuntimeShell, _: Context<'a, wire::GetRuntimeShell>,
     ) -> Served<'a, dokime::domain::model::observation::wire::RuntimeShellSnapshot> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let state = snapshot.state();
             let observed = canonical::cursor(&snapshot);
             let limit =
@@ -72,7 +80,7 @@ impl Serve<wire::GetRuntimeShell> for Resources {
             let response_limit =
                 self.max_message_bytes.min(usize::try_from(SERVER_SHELL_RESPONSE_BYTES).expect("validated shell response size"));
 
-            let hub = self.runtime.hub_metadata();
+            let hub = dokime::app::live_runtime(&self.runtime).await?.hub_metadata();
 
             let mut entries = state.cycles.values().skip(start);
             let count = state.cycles.len().saturating_sub(start).min(limit);
@@ -87,7 +95,11 @@ impl Serve<wire::GetRuntimeShell> for Resources {
             } else {
                 None
             };
-            let counts = self.runtime.evidence_counts_at(&snapshot).await.map_err(|error| Status::internal(error.to_string()))?;
+            let counts = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .evidence_counts_at(&snapshot)
+                .await
+                .map_err(|error| Status::internal(error.to_string()))?;
             let response = dokime::domain::model::observation::wire::RuntimeShellSnapshot {
                 session_id: state.session_id.to_string(),
                 revision: snapshot.revision(),
@@ -114,7 +126,7 @@ impl Serve<wire::WatchRuntime> for Resources {
             let output = ctx.streams();
             let revoked = crate::grpc::access::revocation(call_context);
             crate::grpc::access::during(revoked, async {
-                let mut watch = self.runtime.watch_state();
+                let mut watch = dokime::app::live_runtime(&self.runtime).await?.watch_state();
                 let mut snapshot = watch.latest();
                 canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
                 let mut operations = watch.operations();
@@ -164,7 +176,7 @@ impl Serve<wire::WatchExecutionProgress> for Resources {
             crate::grpc::access::during(revoked, async {
                 let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
                     .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
-                let mut watch = self.runtime.watch_execution_progress();
+                let mut watch = dokime::app::live_runtime(&self.runtime).await?.watch_execution_progress();
                 let mut snapshot = watch.latest();
                 let mut previous = None;
                 let mut resynchronized = true;
@@ -200,7 +212,7 @@ impl Serve<wire::GetTraceability> for Resources {
         &'a self, request: wire::GetTraceability, _: Context<'a, wire::GetTraceability>,
     ) -> Served<'a, dokime::domain::model::observation::wire::TraceabilityPage> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let observed = canonical::cursor(&snapshot);
             let limit =
                 observed.page(request.limit, &request.after_traceability_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
@@ -213,8 +225,8 @@ impl Serve<wire::GetTraceability> for Resources {
                 return Err(Status::failed_precondition("traceability scope epoch mismatch; resynchronize"));
             }
             let after = &request.after_traceability_id;
-            let (source, has_more, host_traceability_fingerprint) = self
-                .runtime
+            let (source, has_more, host_traceability_fingerprint) = dokime::app::live_runtime(&self.runtime)
+                .await?
                 .traceability_snapshots_page_at(
                     &snapshot,
                     requested_scope.as_ref(),
@@ -264,22 +276,20 @@ impl Serve<wire::GetTraceability> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, max_message_bytes: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::GetRuntimeShell>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::WatchRuntime>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::WatchExecutionProgress>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetTraceability>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::GetRuntimeShell>()
-        .operation::<wire::WatchRuntime>()
-        .operation::<wire::WatchExecutionProgress>()
-        .operation::<wire::GetTraceability>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::GetRuntimeShell>>(Host::<wire::GetRuntimeShell>::new(served.clone()));
+    setup.resource::<Host<wire::WatchRuntime>>(Host::<wire::WatchRuntime>::new(served.clone()));
+    setup.resource::<Host<wire::WatchExecutionProgress>>(Host::<wire::WatchExecutionProgress>::new(served.clone()));
+    setup.resource::<Host<wire::GetTraceability>>(Host::<wire::GetTraceability>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

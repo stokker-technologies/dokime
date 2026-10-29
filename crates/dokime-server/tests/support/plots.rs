@@ -24,7 +24,7 @@ use tonic::Code;
 use super::wire::{WireClient, WireStream, runtime};
 use dokime::client::contracts;
 use dokime::domain::model;
-use dokime_server::grpc::{Config, Server};
+use dokime_server::grpc::Config;
 use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
 /* === Constants === */
@@ -59,18 +59,20 @@ pub struct Admission {
 // Oversized Plot Responses Reduce Display Points Without Repeating The Storage Query.
 pub async fn admission(size: Admission) {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let mut config = Config::local();
+    if let Some(bytes) = size.message_bytes {
+        config = config.with_max_message_bytes(bytes);
+    }
+    let prepared_owner = dokime_server::grpc::Service::prepare(config.clone()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     super::register_fixture_progress_execution(&handle, super::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     for start in (0..size.rows).step_by(size.batch as usize) {
         publish(&handle, &id, start, size.batch).await;
     }
-    let mut config = Config::local();
-    if let Some(bytes) = size.message_bytes {
-        config = config.with_max_message_bytes(bytes);
-    }
-    let server = Server::start(handle.clone(), config).await.unwrap();
+
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let before = handle.storage_read_counters().data_scan_rows;

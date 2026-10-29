@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<WatchRuntime>], response = (), output = RuntimeStateFrame, id = "dokime.observation.watch_runtime",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "WatchRuntime"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchRuntime {

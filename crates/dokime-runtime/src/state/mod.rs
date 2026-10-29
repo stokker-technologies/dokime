@@ -757,7 +757,9 @@ impl RuntimeState {
         let Some(test_cycle_id) = scope.test_cycle_id.as_ref() else {
             return Some(self.session_records_mut());
         };
-        if let Some(test_execution_id) = scope.test_execution_id.as_ref() {
+        // A Frozen Execution's Revision Is Its Report's Authority; Later Diagnostics Belong To Its Cycle.
+        let owner = scope.test_execution_id.as_ref().filter(|id| !self.report_frozen(id));
+        if let Some(test_execution_id) = owner {
             let execution = self.executions.get_mut(test_execution_id)?;
             if &execution.test_cycle_id != test_cycle_id {
                 return None;
@@ -765,6 +767,11 @@ impl RuntimeState {
             return Some(&mut execution.records);
         }
         Some(&mut self.cycles.get_mut(test_cycle_id)?.records)
+    }
+
+    // Capturing A Report Lifecycle Freezes The Execution Revision The Seal Must Reproduce Exactly.
+    pub fn report_frozen(&self, id: &dokime_domain::model::identity::TestExecutionId) -> bool {
+        self.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some())
     }
 
     pub fn record_health(
@@ -810,7 +817,8 @@ impl RuntimeState {
 
     pub fn commit_record(&mut self, captured: dokime_domain::state::records::CapturedRecord) {
         for scope in &captured.scopes {
-            if let Some(owner) = &scope.test_execution_id
+            let owner = scope.test_execution_id.as_ref().filter(|id| !self.report_frozen(id));
+            if let Some(owner) = owner
                 && let Some(execution) = self.executions.get_mut(owner)
             {
                 execution.records.capture_frontier(owner.clone(), captured.ordinal);

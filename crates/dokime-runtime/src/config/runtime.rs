@@ -37,24 +37,30 @@ pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harm
 
 /* === Structs === */
 
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize)]
 pub struct RuntimeConfig {
+    #[serde(skip, default = "harmos::config::SchemaSettings::default")]
     pub schema: harmos::config::SchemaSettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
 
+    #[serde(skip, default = "super::storage_defaults")]
     pub storage: StorageSettings,
 
+    #[serde(skip, default = "super::local_storage_defaults")]
     pub local_storage: crate::storage::sqlite::Settings,
 
+    #[serde(skip, default = "super::managed_storage_defaults")]
     pub managed_storage: harmos::config::ManagedStorageSettings,
 
+    #[serde(skip, default = "super::storage_state_defaults")]
     pub storage_state: harmos::config::StorageStateSettings,
 
     pub hub_metadata: Metadata,
 
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
+    #[serde(skip)]
     pub(crate) credential_store: Option<Arc<keyring_core::CredentialStore>>,
 
     // A trusted bench is an isolated network where plain FTP sources are accepted.
@@ -66,9 +72,14 @@ pub struct RuntimeConfig {
 
     pub plugin_lookup: Option<PathBuf>,
 
+    #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
 
+    #[serde(skip)]
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
+
+    #[serde(skip)]
+    pub composition: Vec<crate::app::Composition>,
 }
 
 /* === Enums === */
@@ -92,7 +103,7 @@ impl RuntimeConfig {
             application_root: storage_root.join("application"),
             hub_metadata,
 
-            #[cfg(feature = "host")]
+            #[cfg(feature = "native")]
             credential_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
@@ -100,6 +111,7 @@ impl RuntimeConfig {
             plugin_lookup: None,
             action_dispatchers: BTreeMap::new(),
             embedded_providers: Vec::new(),
+            composition: Vec::new(),
             storage_root,
         }
     }
@@ -115,7 +127,7 @@ impl RuntimeConfig {
     }
 
     /// Supply Credential Storage As A Live Composition Resource, Separate From Settings.
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     pub fn with_credential_store(mut self, store: Arc<keyring_core::CredentialStore>) -> Self {
         self.credential_store = Some(store);
         self

@@ -55,7 +55,10 @@ pub enum Error {
 
 impl From<Error> for dokime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
-        Self::Refused { code: -32_000, message: error.to_string() }
+        Self::Refused {
+            code: -32_000,
+            message: error.to_string(),
+        }
     }
 }
 

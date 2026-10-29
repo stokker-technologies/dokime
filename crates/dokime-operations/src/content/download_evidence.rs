@@ -33,7 +33,7 @@ use dokime_domain::model::exports::{EvidenceExportFrame, EvidenceSubject};
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<DownloadEvidence>], response = (), output = EvidenceExportFrame, id = "dokime.content.download_evidence",
-    policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+    policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Content", method = "DownloadEvidence"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DownloadEvidence {

@@ -41,9 +41,14 @@ Find these files after extraction:
 
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
-| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/obc-plugin.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
+| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/host.dokime` |
+| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/host.dokime` |
+| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/host.dokime` |
+
+The installer includes the host telemetry bundle. OBC is a source-built test
+fixture, not a candidate download; build it with `mise run build:rust:tests`
+and transfer `target/build/dev/<target>/fixtures/plugins/obc-plugin.dokime`
+when running the OBC walkthrough below.
 
 The Python artifact contains
 `target/package/dev/any/python/dokime-remote-examples-<version>.zip` and the client

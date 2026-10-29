@@ -94,33 +94,27 @@ impl sdk::harmos::builtins::lifecycle::Policy for Plugin {
 
 #[sdk::plugin(
     id = "mismatched",
-    provides = NoOperations,
     requires(),
     contributions(sdk::Suites<PluginSuites>),
     restart = "never",
 )]
 impl sdk::Plugin for Plugin {
+    const CATALOGS: &'static [sdk::harmos::Catalog] = &[];
+}
+
+impl sdk::harmos::Lifecycle for Plugin {
     type Config = sdk::plugin::Configuration;
     type Error = sdk::Refusal;
     type Context = sdk::Supervisor;
-    type Resources = ();
-
-    fn prepare(config: sdk::plugin::Configuration) -> Result<Self, sdk::Refusal> {
-        Ok(Self)
+    async fn prepare(config: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<Self>) -> Result<Self, sdk::Refusal> {
+        let owner = { Self };
+        setup.resource::<()>(owner.resources());
+        sdk::execution::prepare::<Self, PluginSuites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
-    }
-
-    fn resources(&self) -> std::sync::Arc<()> {
-        std::sync::Arc::new(())
-    }
-
-    fn bind_operations(
-        &self, table: &mut sdk::harmos::operations::WireTable,
-    ) -> Result<(), sdk::harmos::operations::ServingError> {
-        sdk::execution::serve::<Self, PluginSuites>(table)
     }
 
     async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
@@ -129,6 +123,12 @@ impl sdk::Plugin for Plugin {
 
     async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
         Ok(())
+    }
+}
+
+impl Plugin {
+    fn resources(&self) -> std::sync::Arc<()> {
+        std::sync::Arc::new(())
     }
 }
 

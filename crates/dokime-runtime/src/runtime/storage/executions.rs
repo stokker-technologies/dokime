@@ -540,6 +540,8 @@ impl ExecutionStorage {
 
         let native = Execution::try_from(execution)?;
         if stored.value != native {
+            let fields = stored.value.differing_fields(&native);
+            tracing::error!(execution_id = %execution.test_execution_id, ?fields, "execution changed after its report lifecycle was frozen");
             return Err(invalid("capture differs from immutable lifecycle intent"));
         }
         drop(native);

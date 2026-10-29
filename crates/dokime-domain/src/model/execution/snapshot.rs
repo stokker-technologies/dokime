@@ -84,16 +84,16 @@ pub enum ExecutionImplementation {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for ExecutionSnapshot {
+impl harmos::MemorySize for ExecutionSnapshot {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.case), std::mem::size_of_val(&self.case)),
-            (harmos_domain::MemorySize::memory_size(&self.template), std::mem::size_of_val(&self.template)),
-            (harmos_domain::MemorySize::memory_size(&self.parameter_definitions), std::mem::size_of_val(&self.parameter_definitions)),
-            (harmos_domain::MemorySize::memory_size(&self.plugin), std::mem::size_of_val(&self.plugin)),
-            (harmos_domain::MemorySize::memory_size(&self.host_version), std::mem::size_of_val(&self.host_version)),
-            (harmos_domain::MemorySize::memory_size(&self.parameters), std::mem::size_of_val(&self.parameters)),
-            (harmos_domain::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
+            (harmos::MemorySize::memory_size(&self.case), std::mem::size_of_val(&self.case)),
+            (harmos::MemorySize::memory_size(&self.template), std::mem::size_of_val(&self.template)),
+            (harmos::MemorySize::memory_size(&self.parameter_definitions), std::mem::size_of_val(&self.parameter_definitions)),
+            (harmos::MemorySize::memory_size(&self.plugin), std::mem::size_of_val(&self.plugin)),
+            (harmos::MemorySize::memory_size(&self.host_version), std::mem::size_of_val(&self.host_version)),
+            (harmos::MemorySize::memory_size(&self.parameters), std::mem::size_of_val(&self.parameters)),
+            (harmos::MemorySize::memory_size(&self.documents), std::mem::size_of_val(&self.documents)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -101,12 +101,12 @@ impl harmos_domain::MemorySize for ExecutionSnapshot {
     }
 }
 
-impl harmos_domain::MemorySize for ExecutionPluginIdentity {
+impl harmos::MemorySize for ExecutionPluginIdentity {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos_domain::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
-            (harmos_domain::MemorySize::memory_size(&self.implementation), std::mem::size_of_val(&self.implementation)),
+            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
+            (harmos::MemorySize::memory_size(&self.implementation), std::mem::size_of_val(&self.implementation)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -114,7 +114,7 @@ impl harmos_domain::MemorySize for ExecutionPluginIdentity {
     }
 }
 
-impl harmos_domain::MemorySize for ExecutionImplementation {
+impl harmos::MemorySize for ExecutionImplementation {
     fn memory_size(&self) -> usize {
         let value = match self {
             Self::Bundle { content_digest } => content_digest,
