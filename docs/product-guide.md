@@ -905,6 +905,11 @@ These paths let a branded distribution coexist with plain Dokime. Windows keeps
 `dokime.exe` and `dokime-gui.exe` inside each identifier's install folder; use the
 full path when choosing between distributions with the same command name.
 
+The resolved organization manifest's `[app] label` supplies installer titles and
+pages, shortcut names, the Windows Add/Remove Programs display name, Linux
+package descriptions and desktop entries. It also supplies the desktop's display
+name; changing the distribution identifier does not change this label.
+
 The product build exports `product/installer-payload/` under its matching
 `target/build/<profile>/<target>/` directory. It contains `payload.json`, the
 unchanged CLI and GUI executables, license and the complete authored
@@ -957,7 +962,11 @@ payload's version, target and file hashes. It does not accept an existing native
 installer as a replacement payload. Dokime has no published release yet; use
 matching candidate build artifacts until a payload release is available.
 
-Native assembly uses Tauri's bundler; Windows NSIS tooling is provisioned by that
+Native assembly uses Tauri's bundler. The NSIS template at
+`crates/dokime-packaging/src/installer/installer.nsi` is adapted from
+`tauri-bundler` 2.10.4: `PRODUCTNAME` is the display label, while install folders
+and registry keys use `BUNDLEID`. Keep that separation when updating the upstream
+template. Windows NSIS tooling is provisioned by that
 backend. Inspection needs no external archive tool on any platform: the
 authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
 RPM packages with a gzip payload in-process, which are the formats packaging

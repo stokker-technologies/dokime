@@ -200,6 +200,8 @@ pub fn assemble(
         include_str!("hooks.nsh").to_owned()
     };
     std::fs::write(&hooks, hook_source)?;
+    let template = scratch.join("installer.nsi");
+    std::fs::write(&template, include_str!("installer.nsi"))?;
     // Configure Native Backend
     let png_icon = image_path.to_string_lossy().into_owned();
     let ico_icon = ico_path.to_string_lossy().into_owned();
@@ -217,6 +219,7 @@ pub fn assemble(
         ..BundleSettings::default()
     };
     bundle.windows.nsis = Some(NsisSettings {
+        template: Some(template),
         installer_hooks: Some(hooks),
         installer_icon: Some(ico_path),
         sidebar_image: windows.then_some(sidebar),
@@ -224,10 +227,7 @@ pub fn assemble(
     });
     if !windows {
         let template = scratch.join("application.desktop");
-        let contents = format!(
-            "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
-            identity.slug, identity.slug
-        );
+        let contents = desktop_entry(&identity, &label);
         std::fs::write(&template, contents)?;
         bundle.deb.desktop_template = Some(template.clone());
         bundle.rpm.desktop_template = Some(template);
@@ -276,15 +276,7 @@ pub fn assemble(
             Format::Rpm => PackageType::Rpm,
         })
         .collect();
-    let authors = vec!["Stokker Technologies".into()];
-    let package = PackageSettings {
-        product_name: if windows { identity.identifier.clone() } else { identity.slug.clone() },
-        version: manifest.installer.version.clone(),
-        description: "Dokime Test Hub".into(),
-        homepage: None,
-        authors: Some(authors),
-        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
-    };
+    let package = package_settings(manifest, &identity, &label, windows);
     let application_name = if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) };
     let command_name = if windows { "dokime".into() } else { identity.slug.clone() };
     let application = BundleBinary::new(application_name, true);
@@ -382,6 +374,26 @@ pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
+
+fn package_settings(manifest: &Manifest, identity: &payload::Identity, label: &str, windows: bool) -> PackageSettings {
+    // Tauri Uses The Linux Product Name As The Native Package Name.
+    // The Description Supplies DEB's Display Description And RPM's Summary.
+    PackageSettings {
+        product_name: if windows { label.to_owned() } else { identity.slug.clone() },
+        version: manifest.installer.version.clone(),
+        description: label.to_owned(),
+        homepage: None,
+        authors: Some(vec!["Stokker Technologies".into()]),
+        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
+    }
+}
+
+fn desktop_entry(identity: &payload::Identity, label: &str) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
+        identity.slug, identity.slug
+    )
+}
 
 fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<dokime::config::organization::ResolvedPack, Error> {
     let base = source.join("organization");
@@ -606,6 +618,54 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn distribution_names() {
+        let label = "Hilti Test Hub";
+        let compiled = payload::Identity {
+            identifier: "com.stokker.dokime".into(),
+            slug: "dokime".into(),
+            updater_public_key: "fixture".into(),
+        };
+        let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        let renderer = handlebars::Handlebars::new();
+
+        for identifier in [None, Some("com.hilti.dokime")] {
+            manifest.installer.identifier = identifier.map(str::to_owned);
+            let identity = manifest.identity(&compiled).unwrap();
+            let windows = package_settings(&manifest, &identity, label, true);
+            assert_eq!(windows.product_name, label);
+            let data = serde_json::json!({ "product_name": windows.product_name, "bundle_id": identity.identifier });
+            let template = renderer.render_template(include_str!("installer.nsi"), &data).unwrap();
+            assert!(template.contains(&format!("!define PRODUCTNAME \"{label}\"")));
+            assert!(template.contains(&format!("!define BUNDLEID \"{}\"", identity.identifier)));
+
+            // Expand The Identity Defines To Verify Their Native Uses.
+            let script = template.replace("${BUNDLEID}", &identity.identifier).replace("${PRODUCTNAME}", label);
+            assert!(script.contains(&format!("Name \"{label}\"")));
+            assert!(script.contains(&format!("\"DisplayName\" \"{label}\"")));
+            assert!(script.contains(&format!("$DESKTOP\\{label}.lnk")));
+            assert!(script.contains(&format!("$SMPROGRAMS\\{label}.lnk")));
+            assert!(script.contains(&format!("placeholder\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$LOCALAPPDATA\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$PROGRAMFILES\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$PROGRAMFILES64\\{}", identity.identifier)));
+            assert!(script.contains(&format!("MULTIUSER_INSTALLMODE_INSTDIR \"{}\"", identity.identifier)));
+            assert!(script.contains(&format!("CurrentVersion\\Uninstall\\{}", identity.identifier)));
+            assert!(script.contains(&format!("${{MANUKEY}}\\{}", identity.identifier)));
+            assert!(!script.contains(&format!("$LOCALAPPDATA\\{label}")));
+            assert!(!script.contains(&format!("$PROGRAMFILES\\{label}")));
+            assert!(!script.contains(&format!("$PROGRAMFILES64\\{label}")));
+
+            let linux = package_settings(&manifest, &identity, label, false);
+            assert_eq!(linux.product_name, identity.slug);
+            assert_eq!(linux.description, label);
+            let desktop = desktop_entry(&identity, label);
+            assert!(desktop.contains(&format!("\nName={label}\n")));
+            assert!(desktop.contains(&format!("\nExec={}-gui\n", identity.slug)));
+        }
+    }
 
     #[cfg(windows)]
     #[test]
