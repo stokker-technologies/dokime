@@ -34,6 +34,7 @@ pub enum Operations {
     CaptureAdapters(super::adapters::CaptureAdapters),
     RadioSet(super::controls::RadioSet),
     AdapterSet(super::controls::AdapterSet),
+    PlanSet(super::controls::PlanSet),
     Restore(super::controls::Restore),
     Adapters(super::adapters::Adapters),
     CpuLoad(super::cpu::CpuLoad),

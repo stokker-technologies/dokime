@@ -79,6 +79,13 @@ pub struct AdapterSet {
     pub allow_disconnect: bool,
 }
 
+#[dokime::operation(id = "host.power.plan.set", response = dokime::operations::effects::EffectResult, policy = POLICY, visibility = Public,
+    resources = [State, crate::Workers])]
+#[derive(Clone, PartialEq)]
+pub struct PlanSet {
+    pub plan_id: String,
+}
+
 // Only The Backend Root Calls An Inverse; Other Plugins Cannot Invoke A Host Operation.
 #[dokime::operation(id = "host.controls.restore", response = dokime::operations::effects::EffectResult, policy = RESTORE_POLICY, visibility = Host,
     resources = [State, crate::Workers])]
@@ -130,6 +137,25 @@ impl Transaction<ControlState> for AdapterSet {
     }
 }
 impl Invertible<ControlState> for AdapterSet {
+    type Inverse = Restore;
+    fn inverse(&self, before: &ControlState) -> Restore {
+        Restore { state: before.clone() }
+    }
+}
+
+impl Transaction<ControlState> for PlanSet {
+    type Error = String;
+    fn check(&self, state: &ControlState) -> Result<(), String> {
+        if self.plan_id.is_empty() || state.power_plan.is_none() {
+            return Err("power plan is unavailable".into());
+        }
+        Ok(())
+    }
+    fn apply(&self, state: &mut ControlState) {
+        state.power_plan = Some(self.plan_id.clone());
+    }
+}
+impl Invertible<ControlState> for PlanSet {
     type Inverse = Restore;
     fn inverse(&self, before: &ControlState) -> Restore {
         Restore { state: before.clone() }
@@ -207,5 +233,17 @@ mod tests {
         assert!(!changed.adapters[0].enabled);
         inverse.apply(&mut changed);
         assert_eq!(changed, adapter);
+        let plan = ControlState {
+            power_plan: Some("balanced".into()),
+            ..Default::default()
+        };
+        let set = PlanSet { plan_id: "performance".into() };
+        set.check(&plan).unwrap();
+        let inverse = set.inverse(&plan);
+        let mut changed = plan.clone();
+        set.apply(&mut changed);
+        assert_eq!(changed.power_plan.as_deref(), Some("performance"));
+        inverse.apply(&mut changed);
+        assert_eq!(changed, plan);
     }
 }

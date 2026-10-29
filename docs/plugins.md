@@ -36,9 +36,9 @@ Linux requires root or CAP_NET_ADMIN for interface writes.
 Before disabling, the host maps the trusted backend PID's established native TCP
 sockets to adapters. A change affecting a live connection refuses unless
 `allow_disconnect: true` comes from an execution step; a standalone request flag
-cannot bypass the guard. 
+cannot bypass the guard. Bluetooth device presence uses native enumeration.
 
-Radio and adapter changes preserve the exact
+Radio, adapter and `host.power.plan.set { plan_id }` changes preserve the exact
 prior state as invertible transactions. During an execution the backend durably
 journals the inverse before writing, records native apply/restore timestamps,
 and restores in reverse order after completion, failure or cancellation.

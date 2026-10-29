@@ -17,8 +17,8 @@
 use super::unix as native;
 #[cfg(target_os = "windows")]
 use super::windows as native;
-use super::{AdapterSet, RadioSet, Restore};
-use crate::{Error, Result, Workers};
+use super::{AdapterSet, PlanSet, RadioSet, Restore};
+use crate::{Error, Result, Workers, domain::controls::ControlState};
 use dokime::operations::effects::{ConfirmEffect, EffectResult, PrepareEffect, ReadEnvironment};
 use dokime::{
     Supervisor,
@@ -59,6 +59,7 @@ macro_rules! implementation {
 }
 implementation!(RadioSet, Radio);
 implementation!(AdapterSet, Adapter);
+implementation!(PlanSet, Plan);
 implementation!(Restore, Restore);
 
 /* === Type Aliases === */
@@ -76,6 +77,7 @@ pub struct State {
 enum Change {
     Radio(RadioSet),
     Adapter(AdapterSet),
+    Plan(PlanSet),
     Restore(Restore),
 }
 
@@ -118,6 +120,10 @@ impl State {
         let task = workers.0.spawn_blocking(move || match reading {
             Change::Radio(request) => native::read_radio(&request.radio),
             Change::Adapter(request) => native::read_adapter(&request.adapter_id),
+            Change::Plan(_) => crate::host::power::active_plan().map(|plan| ControlState {
+                power_plan: Some(plan.id),
+                ..Default::default()
+            }),
             Change::Restore(_) => unreachable!(),
         });
         let before = task.await.map_err(probe)??;
@@ -150,6 +156,12 @@ impl State {
                     None,
                     Some(request.adapter_id.clone()),
                 )
+            }
+            Change::Plan(request) => {
+                request.check(&before).map_err(probe)?;
+                let inverse = request.inverse(&before);
+                request.apply(&mut after);
+                (inverse, "host.power.plan".into(), format!("Set Power Plan {}", request.plan_id), false, false, None, None)
             }
             Change::Restore(_) => unreachable!(),
         };

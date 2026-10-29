@@ -9,7 +9,7 @@
 
 // Native host collection: every stream reads this machine through the
 // collectors' own platform probes (native APIs on Windows; nmcli, iw, ping and
-// bluetoothctl on Linux).
+// BlueZ D-Bus on Linux).
 
 /* === Modules === */
 

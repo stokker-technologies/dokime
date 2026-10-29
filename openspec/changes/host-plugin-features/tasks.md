@@ -22,8 +22,8 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 
 ## 3A. Public Operations And Definitions Crate
 
-- [ ] 3A.1 `visibility = Public` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
-  Declared with each operation as it lands (items 4–6); Harmos is now pinned to the Git revision using `Public` (3A.4–3A.5).
+- [x] 3A.1 `visibility = Public` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
+  Evidence: `host/adapters/mod.rs`, `host/controls/mod.rs`, `host/power/mod.rs` and `host/cpu/mod.rs` declare Public queries and setters; collection operations retain Private visibility. The definitions-only/all-targets caller guard passes on Windows.
 - [x] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
 - [x] 3A.3 No-feature guard; document the git-tag dependency for external plugin authors; proof: no-feature check, runtime build, bundle build, workspace check.
   Done: the guard is the existing `build:rust:compatibility` `--workspace --lib --bins --no-default-features` lane plus every featureless workspace check; plugins README documents the git-tag dependency. Proof so far: `check -p dokime-host --no-default-features --all-targets` PASS, `test -p dokime-host --no-default-features --lib` 7 PASS, `test -p dokime-host --features runtime --lib --test integration` 14 + 6 PASS, workspace/all-targets check PASS, `mise run build:rust` PASS (host.dokime built with `dokime-host/runtime`).
@@ -61,10 +61,10 @@ Assigned source inventory: host radio/adapter operation definitions, native hand
 
 Assigned source inventory: existing Bluetooth presence collectors (reuse), host power and CPU operations, bounded startup calibration, operation documentation and focused proofs. Power-plan set shares the item 5 lifecycle. Triage: Bluetooth presence already exists in `platform/windows/bluetooth.rs` and `platform/unix/bluetooth.rs`; native Windows power-plan read already exists in `platform/windows/power.rs`. Also update canonical `dokime-fast-release` guidance and its generated copies: PRs target `dev`, channel builds and consumers use `dev`.
 
-- [ ] 6.1 Bluetooth on/off through the radio operation; device presence.
-  Triage: presence is already implemented in `plugins/sidecars/host/src/platform/windows/bluetooth.rs:66` and `platform/unix/bluetooth.rs:42`; retain it. On/off depends on 5.1 and the backend lifecycle.
-- [ ] 6.2 Power plan read and invertible set.
-  Public read is implemented at `host/power/windows.rs::active_plan` through the existing native Power Management reader and at `host/power/unix.rs::active_plan` through the ACPI platform profile. Windows `cpu::active_power_plan` passes; invertible set remains dependent on 5.3.
+- [x] 6.1 Bluetooth on/off through the radio operation; device presence.
+  Evidence: the shared `host/controls` radio operation covers Bluetooth on/off. `platform/windows/bluetooth.rs` uses SetupAPI presence and the same device-ID radio reader as controls; `platform/unix/bluetooth.rs` reads native BlueZ managed objects. The obsolete PowerShell/bluetoothctl paths and scripted-child fixture are removed. Windows native presence passes 1 story; three native-object decoding cases are ready for Linux CI.
+- [x] 6.2 Power plan read and invertible set.
+  Evidence: Public `GetPlan` reads Windows Power Management or Linux ACPI profiles; Public `PlanSet` preserves the exact prior plan through the shared journal/inverse path. Windows native PowerSetActiveScheme writes and verifies the current plan, the shared transaction story checks different-plan inversion, and backend lifecycle/recovery passes 2 stories. Native read proof remains in `cpu::active_power_plan`; Linux paths run in CI.
 - [x] 6.3 CPU load in GFLOP/s from a documented calibration.
   Evidence: `host/cpu/runtime.rs::calibrate` bounds a per-logical-CPU f64 FMA kernel by half the operation attempt policy; `app.rs::prepare` runs it once on an owned blocking worker. The shared system collector scales capacity by measured OS utilization for the Public `host.cpu.load` query and system stream. The method and estimate's limits are beside `CpuLoad` and in `plugins/README.md`; no root README claim changes. Windows targeted `cpu::` integration passes 2 stories (calibration/readings and native power read); the CPU scaling unit selection passes 1. Task-owned Clippy and the no-feature/all-targets guard pass; Rust formatting check passes. Linux native paths remain for CI.
 

@@ -40,82 +40,133 @@ use dokime_domain::model::values::Value;
 /* === Public Functions === */
 
 pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions, timeout: Duration) -> Result<BTreeMap<String, Value>, String> {
-    let show_output = bluetoothctl_output(&["show"], timeout)?;
-    let controller = parse_linux_controller(&show_output);
-    if let Some(filter) = options.bluetooth_adapter_name.as_deref().map(str::trim).filter(|filter| !filter.is_empty()) {
-        let matches_filter = controller.iter().any(|value| value.eq_ignore_ascii_case(filter));
-        if !matches_filter {
-            let mut values = BTreeMap::new();
-            values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(0));
-            values.insert("bluetooth_connected_device_count".to_owned(), Value::Integer(0));
-            values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(0));
-            values.insert("bluetooth_device_names".to_owned(), Value::Array(vec![]));
-            return Ok(values);
-        }
-    }
-
-    let devices = bluetoothctl_output(&["devices"], timeout).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
-    let connected_devices =
-        bluetoothctl_output(&["devices", "Connected"], timeout).map(|output| parse_linux_device_names(&output)).unwrap_or_default();
-    let mut values = BTreeMap::new();
-    maybe_insert(&mut values, "bluetooth_adapter", controller.first().cloned().map(Value::from));
-    values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(if controller.is_empty() { 0 } else { 1 }));
-    values.insert("bluetooth_connected_device_count".to_owned(), Value::Integer(connected_devices.len() as i64));
-    values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(devices.len() as i64));
-    maybe_insert(&mut values, "bluetooth_radio_state", parse_linux_radio_state(&show_output).map(Value::from));
-    values.insert("bluetooth_device_names".to_owned(), Value::Array(devices.into_iter().map(Value::from).collect()));
-    Ok(values)
+    let connection = zbus::blocking::connection::Builder::system().map_err(error)?.method_timeout(timeout).build().map_err(error)?;
+    let manager = zbus::blocking::fdo::ObjectManagerProxy::builder(&connection)
+        .destination("org.bluez")
+        .map_err(error)?
+        .path("/")
+        .map_err(error)?
+        .build()
+        .map_err(error)?;
+    values(&manager.get_managed_objects().map_err(error)?, options.bluetooth_adapter_name.as_deref())
 }
 
 /* === Private Functions === */
 
-fn bluetoothctl_output(args: &[&str], timeout: Duration) -> Result<String, String> {
-    let mut command = dokime_domain::process::command("bluetoothctl");
-    command.args(args);
-    let output =
-        crate::collectors::run_command_bounded(command, timeout).map_err(|error| format!("bluetoothctl could not be started: {error}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        return Err(if stderr.is_empty() { format!("bluetoothctl exited with status {}", output.status) } else { stderr });
-    }
-    String::from_utf8(output.stdout).map_err(|error| format!("bluetoothctl output was not UTF-8: {error}"))
+fn error(error: impl std::fmt::Display) -> String {
+    error.to_string()
 }
 
-fn parse_linux_controller(output: &str) -> Vec<String> {
-    let mut values = Vec::new();
-    for line in output.lines().map(str::trim) {
-        if let Some(rest) = line.strip_prefix("Controller ") {
-            values.push(rest.to_owned());
-        } else if let Some(rest) = line.strip_prefix("Name: ") {
-            values.push(rest.to_owned());
-        } else if let Some(rest) = line.strip_prefix("Alias: ") {
-            values.push(rest.to_owned());
+fn values(objects: &zbus::fdo::ManagedObjects, filter: Option<&str>) -> Result<BTreeMap<String, Value>, String> {
+    let mut adapters = Vec::new();
+    let mut powered = false;
+    for (path, interfaces) in objects {
+        let Some(properties) = interfaces.get("org.bluez.Adapter1") else {
+            continue;
+        };
+        let text = |key: &str| properties.get(key).and_then(|value| <&str>::try_from(value).ok());
+        if filter.map(str::trim).filter(|filter| !filter.is_empty()).is_some_and(|filter| {
+            ![text("Name"), text("Alias"), text("Address"), Some(path.as_str())]
+                .into_iter()
+                .flatten()
+                .any(|value| value.eq_ignore_ascii_case(filter))
+        }) {
+            continue;
         }
+        let on = properties
+            .get("Powered")
+            .and_then(|value| bool::try_from(value).ok())
+            .ok_or_else(|| "BlueZ adapter has no Powered property".to_owned())?;
+        powered |= on;
+        adapters.push((path.as_str(), text("Alias").or_else(|| text("Name")).unwrap_or(path.as_str())));
     }
-    values
-}
-
-fn parse_linux_radio_state(output: &str) -> Option<String> {
-    for line in output.lines().map(str::trim) {
-        if let Some(powered) = line.strip_prefix("Powered: ") {
-            return Some(if powered.eq_ignore_ascii_case("yes") { "powered".to_owned() } else { "off".to_owned() });
+    adapters.sort_unstable();
+    let mut devices = Vec::new();
+    let mut connected = 0;
+    for (path, interfaces) in objects {
+        let Some(properties) = interfaces.get("org.bluez.Device1") else {
+            continue;
+        };
+        let adapter = properties.get("Adapter").and_then(|value| <&zbus::zvariant::ObjectPath<'_>>::try_from(value).ok());
+        if !adapter.is_some_and(|path| adapters.iter().any(|(id, _)| *id == path.as_str())) {
+            continue;
         }
+        let name = properties.get("Alias").or_else(|| properties.get("Name")).and_then(|value| <&str>::try_from(value).ok());
+        devices.push(name.unwrap_or(path.as_str()).to_owned());
+        connected += usize::from(properties.get("Connected").and_then(|value| bool::try_from(value).ok()).unwrap_or(false));
     }
-    None
-}
-
-fn parse_linux_device_names(output: &str) -> Vec<String> {
-    output
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.splitn(3, ' ');
-            match (parts.next(), parts.next(), parts.next()) {
-                (Some("Device"), Some(_address), Some(name)) => Some(name.trim().to_owned()),
-                _ => None,
-            }
-        })
-        .filter(|name| !name.is_empty())
-        .collect()
+    devices.sort();
+    let mut values = BTreeMap::new();
+    maybe_insert(&mut values, "bluetooth_adapter", adapters.first().map(|(_, name)| Value::from(*name)));
+    values.insert("bluetooth_adapter_count".into(), Value::Integer(adapters.len() as i64));
+    values.insert("bluetooth_connected_device_count".into(), Value::Integer(connected as i64));
+    values.insert("bluetooth_present_device_count".into(), Value::Integer(devices.len() as i64));
+    values.insert(
+        "bluetooth_radio_state".into(),
+        Value::from(if powered {
+            "on"
+        } else if adapters.is_empty() {
+            "unavailable"
+        } else {
+            "off"
+        }),
+    );
+    values.insert("bluetooth_device_names".into(), Value::Array(devices.into_iter().map(Value::from).collect()));
+    Ok(values)
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbus::zvariant::{ObjectPath, OwnedValue, Str};
+    fn objects() -> zbus::fdo::ManagedObjects {
+        [
+            (
+                "/org/bluez/hci0",
+                "org.bluez.Adapter1",
+                vec![("Alias", OwnedValue::from(Str::from("Radio"))), ("Powered", OwnedValue::from(true))],
+            ),
+            (
+                "/org/bluez/hci0/dev_a",
+                "org.bluez.Device1",
+                vec![
+                    ("Alias", OwnedValue::from(Str::from("Headset"))),
+                    ("Adapter", OwnedValue::from(ObjectPath::try_from("/org/bluez/hci0").unwrap())),
+                    ("Connected", OwnedValue::from(true)),
+                ],
+            ),
+        ]
+        .into_iter()
+        .map(|(path, interface, properties)| {
+            (
+                path.try_into().unwrap(),
+                [(interface.try_into().unwrap(), properties.into_iter().map(|(key, value)| (key.into(), value)).collect())]
+                    .into_iter()
+                    .collect(),
+            )
+        })
+        .collect()
+    }
+    #[test]
+    fn native_presence() {
+        let values = values(&objects(), None).unwrap();
+        assert_eq!(values["bluetooth_adapter_count"], Value::Integer(1));
+        assert_eq!(values["bluetooth_connected_device_count"], Value::Integer(1));
+        assert_eq!(values["bluetooth_present_device_count"], Value::Integer(1));
+        assert_eq!(values["bluetooth_radio_state"], Value::from("on"));
+    }
+    #[test]
+    fn native_selection() {
+        let values = values(&objects(), Some("Other Radio")).unwrap();
+        assert_eq!(values["bluetooth_adapter_count"], Value::Integer(0));
+        assert_eq!(values["bluetooth_present_device_count"], Value::Integer(0));
+        assert_eq!(values["bluetooth_radio_state"], Value::from("unavailable"));
+    }
+    #[test]
+    fn native_empty() {
+        let values = values(&Default::default(), None).unwrap();
+        assert_eq!(values["bluetooth_device_names"], Value::Array(Vec::new()));
+    }
+}

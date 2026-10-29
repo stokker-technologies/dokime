@@ -95,6 +95,18 @@ pub fn set_adapter(id: &str, enabled: bool) -> Result<()> {
     Ok(())
 }
 
+pub fn bluetooth_presence() -> Result<Vec<String>> {
+    let devices = open(&GUID_DEVCLASS_BLUETOOTH)?;
+    let mut names = Vec::new();
+    let mut index = 0;
+    while let Some(device) = entry(&devices, index)? {
+        index += 1;
+        let name = property(&devices, &device, SPDRP_FRIENDLYNAME).or_else(|_| property(&devices, &device, SPDRP_DEVICEDESC))?;
+        names.push(name);
+    }
+    Ok(names)
+}
+
 /* === Private Functions === */
 
 fn probe(error: impl std::fmt::Display) -> Error {
@@ -139,4 +151,16 @@ fn adapter(devices: &Devices, id: &str) -> Result<SP_DEVINFO_DATA> {
     }
     Err(Error::Probe(format!("adapter {id} was not found")))
 }
+fn property(devices: &Devices, device: &SP_DEVINFO_DATA, property: SETUP_DI_REGISTRY_PROPERTY) -> Result<String> {
+    let mut size = 0;
+    let _ = unsafe { SetupDiGetDeviceRegistryPropertyW(devices.0, device, property, None, None, Some(&mut size)) };
+    if size == 0 {
+        return Err(Error::Probe("device name is unavailable".into()));
+    }
+    let mut bytes = vec![0u8; size as usize];
+    unsafe { SetupDiGetDeviceRegistryPropertyW(devices.0, device, property, None, Some(&mut bytes), None) }.map_err(probe)?;
+    let units = bytes.as_chunks::<2>().0.iter().map(|chunk| u16::from_ne_bytes(*chunk)).take_while(|unit| *unit != 0).collect::<Vec<_>>();
+    Ok(String::from_utf16_lossy(&units))
+}
+
 /* === Tests === */

@@ -10,9 +10,8 @@
 /* === Modules === */
 
 pub mod bluetooth;
-pub mod command;
-pub mod devices;
 pub mod connectivity;
+pub mod devices;
 pub mod echo;
 pub mod power;
 pub mod wifi;

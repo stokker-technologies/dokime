@@ -48,7 +48,7 @@ impl BluetoothCollector {
 fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();
     maybe_insert(&mut values, "bluetooth_adapter", snapshot.adapter_name.map(Value::from));
-    values.insert("bluetooth_adapter_count".to_owned(), Value::Integer(snapshot.adapter_count as i64));
+    maybe_insert(&mut values, "bluetooth_adapter_count", snapshot.adapter_count.map(|count| Value::Integer(count as i64)));
     maybe_insert(
         &mut values,
         "bluetooth_connected_device_count",
