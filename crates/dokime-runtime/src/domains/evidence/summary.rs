@@ -147,20 +147,6 @@ impl EvidenceSummaries {
         })
     }
 
-    pub fn from_records<'a>(
-        records: impl IntoIterator<Item = &'a RecordEntry>, telemetry: impl IntoIterator<Item = &'a TelemetrySample>,
-    ) -> Self {
-        let mut summaries = Self::default();
-        for record in records {
-            summaries.record_record(record);
-        }
-        for sample in telemetry {
-            summaries.record_telemetry_sample(sample);
-        }
-
-        summaries
-    }
-
     pub fn record_record(&mut self, record: &RecordEntry) {
         let index = match self.records.binary_search_by(|summary| {
             summary.record_type.as_str().cmp(record.record_type.as_str()).then(summary.source.cmp(&record.source))

@@ -52,11 +52,6 @@ impl DocumentInstance {
     pub fn document_id(&self) -> &DocumentId {
         &self.definition.document_id
     }
-
-    pub fn apply_payload(&mut self, payload: DocumentPayload, updated_at: Timestamp) {
-        self.payload = Some(payload);
-        self.updated_at = updated_at;
-    }
 }
 
 /* === Public Functions === */

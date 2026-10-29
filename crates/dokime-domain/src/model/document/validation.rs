@@ -104,35 +104,6 @@ pub fn normalized_validation_memory(
         .saturating_add(cards.len().saturating_add(memory.sections).saturating_mul(std::mem::size_of::<(&Identifier, usize)>()))
 }
 
-/// Validation Workspace Before Legacy Sections Become Normalized Nodes.
-pub fn authored_validation_memory(definition: &DocumentDefinition, maximum_depth: usize, maximum_plot_points: usize) -> usize {
-    let mut memory = validation_memory(&definition.cards, &definition.layout, maximum_depth, maximum_plot_points);
-    let mut cards = definition.cards.len();
-    for section in &definition.sections {
-        memory.sections = memory.sections.saturating_add(1);
-        memory.issue(format_args!("duplicate section node id {}", section.metadata.identifier.as_str()));
-        for card in &section.cards {
-            cards = cards.saturating_add(1);
-            memory.card(&card.metadata, &card.body, maximum_plot_points);
-            memory.issue(format_args!("missing card definition {}", card.metadata.identifier.as_str()));
-            memory.layout(&card.layout);
-        }
-        if maximum_depth < 2 {
-            memory.issue(format_args!("document layout exceeds maximum depth of {maximum_depth}"));
-        }
-    }
-    if definition.layout.nodes.is_empty() && definition.sections.is_empty() {
-        for card in &definition.cards {
-            memory.issue(format_args!("missing card definition {}", card.metadata.identifier.as_str()));
-        }
-    }
-    memory
-        .bytes
-        .saturating_add(memory.temporary)
-        .saturating_add(memory.issues.saturating_mul(std::mem::size_of::<String>()))
-        .saturating_add(cards.saturating_add(memory.sections).saturating_mul(std::mem::size_of::<(&Identifier, usize)>()))
-}
-
 /* === Private Functions === */
 
 fn first(index: &[(&Identifier, usize)], id: &Identifier) -> Option<usize> {
@@ -207,20 +178,6 @@ impl ValidationMemory {
             }
         }
         self.issue(format_args!("duplicate card id {}", metadata.identifier.as_str()));
-    }
-
-    fn layout(&mut self, layout: &DocumentCardLayout) {
-        for (label, span) in [
-            ("base", Some(layout.col_span.base)),
-            ("sm", layout.col_span.sm),
-            ("md", layout.col_span.md),
-            ("lg", layout.col_span.lg),
-            ("xl", layout.col_span.xl),
-        ] {
-            if span.is_some_and(|span| !(1..=12).contains(&span)) {
-                self.issue(format_args!("card layout {label} span must be between 1 and 12"));
-            }
-        }
     }
 
     fn issue(&mut self, arguments: std::fmt::Arguments<'_>) {

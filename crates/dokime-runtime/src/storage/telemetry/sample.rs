@@ -55,27 +55,6 @@ pub struct Sample {
 /* === Implementations === */
 
 impl Sample {
-    pub fn from_sample(sample: &TelemetrySample) -> Result<Self> {
-        sample.timestamp.to_datetime()?;
-        sample.received_at.to_datetime()?;
-        if sample.schema_version == 0 {
-            return Err(error("telemetry schema version must be positive"));
-        }
-        Ok(Self {
-            sample_id: copy_text(sample.sample_id.as_str())?,
-            stream: copy_text(sample.stream.as_str())?,
-            schema_version: sample.schema_version,
-            sequence: sample.sequence,
-            timestamp: copy_text(sample.timestamp.as_str())?,
-            received_at: copy_text(sample.received_at.as_str())?,
-            source: copy_text(sample.source.as_str())?,
-            scope: sample.scope.as_ref().map(ScopeRow::from),
-            values: values::encode(&sample.values)?,
-            summary: values::encode(&sample.summary)?,
-            metadata: values::encode(&sample.metadata)?,
-        })
-    }
-
     pub fn into_sample(self) -> Result<TelemetrySample> {
         if self.schema_version == 0 {
             return Err(error("telemetry schema version must be positive"));
