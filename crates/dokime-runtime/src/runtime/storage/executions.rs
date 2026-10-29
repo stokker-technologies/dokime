@@ -82,7 +82,7 @@ pub(crate) struct ExecutionStorage {
     pub(crate) capture_failure: std::sync::Mutex<Option<Arc<Error>>>,
     pub(crate) captures: super::captures::Captures,
 
-    #[cfg(any(test, feature = "fault-injection"))]
+    #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
     pub(super) log_faults: std::sync::Mutex<BTreeMap<TestExecutionId, (usize, std::io::ErrorKind)>>,
 }
 
@@ -247,7 +247,7 @@ impl ExecutionStorage {
             tail_stops: Mutex::new(BTreeMap::new()),
             capture_failure: Default::default(),
             captures,
-            #[cfg(any(test, feature = "fault-injection"))]
+            #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
             log_faults: std::sync::Mutex::new(BTreeMap::new()),
         })
     }

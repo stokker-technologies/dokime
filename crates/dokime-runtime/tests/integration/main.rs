@@ -17,6 +17,9 @@
 #[path = "../support/engine/evidence_durability.rs"]
 pub mod evidence_support;
 
+#[cfg(feature = "testing")]
+mod retained_evidence;
+
 mod evidence_durability;
 
 mod domains;

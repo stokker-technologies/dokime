@@ -73,6 +73,13 @@ CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
 policy changes retain full selection.
 
+The Tests producer alone enables
+`dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
+window and log owners, with no extra Harmos visibility. Integration exercises
+small histories; system uses seven days and real segment-sized log volume.
+Product does not enable this feature. Focus one small guard with
+`mise run build:rust:focused -- test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
+
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,
 benchmarks and the generated-starter test, with release-profile installers.
