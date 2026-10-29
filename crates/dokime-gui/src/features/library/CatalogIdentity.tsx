@@ -7,18 +7,20 @@
  * ***
  */
 
-/* The Library rows' second line: the readable identifier the CLI and Python
- * client accept, and the plugin that registered the suite. Internal UUIDs are
- * never rendered here. */
+/* The Library's identity cells: the readable identifier the CLI and Python
+ * client accept, and the plugin that registered the suite. Neither clips: an
+ * identifier wraps at its dots and the provenance chips wrap onto a new line.
+ * Internal UUIDs are never rendered here. */
 
 /* === External Imports === */
 
 import { Clipboard } from "lucide-react";
-import { toast } from "sonner";
+import { Fragment } from "react";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
-import { TAG_COLUMN_WIDTH, TagChip } from "@/components/suite-picker/SuiteTags";
+import { TagChip } from "@/components/suite-picker/SuiteTags";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { useBrand } from "@/lib/brand";
 import { cn } from "@/lib/utils";
@@ -45,21 +47,31 @@ type OwnerDisplay = {
 
 /* === Components === */
 
-/** A monospace identifier with a copy affordance. */
+/** A monospace identifier with a copy affordance; it wraps only at its dots. */
 export function CatalogIdentifier({ className, subject, value }: CatalogIdentifierProps) {
+  const parts = value.split(".");
   return (
     <span className={cn("flex min-w-0 items-center gap-1 font-mono text-xs leading-4 text-muted-foreground", className)}>
-      <span className="min-w-0 truncate" title={value}>
-        {value}
+      <span className="min-w-0 whitespace-normal">
+        {parts.map((part, index) => (
+          <Fragment key={parts.slice(0, index + 1).join(".")}>
+            {part}
+            {index < parts.length - 1 ? (
+              <>
+                .<wbr />
+              </>
+            ) : null}
+          </Fragment>
+        ))}
       </span>
       <button
-        aria-label={`Copy ${subject} identifier ${value}`}
+        aria-label={`Copy ${subject} Identifier ${value}`}
         className="grid size-4 shrink-0 place-items-center rounded-lg hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(event) => {
           event.stopPropagation();
           void copyIdentifier(value);
         }}
-        title="Copy identifier"
+        title="Copy Identifier"
         type="button"
       >
         <Clipboard aria-hidden className="size-3" />
@@ -78,11 +90,11 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
   const pluginLabel = plugin?.label && plugin.label !== plugin.plugin_id ? `${plugin.label} · ${plugin.plugin_id}` : source;
 
   return (
-    <div className={cn("flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden", TAG_COLUMN_WIDTH, className)}>
-      <TagChip className="min-w-0 shrink truncate font-mono" label={pluginLabel} title={`Registered by plugin ${pluginLabel}`} />
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}>
+      <TagChip className="font-mono" label={pluginLabel} title={`Registered By Plugin ${pluginLabel}`} />
       {owner ? <TagChip label={owner.label} title={owner.title} /> : null}
-      {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin version" /> : null}
-      {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin is disabled" /> : null}
+      {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin Version" /> : null}
+      {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin Is Disabled" /> : null}
     </div>
   );
 }
@@ -103,13 +115,13 @@ export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefine
 function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"], brandLabel: string): OwnerDisplay | null {
   switch (owner?.kind) {
     case "host":
-      return { label: "Host", title: `Registered by the ${brandLabel} host` };
+      return { label: "Host", title: `Registered By The ${brandLabel} Host` };
     case "embedded":
-      return { label: "Built-in", title: `Built into this application (${owner.generation})` };
+      return { label: "Built-In", title: `Built Into This Application (${owner.generation})` };
     case "bundle":
       return owner.installation
-        ? { label: "Installed", title: `Installed bundle ${owner.package}` }
-        : { label: "Configured", title: `Configured bundle ${owner.package}` };
+        ? { label: "Installed", title: `Installed Bundle ${owner.package}` }
+        : { label: "Configured", title: `Configured Bundle ${owner.package}` };
     default:
       return null;
   }
@@ -122,8 +134,8 @@ function versionLabel(version: string): string {
 async function copyIdentifier(value: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(value);
-    toast.success("Identifier copied");
+    toast.success("Identifier Copied");
   } catch {
-    toast.error("Could not copy identifier");
+    toast.error("Could Not Copy Identifier");
   }
 }

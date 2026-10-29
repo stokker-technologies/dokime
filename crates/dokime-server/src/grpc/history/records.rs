@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::{Code, Status};
 
 // Local Imports
 use super::super::{evidence::canonical as evidence, value::projection};
 use super::wire;
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::operations::history as contract;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::query::checkpoint_records::ExecutionRecordPage;
@@ -38,11 +38,16 @@ use dokime::runtime::query::checkpoint_records::ExecutionRecordPage;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::ListCheckpointRecords),
+}
 
 /* === Traits === */
 
@@ -58,7 +63,8 @@ impl Serve<contract::ListCheckpointRecords> for Resources {
                 after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
                 limit: (request.limit != 0).then_some(request.limit as usize),
             };
-            self.runtime
+            dokime::app::live_runtime(&self.runtime)
+                .await?
                 .execution_checkpoint_records(checkpoint, query)
                 .await
                 .map_err(wire::query_failure)
@@ -69,12 +75,14 @@ impl Serve<contract::ListCheckpointRecords> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::ListCheckpointRecords>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<contract::ListCheckpointRecords>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::ListCheckpointRecords>>(Host::<contract::ListCheckpointRecords>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

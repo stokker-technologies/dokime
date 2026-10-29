@@ -15,13 +15,13 @@
 
 // Standard Library Imports
 
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 // Third Party Imports
 import { type ComponentProps, type ReactNode, useEffect } from "react";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+// Local Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-
-// Local Imports
 import { cn } from "@/lib/utils";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -63,11 +63,7 @@ export function PageShell({ actions, children, className, trail, ...props }: Pag
 
 /** One line about the page's data, at the page's own text inset. */
 export function PageNotice({ children, tone = "status" }: PageNoticeProps) {
-  return (
-    <div className={cn("grid gap-1 text-sm", tone === "alert" ? "text-destructive" : "text-muted-foreground")} role={tone}>
-      {children}
-    </div>
-  );
+  return <NotificationMessage tone={tone === "alert" ? "error" : "info"}>{children}</NotificationMessage>;
 }
 
 /* === Hooks === */

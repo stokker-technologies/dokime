@@ -44,9 +44,8 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 
 /* === Enums === */
 
-// The operations this plugin provides, named by `provides`; each request is
-// its operation.
-#[dokime::catalog]
+// The operations this plugin declares in CATALOGS; each request is its operation.
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 pub enum Operations {
     GetStatus(GetStatus),
     ReadChamber(ReadChamber),

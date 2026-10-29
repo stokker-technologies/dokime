@@ -19,13 +19,13 @@ mod codec;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tonic::Status;
 
 // Local Imports
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::diagnostics::admission::AdmissionFailure;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::query as wire;
@@ -40,11 +40,16 @@ use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, Aggreg
 /* === Structs === */
 
 struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::Aggregate),
+}
 
 /* === Traits === */
 
@@ -56,7 +61,8 @@ impl Serve<wire::Aggregate> for Resources {
     ) -> Served<'a, dokime::domain::model::query::wire::AggregateReply> {
         Box::pin(async move {
             let query = decode(&mut request)?;
-            self.runtime
+            dokime::app::live_runtime(&self.runtime)
+                .await?
                 .aggregate(query)
                 .await
                 .map_err(status)
@@ -67,15 +73,17 @@ impl Serve<wire::Aggregate> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes: maximum,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::Aggregate>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::Aggregate>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::Aggregate>>(Host::<wire::Aggregate>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

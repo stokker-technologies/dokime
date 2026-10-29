@@ -81,7 +81,7 @@ pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let block: ItemImpl = syn::parse2(item.clone())?;
+    let mut block: ItemImpl = syn::parse2(item.clone())?;
     let Type::Path(owner) = block.self_ty.as_ref() else {
         return Err(Error::new(block.self_ty.span(), "`#[dokime::plugin]` belongs on `impl dokime::Plugin for ConcreteType`"));
     };
@@ -105,6 +105,31 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     if let Some(records) = &contributed.records {
         generated.push(crate::catalog::assert_unique(&quote!(#records), "RecordIdentifiers"));
     }
+    let mut catalogs = Vec::new();
+    if let Some(suites) = &contributed.suites {
+        catalogs.push(quote!(#sdk::catalog::Node::Nested(
+            <#suites as #sdk::catalog::InertCatalog<#sdk::catalog::SuiteCatalogs, &'static [#sdk::__harmos::Catalog]>>::ENTRIES
+        )));
+    }
+    if let Some(listeners) = &contributed.listeners {
+        catalogs.push(quote!(#sdk::catalog::Node::Leaf(&[#listeners::CATALOG])));
+    }
+    let inventory = block
+        .items
+        .iter_mut()
+        .find_map(|item| match item {
+            syn::ImplItem::Const(item) if item.ident == "CATALOGS" => Some(item),
+            _ => None,
+        })
+        .ok_or_else(|| Error::new(block.self_ty.span(), "a plugin declares its operation catalogs in const CATALOGS"))?;
+    let authored = inventory.expr.clone();
+    inventory.expr = syn::parse_quote!({
+        const AUTHORED: &[#sdk::__harmos::Catalog] = #authored;
+        const CONTRIBUTED: &[#sdk::catalog::Node<&'static [#sdk::__harmos::Catalog]>] = &[#(#catalogs),*];
+        const COUNT: usize = AUTHORED.len() + #sdk::catalog::contribution_catalog_count(CONTRIBUTED);
+        const CATALOGS: [#sdk::__harmos::Catalog; COUNT] = #sdk::catalog::plugin_catalogs(AUTHORED, CONTRIBUTED);
+        &CATALOGS
+    });
     let mut forwarded = vec![streams(&contributed, &block.self_ty)];
     for argument in arguments {
         match &argument {
@@ -119,39 +144,6 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                     named.span(),
                     "`#[dokime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
                 ));
-            }
-            Meta::NameValue(named) if named.path.is_ident("provides") => {
-                let authored = &named.value;
-                let nested = provided(&contributed);
-                if nested.is_empty() {
-                    forwarded.push(quote!(#argument));
-                    continue;
-                }
-                let name = format_ident!("__DokimeProvides{owner}");
-                let declaration = quote!(#sdk::__harmos::operations::WireDeclaration);
-                let contracts = quote!(#sdk::__harmos::operations::Contracts);
-                generated.push(quote! {
-
-                    pub struct #name;
-
-                    impl #sdk::catalog::InertCatalog<#contracts, #declaration> for #name {
-                        const ENTRIES: &'static [#sdk::catalog::Node<#declaration>] = &[
-                            #sdk::catalog::Node::Nested(
-                                <#authored as #sdk::catalog::InertCatalog<#contracts, #declaration>>::ENTRIES
-                            ),
-                            #(#nested),*
-                        ];
-                    }
-
-                    // Suite runs and listener callbacks invoke no declared
-                    // operations, so the authored catalog is the only callee source.
-                    impl #sdk::catalog::InertCatalog<#sdk::__harmos::operations::Callees, &'static [#declaration]> for #name {
-                        const ENTRIES: &'static [#sdk::catalog::Node<&'static [#declaration]>] = &[#sdk::catalog::Node::Nested(
-                            <#authored as #sdk::catalog::InertCatalog<#sdk::__harmos::operations::Callees, &'static [#declaration]>>::ENTRIES
-                        )];
-                    }
-                });
-                forwarded.push(quote!(provides = #name));
             }
             Meta::NameValue(named) if named.path.is_ident("requires") => {
                 let authored = &named.value;
@@ -171,7 +163,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                     .collect::<Vec<_>>();
                 generated.push(quote! {
 
-                    #[#sdk::__harmos::catalog(harmos_path = #sdk::__harmos)]
+                    #[#sdk::catalog]
                     pub enum #name {
                         #[nested]
                         Authored(#authored),
@@ -204,7 +196,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     Ok(quote! {
         #(#generated)*
 
-        #[#sdk::__harmos::plugin(harmos_path = #sdk::__harmos, #(#forwarded),*)]
+        #[#sdk::__harmos::sidecar(harmos_path = #sdk::__harmos, #(#forwarded),*)]
         #block
     })
 }
@@ -263,30 +255,14 @@ fn contributed(arguments: &Punctuated<Meta, Token![,]>) -> Result<Contributed, E
                 "Evidence" => contributed.evidence = generics.first().cloned(),
                 "Records" => {
                     contributed.records = generics.first().cloned();
-                    contributed.listeners = generics.get(1).cloned();
+                    contributed.listeners =
+                        generics.get(1).filter(|ty| !matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())).cloned();
                 }
                 _ => {}
             }
         }
     }
     Ok(contributed)
-}
-
-fn provided(contributed: &Contributed) -> Vec<TokenStream> {
-    let sdk = crate::facade::root();
-    let declaration = quote!(#sdk::__harmos::operations::WireDeclaration);
-    let mut nested = Vec::new();
-    if let Some(suites) = &contributed.suites {
-        nested.push(quote!(#sdk::catalog::Node::Nested(
-            &<#suites as #sdk::catalog::Catalog<#sdk::catalog::SuiteOperations>>::ENTRIES
-        )));
-    }
-    if let Some(listeners) = &contributed.listeners {
-        nested.push(quote!(#sdk::catalog::Node::Nested(
-            <#listeners as #sdk::catalog::InertCatalog<#sdk::__harmos::operations::Contracts, #declaration>>::ENTRIES
-        )));
-    }
-    nested
 }
 
 // The plugin publishes what its declarations name: the streams of its suites'

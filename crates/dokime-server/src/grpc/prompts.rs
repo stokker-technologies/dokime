@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
@@ -30,7 +30,7 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::execution::wire_cursor::Cursor as NativeCursor;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::execution::wire_cursor::Error as CursorError;
@@ -52,11 +52,20 @@ const STREAM: &str = "runtime.state";
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ListDefinitions),
+    Operation1(wire::GetDefinition),
+    Operation2(wire::ListPending),
+    Operation3(wire::GetPrompt),
+    Operation4(wire::Respond),
+}
 
 /* === Traits === */
 
@@ -67,7 +76,7 @@ impl Serve<wire::ListDefinitions> for Resources {
         &'a self, request: wire::ListDefinitions, _: Context<'a, wire::ListDefinitions>,
     ) -> Served<'a, dokime::domain::model::prompts::wire::ListPromptDefinitionsReply> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let limit = page(request.limit, &request.after_prompt_type, request.cursor.as_ref(), &snapshot)?;
             let definitions = &snapshot.state().prompt_definitions;
             if !request.after_prompt_type.is_empty() && !definitions.values().any(|d| d.prompt_type.as_str() == request.after_prompt_type) {
@@ -93,7 +102,7 @@ impl Serve<wire::GetDefinition> for Resources {
         &'a self, request: wire::GetDefinition, _: Context<'a, wire::GetDefinition>,
     ) -> Served<'a, dokime::domain::model::prompts::wire::PromptDefinition> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let definition = snapshot
                 .state()
                 .prompt_definitions
@@ -121,7 +130,7 @@ impl Serve<wire::ListPending> for Resources {
                 .map(|value| TestExecutionId::from_uuid(value).map_err(|_| Status::invalid_argument("invalid execution UUID")))
                 .transpose()?;
             let selection = dokime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let mut supplied = request.cursor.take();
             if let Some(cursor) = &mut supplied {
                 if cursor.stream != selection {
@@ -178,7 +187,7 @@ impl Serve<wire::GetPrompt> for Resources {
     ) -> Served<'a, dokime::domain::model::prompts::wire::PromptView> {
         Box::pin(async move {
             let id = prompt_id(&request.prompt_id)?;
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let prompt = snapshot.state().prompt_requests.get(&id).ok_or_else(|| Status::not_found("prompt not found"))?;
             let response = snapshot.state().prompt_responses.get(&id);
             self.produce(|| {
@@ -210,8 +219,8 @@ impl Serve<wire::Respond> for Resources {
                 Some(dokime::domain::model::values::Value::Object(fields)) => fields,
                 Some(_) => return Err(Status::invalid_argument("prompt values must be an object")),
             };
-            let receipt = self
-                .runtime
+            let receipt = dokime::app::live_runtime(&self.runtime)
+                .await?
                 .submit_prompt_response_command(
                     id.clone(),
                     std::mem::take(&mut request.action),
@@ -222,7 +231,7 @@ impl Serve<wire::Respond> for Resources {
                 )
                 .await
                 .map_err(execution::status)?;
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             self.produce(|| {
                 Ok(dokime::domain::model::prompts::wire::PromptResponseReceipt {
                     command_id: receipt.command_id.to_string(),
@@ -248,21 +257,18 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ListDefinitions>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetDefinition>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::ListPending>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::GetPrompt>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::Respond>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::ListDefinitions>()
-        .operation::<wire::GetDefinition>()
-        .operation::<wire::ListPending>()
-        .operation::<wire::GetPrompt>()
-        .operation::<wire::Respond>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ListDefinitions>>(Host::<wire::ListDefinitions>::new(served.clone()));
+    setup.resource::<Host<wire::GetDefinition>>(Host::<wire::GetDefinition>::new(served.clone()));
+    setup.resource::<Host<wire::ListPending>>(Host::<wire::ListPending>::new(served.clone()));
+    setup.resource::<Host<wire::GetPrompt>>(Host::<wire::GetPrompt>::new(served.clone()));
+    setup.resource::<Host<wire::Respond>>(Host::<wire::Respond>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

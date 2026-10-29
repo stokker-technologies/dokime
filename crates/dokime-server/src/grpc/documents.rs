@@ -19,12 +19,12 @@ mod wire;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
 // Local Imports
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::DocumentId;
 use dokime::domain::model::identity::Identifier;
 use dokime::domain::model::identity::TestCycleId;
@@ -41,11 +41,17 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::CaptureCurrentDocument),
+    Operation1(contract::UpdatePlotSettings),
+}
 
 /* === Traits === */
 
@@ -61,7 +67,7 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
                 let (cycle, execution) = owner(request.scope.take())?;
                 let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
                 // A scope without an execution names the cycle's own document.
-                let runtime = &self.runtime;
+                let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let prepared = match &execution {
                     Some(execution) => runtime.prepare_current_document(&cycle, execution, &id),
                     None => runtime.prepare_current_cycle_document(&cycle, &id),
@@ -102,7 +108,8 @@ impl Serve<contract::UpdatePlotSettings> for Resources {
             let document =
                 DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
             let plot = Identifier::new(&request.plot_id).map_err(|_| Status::invalid_argument("invalid plot ID"))?;
-            self.runtime
+            dokime::app::live_runtime(&self.runtime)
+                .await?
                 .update_plot_settings(&cycle, &execution, &document, &plot, request.display_points, request.downsample)
                 .await
                 .map_err(super::execution::status)?;
@@ -113,15 +120,15 @@ impl Serve<contract::UpdatePlotSettings> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), super::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::CaptureCurrentDocument>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::UpdatePlotSettings>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<contract::CaptureCurrentDocument>()
-        .operation::<contract::UpdatePlotSettings>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::CaptureCurrentDocument>>(Host::<contract::CaptureCurrentDocument>::new(served.clone()));
+    setup.resource::<Host<contract::UpdatePlotSettings>>(Host::<contract::UpdatePlotSettings>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

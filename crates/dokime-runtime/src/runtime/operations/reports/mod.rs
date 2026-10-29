@@ -21,7 +21,7 @@ mod cycle;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{Context, RegistrationExt};
+use harmos::Context;
 use tonic::Status;
 
 // Local Imports
@@ -52,13 +52,24 @@ pub(super) struct Resources {
 
 /* === Enums === */
 
+#[harmos::catalog]
+enum Operations {
+    Materialize(MaterializeReport),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Serve<MaterializeReport> for Resources {
+struct Runtime(crate::app::LiveRuntime);
+
+impl Serve<MaterializeReport> for Runtime {
     fn serve<'a>(&'a self, request: MaterializeReport, _: Context<'a, MaterializeReport>) -> Served<'a, MaterializedReport> {
-        Box::pin(async move { self.materialize(request).await.map(Into::into).map_err(status) })
+        Box::pin(async move {
+            let runtime = crate::app::live_runtime(&self.0).await?;
+            let resources = Resources::from_runtime(&runtime);
+            resources.materialize(request).await.map(Into::into).map_err(status)
+        })
     }
 }
 
@@ -86,26 +97,28 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(crate) async fn register(runtime: &RuntimeHandle) -> Result<()> {
-    let resources = Arc::new(Resources {
-        execution_storage: runtime.execution_storage.clone(),
-        settings: runtime.local_storage.clone(),
-        providers: runtime.providers.clone(),
-        progress: runtime.operation_progress().clone(),
-        scope: Scope::new(
-            runtime.state_manager.clone(),
-            crate::app::Resources {
-                schema_settings: *runtime.schema_settings(),
-                analysis: crate::report::analysis::Resources::from_runtime(runtime),
-                renderer: crate::report::Renderer,
-            },
-        ),
-    });
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Host::<MaterializeReport>::new(resources))?;
-    let batch = harmos::RegistrationBatch::new(dependencies).operation::<MaterializeReport>();
-    runtime.operations.register(batch.lane(Lanes::Open)).await?;
-    Ok(())
+pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, live: &crate::app::LiveRuntime) {
+    setup.resource::<Host<MaterializeReport>>(Host::<MaterializeReport>::new(Arc::new(Runtime(live.clone()))));
+    setup.operations::<Operations>(Lanes::Open);
+}
+
+impl Resources {
+    fn from_runtime(runtime: &RuntimeHandle) -> Self {
+        Self {
+            execution_storage: runtime.execution_storage.clone(),
+            settings: runtime.local_storage.clone(),
+            providers: runtime.providers.clone(),
+            progress: runtime.operation_progress().clone(),
+            scope: Scope::new(
+                runtime.state_manager.clone(),
+                crate::app::Resources {
+                    schema_settings: *runtime.schema_settings(),
+                    analysis: crate::report::analysis::Resources::from_runtime(runtime),
+                    renderer: crate::report::Renderer,
+                },
+            ),
+        }
+    }
 }
 
 /* === Private Functions === */

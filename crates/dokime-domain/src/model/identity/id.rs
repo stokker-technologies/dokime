@@ -64,9 +64,9 @@ macro_rules! typed_uuid {
         #[serde(transparent)]
         pub struct $name(String);
 
-        impl harmos_domain::MemorySize for $name {
+        impl harmos::MemorySize for $name {
             fn memory_size(&self) -> usize {
-                harmos_domain::MemorySize::memory_size(&self.0)
+                harmos::MemorySize::memory_size(&self.0)
             }
         }
 

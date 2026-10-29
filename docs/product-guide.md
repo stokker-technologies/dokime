@@ -129,6 +129,12 @@ settings, with TLS and access-key authentication selected independently;
 browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
+## Notifications
+
+Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
+
+The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
 ## Native Remote Access
 
 Settings → Remote Access owns the saved listener settings and explicit restart.
@@ -172,6 +178,8 @@ capabilities. A grant must name the operation being called. Discovery and
 invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
+
+The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
 machine **Identifier** and a human **Label**. Import a pairing file as the primary
@@ -582,11 +590,15 @@ uncertain, inspect the backend before creating another container.
 
 ### Qualify An On-Board Charger
 
-Harmos supplies the runtime and plugin boundary. Dokime adds the testing domain:
+Harmos supplies the runtime and plugin boundary. Applications use
+`Runtime::<A>::launch(origin, config)` with the shared `Lifecycle`: `prepare`
+registers catalogs, lanes and resources through `Setup`, and `initialize`
+activates resources that need the live runtime. Server composition is prepared
+before Dokime launches; listening uses the initialized service. Dokime adds the testing domain:
 procedures, parameter expansion, operator interaction, acceptance criteria, and
 self-contained reports.
 
-The [OBC charger simulation](../plugins/obc-plugin/src/suites/) demonstrates startup,
+The [OBC charger simulation](../plugins/sidecars/obc/src/suites/) demonstrates startup,
 steady-state measurement, overcurrent protection, and recovery. It models a
 charger testbench for learning the workflow; it is not a validated electrical
 model or a ready-made vehicle qualification standard.
@@ -594,7 +606,7 @@ model or a ready-made vehicle qualification standard.
 ### Define The Operating Points
 
 A shortened version of OBC's
-[steady-state parameters](../plugins/obc-plugin/src/suites/steady/measurement.rs) declare the
+[steady-state parameters](../plugins/sidecars/obc/src/suites/steady/measurement.rs) declare the
 nine-case voltage/load sweep:
 
 ```rust
@@ -624,7 +636,7 @@ inputs before execution, so the procedure and its document see the same values.
 
 ### Run The Procedure And Capture Evidence
 
-OBC's [steady-state template](../plugins/obc-plugin/src/suites/steady/measurement.rs)
+OBC's [steady-state template](../plugins/sidecars/obc/src/suites/steady/measurement.rs)
 initializes shared device resources, energizes the charger, observes its
 waveform, asks the operator to inspect the trace, and attaches a measurement
 summary. Cleanup stops the simulated device.
@@ -662,7 +674,7 @@ fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
 ```
 
 These are excerpts from the complete template, not standalone programs.
-The [protection template](../plugins/obc-plugin/src/suites/protection/overcurrent.rs)
+The [protection template](../plugins/sidecars/obc/src/suites/protection/overcurrent.rs)
 adds an automated load ladder and verifies that an overcurrent fault disconnects
 the supply and prevents restart. A real charger integration can extend these
 procedures with regulation, efficiency, and thermal criteria for its hardware.
@@ -672,7 +684,7 @@ to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
 `WatchFile` captures a device log written during the step into an artifact and
 turns matching lines into rows and records. The
-[startup template](../plugins/obc-plugin/src/suites/startup/sequence.rs) tails the
+[startup template](../plugins/sidecars/obc/src/suites/startup/sequence.rs) tails the
 simulated charger's log this way:
 
 ```rust
@@ -722,7 +734,7 @@ record.
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
-[measurement document](../plugins/obc-plugin/src/suites/common/measurement.rs); `stream` selects
+[measurement document](../plugins/sidecars/obc/src/suites/common/measurement.rs); `stream` selects
 the suite-owned stream carrying `InputMeasurement` rows:
 
 ```rust
@@ -751,7 +763,7 @@ the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
-freezes the table with its plot.
+freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -851,7 +863,7 @@ replaced by the `sidecar` group.
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--output`, `--format`, `--target`, `--sign`, `--json` |
+| `cargo dokime installer package` | Assemble unchanged local or pinned release payloads. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
 An installer manifest selects the distribution version, optional organization
@@ -891,6 +903,10 @@ cargo dokime installer package --manifest company/installer.toml --artifacts tar
 cargo dokime installer inspect dist/dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
+Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
+for other bundles. Only explicitly selected bundles are installed; omitting the flag
+includes no plugins. The Dokime packaging task selects `host.dokime`.
+
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable
 `dokime-payload-<version>-<Rust-target>.zip` beside the installers. The ZIP
@@ -906,9 +922,21 @@ installer as a replacement payload. Dokime has no published release yet; use
 matching candidate build artifacts until a payload release is available.
 
 Native assembly uses Tauri's bundler; Windows NSIS tooling is provisioned by that
-backend. Inspection requires `7z` for NSIS, both `dpkg-deb` and `bsdtar`
-(libarchive) for DEB, and `bsdtar` for RPM. Inspection extracts without installing
-or executing the application and compares the embedded distribution metadata with package bytes.
+backend. Inspection needs no external archive tool on any platform: the
+authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
+RPM packages with a gzip payload in-process, which are the formats packaging
+produces. Each regular file is extracted to its installed path: `$INSTDIR`
+for NSIS, the package root for DEB and RPM. Inspection then requires exactly one
+embedded distribution manifest, compares every listed file's SHA-256 with the
+extracted bytes, rejects any organization file the manifest does not list, and
+checks launcher and icon artwork. Links, special files, duplicate or escaping
+paths, NSIS files extracted anywhere except the installation directory or the
+installer's own `$PLUGINSDIR` and `$TEMP` helpers, and RPMs whose header or
+payload digest mismatches fail inspection. Nothing is installed or executed. An
+NSIS installer is a script: its destinations come from replaying the script's
+output directories in order, as 7-Zip lists them, so branches and runtime
+values are not evaluated. Signature checks with `--sign` still use `signtool`,
+`debsig-verify` or `rpmkeys`.
 Generated icons, configuration, organization staging and extraction files live
 in temporary directories; completed installers and requested inspection output
 persist.
@@ -999,6 +1027,10 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
+Host telemetry is supplied by `host.dokime` through plugin ingest. The runtime
+has no built-in host collector or implicit plugin seed. OBC is an explicit
+test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
+
 ## Cargo Features
 
 These flags configure the `dokime` entry library. Defaults are empty; plugin
@@ -1011,18 +1043,19 @@ definitions are available under `dokime::domain` in every feature set.
 | `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
 | `diagnostics` | No | Captured error chains, span traces and backtraces. |
 | `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
-| `native` | No | Native plugin SDK, sidecar support, and plugin prelude. |
+| `native` | No | Native runtime, storage, gRPC, sidecar SDK and plugin prelude. |
 | `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
-| `host` | No | The application host the server embeds: storage, gRPC and host collectors. |
-| `fft` | No | Spectrum analyses on top of `host`. |
-| `simulation` | No | Simulated time and devices on top of `host`. |
-| `media-native` | No | Native camera, microphone and screen capture on top of `host`. |
+| `fft` | No | Spectrum analyses on top of `native`. |
+| `simulation` | No | Simulated time and devices on top of `native`. |
+| `media-native` | No | Native camera, microphone and screen capture on top of `native`. |
 
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Existing data is never silently reset.
+fresh storage root. Host payloads now use native repeated fields and framework
+publication timestamps; the earlier wrapped host row layout also requires a fresh
+root. Schemas remain v1 during development. Existing data is never silently reset.
 
 For remote automation, enable the entry library's client surface:
 
@@ -1042,7 +1075,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 ## Documentation
 
 - [Remote OBC Walkthrough](../packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
-- [OBC Plugin](../plugins/obc-plugin/) — the charger simulation and complete test templates.
+- [OBC Plugin](../plugins/sidecars/obc/) — the charger simulation and complete test templates.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](../crates/dokime-client/src/) — programmatic access to cycles and executions.
@@ -1089,16 +1122,18 @@ input payload and compiled application identity. When installer signing is
 requested, it signs the modified executable before recording its final hash,
 then signs the finished installer. Installer artwork supplies the setup icon.
 
-The app's brand mark exposes the `.logo` class on both light and dark artwork,
-including its text fallback. Customize it in the pack's `theme/base.css`, for
-example:
+The connection screen and sidebar share a `.brand` block containing `.logo` artwork and a `.wordmark`. The text fallback also carries `.logo`. Customize this block in the pack's `theme/base.css`, for example:
 
 ```css
-.logo {
-  padding: 0.5rem 1rem;
-  object-fit: contain;
+.brand {
+  --brand-logo-size: 2.5rem;
+  --brand-flow: column;
+  --brand-align: center;
+  --brand-gap: 0.75rem;
 }
 ```
+
+The default classes `brand-row` / `brand-column` select flow and `brand-start` / `brand-center` select alignment. Organization themes can override their variables without changing components. The connection screen keeps its 2.5rem logo and the sidebar its 1.5rem logo by default.
 
 The root element carries `.light` or `.dark` for the active mode, so shared
 styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,

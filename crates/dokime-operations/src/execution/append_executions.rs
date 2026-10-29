@@ -40,7 +40,7 @@ pub struct ExecutionBinding {
 }
 
 #[harmos::operation(resources = [crate::hosting::Host<AppendExecutions>], response = AppendCasesReply, id = "dokime.execution.append_executions",
-    policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
+    policy = MUTATION, visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Execution", method = "AppendExecutions"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

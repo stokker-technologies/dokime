@@ -35,14 +35,14 @@ pub const INSTALL_ARCHIVE_MAX_BYTES: u64 = 272 * 1024 * 1024;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallationCursor {
     pub manifest_sha256: String,
     pub after_install_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallationPage {
     pub installations: Vec<PluginInstallation>,
@@ -51,7 +51,7 @@ pub struct InstallationPage {
     pub manifest_sha256: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovePluginReply {
     // RemovalPending persists until the next boot; the active process is untouched.
@@ -65,27 +65,27 @@ pub struct RemovePluginReply {
 // Native archive limit is `INSTALL_ARCHIVE_MAX_BYTES`.
 // No resumable upload session or automatic retry: after uncertain acknowledgement,
 // reconcile the manifest by digest before explicitly starting another installation.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallPluginFrame {
     pub frame: Option<InstallPluginFrameFrame>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallPluginHeader {
     pub size_bytes: u64,
     pub sha256: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallPluginChunk {
     pub offset: u64,
     pub data: Vec<u8>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginIdentity {
     pub name: String,
@@ -93,7 +93,7 @@ pub struct PluginIdentity {
     pub description: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginMetadata {
     pub identity: Option<PluginIdentity>,
@@ -101,14 +101,14 @@ pub struct PluginMetadata {
     pub size_bytes: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginLastBoot {
     pub at: Option<Timestamp>,
     pub result: Option<PluginLastBootResult>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginInstallation {
     pub install_id: String,
@@ -130,7 +130,7 @@ pub struct PluginInstallation {
     pub boot_error: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedPluginCursor {
     pub epoch: String,
@@ -138,7 +138,7 @@ pub struct AdmittedPluginCursor {
     pub after_plugin_id: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedPluginPage {
     pub plugins: Vec<AdmittedPlugin>,
@@ -148,7 +148,7 @@ pub struct AdmittedPluginPage {
     pub revision: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedBundleOwner {
     pub package: String,
@@ -158,13 +158,13 @@ pub struct AdmittedBundleOwner {
     pub content_digest: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedEmbeddedOwner {
     pub generation: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedPlugin {
     pub plugin_id: String,
@@ -176,7 +176,7 @@ pub struct AdmittedPlugin {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PluginInstallationState {
     Unspecified,
@@ -185,21 +185,21 @@ pub enum PluginInstallationState {
     RemovalPending,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum InstallPluginFrameFrame {
     Header(InstallPluginHeader),
     Chunk(InstallPluginChunk),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PluginLastBootResult {
     Loaded(bool),
     Error(String),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum AdmittedPluginOwner {
     Host(bool),

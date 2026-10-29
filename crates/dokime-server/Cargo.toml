@@ -22,7 +22,8 @@ version = { workspace = true }
 # === Features === #
 
 [features]
-default = []
+default = ["runtime"]
+runtime = []
 fault-injection = ["dokime/fault-injection"]
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.
@@ -32,7 +33,7 @@ media-native = ["dokime/media-native"]
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
+dokime = { workspace = true, features = ["native", "fft", "diagnostics", "terminal", "client"] }
 
 # Git
 

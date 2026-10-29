@@ -25,12 +25,12 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::access::Principal;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::CommandId;
 use dokime::domain::model::identity::NoteId;
 use dokime::domain::model::identity::SessionId;
@@ -50,11 +50,19 @@ const SERVER_NOTE_RESPONSE_BYTES: u64 = 524_288;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::ListNotes),
+    Operation1(contract::ListHealth),
+    Operation2(contract::CreateNote),
+    Operation3(contract::EditNote),
+}
 
 /* === Traits === */
 
@@ -65,7 +73,7 @@ impl Serve<contract::ListNotes> for Resources {
         &'a self, mut request: contract::ListNotes, _: Context<'a, contract::ListNotes>,
     ) -> Served<'a, dokime::domain::model::notes::wire::ListNotesResponse> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let page = selection::Page::new(
                 request.selection.take(),
                 request.limit,
@@ -100,7 +108,7 @@ impl Serve<contract::ListHealth> for Resources {
         &'a self, mut request: contract::ListHealth, _: Context<'a, contract::ListHealth>,
     ) -> Served<'a, dokime::domain::model::notes::wire::ListHealthResponse> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
             let page = selection::Page::new(
                 request.selection.take(),
                 request.limit,
@@ -137,8 +145,8 @@ impl Serve<contract::CreateNote> for Resources {
         Box::pin(async move {
             let context = ctx.call();
             let actor = context.get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
-            let result = self
-                .runtime
+            let result = dokime::app::live_runtime(&self.runtime)
+                .await?
                 .create_current_note(evidence::CreateNote {
                     epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                         .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
@@ -162,8 +170,8 @@ impl Serve<contract::EditNote> for Resources {
         Box::pin(async move {
             let context = ctx.call();
             let actor = context.get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
-            let note = self
-                .runtime
+            let note = dokime::app::live_runtime(&self.runtime)
+                .await?
                 .edit_current_note(evidence::EditNote {
                     epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                         .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
@@ -191,22 +199,20 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         maximum: maximum.min(usize::try_from(SERVER_NOTE_RESPONSE_BYTES).expect("validated note response size")),
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::ListNotes>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::ListHealth>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::CreateNote>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::EditNote>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<contract::ListNotes>()
-        .operation::<contract::ListHealth>()
-        .operation::<contract::CreateNote>()
-        .operation::<contract::EditNote>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::ListNotes>>(Host::<contract::ListNotes>::new(served.clone()));
+    setup.resource::<Host<contract::ListHealth>>(Host::<contract::ListHealth>::new(served.clone()));
+    setup.resource::<Host<contract::CreateNote>>(Host::<contract::CreateNote>::new(served.clone()));
+    setup.resource::<Host<contract::EditNote>>(Host::<contract::EditNote>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -14,7 +14,7 @@ mod status;
 
 /* === Re-Exports === */
 
-pub(super) use status::register;
+pub(super) use status::prepare;
 
 /* === Imports === */
 

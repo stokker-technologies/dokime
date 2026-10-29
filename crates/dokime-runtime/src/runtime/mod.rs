@@ -366,7 +366,7 @@ impl Runtime {
         if !self.shutdown.stopped {
             if self.shutdown.overview.is_none() {
                 let participant = self.shutdown.participant.get_or_insert_with(|| self.harmos.stop_participant());
-                let stopping = self.harmos.stop();
+                let stopping = self.harmos.shutdown();
                 tokio::pin!(stopping);
                 let checkpoint = async {
                     participant.stopping().await;
@@ -388,7 +388,7 @@ impl Runtime {
                 self.shutdown.participant.take().expect("checkpoint participant").finish();
                 stopping.await?;
             } else {
-                self.harmos.stop().await?;
+                self.harmos.shutdown().await?;
             }
             self.shutdown.stopped = true;
         }

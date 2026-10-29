@@ -17,8 +17,8 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos_domain::operations::OperationPolicy;
-use harmos_domain::operations::RetryPolicy;
+use harmos::operations::OperationPolicy;
+use harmos::operations::RetryPolicy;
 use serde::Deserialize;
 use serde::Serialize;
 

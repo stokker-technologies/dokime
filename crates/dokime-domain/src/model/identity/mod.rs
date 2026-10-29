@@ -18,8 +18,8 @@ pub mod wire;
 
 /* === Re-Exports === */
 
-pub use harmos_domain::Identifier;
-pub use harmos_domain::Metadata;
+pub use harmos::Identifier;
+pub use harmos::Metadata;
 pub use id::ActorId;
 pub use id::ArtifactId;
 pub use id::CaseId;

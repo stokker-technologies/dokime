@@ -32,7 +32,7 @@ use super::*;
 
 // Stream One Support Archive Without Secret Material.
 #[harmos::operation(resources = [crate::hosting::Host<CollectDiagnostics>], response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics",
-        policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+        policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "CollectDiagnostics"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectDiagnostics {

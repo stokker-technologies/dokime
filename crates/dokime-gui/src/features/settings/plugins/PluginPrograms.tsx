@@ -20,8 +20,42 @@
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import type { PluginEntry, RuntimeSettingsFrame } from "@/lib/types/view-contracts";
+
+/* === Types === */
+
+/** One row of programs that no installed plugin entry already lists. */
+export type ProgramRow = {
+  key: string;
+  program: RuntimeInstalledPluginRecord;
+  /** The contributed settings page any program of the row owns; null without one. */
+  settingsSection: string | null;
+};
 
 /* === Public Functions === */
+
+/** Groups the programs into rows, one per host, bundle package or lone
+    program, each carrying the settings page one of its programs contributes.
+    A host row opens its own contributed page like any other plugin. */
+export function programRows(
+  programs: RuntimeInstalledPluginRecord[],
+  entries: PluginEntry[],
+  frame: RuntimeSettingsFrame | null,
+): ProgramRow[] {
+  const rows: ProgramRow[] = [];
+  for (const program of programs) {
+    const owner = program.owner;
+    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.install_id === owner.installation)) continue;
+    const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
+    const settingsSection =
+      frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id)
+        ?.section_id ?? null;
+    const existing = rows.find((row) => row.key === key);
+    if (!existing) rows.push({ key, program, settingsSection });
+    else existing.settingsSection ??= settingsSection;
+  }
+  return rows;
+}
 
 export function programKey(program: RuntimeInstalledPluginRecord): string {
   const owner = program.owner;

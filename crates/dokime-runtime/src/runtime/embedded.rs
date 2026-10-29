@@ -113,6 +113,12 @@ struct Publication {
 
 /* === Enums === */
 
+#[harmos::catalog]
+enum PreparedOperations {
+    Operation0(crate::execution::Run<()>),
+    Operation1(crate::execution::Signal<()>),
+}
+
 /* === Traits === */
 
 #[async_trait]
@@ -421,14 +427,15 @@ impl EmbeddedPublisher for Publisher {
 /* === Public Functions === */
 
 // Registers the host-level template run and signal every embedded provider serves through.
-pub(crate) async fn register(operations: &crate::app::OperationManager, templates: &Arc<Templates>) -> harmos::Result<()> {
-    use harmos::RegistrationExt;
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies
-        .insert(Arc::new(crate::execution::EmbeddedTemplates(Arc::clone(templates) as Arc<dyn crate::execution::EmbeddedRegistry>)))?;
-    let batch =
-        harmos::RegistrationBatch::new(dependencies).operation::<crate::execution::Run<()>>().operation::<crate::execution::Signal<()>>();
-    operations.register(batch.lane(crate::app::Lanes::Open)).await
+pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, templates: &Arc<Templates>) -> harmos::Result<()> {
+    setup.resource::<crate::execution::EmbeddedTemplates>(std::sync::Arc::new(crate::execution::EmbeddedTemplates(
+        Arc::clone(templates) as Arc<dyn crate::execution::EmbeddedRegistry>
+    )));
+
+    {
+        setup.operations::<PreparedOperations>(crate::app::Lanes::Open);
+        Ok(())
+    }
 }
 
 /* === Private Functions === */

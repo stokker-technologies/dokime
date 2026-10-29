@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { ArrowRight, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -119,9 +119,11 @@ export function HistoryLibrary({
         column.display({
           id: "actions",
           header: "Actions",
-          meta: { width: "w-36", align: "end" },
           cell: ({ row }) => (
-            <DataTableRowActions label={row.original.title} primary={{ label: "Open", onSelect: () => onOpenEntry(row.original.target) }}>
+            <DataTableRowActions
+              label={row.original.title}
+              primary={{ label: "Open", icon: ArrowRight, onSelect: () => onOpenEntry(row.original.target) }}
+            >
               {archived ? <DropdownMenuItem onSelect={() => onUnarchive(row.original)}>Unarchive</DropdownMenuItem> : null}
             </DataTableRowActions>
           ),
@@ -151,7 +153,7 @@ export function HistoryLibrary({
       disabled={selectedIds.size < 2}
       onClick={onCompare}
       size="sm"
-      title={selectedIds.size < 2 ? "Select at least two entries to compare" : undefined}
+      title={selectedIds.size < 2 ? "Select At Least Two Entries To Compare" : undefined}
     >
       <GitCompare />
       {selectedIds.size < 2 ? `Compare (Select ${2 - selectedIds.size} More)` : `Compare Selected (${selectedIds.size})`}
@@ -168,7 +170,7 @@ export function HistoryLibrary({
       }
       columns={columns}
       data={cycles}
-      emptyText={loading ? "Loading history…" : archived ? "No archived history." : "No history matches."}
+      emptyText={loading ? "Loading History…" : archived ? "No Archived History" : "No History Matches"}
       getRowId={entryKey}
       onRowClick={(entry) => onOpenEntry(entry.target)}
       search={search}
@@ -192,8 +194,8 @@ function EntryTitle({ entry }: { entry: ExploreEntry }) {
 function ResultPills({ failed, passed }: { failed: number; passed: number }) {
   return (
     <div className="flex items-center gap-2 text-xs font-medium">
-      <span className="text-success">{passed} passed</span>
-      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} failed</span>
+      <span className="text-success">{passed} Passed</span>
+      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} Failed</span>
     </div>
   );
 }

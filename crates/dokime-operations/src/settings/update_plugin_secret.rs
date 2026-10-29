@@ -32,7 +32,7 @@ use super::*;
 
 #[harmos::message(skip_debug)]
 #[harmos::operation(resources = [crate::hosting::Host<UpdatePluginSecret>], codec = manual, response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_secret",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdatePluginSecret"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdatePluginSecret {

@@ -38,7 +38,7 @@ use theme::{Bundled, Directory, Error as ThemeCssError, Source, load_from as loa
 
 /* === Constants === */
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) const BRAND_ARTIFACT_ID: &str = "brand";
 const BRAND_MANIFEST_FILE: &str = "organization.toml";
 const BRAND_THEME_ID: &str = "brand.theme";

@@ -39,7 +39,6 @@ dokime-domain = { workspace = true }
 
 # Utilities
 harmos = { workspace = true }
-harmos-domain = { workspace = true }
 
 # Serialization
 serde = { workspace = true }

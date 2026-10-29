@@ -59,7 +59,7 @@ export function StepDiagram({
   if (!steps.length) return null;
 
   return (
-    <section aria-label={`Workflow timeline with ${steps.length} steps`} className="grid gap-3">
+    <section aria-label={`Workflow Timeline With ${steps.length} Steps`} className="grid gap-3">
       <div className={cn("min-w-0", scrolls && "overflow-x-auto")}>
         <ol
           className={cn("grid items-start pt-3", scrolls && "w-max min-w-full [--step-node-min:7rem]")}

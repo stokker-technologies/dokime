@@ -63,11 +63,11 @@ impl ExecutionMode {
     }
 }
 
-impl harmos_domain::MemorySize for StepCommand {
+impl harmos::MemorySize for StepCommand {
     fn memory_size(&self) -> usize {
         match self {
             Self::RunStep { step_id } => {
-                let owned = harmos_domain::MemorySize::memory_size(step_id);
+                let owned = harmos::MemorySize::memory_size(step_id);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }

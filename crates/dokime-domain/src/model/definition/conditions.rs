@@ -58,7 +58,7 @@ pub enum RuntimeCondition {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for RuntimeCondition {
+impl harmos::MemorySize for RuntimeCondition {
     fn memory_size(&self) -> usize {
         condition_memory(self, 0)
     }
@@ -74,14 +74,14 @@ fn condition_memory(condition: &RuntimeCondition, depth: usize) -> usize {
     }
     let heap = match condition {
         RuntimeCondition::Record { condition } => {
-            let owned = harmos_domain::MemorySize::memory_size(condition);
+            let owned = harmos::MemorySize::memory_size(condition);
             if owned == usize::MAX {
                 return usize::MAX;
             }
             owned.saturating_sub(std::mem::size_of_val(condition))
         }
         RuntimeCondition::Telemetry { condition } => {
-            let owned = harmos_domain::MemorySize::memory_size(condition);
+            let owned = harmos::MemorySize::memory_size(condition);
             if owned == usize::MAX {
                 return usize::MAX;
             }

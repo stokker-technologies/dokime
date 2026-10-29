@@ -17,8 +17,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::StreamOutput;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -26,7 +26,7 @@ use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
 };
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::ArtifactId;
 use dokime::operations::content as content_wire;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -41,11 +41,16 @@ use dokime::runtime::ArtifactReader;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(content_wire::DownloadArtifact),
+}
 
 /* === Traits === */
 
@@ -58,8 +63,8 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
             crate::grpc::access::during(revoked, async {
                 let id =
                     ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
-                let reader = self
-                    .runtime
+                let reader = dokime::app::live_runtime(&self.runtime)
+                    .await?
                     .open_artifact_stream(&id)
                     .await
                     .map_err(|source| {
@@ -71,7 +76,13 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
                         detailed(status, &source)
                     })?
                     .ok_or_else(|| Status::not_found("artifact not found"))?;
-                deliver(reader, self.maximum, super::download_chunk_bytes(&self.runtime, self.maximum)?, ctx.streams()).await?;
+                deliver(
+                    reader,
+                    self.maximum,
+                    super::download_chunk_bytes(&dokime::app::live_runtime(&self.runtime).await?, self.maximum)?,
+                    ctx.streams(),
+                )
+                .await?;
                 Ok(().into())
             })
             .await
@@ -81,18 +92,20 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    super::list::register(runtime, maximum).await?;
-    super::inventory::register(runtime, maximum).await?;
-    super::files::register(runtime, maximum).await?;
-    super::execution::register(runtime, maximum).await?;
-    super::follow::register(runtime, maximum).await?;
-    super::upload::register(runtime, maximum).await?;
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
+    super::list::prepare(setup, runtime, maximum)?;
+    super::inventory::prepare(setup, runtime, maximum)?;
+    super::files::prepare(setup, runtime, maximum)?;
+    super::execution::prepare(setup, runtime, maximum)?;
+    super::follow::prepare(setup, runtime, maximum)?;
+    super::upload::prepare(setup, runtime, maximum)?;
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<content_wire::DownloadArtifact>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<content_wire::DownloadArtifact>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<content_wire::DownloadArtifact>>(Host::<content_wire::DownloadArtifact>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

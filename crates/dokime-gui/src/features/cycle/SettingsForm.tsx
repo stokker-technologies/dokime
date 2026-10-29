@@ -15,16 +15,16 @@
  * Continue Automatically — on one grid, each editable or read-only as the
  * node's lifecycle allows. `SettingsDialog` frames it with the dialog every
  * viewer opens from its "…" menu: it starts from the node's current values
- * each time it opens, saves through the caller, and keeps a refusal beside
- * the form instead of a toast.
+ * each time it opens, saves through the caller, and reports a refusal through notifications while retaining the draft.
  */
 
 /* === Imports === */
 
 // Standard Library Imports
 
-// Third Party Imports
 import { type FormEvent, useEffect, useId, useState } from "react";
+// Third Party Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -178,11 +178,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
+          {error ? <NotificationMessage>{error}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}

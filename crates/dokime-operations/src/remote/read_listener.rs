@@ -32,7 +32,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ReadListener>], response = RemoteListenerStatus, id = "dokime.remote.read_listener",
-    policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+    policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Remote", method = "ReadListener"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReadListener {}

@@ -21,7 +21,7 @@ use rusqlite::OptionalExtension;
 // Local Imports
 use super::{Error, State};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 use crate::config::ApplicationMetadata;
 use dokime_domain::model::settings::{ApplicationSettings, SettingsSnapshot, UpdateSettings};
 
@@ -57,7 +57,7 @@ impl State {
                 settings.validate().map_err(Error::InvalidSettings)?;
                 let body = serde_json::to_vec(&settings).map_err(|error| Error::InvalidSettings(error.to_string()))?;
                 transaction.execute("INSERT OR IGNORE INTO application_settings VALUES (1, 0, ?1)", [&body])?;
-                #[cfg(feature = "host")]
+                #[cfg(feature = "native")]
                 {
                     let metadata = ApplicationMetadata::new();
                     let body = serde_json::to_vec(&metadata).map_err(|error| Error::InvalidSettings(error.to_string()))?;
@@ -110,12 +110,12 @@ impl State {
         .await?
     }
 
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     pub(crate) async fn read_application_metadata(&self) -> Result<ApplicationMetadata, Error> {
         self.call(|connection| Ok(read_metadata(connection))).await?
     }
 
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     pub(crate) async fn edit_application_metadata<T: Send + 'static, E: From<Error> + Send + 'static>(
         &self, change: impl FnOnce(&mut ApplicationMetadata) -> Result<T, E> + Send + 'static,
     ) -> Result<T, E> {
@@ -156,7 +156,7 @@ fn read_snapshot(connection: &rusqlite::Connection) -> Result<SettingsSnapshot, 
     Ok(SettingsSnapshot { revision, settings })
 }
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 fn read_metadata(connection: &rusqlite::Connection) -> Result<ApplicationMetadata, Error> {
     let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0))?;
     let metadata: ApplicationMetadata = serde_json::from_slice(&body).map_err(|error| Error::InvalidSettings(error.to_string()))?;

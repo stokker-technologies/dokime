@@ -51,11 +51,11 @@ pub struct TestRecordSet {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for TestRecordSet {
+impl harmos::MemorySize for TestRecordSet {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
-            (harmos_domain::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
+            (harmos::MemorySize::memory_size(&self.health), std::mem::size_of_val(&self.health)),
+            (harmos::MemorySize::memory_size(&self.notes), std::mem::size_of_val(&self.notes)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

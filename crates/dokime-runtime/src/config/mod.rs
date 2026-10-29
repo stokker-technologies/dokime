@@ -11,20 +11,20 @@
 
 mod application;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod launch;
 
 pub mod organization;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod runtime;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod settings;
 
 mod storage;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod view;
 
 /* === Re-Exports === */
@@ -32,13 +32,13 @@ mod view;
 pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
 pub use application::ApplicationOptions;
 pub use harmos::storage::StorageSettings;
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use launch::Config;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use settings::{ApplicationMetadata, Settings};
 
 pub use dokime_domain::model::settings::{Appearance, Density, ReportDefaults, ThemeMode};

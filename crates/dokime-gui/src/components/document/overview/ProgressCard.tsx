@@ -56,7 +56,7 @@ export function ProgressCard({
               <span className="truncate">{progress.phase}</span>
             </strong>
             <span className="truncate text-xs text-muted-foreground">
-              {progress.completed.toLocaleString()} of {progress.total.toLocaleString()} complete
+              {progress.completed.toLocaleString()} Of {progress.total.toLocaleString()} Complete
               {` · ${formatDuration(progress.elapsedMs / 1_000) ?? ""} elapsed`}
               {progress.remainingMs === null
                 ? progress.completed > 0

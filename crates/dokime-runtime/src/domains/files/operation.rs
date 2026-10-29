@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 // Third Party Imports
-use harmos::{Context, RegistrationExt};
+use harmos::Context;
 
 // Local Imports
 use super::{FileWatch, WatchEvent};
@@ -71,6 +71,12 @@ struct Watching {
 }
 
 /* === Enums === */
+
+#[harmos::catalog]
+enum PreparedOperations {
+    Operation0(WatchFile),
+    Operation1(AwaitFileWatchArmed),
+}
 
 /* === Traits === */
 
@@ -240,19 +246,19 @@ impl Resources {
 
 // Registers the step built-ins, the Harmos instance controls, `WatchFile` and
 // `AwaitFileWatchArmed`, before any plugin that requires them attaches.
-pub async fn register(operations: &crate::app::OperationManager) -> harmos::Result<Arc<Resources>> {
-    operations.register(harmos::builtins::Lifecycle::registration(harmos::Dependencies::new()).lane(Lanes::Open)).await?;
+pub fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<Arc<Resources>> {
+    setup.operations::<harmos::builtins::Lifecycle>(Lanes::Open);
     let resources = Arc::new(Resources {
         runtime: OnceLock::new(),
         readiness: Mutex::new(BTreeMap::new()),
         changed: tokio::sync::Notify::new(),
     });
     let files = Arc::new(Files(Arc::clone(&resources)));
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Host::<WatchFile>::new(files.clone()))?;
-    dependencies.insert(Host::<AwaitFileWatchArmed>::new(files))?;
-    let batch = harmos::RegistrationBatch::new(dependencies).operation::<WatchFile>().operation::<AwaitFileWatchArmed>();
-    operations.register(batch.lane(Lanes::Open)).await?;
+
+    setup.resource::<Host<WatchFile>>(Host::<WatchFile>::new(files.clone()));
+    setup.resource::<Host<AwaitFileWatchArmed>>(Host::<AwaitFileWatchArmed>::new(files));
+
+    setup.operations::<PreparedOperations>(Lanes::Open);
     Ok(resources)
 }
 

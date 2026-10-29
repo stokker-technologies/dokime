@@ -40,13 +40,13 @@ FIXTURES = ("obc-plugin",)
 # === Public Functions === #
 
 
-def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path) -> list[Path]:
+def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] | None = None) -> list[Path]:
     """Collect The Product Build's Plugin Executables Without Another Compiler."""
     root = root.resolve()
-    declarations = policy.config(root).get("release", {}).get("plugins", [])
-    target = paths.target()
-    packages = set(FIXTURES)
-    packages.update(item["package"] for item in declarations if target in item["targets"])
+    if packages is None:
+        declarations = policy.config(root).get("release", {}).get("plugins", [])
+        target = paths.target()
+        packages = tuple(item["package"] for item in declarations if target in item["targets"])
 
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
@@ -62,7 +62,7 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
     clear_output(output)
     output.mkdir(parents=True)
     staged: list[Path] = []
-    for package in sorted(packages):
+    for package in sorted(set(packages)):
         build_json = output / f"{package}.build.json"
         collector = [str(tool), "dokime", "sidecar", "build", "--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
         collector += ["--profile", profile, "--package", package, "--json"]
@@ -88,7 +88,13 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
         ).stdout
         for item in json.loads(packaged):
             path = Path(item["path"])
-            staged.append(path if path.is_absolute() else root / path)
+            path = path if path.is_absolute() else root / path
+            if package == "dokime-host":
+                selected = path.with_name("host.dokime")
+                if selected != path:
+                    path.rename(selected)
+                path = selected
+            staged.append(path)
     return staged
 
 

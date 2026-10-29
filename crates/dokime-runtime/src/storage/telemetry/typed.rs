@@ -191,10 +191,8 @@ impl TypedCodec {
 
     // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
     pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
-        let stream =
-            self.schema.id.as_str().strip_prefix("dokime.telemetry.").ok_or(Error::Invalid("typed telemetry schema is unnamed"))?;
         payload_pass();
-        decode_stream_values(stream, &self.validator, payload)
+        decode_values(&self.validator, payload)
     }
 
     fn metadata(
@@ -277,7 +275,7 @@ impl TypedCodec {
         if uppercase_epoch {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
-        let mut decoded = decode_stream_values(&metadata.stream, &self.validator, payload)?;
+        let mut decoded = decode_values(&self.validator, payload)?;
         let timestamp = values::decode(&metadata.timestamp_value)?;
         if timestamp.len() > 1 || timestamp.keys().any(|key| key != "timestamp") {
             return Err(Error::Invalid("stored telemetry timestamp projection is invalid"));
@@ -490,18 +488,6 @@ pub fn decode_positioned(codec: &TypedCodec, batch: ArrowBatch) -> Result<harmos
 
 fn payload_column(batch: &arrow_array::RecordBatch) -> Result<&StructArray> {
     batch.column_by_name("payload").and_then(as_array::<StructArray>).ok_or(Error::Invalid("query telemetry payload is not a typed struct"))
-}
-
-pub fn decode_stream_values(stream: &str, validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<String, Value>> {
-    let mut values = decode_values(validator, bytes)?;
-    if let Ok(host) = dokime_domain::model::telemetry::HostTelemetryStream::try_from(stream)
-        && host.as_str() == stream
-    {
-        let projection = dokime_domain::model::telemetry::host::contracts::project_host_values(host, &mut values);
-        let invalid_host = Error::Invalid("host telemetry values are invalid");
-        projection.map_err(|_| invalid_host)?;
-    }
-    Ok(values)
 }
 
 pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<String, Value>> {

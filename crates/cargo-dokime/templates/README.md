@@ -33,8 +33,8 @@ Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
 module. The plugin id is `{{crate}}`, the crate name: Harmos serves each operation
 as `<plugin id>.<operation id>`, so the id is one segment of lowercase letters,
 digits and `_`, and every declared id here starts with it. `src/lib.rs` composes
-these on `#[dokime::plugin]`: `provides =
-domain::operations::Operations` names the operations it serves, and `contributions(...)`
+these on `#[dokime::plugin]`: `const CATALOGS` in `impl dokime::Plugin`
+names the executable Harmos operation catalogs it serves, and `contributions(...)`
 lists the suites, records and listeners, evidence streams and settings it adds
 to the host. Public `Streams` and `Records` catalogs in `lib.rs` register
 process-wide outputs exactly once. Each
@@ -47,8 +47,10 @@ Each request is its operation: a `#[dokime::operation]` struct under
 and the `resources = [Bench]` it reads. Its body is `impl Operation for
 ReadChamber`, whose `run(self, ctx)` consumes the request and reaches the bench
 with `ctx.resource::<Bench>()`; it holds no state between calls. Empty requests
-are empty structs. `bind_operations` registers the catalog with one dependency
-snapshot. A template names the operations it calls with `requires = Required`
+are empty structs. `Lifecycle::prepare(config, setup)` registers the shared bench
+with `setup.resource(...)` and prepares suite resources; `initialize` activates
+resources that need the running runtime. Observers read the bench through
+`ctx.resource::<Bench>()`. A template names the operations it calls with `requires = Required`
 and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
 routed through the host. Adding an operation means a request variant in
 `domain::operations::Operations` and its `impl Operation`.

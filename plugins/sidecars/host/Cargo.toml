@@ -1,0 +1,185 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-host"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+description = "Collects host telemetry through the supervised Dokime plugin boundary."
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[package.metadata.dokime]
+debuginfo = false
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-host"
+path = "src/main.rs"
+test = false
+required-features = ["runtime"]
+
+# === Features === #
+
+[features]
+default = ["runtime"]
+runtime = []
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { workspace = true, features = ["plugin-sidecar"] }
+dokime-domain = { version = "0.1.0", path = "../../../crates/dokime-domain" }
+
+# Git
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+
+# Utilities
+starship-battery = { workspace = true }
+sysinfo = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+tokio = { workspace = true, features = ["process"] }
+tokio-util = { workspace = true, features = ["rt"] }
+
+# Networking
+getifs = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+[target.'cfg(windows)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_NetworkManagement_Ndis",
+  "Win32_NetworkManagement_WiFi",
+  "Win32_Networking_NetworkListManager",
+  "Win32_Networking_WinSock",
+  "Win32_System_Com",
+  "Win32_System_IO",
+  "Win32_System_Ole",
+  "Win32_System_Power",
+  "Win32_System_Registry",
+  "Win32_System_Variant",
+  "Win32_System_Wmi",
+] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+required-features = ["runtime"]
+
+# === Bench Targets === #
+
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

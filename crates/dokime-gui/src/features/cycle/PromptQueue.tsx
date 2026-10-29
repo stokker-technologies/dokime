@@ -34,6 +34,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 // Local Imports
 import { stepRecordLabel } from "@/components/document/StepRecordsCard";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
 import { type PromptValue, type PromptValues, promptResponseValues } from "@/lib/prompts";
@@ -155,7 +156,9 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
         values={values}
       />
       {responseMutation.isError ? (
-        <p className="text-sm text-destructive">The response was not accepted. Check the values and submit again.</p>
+        <NotificationMessage source="Prompts" title="Response Not Accepted">
+          Check the values and submit again.
+        </NotificationMessage>
       ) : null}
     </div>
   );

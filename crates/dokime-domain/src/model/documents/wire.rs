@@ -41,7 +41,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentScope {
     pub cycle_id: String,
@@ -50,7 +50,7 @@ pub struct DocumentScope {
 
 // Sources are captured separately; this is not an atomic latest/durable snapshot.
 // Missing frontiers mean the source was not needed by this capture.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentFrontiers {
     pub process_epoch: String,
@@ -65,7 +65,7 @@ pub struct DocumentFrontiers {
     pub artifacts_sha256: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentTelemetryCut {
     pub store: String,
@@ -73,7 +73,7 @@ pub struct DocumentTelemetryCut {
     pub position: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentHeader {
     pub document_id: String,
@@ -85,7 +85,7 @@ pub struct DocumentHeader {
 // Flat pre-order layout nodes retain ordered parent/child identity without an
 // unbounded recursive protobuf. A top-level node has no parent; nested
 // sections/placements do.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentLayoutNode {
     pub ordinal: u64,
@@ -93,7 +93,7 @@ pub struct DocumentLayoutNode {
     pub node: Option<DocumentLayoutNodeNode>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSection {
     pub node_id: String,
@@ -101,7 +101,7 @@ pub struct DocumentSection {
     pub repeat: Option<DocumentRepeat>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentRepeat {
     pub value: Option<DataExpression>,
@@ -111,7 +111,7 @@ pub struct DocumentRepeat {
     pub filters: Vec<PlotFilter>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentPlacement {
     pub card_id: String,
@@ -122,7 +122,7 @@ pub struct DocumentPlacement {
     pub rail: DocumentRail,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSpan {
     pub base: u32,
@@ -133,7 +133,7 @@ pub struct DocumentSpan {
 }
 
 // Authored Cards Are Captured Once; Bindings Carry Instance Results Separately.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCard {
     pub metadata: Option<Metadata>,
@@ -143,7 +143,7 @@ pub struct DocumentCard {
 
 // Built-in live content remains owned by its domain API. Plot references select
 // a plot within this authored document; they do not contain client-authored input.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentOwnerReference {
     pub kind: DocumentCardKind,
@@ -158,7 +158,7 @@ pub struct DocumentOwnerReference {
     pub plot: Option<DocumentPlotDefinition>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentPlotDefinition {
     pub metadata: Option<Metadata>,
@@ -174,7 +174,7 @@ pub struct DocumentPlotDefinition {
     pub z_expression: Option<DataExpression>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotPresentation {
     pub style: PlotStyle,
@@ -202,7 +202,7 @@ pub struct PlotPresentation {
     pub x_axis_unit: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceLine {
     pub axis: ReferenceAxis,
@@ -213,7 +213,7 @@ pub struct PlotReferenceLine {
     pub color: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceBand {
     pub axis: ReferenceAxis,
@@ -225,13 +225,13 @@ pub struct PlotReferenceBand {
     pub tolerance: Option<DataExpression>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentTable {
     pub row_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentTableRow {
     pub card_id: String,
@@ -239,13 +239,13 @@ pub struct DocumentTableRow {
     pub values: Option<Value>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummary {
     pub group_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummaryGroup {
     pub card_id: String,
@@ -254,7 +254,7 @@ pub struct DocumentSummaryGroup {
     pub tile_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummaryTile {
     pub card_id: String,
@@ -276,14 +276,14 @@ pub struct DocumentSummaryTile {
     pub unavailable: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentWarning {
     pub code: String,
     pub message: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummaryGroupDefinition {
     pub card_id: String,
@@ -292,7 +292,7 @@ pub struct DocumentSummaryGroupDefinition {
     pub tile_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummaryTileDefinition {
     pub card_id: String,
@@ -308,7 +308,7 @@ pub struct DocumentSummaryTileDefinition {
     pub conditions: Vec<DocumentSummaryCondition>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSummaryCondition {
     pub operator: FilterOperator,
@@ -316,7 +316,7 @@ pub struct DocumentSummaryCondition {
     pub state: DocumentSummaryState,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentBinding {
     pub source_id: String,
@@ -324,14 +324,14 @@ pub struct DocumentBinding {
     pub result: Option<DocumentBindingResult>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentRepeatSelection {
     pub node_id: String,
     pub instance_count: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentRepeatInstance {
     pub selection_id: String,
@@ -341,7 +341,7 @@ pub struct DocumentRepeatInstance {
     pub filter: Option<PlotFilter>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentSectionIdentity {
     pub node_id: String,
@@ -352,7 +352,7 @@ pub struct DocumentSectionIdentity {
     pub unavailable: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCompletion {
     pub frame_count: u64,
@@ -364,7 +364,7 @@ pub struct DocumentCompletion {
 }
 
 // Header Is First; Completion Is Last. Apply Only After Clean gRPC EOF.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
@@ -372,7 +372,7 @@ pub struct DocumentFrame {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentCardKind {
     Unspecified,
@@ -391,7 +391,7 @@ pub enum DocumentCardKind {
     TelemetryContext,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentDensity {
     Unspecified,
@@ -400,7 +400,7 @@ pub enum DocumentDensity {
     Spacious,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentRail {
     Unspecified,
@@ -410,7 +410,7 @@ pub enum DocumentRail {
 }
 
 // What a plot's x axis measures, so a client never infers it from a name.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotAxisKind {
     Unspecified,
@@ -420,7 +420,7 @@ pub enum PlotAxisKind {
     Elapsed,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotStyle {
     Unspecified,
@@ -430,7 +430,7 @@ pub enum PlotStyle {
     Step,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReferenceAxis {
     Unspecified,
@@ -438,14 +438,14 @@ pub enum ReferenceAxis {
     Y,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentSummaryStat {
     Unspecified,
     Latest,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentSummaryFormat {
     Unspecified,
@@ -458,7 +458,7 @@ pub enum DocumentSummaryFormat {
     Text,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentSummaryPresentation {
     Unspecified,
@@ -467,7 +467,7 @@ pub enum DocumentSummaryPresentation {
     Badge,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentSummaryState {
     Unspecified,
@@ -477,14 +477,14 @@ pub enum DocumentSummaryState {
     Muted,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DocumentLayoutNodeNode {
     Section(Box<DocumentSection>),
     Placement(DocumentPlacement),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DocumentCardBody {
     Markdown(String),
@@ -493,7 +493,7 @@ pub enum DocumentCardBody {
     Owner(Box<DocumentOwnerReference>),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DocumentBindingResult {
     Literal(bool),
@@ -501,7 +501,7 @@ pub enum DocumentBindingResult {
     Plot(Box<DocumentPlotDefinition>),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DocumentFrameFrame {
     Header(DocumentHeader),

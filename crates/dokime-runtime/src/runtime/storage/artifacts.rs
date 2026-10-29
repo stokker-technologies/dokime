@@ -229,7 +229,8 @@ impl RuntimeHandle {
 
         let session = self.storage().clone();
         let source = file.try_clone().await.map_err(error)?.into_std().await;
-        let mut reader = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await?;
+        let opened = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await;
+        let mut reader = opened.inspect_err(|error| tracing::warn!(path = %path.display(), %error, "artifact source read failed"))?;
         while let Some(batch) = reader.next().await? {
             // The Native Page Owner Survives The Spawned Append And Blocking Write.
             upload
@@ -523,7 +524,10 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
         };
         upload.pending = Some(FrozenFile::new(file, metadata));
     }
-    let reference = upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await?;
+    // Name The Artifact Whose Capture Failed; The Storage Error Carries No Path.
+    let finished = upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await;
+    let artifact = upload.record.artifact_id.as_str();
+    let reference = finished.inspect_err(|error| tracing::warn!(artifact, filename = %upload.record.filename, %error, "artifact capture failed"))?;
     let mut record = upload.record.clone();
     record.status = status.clone();
     let relative_path = format!("{UPLOAD_PREFIX}{}/{}", record.artifact_id.as_str(), record.filename);

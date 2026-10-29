@@ -40,7 +40,7 @@ use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.cycle.copy", irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.copy")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CopyCycle {
     pub source_cycle_id: TestCycleId,

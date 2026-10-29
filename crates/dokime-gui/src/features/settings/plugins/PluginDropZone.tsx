@@ -12,6 +12,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -43,7 +44,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
     <div className="grid gap-2">
       <fieldset
         aria-busy={disabled}
-        aria-label="Plugin file drop zone"
+        aria-label="Plugin File Drop Zone"
         className={cn(
           "grid min-h-40 place-items-center rounded-lg border border-dashed bg-muted/20 p-6 text-center transition-colors",
           dragging && "border-primary bg-primary/5",
@@ -67,11 +68,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
           </Button>
         </div>
       </fieldset>
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
     </div>
   );
 }

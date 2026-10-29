@@ -477,8 +477,8 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
     ensure_generation_token(generation)?;
     let (max_bytes, label) = match document.kind {
         DesktopSaveKind::HtmlReport => return Err("Report HTML is delivered through desktop_artifact_deliver".into()),
-        DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics bundle"),
-        DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON document"),
+        DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics Bundle"),
+        DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON Document"),
         DesktopSaveKind::SecretArchive => (699_052u64 as usize, "Secret archive"),
         DesktopSaveKind::Artifact => return Err("Artifact is delivered through desktop_artifact_deliver".into()),
     };
@@ -500,11 +500,11 @@ fn apply_dialog_filter(
     dialog: tauri_plugin_dialog::FileDialogBuilder<tauri::Wry>, kind: DesktopSaveKind,
 ) -> tauri_plugin_dialog::FileDialogBuilder<tauri::Wry> {
     match kind {
-        DesktopSaveKind::HtmlReport => dialog.add_filter("HTML report", &["html"]),
+        DesktopSaveKind::HtmlReport => dialog.add_filter("HTML Report", &["html"]),
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
-        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
-        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
+        DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics Bundle", &["zip"]),
+        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON Document", &["json"]),
         DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
     }
@@ -791,6 +791,6 @@ mod tests {
 
         let error = validate_save_document("7", &document).unwrap_err();
 
-        assert!(error.contains("JSON document"), "{error}");
+        assert!(error.contains("JSON Document"), "{error}");
     }
 }

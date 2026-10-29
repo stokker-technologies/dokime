@@ -12,7 +12,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { NotificationMessage } from "@/components/NotificationMessage";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -21,15 +22,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
-import { programKey, programSource } from "@/features/settings/plugins/PluginPrograms";
+import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
+  useInstallPluginMutation,
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
   useRestartAppMutation,
   useSetPluginEnabledMutation,
-  useInstallPluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -59,28 +60,16 @@ export function PluginsSection() {
   const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
   const entries = pluginsQuery.data ?? [];
   const programs = programsQuery.data ?? [];
-  const builtInRows: PluginTableRow[] = [];
-  for (const program of programs) {
-    const owner = program.owner;
-    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.install_id === owner.installation)) continue;
-    const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
-    if (builtInRows.some((row) => row.key === key)) continue;
-    const section = settings.frame?.sections.find(
-      (candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id,
-    );
-    builtInRows.push({
-      key,
-      name: owner?.kind === "host" ? `${brand.label} Host` : program.label,
-      source: programSource(program, brand.label),
-      enabled: { checked: true, disabled: true, onChange: () => {} },
-      onOpenSettings:
-        owner?.kind === "host"
-          ? () => void navigate({ to: "/settings/$section", params: { section: "appearance" } })
-          : section
-            ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: section.section_id } })
-            : undefined,
-    });
-  }
+  // Every row, host included, opens its plugin's own contributed page.
+  const builtInRows: PluginTableRow[] = programRows(programs, entries, settings.frame).map(({ key, program, settingsSection }) => ({
+    key,
+    name: program.owner?.kind === "host" ? `${brand.label} Host` : program.label,
+    source: programSource(program, brand.label),
+    enabled: { checked: true, disabled: true, onChange: () => {} },
+    onOpenSettings: settingsSection
+      ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: settingsSection } })
+      : undefined,
+  }));
   const restartPending = entries.some((entry) => entry.restart_required);
 
   /* A plugin's settings page is its contributed section. The frame keys those
@@ -111,7 +100,7 @@ export function PluginsSection() {
         setRestartPrompt(true);
       }
     } catch {
-      // Mutation error is rendered beside the drop zone.
+      // Mutation failure is delivered through notifications.
     } finally {
       setUploadingFilename(null);
     }
@@ -178,16 +167,16 @@ export function PluginsSection() {
             <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
-                Loading plugins…
+                Loading Plugins…
               </span>
             </div>
           ) : pluginsQuery.isError || programsQuery.isError ? (
             <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
               <div>
                 <p className="font-medium">Plugins could not be loaded</p>
-                <p className="mt-1 text-sm text-destructive" role="alert">
+                <NotificationMessage>
                   {errorMessage(pluginsQuery.error ?? programsQuery.error, "Try loading the plugin registry again.")}
-                </p>
+                </NotificationMessage>
               </div>
               <Button
                 onClick={() => {
@@ -268,9 +257,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {restartMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
-            </p>
+            <NotificationMessage>{errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}</NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestartPrompt(false)}>
@@ -303,9 +290,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <p className="text-sm text-destructive" role="alert">
-              {errorMessage(removeMutation.error, "The plugin could not be removed.")}
-            </p>
+            <NotificationMessage>{errorMessage(removeMutation.error, "The plugin could not be removed.")}</NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

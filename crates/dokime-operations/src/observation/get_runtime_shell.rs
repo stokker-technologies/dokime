@@ -32,7 +32,7 @@ use super::*;
 
 // Returns a bounded cycle page at one exact runtime revision.
 #[harmos::operation(resources = [crate::hosting::Host<GetRuntimeShell>], response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "GetRuntimeShell"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetRuntimeShell {

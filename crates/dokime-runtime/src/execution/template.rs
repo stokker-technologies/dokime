@@ -115,7 +115,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
         Box::pin(async { Ok(()) })
     }
 
-    fn publish_sample<'a, P: harmos::plugin::Declared>(
+    fn publish_sample<'a, P: harmos::Plugin + harmos::plugin::Declared>(
         _host: &'a harmos::sidecar::Supervisor, _token: &'a str, stream: &'a dokime_domain::model::identity::Identifier,
         _rows: &'a [StampedRow],
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {

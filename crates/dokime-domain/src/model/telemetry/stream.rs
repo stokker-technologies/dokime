@@ -39,7 +39,7 @@ use crate::model::telemetry::TelemetryRow;
     label = "this type has no stream for a plot or a publication to resolve",
     note = "declare a `#[dokime_runtime::stream(id = …, label = …, window = …)]`, or explicitly select a stream with `ctx.stream::<{Self}>().into::<Stream>()`"
 )]
-pub trait TelemetryStream: harmos_domain::StreamSpec<Row: TelemetryRow> {
+pub trait TelemetryStream: harmos::StreamSpec<Row: TelemetryRow> {
     const PUBLISHED: bool = true;
 
     fn contract() -> TelemetryContract;

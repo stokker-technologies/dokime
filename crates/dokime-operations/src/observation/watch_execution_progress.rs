@@ -32,7 +32,7 @@ use super::*;
 
 // Streams the latest process-local progress for one execution. This is operational state: it is coalesced, cleared at termination, and never persisted as telemetry or report evidence.
 #[harmos::operation(resources = [crate::hosting::Host<WatchExecutionProgress>], response = (), output = ExecutionProgressFrame, id = "dokime.observation.watch_execution_progress",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "WatchExecutionProgress"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchExecutionProgress {

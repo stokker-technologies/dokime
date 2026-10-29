@@ -19,8 +19,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::Response;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
@@ -28,14 +28,15 @@ use crate::grpc::{
     chunked::{self, Frames},
     error::detailed_error,
 };
+use dokime::app::LiveRuntime;
 use dokime::domain::model::{
     content::wire::{ArtifactChunk, ArtifactCompletion},
     exports::{EvidenceExportFrame, EvidenceExportPayload, EvidenceSubject},
     identity::{TestCycleId, TestExecutionId},
 };
+use dokime::domains::exports::evidence::Error;
 use dokime::operations::content::DownloadEvidence;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, domains::exports::evidence::Error};
 
 /* === Constants === */
 
@@ -46,7 +47,7 @@ use dokime::{RuntimeHandle, domains::exports::evidence::Error};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -55,6 +56,11 @@ struct ExportFrames {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(DownloadEvidence),
+}
 
 /* === Traits === */
 
@@ -71,7 +77,8 @@ impl Serve<DownloadEvidence> for Resources {
                     EvidenceSubject::Cycle(id) => TestCycleId::from_uuid(id).map(|_| ()),
                 };
                 valid.map_err(|_| Status::invalid_argument("evidence subject must contain a UUID"))?;
-                let bundle = self.runtime.export_evidence(subject).await.map_err(|error| failure(&error))?;
+                let bundle =
+                    dokime::app::live_runtime(&self.runtime).await?.export_evidence(subject).await.map_err(|error| failure(&error))?;
                 let metadata = bundle.retained_metadata().map_err(|error| failure(&error))?;
                 let size_bytes = metadata.size_bytes;
                 let sha256 = Some(metadata.sha256.clone());
@@ -92,7 +99,7 @@ impl Serve<DownloadEvidence> for Resources {
                     sha256,
                     noun: "evidence export",
                     read_failure: "saved evidence export could not be read",
-                    chunk_bytes: super::download_chunk_bytes(&self.runtime, self.maximum)?,
+                    chunk_bytes: super::download_chunk_bytes(&dokime::app::live_runtime(&self.runtime).await?, self.maximum)?,
                     message_limit: self.maximum,
                 }
                 .run(ctx.streams())
@@ -126,12 +133,14 @@ impl Frames for ExportFrames {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<DownloadEvidence>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<DownloadEvidence>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<DownloadEvidence>>(Host::<DownloadEvidence>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

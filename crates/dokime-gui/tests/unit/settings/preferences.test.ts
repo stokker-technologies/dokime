@@ -22,8 +22,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
-import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 import { preferencesKey, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
+import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 
 /* === Re-Exports === */
 
@@ -31,6 +31,7 @@ import { preferencesKey, usePreferences, useSavePreferences } from "@/features/s
 
 const fixture = vi.hoisted(() => ({
   read: vi.fn(),
+  notices: vi.fn(),
   update: vi.fn(),
   cache: vi.fn(),
   invalidate: vi.fn(),
@@ -81,6 +82,12 @@ function snapshot(): SettingsSnapshot {
 
 /* === Entry Point === */
 
+vi.mock("@/components/NotificationMessage", () => ({
+  NotificationMessage: (props: unknown) => {
+    fixture.notices(props);
+    return null;
+  },
+}));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/desktop/settings", () => ({
   preferencesCommands: {
@@ -178,7 +185,7 @@ test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
   assert.deepEqual(fixture.appearance.mock.calls[0], [{ density: "touch", themeFamily: "other" }]);
 });
 
-test("Conflicts And Failed Saves Surface Alerts Without Replacing The Snapshot", async () => {
+test("Failed Saves Preserve Revisions", async () => {
   for (const failure of [{ kind: "conflict" }, { kind: "persistence", message: "fixture failure" }]) {
     fixture.saveError = failure;
     fixture.update.mockRejectedValueOnce(failure);
@@ -187,7 +194,8 @@ test("Conflicts And Failed Saves Surface Alerts Without Replacing The Snapshot",
     assert.ok(mutation);
     await assert.rejects(mutation.mutationFn({ previous: snapshot(), settings: snapshot().settings }), (error) => error === failure);
     const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-    assert.match(html, /role="alert"/);
+    assert.ok(fixture.notices.mock.calls.length > 0);
+    assert.doesNotMatch(html, /role="alert"/);
     assert.equal(fixture.cache.mock.calls.length, 0);
     assert.equal(fixture.snapshot?.revision, 7);
   }
@@ -197,7 +205,8 @@ test("Offline Local Edits Remain Available While Backend Reads Fail", async () =
   fixture.backendError = { kind: "disconnected" };
   const html = renderToStaticMarkup(createElement(ApplicationPreferences));
   assert.ok(html.includes('aria-label="Theme Mode"'));
-  assert.match(html, /role="alert"/);
+  assert.ok(fixture.notices.mock.calls.length > 0);
+  assert.doesNotMatch(html, /role="alert"/);
   assert.ok(!html.includes('aria-label="Report Points"'));
   usePreferences("local");
   const query = fixture.queries.at(-1);
@@ -216,7 +225,8 @@ test("Offline Local Edits Remain Available While Backend Reads Fail", async () =
 test("Loading Does Not Render Editable Defaults", () => {
   fixture.loading = true;
   const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-  assert.match(html, /role="status"/);
+  assert.ok(fixture.notices.mock.calls.some(([props]) => (props as { tone?: string }).tone === "info"));
+  assert.doesNotMatch(html, /role="status"/);
   assert.ok(!html.includes("<form"));
 });
 

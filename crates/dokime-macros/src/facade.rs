@@ -23,7 +23,7 @@ use quote::{ToTokens, quote};
 
 /* === Constants === */
 
-pub(crate) const MACRO_CONTRACT: u32 = 27;
+pub(crate) const MACRO_CONTRACT: u32 = 28;
 
 /* === Macros === */
 

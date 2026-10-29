@@ -161,7 +161,7 @@ function BandHeatmap({
       <div className="flex min-w-0 items-center justify-between gap-3">
         <strong className="text-sm">{band.label}</strong>
         <span className="text-right text-xs text-muted-foreground">
-          {occupiedChannels}/{band.channels.length} occupied now · {totalNetworks} networks
+          {occupiedChannels}/{band.channels.length} Occupied Now · {totalNetworks} Networks
           {observedChannels !== occupiedChannels ? ` · ${observedChannels} seen in window` : ""}
         </span>
       </div>
@@ -274,7 +274,7 @@ function ScanSlider({
         <span className="tabular-nums">{scan ? `${scan.label} · ${scan.total_networks} networks` : "No scan"}</span>
       </div>
       <Slider
-        aria-label="WiFi occupancy scan"
+        aria-label="WiFi Occupancy Scan"
         aria-valuetext={scan ? `${scan.label}, ${scan.total_networks} networks` : "No scan"}
         max={latestIndex}
         min={0}

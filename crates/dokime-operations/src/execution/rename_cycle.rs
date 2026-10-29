@@ -32,7 +32,7 @@ use super::*;
 
 // Renames one live cycle until it seals or is archived.
 #[harmos::operation(resources = [crate::hosting::Host<RenameCycle>], response = RenameReply, id = "dokime.execution.rename_cycle",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RenameCycle"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenameCycle {

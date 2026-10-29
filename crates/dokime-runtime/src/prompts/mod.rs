@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod admission;
 mod authoring;
 mod declared;

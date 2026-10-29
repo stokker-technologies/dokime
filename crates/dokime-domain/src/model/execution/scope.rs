@@ -81,18 +81,18 @@ pub enum CapturePhase {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for RecordScope {
+impl harmos::MemorySize for RecordScope {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos_domain::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
-            (harmos_domain::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
-            (harmos_domain::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
-            (harmos_domain::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
-            (harmos_domain::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
-            (harmos_domain::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
-            (harmos_domain::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
-            (harmos_domain::MemorySize::memory_size(&self.suite_id), std::mem::size_of_val(&self.suite_id)),
-            (harmos_domain::MemorySize::memory_size(&self.origin), std::mem::size_of_val(&self.origin)),
+            (harmos::MemorySize::memory_size(&self.session_id), std::mem::size_of_val(&self.session_id)),
+            (harmos::MemorySize::memory_size(&self.test_cycle_id), std::mem::size_of_val(&self.test_cycle_id)),
+            (harmos::MemorySize::memory_size(&self.test_case_id), std::mem::size_of_val(&self.test_case_id)),
+            (harmos::MemorySize::memory_size(&self.test_execution_id), std::mem::size_of_val(&self.test_execution_id)),
+            (harmos::MemorySize::memory_size(&self.step_id), std::mem::size_of_val(&self.step_id)),
+            (harmos::MemorySize::memory_size(&self.criterion_id), std::mem::size_of_val(&self.criterion_id)),
+            (harmos::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
+            (harmos::MemorySize::memory_size(&self.suite_id), std::mem::size_of_val(&self.suite_id)),
+            (harmos::MemorySize::memory_size(&self.origin), std::mem::size_of_val(&self.origin)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -100,12 +100,10 @@ impl harmos_domain::MemorySize for RecordScope {
     }
 }
 
-impl harmos_domain::MemorySize for EvidenceOrigin {
+impl harmos::MemorySize for EvidenceOrigin {
     fn memory_size(&self) -> usize {
         let dynamic = match self {
-            Self::Step { attempt_id } => {
-                harmos_domain::MemorySize::memory_size(attempt_id).saturating_sub(std::mem::size_of_val(attempt_id))
-            }
+            Self::Step { attempt_id } => harmos::MemorySize::memory_size(attempt_id).saturating_sub(std::mem::size_of_val(attempt_id)),
             Self::Default | Self::Initialization | Self::Cleanup => 0,
         };
         std::mem::size_of::<Self>().saturating_add(dynamic)

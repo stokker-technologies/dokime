@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{Context, RegistrationExt};
+use harmos::Context;
 use tonic::Status;
 
 // Local Imports
+use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::secrets::{Export, Import, List, Lookup, Preview, Put, Remove};
 use crate::secrets::{Change, SecretStore, SecretStoreError, SecretValue};
-use crate::{RuntimeHandle, app::Lanes};
 use dokime_domain::model::secrets::catalog::{Snapshot, Value};
 use dokime_domain::model::secrets::transfer::{Archive, Preview as ImportPreview};
 
@@ -37,6 +37,17 @@ use dokime_domain::model::secrets::transfer::{Archive, Preview as ImportPreview}
 /* === Structs === */
 
 /* === Enums === */
+
+#[harmos::catalog]
+enum PreparedOperations {
+    Operation0(Lookup),
+    Operation1(List),
+    Operation2(Put),
+    Operation3(Remove),
+    Operation4(Export),
+    Operation5(Preview),
+    Operation6(Import),
+}
 
 /* === Traits === */
 
@@ -116,25 +127,16 @@ impl From<SecretStoreError> for Status {
 
 /* === Public Functions === */
 
-pub(crate) async fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
-    let store: Arc<SecretStore> = runtime.secret_store();
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Host::<Lookup>::new(store.clone()))?;
-    dependencies.insert(Host::<List>::new(store.clone()))?;
-    dependencies.insert(Host::<Put>::new(store.clone()))?;
-    dependencies.insert(Host::<Remove>::new(store.clone()))?;
-    dependencies.insert(Host::<Export>::new(store.clone()))?;
-    dependencies.insert(Host::<Preview>::new(store.clone()))?;
-    dependencies.insert(Host::<Import>::new(store))?;
-    let batch = harmos::RegistrationBatch::new(dependencies)
-        .operation::<Lookup>()
-        .operation::<List>()
-        .operation::<Put>()
-        .operation::<Remove>()
-        .operation::<Export>()
-        .operation::<Preview>()
-        .operation::<Import>();
-    runtime.operations.register(batch.lane(Lanes::Open)).await?;
+pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, store: Arc<SecretStore>) -> crate::runtime::Result<()> {
+    setup.resource::<Host<Lookup>>(Host::<Lookup>::new(store.clone()));
+    setup.resource::<Host<List>>(Host::<List>::new(store.clone()));
+    setup.resource::<Host<Put>>(Host::<Put>::new(store.clone()));
+    setup.resource::<Host<Remove>>(Host::<Remove>::new(store.clone()));
+    setup.resource::<Host<Export>>(Host::<Export>::new(store.clone()));
+    setup.resource::<Host<Preview>>(Host::<Preview>::new(store.clone()));
+    setup.resource::<Host<Import>>(Host::<Import>::new(store));
+
+    setup.operations::<PreparedOperations>(Lanes::Open);
     Ok(())
 }
 

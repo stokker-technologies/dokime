@@ -32,12 +32,12 @@ use super::*;
 
 #[harmos::operation(resources = [crate::hosting::Host<MaterializeReport>], response = MaterializedReport,
     id = "dokime.reports.materialize_report", policy = TRANSFER,
-    visibility = harmos_domain::operations::Visibility::Host,
+    visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Reports", method = "MaterializeReport"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MaterializeReport {
     pub subject: ReportSubject,
-    pub at: harmos_domain::model::storage::StorageCursor,
+    pub at: harmos::model::storage::StorageCursor,
 }
 
 /* === Enums === */

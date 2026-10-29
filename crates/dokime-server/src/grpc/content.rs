@@ -31,10 +31,8 @@ pub(super) use upload::{artifact_scope, content_failure};
 use tonic::Status;
 
 // Local Imports
-use dokime::{
-    RuntimeHandle,
-    artifacts::{ArtifactRecord, ArtifactStatus},
-};
+use dokime::app::LiveRuntime;
+use dokime::artifacts::{ArtifactRecord, ArtifactStatus};
 
 /* === Constants === */
 
@@ -52,18 +50,20 @@ use dokime::{
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    evidence::register(runtime, maximum).await?;
-    artifacts::register(runtime, maximum).await
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
+    evidence::prepare(setup, runtime, maximum)?;
+    artifacts::prepare(setup, runtime, maximum)
 }
 
-pub(super) fn download_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
+pub(super) fn download_chunk_bytes(runtime: &dokime::RuntimeHandle, maximum: usize) -> Result<usize, Status> {
     let bytes = runtime.storage().info().map_err(super::bundle::native_failure)?.file_batch_bytes;
     let bytes = usize::try_from(bytes).map_err(|_| Status::resource_exhausted("native file batch size overflows"))?;
     Ok(bytes.min(maximum).min(1_048_576))
 }
 
-pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
+pub(super) fn transfer_chunk_bytes(runtime: &dokime::RuntimeHandle, maximum: usize) -> Result<usize, Status> {
     use dokime::domain::model::{content::wire as content, plugins::wire as plugins};
     let cap = download_chunk_bytes(runtime, maximum)?;
     let artifact = content::UploadArtifactFrame {

@@ -69,7 +69,7 @@ pub struct RunRequest {
     pub continuation_execution_id: Option<TestExecutionId>,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.prepare", irreversible)]
+#[harmos::transaction(id = "dokime.execution.request.prepare")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrepareAttempt {
     pub request_id: CommandId,
@@ -77,7 +77,7 @@ pub struct PrepareAttempt {
     pub at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.dispatch", irreversible)]
+#[harmos::transaction(id = "dokime.execution.request.dispatch")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DispatchProvider {
     pub request_id: CommandId,

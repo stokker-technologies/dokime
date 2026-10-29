@@ -21,13 +21,13 @@ use crate::grpc::transcode::Transcode;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::value::{self, canonical};
+use dokime::app::LiveRuntime;
 
-use dokime::RuntimeHandle;
 use dokime::domain::model::identity::IdentifierPattern;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::time::Timestamp;
@@ -49,7 +49,7 @@ const SERVER_MAXIMUM_TELEMETRY_ITEMS: u64 = 5_000;
 /* === Structs === */
 
 struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
@@ -58,6 +58,12 @@ struct Selection {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ListSamples),
+    Operation1(wire::WatchSamples),
+}
 
 enum ProjectionError {
     Status(Status),
@@ -97,7 +103,7 @@ impl Serve<wire::ListSamples> for Resources {
         &'a self, mut request: wire::ListSamples, _: Context<'a, wire::ListSamples>,
     ) -> Served<'a, dokime::domain::model::telemetry::wire::TelemetrySamplesReply> {
         Box::pin(async move {
-            let session = self.runtime.storage().clone();
+            let session = dokime::app::live_runtime(&self.runtime).await?.storage().clone();
             let selection = self.selection(&mut request)?;
             let at = session.cursor_saved();
             self.page(&session, &selection, &at, 0, false).await.map(|(page, ..)| page)
@@ -116,7 +122,7 @@ impl Serve<wire::WatchSamples> for Resources {
                 if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
                     return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
                 }
-                let runtime = &self.runtime;
+                let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let session = runtime.storage().clone();
                 let mut selection = self.selection(&mut selection)?;
                 let mut at = session.cursor_saved();
@@ -192,8 +198,8 @@ impl Resources {
         let query = &selection.query;
         let after_stream_cursors = &query.after_stream_cursors;
         let limit = query.limit.expect("selection limit is bounded during admission");
-        let (page, sealed) = self
-            .runtime
+        let (page, sealed) = dokime::app::live_runtime(&self.runtime)
+            .await?
             .telemetry_page_at(session, query, at, after)
             .await
             .map_err(|error| Status::unavailable(format!("telemetry query unavailable: {error}")))?;
@@ -249,16 +255,18 @@ impl Selection {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes: maximum,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ListSamples>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::WatchSamples>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListSamples>().operation::<wire::WatchSamples>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ListSamples>>(Host::<wire::ListSamples>::new(served.clone()));
+    setup.resource::<Host<wire::WatchSamples>>(Host::<wire::WatchSamples>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -33,14 +33,14 @@ use crate::model::content::wire::ArtifactMetadata;
 /* === Structs === */
 
 // Which audio sources a video recording mixes into its soundtrack.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordingAudio {
     pub microphone: bool,
     pub system: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordingProgress {
     pub elapsed_ms: u64,
@@ -49,7 +49,7 @@ pub struct RecordingProgress {
 
 // Progress frames while recording, then one Completed frame carrying the sealed
 // artifact. A cancelled recording is still sealed, without a final frame.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordingFrame {
     pub payload: Option<RecordingFramePayload>,
@@ -57,7 +57,7 @@ pub struct RecordingFrame {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum RecordingFramePayload {
     Progress(RecordingProgress),

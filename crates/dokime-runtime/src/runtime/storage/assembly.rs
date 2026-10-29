@@ -14,13 +14,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
-use crate::app::HarmosRuntime;
-use crate::runtime::state::RuntimeState;
+use crate::runtime_state::RuntimeState;
 
 /* === Constants === */
 
@@ -38,40 +36,37 @@ use crate::runtime::state::RuntimeState;
 
 /* === Public Functions === */
 
-pub(crate) async fn build(
-    fresh: RuntimeState, records: Arc<super::record_capture::Source>, storage: &crate::storage::Manager, resources: crate::app::Resources,
-    managed_storage: harmos::config::ManagedStorageSettings,
-) -> std::result::Result<HarmosRuntime, harmos::runtime::Incompatible> {
-    let session_id = fresh.session_id.clone();
-    let record_namespace = fresh.process_epoch().clone();
-    let projection = super::record_capture::Projection(records.clone());
-    crate::app::builder(fresh, resources)
-        .managed_storage(managed_storage)
-        .store_records(projection)
-        .reconcile(move |state_manager, _storage| async move {
-            // Validate Replayed Ownership Without Copying The Runtime Graph
-            state_manager
-                .state()
-                .read(|state| state.validate_execution_ownership())
-                .await
-                .map_err(reconciliation_error)?
-                .value
-                .map_err(|reason| reconciliation_error(std::io::Error::other(reason)))?;
-            records.begin(state_manager.applied());
-            records.initialize().await.map_err(reconciliation_error)?;
+pub(crate) fn configure(setup: &mut harmos::Setup<crate::app::Dokime>, parts: &crate::runtime::handle::BootParts) {
+    let storage = &parts.storage;
+    let managed_storage = parts.config.managed_storage.clone();
+    let projection = super::record_capture::Projection(parts.record_source.clone());
+    setup.settings().storage(storage).managed_storage(managed_storage).store_records(projection);
+}
 
-            state_manager
-                .commit(crate::transactions::MarkRuntimeStarted { session_id, record_namespace })
-                .await
-                .map_err(reconciliation_error)?;
-            state_manager
-                .commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() })
-                .await
-                .map_err(reconciliation_error)?;
-            Ok(())
-        })
-        .runtime_with_storage(storage)
-        .await
+pub(crate) async fn initialize(
+    runtime: &harmos::runtime::Handle<crate::app::Dokime>, parts: &crate::runtime::handle::BootParts,
+) -> crate::runtime::Result<()> {
+    let state_manager = &runtime.state;
+    let state = state_manager.state();
+    let ownership = state.read(RuntimeState::validate_execution_ownership).await;
+    let ownership = ownership.map_err(reconciliation_error)?;
+    ownership.value.map_err(|reason| {
+        let source = std::io::Error::other(reason);
+        reconciliation_error(source)
+    })?;
+    parts.record_source.begin(state_manager.applied());
+    parts.record_source.initialize().await?;
+
+    let started = crate::transactions::MarkRuntimeStarted {
+        session_id: parts.config.session_id.clone(),
+        record_namespace: parts.record_namespace.clone(),
+    };
+    state_manager.commit(started).await.map_err(reconciliation_error)?;
+    let recovered = crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() };
+    state_manager.commit(recovered).await.map_err(reconciliation_error)?;
+    parts.storage.flush().await?;
+    parts.storage.flush_recovery().await?;
+    Ok(())
 }
 
 /* === Private Functions === */

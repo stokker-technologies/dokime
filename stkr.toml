@@ -585,6 +585,12 @@ signature_checks = [
   ],
 ]
 
+[[release.plugins]]
+package = "dokime-host"
+requires_dokime = ">=0.1.0, <0.2.0"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+path = "target/package/{profile}/{target}/rust/plugins/host.dokime"
+
 [[release.package_signing]]
 language = "rust"
 platform = "windows"

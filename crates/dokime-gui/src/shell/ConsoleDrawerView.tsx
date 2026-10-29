@@ -316,7 +316,7 @@ function RecordWindow({
           variant="secondary"
         >
           <ArrowDownToLine data-icon="inline-start" />
-          Jump to Latest
+          Jump To Latest
         </Button>
       ) : null}
     </div>

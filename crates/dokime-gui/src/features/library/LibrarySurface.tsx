@@ -11,14 +11,15 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
@@ -106,11 +107,18 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       header: "Template",
       meta: { primary: true, filter: "text" },
       cell: ({ row }) => (
-        <div className="grid gap-1">
-          <span className="font-medium">{row.original.template.name}</span>
-          {row.original.template.identifier ? <CatalogIdentifier subject="template" value={row.original.template.identifier} /> : null}
-        </div>
+        <span className="block truncate font-medium" title={row.original.template.name}>
+          {row.original.template.name}
+        </span>
       ),
+    }),
+    // The identifier the CLI and Python client accept, whole: it wraps at its dots.
+    column.accessor((row) => row.template.identifier ?? "", {
+      id: "id",
+      header: "ID",
+      meta: { filter: "text", label: "ID", width: "w-80" },
+      cell: ({ row }) =>
+        row.original.template.identifier ? <CatalogIdentifier subject="template" value={row.original.template.identifier} /> : null,
     }),
     column.accessor((row) => row.suite.name, { id: "suite", header: "Suite", meta: { filter: "facet", width: "w-48" } }),
     column.accessor((row) => row.template.tags.join(", "), {
@@ -122,22 +130,22 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     column.accessor((row) => row.suite.source, {
       id: "source",
       header: "Source",
-      meta: { filter: "facet", width: "w-40" },
+      meta: { filter: "facet", width: "w-64" },
       cell: ({ row }) => <SuiteProvenance plugin={plugins.get(row.original.suite.source)} source={row.original.suite.source} />,
     }),
   ]);
 
   return (
     <PageShell actions={actions} trail={["Library"]}>
-      {active.failed ? <p role="alert">Open cycles could not be read. Reconnect and try again.</p> : null}
+      {active.failed ? <NotificationMessage>Open cycles could not be read. Reconnect and try again.</NotificationMessage> : null}
 
-      {suitesQuery.isError ? <p role="alert">The suite catalog could not be read.</p> : null}
+      {suitesQuery.isError ? <NotificationMessage>The suite catalog could not be read.</NotificationMessage> : null}
       <DataTable
         aria-label="Library"
         columns={columns}
         data={rows}
         getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-        emptyText={suites === null ? "Loading suites…" : "No templates match."}
+        emptyText={suites === null ? "Loading Suites…" : "No Templates Match"}
         search={{ label: "Filter Templates", value: suiteSearch, onChange: setSuiteSearch }}
         onRowClick={setOpenTemplate}
       />

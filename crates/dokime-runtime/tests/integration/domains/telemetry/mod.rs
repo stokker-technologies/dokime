@@ -9,10 +9,12 @@
 
 /* === Modules === */
 pub(crate) mod declared;
+pub(crate) mod plots;
 pub(crate) mod sampling;
 pub(crate) mod shared;
 
 /* === Re-Exports === */
+pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
 

@@ -32,7 +32,7 @@ use super::*;
 
 // Admit one existing, unstarted execution. Never reopens a finished attempt.
 #[harmos::operation(resources = [crate::hosting::Host<StartExecution>], response = RunReply, id = "dokime.execution.start_execution",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "StartExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StartExecution {

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -25,7 +25,7 @@ use tonic::Status;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::projection;
 use dokime::ExecutionFileEntry;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::operations::content as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
@@ -39,7 +39,7 @@ use dokime::operations::hosting::{Host, Serve, Served};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -51,6 +51,11 @@ struct Count {
 
 /* === Enums === */
 
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ListExecutionFiles),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -60,7 +65,7 @@ impl Serve<wire::ListExecutionFiles> for Resources {
         &'a self, request: wire::ListExecutionFiles, _: Context<'a, wire::ListExecutionFiles>,
     ) -> Served<'a, dokime::domain::model::content::wire::ListExecutionFilesReply> {
         Box::pin(async move {
-            let (id, epoch) = super::files::execution(&self.runtime, &request.execution_id)?;
+            let (id, epoch) = super::files::execution(&dokime::app::live_runtime(&self.runtime).await?, &request.execution_id)?;
             let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_path)
                 .map_err(crate::grpc::value::canonical::cursor_failure)?;
             if !request.after_path.is_empty() && request.cursor.is_none() {
@@ -71,7 +76,7 @@ impl Serve<wire::ListExecutionFiles> for Resources {
             {
                 return Err(Status::failed_precondition("file cursor epoch or execution mismatch"));
             }
-            let entries = self.runtime.execution_files(&id).await.map_err(super::files::read_failure)?;
+            let entries = dokime::app::live_runtime(&self.runtime).await?.execution_files(&id).await.map_err(super::files::read_failure)?;
             project(&entries, &id, &epoch, &request, limit, self.maximum)
                 .map(Into::into)
                 .map_err(|source| super::files::read_failure(source.into()))
@@ -81,12 +86,14 @@ impl Serve<wire::ListExecutionFiles> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ListExecutionFiles>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::ListExecutionFiles>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ListExecutionFiles>>(Host::<wire::ListExecutionFiles>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

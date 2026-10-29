@@ -11,7 +11,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -76,7 +76,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
         .mutateAsync(entry)
         .then(() => toast.success("Unarchived"))
         .catch((error: unknown) =>
-          toast.error("The archive mark could not be removed.", {
+          toast.error("The Archive Mark Could Not Be Removed", {
             description: error instanceof Error ? error.message : String(error),
           }),
         ),

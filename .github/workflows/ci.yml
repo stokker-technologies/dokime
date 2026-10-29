@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:b4c9bd49eb8e6e1d674ffb396d68edf4d2bd41953d440d0b62fd747e2daef6af
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:9cb4ea588255e3f3761f40dd524bfd4ee4f095b03a9921efc61873d4a25f3ceb
 name: CI
 "on":
   push:
@@ -183,8 +183,10 @@ jobs:
     needs:
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:python')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-check_python-${{ (github.event_name == 'pull_request'
@@ -261,8 +263,10 @@ jobs:
     needs:
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-check_typescript-${{ (github.event_name ==
@@ -494,8 +498,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -634,7 +637,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       MISE_TASK_SKIP: package:python,package:rust
     if: >-
       (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -755,8 +758,10 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:python:generated')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-check_generated_python-${{ (github.event_name ==
@@ -846,8 +851,10 @@ jobs:
     - build_product
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript:generated')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-check_generated_typescript-${{ (github.event_name ==
@@ -944,8 +951,10 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:unit')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-validate_test_python_unit-${{ (github.event_name ==
@@ -1059,8 +1068,10 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:acceptance')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-validate_test_python_acceptance-${{
@@ -1158,8 +1169,10 @@ jobs:
     - build_product
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:unit')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-validate_test_typescript_unit-${{ (github.event_name
@@ -1257,8 +1270,10 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:integration')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-validate_test_python_integration-${{
@@ -1464,8 +1479,10 @@ jobs:
     - build_product
     - impact
     if: >-
-      (false) && needs.impact.result == 'success' &&
+      (false) && (
+      (true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:integration')
+      )
     concurrency:
       group: >-
         ci-${{ github.workflow }}-validate_test_typescript_integration-${{
@@ -2425,8 +2442,10 @@ jobs:
     needs:
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:rust'))
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -3430,8 +3449,10 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -3674,8 +3695,10 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration'))
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -4001,8 +4024,10 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -4241,8 +4266,10 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit'))
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -4570,8 +4597,10 @@ jobs:
     - build_product
     - impact
     if: >-
-      ((false) && needs.impact.result == 'success' &&
+      (false) && (
+      ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system'))
+      )
     strategy:
       fail-fast: false
       matrix:

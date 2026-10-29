@@ -34,21 +34,21 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {
     pub key: String,
     pub value: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySamplesReplyThroughStreamCursorsEntry {
     pub key: String,
     pub value: u64,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySamplesReply {
     pub samples: Vec<TelemetrySample>,
@@ -73,7 +73,7 @@ pub struct TelemetrySamplesReply {
     pub complete: bool,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySample {
     pub sample_id: String,

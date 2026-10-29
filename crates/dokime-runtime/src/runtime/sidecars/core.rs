@@ -17,13 +17,12 @@
 use std::sync::{Arc, RwLock};
 
 // Third Party Imports
+use harmos::Context;
 use harmos::operations::HostContext;
-use harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use crate::RuntimeHandle;
-use crate::app::OperationManager;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::records::RecordPublication;
 
@@ -42,17 +41,27 @@ pub(crate) struct RecordIngress {
 
 /* === Enums === */
 
+#[harmos::catalog]
+enum RecordOperations {
+    Operation0(RecordPublication),
+}
+
+#[harmos::catalog]
+enum Publications {
+    Operation0(harmos::builtins::streams::Publish),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
 impl RecordIngress {
-    pub(crate) async fn register(operations: &OperationManager) -> harmos::Result<Arc<Self>> {
+    pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<Arc<Self>> {
         let ingress = Arc::new(Self::default());
-        let mut dependencies = harmos::Dependencies::new();
-        dependencies.insert(Host::<RecordPublication>::new(ingress.clone()))?;
-        let batch = harmos::RegistrationBatch::new(dependencies).operation::<RecordPublication>();
-        operations.register(batch.lane(crate::app::Lanes::Open)).await?;
+
+        setup.resource::<Host<RecordPublication>>(Host::<RecordPublication>::new(ingress.clone()));
+
+        setup.operations::<RecordOperations>(crate::app::Lanes::Open);
         Ok(ingress)
     }
 
@@ -100,9 +109,11 @@ impl Serve<RecordPublication> for RecordIngress {
 
 // Serves Harmos's `streams.publish` built-in; each call reaches the calling
 // sidecar's own native endpoint through the call's host context.
-pub(crate) async fn register_publications(operations: &OperationManager) -> harmos::Result<()> {
-    let batch = harmos::RegistrationBatch::new(harmos::Dependencies::new()).operation::<harmos::builtins::streams::Publish>();
-    operations.register(batch.lane(crate::app::Lanes::Open)).await
+pub(crate) fn prepare_publications(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<()> {
+    {
+        setup.operations::<Publications>(crate::app::Lanes::Open);
+        Ok(())
+    }
 }
 
 /* === Private Functions === */

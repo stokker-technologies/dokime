@@ -33,7 +33,7 @@ pub const EVIDENCE_EXPORT_SCHEMA_VERSION: u32 = 1;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceExportMetadata {
     pub subject: Option<EvidenceSubject>,
@@ -43,7 +43,7 @@ pub struct EvidenceExportMetadata {
     pub sha256: String,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceExportFrame {
     pub payload: Option<EvidenceExportPayload>,
@@ -51,14 +51,14 @@ pub struct EvidenceExportFrame {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceSubject {
     Execution(String),
     Cycle(String),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum EvidenceExportPayload {
     Metadata(EvidenceExportMetadata),

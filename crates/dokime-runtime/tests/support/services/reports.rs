@@ -51,10 +51,12 @@ impl harmos::Application for ReportOwner {
     type Transaction = harmos::state::Never;
     type Record = harmos::state::Never;
     type Streams = ();
-    type Resources = ();
 }
 
 impl harmos::operations::Lane for ReportOwner {
+    fn catalog() -> harmos::operations::LaneSet {
+        harmos::operations::LaneSet::declared([("Report Storage", harmos::operations::Capacity::unbounded())])
+    }
     fn default_lane() -> Self {
         Self
     }
@@ -66,17 +68,39 @@ impl harmos::operations::Lane for ReportOwner {
     }
 }
 
+#[derive(Default, serde::Deserialize)]
+pub struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
+
+impl harmos::Lifecycle for ReportOwner {
+    type Config = StorageConfig;
+    type Error = harmos::Error;
+    type Context = harmos::Startup<Self>;
+
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> harmos::Result<Self> {
+        setup.settings().storage(config.storage.as_ref().expect("storage fixture is configured"));
+        setup.resource::<Option<std::sync::Arc<_>>>(Some(std::sync::Arc::new(
+            std::ops::Deref::deref(config.storage.as_ref().expect("storage fixture")).erased(),
+        )));
+        setup.operations::<harmos::builtins::Storage>(ReportOwner);
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> harmos::Result<()> {
+        Ok(())
+    }
+}
+
 /* === Public Functions === */
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
-    use harmos::operations::Lane;
-    let runtime = harmos::Runtime::<ReportOwner>::builder((), ())
-        .register(harmos::operations::LaneSet::declared([(ReportOwner.name(), ReportOwner.capacity())]))
-        .runtime_with_storage(manager)
-        .await
-        .unwrap();
-    let storage = harmos::builtin::storage_registration(Arc::new(manager.clone())).unwrap();
-    runtime.operations.register(harmos::RegistrationExt::lane(storage, ReportOwner)).await.unwrap();
-    runtime
+    harmos::Runtime::<ReportOwner>::launch((), StorageConfig { storage: Some(manager.clone()) }).await.unwrap()
 }
 
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
@@ -204,7 +228,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let html = dokime_runtime::storage::read_file_bytes(&manager, &seal.report).await.unwrap();
     let html = String::from_utf8(html.as_slice().to_vec()).unwrap();
     drop(prepared);
-    owner.stop().await.unwrap();
+    owner.shutdown().await.unwrap();
     html
 }
 

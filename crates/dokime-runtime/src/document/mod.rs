@@ -9,41 +9,41 @@
 
 /* === Modules === */
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod binding;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod bounded;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod capture;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 mod context;
 pub mod error;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub(crate) mod frame;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod input;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod instance;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod markers;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod payload;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod plot_inputs;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod registry;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod resolve;
 
 /* === Re-Exports === */
@@ -56,29 +56,29 @@ pub use dokime_domain::model::expressions::marker;
 pub use dokime_domain::model::expressions::per_case;
 pub use error::{DocumentFailure, Result};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use input::{DocumentDataInput, DocumentResolveInput, DocumentSelection};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use instance::DocumentInstance;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use markers::record_markers_for_selection;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use payload::{
     ArtifactListDescriptor, DocumentCardBodyPayload, DocumentCardPayload, DocumentCardPlacementPayload, DocumentLayoutPayload,
     DocumentNodePayload, DocumentPayload, DocumentSectionNodePayload, DocumentWarning, TelemetrySummaryGroupPayload,
     TelemetrySummaryTilePayload,
 };
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use plot_inputs::{plot_descriptor_for_definition, plot_input_for_definition};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use registry::{DocumentRegistry, DocumentRegistryError};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use resolve::resolve_document;
 
 /* === Imports === */

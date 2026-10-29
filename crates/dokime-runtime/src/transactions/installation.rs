@@ -31,13 +31,13 @@ use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.artifact.install", irreversible)]
+#[harmos::transaction(id = "dokime.artifact.install")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InstallPlugin {
     pub installation: InstalledPlugin,
 }
 
-#[harmos::transaction(id = "dokime.artifact.remove", irreversible)]
+#[harmos::transaction(id = "dokime.artifact.remove")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RemovePlugin {
     pub source: String,

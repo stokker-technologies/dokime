@@ -9,9 +9,10 @@
 
 /* === Imports === */
 
+import { useEffect, useState } from "react";
 // Standard Library Imports
 // Third Party Imports
-import { useEffect, useState } from "react";
+import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -129,11 +130,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             ) : null}
           </div>
         ) : null}
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
+        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
         <DialogFooter>
           <Button
             variant="outline"

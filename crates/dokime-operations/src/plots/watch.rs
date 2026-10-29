@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<Watch>], response = (), output = PlotStreamFrame, id = "dokime.plots.watch",
-        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plots", method = "Watch"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Watch {

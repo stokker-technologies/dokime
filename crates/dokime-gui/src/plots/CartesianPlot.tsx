@@ -36,7 +36,7 @@ import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placehold
 import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
 import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
-import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
+import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Constants === */
 
@@ -103,7 +103,6 @@ type CartesianPlotProps = {
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
   resetKey?: string;
-  lockYZoom?: boolean;
   /** Per-plot controls the host places beside the follow button. */
   actions?: ReactNode;
   badge?: string;
@@ -200,7 +199,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   legend = null,
   onViewportChange,
 }: CartesianPlotProps) {
-  const { zoom } = usePlotInteraction();
+  const { zoom, syncKey } = usePlotInteraction();
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
   const [traceColors, setTraceColors] = useState<string[]>([]);
   const [cursor, setCursor] = useState<PlotCursor | null>(null);
@@ -441,6 +440,15 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursor: {
         drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
+        sync:
+          timeAxis && syncKey
+            ? {
+                key: `${syncKey}:${xElapsedUnit ?? "wall"}`,
+                scales: ["x", null],
+                setSeries: false,
+                filters: { pub: (event) => event === "mousemove", sub: (event) => event === "mousemove" },
+              }
+            : undefined,
       },
       select: { show: true, left: 0, top: 0, width: 0, height: 0 },
       legend: {
@@ -554,6 +562,17 @@ export const CartesianPlot = memo(function CartesianPlot({
     resetKeyRef.current = resetKey;
     viewportModeRef.current = viewportMode;
 
+    const detachPan = attachPan(plot, {
+      logX: xScale === "log",
+      logY: yScale === "log",
+      panY: !timeAxis,
+      onPan: (next) => {
+        const held = { x: next.x, y: next.y ?? heldRangeRef.current?.y ?? null };
+        heldRangeRef.current = held;
+        setFollowing(false);
+        onViewportChangeRef.current?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+      },
+    });
     const resize = () => {
       const nextSize = chartSize();
       if (plot.width === nextSize.width && plot.height === nextSize.height) {
@@ -587,6 +606,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     };
     root.addEventListener("dblclick", resume);
     return () => {
+      detachPan();
       root.removeEventListener("dblclick", resume);
       if (resizeFrameRef.current !== null) {
         window.cancelAnimationFrame(resizeFrameRef.current);
@@ -637,6 +657,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     chartMode,
     formatsKey,
     tableLegend,
+    syncKey,
   ]);
 
   // Visibility is this card's own state: toggling a trace shows or hides its
@@ -788,7 +809,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                     setShowPrompts((current) => !current);
                     setHoveredPrompt(null);
                   }}
-                  title="Show when the operator was asked and answered"
+                  title="Show When The Operator Was Asked And Answered"
                 >
                   Prompts
                 </button>
@@ -811,7 +832,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                 {zoom ? "Reset Zoom" : "Follow"}
               </button>
               <span className="text-xs text-muted-foreground">
-                {renderedPointCount} points
+                {renderedPointCount} Points
                 {downsampledLabel(renderedSeries)}
                 {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
                 {unit ? ` - ${unit}` : ""}

@@ -19,7 +19,7 @@ use crate::grpc::transcode::Transcode;
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
@@ -29,7 +29,7 @@ use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
 };
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::execution::result::CycleStatus;
 use dokime::domain::model::execution::result::CycleView;
 use dokime::operations::history;
@@ -45,11 +45,16 @@ use dokime::runtime::query::execution_history::ExecutionCheckpointContext;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(history::GetCheckpointContext),
+}
 
 /* === Traits === */
 
@@ -61,7 +66,11 @@ impl Serve<history::GetCheckpointContext> for Resources {
     ) -> Served<'a, dokime::domain::model::history::wire::CheckpointContext> {
         Box::pin(async move {
             let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-            let context = self.runtime.execution_checkpoint_context(checkpoint).await.map_err(wire::checkpoint_failure)?;
+            let context = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .execution_checkpoint_context(checkpoint)
+                .await
+                .map_err(wire::checkpoint_failure)?;
             let response = context
                 .try_map(|context| -> dokime::runtime::Result<_> {
                     checkpoint_context(context, self.maximum).map_err(|error| original_error(error).into())
@@ -77,12 +86,14 @@ impl Serve<history::GetCheckpointContext> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<history::GetCheckpointContext>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<history::GetCheckpointContext>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<history::GetCheckpointContext>>(Host::<history::GetCheckpointContext>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

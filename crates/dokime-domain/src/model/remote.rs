@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 /* === Structs === */
 
-#[harmos_domain::message(skip_default)]
+#[harmos::message(skip_default)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteListenerSettings {
     pub enabled: bool,
@@ -40,7 +40,7 @@ pub struct RemoteListenerSettings {
     pub certificate_names: Vec<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteListenerStatus {
     pub settings: Option<RemoteListenerSettings>,
@@ -50,7 +50,7 @@ pub struct RemoteListenerStatus {
     pub error: Option<String>,
 }
 
-#[harmos_domain::message(skip_debug)]
+#[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PairingFile {
@@ -66,7 +66,7 @@ pub struct PairingFile {
     pub access_key: Option<String>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PairedClient {
     pub identifier: String,
@@ -75,14 +75,14 @@ pub struct PairedClient {
     pub last_seen_at: Option<u64>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PairedClientPage {
     pub clients: Vec<PairedClient>,
     pub next_cursor: Option<String>,
 }
 
-#[harmos_domain::message(skip_debug)]
+#[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatedPairing {
     pub client: Option<PairedClient>,
@@ -93,7 +93,7 @@ pub struct CreatedPairing {
 ///
 /// Times are Unix milliseconds. Transport drops are not observable, so a
 /// session closes after a quiet interval and `disconnected_at` is its last call.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteSession {
     pub id: String,
@@ -110,7 +110,7 @@ pub struct RemoteSession {
 }
 
 /// Newest first; `next_cursor` continues with older sessions.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteSessionPage {
     pub sessions: Vec<RemoteSession>,
@@ -119,7 +119,7 @@ pub struct RemoteSessionPage {
 
 /* === Enums === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RemoteSessionOutcome {
     Unspecified,

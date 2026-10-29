@@ -1,20 +1,49 @@
 # Dokime Plugins
 
-`obc-plugin/` is the maintained onboard charger demo and validation plugin. Its
-`runtime/` crate owns the simulated testbench. The demo is installed explicitly
-and uses the same native delivery conventions as other plugins.
+`sidecars/host/` supplies the six host telemetry streams through the supervised
+plugin ingest boundary: `host.system`, `host.network` (with OS-reported
+`internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
+per nearby network), `host.wifi.latency` (round trip and loss to the latency host)
+and `host.bluetooth`. Its single catalog contains the collection operations,
+stream declarations and demand-driven observers; each stream has its own observer,
+which runs only while a lease holds that stream. Operation definitions own the
+policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
+and Unix implementations are selected at module declarations. Windows probes use
+native APIs and start no processes. Its Collection settings retain the
+Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
+between active Wi-Fi scans; a scan due sooner reports the cached network list.
+Empty adapter selectors use the native default. Native repeated fields
+carry lists; acquisition timestamps travel in framework publication metadata.
+The runtime decodes these rows through the same codec as other plugins.
+Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
+canonical payload bytes. If their value map omits `timestamp`, the runtime
+infers it from the sample instant using the contract's column type: `Datetime`
+preserves the full instant, while `Number` carries seconds since the Unix epoch.
+Explicitly supplied timestamp values remain subject to contract validation.
+Its sidecar owner is `host_telemetry`; `host` names application-owned operations
+in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.
+The host sidecar declares no automatic restart: a process fault deactivates it
+until an explicit reload or the next startup.
 
-A plugin is a Harmos plugin: `impl dokime::Plugin` carries its configuration,
-error, resources and lifecycle (`prepare`, `initialize`, `bind_operations`,
-`shutdown`, `cleanup`), and its resources are shared behind one `Arc` with every
-operation, listener and observer. `#[dokime::plugin]` sits on that `impl`
-block and carries the identity, the operations it provides and requires, the
-restart policy and the contributions it adds to the host — suites, records and
-listeners, evidence streams and settings — each owned by a named
-`#[dokime::catalog]` enum. Device behaviour is `#[dokime::operation]`s listed in
-`provides = operations::Operations`; each request struct is its operation,
-declares the `resources = [...]` it reads and implements `Operation::run`, and
-`bind_operations` registers the catalog with one dependency snapshot.
+`sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
+the simulated testbench. It is built explicitly for tests and is never included
+in the product's default bundles or installer.
+
+A plugin declares its identity, requirements and contributions on
+`#[dokime::plugin] impl dokime::Plugin`; `const CATALOGS` lists its executable
+`#[dokime::harmos::catalog]` operation catalogs. Contribution catalogs use
+`#[dokime::catalog]`. Each request struct declares its id, policy and
+`resources = [...]`, and implements `Operation::run`.
+
+A separate `impl dokime::harmos::Lifecycle` owns configuration, errors and the
+`prepare` → `initialize` → serve → `stop` → `cleanup` lifecycle. Preparation
+registers every shared resource with `setup.resource(...)` and prepares suite
+resources with `dokime::execution::prepare::<Self, Suites>(setup)`.
+Initialization activates resources that need a running runtime. Operations,
+listeners and observers read prepared resources from their execution contexts;
+mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
+`Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
+and the plugin's declared streams.
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
@@ -25,7 +54,9 @@ frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,
 while runtime execution identities remain fresh.
 
-`mise run build:plugins:dev` builds development and test bundles explicitly.
+`mise run build:rust` produces the shipping `plugins/host.dokime` bundle.
+`mise run build:rust:tests` prepares the explicit OBC test fixture under
+`fixtures/plugins/obc-plugin.dokime`.
 Operators select or install bundles; the product does not seed these fixtures. A card's probe
 and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read

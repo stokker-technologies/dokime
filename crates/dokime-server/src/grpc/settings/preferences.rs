@@ -21,10 +21,10 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::settings::wire::SettingsSnapshot;
 use dokime::harmos::domain::Portable;
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
@@ -37,11 +37,17 @@ use dokime::operations::settings as wire;
 /* === Structs === */
 
 pub(super) struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) maximum: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::ReadApplicationSettings),
+    Operation1(wire::UpdateApplicationSettings),
+}
 
 /* === Traits === */
 
@@ -52,7 +58,11 @@ impl Serve<wire::ReadApplicationSettings> for Resources {
         &'a self, _: wire::ReadApplicationSettings, _: Context<'a, wire::ReadApplicationSettings>,
     ) -> Served<'a, SettingsSnapshot> {
         Box::pin(async move {
-            let snapshot = self.runtime.read_application_settings().await.map_err(super::super::execution::status)?;
+            let snapshot = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .read_application_settings()
+                .await
+                .map_err(super::super::execution::status)?;
             self.produce(|| snapshot)
         })
     }
@@ -63,8 +73,11 @@ impl Serve<wire::UpdateApplicationSettings> for Resources {
         &'a self, request: wire::UpdateApplicationSettings, _: Context<'a, wire::UpdateApplicationSettings>,
     ) -> Served<'a, SettingsSnapshot> {
         Box::pin(async move {
-            let snapshot =
-                self.runtime.update_application_settings(request.update.clone()).await.map_err(super::super::execution::status)?;
+            let snapshot = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .update_application_settings(request.update.clone())
+                .await
+                .map_err(super::super::execution::status)?;
             self.produce(|| snapshot)
         })
     }
@@ -88,15 +101,15 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::ReadApplicationSettings>::new(served.clone()))?;
-    dependencies.insert(Host::<wire::UpdateApplicationSettings>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<wire::ReadApplicationSettings>()
-        .operation::<wire::UpdateApplicationSettings>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::ReadApplicationSettings>>(Host::<wire::ReadApplicationSettings>::new(served.clone()));
+    setup.resource::<Host<wire::UpdateApplicationSettings>>(Host::<wire::UpdateApplicationSettings>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

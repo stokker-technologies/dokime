@@ -33,7 +33,7 @@ pub const AFTER_BYTES: u64 = 4_096;
 
 /* === Structs === */
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Cursor {
     pub epoch: String,

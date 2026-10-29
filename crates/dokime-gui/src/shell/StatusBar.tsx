@@ -45,9 +45,9 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
-import { RunIndicator } from "./RunIndicator";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
+import { RunIndicator } from "./RunIndicator";
 import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
 
 /* === Constants === */
@@ -57,7 +57,7 @@ const statusItemClassName =
 
 const CONNECTION_LABEL = {
   connected: "Connected",
-  disconnected: "Disconnected",
+  disconnected: "Offline",
   reconnecting: "Reconnecting",
   unknown: "Unknown",
 } as const;
@@ -219,27 +219,32 @@ function OperationBar({ operation }: { operation: BackendOperation }) {
 }
 
 function BackendItem() {
+  const navigate = useNavigate();
   const status = useBackendStatus();
   const stopping = useDesktopStopping();
   const label = status.label ?? "Backend";
-  if (stopping === "visible") {
-    return <StatusReadout title={`${label} is stopping`} tone="warn" value={`${label} · Stopping…`} />;
-  }
   const tone =
-    status.connection === "connected"
-      ? "good"
-      : status.connection === "reconnecting"
-        ? "warn"
-        : status.connection === "disconnected"
-          ? "bad"
-          : "neutral";
-
+    stopping === "visible"
+      ? "warn"
+      : status.connection === "connected"
+        ? "good"
+        : status.connection === "reconnecting"
+          ? "warn"
+          : status.connection === "disconnected"
+            ? "bad"
+            : "neutral";
+  const state = stopping === "visible" ? "Stopping…" : CONNECTION_LABEL[status.connection];
   return (
-    <StatusReadout
+    <button
+      aria-label="Open Backends"
+      className={cn(statusItemClassName, "gap-2", toneClassName(tone))}
+      onClick={() => void navigate({ params: { section: "backends" }, to: "/settings/$section" })}
       title={status.detail ? `${label} — ${status.detail}` : label}
-      tone={tone}
-      value={`${label} · ${CONNECTION_LABEL[status.connection]}`}
-    />
+      type="button"
+    >
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
+      {label} · {state}
+    </button>
   );
 }
 

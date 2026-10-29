@@ -55,10 +55,10 @@ mod template;
 #[cfg(feature = "native")]
 mod unwind;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod instance;
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub mod storage;
 
 #[cfg(feature = "native")]
@@ -97,8 +97,8 @@ pub use scope::{ExecutionScope, IdempotencyKey, WatchTicket};
 
 #[cfg(feature = "native")]
 pub use serving::{
-    EmbeddedRegistry, EmbeddedTemplates, ExecutionHost, Run, Runnable, SIGNAL_POLICY, Served, Signal, bind, contracts,
-    contracts_with_settings, interrupt, runner, serve,
+    EmbeddedRegistry, EmbeddedTemplates, Empty, ExecutionHost, Operations, Run, Runnable, SIGNAL_POLICY, Served, Signal, bind, contracts,
+    contracts_with_settings, interrupt, prepare, runner,
 };
 
 #[cfg(feature = "native")]
@@ -110,7 +110,7 @@ pub use template::{
     TraceabilityFuture,
 };
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 pub use instance::TestExecutionInstance;
 
 #[cfg(feature = "native")]

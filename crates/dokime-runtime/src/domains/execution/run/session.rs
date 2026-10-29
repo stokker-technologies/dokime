@@ -398,6 +398,12 @@ impl Session {
         for encoded in &batch.capture_phases {
             let phase = serde_json::from_str(encoded)
                 .map_err(|error| failure("sidecar_capture_phase", format!("invalid capture phase: {error}")))?;
+            // A stop can cancel the run while its next step admission is in flight: the run
+            // abandons the attempt it was never told was admitted, so the stop closes it.
+            if phase == dokime_domain::model::execution::CapturePhase::Cleanup && (context.is_cancelled() || self.cancelling.is_cancelled())
+            {
+                super::close_stopped_attempt(context, execution).await?;
+            }
             context
                 .capture_phase(execution.scope.clone(), phase)
                 .await
@@ -449,6 +455,10 @@ impl Session {
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
         self.deliver_records().await?;
         if close {
+            // Close Live Measurement Before The Replay Cut: No Row Reaches The Run After It, So The
+            // Receipt Names Exactly The Last Replayed Row.
+            context.runtime.sampling().fence_executions(std::slice::from_ref(&execution.test_execution_id)).await;
+            context.runtime.settle_leaseholder_deliveries(&execution.test_execution_id).await;
             tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
             super::replay_sample_inputs(context, &self.target, execution).await?;
         }

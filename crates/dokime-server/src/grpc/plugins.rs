@@ -32,16 +32,14 @@ use uuid::Uuid;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::plugins::wire as plugins_model;
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::{StreamInput, StreamItem};
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plugins as contract;
-use dokime::{
-    RuntimeHandle,
-    plugins::{PluginError, PluginStore},
-};
+use dokime::plugins::{PluginError, PluginStore};
 
 /* === Constants === */
 
@@ -56,12 +54,22 @@ const SERVER_PLUGIN_UPLOAD_IDLE_MS: u64 = 30_000;
 /* === Structs === */
 
 struct Resources {
-    pub runtime: RuntimeHandle,
+    pub runtime: LiveRuntime,
     pub admission: admission::Admission,
     pub max_message_bytes: usize,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(v1::ListInstallations),
+    Operation1(v1::GetInstallation),
+    Operation2(v1::Install),
+    Operation3(v1::SetEnabled),
+    Operation4(v1::Remove),
+    Operation5(v1::ListAdmittedPlugins),
+}
 
 /* === Traits === */
 
@@ -71,7 +79,7 @@ impl Resources {
     async fn submit<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(
         &self, permit: OwnedSemaphorePermit, operation: impl FnOnce(PluginStore) -> F + Send + 'static,
     ) -> Result<T, Status> {
-        let store = self.runtime.plugin_store();
+        let store = dokime::app::live_runtime(&self.runtime).await?.plugin_store();
         tokio::spawn(async move {
             let _permit = permit;
             operation(store).await
@@ -90,8 +98,8 @@ impl Resources {
         }
         Ok(output.into())
     }
-    fn entry(&self, mut entry: dokime::plugins::PluginEntry) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        self.runtime.plugin_process_state(&mut entry);
+    async fn entry(&self, mut entry: dokime::plugins::PluginEntry) -> Result<Response<plugins_model::PluginInstallation>, Status> {
+        dokime::app::live_runtime(&self.runtime).await?.plugin_process_state(&mut entry);
         wire::normalize(&mut entry, self.max_message_bytes)?;
         self.produce(|| wire::entry(entry, self.max_message_bytes))
     }
@@ -113,7 +121,7 @@ impl Serve<v1::ListInstallations> for Resources {
                 .await?;
             let mut page = page;
             for entry in &mut page.entries {
-                self.runtime.plugin_process_state(entry);
+                dokime::app::live_runtime(&self.runtime).await?.plugin_process_state(entry);
                 wire::normalize(entry, self.max_message_bytes)?;
             }
             self.produce(|| {
@@ -142,7 +150,7 @@ impl Serve<v1::GetInstallation> for Resources {
         Box::pin(async move {
             let id = id(&request.install_id)?;
             let entry = self.submit(self.admission.read()?, move |store| async move { store.get(id).await }).await?;
-            self.entry(entry)
+            self.entry(entry).await
         })
     }
 }
@@ -154,7 +162,7 @@ impl Serve<v1::Install> for Resources {
             let input = ctx.streams();
             let revoked = crate::grpc::access::revocation(call_context);
             crate::grpc::access::during(revoked, async {
-                let operation = self.runtime.operation_progress().begin("Installing Plugin");
+                let operation = dokime::app::live_runtime(&self.runtime).await?.operation_progress().begin("Installing Plugin");
                 operation.phase("Receiving Archive");
                 let installed = self.install(input, &operation).await;
                 if let Err(status) = &installed {
@@ -178,7 +186,7 @@ impl Serve<v1::SetEnabled> for Resources {
                     store.get(id).await
                 })
                 .await?;
-            self.entry(entry)
+            self.entry(entry).await
         })
     }
 }
@@ -199,7 +207,7 @@ impl Serve<v1::Remove> for Resources {
                 .await?;
             let mut entry = entry;
             if let Some(entry) = &mut entry {
-                self.runtime.plugin_process_state(entry);
+                dokime::app::live_runtime(&self.runtime).await?.plugin_process_state(entry);
                 wire::normalize(entry, self.max_message_bytes)?;
             }
             self.produce(|| {
@@ -218,7 +226,7 @@ impl Serve<v1::ListAdmittedPlugins> for Resources {
         Box::pin(async move {
             let context = ctx.call();
             let local = context.get::<super::access::Principal>().is_some_and(super::access::Principal::is_local);
-            inventory::page(&self.runtime, &mut request, self.max_message_bytes, local)
+            inventory::page(&dokime::app::live_runtime(&self.runtime).await?, &mut request, self.max_message_bytes, local)
         })
     }
 }
@@ -272,7 +280,7 @@ impl Resources {
         );
         operation.phase("Inspecting Archive");
         operation.indeterminate();
-        let runtime = self.runtime.clone();
+        let runtime = dokime::app::live_runtime(&self.runtime).await?.clone();
         let inspect_started = Instant::now();
         let maximum = self.max_message_bytes;
         let entry = match tokio::spawn(async move {
@@ -297,33 +305,29 @@ impl Resources {
             Err(status) => return Err(reject(status)),
         };
         tracing::info!(elapsed_ms = inspect_started.elapsed().as_millis(), "plugin installation inspection completed",);
-        self.entry(entry)
+        self.entry(entry).await
     }
 }
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         admission: admission::Admission::new(),
         max_message_bytes: maximum,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<v1::ListInstallations>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::GetInstallation>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::Install>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::SetEnabled>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::Remove>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::ListAdmittedPlugins>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<v1::ListInstallations>()
-        .operation::<v1::GetInstallation>()
-        .operation::<v1::Install>()
-        .operation::<v1::SetEnabled>()
-        .operation::<v1::Remove>()
-        .operation::<v1::ListAdmittedPlugins>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<v1::ListInstallations>>(Host::<v1::ListInstallations>::new(served.clone()));
+    setup.resource::<Host<v1::GetInstallation>>(Host::<v1::GetInstallation>::new(served.clone()));
+    setup.resource::<Host<v1::Install>>(Host::<v1::Install>::new(served.clone()));
+    setup.resource::<Host<v1::SetEnabled>>(Host::<v1::SetEnabled>::new(served.clone()));
+    setup.resource::<Host<v1::Remove>>(Host::<v1::Remove>::new(served.clone()));
+    setup.resource::<Host<v1::ListAdmittedPlugins>>(Host::<v1::ListAdmittedPlugins>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

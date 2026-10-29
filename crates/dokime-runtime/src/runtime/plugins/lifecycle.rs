@@ -373,7 +373,7 @@ impl Sidecar {
                     id: source.clone(),
                     policy: harmos::ServicePolicy { restart, ..harmos::services::POLICY },
                 },
-                move |_: Arc<()>| sidecar.clone(),
+                move |_: Arc<harmos::ExecutionContext>| sidecar.clone(),
             )
             .map_err(Error::from)?;
         self.registered = true;

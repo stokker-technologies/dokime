@@ -21,18 +21,19 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::Response;
-use dokime::harmos::{Context, RegistrationExt};
 use tonic::Status;
 
 // Local Imports
 use super::error::detailed;
 use crate::grpc::transcode::Transcode;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::definition::wire::RecordSchema;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::operations::evidence as v1;
 use dokime::operations::hosting::{Host, Serve, Served};
-use dokime::{RuntimeHandle, runtime::CapturedRecords};
+use dokime::runtime::CapturedRecords;
 use selection::Selection;
 
 /* === Constants === */
@@ -51,7 +52,7 @@ type TailEntry = (usize, dokime::domain::model::evidence::wire::CapturedRecord);
 /* === Structs === */
 
 struct Resources {
-    pub(super) runtime: RuntimeHandle,
+    pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
 }
 
@@ -77,14 +78,21 @@ struct Tail {
 
 /* === Enums === */
 
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(v1::ListRecords),
+    Operation1(v1::WatchRecords),
+    Operation2(v1::GetCapturedRecordSchema),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
 impl Reader {
     fn new(
-        runtime: &RuntimeHandle, selection: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>, after: Option<Cursor>,
-        through: Option<Cursor>, bytes: usize,
+        runtime: &dokime::RuntimeHandle, selection: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>,
+        after: Option<Cursor>, through: Option<Cursor>, bytes: usize,
     ) -> Result<Self, Status> {
         let scan_items = usize::try_from(SERVER_EVIDENCE_SCAN_ITEMS).expect("validated record scan limit");
         let record_items = usize::try_from(SERVER_EVIDENCE_RECORD_ITEMS).expect("validated record page count");
@@ -279,8 +287,13 @@ impl Serve<v1::ListRecords> for Resources {
             if request.latest > 0 && request.after.is_some() {
                 return Err(Status::invalid_argument("a tail request takes no cursors"));
             }
-            let mut reader =
-                Reader::new(&self.runtime, request.selection.take(), request.after.take(), request.through.take(), self.max_message_bytes)?;
+            let mut reader = Reader::new(
+                &dokime::app::live_runtime(&self.runtime).await?,
+                request.selection.take(),
+                request.after.take(),
+                request.through.take(),
+                self.max_message_bytes,
+            )?;
             let page = match request.latest {
                 0 => reader.page().await?,
                 latest => reader.tail(latest as usize).await?,
@@ -295,7 +308,13 @@ impl Serve<v1::WatchRecords> for Resources {
         Box::pin(async move {
             let revoked = crate::grpc::access::revocation(ctx.call());
             crate::grpc::access::during(revoked, async {
-                let mut reader = Reader::new(&self.runtime, request.selection.take(), request.after.take(), None, self.max_message_bytes)?;
+                let mut reader = Reader::new(
+                    &dokime::app::live_runtime(&self.runtime).await?,
+                    request.selection.take(),
+                    request.after.take(),
+                    None,
+                    self.max_message_bytes,
+                )?;
                 let mut initial = true;
                 loop {
                     if !initial && reader.scanned == reader.through {
@@ -328,8 +347,8 @@ impl Serve<v1::WatchRecords> for Resources {
 impl Serve<v1::GetCapturedRecordSchema> for Resources {
     fn serve<'a>(&'a self, request: v1::GetCapturedRecordSchema, _: Context<'a, v1::GetCapturedRecordSchema>) -> Served<'a, RecordSchema> {
         Box::pin(async move {
-            let snapshot = self.runtime.watch_state().latest();
-            if request.epoch != self.runtime.captured_records().epoch() {
+            let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
+            if request.epoch != dokime::app::live_runtime(&self.runtime).await?.captured_records().epoch() {
                 return Err(Status::failed_precondition("record schema epoch mismatch; resynchronize"));
             }
             let kind = dokime::domain::model::identity::Identifier::new(request.record_type)
@@ -349,20 +368,19 @@ impl Serve<v1::GetCapturedRecordSchema> for Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), super::Error> {
     let served = Arc::new(Resources {
         runtime: runtime.clone(),
         max_message_bytes: maximum,
     });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<v1::ListRecords>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::WatchRecords>::new(served.clone()))?;
-    dependencies.insert(Host::<v1::GetCapturedRecordSchema>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<v1::ListRecords>()
-        .operation::<v1::WatchRecords>()
-        .operation::<v1::GetCapturedRecordSchema>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<v1::ListRecords>>(Host::<v1::ListRecords>::new(served.clone()));
+    setup.resource::<Host<v1::WatchRecords>>(Host::<v1::WatchRecords>::new(served.clone()));
+    setup.resource::<Host<v1::GetCapturedRecordSchema>>(Host::<v1::GetCapturedRecordSchema>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

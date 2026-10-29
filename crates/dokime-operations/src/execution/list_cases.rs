@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<ListCases>], response = ListCasesReply, id = "dokime.execution.list_cases",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "ListCases"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListCases {

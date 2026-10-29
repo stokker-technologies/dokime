@@ -21,7 +21,7 @@ use dokime::harmos::grpc::Attached;
 
 // Local Imports
 use super::access::Listeners;
-use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
+use super::{Config, Error, appearance, catalog, content, execution, history, observation, planning, reports};
 use dokime::RuntimeHandle;
 
 /* === Constants === */
@@ -56,39 +56,59 @@ pub struct Server {
 /* === Implementations === */
 
 impl Service {
-    pub async fn new(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
-        config.validate()?;
-        appearance::register(&runtime, config.max_message_bytes()).await?;
-        catalog::register(&runtime, config.max_message_bytes()).await?;
-        planning::register(&runtime, config.max_message_bytes()).await?;
-        execution::register(&runtime, config.max_message_bytes()).await?;
-        observation::register(&runtime, config.max_message_bytes()).await?;
-        history::register(&runtime, config.max_message_bytes()).await?;
-        reports::register(&runtime, config.max_message_bytes()).await?;
-        content::register(&runtime, config.max_message_bytes()).await?;
-        super::files::register(&runtime).await?;
-        super::media::register(&runtime, config.max_message_bytes()).await?;
-        super::notes::register(&runtime, config.max_message_bytes()).await?;
-        super::prompts::register(&runtime, config.max_message_bytes()).await?;
-        super::telemetry::register(&runtime, config.max_message_bytes()).await?;
-        super::query::register(&runtime, config.max_message_bytes()).await?;
-        super::plugins::register(&runtime, config.max_message_bytes()).await?;
-        super::evidence::register(&runtime, config.max_message_bytes()).await?;
-        super::plots::register(&runtime, config.max_message_bytes()).await?;
-        super::documents::register(&runtime, config.max_message_bytes()).await?;
-        super::settings::register(&runtime, config.max_message_bytes()).await?;
-        super::backend::register(&runtime, config.max_message_bytes()).await?;
+    pub fn prepare(config: Config) -> Result<super::PreparedService, Error> {
+        super::preparation::prepare(config)
+    }
+
+    pub(super) fn prepare_handlers(
+        setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, live: &dokime::app::LiveRuntime, config: &Config,
+        runtime_config: &dokime::RuntimeConfig,
+    ) -> Result<(), Error> {
+        appearance::prepare(setup, live, config.max_message_bytes())?;
+        catalog::prepare(setup, live, config.max_message_bytes())?;
+        planning::prepare(setup, live, config.max_message_bytes())?;
+        execution::prepare(setup, live, config.max_message_bytes())?;
+        observation::prepare(setup, live, config.max_message_bytes())?;
+        history::prepare(setup, live, config.max_message_bytes())?;
+        reports::prepare(setup, live, config.max_message_bytes())?;
+        content::prepare(setup, live, config.max_message_bytes())?;
+        super::files::prepare(setup, live)?;
+        super::media::prepare(setup, live, config.max_message_bytes())?;
+        super::notes::prepare(setup, live, config.max_message_bytes())?;
+        super::prompts::prepare(setup, live, config.max_message_bytes())?;
+        super::telemetry::prepare(setup, live, config.max_message_bytes())?;
+        super::query::prepare(setup, live, config.max_message_bytes())?;
+        super::plugins::prepare(setup, live, config.max_message_bytes())?;
+        super::evidence::prepare(setup, live, config.max_message_bytes())?;
+        super::plots::prepare(setup, live, config.max_message_bytes())?;
+        super::documents::prepare(setup, live, config.max_message_bytes())?;
+        super::settings::prepare(setup, live, config.max_message_bytes())?;
+        super::backend::prepare(setup, live, config.max_message_bytes(), runtime_config)?;
         let journal = config.trace_journal.clone().unwrap_or_else(|| crate::trace::Journal::new(crate::trace::Limits::default()));
-        super::trace::register(&runtime, config.max_message_bytes(), journal).await?;
-        let listeners = authorization::register(&runtime)?;
+        super::trace::prepare(setup, live, config.max_message_bytes(), journal)?;
+        Ok(())
+    }
+
+    pub(super) async fn activate(runtime: RuntimeHandle, config: Config, listeners: Arc<Listeners>) -> Result<Self, Error> {
         let mut service = Self {
             runtime: runtime.clone(),
             config,
             listeners,
             remote: None,
         };
-        service.remote = Some(super::remote::register(&runtime, service.clone()).await?);
+        service.remote = Some(super::remote::activate(&runtime, service.clone()).await?);
         Ok(service)
+    }
+
+    pub(super) fn controller(&self) -> Option<Arc<super::remote::Controller>> {
+        self.remote.clone()
+    }
+
+    pub(super) async fn deactivate(&self) -> Result<(), Error> {
+        if let Some(remote) = &self.remote {
+            remote.stop().await?;
+        }
+        Ok(())
     }
 
     pub(super) fn sessions(&self) -> Arc<super::remote::sessions::SessionLog> {
@@ -132,10 +152,6 @@ impl Service {
 }
 
 impl Server {
-    pub async fn start(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
-        Service::new(runtime, config).await?.listen().await
-    }
-
     pub fn address(&self) -> SocketAddr {
         self.address
     }

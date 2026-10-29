@@ -80,6 +80,14 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
 }
 
 pub fn obc_plugin_bundle() -> std::path::PathBuf {
+    built_bundle("fixtures/plugins/obc-plugin.dokime")
+}
+
+pub fn host_plugin_bundle() -> std::path::PathBuf {
+    built_bundle("plugins/host.dokime")
+}
+
+fn built_bundle(relative: &str) -> std::path::PathBuf {
     let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     assert!(matches!(profile.as_str(), "dev" | "release"));
     let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
@@ -92,7 +100,7 @@ pub fn obc_plugin_bundle() -> std::path::PathBuf {
         .expect("the workspace root holds Cargo.lock")
         .to_owned();
     let target = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-    let path = workspace.join("target/build").join(profile).join(target).join("plugins/obc-plugin.dokime");
+    let path = workspace.join("target/build").join(profile).join(target).join(relative);
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }

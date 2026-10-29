@@ -484,7 +484,7 @@ pub fn samples_from(stream: &str, first: usize, count: usize, scope: Option<Reco
 /* === Private Functions === */
 fn stream_columns(stream: &str, index: usize) -> Vec<(&'static str, Value)> {
     match stream {
-        "host.wifi.channel_occupancy" => vec![
+        "host.wifi.scan" => vec![
             ("sample_index", Value::Integer(index as i64)),
             ("wifi_channel", Value::Integer(6)),
             ("network_count", Value::Integer(index as i64)),

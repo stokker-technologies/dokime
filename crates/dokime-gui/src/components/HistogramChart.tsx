@@ -85,7 +85,7 @@ export function HistogramChart({
           ) : null}
           {bins.map((bin, index) => (
             <button
-              aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(bin.max, unit, format)}: ${bin.count}`}
+              aria-label={`${formatHistogramValue(bin.min, unit, format)} To ${formatHistogramValue(bin.max, unit, format)}: ${bin.count}`}
               className="grid h-full min-w-0 items-end text-left"
               key={bin.slot}
               type="button"

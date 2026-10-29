@@ -20,8 +20,8 @@ use std::{
 };
 
 // Third Party Imports
+use dokime::harmos::Context;
 use dokime::harmos::operations::{OperationDeclaration, Response};
-use dokime::harmos::{Context, RegistrationExt};
 use dokime::operations::hosting::{Serve, Served};
 use harmos_packaging::bundle::Bundle;
 use sha2::{Digest, Sha256};
@@ -94,7 +94,6 @@ impl dokime::harmos::Application for Fixture {
     type Transaction = dokime::harmos::state::Never;
     type Record = ();
     type Streams = ();
-    type Resources = ();
 }
 
 operation!(v1::Install, host, _request, input, {
@@ -192,6 +191,61 @@ operation!(runtime::GetHealth, _host, _request, _input, {
     }
     .into())
 });
+
+#[derive(Default, serde::Deserialize)]
+struct FixtureConfig {
+    #[serde(skip)]
+    host: Option<Arc<Host>>,
+}
+
+#[harmos_sdk::catalog(harmos_path = dokime::harmos)]
+enum HostOperations {
+    Operation0(v1::Install),
+    Operation1(backend::GetIdentity),
+    Operation2(backend::GetHealth),
+    Operation3(backend::GetAvailability),
+    Operation4(runtime::GetIdentity),
+    Operation5(runtime::GetHealth),
+}
+
+impl dokime::harmos::Lifecycle for Fixture {
+    type Config = FixtureConfig;
+    type Error = dokime::harmos::Error;
+    type Context = dokime::harmos::Startup<Self>;
+    async fn prepare(config: Self::Config, setup: &mut dokime::harmos::Setup<Self>) -> dokime::harmos::Result<Self> {
+        let host = config.host.expect("fixture hosting resources");
+        setup.resource::<dokime::operations::hosting::Host<v1::Install>>(dokime::operations::hosting::Host::<v1::Install>::new(
+            host.clone(),
+        ));
+        setup.resource::<dokime::operations::hosting::Host<backend::GetIdentity>>(
+            dokime::operations::hosting::Host::<backend::GetIdentity>::new(host.clone()),
+        );
+        setup.resource::<dokime::operations::hosting::Host<backend::GetHealth>>(
+            dokime::operations::hosting::Host::<backend::GetHealth>::new(host.clone()),
+        );
+        setup.resource::<dokime::operations::hosting::Host<backend::GetAvailability>>(dokime::operations::hosting::Host::<
+            backend::GetAvailability,
+        >::new(host.clone()));
+        setup.resource::<dokime::operations::hosting::Host<runtime::GetIdentity>>(
+            dokime::operations::hosting::Host::<runtime::GetIdentity>::new(host.clone()),
+        );
+        setup.resource::<dokime::operations::hosting::Host<runtime::GetHealth>>(
+            dokime::operations::hosting::Host::<runtime::GetHealth>::new(host.clone()),
+        );
+        setup.operations::<HostOperations>(Lanes::Open);
+        setup.operations::<Discovery>(Lanes::Open);
+        Ok(Self)
+    }
+    async fn initialize(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
+        Ok(())
+    }
+    async fn stop(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
+        Ok(())
+    }
+    async fn cleanup(&mut self) -> dokime::harmos::Result<()> {
+        Ok(())
+    }
+}
 
 /* === Public Functions === */
 
@@ -305,25 +359,7 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
             Sha256::digest(artifacts.descriptors()).to_vec()
         },
     };
-    let runtime = dokime::harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
-    let catalog = dokime::harmos::builtin::catalog_registration::<()>(None).unwrap();
-    runtime.register(catalog.lane(Lanes::Open)).await.unwrap();
-    let host = Arc::new(host);
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(dokime::operations::hosting::Host::<v1::Install>::new(host.clone())).unwrap();
-    dependencies.insert(dokime::operations::hosting::Host::<backend::GetIdentity>::new(host.clone())).unwrap();
-    dependencies.insert(dokime::operations::hosting::Host::<backend::GetHealth>::new(host.clone())).unwrap();
-    dependencies.insert(dokime::operations::hosting::Host::<backend::GetAvailability>::new(host.clone())).unwrap();
-    dependencies.insert(dokime::operations::hosting::Host::<runtime::GetIdentity>::new(host.clone())).unwrap();
-    dependencies.insert(dokime::operations::hosting::Host::<runtime::GetHealth>::new(host)).unwrap();
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<v1::Install>()
-        .operation::<backend::GetIdentity>()
-        .operation::<backend::GetHealth>()
-        .operation::<backend::GetAvailability>()
-        .operation::<runtime::GetIdentity>()
-        .operation::<runtime::GetHealth>();
-    runtime.register(batch.lane(Lanes::Open)).await.unwrap();
+    let runtime = dokime::harmos::Runtime::<Fixture>::launch((), FixtureConfig { host: Some(Arc::new(host)) }).await.unwrap();
     let attachment = runtime
         .grpc()
         .attach(dokime::harmos::grpc::Settings {
@@ -335,7 +371,7 @@ async fn scenario(install_code: tonic::Code) -> (Outcome, Vec<&'static str>) {
     let endpoint = format!("http://{}", attachment.local_addr());
     let output = tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint)).await;
     attachment.detach().await.unwrap();
-    runtime.stop().await.unwrap();
+    runtime.shutdown().await.unwrap();
     let calls = calls.lock().unwrap().clone();
     (output.unwrap().unwrap(), calls)
 }
@@ -363,3 +399,8 @@ fn cli_executable() -> String {
 }
 
 /* === Tests === */
+
+#[harmos_sdk::catalog(harmos_path = dokime::harmos)]
+enum Discovery {
+    Catalog(dokime::harmos::builtins::host::Catalog),
+}

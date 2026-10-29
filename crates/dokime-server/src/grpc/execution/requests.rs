@@ -17,10 +17,11 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::{Context, RegistrationExt};
+use dokime::harmos::Context;
 
 // Local Imports
 use super::*;
+use dokime::app::LiveRuntime;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::wire as common;
 use dokime::operations::execution as wire;
@@ -36,10 +37,15 @@ use dokime::runtime::command::{CommandReceipt, CommandStatus};
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(wire::StartExecution),
+}
 
 /* === Traits === */
 
@@ -61,20 +67,20 @@ impl Serve<wire::StartExecution> for Resources {
                     dokime::domain::model::execution::ExecutionMode::Interactive
                 }
             };
-            let result = self.runtime.start_execution(id, mode, context).await;
-            receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
+            let result = dokime::app::live_runtime(&self.runtime).await?.start_execution(id, mode, context).await;
+            receipt(result, dokime::app::live_runtime(&self.runtime).await?.process_epoch().to_string()).map(Into::into)
         })
     }
 }
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone() });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<wire::StartExecution>::new(served))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies).operation::<wire::StartExecution>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<wire::StartExecution>>(Host::<wire::StartExecution>::new(served));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -37,17 +37,24 @@ export function DataTableColumnHeader<TData extends RowData>({ header }: DataTab
   const filterable = Boolean(meta?.filter) && column.getCanFilter();
   const SortGlyph = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
 
+  // Header Names Wrap Within The Available Column Width.
   const name = (
-    <span className="truncate">
+    <span className="min-w-0 break-words whitespace-normal">
       <FlexRender header={header} />
     </span>
   );
 
   return (
-    <div className={cn("flex min-w-0 items-center gap-1", meta?.align === "end" && "flex-row-reverse")}>
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-1",
+        meta?.align === "end" && "flex-row-reverse",
+        meta?.align === "center" && "justify-center",
+      )}
+    >
       {column.getCanSort() ? (
         <button
-          className="inline-flex min-w-0 items-center gap-1 rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-w-0 items-center gap-1 rounded-lg text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           onClick={column.getToggleSortingHandler()}
           type="button"
         >

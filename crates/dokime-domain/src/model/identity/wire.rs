@@ -32,7 +32,7 @@ use crate::model::values::wire::ValueError;
 /* === Structs === */
 
 // Authored identity and description of a Dokime object.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Metadata {
@@ -49,7 +49,7 @@ pub struct Metadata {
     pub updated_at: Option<Timestamp>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetadataAttribute {
@@ -58,7 +58,7 @@ pub struct MetadataAttribute {
 }
 
 // Protobuf well-known timestamp shape: seconds and nanoseconds since the Unix epoch.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Timestamp {
     pub seconds: i64,
@@ -66,7 +66,7 @@ pub struct Timestamp {
 }
 
 // Backend-owned evidence scope. Identifiers are not client filesystem paths.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceScope {
     pub session_id: Option<String>,
@@ -81,7 +81,7 @@ pub struct EvidenceScope {
 }
 
 // Execution admission attribution; producer occurrence and capture times stay separate.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceOrigin {
     pub kind: Option<EvidenceOriginKind>,
@@ -90,7 +90,7 @@ pub struct EvidenceOrigin {
 // A current or historical traceability group. The snapshot retains the
 // authored entry metadata, value and provenance source; consumers must not
 // reconstruct provenance from the display label.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilitySnapshot {
     pub traceability_id: String,
@@ -107,7 +107,7 @@ pub struct TraceabilitySnapshot {
     pub metadata: Option<Metadata>,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilityEntry {
     pub metadata: Option<Metadata>,
@@ -123,7 +123,7 @@ pub struct TraceabilityEntry {
 // chain beneath it, where it was captured, the spans it happened inside, and
 // the frames a maintainer needs. Redacted before it is stored, so no absolute
 // home directory or account name ever reaches a consumer.
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub message: String,
@@ -150,7 +150,7 @@ pub enum MetadataError {
     Value(#[from] ValueError),
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Severity {
     Unspecified,
@@ -161,7 +161,7 @@ pub enum Severity {
     Error,
 }
 
-#[harmos_domain::message]
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum EvidenceOriginKind {
     Default(bool),

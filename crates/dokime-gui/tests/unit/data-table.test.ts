@@ -18,14 +18,15 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { type ReactTable, useTable } from "@tanstack/react-table";
-import { createElement } from "react";
+import { Eye } from "lucide-react";
+import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 /* === Re-Exports === */
 
@@ -38,6 +39,21 @@ import { Button } from "@/components/ui/button";
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/** The first element in a returned tree, without rendering, whose props match. */
+function findElement(node: ReactNode, match: (props: Record<string, unknown>) => boolean): Record<string, unknown> | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, match);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!isValidElement(node)) return null;
+  const props = node.props as Record<string, unknown>;
+  if (match(props)) return props;
+  return findElement(props.children as ReactNode, match);
+}
 
 /* === Entry Point === */
 
@@ -107,13 +123,25 @@ test("Empty Tables Keep Column Headers And An In Table Empty Row", () => {
   assert.match(html, /fixture-empty/);
 });
 
-test("Row Actions Invoke The Primary Command And Expose A Menu", () => {
+test("Row Actions Are Named Icon Buttons With A Menu Only For The Rest", () => {
   const action = vi.fn();
-  const tree = DataTableRowActions({ label: "fixture", primary: { label: "fixture-open", onSelect: action } });
-  const children = tree.props.children;
-  assert.equal(children[0].type, Button);
-  children[0].props.onClick();
+  const primary = { label: "fixture-open", icon: Eye, onSelect: action };
+  const alone = DataTableRowActions({ label: "fixture", primary });
+  const button = findElement(alone, (props) => props["aria-label"] === "fixture-open");
+  assert.ok(button);
+  (button.onClick as () => void)();
   assert.equal(action.mock.calls.length, 1);
-  const html = renderToStaticMarkup(tree);
-  assert.match(html, /aria-haspopup="menu"/);
+  const html = renderToStaticMarkup(alone);
+  assert.match(html, /<button[^>]*aria-label="fixture-open"[^>]*><svg/);
+  assert.doesNotMatch(html, /aria-haspopup="menu"/);
+
+  const withMore = DataTableRowActions({
+    children: createElement(DropdownMenuItem, { onSelect: vi.fn() }, "fixture-more"),
+    label: "fixture",
+    primary,
+  });
+  assert.match(
+    renderToStaticMarkup(withMore),
+    /aria-haspopup="menu"[^>]*aria-label="Actions For fixture"|aria-label="Actions For fixture"[^>]*aria-haspopup="menu"/,
+  );
 });

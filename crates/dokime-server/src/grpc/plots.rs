@@ -25,14 +25,14 @@ use std::{collections::BTreeSet, sync::Arc, time::Duration};
 // Third Party Imports
 use dokime::harmos::domain::Portable;
 use dokime::harmos::operations::StreamOutput;
-use dokime::harmos::{Context, RegistrationExt, Response};
+use dokime::harmos::{Context, Response};
 use futures_util::{Stream, StreamExt, stream};
 use tokio::time::Instant;
 use tonic::Status;
 
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
-use dokime::RuntimeHandle;
+use dokime::app::LiveRuntime;
 use dokime::harmos::storage::{ReadBatch, StorageCursor};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plots as contract;
@@ -57,7 +57,7 @@ const SERVER_PLOT_THROTTLE_MS: u64 = 100;
 /* === Structs === */
 
 struct Resources {
-    runtime: RuntimeHandle,
+    runtime: LiveRuntime,
     maximum: usize,
 }
 
@@ -68,6 +68,13 @@ struct FrameContext<'a> {
 }
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+enum PreparedOperations {
+    Operation0(contract::ListAnalyses),
+    Operation1(contract::QuerySnapshots),
+    Operation2(contract::Watch),
+}
 
 // One step of a watch's opening phase: a result, or a keepalive while none is ready.
 #[derive(Debug, PartialEq)]
@@ -123,7 +130,11 @@ impl Resources {
         &self, current: &PlotPayloadRequest, mode: RuntimePlotQueryMode, at: &StorageCursor,
     ) -> Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error> {
         let started = Instant::now();
-        let result = self.runtime.query_plot_payloads_at(vec![current.clone()], mode, at).await;
+        let result = dokime::app::live_runtime(&self.runtime)
+            .await
+            .map_err(|error| dokime::runtime::Error::Operation(error.to_string()))?
+            .query_plot_payloads_at(vec![current.clone()], mode, at)
+            .await;
         tracing::debug!(
             plot_id = current.plot_id.as_deref().unwrap_or(current.stream.as_str()),
             elapsed_ms = started.elapsed().as_millis() as u64,
@@ -174,7 +185,11 @@ impl Serve<contract::ListAnalyses> for Resources {
         Box::pin(async move {
             let limit = dokime::domain::model::execution::wire_cursor::page_size(request.limit, &request.after_id)
                 .map_err(super::value::canonical::cursor_failure)?;
-            let definitions = self.runtime.analysis_definitions().await.map_err(|error| Status::unavailable(error.to_string()))?;
+            let definitions = dokime::app::live_runtime(&self.runtime)
+                .await?
+                .analysis_definitions()
+                .await
+                .map_err(|error| Status::unavailable(error.to_string()))?;
             let mut page = definitions.iter().filter(|definition| definition.id > request.after_id).take(limit + 1).collect::<Vec<_>>();
             let next_after_id = (page.len() > limit).then(|| page[limit - 1].id.clone());
             page.truncate(limit);
@@ -193,7 +208,7 @@ impl Serve<contract::QuerySnapshots> for Resources {
         &'a self, mut request: contract::QuerySnapshots, _: Context<'a, contract::QuerySnapshots>,
     ) -> Served<'a, dokime::domain::model::plots::wire::PlotSnapshotsReply> {
         Box::pin(async move {
-            let runtime = &self.runtime;
+            let runtime = &dokime::app::live_runtime(&self.runtime).await?;
             let epoch = runtime.process_epoch().as_str().to_owned();
             let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
             let at = runtime.storage().cursor_saved();
@@ -241,7 +256,7 @@ impl Serve<contract::Watch> for Resources {
             let output = ctx.streams();
             let revoked = crate::grpc::access::revocation(call_context);
             crate::grpc::access::during(revoked, async {
-                let runtime = &self.runtime;
+                let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let epoch = runtime.process_epoch().as_str().to_owned();
                 let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
                 let original = requests.clone();
@@ -392,17 +407,16 @@ impl Resources {
 
 /* === Public Functions === */
 
-pub(super) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+pub(super) fn prepare(
+    setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,
+) -> Result<(), crate::grpc::Error> {
     let served = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    let mut dependencies = dokime::harmos::Dependencies::new();
-    dependencies.insert(Host::<contract::ListAnalyses>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::QuerySnapshots>::new(served.clone()))?;
-    dependencies.insert(Host::<contract::Watch>::new(served.clone()))?;
-    let batch = dokime::harmos::RegistrationBatch::new(dependencies)
-        .operation::<contract::ListAnalyses>()
-        .operation::<contract::QuerySnapshots>()
-        .operation::<contract::Watch>();
-    runtime.operations().register(batch.lane(dokime::app::Lanes::Open)).await?;
+
+    setup.resource::<Host<contract::ListAnalyses>>(Host::<contract::ListAnalyses>::new(served.clone()));
+    setup.resource::<Host<contract::QuerySnapshots>>(Host::<contract::QuerySnapshots>::new(served.clone()));
+    setup.resource::<Host<contract::Watch>>(Host::<contract::Watch>::new(served.clone()));
+
+    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -34,7 +34,7 @@ use dokime_domain::model::document::DownsampleTechnique;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<UpdatePlotSettings>], response = (), id = "dokime.documents.update_plot_settings",
-    policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+    policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Documents", method = "UpdatePlotSettings"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdatePlotSettings {

@@ -111,7 +111,9 @@ const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
-const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "fixtures/plugins/obc-plugin.dokime");
+
+const hostBundle = join(built, "plugins/host.dokime");
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -408,6 +410,8 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
     [
       "server",
       "--shutdown-stdin",
+      "--plugin",
+      hostBundle,
       ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
       String(port),
@@ -2240,11 +2244,11 @@ async function cycleJourney(session, cycleId) {
     "the plot identity to configure",
     () =>
       session.execute(`
-    return document.querySelector('button[aria-label^="Plot settings for "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+    return document.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
   `),
     120000,
   );
-  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot settings for ']`;
+  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
   await session.clickCss(settingsSelector);
   const settingsText = await until(
     "plot settings dialog",
@@ -2291,7 +2295,7 @@ async function cycleJourney(session, cycleId) {
         `
     const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
       .find((node) => node.dataset.plotId === arguments[0]);
-    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot settings for "]'));
+    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot Settings For "]'));
   `,
         [plotId],
       ),
@@ -2350,7 +2354,7 @@ async function cycleJourney(session, cycleId) {
     "the native trace statistics headers",
     () =>
       session.execute(`
-        const tables = [...document.querySelectorAll('table[aria-label="Trace statistics"]')];
+        const tables = [...document.querySelectorAll('table[aria-label="Trace Statistics"]')];
         if (!tables.length) return null;
         return tables.flatMap(table => [...table.querySelectorAll('th')].map(header => {
           const leaves = [...header.querySelectorAll('span')].filter(node => !node.children.length && node.textContent.trim());
@@ -3062,7 +3066,7 @@ async function remoteAccessJourney() {
   const revoke = await until("first paired client", () =>
     session.find(
       "xpath",
-      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[normalize-space(.)='Revoke']",
+      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[@aria-label='Revoke']",
     ),
   );
   await session.click(revoke);
@@ -3159,10 +3163,10 @@ async function remoteAccessJourney() {
     await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
   }
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions for desktop-pairing");
+  await openMenu(session, "Actions For desktop-pairing");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
-  await until("paired backend removed", async () => !(await session.exists("button", "Actions for desktop-pairing")));
+  await until("paired backend removed", async () => !(await session.exists("button", "Actions For desktop-pairing")));
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -3234,10 +3238,9 @@ async function settingsJourney(session, notes) {
     async () => {
       const state = await session.execute(`
         const buttons = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr button')]
-          .filter(button => button.textContent.trim() === 'Settings');
+          .filter(button => button.getAttribute('aria-label') === 'Settings');
         const configurable = buttons.filter(button => !button.disabled);
-        return {rows: buttons.length, configurable: configurable.length,
-          host: configurable[0]?.closest('tr')?.cells[0]?.innerText.trim().endsWith(' Host'), text: document.body.innerText};
+        return {rows: buttons.length, configurable: configurable.length, text: document.body.innerText};
       `);
       return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
         ? state
@@ -3258,17 +3261,9 @@ async function settingsJourney(session, notes) {
     );
   }
   if (plugins.configurable) {
-    await session.click(
-      await session.find("xpath", "//table[@aria-label='Plugins']//button[normalize-space(.)='Settings' and not(@disabled)]"),
-    );
-    await until(
-      "plugin page",
-      async () =>
-        plugins.host
-          ? (await session.location()).pathname === "/settings/appearance"
-          : (await session.location()).pathname.startsWith("/settings/plugins/"),
-      120000,
-    );
+    await session.click(await session.find("xpath", "//table[@aria-label='Plugins']//button[@aria-label='Settings' and not(@disabled)]"));
+    /* Every row, the host's included, opens its plugin's own page. */
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
     assert.ok(hasText(await session.text(), "Settings"), "The plugin page must carry its settings breadcrumb");
     await session.goto("/settings/plugins");
     await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 120000);
@@ -3303,18 +3298,18 @@ async function settingsJourney(session, notes) {
       await session.type(input, text);
     }
     await session.clickNamed("button", "Save Secret");
-    await until("shared keyring entry saved", () => session.exists("button", `Actions for ${name}`));
+    await until("shared keyring entry saved", () => session.exists("button", `Actions For ${name}`));
     assert.ok(
-      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='Edit' and not(@disabled)]`),
+      await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Edit' and not(@disabled)]`),
       "The saved secret remains editable",
     );
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
   }
   for (const name of ["e2e.settings.first", "e2e.settings.second"]) {
-    await openMenu(session, `Actions for ${name}`);
+    await openMenu(session, `Actions For ${name}`);
     await session.clickNamed("menuitem", "Delete");
     await session.clickNamed("button", "Confirm Delete");
-    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions for ${name}`)));
+    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions For ${name}`)));
   }
 
   /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
@@ -3325,10 +3320,7 @@ async function settingsJourney(session, notes) {
   assert.ok(endpoint);
   const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
   const rowAction = (name, action) =>
-    session.find(
-      "xpath",
-      `//tr[td[normalize-space(.)='${name}']]//button[normalize-space(.)='${action === "Select" ? "Connect" : action}']`,
-    );
+    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='${action === "Select" ? "Connect" : action}']`);
   const add = async (name, identity = "") => {
     await session.clickNamed("button", "Add Backend");
     await session.type(await field("Backend Identifier"), name);
@@ -3376,7 +3368,7 @@ async function settingsJourney(session, notes) {
 
   await add("native-recovery");
   await add("native-stale", "deliberately-wrong-native-identity");
-  await openMenu(session, "Actions for native-stale");
+  await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
@@ -3397,7 +3389,7 @@ async function settingsJourney(session, notes) {
     return status.connection.phase === "connected";
   });
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions for native-stale");
+  await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("stale profile removed", async () => {
@@ -3605,7 +3597,7 @@ async function reportJourney(session, cycleId) {
     reportButtons = await evaluate(`
       [...document.querySelectorAll('button')].map(button => ({
         label: button.innerText.trim(),
-        trace: Boolean(button.closest('table[aria-label="Trace statistics"]')),
+        trace: Boolean(button.closest('table[aria-label="Trace Statistics"]')),
       }))
     `);
     // A Controlled Analysis Failure Uses The Packaged Report's Actual Renderer And Styles.

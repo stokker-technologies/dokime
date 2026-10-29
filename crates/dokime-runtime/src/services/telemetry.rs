@@ -487,7 +487,7 @@ impl Resident<Dokime> for Producer {
 impl Sampling {
     async fn request(
         &self, runtime: &RuntimeHandle, scope: SamplingScope, requests: Vec<TelemetrySamplingRequest>, sampler: Arc<dyn Sampler>,
-        producer_key: String, bind: impl FnOnce(&[TelemetryCaptureLease]) -> Result<()> + Send,
+        producer_key: String,
     ) -> Result<Vec<TelemetryCaptureLease>> {
         if requests.is_empty() {
             return Ok(Vec::new());
@@ -523,7 +523,7 @@ impl Sampling {
                             id: service_name.clone(),
                             policy: harmos::services::POLICY,
                         },
-                        move |_: Arc<()>| Producer {
+                        move |_: Arc<harmos::ExecutionContext>| Producer {
                             producer_key: key.clone(),
                             sampling: sampling.clone(),
                             runtime: owner.clone(),
@@ -582,12 +582,6 @@ impl Sampling {
                 scope: scope.clone(),
             });
         }
-        if let Err(error) = bind(&leases) {
-            for lease in &leases {
-                producer.leases.remove(&lease.lease_id);
-            }
-            return Err(error);
-        }
         self.fence_changed.notify_waiters();
         Ok(leases)
     }
@@ -611,46 +605,6 @@ impl Sampling {
         let removed = state.producers.get_mut(&key).is_some_and(|producer| producer.leases.remove(lease_id).is_some());
         self.fence_changed.notify_waiters();
         Ok(removed)
-    }
-
-    pub(crate) async fn release_stream_lease(
-        &self, runtime: &RuntimeHandle, leases: &crate::domains::telemetry::StreamLeases, lease_id: &str,
-    ) -> Result<()> {
-        let sessions = {
-            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            let Some(captures) = leases.fence_release(lease_id) else {
-                return Ok(());
-            };
-            let mut sessions = Vec::new();
-            for (key, producer) in &mut state.producers {
-                let mut affected = false;
-                for capture in &captures {
-                    if let Some(demand) = producer.leases.get_mut(capture) {
-                        demand.closing = true;
-                        affected = true;
-                    }
-                }
-                if affected {
-                    sessions.push((key.clone(), Arc::clone(&producer.session)));
-                }
-            }
-            sessions
-        };
-        self.fence_changed.notify_waiters();
-        for (key, session) in sessions {
-            let mut owner = session.borrow().await;
-            owner.drain(runtime, &key).await.map_err(|source| Error::SamplingSettlement(Box::new(source)))?;
-        }
-        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(released) = leases.release(lease_id) {
-            for capture in released.captures {
-                for producer in state.producers.values_mut() {
-                    producer.leases.remove(&capture);
-                }
-            }
-        }
-        self.fence_changed.notify_waiters();
-        Ok(())
     }
 
     async fn reconcile(&self, _runtime: &RuntimeHandle) {
@@ -726,6 +680,11 @@ impl Sampling {
     }
 
     pub(crate) async fn measurement_closed(&self, execution: &str) -> bool {
+        self.measurement_closed_now(execution)
+    }
+
+    // A Delivery Queue Reads The Fence Under Its Own Lock, So It Cannot Await.
+    pub(crate) fn measurement_closed_now(&self, execution: &str) -> bool {
         self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -998,15 +957,8 @@ impl RuntimeHandle {
         S: Sampler,
     {
         let producer_key = producer_key(&request.sample_key())?;
-        let mut leases = self.sampling().request(self, scope, vec![request], Arc::new(sampler), producer_key, |_| Ok(())).await?;
+        let mut leases = self.sampling().request(self, scope, vec![request], Arc::new(sampler), producer_key).await?;
         Ok(leases.pop().expect("one capture was requested"))
-    }
-
-    pub(crate) async fn request_grouped_sampling(
-        &self, scope: SamplingScope, requests: Vec<TelemetrySamplingRequest>, sampler: Arc<dyn Sampler>, producer_key: String,
-        bind: impl FnOnce(&[TelemetryCaptureLease]) -> Result<()> + Send,
-    ) -> Result<Vec<TelemetryCaptureLease>> {
-        self.sampling().request(self, scope, requests, sampler, producer_key, bind).await
     }
 
     pub async fn stop_telemetry_capture(&self, lease_id: &str) -> Result<bool> {

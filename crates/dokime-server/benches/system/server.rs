@@ -62,7 +62,7 @@ impl Server {
         let mut command = dokime::domain::process::command(artifact(&format!("bin/dokime{EXE_SUFFIX}")));
         command.arg("server");
         command
-            .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
+            .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
             .arg(root.path().join("data"))
             .arg("--application-root")
             .arg(root.path().join("application"))

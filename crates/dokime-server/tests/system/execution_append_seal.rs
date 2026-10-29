@@ -25,7 +25,6 @@ use crate::support::{self, wire::*};
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime::storage::sqlite::{StorageCounters, counters};
-use dokime_server::grpc::Server;
 
 /* === Constants === */
 
@@ -134,11 +133,12 @@ async fn append_and_seal(handle: &dokime::RuntimeHandle, wire: &WireClient, case
 #[tokio::test]
 async fn execution_append_seal() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let suite = support::fixture_suite(&["passed"]);
     support::register_fixture_execution(&handle, suite.clone()).await;
-    let server = Server::start(handle.clone(), keyed()).await.unwrap();
+    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let generated = wire
         .unary::<contracts::planning::MaterializeTemplate>(auth(

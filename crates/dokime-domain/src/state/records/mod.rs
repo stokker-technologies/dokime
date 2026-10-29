@@ -43,7 +43,7 @@ pub struct EvidenceRecords {
     pub session: crate::state::records::set::TestRecordSet,
 }
 
-#[harmos_domain::record(id = "dokime.captured_record")]
+#[harmos::record(id = "dokime.captured_record")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedRecord {
@@ -54,7 +54,7 @@ pub struct CapturedRecord {
 
 /* === Enums === */
 
-#[harmos_domain::records]
+#[harmos::records]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Records {
     Record(CapturedRecord),
@@ -64,11 +64,11 @@ pub enum Records {
 
 /* === Implementations === */
 
-impl harmos_domain::MemorySize for CapturedRecord {
+impl harmos::MemorySize for CapturedRecord {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
-            .saturating_add(harmos_domain::MemorySize::memory_size(&self.record).saturating_sub(std::mem::size_of_val(&self.record)))
-            .saturating_add(harmos_domain::MemorySize::memory_size(&self.scopes).saturating_sub(std::mem::size_of_val(&self.scopes)))
+            .saturating_add(harmos::MemorySize::memory_size(&self.record).saturating_sub(std::mem::size_of_val(&self.record)))
+            .saturating_add(harmos::MemorySize::memory_size(&self.scopes).saturating_sub(std::mem::size_of_val(&self.scopes)))
     }
 }
 

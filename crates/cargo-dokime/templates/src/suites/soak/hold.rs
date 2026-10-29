@@ -172,8 +172,8 @@ pub enum ObserverStreams {
     // running instance and its tick.
     //
     // `host::System` is the machine itself: cpu, memory and battery. The other
-    // five — `host::Network`, `host::Wifi`, `host::WifiLatency`,
-    // `host::WifiChannelOccupancy`, `host::Bluetooth` — are what a bench adds
+    // five — `host::Network`, `host::WifiLink`, `host::WifiScan`, `host::WifiLatency`,
+    // `host::Bluetooth` — are what a bench adds
     // when it is correlating the machine's radios against the unit.
     subscribes = Inputs,
     // The inputs, named once. The struct above is the declaration; every stage
@@ -221,7 +221,10 @@ impl Hold {
         dokime::info!(ctx, "opening the heater on {port}");
         let heater = Heater::open(port);
 
-        let shared = SoakResources { heater: tokio::sync::Mutex::new(heater.await?), holding: AtomicBool::new(false) };
+        let shared = SoakResources {
+            heater: tokio::sync::Mutex::new(heater.await?),
+            holding: AtomicBool::new(false),
+        };
         Ok((template, shared))
     }
 
@@ -332,7 +335,12 @@ impl Hold {
         // One verb publishes both kinds of evidence, and the declaration decides
         // which this is: `HoldReached` is a record, `SoakRow` is a measurement,
         // and neither call site repeats where it goes.
-        ctx.publish(HoldReached { samples: wanted, celsius, unit: self.unit.clone() }).await;
+        ctx.publish(HoldReached {
+            samples: wanted,
+            celsius,
+            unit: self.unit.clone(),
+        })
+        .await;
 
         Ok(())
     }

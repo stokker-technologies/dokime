@@ -20,7 +20,7 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::{Host, ServingError, WireTable};
+use dokime_runtime::harmos::operations::Host;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
 // Local Imports
@@ -80,7 +80,7 @@ struct Shared {
 
 struct Bench {
     shared: Arc<Shared>,
-    observers: Option<Arc<ObserverAttachment<Shared>>>,
+    observers: Option<Arc<ObserverAttachment>>,
 }
 #[allow(dead_code)]
 struct Watch(Option<ObserverTicks>);
@@ -94,7 +94,7 @@ struct WireCancellation {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+#[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Implemented {
     GetReading(GetReading),
     GetLateReading(GetLateReading),
@@ -233,49 +233,40 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
 
 #[dokime_runtime::plugin(
     id = "call_fixture",
-    provides = Implemented,
     requires(),
     contributions(dokime_runtime::Suites<BenchSuites>, dokime_runtime::Settings<BenchSettings>),
     observers = BenchObservers,
     restart = "never", description = "The call verb on every context.")]
 impl dokime_runtime::Plugin for Bench {
+    const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[Implemented::CATALOG];
+    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
+    }
+}
+
+impl dokime_runtime::harmos::Lifecycle for Bench {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
-    type Resources = Shared;
-
-    fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
-        Ok(Self {
-            shared: Arc::new(Shared {
-                reads: AtomicU64::new(0),
-                observer_ticks: OBSERVER_PROBES.lock().unwrap().get(&settings.observer.observer_probe).cloned(),
-            }),
-            observers: None,
-        })
+    async fn prepare(config: Configuration, setup: &mut dokime_runtime::harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let mut owner = {
+            let settings = dokime_runtime::plugin::refusal(config.settings::<BenchSettings>())?;
+            Self {
+                shared: Arc::new(Shared {
+                    reads: AtomicU64::new(0),
+                    observer_ticks: OBSERVER_PROBES.lock().unwrap().get(&settings.observer.observer_probe).cloned(),
+                }),
+                observers: None,
+            }
+        };
+        setup.resource::<Shared>(owner.resources());
+        owner.observers = Some(ObserverAttachment::from_catalog::<BenchObservers>(<Self as Declared>::STREAMS)?);
+        dokime_runtime::execution::prepare::<Self, BenchSuites>(setup)?;
+        Ok(owner)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<BenchObservers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
-    }
-
-    fn resources(&self) -> Arc<Shared> {
-        Arc::clone(&self.shared)
-    }
-
-    fn bind_operations(&self, table: &mut WireTable) -> Result<(), ServingError> {
-        table.register(Implemented::registration({
-            let mut dependencies = dokime_runtime::harmos::Dependencies::new();
-            dependencies.insert(self.resources()).map_err(|_| dokime_runtime::harmos::sidecar::operations::ServingError::Catalog)?;
-            dependencies
-        }))?;
-        dokime_runtime::execution::serve::<Self, BenchSuites>(table)?;
-        self.observers.as_ref().ok_or(ServingError::Catalog)?.bind(table)
-    }
-
-    fn attachment(&self) -> Option<Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>> {
-        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn dokime_runtime::harmos::plugin::Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
@@ -288,13 +279,20 @@ impl dokime_runtime::Plugin for Bench {
     }
 }
 
+impl Bench {
+    fn resources(&self) -> Arc<Shared> {
+        Arc::clone(&self.shared)
+    }
+}
+
 #[dokime_runtime::observer(interval_ms = 5, description = "A plugin observer reaches its own plugin's operations the way a step does.")]
 impl Watch {
-    async fn initialize(shared: &Shared) -> Result<Self, dokime_runtime::harmos::sidecar::CallError> {
+    async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, dokime_runtime::harmos::sidecar::CallError> {
+        let shared = context.resource::<Shared>().expect("plugin prepares its observer resources");
         Ok(Self(shared.observer_ticks.clone()))
     }
 
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Shared>) -> Result<(), dokime_runtime::harmos::sidecar::CallError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_>) -> Result<(), dokime_runtime::harmos::sidecar::CallError> {
         let reading = ctx.call::<GetReading>(GetReading {}).await?;
         assert!(reading.reads >= 1, "the operation answered the observer");
         if ctx.tick().ordinal() <= 2

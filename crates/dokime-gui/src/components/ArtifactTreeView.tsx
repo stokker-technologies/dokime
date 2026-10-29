@@ -371,7 +371,7 @@ function ArtifactFile({
       {nativeDownloadEnabled && nativeTransfer ? (
         <span className="flex items-center gap-1">
           <Button
-            aria-label={nativeDownloadError ? `Retry download ${fileLabel}` : `Download ${fileLabel}`}
+            aria-label={nativeDownloadError ? `Retry Download ${fileLabel}` : `Download ${fileLabel}`}
             className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             disabled={nativeDownloadBusy || nativeOpenBusy}
             size="icon-sm"
@@ -388,7 +388,7 @@ function ArtifactFile({
           className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           download
           href={secondaryHref}
-          title={opensLocalFile ? "Download artifact" : "Open download link"}
+          title={opensLocalFile ? "Download Artifact" : "Open Download Link"}
         >
           <Download size={14} />
         </a>

@@ -31,7 +31,7 @@ use super::*;
 /* === Structs === */
 
 #[harmos::operation(resources = [crate::hosting::Host<GetCheckpointDocument>], response = CheckpointDocument, id = "dokime.history.get_checkpoint_document",
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "GetCheckpointDocument"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetCheckpointDocument {

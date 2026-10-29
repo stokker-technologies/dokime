@@ -20,7 +20,7 @@ use std::sync::Arc;
 // Third Party Imports
 use futures_util::FutureExt;
 use futures_util::future::BoxFuture;
-use harmos::{Context, RegistrationExt};
+use harmos::Context;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -103,6 +103,11 @@ struct ProviderSettlement {
 struct CancelOnDrop(Option<tokio::sync::watch::Sender<bool>>);
 
 /* === Enums === */
+
+#[harmos::catalog]
+enum PreparedOperations {
+    Operation0(RunProviderCycle),
+}
 
 /* === Traits === */
 
@@ -370,13 +375,10 @@ impl ProviderCycleRequest {
 
 /* === Public Functions === */
 
-pub(crate) async fn register(
-    operations: &crate::app::OperationManager, invocations: Arc<ProviderInvocations>,
-) -> crate::runtime::Result<()> {
-    let mut dependencies = harmos::Dependencies::new();
-    dependencies.insert(Host::<RunProviderCycle>::new(invocations))?;
-    let batch = harmos::RegistrationBatch::new(dependencies).operation::<RunProviderCycle>();
-    operations.register(batch.lane(Lanes::Execution)).await?;
+pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, invocations: Arc<ProviderInvocations>) -> crate::runtime::Result<()> {
+    setup.resource::<Host<RunProviderCycle>>(Host::<RunProviderCycle>::new(invocations));
+
+    setup.operations::<PreparedOperations>(Lanes::Execution);
     Ok(())
 }
 

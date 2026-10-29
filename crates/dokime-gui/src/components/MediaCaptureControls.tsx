@@ -125,7 +125,7 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
       </Button>
       {activity === "recording" || activity === "stopping" ? (
         <Button
-          aria-label={`Stop audio recording (${formatElapsed(elapsedMs)})`}
+          aria-label={`Stop Audio Recording (${formatElapsed(elapsedMs)})`}
           disabled={activity === "stopping"}
           size="sm"
           type="button"

@@ -276,6 +276,41 @@ def test_payload_input_retained(tmp_path: Path) -> None:
 # === Private Functions === #
 
 
+def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _native_build(tmp_path, "dev", "x86_64-pc-windows-msvc")
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    monkeypatch.setattr(installer, "_stable_tag", lambda: "")
+    build = installer.paths.output(tmp_path, "build", "dev")
+    (build / "bin/cargo-dokime.exe").write_bytes(b"tool")
+    host = build / "plugins/host.dokime"
+    host.parent.mkdir()
+    host.write_bytes(b"host plugin")
+    payload.export(tmp_path, "dev")
+    calls = []
+
+    def record(command: list[str], output: Path, _root: Path) -> None:
+        calls.append(command)
+        if "package" in command:
+            directory = Path(command[command.index("--output") + 1])
+            directory.mkdir()
+            package = directory / "dokime-setup.exe"
+            package.write_bytes(b"installer")
+            paths = [str(package)]
+            output.write_text(json.dumps(paths), encoding="utf-8")
+        else:
+            output.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(installer, "_record", record)
+    installer.bundle(tmp_path, profile="dev")
+    package = calls[0]
+    assert package[package.index("--plugin") + 1] == str(host)
+    assert package.count("--plugin") == 1
+    destination = installer.paths.output(tmp_path, "package", "dev") / "rust"
+    assert (destination / "plugins/host.dokime").read_bytes() == host.read_bytes()
+    exported = destination / "plugins"
+    assert list(exported.iterdir()) == [exported / "host.dokime"]
+
+
 def _native_build(root: Path, profile: str, native: str) -> dict[str, bytes]:
     build = installer.paths.output(root, "build", profile)
     (build / "product").mkdir(parents=True, exist_ok=True)

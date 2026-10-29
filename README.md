@@ -42,6 +42,8 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. The desktop remembers that choice; operators do not need a source checkout.
 
+Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+
 #### Examples
 
 ![Test templates and cases in the Dokime library](screenshots/library.png)
@@ -83,19 +85,24 @@ backend profiles and execution APIs; the [runnable examples](packages/dokime-cli
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
+(pinned to development revision `648b3c7b79dc15c858666d1117c2abc97253910c` until the next Harmos release)
 for contracts and managed plugin lifecycles.
 
 #### Examples
 
-The [OBC plugin](plugins/obc-plugin/) simulates a charger without physical
+The test-only [OBC plugin](plugins/sidecars/obc/) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
+
+Custom installers select bundles explicitly with repeatable `cargo dokime installer
+package --plugin <bundle>` arguments. See the [installer guide](docs/product-guide.md#native-installers)
+for packaging options.
 
 ## Quick Start
 
 1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](packages/dokime-client/examples/remote/README.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
-2. **Download The Example Plugin.** Take `obc-plugin.dokime` from that same candidate. Drop it into the application's plugin settings to install it, then restart to activate it.
-3. **Try A Test.** Create a cycle, add an OBC charging template from the library, select its operating points, then run it and inspect the measurements and report. No physical charger is required.
+2. **Inspect Host Telemetry.** The installer includes `host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
+3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](plugins/sidecars/obc/#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;

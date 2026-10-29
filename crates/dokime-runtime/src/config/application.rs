@@ -21,17 +21,17 @@ use std::{env, io, path::PathBuf};
 // Local Imports
 use super::{ApplicationPaths, DEFAULT_APPLICATION_ID, organization};
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 use super::Config;
 
 /* === Constants === */
 
 const APPLICATION_ROOT_ENV: &str = "DOKIME_APPLICATION_ROOT";
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 
-#[cfg(feature = "host")]
+#[cfg(feature = "native")]
 const PLUGIN_LOOKUP_ENV: &str = "DOKIME_PLUGINS_DIR";
 
 /* === Macros === */
@@ -54,7 +54,7 @@ pub struct ApplicationOptions {
 /* === Implementations === */
 
 impl ApplicationOptions {
-    #[cfg(feature = "host")]
+    #[cfg(feature = "native")]
     pub fn resolve(self) -> io::Result<Config> {
         let explicit = self.application_root.is_some();
         let ambient = |name| {

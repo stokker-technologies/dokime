@@ -12,10 +12,11 @@
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { useSettingsFrameQuery } from "../settings-queries";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { SettingsCard } from "../SettingsCard";
 import { SettingsPathField } from "../SettingsPathField";
 import { SettingsRow } from "../SettingsRow";
+import { useSettingsFrameQuery } from "../settings-queries";
 
 /* === Types === */
 
@@ -27,9 +28,9 @@ export function BootstrapPaths() {
   const paths = query.data?.bootstrap_paths;
   return (
     <SettingsCard title="Bootstrap Paths" description="Paths are selected at startup.">
-      {!session && <p role="status">Connect to view backend paths.</p>}
-      {session && query.isPending && <p role="status">Loading Paths…</p>}
-      {Boolean(query.error) && <p role="alert">{String(query.error)}</p>}
+      {!session && <NotificationMessage tone="info">Connect to view backend paths.</NotificationMessage>}
+      {session && query.isPending && <NotificationMessage tone="info">Loading Paths…</NotificationMessage>}
+      {Boolean(query.error) && <NotificationMessage>{String(query.error)}</NotificationMessage>}
       {paths &&
         Object.entries(paths).map(([key, path]) => (
           <SettingsRow

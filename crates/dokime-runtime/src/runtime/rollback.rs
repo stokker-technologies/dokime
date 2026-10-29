@@ -35,22 +35,37 @@ pub struct Receipt {
     owner: Arc<Mutex<Option<Owner>>>,
 }
 
-struct Boot {
-    runtime: Option<crate::app::HarmosRuntime>,
-    storage: crate::storage::Manager,
-    local: crate::storage::sqlite::State,
+#[derive(Default)]
+pub(crate) struct Boot {
+    pub(crate) cleanup: Option<harmos::runtime::BootstrapCleanup>,
+    pub(crate) storage: Option<crate::storage::Manager>,
+    pub(crate) local: Option<crate::storage::sqlite::State>,
 }
+
+pub(crate) struct Preparing(pub(crate) Option<Receipt>);
 
 /* === Enums === */
 
 enum Owner {
     Runtime(Box<Runtime>),
-    Boot(Box<Boot>),
+    Boot(Arc<std::sync::Mutex<Boot>>),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Drop for Preparing {
+    fn drop(&mut self) {
+        if let Some(receipt) = self.0.take() {
+            tokio::spawn(async move {
+                if let Err(error) = receipt.retry().await {
+                    tracing::error!(%error, "cancelled Dokime startup cleanup failed");
+                }
+            });
+        }
+    }
+}
 
 impl Receipt {
     pub(super) fn new(runtime: Runtime) -> Self {
@@ -59,11 +74,9 @@ impl Receipt {
         }
     }
 
-    pub(super) fn boot(
-        runtime: Option<crate::app::HarmosRuntime>, storage: crate::storage::Manager, local: crate::storage::sqlite::State,
-    ) -> Self {
+    pub(crate) fn boot(boot: Arc<std::sync::Mutex<Boot>>) -> Self {
         Self {
-            owner: Arc::new(Mutex::new(Some(Owner::Boot(Box::new(Boot { runtime, storage, local }))))),
+            owner: Arc::new(Mutex::new(Some(Owner::Boot(boot)))),
         }
     }
 
@@ -75,13 +88,19 @@ impl Receipt {
                     runtime.shutdown().await?;
                 }
                 Owner::Boot(boot) => {
-                    let Boot { runtime, storage, local } = boot.as_mut();
-                    if let Some(active) = runtime.as_ref() {
-                        active.stop().await?;
-                        *runtime = None;
+                    let (cleanup, storage, local) = {
+                        let boot = boot.lock().expect("startup owners are healthy");
+                        (boot.cleanup.clone(), boot.storage.clone(), boot.local.clone())
+                    };
+                    if let Some(cleanup) = cleanup {
+                        cleanup.retry().await?;
                     }
-                    storage.close().await?;
-                    local.close().await?;
+                    if let Some(storage) = storage {
+                        storage.close().await?;
+                    }
+                    if let Some(local) = local {
+                        local.close().await?;
+                    }
                 }
             }
             *owner = None;

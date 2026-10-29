@@ -18,7 +18,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -175,7 +175,7 @@ function LiveDensityGroup() {
       { density: value },
       {
         onError: (error) =>
-          toast.error("Appearance could not be saved", {
+          toast.error("Appearance Could Not Be Saved", {
             description: applicationSettingsError(error),
           }),
       },
@@ -258,7 +258,7 @@ async function closeDesktopWindow(): Promise<void> {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
   } catch (error) {
-    toast.error("The window could not be closed", {
+    toast.error("The Window Could Not Be Closed", {
       description: error instanceof Error ? error.message : String(error),
     });
   }

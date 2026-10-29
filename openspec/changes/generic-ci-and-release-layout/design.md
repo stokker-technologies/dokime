@@ -12,7 +12,7 @@ The owner-approved Hub design at `generic-ci-and-release-layout/design.md` gover
 - `mise.toml`: native task references, package target arguments and credential-free rehearsal description.
 - `crates/dokime-packaging/src/installer/native.rs`: Windows output name includes its Rust target so generated latest.json URLs match staged release names.
 - `crates/cargo-dokime/Cargo.toml`: tgz metadata and Windows ZIP override, root binary path.
-- `tools/python/src/dokime_tools/package/plugins.py`: collect packages selected by release.plugins for the native target alongside the existing OBC fixture, once each; the release declaration owns shipped-package selection.
+- `tools/python/src/dokime_tools/package/plugins.py`: collect packages selected by release.plugins for the native target, once each; explicit test/bench calls select OBC separately. The release declaration owns shipped-package selection.
 - `packages/dokime-client/tests/integration/client/test_plugin_releases.py`: prove collection from existing compiler records without a compiler rerun.
 - `tools/python/src/dokime_tools/package/{payload,installer}.py`: payload naming and signed verification using the signature embedded in latest.json when the standalone sidecar is absent.
 - `packages/dokime-client/tests/integration/client/test_installers.py`: affected payload and published-signature behavior.
@@ -21,10 +21,14 @@ The owner-approved Hub design at `generic-ci-and-release-layout/design.md` gover
 
 ## Dependencies And Proof
 
-This tree contains only OBC. The shipped host plugin producer is owned by `prototype-streamline` (task 9.0.3); its exact package/bundle identity is pending owner input. This adoption will declare the matching input without implementing that parked change. Native package and release proof requires matching Product Build outputs. All-target rehearsal requires both native package artifacts; Windows-only proof cannot establish Unix execution.
+The owner-selected next-release branch supplies the shipped dokime-host package, staged as plugins/host.dokime. Its release declaration uses the workspace version and the compatible 0.1 host series. Native package and release proof requires matching Product Build outputs. All-target rehearsal requires both native package artifacts; Windows-only proof cannot establish Unix execution.
 
 The Python integration task delegates argument parsing to its existing module so focused pytest selections reach the runner.
 
 The Hub skeleton formatter rejects the existing `measure:report-save` task, which the parked streamline contract owns. Its owner must resolve that task-category conflict; this adoption preserves it.
 
 Targeted proof includes changed installer tests, package/release dry or rehearsal tasks, strict OpenSpec validation, and project render diagnostics (the intentional CI hold digest is expected). No full lane, push, release or Hub checkout mutation is authorized.
+
+## Next Release Integration
+
+The owner authorizes merging feat/next-release into this render branch, reconciling product-owned inputs, re-rendering Hub-owned files with provider access disabled and restoring every Check/Test hold. Retired managed workflow files stay deleted. No push is authorized.

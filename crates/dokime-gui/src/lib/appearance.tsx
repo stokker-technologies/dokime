@@ -10,7 +10,7 @@
 /* === Imports === */
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 

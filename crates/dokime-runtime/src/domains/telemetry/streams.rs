@@ -30,7 +30,7 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
+use dokime_domain::model::values::{Value, ValueType};
 
 /* === Constants === */
 
@@ -347,14 +347,6 @@ fn normalize_batch(
         sample.stream = contract.stream.clone();
         sample.schema_version = contract.schema_version;
         sample.received_at = received_at.clone();
-        if sample.storage_payload.is_none()
-            && let Ok(host) = crate::host::HostTelemetryStream::try_from(contract.stream.as_str())
-        {
-            use dokime_domain::model::telemetry::host::prepare_host_telemetry_payload;
-            let row = prepare_host_telemetry_payload(host, &sample.values)
-                .map_err(|error| validation_rejection(error.to_string(), "telemetry.payload", None))?;
-            sample.storage_payload = Some(row.into_bytes());
-        }
         if contract.storage_schema.is_none() || sample.storage_payload.is_none() {
             return Err(validation_rejection(
                 "telemetry storage requires an explicit row graph and original canonical payload bytes",
@@ -362,7 +354,7 @@ fn normalize_batch(
                 None,
             ));
         }
-        ensure_telemetry_timestamp(sample).map_err(|message| {
+        ensure_telemetry_timestamp(sample, contract).map_err(|message| {
             validation_rejection(message, "telemetry.timestamp", Some("an RFC 3339 timestamp at or after the Unix epoch".to_owned()))
         })?;
     }
@@ -370,7 +362,7 @@ fn normalize_batch(
     Ok(())
 }
 
-fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String> {
+fn ensure_telemetry_timestamp(sample: &mut TelemetrySample, contract: &crate::telemetry::TelemetryContract) -> Result<(), String> {
     if sample.values.contains_key("timestamp") {
         return Ok(());
     }
@@ -378,8 +370,98 @@ fn ensure_telemetry_timestamp(sample: &mut TelemetrySample) -> Result<(), String
         .timestamp
         .unix_millis()
         .ok_or_else(|| format!("sample timestamp `{}` is not an RFC 3339 instant at or after the Unix epoch", sample.timestamp))?;
-    sample.values.insert("timestamp".to_owned(), Value::Number(timestamp as f64 / 1_000.0));
+    let column = contract.columns.iter().find(|column| column.metadata.identifier.as_str() == "timestamp");
+    let value = match column.map(|column| &column.value_type) {
+        Some(ValueType::Datetime) | None => {
+            let instant = sample.timestamp.to_datetime().map_err(|error| error.to_string())?;
+            Value::Datetime(instant)
+        }
+        Some(_) => Value::Number(timestamp as f64 / 1_000.0),
+    };
+    sample.values.insert("timestamp".to_owned(), value);
     Ok(())
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::telemetry::{TelemetryEntry, codec};
+    use crate::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+    use dokime_domain::model::validation::ValidationMode;
+    use harmos::Message;
+
+    #[harmos::message]
+    struct Reading {
+        value: f64,
+    }
+
+    fn batch(at: &str) -> TelemetryBatch {
+        let stream = Identifier::new("fixture.timestamp").unwrap();
+        let timestamp = Timestamp::new("1970-01-01T00:00:00Z");
+        let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), 1, timestamp, "fixture");
+
+        sample.timestamp = Timestamp::new(at);
+        sample.values.remove("timestamp");
+        sample.values.insert("value".into(), Value::Number(2.0));
+        let payload = Reading { value: 2.0 }.encode();
+        let sample = sample.with_storage_payload(payload);
+        TelemetryBatch::new(crate::model::identity::new_id(), stream, vec![sample])
+    }
+
+    fn contract() -> TelemetryContract {
+        let column = TelemetryColumn::declared("value", "Value", ValueType::Number, TelemetryRole::Value);
+        TelemetryContract::declared("fixture.timestamp", "Timestamp").typed::<Reading>().column(column).normalized()
+    }
+
+    #[test]
+    fn timestamp_inference_datetime_round_trip() {
+        let mut batch = batch("2026-10-29T04:00:01.123456789+01:00");
+        let contract = contract();
+        let received_at = Timestamp::new("2026-10-29T03:00:02Z");
+        normalize_batch(&mut batch, &contract, &received_at).unwrap();
+        let sample = batch.samples.pop().unwrap();
+        let expected = Value::Datetime(sample.timestamp.to_datetime().unwrap());
+        assert_eq!(sample.values.get("timestamp"), Some(&expected));
+        crate::telemetry::check_normalized_telemetry_sample(&contract, &sample, ValidationMode::Strict).unwrap();
+
+        let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
+        let entry = TelemetryEntry {
+            epoch: crate::model::identity::new_id(),
+            ordinal: 1,
+            sample,
+        };
+        let bytes = codec.encode(&entry, usize::MAX).unwrap();
+        let stored = codec.decode(&bytes, usize::MAX).unwrap();
+        assert_eq!(stored.sample.values.get("timestamp"), Some(&expected));
+        assert_eq!(stored.sample.timestamp, entry.sample.timestamp);
+        assert_eq!(stored.sample.storage_payload, entry.sample.storage_payload);
+    }
+
+    #[test]
+    fn timestamp_inference_numeric_and_explicit_values() {
+        let mut contract = contract();
+        let column = contract.columns.iter_mut().find(|column| column.metadata.identifier.as_str() == "timestamp").unwrap();
+        column.value_type = ValueType::Number;
+        let mut batch = batch("1970-01-01T00:00:01.234567890Z");
+        let received_at = Timestamp::new("1970-01-01T00:00:02Z");
+        normalize_batch(&mut batch, &contract, &received_at).unwrap();
+        assert_eq!(batch.samples[0].values.get("timestamp"), Some(&Value::Number(1.234)));
+
+        batch.samples[0].values.insert("timestamp".into(), Value::Number(7.0));
+        normalize_batch(&mut batch, &contract, &received_at).unwrap();
+        assert_eq!(batch.samples[0].values.get("timestamp"), Some(&Value::Number(7.0)));
+    }
+
+    #[test]
+    fn timestamp_inference_refuses_invalid_time() {
+        let contract = contract();
+        let received_at = Timestamp::new("2026-10-29T03:00:02Z");
+        for at in ["invalid", "1969-12-31T23:59:59Z"] {
+            let mut batch = batch(at);
+            assert!(normalize_batch(&mut batch, &contract, &received_at).is_err());
+            assert!(!batch.samples[0].values.contains_key("timestamp"));
+        }
+    }
+}

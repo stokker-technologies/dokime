@@ -20,7 +20,7 @@ use std::{fmt, path::PathBuf, sync::Arc};
 
 // Local Imports
 use crate::config::{RuntimeConfig, StorageSettings};
-use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
+use crate::domains::installed_plugins::ResolvedBrand;
 use crate::plugins::PluginBundle;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
@@ -46,7 +46,6 @@ pub struct Config {
     pub storage_state: harmos::config::StorageStateSettings,
 
     pub application_root: Option<PathBuf>,
-    pub seed_plugins: bool,
     pub plugin_lookup: Option<PathBuf>,
     pub explicit_plugins: Vec<PathBuf>,
     pub brand: Option<ResolvedBrand>,
@@ -55,7 +54,6 @@ pub struct Config {
 
 pub(crate) struct ShellStartup {
     pub(crate) brand: Option<ResolvedBrand>,
-    pub(crate) native_host_telemetry: bool,
 }
 
 #[derive(Clone, Default)]
@@ -84,7 +82,6 @@ impl Config {
             managed_storage: super::managed_storage_defaults(),
             storage_state: super::storage_state_defaults(),
             application_root: None,
-            seed_plugins: true,
             plugin_lookup: None,
             explicit_plugins: Vec::new(),
             brand: None,
@@ -98,10 +95,7 @@ impl Config {
     }
 
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
-        let startup = ShellStartup {
-            brand: self.brand,
-            native_host_telemetry: self.seed_plugins,
-        };
+        let startup = ShellStartup { brand: self.brand };
         let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
         let mut config = RuntimeConfig::new(&self.output_root, metadata);
         config.schema = self.schema;
@@ -112,8 +106,7 @@ impl Config {
             config = config.with_application_root(root);
         }
         config.plugin_lookup = self.plugin_lookup;
-        let installed_plugins = if startup.native_host_telemetry { builtin_plugins() } else { Default::default() };
-        let mut config = config.with_installed_plugins(installed_plugins).with_plugins(PluginBundle::all(&self.explicit_plugins));
+        let mut config = config.with_plugins(PluginBundle::all(&self.explicit_plugins));
 
         for provider in self.registrations.0 {
             config = config.register(provider);
