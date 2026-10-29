@@ -322,7 +322,7 @@ where
     const ENTRY: Self::Entry = {
         assert!(
             required_by(T::REQUIRED, P::REQUIRES, P::PROVIDES),
-            "a template requires an operation its plugin neither names in `requires(...)` nor provides privately"
+            "a template requires an operation its plugin neither names in `requires(...)` nor provides to plugin callers"
         );
         crate::execution::bind::<T, P>
     };
@@ -523,7 +523,7 @@ pub const fn required_by(
     while index < required.len() {
         let covered = match &required[index] {
             Node::Leaf(declaration) => {
-                granted_id(granted, declaration.operation.id) || provided_privately(provided, declaration.operation.id)
+                granted_id(granted, declaration.operation.id) || provided_locally(provided, declaration.operation.id)
             }
             Node::Nested(nested) => required_by(nested, granted, provided),
         };
@@ -613,14 +613,20 @@ const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &st
     false
 }
 
-const fn provided_privately(provided: &[Node<harmos::operations::WireDeclaration>], id: &str) -> bool {
+// A plugin's own Private or Public operation serves its templates without a
+// requirement; a Host operation never answers a plugin caller.
+const fn provided_locally(provided: &[Node<harmos::operations::WireDeclaration>], id: &str) -> bool {
     let mut index = 0;
     while index < provided.len() {
         let found = match &provided[index] {
             Node::Leaf(declaration) => {
-                same(declaration.operation.id, id) && matches!(declaration.operation.visibility, harmos::operations::Visibility::Private)
+                same(declaration.operation.id, id)
+                    && matches!(
+                        declaration.operation.visibility,
+                        harmos::operations::Visibility::Private | harmos::operations::Visibility::Public
+                    )
             }
-            Node::Nested(nested) => provided_privately(nested, id),
+            Node::Nested(nested) => provided_locally(nested, id),
         };
         if found {
             return true;

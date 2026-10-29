@@ -22,6 +22,7 @@ pub(crate) mod prelude;
 pub(crate) mod prompts;
 pub(crate) mod resources;
 pub(crate) mod sdk_error;
+pub(crate) mod shared_calls;
 pub(crate) mod stream_admission;
 
 /* === Re-Exports === */
