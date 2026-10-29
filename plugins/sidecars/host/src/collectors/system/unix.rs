@@ -15,6 +15,6 @@ use super::*;
 
 impl SystemCollector {
     pub(super) fn power_profile_context() -> PowerProfileContext {
-        { PowerProfileContext::default() }
+        PowerProfileContext::default()
     }
 }

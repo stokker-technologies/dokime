@@ -27,7 +27,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
+use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */

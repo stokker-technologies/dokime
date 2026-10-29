@@ -15,18 +15,16 @@ use super::*;
 
 impl SystemCollector {
     pub(super) fn power_profile_context() -> PowerProfileContext {
-        {
-            let mut command = Command::new("powercfg");
-            command.arg("/getactivescheme");
-            let Ok(output) = crate::collectors::run_command_bounded(command, system_probe_timeout()) else {
-                return PowerProfileContext::default();
-            };
-            if !output.status.success() {
-                return PowerProfileContext::default();
-            }
-            let text = String::from_utf8_lossy(&output.stdout);
-            parse_windows_power_scheme(&text)
+        let mut command = Command::new("powercfg");
+        command.arg("/getactivescheme");
+        let Ok(output) = crate::collectors::run_command_bounded(command, system_probe_timeout()) else {
+            return PowerProfileContext::default();
+        };
+        if !output.status.success() {
+            return PowerProfileContext::default();
         }
+        let text = String::from_utf8_lossy(&output.stdout);
+        parse_windows_power_scheme(&text)
     }
 }
 

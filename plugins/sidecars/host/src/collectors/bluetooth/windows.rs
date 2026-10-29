@@ -10,6 +10,7 @@
 /* === Imports === */
 
 use super::*;
+use crate::collectors::maybe_insert;
 
 /* === Private Functions === */
 
