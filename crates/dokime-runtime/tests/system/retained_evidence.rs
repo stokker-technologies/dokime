@@ -48,5 +48,6 @@ async fn retained_evidence() {
     dokime_runtime::testing::stream(7 * 1440);
     dokime_runtime::testing::window(7, 1440).await;
     dokime_runtime::testing::follow(7, 1440).await;
+    dokime_runtime::testing::pending(7, 1440).await;
     dokime_runtime::testing::logs(7, 147).await;
 }

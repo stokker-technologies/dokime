@@ -11,7 +11,13 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+mod admission;
+
 /* === Re-Exports === */
+
+#[cfg(feature = "testing")]
+pub use admission::pending;
 
 /* === Imports === */
 
