@@ -135,8 +135,8 @@ def test_candidate_verifies_signature(tmp_path: Path, monkeypatch: pytest.Monkey
     }
     (dist / "latest.json").write_text(json.dumps(metadata), encoding="utf-8")
 
-    def refuse_signature(checked_root: Path, checked_payload: Path, checked_signature: Path) -> None:
-        assert (checked_root, checked_payload, checked_signature) == (root, payload, signature)
+    def refuse_signature(checked_root: Path, checked_payload: Path, checked_signature: str) -> None:
+        assert (checked_root, checked_payload, checked_signature) == (root, payload, "candidate signature")
         raise ValueError("cryptographic refusal")
 
     monkeypatch.setattr(installer, "verify_signature", refuse_signature)
@@ -162,6 +162,44 @@ def test_development_unsigned_candidate(tmp_path: Path, monkeypatch: pytest.Monk
         installer.check_package(root, dist=dist, require_signed=True)
 
 
+def test_published_signature_from_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root, dist = _candidate(tmp_path, monkeypatch)
+    executable = next(dist.glob("*.exe"))
+    metadata = {
+        "version": "0.1.0",
+        "platforms": {installer.UPDATER_TARGET: {"signature": "embedded signature", "url": f"https://example.com/{executable.name}"}},
+    }
+    manifest = dist / "latest.json"
+    manifest.write_text(json.dumps(metadata), encoding="utf-8")
+    verified = []
+    monkeypatch.setattr(installer, "verify_signature", lambda *args: verified.append(args))
+
+    installer.check_package(root, dist=dist, require_signed=True)
+
+    assert verified == [(root, executable, "embedded signature")]
+    assert not executable.with_suffix(".exe.sig").exists()
+
+    # A Sidecar Cannot Override The Manifest Signature
+    executable.with_suffix(".exe.sig").write_text("different signature", encoding="utf-8")
+    with pytest.raises(ValueError, match="exact installer and signature"):
+        installer.check_package(root, dist=dist, require_signed=True)
+    assert len(verified) == 1
+
+
+@pytest.mark.parametrize("signature", [None, "", " ", 1])
+def test_published_signature_required(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, signature: object) -> None:
+    root, dist = _candidate(tmp_path, monkeypatch)
+    executable = next(dist.glob("*.exe"))
+    metadata = {
+        "version": "0.1.0",
+        "platforms": {installer.UPDATER_TARGET: {"signature": signature, "url": f"https://example.com/{executable.name}"}},
+    }
+    (dist / "latest.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must contain a signature"):
+        installer.check_package(root, dist=dist, require_signed=True)
+
+
 @pytest.mark.parametrize("native", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
 def test_payload_profiles(tmp_path: Path, native: str) -> None:
     expected_identity = {
@@ -184,7 +222,7 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
             "files": {name: hashlib.sha256(data).hexdigest() for name, data in expected.items()},
         }
         archive = payload.archive(source, installer.paths.output(tmp_path, "package", profile) / "rust")
-        assert archive.name == f"dokime-1.2.3-{native}-payload.zip"
+        assert archive.name == f"dokime-payload-1.2.3-{native}.zip"
         with zipfile.ZipFile(archive) as bundle:
             assert set(bundle.namelist()) == {"payload.json", *expected}
             assert json.loads(bundle.read("payload.json")) == metadata
@@ -297,7 +335,7 @@ def _candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, P
 
     dist = tmp_path / "installers"
     dist.mkdir()
-    (dist / "dokime-0.1.0-windows-x86_64-setup.exe").write_bytes(b"candidate installer bytes")
+    (dist / "dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe").write_bytes(b"candidate installer bytes")
     return root, dist
 
 

@@ -596,14 +596,16 @@ path = "target/package/{profile}/{target}/rust/installers/dokime_{version}_amd64
 name = "{product}_{version}_amd64.deb"
 
 [[release.assets]]
+kind = "payload"
 target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-unknown-linux-gnu-payload.zip"
-name = "{product}-{version}-x86_64-unknown-linux-gnu-payload.zip"
+path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-unknown-linux-gnu.zip"
+name = "{product}-payload-{version}-x86_64-unknown-linux-gnu.zip"
 
 [[release.assets]]
+kind = "payload"
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-{version}-x86_64-pc-windows-msvc-payload.zip"
-name = "{product}-{version}-x86_64-pc-windows-msvc-payload.zip"
+path = "target/package/{profile}/{target}/rust/dokime-payload-{version}-x86_64-pc-windows-msvc.zip"
+name = "{product}-payload-{version}-x86_64-pc-windows-msvc.zip"
 
 [[release.assets]]
 target = "linux-x86_64"
@@ -612,39 +614,14 @@ name = "{product}-{version}-1.x86_64.rpm"
 
 [[release.assets]]
 target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe"
-name = "{product}-{version}-windows-x86_64-setup.exe"
-
-[[release.assets]]
-target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-windows-x86_64-setup.exe.sig"
-name = "{product}-{version}-windows-x86_64-setup.exe.sig"
-signed_only = true
+path = "target/package/{profile}/{target}/rust/installers/dokime-{version}-x86_64-pc-windows-msvc-setup.exe"
+name = "{product}-{version}-x86_64-pc-windows-msvc-setup.exe"
 
 [[release.assets]]
 target = "windows-x86_64"
 path = "target/package/{profile}/{target}/rust/installers/latest.json"
 name = "latest.json"
 signed_only = true
-
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
-name = "obc-plugin-{version}-{target}.dokime"
-
-[[release.assets]]
-target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
-name = "obc-plugin-{version}-{target}.dokime"
-
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/any/python/dokime_client-{version}-py3-none-any.whl"
-
-[[release.assets]]
-target = "linux-x86_64"
-path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
-profiles = ["release"]
 
 [version]
 value = "0.1.0"
@@ -680,7 +657,6 @@ language = "python"
 name = "dokime-remote-examples-{version}.zip"
 profiles = ["dev", "release"]
 targets = ["any"]
-release = true
 inputs = [
   { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE", destination = "remote/LICENSE" },
   { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },

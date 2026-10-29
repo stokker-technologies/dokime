@@ -2,6 +2,43 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+## Install Tools With Mise
+
+Dokime has no published release yet. After publication, select matching CLI and
+authoring-tool archives in your mise configuration. For Windows x86-64:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+cargo-dokime = "github:stokker-technologies/dokime"
+
+[tools]
+dokime = { version = "0.1.0", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+cargo-dokime = { version = "0.1.0", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+```
+
+For Linux x86-64, use `dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz`
+and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its command at the root,
+LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
+The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
+own installation directory. Cargo-binstall metadata selects the same archive names, although this
+unpublished Cargo subcommand is distributed through release assets and mise.
+
+Release downloads include native installers, tool archives,
+`dokime-payload-<version>-<Rust-target>.zip` distributor inputs, shipped plugin
+`<package>-<version>-<Rust-target>.dokime` bundles and their `plugins.json` feed,
+`latest.json` for the desktop updater, CHANGELOG and SHA256SUMS. Installer
+signatures are embedded in `latest.json`; standalone `.sig` files are not
+downloads. OBC and remote examples remain candidate/source fixtures. Python
+distributions publish to PyPI. CI transports `upload.json` between publication
+and verification jobs; it is not a release download.
+
+`mise run release:rehearse` consumes existing release-profile packages for every
+configured target and runs staging and registry dry runs with credentials
+removed. It does not create a remote rehearsal release. The integration owner
+must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
+environment `release`, before the first publication under this workflow.
+
 ## The Test Domain
 
 Definitions describe what can be tested. Execution captures what happened when
@@ -851,12 +888,12 @@ Using that directory requires no application compilation:
 
 ```sh
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-payload --output dist
-cargo dokime installer inspect dist/dokime-0.1.0-windows-x86_64-setup.exe --json
+cargo dokime installer inspect dist/dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable
-`dokime-<version>-<Rust-target>-payload.zip` beside the installers. The ZIP
+`dokime-payload-<version>-<Rust-target>.zip` beside the installers. The ZIP
 preserves the payload bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 

@@ -91,7 +91,7 @@ def archive(source: Path, output: Path) -> Path:
     """Publish A Portable Payload Without Recompiling Or Rewriting Build Bytes."""
     manifest = json.loads((source / "payload.json").read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=True)
-    destination = output / f"dokime-{manifest['version']}-{manifest['target']}-payload.zip"
+    destination = output / f"dokime-payload-{manifest['version']}-{manifest['target']}.zip"
     checksums = manifest["files"]
     names = ["payload.json", *sorted(checksums)]
     entries = [_entry(source, name, checksums.get(name)) for name in names]

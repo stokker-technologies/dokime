@@ -321,8 +321,7 @@ run = "{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --cat
 [tasks."test:python:integration"]
 description = "Test Integration Python"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration"
+run = "{{vars.tools}} dokime_tools.test.python --category integration"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:acceptance"]
@@ -477,21 +476,27 @@ run = "{{vars.tools}} dokime_tools.test.report_save --copies {{usage.copies}}"
 [tasks.package]
 description = "Package Every Language"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}}"]
+run = [{ tasks = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}} --target any"] }]
 
 [tasks."package:python"]
 description = "Package The Built Client Distributions And Tutorial"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}}"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--target <target>" default="any"
+'''
+run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
 description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"
 depends = ["prepare"]
 tools = { "aqua:ip7z/7zip" = "26.05" }
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--target <target>" default="native"
+'''
 run = [
-  "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
+  "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}} --target {{usage.target}}",
 ]
 
 # === CI === #
@@ -576,7 +581,7 @@ description = "Publish Rust Crates"
 run = "{{vars.tools}} dokime_tools.release.run crates"
 
 [tasks."release:rehearse"]
-description = "Rehearse The Release Chain On A Disposable Release"
+description = "Rehearse Staged Release Packages Without Credentials"
 run = "{{vars.tools}} dokime_tools.release.run rehearse"
 
 [tasks."release:tag"]
