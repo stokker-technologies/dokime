@@ -29,7 +29,6 @@ import { recordLevelVariant } from "@/lib/record-display";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
-import { useBackendStatus } from "./backend-status";
 import { SidebarFrame } from "./SidebarFrame";
 
 /* === Types === */
@@ -127,7 +126,6 @@ export function Sidebar(props: SidebarProps) {
 /** The four destinations and the active one's children. Live application only. */
 function DestinationTree({ expanded = false }: { expanded?: boolean }) {
   const navigate = useNavigate();
-  const backend = useBackendStatus();
   const sidebar = useSidebarState();
   const collapsed = sidebar.collapsed && !expanded;
   const railLabels = sidebar.mode === "tablet" && !expanded;
@@ -212,15 +210,6 @@ function DestinationTree({ expanded = false }: { expanded?: boolean }) {
         <li className="flex-1" />
       )}
       {DESTINATIONS.slice(3).map(destinationRow)}
-      <li className="truncate px-3 py-2 text-xs text-muted-foreground" title={backend.detail ?? undefined} role="status">
-        {collapsed ? (
-          <span role="img" aria-label={backend.connection}>
-            ●
-          </span>
-        ) : (
-          `${backend.label ?? "Backend"} · ${backend.connection}`
-        )}
-      </li>
     </ul>
   );
 }
