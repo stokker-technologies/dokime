@@ -77,15 +77,7 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
                 stderr=sys.stderr,
             )
         packager = [str(tool), "dokime", "sidecar", "package", "--build-json", str(build_json), "--output", str(output), "--json"]
-        packaged = subprocess.run(
-            packager,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-        ).stdout
+        packaged = _capture(packager, cwd=root)
         for item in json.loads(packaged):
             path = Path(item["path"])
             path = path if path.is_absolute() else root / path
@@ -109,15 +101,8 @@ def release_feed(assets: list[tuple[Path, str]], *, tool: Path, requires_dokime:
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
             raise ValueError("plugin release assets require credential-free HTTPS URLs")
-        inspected = subprocess.run(
-            [str(tool), "dokime", "sidecar", "inspect", str(path)],
-            capture_output=True,
-            text=True,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-        )
-        manifest = json.loads(inspected.stdout)["manifest"]
+        inspected = _capture([str(tool), "dokime", "sidecar", "inspect", str(path)])
+        manifest = json.loads(inspected)["manifest"]
         selected = (manifest["identity"]["name"], manifest["identity"]["version"])
         if identity is not None and identity != selected:
             raise ValueError("all release assets must contain the same package and version")
@@ -136,6 +121,27 @@ def release_feed(assets: list[tuple[Path, str]], *, tool: Path, requires_dokime:
 
 
 # === Private Functions === #
+
+
+def _capture(command: list[str], *, cwd: Path | None = None) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+        )
+    except subprocess.CalledProcessError as error:
+        print(f"Command failed with exit code {error.returncode}: {subprocess.list2cmdline(command)}", file=sys.stderr)
+        outputs = filter(None, (error.stderr, error.stdout))
+        diagnostics = "\n".join(outputs)
+        print(diagnostics, file=sys.stderr)
+        raise
+    return result.stdout
+
 
 # === Entry Point === #
 
