@@ -165,7 +165,7 @@ fn spawn_with(command: Command, session: bool) -> io::Result<Child> {
     #[cfg(not(unix))]
     let _ = session;
     #[cfg(windows)]
-    command.wrap(process_wrap::tokio::JobObject);
+    command.wrap(without_console()).wrap(process_wrap::tokio::JobObject);
     let child = command.spawn()?;
     #[cfg(unix)]
     let group = libc::pid_t::try_from(child.id().expect("a newly spawned process has an identity"))
@@ -176,6 +176,14 @@ fn spawn_with(command: Command, session: bool) -> io::Result<Child> {
         #[cfg(unix)]
         group,
     })
+}
+
+// JobObject Replaces Native Flags; This Wrapper Keeps The Child Without A Console Window.
+#[cfg(windows)]
+fn without_console() -> process_wrap::tokio::CreationFlags {
+    let mut flags = process_wrap::tokio::CreationFlags(Default::default());
+    flags.0.0 = dokime::domain::process::CREATE_NO_WINDOW;
+    flags
 }
 
 /* === Tests === */

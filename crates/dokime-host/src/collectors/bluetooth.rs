@@ -21,9 +21,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(not(windows))]
-use std::process::Command;
-
 // Third Party Imports
 
 // Local Imports

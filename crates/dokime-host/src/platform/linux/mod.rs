@@ -10,6 +10,8 @@
 /* === Modules === */
 
 pub mod bluetooth;
+pub mod echo;
+pub mod power;
 pub mod wifi;
 
 /* === Re-Exports === */

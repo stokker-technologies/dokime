@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{process::Command, time::Duration};
+use std::time::Duration;
 
 // Third Party Imports
 use serde::Deserialize;
@@ -96,7 +96,7 @@ pub fn snapshot(options: &HostOptions, timeout: Duration) -> Result<BluetoothSna
 fn bluetooth_pnp_json(timeout: Duration) -> Result<String> {
     let script =
         "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,Status,Present,ConfigManagerErrorCode | ConvertTo-Json -Compress";
-    let mut command = Command::new("powershell");
+    let mut command = dokime_domain::process::command("powershell");
     command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
     super::command::run_bounded(command, timeout).map_err(|error| Error::Probe(error.to_string()))
 }

@@ -23,7 +23,6 @@ pub use project::Project;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    process::Command,
     time::{Duration, Instant},
 };
 
@@ -202,7 +201,7 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     // Lexical absolutization only: canonicalize yields a verbatim `\\?\` path
     // on Windows, which the MSVC linker rejects for build-script objects.
     let target_dir = std::path::absolute(target_dir)?;
-    let mut command = Command::new(&cargo);
+    let mut command = dokime::domain::process::command(&cargo);
     command
         .current_dir(root)
         .args([
@@ -292,7 +291,7 @@ fn selected_binaries(package: &Package, binaries: &[String]) -> Result<Vec<Strin
 
 async fn host_target(package: &Package) -> Result<String, Error> {
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
-    let mut probe = Command::new("rustc");
+    let mut probe = dokime::domain::process::command("rustc");
     probe.current_dir(root).arg("-vV");
     let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
     let output_bytes = PROBE_OUTPUT_BYTES as usize;
@@ -306,7 +305,7 @@ async fn host_target(package: &Package) -> Result<String, Error> {
 
 // A copy of `executable` without debug sections, written with the toolchain's own llvm-objcopy.
 async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
-    let mut sysroot = Command::new("rustc");
+    let mut sysroot = dokime::domain::process::command("rustc");
     sysroot.arg("--print").arg("sysroot");
     let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
     let output_bytes = PROBE_OUTPUT_BYTES as usize;
@@ -319,7 +318,7 @@ async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<Path
     }
     let name = executable.file_name().ok_or_else(|| Error::Invalid("executable has no file name".into()))?;
     let stripped = directory.join(name);
-    let mut command = Command::new(objcopy);
+    let mut command = dokime::domain::process::command(objcopy);
     command.arg("--strip-debug").arg(executable).arg(&stripped);
     let timeout = Some(Duration::from_millis(STRIP_TIMEOUT_MS));
     process::run(command, "strip debug sections", timeout, output_bytes, output_bytes).await?;
@@ -444,7 +443,7 @@ async fn collect_executable(
             declaration.version, package.version
         )));
     }
-    let mut command = Command::new(path);
+    let mut command = dokime::domain::process::command(path);
     command.current_dir(package.manifest_path.parent().expect("Cargo manifest has a parent")).arg(CATALOG_EXPORT_FLAG);
     let export = process::run(
         command,

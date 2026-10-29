@@ -14,8 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 // Third Party Imports
 
@@ -45,9 +43,7 @@ fn command(cwd: &std::path::Path) -> std::process::Command {
     let server = super::support::host();
     // The dokime CLI built beside this tool launches the prepared server.
     let cli = super::support::tool().with_file_name(format!("dokime{}", std::env::consts::EXE_SUFFIX));
-    let mut command = std::process::Command::new(super::support::tool());
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command(super::support::tool());
     command
         .current_dir(cwd)
         .env_remove("DOKIME_DEV_ROOT")

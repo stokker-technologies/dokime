@@ -14,8 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -78,9 +76,7 @@ fn mise_ignores_machine_tools() {
     let system = tempfile::Builder::new().suffix(".toml").tempfile().unwrap();
     std::fs::write(global.path(), "[tools]\n'gitlab:invalid/global-private' = '0.0.0'\n").unwrap();
     std::fs::write(system.path(), "[tools]\n'gitlab:invalid/system-private' = '0.0.0'\n").unwrap();
-    let mut command = Command::new("mise");
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command("mise");
     command
         .args(["ls", "--current", "--json"])
         .current_dir(&plugin)

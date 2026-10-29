@@ -17,6 +17,11 @@ pub mod linux;
 
 /* === Re-Exports === */
 
+#[cfg(not(windows))]
+pub use linux as native;
+#[cfg(windows)]
+pub use windows as native;
+
 /* === Imports === */
 
 // Standard Library Imports

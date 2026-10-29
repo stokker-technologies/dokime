@@ -67,7 +67,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
         .map_err(|error| error.to_string())?
         .map_err(|error| format!("the execution's artifact folder: {error}"))?;
     let cwd = request.cwd.clone().map_or_else(|| folder.clone(), std::path::PathBuf::from);
-    let mut command = tokio::process::Command::new(&request.program);
+    let mut command = tokio::process::Command::from(dokime_domain::process::command(&request.program));
     command.args(&request.args).current_dir(&cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     // The plugin's own connection to its host is never handed down.
     for (name, _) in std::env::vars_os() {

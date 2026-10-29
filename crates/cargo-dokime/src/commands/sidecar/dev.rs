@@ -744,13 +744,13 @@ fn dokime(cli: &Path, subcommand: &str) -> Command {
         ColorMode::Always => "always",
         ColorMode::Never => "never",
     };
-    let mut command = Command::new(cli);
+    let mut command = Command::from(dokime::domain::process::command(cli));
     command.arg("--color").arg(color).arg(subcommand);
     command
 }
 
 async fn inspect(cli: &Path) -> Result<Identity, Error> {
-    let mut command = std::process::Command::new(cli);
+    let mut command = dokime::domain::process::command(cli);
     command.args(["server", "version", "--json"]);
     let timeout = Some(Duration::from_millis(VERSION_TIMEOUT_MS));
     let output = dokime_packaging::process::run(

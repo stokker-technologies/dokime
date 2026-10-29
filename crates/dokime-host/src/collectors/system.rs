@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, process::Command};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use starship_battery::{
@@ -50,6 +50,14 @@ pub struct SystemCollector {
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
+    git_identity: Option<GitIdentity>,
+}
+
+// Git Identity Is Static Context, Read Once Rather Than Per Sample.
+#[derive(Default)]
+struct GitIdentity {
+    name: Option<String>,
+    email: Option<String>,
 }
 
 #[derive(Default)]
@@ -79,6 +87,7 @@ impl SystemCollector {
             system: System::new_all(),
             components: Components::new_with_refreshed_list(),
             battery_manager: BatteryManager::new().ok(),
+            git_identity: None,
         }
     }
 
@@ -125,8 +134,9 @@ impl SystemCollector {
         maybe_insert(&mut values, "cpu_frequency_mhz", first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)));
         maybe_insert(&mut values, "host_name", System::host_name().map(Value::from));
         maybe_insert(&mut values, "user", std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok().map(Value::from));
-        maybe_insert(&mut values, "git_user_name", git_config_value("user.name").map(Value::from));
-        maybe_insert(&mut values, "git_user_email", git_config_value("user.email").map(Value::from));
+        let git = self.git_identity.get_or_insert_with(git_identity);
+        maybe_insert(&mut values, "git_user_name", git.name.clone().map(Value::from));
+        maybe_insert(&mut values, "git_user_email", git.email.clone().map(Value::from));
         maybe_insert(&mut values, "os_name", System::name().map(Value::from));
         maybe_insert(&mut values, "os_version", System::long_os_version().map(Value::from));
         maybe_insert(&mut values, "kernel_version", System::kernel_version().map(Value::from));
@@ -148,16 +158,35 @@ impl SystemCollector {
 
 /* === Private Functions === */
 
-fn git_config_value(key: &str) -> Option<String> {
-    let mut command = Command::new("git");
-    command.args(["config", "--get", key]);
-    let output = super::run_command_bounded(command, system_probe_timeout()).ok()?;
+fn git_identity() -> GitIdentity {
+    let mut command = dokime_domain::process::command("git");
+    command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
+    let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
+        return GitIdentity::default();
+    };
     if !output.status.success() {
-        return None;
+        return GitIdentity::default();
     }
-    let value = String::from_utf8(output.stdout).ok()?;
-    let value = value.trim();
-    (!value.is_empty()).then(|| value.to_owned())
+    parse_git_identity(&String::from_utf8_lossy(&output.stdout))
+}
+
+// The Last Value Of A Key Wins, As With `git config --get`.
+fn parse_git_identity(text: &str) -> GitIdentity {
+    let mut identity = GitIdentity::default();
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(' ') else {
+            continue;
+        };
+        let value = value.trim().to_owned();
+        let slot = match key {
+            "user.name" => &mut identity.name,
+            "user.email" => &mut identity.email,
+            _ => continue,
+        };
+        let present = !value.is_empty();
+        *slot = present.then_some(value);
+    }
+    identity
 }
 
 // A System Probe Is Bounded By The Collection It Serves.
@@ -200,48 +229,17 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 }
 
 fn power_profile_context() -> PowerProfileContext {
-    #[cfg(windows)]
-    {
-        let mut command = Command::new("powercfg");
-        command.arg("/getactivescheme");
-        let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
-            return PowerProfileContext::default();
-        };
-        if !output.status.success() {
-            return PowerProfileContext::default();
-        }
-        let text = String::from_utf8_lossy(&output.stdout);
-        parse_windows_power_scheme(&text)
-    }
-
-    #[cfg(not(windows))]
-    {
-        PowerProfileContext::default()
-    }
-}
-
-#[cfg(windows)]
-fn parse_windows_power_scheme(text: &str) -> PowerProfileContext {
-    let plan_guid = text
-        .split_whitespace()
-        .find(|part| part.chars().filter(|character| *character == '-').count() == 4)
-        .map(|part| part.trim_matches(['(', ')']).to_owned());
-    let plan_name = text
-        .split_once('(')
-        .and_then(|(_, tail)| tail.split_once(')').map(|(name, _)| name.trim().to_owned()))
-        .filter(|value| !value.is_empty());
-    let mode = plan_name.as_deref().map(power_mode_label);
-    let performance_bias = plan_name.as_deref().map(power_performance_bias);
-
+    let Some((guid, name)) = crate::platform::native::power::active_scheme() else {
+        return PowerProfileContext::default();
+    };
     PowerProfileContext {
-        plan_name,
-        plan_guid,
-        mode,
-        performance_bias,
+        mode: name.as_deref().map(power_mode_label),
+        performance_bias: name.as_deref().map(power_performance_bias),
+        plan_name: name,
+        plan_guid: Some(guid),
     }
 }
 
-#[cfg(windows)]
 fn power_mode_label(name: &str) -> String {
     let normalized = name.to_ascii_lowercase();
     if normalized.contains("ultimate") || normalized.contains("high performance") {
@@ -255,7 +253,6 @@ fn power_mode_label(name: &str) -> String {
     }
 }
 
-#[cfg(windows)]
 fn power_performance_bias(name: &str) -> i64 {
     match power_mode_label(name).as_str() {
         "best_performance" => 100,
@@ -266,3 +263,14 @@ fn power_performance_bias(name: &str) -> i64 {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn git_identity_takes_the_last_value_of_each_key() {
+        let output = "user.name First\nuser.email first@example.invalid\nuser.name Second Name\n";
+        let identity = super::parse_git_identity(output);
+        assert_eq!(identity.name.as_deref(), Some("Second Name"));
+        assert_eq!(identity.email.as_deref(), Some("first@example.invalid"));
+    }
+}
