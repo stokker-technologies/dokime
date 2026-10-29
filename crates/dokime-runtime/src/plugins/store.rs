@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod distribution;
 mod query;
 
 /* === Re-Exports === */
@@ -144,7 +145,23 @@ impl PluginStore {
         &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
         validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
     ) -> Result<PluginEntry, PluginError> {
-        let (_, metadata) = super::inspect_with_archive_limit(bytes, &self.schema, self.archive_bytes)?;
+        self.install_selected(bytes, configured, host_sources, false, validate).await
+    }
+
+    /// Install An Installer's Bundle Only When Its Package Is Absent Or Older.
+    pub async fn install_bundled(
+        &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
+    ) -> Result<PluginEntry, PluginError> {
+        self.install_selected(bytes, configured, host_sources, true, |_| Ok(())).await
+    }
+
+    async fn install_selected(
+        &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>, newer_only: bool,
+        validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
+    ) -> Result<PluginEntry, PluginError> {
+        let (bundle, metadata) = super::inspect_with_archive_limit(bytes, &self.schema, self.archive_bytes)?;
+        let version = bundle.manifest().identity.version.clone();
+        drop(bundle);
         let install_id = Uuid::now_v7();
         let sha256 = digest(bytes);
 
@@ -173,12 +190,19 @@ impl PluginStore {
                     occupied.extend(configured.owners.iter().cloned());
                 }
                 let mut replaced = Vec::new();
+                let mut state = PluginState::Installed;
                 for (other_id, other) in &document.plugins {
                     if !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
                         continue;
                     }
-                    let (_, other_metadata) = store.verified(*other_id, other)?;
+                    let (other_bundle, other_metadata) = store.verified(*other_id, other)?;
                     if other_metadata.identity.name == metadata.identity.name {
+                        if newer_only && other_bundle.manifest().identity.version.cmp_precedence(&version).is_ge() {
+                            return Ok(entry(other.installation(*other_id), Some(other_metadata), None));
+                        }
+                        if newer_only {
+                            state = other.state;
+                        }
                         replaced.push(*other_id);
                     } else {
                         occupied.extend(other_metadata.owners);
@@ -189,7 +213,7 @@ impl PluginStore {
                 }
 
                 let mut plugin = PluginSettings {
-                    state: PluginState::Installed,
+                    state,
                     digest: sha256,
                     installed_at: crate::model::time::now_utc(),
                     last_boot: None,

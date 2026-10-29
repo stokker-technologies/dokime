@@ -33,5 +33,9 @@ Storage stays at development v1. Use a fresh storage root for incompatible schem
 Host telemetry belongs to `plugins/sidecars/host`, shipped as `host.dokime`.
 The runtime ingests it through the common plugin boundary and carries no host
 collector feature or dependency. OBC under `plugins/sidecars/obc` is test-only.
-Installer bundles are selected solely by repeatable `--plugin` arguments; the
-Dokime packaging task supplies the host bundle explicitly.
+Installer bundles come from the resolved organization pack's optional `plugins/`
+folder and repeatable `--plugin` arguments; the Dokime packaging task supplies the
+host bundle explicitly. Packaging verifies member digests, target and the bundle's
+declared Dokime requirement before embedding. Bundled packages install through the
+ordinary plugin store at startup when absent or older; equal or newer installed
+versions are retained, including their settings and disabled state.

@@ -72,6 +72,9 @@ pub struct RuntimeConfig {
 
     pub plugin_lookup: Option<PathBuf>,
 
+    #[serde(default)]
+    pub bundled_plugins: Option<PathBuf>,
+
     #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
 
@@ -109,6 +112,7 @@ impl RuntimeConfig {
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
             plugin_lookup: None,
+            bundled_plugins: None,
             action_dispatchers: BTreeMap::new(),
             embedded_providers: Vec::new(),
             composition: Vec::new(),

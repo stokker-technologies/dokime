@@ -33,7 +33,11 @@ use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registr
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 
 // Local Imports
-use crate::{Error, bundle::files, process};
+use crate::{
+    Error,
+    bundle::{COMPATIBILITY_FILE, Compatibility, files},
+    process,
+};
 
 /* === Constants === */
 
@@ -346,6 +350,22 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     let mut inputs = Vec::new();
     let mut total = 0;
     let mut catalog_remaining = limits.manifest_bytes;
+    let requirements = package
+        .dependencies
+        .iter()
+        .filter(|dependency| dependency.name == "dokime")
+        .map(|dependency| dependency.req.to_string())
+        .collect::<std::collections::BTreeSet<_>>();
+    if requirements.len() != 1 {
+        return Err(Error::Invalid("plugin must declare one Dokime dependency requirement".into()));
+    }
+    let requirement = requirements.first().expect("one requirement");
+    let requires_dokime = requirement.parse().map_err(|error: semver::Error| Error::Invalid(error.to_string()))?;
+    let compatibility = Compatibility { schema: 1, requires_dokime };
+    let bytes = serde_json::to_vec(&compatibility)?;
+    total += bytes.len();
+    inputs.push((COMPATIBILITY_FILE.to_owned(), bytes, None));
+
     for paths in executables.values() {
         let (path, pdb) = &paths[0];
         let path = if strip_debug { strip(path, stripped.path(), target).await? } else { path.clone() };

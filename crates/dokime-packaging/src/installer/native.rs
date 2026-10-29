@@ -50,7 +50,9 @@ use crate::Error;
 pub fn assemble(
     manifest: &Manifest, payload: &Payload, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path, sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
-    let pack = resolve_organization(manifest, source)?;
+    let mut pack = resolve_organization(manifest, source)?;
+    // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
+    pack.files.retain(|name, _| !name.starts_with("plugins/"));
     let Some((_, application_bytes)) = pack.asset("application") else {
         return Err(Error::Invalid("organization application artwork is required".into()));
     };

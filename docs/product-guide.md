@@ -903,9 +903,28 @@ cargo dokime installer package --manifest company/installer.toml --artifacts tar
 cargo dokime installer inspect dist/dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
-Pass `--plugin path/to/host.dokime` to include host telemetry, and repeat `--plugin`
-for other bundles. Only explicitly selected bundles are installed; omitting the flag
-includes no plugins. The Dokime packaging task selects `host.dokime`.
+Place downloaded `.dokime` bundles in the organization pack's optional `plugins/`
+folder, or pass repeatable `--plugin path/to/host.dokime` arguments. The Dokime
+packaging task selects `host.dokime` explicitly; OBC remains test-only. Packaging
+verifies every bundle's member digests, native target and declared Dokime version
+requirement against the installer payload before embedding any bundles. A refusal
+names the offending bundle. Organization overrides replace base bundles with the
+same filename; duplicate explicit filenames or package names are refused.
+`cargo dokime sidecar build` and `package` include integrity-indexed `dokime.json`
+metadata (schema v1) containing `requires_dokime`, taken from the plugin's Cargo
+`dokime` dependency requirement. Rebuild older bundles that lack this metadata
+before using them in an installer.
+
+On first start and after installer upgrades, bundled packages
+install through the ordinary plugin store under their own names. An absent or
+older package is installed; an equal or newer installed version is retained.
+Upgrades preserve plugin settings and disabled state. Later plugin updates use
+the configured release source. Ordinary restarts preserve removed plugins; a
+completed reconciliation is recorded against the installer's distribution digest.
+Only bundles in the installer's integrity index participate; leftover files from
+previous installers are ignored.
+Without bundled plugins, the runtime starts
+without host telemetry.
 
 Product `mise run package:rust --profile dev` invokes the matching built
 `cargo-dokime`, packages and inspects those outputs, and publishes a portable

@@ -29,6 +29,7 @@ tracing = { workspace = true }
 
 # Utilities
 harmos-packaging = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
 process-wrap = { workspace = true, features = ["tokio1"] }
 sha2 = { workspace = true }
 time = { workspace = true }

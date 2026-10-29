@@ -106,6 +106,9 @@ impl Config {
             config = config.with_application_root(root);
         }
         config.plugin_lookup = self.plugin_lookup;
+        config.bundled_plugins = super::organization::installation_directory()
+            .and_then(|directory| directory.parent().map(|parent| parent.join("plugins")))
+            .filter(|directory| directory.parent().is_some_and(|parent| parent.join("distribution.json").is_file()));
         let mut config = config.with_plugins(PluginBundle::all(&self.explicit_plugins));
 
         for provider in self.registrations.0 {
