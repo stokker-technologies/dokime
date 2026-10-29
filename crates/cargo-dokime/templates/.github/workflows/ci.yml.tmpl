@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:59e1562fae0e44b5a1e81b6255a1f80bb09bd751b4fdc2125b17d2c06770f410
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:570dc86d880735408fcf65b264797602cb692f165efd0f44e79634aeef19f648
 name: CI
 "on":
   push:
@@ -292,10 +292,15 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -306,30 +311,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
     concurrency:
       group: >-
@@ -477,10 +462,15 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -491,30 +481,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
     concurrency:
       group: >-
@@ -664,10 +634,15 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -678,30 +653,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
     concurrency:
       group: >-
@@ -865,7 +820,8 @@ jobs:
       startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/dev')))
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
     strategy:
       fail-fast: false
       matrix:
@@ -876,16 +832,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
           container: ""
     concurrency:
       group: >-
@@ -1019,7 +969,8 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
+      MISE_ENABLE_TOOLS: >-
+        go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     strategy:
       fail-fast: false
       matrix:
@@ -1030,16 +981,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
           container: ""
     concurrency:
       group: >-
@@ -1174,7 +1119,8 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
+      MISE_ENABLE_TOOLS: >-
+        go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     strategy:
       fail-fast: false
       matrix:
@@ -1185,16 +1131,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
           container: ""
     concurrency:
       group: >-

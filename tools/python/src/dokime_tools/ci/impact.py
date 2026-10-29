@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/impact.py; sha256:9a2f9c09b36e370679c6fe653bf8ab0ea2dab50550e8431848eaf2f8b7432e92
+# Rendered by stkr project update from templates/python/ci/impact.py; sha256:b24f39e06f62480e85f3b18f1cca1bc19ca43263c28f75d020f6f21874e4ad92
 # ***
 #
 # Dokime
@@ -18,7 +18,6 @@ import subprocess
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from ..process import spawn_flags
 

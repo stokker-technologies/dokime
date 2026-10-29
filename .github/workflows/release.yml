@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:06c4cf1d1221ca44adfceae03a3ac2e8f7f87455697e62a31b72eda1181ac6ea
+# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:a8a23fc66511c87e1d9bf1e9911a984a11b560bfbcf81639f54e658dbdc014aa
 name: Release
 "on":
   workflow_dispatch: {}
@@ -614,9 +614,10 @@ jobs:
       needs.validated.outputs.stable_release == 'true')
     environment: release
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
-      PROFILE: ${{ matrix.environment.PROFILE }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
+      MISE_TASK_SKIP: build
+      PROFILE: release
     strategy:
       fail-fast: false
       matrix:
@@ -626,11 +627,6 @@ jobs:
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
-            MISE_TASK_SKIP: build
-            PROFILE: release
           container: ""
   verify:
     name: Release / Verify (${{ matrix.platform }})
@@ -891,12 +887,12 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
-      PROFILE: ${{ matrix.environment.PROFILE }}
-      RELEASE_BUILD_RUN_ID: ${{ matrix.environment.RELEASE_BUILD_RUN_ID }}
-      RELEASE_BUILD_SHA: ${{ matrix.environment.RELEASE_BUILD_SHA }}
-      RELEASE_BUILD_VERSION: ${{ matrix.environment.RELEASE_BUILD_VERSION }}
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_TASK_SKIP: package:python,package:rust
+      PROFILE: ${{ needs.validated.outputs.review_profile }}
+      RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
+      RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
+      RELEASE_BUILD_VERSION: ${{ needs.validated.outputs.review_version }}
     environment: release
     needs:
     - publish
@@ -917,22 +913,8 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
-            MISE_TASK_SKIP: package:python,package:rust
-            PROFILE: ${{ needs.validated.outputs.review_profile }}
-            RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
-            RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
-            RELEASE_BUILD_VERSION: ${{ needs.validated.outputs.review_version }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
-            MISE_TASK_SKIP: package:python,package:rust
-            PROFILE: ${{ needs.validated.outputs.review_profile }}
-            RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
-            RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
-            RELEASE_BUILD_VERSION: ${{ needs.validated.outputs.review_version }}
           container: ""

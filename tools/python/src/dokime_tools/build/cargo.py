@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/cargo.py; sha256:cc73285888f2f983fbe5b7c6c36450588e1388da7ef6448bb4cdb6c881327edd
+# Rendered by stkr project update from templates/python/build/cargo.py; sha256:c65e6876da0bca864c63a727b4a44f27fc3cf37a68fdbb380ee5b0b9bc73f1de
 # ***
 #
 # Dokime
@@ -22,8 +22,8 @@ from typing import Any
 
 # Third Party Imports
 # Local Imports
-from ..process import spawn_flags
 from ..ci import summary
+from ..process import spawn_flags
 from . import paths, storage
 
 # Type Checking Imports

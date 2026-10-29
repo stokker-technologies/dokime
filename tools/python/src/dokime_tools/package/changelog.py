@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/changelog.py; sha256:74d8308a677130b9cd55aa29dca859bd114fd0fc050d4e997a34b0af90a702e1
+# Rendered by stkr project update from templates/python/package/changelog.py; sha256:d399e4eb7dc9d807d5a9db515f0920f2075e07b848c01397985c176cd5440263
 # ***
 #
 # Dokime
@@ -18,7 +18,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from ..release import policy
 

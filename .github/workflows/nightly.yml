@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:5d4cf7b674b554dd046ed74eab15ac284a113c17cded941fc5a1f7d7f626336c
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:7badd11293f9e53a22e6ee24e810d45db8284f93570a902e5561625b0fa2fc82
 name: CI / Nightly
 "on":
   schedule:
@@ -2144,11 +2144,16 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
+      MISE_TASK_SKIP: build:python
     needs:
     - build_python_any
     strategy:
@@ -2161,32 +2166,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
-            MISE_TASK_SKIP: build:python
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
-            MISE_TASK_SKIP: build:python
           container: ""
   build_tests:
     name: Build / Tests (${{ matrix.platform }})
@@ -2375,10 +2358,15 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -2389,30 +2377,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
   check_rust:
     name: Check / Rust (${{ matrix.platform }})
@@ -2577,10 +2545,15 @@ jobs:
       with:
         summary-module: ""
     env:
-      COMPILER_CACHE_BACKEND: ${{ matrix.environment.COMPILER_CACHE_BACKEND }}
-      COMPILER_CACHE_MODE: ${{ matrix.environment.COMPILER_CACHE_MODE }}
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      SCCACHE_DIR: ${{ matrix.environment.SCCACHE_DIR }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      COMPILER_CACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -2591,30 +2564,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,python,rust,sccache,taplo,uv
-            COMPILER_CACHE_BACKEND: disk
-            SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-            COMPILER_CACHE_MODE: >-
-              ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-              github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-              (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-              endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
           container: ""
   package_rust:
     name: Package / Rust (${{ matrix.platform }})
@@ -3109,8 +3062,9 @@ jobs:
       !(needs.source.outputs.stable_release == 'true' &&
       contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly'))
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
+      MISE_TASK_SKIP: build
     strategy:
       fail-fast: false
       matrix:
@@ -3121,18 +3075,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
-            MISE_TASK_SKIP: build
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
-            MISE_TASK_SKIP: build
           container: ""
   validate_test_rust_acceptance:
     name: Test / Rust / Acceptance (${{ matrix.platform }})
@@ -3401,8 +3347,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
     needs:
     - build_product
     - build_python_any
@@ -3417,18 +3364,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build,build:python,build:rust:tests
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build,build:python,build:rust:tests
           container: ""
   validate_test_rust_integration:
     name: Test / Rust / Integration (${{ matrix.platform }})
@@ -3597,8 +3536,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
     needs:
     - build_tests
     strategy:
@@ -3611,18 +3551,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build:rust:tests
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build:rust:tests
           container: ""
   validate_test_rust_starter:
     name: Test / Rust / Starter (${{ matrix.platform }})
@@ -3791,8 +3723,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build
     needs:
     - build_product
     strategy:
@@ -3805,18 +3738,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build
           container: ""
   validate_test_rust_system:
     name: Test / Rust / System (${{ matrix.platform }})
@@ -4045,8 +3970,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
     needs:
     - build_product
     - build_python_any
@@ -4061,18 +3987,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build,build:python,build:rust:tests
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build,build:python,build:rust:tests
           container: ""
   validate_test_rust_unit:
     name: Test / Rust / Unit (${{ matrix.platform }})
@@ -4241,8 +4159,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
     needs:
     - build_tests
     strategy:
@@ -4255,18 +4174,10 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build:rust:tests
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build:rust:tests
           container: ""
   validate_test_typescript_system:
     name: Test / TypeScript / System (${{ matrix.platform }})
@@ -4495,8 +4406,9 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: ${{ matrix.environment.MISE_ENABLE_TOOLS }}
-      MISE_TASK_SKIP: ${{ matrix.environment.MISE_TASK_SKIP }}
+      MISE_ENABLE_TOOLS: >-
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build
     needs:
     - build_product
     strategy:
@@ -4509,16 +4421,8 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build
           container: ""
         - platform: windows
           runner: windows-latest
           minutes: 120
-          environment:
-            MISE_ENABLE_TOOLS: >-
-              go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-            MISE_TASK_SKIP: build
           container: ""

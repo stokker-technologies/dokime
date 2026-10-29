@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/compiler.py; sha256:e7e330bb79451f0509a7478480471d4da4f4a4c73440ed2efde195820c1e8baa
+# Rendered by stkr project update from templates/python/ci/compiler.py; sha256:aaa6b6726bff1c3eabda58a1da12cd6b39e4a496ee815e631c35c2a7b50ddb0e
 # ***
 #
 # Dokime
@@ -23,7 +23,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from ..process import spawn_flags
 
@@ -210,13 +209,15 @@ def _execute(
                     information = json.loads(readiness.stdout)
                     scheme = "Local disk:" if backend == "disk" else "s3,"
                     if not isinstance(information, dict) or not isinstance(information.get("cache_location"), str):
-                        raise ValueError("invalid backend statistics")
+                        raise TypeError("invalid backend statistics")
                     if not information["cache_location"].startswith(scheme):
                         raise ValueError("unexpected cache location scheme")
                     version = information.get("version")
-                    if not isinstance(version, str) or re.fullmatch(re.escape(SERIES) + r"[0-9]+", version) is None:
+                    if not isinstance(version, str):
+                        raise TypeError("invalid cache version type")
+                    if re.fullmatch(re.escape(SERIES) + r"[0-9]+", version) is None:
                         raise ValueError("unsupported cache version")
-                except (OSError, ValueError, subprocess.SubprocessError) as error:
+                except (OSError, TypeError, ValueError, subprocess.SubprocessError) as error:
                     output = error if isinstance(error, subprocess.CalledProcessError) else readiness
                     _report("backend verification", getattr(output, "returncode", None), error)
                     raise CacheError("sccache: pinned backend verification failed; refusing implicit storage fallback") from None
