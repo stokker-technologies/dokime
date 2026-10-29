@@ -23,7 +23,7 @@ use super::*;
 use dokime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime::domain::model;
 use dokime::runtime::command::CommandContext;
-use dokime::telemetry::{TelemetryBatch, TelemetrySample};
+use dokime::telemetry::{TelemetryBatch, TelemetryRow, TelemetrySample};
 use dokime::{Identifier, ParameterId, RecordScope, Value, ValueType};
 
 /* === Constants === */
@@ -68,8 +68,17 @@ fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
     let mut sample =
         TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 0, dokime::model::time::now_utc(), "fixture.host");
     sample.scope = scope;
-    sample.values.insert("host_name".into(), Value::Text(host_name.into()));
-    sample.values.insert("cpu_load_percent".into(), Value::Number(12.5));
+
+    let row = dokime::host::System {
+        host_name: Some(host_name.into()),
+        cpu_load_percent: Some(12.5),
+        ..Default::default()
+    };
+    let payload = dokime::harmos::Message::encode(&row);
+    sample.values = row.into_row();
+    let timestamp = sample.timestamp.clone();
+    sample.values.insert("timestamp".into(), Value::from(timestamp));
+    let sample = sample.with_storage_payload(payload);
     TelemetryBatch::new(dokime::model::identity::new_id(), stream, vec![sample])
 }
 
