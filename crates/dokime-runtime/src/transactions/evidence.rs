@@ -40,7 +40,7 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.evidence.health.record", irreversible)]
+#[harmos::transaction(id = "dokime.evidence.health.record")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
     pub scope: RecordScope,
@@ -51,14 +51,14 @@ pub struct RecordHealth {
     pub observed_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close", irreversible)]
+#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
-#[harmos::transaction(id = "dokime.evidence.event.publish", irreversible)]
+#[harmos::transaction(id = "dokime.evidence.event.publish")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PublishRecord {
     pub request: RecordPublishRequest,

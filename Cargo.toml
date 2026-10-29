@@ -50,9 +50,9 @@ dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-fe
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "3078082d" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -86,8 +86,8 @@ windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
-arrow-array = { version = "=60.0.0" }
-arrow-schema = { version = "=60.0.0" }
+arrow-array = { version = "=60.1.0" }
+arrow-schema = { version = "=60.1.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
@@ -141,8 +141,8 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "r
 rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = { version = "0.7.1" }
 suppaftp = { version = "12.0.0" }
-tonic = { version = "=0.14.7" }
-tonic-types = { version = "=0.14.7" }
+tonic = { version = "=0.14.8" }
+tonic-types = { version = "=0.14.8" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }

@@ -67,7 +67,7 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.provider.finish", irreversible)]
+#[harmos::transaction(id = "dokime.execution.provider.finish")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
     pub installed_plugin_errors: u64,

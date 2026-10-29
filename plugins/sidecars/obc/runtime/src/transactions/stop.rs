@@ -30,7 +30,7 @@ use crate::{Error, Testbench};
 
 /* === Structs === */
 
-#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.bench.stop", irreversible)]
+#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.bench.stop")]
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Stop;
 
