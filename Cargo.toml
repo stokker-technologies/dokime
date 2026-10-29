@@ -89,6 +89,7 @@ zeroize = { version = "=1.9.1" }
 arrow-array = { version = "=60.1.0" }
 arrow-schema = { version = "=60.1.0" }
 base64 = { version = "0.23.1" }
+handlebars = { version = "6.4.4" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
