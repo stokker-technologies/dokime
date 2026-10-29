@@ -142,6 +142,8 @@ invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
+The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
+
 Settings → Backends and the CLI share `backends.json`. Each profile has a
 machine **Identifier** and a human **Label**. Import a pairing file as the primary
 setup path. The native importer saves its key in the OS keyring and its CA and
