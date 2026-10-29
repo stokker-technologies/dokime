@@ -602,10 +602,10 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
 fn kill_tree(root: u32) {
     let root = root.to_string();
     #[cfg(windows)]
-    let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &root]).output();
+    let _ = dokime::domain::process::command("taskkill").args(["/T", "/F", "/PID", &root]).output();
     // The pseudo terminal makes the script a session and group leader.
     #[cfg(not(windows))]
-    let _ = Command::new("kill").args(["-KILL", "--", &format!("-{root}")]).output();
+    let _ = dokime::domain::process::command("kill").args(["-KILL", "--", &format!("-{root}")]).output();
 }
 
 fn read_terminal(

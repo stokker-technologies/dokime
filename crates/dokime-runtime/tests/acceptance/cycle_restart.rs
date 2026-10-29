@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::process::Command;
 
 // Third Party Imports
 use harmos::storage::state::{RecoveryEntry, RecoveryPage, RecoverySnapshot, StateBackend};
@@ -175,7 +174,7 @@ async fn cycle_crash_recovery() {
     for (phase, status) in [("report", BEFORE_REPORT), ("adoption", BEFORE_ADOPTION)] {
         let root = tempdir().unwrap();
         // Only The Dedicated Child Test Receives The Exit Injection.
-        let output = Command::new(std::env::current_exe().unwrap())
+        let output = dokime_domain::process::command(std::env::current_exe().unwrap())
             .args(["--exact", CHILD, "--nocapture"])
             .env(ROOT, root.path())
             .env(PHASE, phase)

@@ -14,11 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::{io::Write, path::Path, process::Stdio};
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -84,7 +80,7 @@ pub fn updater(manifest: &Manifest, payload: &Payload, package: &Path, output: &
     }
     let signature = scratch.path().join("installer.minisig");
     let password = std::env::var(&settings.password_env).map_err(|_| Error::Invalid("updater password environment is missing".into()))?;
-    let mut child = Command::new("minisign")
+    let mut child = dokime::domain::process::command("minisign")
         .args(["-S", "-q", "-s"])
         .arg(&key)
         .arg("-m")
@@ -111,7 +107,13 @@ pub fn updater(manifest: &Manifest, payload: &Payload, package: &Path, output: &
             .map_err(|_| Error::Invalid("compiled updater public key is invalid".into()))?,
     )?;
     inspect::run(
-        Command::new("minisign").args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(&public_key).arg("-x").arg(&signature),
+        dokime::domain::process::command("minisign")
+            .args(["-V", "-q", "-m"])
+            .arg(package)
+            .arg("-p")
+            .arg(&public_key)
+            .arg("-x")
+            .arg(&signature),
         "updater signature does not match compiled application trust",
     )?;
     let signature = STANDARD.encode(std::fs::read(signature)?);
@@ -151,7 +153,7 @@ pub fn verify_updater(package: &Path, compiled_key: &str) -> Result<(), Error> {
         STANDARD.decode(encoded.trim()).map_err(|_| Error::Invalid("updater signature is not valid base64".into()))?,
     )?;
     inspect::run(
-        Command::new("minisign").args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(key).arg("-x").arg(signature),
+        dokime::domain::process::command("minisign").args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(key).arg("-x").arg(signature),
         "updater signature does not match finished package bytes and compiled trust",
     )
 }

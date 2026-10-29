@@ -16,13 +16,7 @@ use super::support;
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-use std::{
-    fs,
-    path::Path,
-    process::{Command, Output},
-};
+use std::{fs, path::Path, process::Output};
 // Third Party Imports
 use sha2::{Digest, Sha256};
 
@@ -47,9 +41,7 @@ use sha2::{Digest, Sha256};
 /* === Private Functions === */
 
 fn generate(root: &Path, args: &[&str]) -> Output {
-    let mut command = Command::new(super::support::tool());
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command(super::support::tool());
     command
         .current_dir(root)
         .args(["dokime", "sidecar", "new"])
@@ -180,9 +172,7 @@ fn sidecar_commands_grouped() {
     let root = tempfile::tempdir().unwrap();
     for leaf in ["new", "build", "package", "dev", "inspect"] {
         for cargo_prefix in [false, true] {
-            let mut command = Command::new(support::tool());
-            #[cfg(windows)]
-            command.creation_flags(0x0800_0000);
+            let mut command = dokime::domain::process::command(support::tool());
             command.current_dir(root.path()).env("PATH", "");
             if cargo_prefix {
                 command.arg("dokime");
@@ -190,9 +180,7 @@ fn sidecar_commands_grouped() {
             let output = command.args(["sidecar", leaf, "--help"]).output().unwrap();
             assert!(output.status.success(), "{leaf}: {}", String::from_utf8_lossy(&output.stderr));
         }
-        let mut command = Command::new(support::tool());
-        #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        let mut command = dokime::domain::process::command(support::tool());
         let output = command.current_dir(root.path()).args(["dokime", leaf, "--help"]).output().unwrap();
         assert_eq!(output.status.code(), Some(2), "top-level {leaf} must be rejected");
     }

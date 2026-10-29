@@ -91,15 +91,21 @@ pub fn inspect(package: &Path) -> Result<Inspection, Error> {
     match package.extension().and_then(|s| s.to_str()) {
         Some("exe") => {
             run(
-                Command::new("7z").arg("x").arg("-y").arg(format!("-o{}", contents.display())).arg(&package),
+                dokime::domain::process::command("7z").arg("x").arg("-y").arg(format!("-o{}", contents.display())).arg(&package),
                 "NSIS inspection requires 7z",
             )?;
         }
         Some("deb") => {
-            run(Command::new("dpkg-deb").arg("--extract").arg(&package).arg(&contents), "DEB inspection requires dpkg-deb")?;
+            run(
+                dokime::domain::process::command("dpkg-deb").arg("--extract").arg(&package).arg(&contents),
+                "DEB inspection requires dpkg-deb",
+            )?;
         }
         Some("rpm") => {
-            run(Command::new("bsdtar").arg("-xf").arg(&package).arg("-C").arg(&contents), "RPM inspection requires bsdtar (libarchive)")?;
+            run(
+                dokime::domain::process::command("bsdtar").arg("-xf").arg(&package).arg("-C").arg(&contents),
+                "RPM inspection requires bsdtar (libarchive)",
+            )?;
         }
         _ => return Err(Error::Invalid("inspection accepts finished NSIS .exe, .deb or .rpm packages".into())),
     }
@@ -146,7 +152,10 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
         let executable = root.join("dokime-gui.exe");
         super::windows::verify(&executable, &icon)?;
         if metadata.installer_signed {
-            run(Command::new("signtool").args(["verify", "/pa"]).arg(&executable), "GUI executable Authenticode verification failed")?;
+            run(
+                dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(&executable),
+                "GUI executable Authenticode verification failed",
+            )?;
         }
     }
     if !windows {
@@ -190,12 +199,14 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
     verify_inventory(root, &metadata)?;
     let installer_signature = if metadata.installer_signed {
         match package.extension().and_then(|value| value.to_str()) {
-            Some("exe") => {
-                run(Command::new("signtool").args(["verify", "/pa"]).arg(package), "installer Authenticode verification failed")?
-            }
-            Some("deb") => {
-                run(Command::new("debsig-verify").arg(package), "DEB signature verification requires trusted debsig-verify policy")?
-            }
+            Some("exe") => run(
+                dokime::domain::process::command("signtool").args(["verify", "/pa"]).arg(package),
+                "installer Authenticode verification failed",
+            )?,
+            Some("deb") => run(
+                dokime::domain::process::command("debsig-verify").arg(package),
+                "DEB signature verification requires trusted debsig-verify policy",
+            )?,
             Some("rpm") => verify_rpm_signature(package)?,
             _ => return Err(Error::Invalid("unsupported signed package".into())),
         }
@@ -235,7 +246,7 @@ pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error>
 /* === Private Functions === */
 
 pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
-    let result = Command::new("rpmkeys")
+    let result = dokime::domain::process::command("rpmkeys")
         .arg("--checksig")
         .arg(package)
         .env("LC_ALL", "C")
@@ -319,7 +330,7 @@ fn validate_nsis_inventory(text: &str) -> Result<(), Error> {
 fn validate_archive(package: &Path) -> Result<(), Error> {
     let extension = package.extension().and_then(|value| value.to_str());
     if extension == Some("exe") {
-        let listing = Command::new("7z")
+        let listing = dokime::domain::process::command("7z")
             .args(["l", "-slt", "-sccUTF-8"])
             .arg(package)
             .output()
@@ -334,7 +345,7 @@ fn validate_archive(package: &Path) -> Result<(), Error> {
     let archive = tempfile::NamedTempFile::new()?;
     let source = if extension == Some("deb") {
         let file = archive.reopen()?;
-        let status = Command::new("dpkg-deb")
+        let status = dokime::domain::process::command("dpkg-deb")
             .arg("--fsys-tarfile")
             .arg(package)
             .stdout(file)
@@ -348,7 +359,7 @@ fn validate_archive(package: &Path) -> Result<(), Error> {
     } else {
         package
     };
-    let listing = Command::new("bsdtar")
+    let listing = dokime::domain::process::command("bsdtar")
         .arg("-tvf")
         .arg(source)
         .output()
@@ -360,7 +371,7 @@ fn validate_archive(package: &Path) -> Result<(), Error> {
     if text.lines().any(|line| !matches!(line.as_bytes().first(), Some(b'-' | b'd'))) {
         return Err(Error::Invalid("installer contains a link or special file".into()));
     }
-    let listing = Command::new("bsdtar")
+    let listing = dokime::domain::process::command("bsdtar")
         .arg("-tf")
         .arg(source)
         .output()

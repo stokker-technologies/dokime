@@ -102,7 +102,7 @@ async fn crashed_run_replay() {
     let root = tempfile::tempdir().unwrap();
     let test = format!("{}::crashed_run_replay", module_path!().split_once("::").unwrap().1);
     let mut child = Child(
-        std::process::Command::new(std::env::current_exe().unwrap())
+        dokime::domain::process::command(std::env::current_exe().unwrap())
             .args(["--exact", &test, "--nocapture"])
             .env(CRASH_ROOT, root.path())
             .stdout(std::process::Stdio::piped())

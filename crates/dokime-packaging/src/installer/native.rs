@@ -17,7 +17,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
-    process::Command,
 };
 
 // Third Party Imports
@@ -515,16 +514,16 @@ fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
     let extension = path.extension().and_then(std::ffi::OsStr::to_str);
     match extension {
         Some("deb") => {
-            let mut command = Command::new("debsigs");
+            let mut command = dokime::domain::process::command("debsigs");
             command.args(["--sign=origin", "--default-key", key]).arg(path);
             inspect::run(&mut command, "DEB signing requires debsigs and an available GPG agent")?;
-            let mut command = Command::new("debsig-verify");
+            let mut command = dokime::domain::process::command("debsig-verify");
             command.arg(path);
             inspect::run(&mut command, "DEB signature verification requires debsig-verify with the signing policy installed")
         }
         Some("rpm") => {
             let key_definition = format!("_gpg_name {key}");
-            let mut command = Command::new("rpmsign");
+            let mut command = dokime::domain::process::command("rpmsign");
             command.arg("--addsign").arg("--define").arg(key_definition).arg(path);
             inspect::run(&mut command, "RPM signing requires rpmsign and an available GPG agent")?;
             inspect::verify_rpm_signature(path)
@@ -545,10 +544,10 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
         let error = Error::Invalid("missing signing timestamp URL".into());
         return Err(error);
     };
-    let mut command = Command::new("signtool");
+    let mut command = dokime::domain::process::command("signtool");
     command.args(["sign", "/sha1", thumbprint, "/fd", "SHA256", "/tr", timestamp, "/td", "SHA256"]).arg(path);
     inspect::run(&mut command, "installer signing requires signtool and the configured certificate in the current user store")?;
-    let mut command = Command::new("signtool");
+    let mut command = dokime::domain::process::command("signtool");
     command.args(["verify", "/pa"]).arg(path);
     inspect::run(&mut command, "installer Authenticode verification failed")
 }

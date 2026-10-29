@@ -163,7 +163,7 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     });
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
     let _ = std::fs::remove_file(profiles);
-    let output = std::process::Command::new(binary)
+    let output = dokime::domain::process::command(binary)
         .args(["backend", "add", "--pairing"])
         .arg(pairing)
         .args(["--identifier", PROFILE_IDENTIFIER])
@@ -228,22 +228,22 @@ fn launcher(extension: &str, script: &Path) -> Command {
         "py" => {
             let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
             let executable = artifacts::workspace_root().join(interpreter);
-            let mut command = Command::new(executable);
+            let mut command = Command::from(dokime::domain::process::command(executable));
             command.arg(script);
             command.env_remove("PYTHONPATH");
             command
         }
         "sh" => {
-            let mut command = Command::new("sh");
+            let mut command = Command::from(dokime::domain::process::command("sh"));
             command.arg(script);
             command
         }
         "ps1" => {
-            let mut command = Command::new(powershell_host());
+            let mut command = Command::from(dokime::domain::process::command(powershell_host()));
             command.args(["-NoProfile", "-File"]).arg(script);
             command
         }
-        "bat" => Command::new(script),
+        "bat" => Command::from(dokime::domain::process::command(script)),
         _ => unreachable!(),
     }
 }
@@ -252,7 +252,7 @@ fn launcher(extension: &str, script: &Path) -> Command {
 // And A Terminal Whose Direct Child Exits Closes. Scripts Therefore Start The PowerShell Host Itself.
 fn powershell_host() -> &'static Path {
     static HOST: LazyLock<PathBuf> = LazyLock::new(|| {
-        let output = std::process::Command::new("pwsh")
+        let output = dokime::domain::process::command("pwsh")
             .args(["-NoProfile", "-NonInteractive", "-Command", "[Environment]::ProcessPath"])
             .output()
             .unwrap();

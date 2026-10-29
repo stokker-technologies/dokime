@@ -16,7 +16,6 @@
 // Standard Library Imports
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::process::Command;
 
 // Third Party Imports
 
@@ -55,7 +54,7 @@ pub struct Args {
 pub fn run(args: Args) -> crate::Result<()> {
     let gui = Program::GUI.resolve(args.gui.as_deref())?;
 
-    let mut command = Command::new(gui);
+    let mut command = dokime::domain::process::command(gui);
     command.arg("--endpoint").arg(args.endpoint).args(args.arguments);
     hand_over(command)
 }

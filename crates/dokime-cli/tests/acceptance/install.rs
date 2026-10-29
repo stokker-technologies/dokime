@@ -253,7 +253,7 @@ fn install_bundle(schema: u32) -> Bundle {
 }
 
 fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
-    let output = std::process::Command::new(cli_executable())
+    let output = dokime::domain::process::command(cli_executable())
         .args(["--color", "never", "plugin", "install"])
         .arg(bundle)
         .args(["--endpoint", endpoint])

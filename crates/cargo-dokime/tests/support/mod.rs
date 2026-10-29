@@ -15,10 +15,8 @@
 
 // Standard Library Imports
 use std::io::{BufRead, BufReader};
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 
 // Third Party Imports
 
@@ -75,9 +73,7 @@ pub fn workspace_root() -> std::path::PathBuf {
 }
 
 pub fn standalone_directory() -> StandaloneDirectory {
-    let mut command = Command::new("uv");
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    let mut command = dokime::domain::process::command("uv");
     let mut owner = command
         .args(["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.fixture"])
         .current_dir(workspace_root())

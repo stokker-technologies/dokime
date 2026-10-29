@@ -85,7 +85,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
         return true;
     }
     let test = format!("{}::{name}", module_path!().split_once("::").unwrap().1);
-    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    let mut command = dokime::domain::process::command(std::env::current_exe().unwrap());
     command
         .args(["--exact", &test, "--nocapture"])
         .env("DOKIME_LOG_TEST", name)

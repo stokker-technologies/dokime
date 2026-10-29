@@ -15,13 +15,11 @@
 
 /* === Imports === */
 // Standard Library Imports
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::{
     env::consts::EXE_SUFFIX,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    process::{Child, ChildStdout, Command, Stdio},
+    process::{Child, ChildStdout, Stdio},
     time::{Duration, Instant},
 };
 
@@ -61,10 +59,8 @@ impl Server {
         let log = std::env::var("DOKIME_BENCH_LOG").ok();
         let stderr = if log.is_some() { Stdio::inherit() } else { Stdio::null() };
         let filter = log.as_deref().unwrap_or("off");
-        let mut command = Command::new(artifact(&format!("bin/dokime{EXE_SUFFIX}")));
+        let mut command = dokime::domain::process::command(artifact(&format!("bin/dokime{EXE_SUFFIX}")));
         command.arg("server");
-        #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
         command
             .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
             .arg(root.path().join("data"))

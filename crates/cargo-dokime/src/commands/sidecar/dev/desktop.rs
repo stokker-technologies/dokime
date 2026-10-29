@@ -157,10 +157,7 @@ pub async fn run(args: Args) -> Result<(), Error> {
 
 fn start(plan: &Plan, children: &mut Vec<Child>) -> Result<(), Error> {
     for process in &plan.commands {
-        let mut command = Command::new(&process.arguments[0]);
-        // Match the existing Python CREATE_NO_WINDOW launch on Windows.
-        #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        let mut command = Command::from(dokime::domain::process::command(&process.arguments[0]));
         command.args(&process.arguments[1..]).current_dir(&plan.cwd);
         command.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
         for name in &process.remove_environment {

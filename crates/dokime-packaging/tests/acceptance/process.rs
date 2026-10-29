@@ -20,7 +20,6 @@
 
 // Standard Library Imports
 use std::path::Path;
-use std::process::Command;
 use std::time::Duration;
 
 // Third Party Imports
@@ -50,18 +49,18 @@ const GONE_POLL: Duration = Duration::from_millis(5);
 
 /* === Private Functions === */
 #[cfg(unix)]
-fn shell(script: &str) -> Command {
-    let mut command = Command::new("sh");
+fn shell(script: &str) -> std::process::Command {
+    let mut command = dokime::domain::process::command("sh");
     command.args(["-c", script]);
     command
 }
 
 fn alive(pid: &str) -> bool {
     #[cfg(unix)]
-    let alive = Command::new("kill").args(["-0", pid]).stderr(std::process::Stdio::null()).status().unwrap().success();
+    let alive = dokime::domain::process::command("kill").args(["-0", pid]).stderr(std::process::Stdio::null()).status().unwrap().success();
     #[cfg(windows)]
     let alive = {
-        let listed = Command::new("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH"]).output().unwrap();
+        let listed = dokime::domain::process::command("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH"]).output().unwrap();
         String::from_utf8_lossy(&listed.stdout).contains(pid)
     };
     alive
@@ -141,7 +140,7 @@ async fn deadline_stops_descendants() {
     }
 
     // Packaging Build Under The Deadline
-    let mut command = Command::new(&executable);
+    let mut command = dokime::domain::process::command(&executable);
     command
         .args(["--exact", "process::process_fixture_mode", "--nocapture"])
         .env("DOKIME_PROCESS_TEST_MODE", "build")
@@ -159,7 +158,7 @@ async fn deadline_stops_descendants() {
 async fn leader_exit_keeps_descendants_owned() {
     let directory = tempfile::tempdir().unwrap();
     let pid = directory.path().join("descendant.pid");
-    let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+    let mut command = tokio::process::Command::from(dokime::domain::process::command(std::env::current_exe().unwrap()));
     command
         .args(["--exact", "process::process_fixture_mode", "--nocapture"])
         .env("DOKIME_PROCESS_TEST_MODE", "leader")
@@ -182,7 +181,7 @@ async fn process_fixture_mode() {
     match mode.as_str() {
         "leader" => {
             let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
-            let mut child = Command::new(std::env::current_exe().unwrap())
+            let mut child = dokime::domain::process::command(std::env::current_exe().unwrap())
                 .args(["--exact", "process::process_fixture_mode", "--nocapture"])
                 .env("DOKIME_PROCESS_TEST_MODE", "descendant")
                 .spawn()
@@ -203,7 +202,7 @@ async fn process_fixture_mode() {
             assert!(matches!(result, Err(Error::Timeout(operation)) if operation == "Resolving package metadata"));
         }
         "parent" => {
-            let mut child = Command::new(std::env::current_exe().unwrap())
+            let mut child = dokime::domain::process::command(std::env::current_exe().unwrap())
                 .args(["--exact", "process::process_fixture_mode", "--nocapture"])
                 .env("DOKIME_PROCESS_TEST_MODE", "descendant")
                 .spawn()
