@@ -1,6 +1,6 @@
 # Dokime Plugins
 
-`sidecars/host/` supplies the six host telemetry streams through the supervised
+`plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
 per nearby network), `host.wifi.latency` (round trip and loss to the latency host)
@@ -43,7 +43,7 @@ Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
 observer while the plugin process can remain idle.
 
-`sidecars/obc/` is the test-only onboard charger plugin. Its `runtime/` crate owns
+`plugins/sidecars/obc/` is the test-only [onboard charger plugin](obc-plugin.md). Its `runtime/` crate owns
 the simulated testbench. It is built explicitly for tests and is never included
 in the product's default bundles or installer.
 
