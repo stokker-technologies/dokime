@@ -1,6 +1,6 @@
 # Repository Tooling
 
-Mise is the public entry point. Python modules in `python/src/dokime_tools/`
+Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
 test execution. The shared Python environment lives at repository-root `.venv/`.

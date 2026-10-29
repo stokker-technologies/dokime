@@ -1,8 +1,10 @@
 # Run The Remote Examples With Python
 
+Scripts: `packages/dokime-client/examples/remote/python/`. Commands below run from that folder.
+
 Use the three editable Python scripts to control the simulated OBC, run two
 attempts with record and sample readers, and answer a confirmation. Begin with the
-[shared walkthrough](../README.md) to obtain the matching candidate artifacts,
+[shared walkthrough](overview.md) to obtain the matching candidate artifacts,
 install/configure the host plugin and transfer the public certificate and key.
 
 These source examples use a locally built wheel from the same revision as the
@@ -13,10 +15,10 @@ the wheel and refresh the tutorial lock before transferring the example tree.
 
 Use CPython `>=3.13,<3.16` on Windows or Linux x86-64. Python 3.13 is the
 baseline used below. On Windows, set `$INSTALL_DOKIME = $false` in
-`../cli/bootstrap.ps1`, then run [`../cli/bootstrap.bat`](../cli/bootstrap.bat)
+`../cli/bootstrap.ps1`, then run [`../cli/bootstrap.bat`](../../packages/dokime-client/examples/remote/cli/bootstrap.bat)
 to install PowerShell 7.6.7, mise and uv for your user without the optional CLI;
 see the
-[Windows setup guidance](../cli/README.md#bootstrap-windows-tools).
+[Windows setup guidance](cli.md#bootstrap-windows-tools).
 On Linux, install [uv](https://docs.astral.sh/uv/getting-started/installation/)
 using its official installer or your normal package manager. Open a new
 terminal after setup and check:
@@ -66,7 +68,7 @@ connecting and checks TLS and backend identity before application calls.
 It retains the key only in its transport credentials.
 
 The remaining execution, filter and evidence parameters match the
-[native CLI scripts](../cli/README.md). These are edit-and-run examples; they
+[native CLI scripts](cli.md). These are edit-and-run examples; they
 accept no command-line arguments.
 
 ## Control The Manual Device
@@ -184,7 +186,7 @@ stop admitted work. The example reports failure without retrying mutations.
 To fetch evidence again, attach to the retained execution/cycle and export;
 do not rerun the example to recover a download.
 
-Follow [Inspect Saved Evidence](../README.md#inspect-saved-evidence) for the
+Follow [Inspect Saved Evidence](overview.md#inspect-saved-evidence) for the
 actual SQLite tables, field/unit mapping, records, sample counts, captured-file
 checksums and saved HTML reports. Keep the host running until downloads finish;
 its saved evidence can also be retrieved after reconnecting or restarting it.
@@ -197,7 +199,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `lab.dokime-pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
-| A secret/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |
+| A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |
 

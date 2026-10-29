@@ -52,7 +52,7 @@ when running the OBC walkthrough below.
 Tutorials and Python distributions are not release downloads. Check out the
 recorded candidate SHA and copy `packages/dokime-client/examples/remote/` to
 `remote-demo/` on the remote PC. For Python, follow the
-[local wheel setup](python/README.md#prepare-the-environment) before transferring
+[local wheel setup](python.md#prepare-the-environment) before transferring
 the complete tree. Keep its `cli/`, `python/` and prepared `wheels/` directories together.
 On Windows, set `$INSTALL_DOKIME = $false` in `cli/bootstrap.ps1` for this
 unreleased candidate, then run `cli/bootstrap.bat` (or `cli/bootstrap.ps1`)
@@ -60,7 +60,7 @@ to install PowerShell 7.6.7, mise and uv without elevation. The default
 `INSTALL_DOKIME=true` setup uses mise to install the exact official GitHub
 release asset for the Dokime CLI; this walkthrough instead uses the matching candidate installer.
 Follow the
-[Windows bootstrap instructions](cli/README.md#bootstrap-windows-tools),
+[Windows bootstrap instructions](cli.md#bootstrap-windows-tools),
 then open a new terminal. These are optional client-tool prerequisites;
 the native Dokime installation itself does not need mise.
 
@@ -163,10 +163,10 @@ that client's transport. Importing a pairing does not connect or change the defa
 
 Choose one family:
 
-- [Native CLI scripts](cli/README.md): POSIX shell, PowerShell 7.3 or newer,
+- [Native CLI scripts](cli.md): POSIX shell, PowerShell 7.3 or newer,
   or Command Prompt. PowerShell 7 is a separate program from Windows PowerShell;
   see Microsoft's [installation instructions](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows).
-- [Python scripts](python/README.md): supported CPython versions are
+- [Python scripts](python.md): supported CPython versions are
   `>=3.13,<3.16`, with a uv environment and a locally built matching wheel.
 
 Edit the globals at the top of each selected script. Native CLI scripts use
@@ -211,7 +211,7 @@ other clients' cycles and the shared server remain available. Native scripts
 write recovery bundles under `recovery/`; Python saves collected evidence in
 its configured output directory.
 
-The [CLI guide](cli/README.md#interruption-and-recovery) states the exact batch
+The [CLI guide](cli.md#interruption-and-recovery) states the exact batch
 limitations: connection setup, gaps between commands and an unknown cycle after
 a lost Create reply cannot receive universal automatic cleanup. Keep every
 printed cycle/execution identity and inspect the same server after reconnecting.
