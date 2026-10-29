@@ -39,8 +39,9 @@ request struct, id, policy, response and contract tests. Runtime implementations
 live in parallel `windows.rs` and `unix.rs` modules selected only by
 `#[cfg(all(feature = "runtime", target_os = "windows"))] mod windows;` and
 `#[cfg(all(feature = "runtime", unix))] mod unix;`. Gate module declarations and
-re-exports, never implementations or catalog variants. One `host/catalog.rs`
-assembles every operation on both platforms. The telemetry requests also carry
-their stream and observer declarations, so those inventories share the catalog.
+re-exports, never implementations or catalog variants. `host/catalog.rs` assembles collection and stream declarations;
+`host/operations.rs` assembles Public queries and controls on both platforms.
+`host/observers.rs` selects runtime observers, including stateful native
+notification ownership; cancelling its demand activation drops registrations.
 Preparation registers mutable collector resources as `Arc<tokio::sync::Mutex<T>>`;
 operation policies own collection deadlines and configuration owns probe parameters.

@@ -61,10 +61,10 @@ impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
     restart = "never",
     requires(dokime::harmos::builtins::streams::Publish),
     contributions(dokime::Evidence<host::Catalog>, dokime::Settings<crate::Settings>),
-    observers = host::Catalog
+    observers = host::observers::Observers
 )]
 impl dokime::Plugin for HostPlugin {
-    const CATALOGS: &'static [dokime::harmos::Catalog] = &[host::Catalog::CATALOG];
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[host::Catalog::CATALOG, host::operations::Operations::CATALOG];
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
         let observers = self.observers.as_ref()?.clone();
@@ -86,7 +86,13 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let workers = Arc::new(Workers(tracker));
         setup.resource::<Workers>(workers.clone());
 
-        let collector = collectors::system::SystemCollector::new();
+        // Calibrate Once At Plugin Start, Away From The Async Runtime Thread.
+        let task = workers.0.spawn_blocking(|| {
+            let mut collector = collectors::system::SystemCollector::new();
+            collector.calibrate_cpu(host::system::POLICY.attempt_timeout / 2)?;
+            Ok::<_, crate::Error>(collector)
+        });
+        let collector = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
         let state = host::system::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::system::State>>(state);
@@ -117,7 +123,7 @@ impl dokime::harmos::Lifecycle for HostPlugin {
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::bluetooth::State>>(state);
 
-        let observers = ObserverAttachment::from_catalog::<host::Catalog>(<Self as Declared>::STREAMS)?;
+        let observers = ObserverAttachment::from_catalog::<host::observers::Observers>(<Self as Declared>::STREAMS)?;
         Ok(Self { workers, observers: Some(observers) })
     }
 
