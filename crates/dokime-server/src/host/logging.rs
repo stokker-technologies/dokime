@@ -149,7 +149,6 @@ impl LoggingGuards {
 /* === Public Functions === */
 
 pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<LoggingGuards> {
-    let root = &paths.root;
     let journal = crate::trace::Journal::new(crate::trace::Limits::default());
     let (layer, appender_guard) = stderr_fmt_layer(ansi)?;
     let (file_layer, file_appender_guard) = file_fmt_layer(&paths.logs())?;
@@ -158,7 +157,7 @@ pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<Loggi
     let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(journal.clone())];
 
     #[cfg(debug_assertions)]
-    let profile = match super::profiles::dev_profile_layers(root)? {
+    let profile = match super::profiles::dev_profile_layers(&paths.root)? {
         Some((mut profile_layers, guards)) => {
             layers.append(&mut profile_layers);
             Some(guards)

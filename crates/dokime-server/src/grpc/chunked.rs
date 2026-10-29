@@ -50,7 +50,7 @@ pub(super) struct Download<F> {
 
 pub(super) enum Source {
     Bytes { data: dokime::harmos::operations::Response<Vec<u8>>, read: usize },
-    Opened { reader: dokime::harmos::storage::FileReader, batch: Option<dokime::harmos::storage::FileReadBatch>, read: usize },
+    Opened { reader: Box<dokime::harmos::storage::FileReader>, batch: Option<dokime::harmos::storage::FileReadBatch>, read: usize },
     Artifact(Box<ArtifactReader>),
     Evidence(Box<dokime::domains::exports::evidence::Bundle>),
 }
@@ -100,7 +100,11 @@ impl Frames for ArtifactFrames {
 
 impl Source {
     pub(super) fn opened(reader: dokime::harmos::storage::FileReader) -> Self {
-        Self::Opened { reader, batch: None, read: 0 }
+        Self::Opened {
+            reader: Box::new(reader),
+            batch: None,
+            read: 0,
+        }
     }
 
     pub(super) fn bytes(data: dokime::harmos::operations::Response<Vec<u8>>) -> Self {
