@@ -14,7 +14,7 @@ The dev channel delivers integrated work to the owner's daily plugin development
 
 ## Channel
 
-- A GitHub pre-release tagged `dev-latest` on the Dokime repository carries the latest dev build: the desktop installer, `dokime-cli`, `cargo-dokime`, the host plugin bundle and `SHA256SUMS`. Every build replaces its assets; the notes name the Dokime and Harmos commits and the changes since the previous build.
+- A GitHub pre-release tagged `dev-channel` on the Dokime repository (immutable releases are disabled for Dokime so its assets can be replaced; the tag never moves and the release notes name the built commit) carries the latest dev build: the desktop installer, `dokime-cli`, `cargo-dokime`, the host plugin bundle and `SHA256SUMS`. Every build replaces its assets; the notes name the Dokime and Harmos commits and the changes since the previous build.
 - Builds run from a dedicated builder worktree with a warm target, using `mise run build:rust -- --profile release` and `mise run package:rust -- --profile release --target native`. Hosted CI runs on the pushed commit in parallel and does not gate the channel.
 
 ## Consumer
@@ -27,7 +27,7 @@ dokime = { git = "https://github.com/stokker-technologies/dokime", branch = "fea
 ```toml
 # Plugin mise.toml: authoring tool from the dev channel
 [tools."github:stokker-technologies/dokime"]
-version = "dev-latest"
+version = "dev-channel"
 ```
 
 Loop: `cargo update -p dokime`, `mise install`, `cargo dokime build` (or `cargo dokime dev`), and reinstall the desktop installer only when it changed.
