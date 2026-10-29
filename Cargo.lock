@@ -3930,8 +3930,9 @@ dependencies = [
 
 [[package]]
 name = "harmos"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54fee2727b01197340bc65e6d74ee5d8963941fc69c5e45e75c288307492488b"
 dependencies = [
  "harmos-domain",
  "harmos-guest",
@@ -3944,8 +3945,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-domain"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af55ac5645b0110d88546246d905f55f913e2fb65a6dadbc5126a7371e7ef057"
 dependencies = [
  "harmos-macros",
  "memchr",
@@ -3960,8 +3962,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-guest"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fff7da527ea9cfb01e599d83ed186522bf028ebe1fd281da43b3bf84004fc890"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -3972,8 +3975,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-macros"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ace6be03a9b624600d41cab99bf2d19c2248d25ee403023d223910c82c48535"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate 3.5.0",
@@ -3985,8 +3989,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-operations"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dab16165fce5683a9407497a8cda7dc840d412ccd607e675fa18a9a1f207deee"
 dependencies = [
  "harmos-domain",
  "harmos-macros",
@@ -4001,8 +4006,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-packaging"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f852a4280e0bf5afc2239d849786632c212a239c26b9ac4e416307fd9530c4a4"
 dependencies = [
  "harmos-domain",
  "heck 0.5.0",
@@ -4021,8 +4027,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-runtime"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baceac0a494d2040be20f2a9897731e189af3bd956f5662e71ea780dc141bd94"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4057,8 +4064,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sdk"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03f33cc15067c5262b44434bd0694d8c9054575131afb4ab3cec7d39da531904"
 dependencies = [
  "harmos-domain",
  "harmos-macros",
@@ -4073,8 +4081,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sidecar"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d293cd67b0dcb05eef84bc871f24f1b39a0321a5a53877a36e3643fd8588f4ad"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
@@ -4095,8 +4104,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-storage"
-version = "0.1.12"
-source = "git+https://github.com/stokker-technologies/harmos?rev=648b3c7b79dc15c858666d1117c2abc97253910c#648b3c7b79dc15c858666d1117c2abc97253910c"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9e8b1cf18a196fe662476747a89c8d43f1b1706d23a5b2d587557ac782467e9"
 dependencies = [
  "arrow-array",
  "arrow-buffer",

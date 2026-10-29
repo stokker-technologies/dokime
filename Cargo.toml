@@ -50,9 +50,9 @@ dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-fe
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "648b3c7b79dc15c858666d1117c2abc97253910c" }
+harmos = "=0.1.13"
+harmos-packaging = "=0.1.13"
+harmos-sdk = "=0.1.13"
 
 # Error Handling
 anyhow = { version = "1.0.104" }
