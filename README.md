@@ -85,7 +85,7 @@ backend profiles and execution APIs; the [runnable examples](packages/dokime-cli
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(pinned to development revision `648b3c7b79dc15c858666d1117c2abc97253910c` until the next Harmos release)
+(currently pinned to the published `0.1.13` release)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -93,6 +93,27 @@ for contracts and managed plugin lifecycles.
 The test-only [OBC plugin](plugins/sidecars/obc/) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
+
+Use the starter's `dokime` dependency with the `plugin-sidecar` feature. Authoring
+macros and contracts come through that facade. For example, the
+[capture template](plugins/sidecars/obc/src/suites/benchmarks/capture.rs) declares
+validated parameters and cartesian expansion with:
+
+```rust
+#[dokime::parameters]
+pub struct Parameters {
+    #[parameter(label = "Rows", default = 100_000, min = 1, max = 200_000)]
+    pub rows: u64,
+
+    #[parameter(label = "Member", default = 0, expansion = "cartesian")]
+    pub member: u64,
+}
+```
+
+The same plugin uses `#[dokime::observer]` for its
+[system measurements](plugins/sidecars/obc/src/observers/system.rs) and
+`#[dokime::criterion]` for its
+[pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
 Custom installers select bundles explicitly with repeatable `cargo dokime installer
 package --plugin <bundle>` arguments. See the [installer guide](docs/product-guide.md#native-installers)

@@ -1,10 +1,10 @@
 # Prototype Streamline Design
 
-Capability requirements for the backend registry, accounting removal, runtime revision snapshots and upstream decoder retention live under `specs/`.
+Capability requirements for the backend registry, accounting removal, runtime revision snapshots, desktop feedback and upstream decoder retention live under `specs/`. Later locked changes supersede only the overlapping contracts identified in proposal.md; tasks.md records source/proof status and current ownership.
 
 ## Settings Contract
 
-Proposed, not landed. `dokime-domain/src/model/settings/application.rs` owns the following model and its validation; existing `model/settings::Settings` remains the plugin schema catalog, not another application-settings model. Domain-owned constituent types are referenced, never redeclared by runtime, server, TS or Python.
+`dokime-domain/src/model/settings/application.rs` owns the following implemented model and its validation; existing `model/settings::Settings` remains the plugin schema catalog, not another application-settings model. Domain-owned constituent types are referenced, never redeclared by runtime, server, TS or Python. This source inventory does not close pending native proof.
 
 ```rust
 pub struct ApplicationSettings {
@@ -68,7 +68,7 @@ Telemetry decoding preserves the producer sequence used for identity checks. Str
 
 ## Round 3
 
-Locked for implementation, not landed or validated. Round 3 in tasks.md replaces earlier parallel ownership for this round: A domain/runtime, B remote/server, C clients/CLI/generator sources, D desktop, E external tests/docs, H paired Harmos; Integration alone regenerates output and edits shared build files after handoff. Exact owned roots, exclusions and boundary signatures are recorded there. No compilation or source edits in this planning pass; inherited tasks remain obligations.
+Round 3's contracts remain locked; its writer allocations in tasks.md are historical. The current local-only assignment owns this worktree and excludes installation identity/path resolution, host plugin/telemetry leases and runtime catalog visibility. Source and proof completion are tracked individually; inherited unchecked tasks remain obligations.
 
 Secret machine fields become `identifier`/`identifiers` without aliases; human display remains `label`. Backend `Profile.name` becomes `identifier` plus `label`, and defaults/keyring associations/selection reference identifier. Keep existing `secret_id` references as references to that identifier. Domain validation owns the bounded ASCII identifier grammar and nonblank label contract. Versions remain v1; no migrations, compatibility readers, legacy detection, imports or resets. Old unrelated user files remain untouched.
 
