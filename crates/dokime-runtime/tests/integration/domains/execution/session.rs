@@ -55,16 +55,11 @@ struct Probe {
     arrivals: Mutex<Vec<(String, String)>>,
     settling: std::sync::atomic::AtomicBool,
     settlement_signals: std::sync::atomic::AtomicUsize,
-    reads: Arc<tokio::sync::watch::Sender<usize>>,
+    // The Live Replay Story Reads Host Rows Through Its Runtime And Clears It Before Shutdown.
+    runtime: Mutex<Option<RuntimeHandle>>,
 }
 
 struct Provider(Arc<Probe>);
-
-// Host Telemetry Whose Collection Ticks The Test Can Count.
-struct CountingCollector {
-    inner: Arc<dyn dokime_host::HostTelemetryCollector>,
-    reads: Arc<tokio::sync::watch::Sender<usize>>,
-}
 
 /* === Enums === */
 #[derive(Clone, Copy, PartialEq)]
@@ -95,7 +90,7 @@ impl Probe {
             arrivals: Mutex::new(Vec::new()),
             settling: std::sync::atomic::AtomicBool::new(false),
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
-            reads: Arc::new(tokio::sync::watch::Sender::new(0)),
+            runtime: Mutex::new(None),
         }
     }
 
@@ -123,18 +118,6 @@ impl Probe {
             });
         }
         receipts
-    }
-}
-
-impl dokime_host::HostTelemetryCollector for CountingCollector {
-    fn interval(&self, stream: &str) -> std::time::Duration {
-        self.inner.interval(stream)
-    }
-
-    fn collect(&self, stream: &str) -> Result<Option<dokime_runtime::telemetry::TelemetryBatch>, String> {
-        let collected = self.inner.collect(stream);
-        self.reads.send_modify(|reads| *reads += 1);
-        collected
     }
 }
 
@@ -303,8 +286,9 @@ impl Runnable for Probe {
                     Some(delivery) => self.receive(&delivery.samples),
                     // The Second Settlement Signal Asks For The Receipt After The Replay Cut; Collection Keeps Ticking.
                     None if settling && self.settlement_signals.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 => {
-                        let from = *self.reads.borrow();
-                        self.reads.subscribe().wait_for(|reads| *reads >= from + 3).await.unwrap();
+                        let runtime = self.runtime.lock().unwrap().clone().expect("the live replay story binds its runtime");
+                        let from = host_rows(&runtime).await;
+                        until_telemetry(&runtime, || async { (host_rows(&runtime).await >= from + 3).then_some(()) }).await;
                     }
                     None => {}
                 }
@@ -379,6 +363,14 @@ impl EmbeddedProvider for Provider {
 /* === Public Functions === */
 
 /* === Private Functions === */
+async fn host_rows(runtime: &RuntimeHandle) -> usize {
+    let selection = dokime_runtime::domains::evidence::TelemetrySelection {
+        streams: vec![identifier("host.system").into()],
+        ..Default::default()
+    };
+    runtime.collect_telemetry(&selection).await.unwrap().len()
+}
+
 fn cancellation_log() -> Vec<Entry> {
     vec![
         Entry::new(Level::Trace, "trace detail"),
@@ -603,14 +595,11 @@ async fn abandoned_admission_closes() {
 async fn live_replay_settles() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::LiveReplay));
-    let configuration =
-        config(root.path()).with_installed_plugins([dokime_host::installed_plugin()]).register(Arc::new(Provider(probe.clone())));
+    let configuration = config(root.path())
+        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())])
+        .register(Arc::new(Provider(probe.clone())));
     let (mut owner, handle) = started(configuration).await;
-    let fixture = dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture);
-    handle.bind_host_telemetry_source(Arc::new(CountingCollector {
-        inner: dokime_host::host_telemetry_collector(fixture),
-        reads: Arc::clone(&probe.reads),
-    }));
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
     // A Viewer Keeps Host Collection Ticking After The Run's Own Measurement Closes.
     let viewer = dokime_runtime::telemetry::SamplingScope {
         test_cycle_id: None,
@@ -635,8 +624,9 @@ async fn live_replay_settles() {
     }
     assert!(!log.contains("did not acknowledge its final row"), "{log}");
     assert_eq!(execution.status, ExecutionStatus::Passed, "{log}");
-    assert!(*probe.reads.borrow() > 0, "host collection ran while the run held its lease");
+    assert!(host_rows(&handle).await > 0, "host collection ran while the run held its lease");
     handle.release_stream_leases(viewing).await.unwrap();
+    probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
 }
