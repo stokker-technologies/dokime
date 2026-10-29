@@ -124,26 +124,26 @@ export function PluginsSection() {
       <SettingsCard title="Plugins">
         <SettingsRow
           label="Organization Release Source"
-          description={
-            releaseMutation.data
-              ? `${releaseMutation.data.package} ${releaseMutation.data.version} · ${releaseMutation.data.target} · Dokime ${releaseMutation.data.requiresDokime}`
-              : "Discover a compatible plugin from the source selected under Updates."
-          }
+          description="Discover compatible plugins from the source selected under Updates."
           error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
-        >
-          {releaseMutation.data ? (
+        />
+        {releaseMutation.data?.map((release) => (
+          <SettingsRow
+            key={release.candidate}
+            label={`${release.package} ${release.version}`}
+            description={`${release.target} · Dokime ${release.requiresDokime}`}
+          >
             <Button
               size="sm"
               disabled={installMutation.isPending}
               onClick={() => {
-                const release = releaseMutation.data;
-                if (release) void handleInstall({ release: release.candidate }, release.package);
+                void handleInstall({ release: release.candidate }, release.package);
               }}
             >
               Install Release
             </Button>
-          ) : null}
-        </SettingsRow>
+          </SettingsRow>
+        ))}
         {restartPending ? (
           <SettingsRow
             label="Restart Required"
