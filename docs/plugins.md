@@ -24,6 +24,9 @@ returns adapter identity, kind, MAC, status, MTU, speed, IPv4/IPv6 prefixes and
 scope, gateways, DNS servers, DHCP state and default-route ownership. Linux
 uses `getifaddrs`, kernel routes and NetworkManager's per-device DNS/DHCP data;
 DHCP is unknown when NetworkManager does not manage an interface.
+The installed host contributes a synchronous `RunStart` capture: every execution
+records its adapter inventory before the first step.
+
 The Public `host.power.plan.get` query reads the active Windows power scheme
 or Linux ACPI platform profile; unavailable native reads return a refusal.
 The Public `host.cpu.load` query and `host.system` rows expose calibrated

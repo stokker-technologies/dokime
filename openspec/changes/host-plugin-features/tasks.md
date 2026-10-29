@@ -43,8 +43,8 @@ Assigned source inventory: `host/adapters` owns the Public inventory query and n
 - [x] 4.1 `host.network.adapters` query (Windows `GetAdaptersAddresses`, Linux `getifaddrs` plus routes).
 - [x] 4.2 `host.network` compact form with change events from OS notifications.
   Evidence for 4.1–4.2: `plugins/sidecars/host/src/host/adapters/windows.rs::snapshot` uses IP Helper inventory/routes; `adapters/unix.rs::snapshot` uses getifaddrs/kernel routes and NetworkManager per-device DNS/DHCP. `host/network/notifications` owns bounded native events, visible overflow refusal and lease-bound teardown; the compact schema removes polled inventory and the obsolete getifs dependency. Windows targeted integration `adapters::` passes 2 stories; host lib `host::` passes 9, including native address decoding, compact event encoding and queue ordering/deduplication/overflow. Task-owned Clippy passes before both selections; the no-default-features/all-targets caller check passes. Linux decoder proof remains for CI. Canonical authoring guidance and provider-disabled generated copies describe the split catalogs; plugins README is updated and the root README has no affected claims.
-- [ ] 4.3 Adapters snapshot in execution evidence at run start.
-  Open dependency: a synchronous run-start hook through the ordinary plugin boundary is needed. Existing process-scoped asynchronous record listeners cannot guarantee a run-scoped snapshot before step writes; the generic backend lifecycle under 5 owns this hook.
+- [x] 4.3 Adapters snapshot in execution evidence at run start.
+  Evidence: `host/adapters/capture.rs` serializes the native inventory through the Host capture declared by the ordinary plugin's `RunStart` contribution. `runtime/effects.rs::capture_run_start` records it before steps; the Windows `domains::effects::effect_lifecycle` story checks exactly one structured snapshot before any write across pass/fail/cancel, and native adapter inventory proof passes under 4.1. The definitions-only/all-targets guard passes.
 
 ## 5. Radios And Adapters (Write)
 

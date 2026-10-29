@@ -9,6 +9,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "runtime")]
+mod capture;
+
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
 #[cfg(all(feature = "runtime", target_os = "windows"))]
@@ -43,13 +46,13 @@ pub use windows::snapshot;
 pub struct Adapters {}
 
 #[dokime::message]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Snapshot {
     pub adapters: Vec<Adapter>,
 }
 
 #[dokime::message]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Adapter {
     pub id: String,
     pub name: String,
@@ -68,12 +71,17 @@ pub struct Adapter {
 }
 
 #[dokime::message]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Address {
     pub address: String,
     pub prefix: u32,
     pub scope: Option<u32>,
 }
+
+#[dokime::operation(id = "host.network.adapters.capture", response = dokime::operations::effects::StartEvidence, policy = super::network::POLICY, visibility = Host,
+    resources = [crate::Workers])]
+#[derive(Clone, Default, PartialEq)]
+pub struct CaptureAdapters {}
 
 /* === Enums === */
 
