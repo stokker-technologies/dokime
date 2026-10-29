@@ -28,7 +28,7 @@ test = false
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["terminal", "configuration"] }
-dokime-packaging = { version = "0.1.1", path = "../dokime-packaging" }
+dokime-packaging = { version = "0.1.2", path = "../dokime-packaging" }
 
 # Git
 
