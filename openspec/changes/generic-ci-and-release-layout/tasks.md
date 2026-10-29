@@ -14,8 +14,8 @@
 
 - [x] 2.1 Run changed installer tests: targeted Python integration selection passes all 21 selected installer/plugin cases, including payload bytes/modes, embedded signatures and declared package collection.
 - [x] 2.2 Run strict OpenSpec validation for all changes/specs; preserve the workflow files and all Check/Test holds byte-for-byte.
-- [ ] 2.3 Prove native package/release dry and rehearsal using matching Product Build inputs; this checkout has no native product/target.txt and neither native release package. Python candidate build/package and focused dokime-packaging compiler check pass.
-- [ ] 2.4 Resolve render diagnostics with the relevant owner: stkr project format identifies the locked measure:report-save task as having no skeleton section; product policy formatting is clean. Recheck after registry dry-run staging restores its temporary crate manifests. Do not rename the parked change's task or alter Hub-owned code here.
+- [ ] 2.3 Prove native package/release dry and rehearsal using matching Product Build inputs; this checkout has no native product/target.txt and neither native release package. Task-graph package/rehearsal dry runs, Python candidate build/package, focused dokime-packaging compiler check and release:publish:dry pass; the latter staged no native target and proves registry publication only.
+- [ ] 2.4 Resolve render diagnostics with the relevant owner: final stkr project check rejects only mise.toml; stkr project format identifies the locked measure:report-save task as having no skeleton section. Native workflow bytes and product policy formatting are unchanged/clean. Do not rename the parked change's task or alter Hub-owned code here.
 - [ ] 2.5 Prove shipped host-plugin bundle and plugins.json against the integrated producer (blocked here: host plugin is absent; prototype-streamline owns its implementation).
 
 ## Workflow Follow-Up
