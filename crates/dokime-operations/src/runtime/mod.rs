@@ -43,14 +43,14 @@ pub const SERVICE: &str = "Runtime";
 
 #[harmos::operation(resources = [crate::hosting::Host<GetHealth>], response = Health, id = "dokime.runtime.health",
     description = "Read the current runtime identity and admission readiness",
-    policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetHealth"))]
+    policy = POLICY, visibility = Host, grpc(package = "dokime.v1", service = "Runtime", method = "GetHealth"))]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GetHealth {}
 
 #[harmos::operation(resources = [crate::hosting::Host<GetIdentity>], response = Identity, id = "dokime.runtime.identity",
     description = "Read the application identity and process epoch",
-    policy = POLICY, grpc(package = "dokime.v1", service = "Runtime", method = "GetIdentity"))]
+    policy = POLICY, visibility = Host, grpc(package = "dokime.v1", service = "Runtime", method = "GetIdentity"))]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GetIdentity {}

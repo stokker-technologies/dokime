@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:1abf1aa7dfb91012621dc79217a95610dccf890c94128d4e09c196bce234628c -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:f39b7863a5ba9918a99d035478f03f9739e25bcbf9eb5b1730a7d47f0a561978 -->
 
 # Dokime Plugin
 
@@ -8,7 +8,7 @@ Embed the product runtime through the product entry library by default. Declare 
 
 When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and depends only on that product's domain crate, beside its Dokime authoring dependency.
 
-Declare operation requests and replies, records, streams, prompts and settings once in their domain owner. Runtime handlers implement those contracts. Shared visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
+Declare operation requests and replies, records, streams, prompts and settings once in their domain owner. Runtime handlers implement those contracts. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 

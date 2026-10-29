@@ -72,7 +72,7 @@ pub struct ExecutionProgress {
 
 // The host's evidence admission: a sidecar pushes each drained page.
 #[harmos::operation(resources = [crate::hosting::Host<EvidenceBatch>, harmos::operations::HostContext], response = EvidenceReceipt,
-    id = "dokime.execution.evidence", policy = EVIDENCE, visibility = Shared)]
+    id = "dokime.execution.evidence", policy = EVIDENCE, visibility = Public)]
 #[derive(Clone, PartialEq)]
 pub struct EvidenceBatch {
     #[row(description = "True only after observers, callbacks, cleanup and evaluation have settled.")]
@@ -210,7 +210,7 @@ pub struct ArtifactChunk {
 
 // Asks the operator through the host and waits for the answer.
 #[harmos::operation(resources = [crate::hosting::Host<OperatorQuestion>, harmos::operations::HostContext], response = OperatorAnswer,
-    id = "dokime.execution.prompt", policy = OPERATOR, visibility = Shared)]
+    id = "dokime.execution.prompt", policy = OPERATOR, visibility = Public)]
 #[derive(Clone, PartialEq)]
 pub struct OperatorQuestion {
     pub prompt_json: String,
@@ -242,7 +242,7 @@ pub struct StepAdmission {
 
 // Asks the host to grant a telemetry lease.
 #[harmos::operation(resources = [crate::hosting::Host<LeaseAsk>, harmos::operations::HostContext], response = LeaseResolution,
-    id = "dokime.execution.lease", policy = LEASE, visibility = Shared)]
+    id = "dokime.execution.lease", policy = LEASE, visibility = Public)]
 #[derive(Clone, PartialEq)]
 pub struct LeaseAsk {
     pub lease_json: String,

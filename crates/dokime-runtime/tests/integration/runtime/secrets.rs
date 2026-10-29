@@ -152,7 +152,7 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     let mut runtime = Runtime::start(config).await.unwrap();
     let handle = runtime.handle();
     let operations = handle.operations();
-    assert_eq!(operations.definition("dokime.secrets.lookup").unwrap().visibility, Visibility::Shared);
+    assert_eq!(operations.definition("dokime.secrets.lookup").unwrap().visibility, Visibility::Public);
     assert_eq!(operations.definition("dokime.secrets.put").unwrap().visibility, Visibility::Host);
     let mut lifecycle = Owners(operations.clone());
     let mut plugins = PluginManager::new(owners()).unwrap();

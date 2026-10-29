@@ -64,9 +64,9 @@ host.network.adapter.set { adapter_id, enabled }                            // W
 
 Every parameter comes from operation policy or settings; no spawned processes where a native API exists.
 
-## Shared Operations
+## Public Operations
 
-`host.network.adapters`, `host.network.radio.set`, `host.network.adapter.set`, the power-plan read and set and CPU load declare `visibility = Shared` so other plugins may call them. The periodic `*.collect` operations stay private.
+`host.network.adapters`, `host.network.radio.set`, `host.network.adapter.set`, the power-plan read and set and CPU load declare `visibility = Public` so other plugins may call them. The periodic `*.collect` operations stay private.
 
 ## Definitions Crate
 

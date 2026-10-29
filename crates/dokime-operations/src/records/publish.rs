@@ -33,7 +33,7 @@ const RECORD: OperationPolicy = crate::policy(Duration::from_secs(30));
 
 // Files one process-scoped record against the calling plugin.
 #[harmos::operation(resources = [crate::hosting::Host<RecordPublication>, harmos::operations::HostContext], id = "dokime.records.publish",
-    policy = RECORD, visibility = Shared)]
+    policy = RECORD, visibility = Public)]
 #[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RecordPublication {
     #[row(

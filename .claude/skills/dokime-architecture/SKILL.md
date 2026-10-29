@@ -2,7 +2,7 @@
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:a5643970e6cc5fa88ed6d540ff6c63f30182cc1a3ab98db3fa970fb32bf44655 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:2e5137f96aad2a0ec485b759e09bbe3fae222496e3384afa46306ab337a6099e -->
 
 # Dokime Architecture
 
@@ -26,7 +26,7 @@ Host plugin rows, contracts, cadences and document defaults belong to the defini
 
 Declare product contracts once in `dokime-domain`; implement handlers in `dokime-runtime`. Interfaces consume `dokime` and expose the same operation contracts through their hosts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
-Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and shared visibility; ambiguous providers are refused.
+Dokime admits native plugins: supervised processes over piped stdio. Embed a product runtime through its entry library by default; use a separately hosted runtime sidecar on the same machine only when process isolation is required. Requirements select operations by contract and Public visibility; ambiguous providers are refused.
 
 Applications launch through `harmos::Runtime::<A>::launch(origin, config)`. `Lifecycle::prepare(config, &mut Setup<Self>)` declares catalogs, lanes and resources before launch; `initialize` activates prepared resources against the live runtime. Mutable resources register as `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Server owners prepare their composition before launching Dokime and acquire the activated service afterward; listeners do not register handlers.
 Dokime initialization validates recovered ownership, starts record capture and commits startup recovery before assembling its live handle. Harmos invokes storage reconciliation after application initialization, so that callback cannot own prerequisites of the initialized handle.

@@ -259,7 +259,7 @@ impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
         attempt_timeout: A::TIMEOUT,
         retries: harmos::operations::RetryPolicy::Never,
     };
-    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
+    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Public;
 }
 
 /* === Public Functions === */

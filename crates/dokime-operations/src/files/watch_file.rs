@@ -30,11 +30,11 @@ use super::*;
 
 /* === Structs === */
 
-// Shared, so a template reaches it through `ctx.host()` without listing it.
+// Public, so a template reaches it through `ctx.host()` without listing it.
 // A step built-in only: listeners watch through `FileWatch`, and a gRPC
 // binding would make the contract a plugin requires differ from the host's.
 #[harmos::operation(resources = [crate::hosting::Host<WatchFile>], response = WatchFileOutcome, id = "dokime.files.watch_file",
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Shared)]
+        policy = FOLLOW, visibility = harmos::operations::Visibility::Public)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchFile {
     // Absent takes the execution of the calling step's context; one of the two is required.

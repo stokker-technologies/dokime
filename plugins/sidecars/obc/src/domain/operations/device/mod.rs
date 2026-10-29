@@ -32,6 +32,7 @@ use crate::domain::model::device::DeviceState;
 
 #[dokime::operation(
     id = "obc.device.read",
+    visibility = Public,
     response = DeviceState,
     description = "Reads the manual simulated device without changing its power or advancing a charger execution.",
     policy = super::POLICY,
@@ -43,6 +44,7 @@ pub struct ReadDevice {}
 
 #[dokime::operation(
     id = "obc.device.set_power",
+    visibility = Public,
     response = DeviceState,
     description = "Powers the manual simulated device on or off, then reads its current state. Refuses a stopped bench or powering on a faulted device.",
     policy = super::POLICY,
