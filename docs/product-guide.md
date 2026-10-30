@@ -123,7 +123,7 @@ Routine background loading, page navigation and connection progress stay in the 
 
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
 
-Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
+Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
 ## Native Remote Access
 

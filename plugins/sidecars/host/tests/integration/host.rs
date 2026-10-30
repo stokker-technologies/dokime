@@ -67,6 +67,8 @@ fn host_stream_row() {
                 Field::Number("cpu_load_percent"),
                 Field::Integer("memory_total_bytes"),
                 Field::Integer("memory_used_bytes"),
+                Field::Number("memory_used_gib"),
+                Field::Number("memory_total_gib"),
                 Field::Integer("temperature_sensor_count"),
             ],
         ),
@@ -96,6 +98,23 @@ fn host_stream_row() {
         for field in *fields {
             assert_field(sample, field);
         }
+    }
+}
+
+#[test]
+fn system_memory_snapshot() {
+    let batch = collect_required_native_batch(HostTelemetryStream::System);
+    validate_batch(&batch);
+    let sample = single_sample(&batch);
+    let row = plugin_host::System::from_row(&sample.values).unwrap();
+    let used = row.memory_used_gib.unwrap();
+    let total = row.memory_total_gib.unwrap();
+    assert_eq!(used, row.memory_used_bytes.unwrap() as f64 / 1_073_741_824.0);
+    assert_eq!(total, row.memory_total_bytes.unwrap() as f64 / 1_073_741_824.0);
+    if total > 0.0 {
+        assert_eq!(row.memory_pressure_percent, Some(used / total * 100.0));
+    } else {
+        assert_eq!(row.memory_pressure_percent, None);
     }
 }
 

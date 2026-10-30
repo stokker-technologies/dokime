@@ -31,6 +31,12 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("system collection: {0}")]
+    Collection(#[from] sysinfo::Error),
+
+    #[error("stream publication: {0}")]
+    Publication(#[from] dokime::harmos::sidecar::PublishError),
+
     #[error("the operator declined pulse capture")]
     ConfirmationDeclined,
 
