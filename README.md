@@ -19,7 +19,7 @@
 **Run repeatable engineering tests. Keep the evidence.**
 
 Dokime turns hardware and software test procedures into operator workflows,
-live measurements and self-contained reports. Define a procedure, run it across
+live measurements and HTML reports. Define a procedure, run it across
 operating conditions, and review the evidence behind each result.
 
 ![A charger test running in Dokime with live measurements and execution progress](screenshots/cycle.png)
@@ -28,7 +28,7 @@ operating conditions, and review the evidence behind each result.
 
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements And Reports:** Capture live data and retain plots, records and attachments in self-contained HTML reports.
+- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
 - **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.

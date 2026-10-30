@@ -100,7 +100,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
       {comparing ? (
         <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
       ) : (
-        <div className="min-w-0">
+        <div aria-busy={cyclesQuery.isPending} className="min-w-0">
           <HistoryLibrary
             archived={archived}
             cycles={cycles}

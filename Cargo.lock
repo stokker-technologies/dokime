@@ -2653,6 +2653,7 @@ dependencies = [
  "dokime",
  "dokime-cli",
  "dokime-packaging",
+ "dokime-runtime",
  "futures-util",
  "harmos-packaging",
  "harmos-sdk",

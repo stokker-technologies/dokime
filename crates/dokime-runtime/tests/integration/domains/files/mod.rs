@@ -46,7 +46,7 @@ pub(crate) const OUTPUT: &str = "capture";
 // A runtime whose only execution stays running until released.
 pub(crate) struct Bench {
     pub(crate) _root: tempfile::TempDir,
-    pub(crate) owner: Runtime,
+    pub(crate) owner: crate::service_support::system_reports::Runtime,
     pub(crate) handle: RuntimeHandle,
     pub(crate) executor: Arc<BlockingPublishingExecutor>,
     pub(crate) execution: String,

@@ -23,6 +23,8 @@ pub mod reports;
 pub mod sampling;
 pub mod smoke;
 pub mod suites;
+#[path = "../system_reports.rs"]
+pub mod system_reports;
 pub mod waits;
 
 // Each Story Imports The Shared Prelude And Uses Its Own Subset.
@@ -82,7 +84,8 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::domains::execution::provider::ExecutionFixture;
 use dokime_runtime::{Identifier, Metadata, Value};
-use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
+use dokime_runtime::{RuntimeConfig, RuntimeHandle};
+use system_reports::Runtime as StoryRuntime;
 
 /* === Constants === */
 
@@ -114,32 +117,32 @@ pub fn wifi_config(root: impl Into<PathBuf>) -> RuntimeConfig {
     }])
 }
 
-pub async fn booted(root: &Path) -> (Runtime, RuntimeHandle) {
+pub async fn booted(root: &Path) -> (StoryRuntime, RuntimeHandle) {
     started(config(root)).await
 }
 
-pub async fn booted_with_fixture(root: &Path, fixture: Arc<dyn ExecutionFixture>) -> (Runtime, RuntimeHandle) {
+pub async fn booted_with_fixture(root: &Path, fixture: Arc<dyn ExecutionFixture>) -> (StoryRuntime, RuntimeHandle) {
     started_with_fixture(config(root), fixture).await
 }
 
-pub async fn started(config: RuntimeConfig) -> (Runtime, RuntimeHandle) {
-    let runtime = Runtime::start(config).await.unwrap();
+pub async fn started(config: RuntimeConfig) -> (StoryRuntime, RuntimeHandle) {
+    let runtime = dokime_runtime::Runtime::start(config).await.unwrap();
     let handle = runtime.handle();
-    (runtime, handle)
+    (runtime.into(), handle)
 }
 
-pub async fn started_with_fixture(config: RuntimeConfig, fixture: Arc<dyn ExecutionFixture>) -> (Runtime, RuntimeHandle) {
-    let runtime = Runtime::with_execution_fixture(config, "testdb", fixture).await.unwrap();
+pub async fn started_with_fixture(config: RuntimeConfig, fixture: Arc<dyn ExecutionFixture>) -> (StoryRuntime, RuntimeHandle) {
+    let runtime = dokime_runtime::Runtime::with_execution_fixture(config, "testdb", fixture).await.unwrap();
     let handle = runtime.handle();
-    (runtime, handle)
+    (runtime.into(), handle)
 }
 
 pub async fn started_with_fixtures(
     config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
-) -> (Runtime, RuntimeHandle) {
-    let runtime = Runtime::with_execution_fixtures(config, fixtures).await.unwrap();
+) -> (StoryRuntime, RuntimeHandle) {
+    let runtime = dokime_runtime::Runtime::with_execution_fixtures(config, fixtures).await.unwrap();
     let handle = runtime.handle();
-    (runtime, handle)
+    (runtime.into(), handle)
 }
 
 pub fn assert_wall_clock(timestamp: &dokime_runtime::Timestamp) {
@@ -153,13 +156,13 @@ pub fn assert_wall_clock(timestamp: &dokime_runtime::Timestamp) {
 
 pub async fn blocked_cycle(
     root: &Path,
-) -> (Runtime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
+) -> (StoryRuntime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
     blocked_cycle_with(config(root)).await
 }
 
 pub async fn blocked_cycle_with(
     config: RuntimeConfig,
-) -> (Runtime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
+) -> (StoryRuntime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
     use suites::ExecutionFixtureStart;
     let executor = Arc::new(executors::BlockingPublishingExecutor::new());
     let (owner, runtime) = started_with_fixture(config, executor.clone()).await;
