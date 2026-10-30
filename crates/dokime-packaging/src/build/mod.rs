@@ -589,6 +589,7 @@ mod tests {
         const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
             timeout: Duration::from_secs(5),
             attempt_timeout: Duration::from_secs(5),
+            cancellation_timeout: std::time::Duration::ZERO,
             retries: dokime::harmos::operations::RetryPolicy::Never,
         };
         const SIZE: usize = contracts::encoded_fragments_len("sidecar", OWNER, &[], &[], &[POLICY; 2]);

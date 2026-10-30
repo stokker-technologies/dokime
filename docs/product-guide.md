@@ -745,6 +745,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 

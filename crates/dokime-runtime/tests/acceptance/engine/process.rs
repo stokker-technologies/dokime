@@ -127,7 +127,7 @@ impl SpawnCancel {
         while !ready.exists() {
             tokio::time::sleep(READY_POLL).await;
         }
-        let exit = running.cancel_and_join().await?.into_owned();
+        let exit = running.cancel().await?.into_owned();
         if !exit.cancelled {
             return Err(Error::Unexpected("the tool was not cancelled".into()));
         }

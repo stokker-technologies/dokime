@@ -78,6 +78,9 @@ struct TailParameters {
 
     #[parameter(label = "Copy Truncate", default = false)]
     copy_truncate: bool,
+
+    #[parameter(label = "Cancel And Collect", default = false)]
+    cancel: bool,
 }
 
 /* === Enums === */
@@ -169,8 +172,14 @@ impl LeaveWatch {
         }
         std::fs::OpenOptions::new().append(true).open(&path)?.write_all(APPENDED)?;
         tokio::time::sleep(Duration::from_millis(150)).await;
-        // Left running: the step-end sweep cancels it.
-        watch.detach();
+        if ctx.parameters().cancel {
+            watch.request_cancel().await?;
+            let captured = watch.cancel().await?.into_owned();
+            assert_eq!(captured.artifacts.len(), 1);
+        } else {
+            // Left Running: The Step-End Sweep Cancels It.
+            watch.detach();
+        }
         Ok(())
     }
 }
@@ -216,26 +225,37 @@ pub(crate) async fn harness_copy_truncate_retains_the_previous_segment() {
 // warning; until then its matcher and marker turned the lines it captured
 // into a row and a record, and its artifact holds only what came after it.
 pub(crate) async fn swept_watch_warning() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("device.log");
-    std::fs::write(&path, BEFORE).unwrap();
-    let report = Harness::template(TAIL).parameter("path", path.to_str().unwrap()).run::<Suites>().await.expect("the run completes");
+    for cancel in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("device.log");
+        std::fs::write(&path, BEFORE).unwrap();
+        let report = Harness::template(TAIL)
+            .parameter("path", path.to_str().unwrap())
+            .parameter("cancel", cancel)
+            .run::<Suites>()
+            .await
+            .expect("the run completes");
 
-    assert!(report.passed(), "{}", report.diagnostics());
-    assert_eq!(
-        report.records::<StepHandleCancelled>(),
-        vec![StepHandleCancelled {
-            step: "tail".into(),
-            kind: "watch".into(),
-            name: "logs/device.log".into()
-        }]
-    );
-    let rows = report.samples::<DeviceLog>();
-    assert_eq!(rows.len(), 1, "{}", report.diagnostics());
-    assert_eq!(rows[0].temperature_c, 41.5);
-    assert_eq!(rows[0].state, "charging");
-    let faults = report.records::<Fault>();
-    assert_eq!(faults.len(), 1);
-    assert_eq!(faults[0].code, "E7");
-    assert_eq!(report.artifact("logs/device.log").bytes, APPENDED);
+        assert!(report.passed(), "{}", report.diagnostics());
+        assert_eq!(
+            report.records::<StepHandleCancelled>(),
+            if cancel {
+                Vec::new()
+            } else {
+                vec![StepHandleCancelled {
+                    step: "tail".into(),
+                    kind: "watch".into(),
+                    name: "logs/device.log".into(),
+                }]
+            }
+        );
+        let rows = report.samples::<DeviceLog>();
+        assert_eq!(rows.len(), 1, "{}", report.diagnostics());
+        assert_eq!(rows[0].temperature_c, 41.5);
+        assert_eq!(rows[0].state, "charging");
+        let faults = report.records::<Fault>();
+        assert_eq!(faults.len(), 1);
+        assert_eq!(faults[0].code, "E7");
+        assert_eq!(report.artifact("logs/device.log").bytes, APPENDED);
+    }
 }

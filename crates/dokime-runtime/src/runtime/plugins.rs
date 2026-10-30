@@ -1091,13 +1091,9 @@ fn plan_graph(
                 }
             }
             Err(error) => {
-                if let harmos::plugin::Error::Cycle { artifact } = &error {
-                    let (members, contracts) = circular_contracts(&plugins, artifact);
-                    let reason = Error::conflict(
-                        "plugin_contract_cycle",
-                        format!("circular plugin requirements among {members:?} through contracts {contracts:?}"),
-                    );
-                    let affected: BTreeSet<_> = members.iter().filter_map(|member| locations.get(member).copied()).collect();
+                if let harmos::plugin::Error::Cycle { artifacts } = &error {
+                    let reason = Error::conflict("plugin_contract_cycle", error.to_string());
+                    let affected: BTreeSet<_> = artifacts.iter().filter_map(|member| locations.get(member).copied()).collect();
                     if affected.is_empty() {
                         return Err(reason);
                     }
@@ -1108,19 +1104,8 @@ fn plan_graph(
                     }
                     continue;
                 }
-                let owner = match &error {
-                    harmos::plugin::Error::Unknown { .. } => {
-                        return Err(operation(error));
-                    }
-                    harmos::plugin::Error::Definition { artifact: plugin, .. } => plugin,
-                    harmos::plugin::Error::StreamConflict { second, .. } => second,
-                    harmos::plugin::Error::Duplicate { id } => id,
-                    harmos::plugin::Error::Missing { artifact: plugin, .. }
-                    | harmos::plugin::Error::Incompatible { artifact: plugin, .. }
-                    | harmos::plugin::Error::Cycle { artifact: plugin }
-                    | harmos::plugin::Error::IncompatibleOperation { artifact: plugin, .. }
-                    | harmos::plugin::Error::AmbiguousOperation { artifact: plugin, .. }
-                    | harmos::plugin::Error::ProviderSelection { artifact: plugin, .. } => plugin,
+                let Some(owner) = error.artifact() else {
+                    return Err(operation(error));
                 };
                 let Some(&package) = locations.get(owner) else {
                     return Err(operation(error));
@@ -1139,46 +1124,6 @@ fn plan_graph(
             }
         }
     }
-}
-
-fn circular_contracts(plugins: &[harmos::plugin::PluginDefinition], owner: &str) -> (BTreeSet<String>, BTreeSet<String>) {
-    let mut edges = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for plugin in plugins {
-        let dependencies = edges.entry(&plugin.id).or_default();
-        dependencies.extend(plugin.requires.iter().map(|required| required.id.as_str()));
-        for required in plugin.contributions.required_contracts.iter().flatten() {
-            dependencies.extend(
-                plugins
-                    .iter()
-                    .filter(|provider| provider.id != plugin.id && provider.contributions.wire_contracts.contains(&required.contract))
-                    .map(|provider| provider.id.as_str()),
-            );
-        }
-    }
-    let reachable = |start| {
-        let mut visited = BTreeSet::new();
-        let mut pending = vec![start];
-        while let Some(next) = pending.pop() {
-            if visited.insert(next) {
-                pending.extend(edges.get(next).into_iter().flatten().copied());
-            }
-        }
-        visited
-    };
-    let members: BTreeSet<String> =
-        reachable(owner).into_iter().filter(|member| reachable(member).contains(owner)).map(str::to_owned).collect();
-    let contracts = plugins
-        .iter()
-        .filter(|plugin| members.contains(&plugin.id))
-        .flat_map(|plugin| plugin.contributions.required_contracts.iter().flatten())
-        .filter(|required| {
-            plugins
-                .iter()
-                .any(|provider| members.contains(&provider.id) && provider.contributions.wire_contracts.contains(&required.contract))
-        })
-        .map(|required| required.contract.operation().id.to_string())
-        .collect();
-    (members, contracts)
 }
 
 async fn prune(
@@ -1466,7 +1411,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn circular_contracts() {
+    async fn plugin_cycles() {
         let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
         let packages = vec![
             vec![definition("left", &["order.left"], &["order.right"])],
@@ -1488,9 +1433,6 @@ mod tests {
         .unwrap();
         assert_eq!(removed, BTreeSet::from([0, 1]));
         assert_eq!(refusals.len(), 2);
-        for reason in refusals.values() {
-            assert!(reason.contains("order.left") && reason.contains("order.right"));
-        }
         let definitions = PluginDefinitions::new(
             packages.into_iter().enumerate().filter(|(index, _)| !removed.contains(index)).flat_map(|(_, package)| package),
             [],

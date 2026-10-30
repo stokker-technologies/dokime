@@ -34,6 +34,7 @@ use dokime_domain::model::records::evidence::Record;
 pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(30),
     attempt_timeout: std::time::Duration::from_secs(30),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: harmos::operations::RetryPolicy::Never,
 };
 
