@@ -1232,14 +1232,14 @@ pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> do
         tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
     }
     let secret = |failure: &harmos::domain::Failure| {
-        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE))
+        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
             .then(|| failure.detail("dokime.secret").map(str::to_owned))
             .flatten()
     };
     let missing_secret =
         report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
     let prose = |failure: &harmos::domain::Failure| {
-        secret(failure).map(|secret| format!("secret `{secret}` is not set.")).unwrap_or_else(|| failure.cause().to_owned())
+        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
     };
     let message = report
         .as_ref()
@@ -1563,11 +1563,11 @@ mod tests {
         assert_eq!(admission.plugin_id, "hcl");
         assert_eq!(admission.plugin_name, "HCL");
         assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
-        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()));
+        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
         let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
         assert_eq!(retained, failure);
         assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
-        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE));
+        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE));
         assert!(!retained.diagnostics().unwrap().chain().is_empty());
     }
 
@@ -1630,7 +1630,8 @@ mod tests {
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
         };
         let admission = start_error("hcl", "hcl-plugin", &error);
-        assert!(admission.message.contains("secret `api_token` is not set."));
+        let missing = crate::Error::UnavailableSecret("api_token".into()).to_string();
+        assert!(admission.message.contains(&missing));
         assert!(admission.message.contains("equipment is offline"));
         assert!(!admission.message.contains("suite."));
         assert!(!admission.message.contains("Runtime {"));
@@ -1646,7 +1647,7 @@ mod tests {
             plugin: "hcl".to_owned(),
             source: Box::new(error),
         };
-        assert!(runtime.to_string().contains("secret `api_token` is not set."));
+        assert!(runtime.to_string().contains(&missing));
         assert!(!runtime.to_string().contains("MissingResource {"));
     }
 }

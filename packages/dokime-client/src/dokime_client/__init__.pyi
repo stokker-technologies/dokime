@@ -139,11 +139,10 @@ import dokime_client._wire.dokime.v1.SettingsMessages.ReadApplicationSettings.me
 import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.messages_pb2 as _wire_144
 import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_145
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdateApplicationSettings.messages_pb2 as _wire_146
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_147
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_148
-import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_149
-import dokime_client._wire.dokime.v1.TelemetryMessages.WatchSamples.messages_pb2 as _wire_151
-import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_152
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_147
+import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_148
+import dokime_client._wire.dokime.v1.TelemetryMessages.WatchSamples.messages_pb2 as _wire_150
+import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_151
 
 # Local Imports
 from .operation import Invoker as Invoker
@@ -937,35 +936,28 @@ DOKIME_SETTINGS_UPDATE_APPLICATION_SETTINGS: Operation[
     DokimeSettingsUpdateApplicationSettingsRequest, DokimeSettingsUpdateApplicationSettingsResponse, Message, Message
 ]
 
-DokimeSettingsUpdatePluginSecretRequest = _wire_147.Row1
-DokimeSettingsUpdatePluginSecretResponse = _wire_147.Row2
-
-DOKIME_SETTINGS_UPDATE_PLUGIN_SECRET: Operation[
-    DokimeSettingsUpdatePluginSecretRequest, DokimeSettingsUpdatePluginSecretResponse, Message, Message
-]
-
-DokimeSettingsUpdatePluginSettingsRequest = _wire_148.Row1
-DokimeSettingsUpdatePluginSettingsResponse = _wire_148.Row2
+DokimeSettingsUpdatePluginSettingsRequest = _wire_147.Row1
+DokimeSettingsUpdatePluginSettingsResponse = _wire_147.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SETTINGS: Operation[
     DokimeSettingsUpdatePluginSettingsRequest, DokimeSettingsUpdatePluginSettingsResponse, Message, Message
 ]
 
-DokimeTelemetryListSamplesRequest = _wire_149.Row1
-DokimeTelemetryListSamplesResponse = _wire_149.Row2
+DokimeTelemetryListSamplesRequest = _wire_148.Row1
+DokimeTelemetryListSamplesResponse = _wire_148.Row2
 
 DOKIME_TELEMETRY_LIST_SAMPLES: Operation[DokimeTelemetryListSamplesRequest, DokimeTelemetryListSamplesResponse, Message, Message]
 
-DokimeTelemetryWatchSamplesRequest = _wire_151.Row1
-DokimeTelemetryWatchSamplesResponse = _wire_151.Row2
-DokimeTelemetryWatchSamplesOutput = _wire_151.Row3
+DokimeTelemetryWatchSamplesRequest = _wire_150.Row1
+DokimeTelemetryWatchSamplesResponse = _wire_150.Row2
+DokimeTelemetryWatchSamplesOutput = _wire_150.Row3
 
 DOKIME_TELEMETRY_WATCH_SAMPLES: Operation[
     DokimeTelemetryWatchSamplesRequest, DokimeTelemetryWatchSamplesResponse, Message, DokimeTelemetryWatchSamplesOutput
 ]
 
-HostCatalogRequest = _wire_152.Row1
-HostCatalogResponse = _wire_152.Row2
+HostCatalogRequest = _wire_151.Row1
+HostCatalogResponse = _wire_151.Row2
 
 HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Message]
 

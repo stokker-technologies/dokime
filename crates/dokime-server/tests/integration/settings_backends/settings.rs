@@ -193,7 +193,8 @@ pub(crate) async fn plugin_settings() {
         initial.values.as_ref().unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Lab".into()))
     ));
-    assert_eq!(initial.secret_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
+    assert_eq!(initial.secrets[0].identifier, "fixture.token");
+    assert!(!initial.secrets[0].available);
 
     let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture_settings".into(),
@@ -208,23 +209,31 @@ pub(crate) async fn plugin_settings() {
         Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Production".into()))
     ));
 
-    let updated = client
-        .unary::<contracts::settings::UpdatePluginSecret>(auth(
-            contracts::settings::UpdatePluginSecret {
-                plugin_id: "fixture_settings".into(),
-                secret_id: "fixture.token".into(),
-                secret: "secret-material".into(),
+    client
+        .unary::<contracts::secrets::Put>(auth(
+            contracts::secrets::Put {
+                metadata: model::secrets::catalog::Metadata {
+                    identifier: "fixture.token".into(),
+                    label: "Token".into(),
+                    description: None,
+                },
+                value: Some("secret-material".into()),
+                generation: 0,
             },
+            TOKEN,
+        ))
+        .await
+        .unwrap();
+    let updated = client
+        .unary::<contracts::settings::GetPluginSettings>(auth(
+            contracts::settings::GetPluginSettings { plugin_id: "fixture_settings".into() },
             TOKEN,
         ))
         .await
         .unwrap()
         .into_inner();
     let response_debug = format!("{updated:?}");
-    let bindings = updated.secret_bindings.unwrap();
-    assert!(bindings.missing_required.is_empty());
-    let token = bindings.bindings.iter().find(|entry| entry.key == "fixture.token").expect("the updated secret is bound");
-    assert!(token.value.as_ref().unwrap().configured);
+    assert!(updated.secrets[0].available);
     assert!(!response_debug.contains("secret-material"));
 
     server.shutdown().await.unwrap();
@@ -239,7 +248,7 @@ async fn non_admitted_settings() {
         plugin_id: "failed_settings".into(),
         plugin_name: "Fixture".into(),
         message: "startup-refused".into(),
-        code: Some(dokime::domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
+        code: Some(dokime::domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
         missing_secret: Some("fixture.token".into()),
         consequences: Vec::new(),
         carrier: dokime::harmos::domain::Failure::new(dokime::harmos::operations::FailureKind::Permanent, "fixture.token").encode(),
@@ -265,7 +274,8 @@ async fn non_admitted_settings() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(initial.secret_bindings.unwrap().missing_required, vec!["fixture.token"]);
+    assert_eq!(initial.secrets[0].identifier, "fixture.token");
+    assert!(!initial.secrets[0].available);
     let updated = client
         .unary::<contracts::settings::UpdatePluginSettings>(auth(
             contracts::settings::UpdatePluginSettings {
@@ -286,19 +296,30 @@ async fn non_admitted_settings() {
     assert!(
         matches!(updated.values.unwrap().to_core().unwrap(), Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Corrected".into())))
     );
-    let updated = client
-        .unary::<contracts::settings::UpdatePluginSecret>(auth(
-            contracts::settings::UpdatePluginSecret {
-                plugin_id: "failed_settings".into(),
-                secret_id: "fixture.token".into(),
-                secret: "replacement".into(),
+    client
+        .unary::<contracts::secrets::Put>(auth(
+            contracts::secrets::Put {
+                metadata: model::secrets::catalog::Metadata {
+                    identifier: "fixture.token".into(),
+                    label: "Token".into(),
+                    description: None,
+                },
+                value: Some("replacement".into()),
+                generation: 0,
             },
+            TOKEN,
+        ))
+        .await
+        .unwrap();
+    let updated = client
+        .unary::<contracts::settings::GetPluginSettings>(auth(
+            contracts::settings::GetPluginSettings { plugin_id: "failed_settings".into() },
             TOKEN,
         ))
         .await
         .unwrap()
         .into_inner();
-    assert!(updated.secret_bindings.as_ref().unwrap().missing_required.is_empty());
+    assert!(updated.secrets[0].available);
     assert!(!format!("{updated:?}").contains("replacement"));
     server.shutdown().await.unwrap();
 }
@@ -318,11 +339,10 @@ fn fixture_module() -> InstalledPlugin {
                     default: "Lab".to_owned(),
                     required: true,
                 }),
-                SettingsEntry::SecretReference(SecretSetting {
+                SettingsEntry::Secret(SecretSetting {
                     id: "fixture.token".to_owned(),
                     title: "Fixture token".to_owned(),
                     description: None,
-                    default: None,
                     required: true,
                 }),
             ],

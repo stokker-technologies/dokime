@@ -62,3 +62,21 @@ operation policies own collection deadlines and configuration owns probe paramet
 An operation that changes external state requires `ReadEnvironment`, `PrepareEffect` and `ConfirmEffect` from `dokime::operations::effects`. Read and validate the native prior state, prepare an owner-qualified encoded inverse durably before changing it, then confirm with the actual native completion timestamp. Empty tickets mean a standalone change outside an execution. The backend restores execution effects in reverse order after pass, failure or cancellation and restores persisted pending inverses before startup returns. Failed inverses remain pending and refuse startup; never reset storage to discard them. Native embedding owners use `RuntimeHandle::begin_external_change` and `complete_external_change` with the same journal.
 
 Cancellation must retain native work and its serialization gate until it settles. A plugin retains its generation `Supervisor` during initialization and copies the serving execution scope for journal callbacks, so cancellation of the parent operation cannot strand its completion timestamp. Backend cleanup closes write admission before restoring; it keeps execution capture open through restoration. An inverse is a Host operation callable by the backend, not another plugin. Internal storage remains v1; an incompatible development store requires a fresh root without deleting the old one.
+
+## Shared Secrets
+
+```rust
+#[dokime::section(label = "Cloud")]
+pub struct Cloud {
+    pub api_token: dokime::plugin::Secret,
+    pub optional_token: Option<dokime::plugin::Secret>,
+}
+```
+
+These fields name `api_token` and `optional_token` in shared Secret Storage.
+The host resolves declarations before startup: missing required identifiers return
+`UnavailableSecret(identifier)`; optional missing identifiers decode as `None`.
+Add the exact missing identifier and restart Dokime or retry the plugin. There is
+no binding, environment source or secret default. Manual `SecretSetting`
+declarations likewise use their `id` as the store identifier. Rebuild consumers of
+removed `SecretReference` or per-plugin update APIs against the matching SDK.

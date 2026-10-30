@@ -56,7 +56,7 @@ export function SecretsSection() {
   return session ? (
     <ConnectedSecrets key={session.identity.generation} session={session} />
   ) : (
-    <SettingsCard title="Secrets">
+    <SettingsCard title="Secret Storage">
       <SettingsRow label="Backend" description="Connect to manage the host’s secrets.">
         <span role="status">Disconnected</span>
       </SettingsRow>
@@ -92,6 +92,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
       const next = await work();
       if (!session.identity.isCurrent()) return;
       client.setQueryData(queryKey, next);
+      void client.invalidateQueries({ queryKey: ["settings", "installed-plugins"] });
       setEditor(null);
       setDeleting(null);
     } catch (failure) {
@@ -159,7 +160,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
   ]);
 
   return (
-    <SettingsCard title="Secrets">
+    <SettingsCard title="Secret Storage">
       <SettingsRow label="Owning Host">
         <span>{snapshot ? `${snapshot.hostLabel} · ${snapshot.hostId}` : "Loading host…"}</span>
       </SettingsRow>
@@ -231,12 +232,74 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
   );
 }
 
+export function AddSecretDialog({ identifier, onClose }: { identifier: string; onClose: () => void }) {
+  const session = useNativeSessionOptional();
+  const client = useQueryClient();
+  const queryKey = ["settings", "secrets", session?.identity.generation];
+  const query = useQuery({
+    queryKey,
+    queryFn: () => {
+      if (!session) throw new Error("Connect to manage Secret Storage.");
+      return readSecrets(session.identity);
+    },
+    enabled: Boolean(session),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const snapshot = query.data;
+  if (!session || !snapshot) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Secret</DialogTitle>
+            <DialogDescription>
+              {query.error?.message ?? (session ? "Reading Secret Storage…" : "Connect to manage Secret Storage.")}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  return (
+    <SecretEditor
+      editor={{ kind: "new", identifier, generation: snapshot.generation }}
+      busy={busy}
+      cancel={onClose}
+      error={error}
+      submit={async (metadata, value) => {
+        setBusy(true);
+        setError(null);
+        try {
+          await client.cancelQueries({ queryKey });
+          const next = await putSecret(session.identity, metadata, value, snapshot.generation);
+          if (!session.identity.isCurrent()) return;
+          client.setQueryData(queryKey, next);
+          void client.invalidateQueries({ queryKey: ["settings", "installed-plugins"] });
+          onClose();
+        } catch (failure) {
+          if (session.identity.isCurrent()) setError(failure instanceof Error ? failure.message : "Secret storage is unavailable");
+        } finally {
+          if (session.identity.isCurrent()) setBusy(false);
+        }
+      }}
+    />
+  );
+}
+
 function SecretEditor({
   editor,
   busy,
   cancel,
   submit,
+  error,
 }: {
+  error?: string | null;
   editor: Editor;
   busy: boolean;
   cancel: () => void;
@@ -244,8 +307,8 @@ function SecretEditor({
 }) {
   const id = useId();
   const original = editor.kind === "edit" ? editor.entry.metadata : undefined;
-  const [identifier, setIdentifier] = useState(original?.identifier ?? (editor.kind === "new" ? editor.identifier : undefined) ?? "");
-  const [label, setLabel] = useState(original?.label ?? "");
+  const [identifier, setIdentifier] = useState(original?.identifier ?? (editor.kind === "new" ? editor.identifier : "") ?? "");
+  const [label, setLabel] = useState(original?.label ?? (editor.kind === "new" ? editor.identifier : "") ?? "");
   const [description, setDescription] = useState(original?.description ?? "");
   const [value, setValue] = useState("");
 
@@ -261,6 +324,7 @@ function SecretEditor({
           <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
           <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
         </DialogHeader>
+        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
         <form
           className="grid gap-3"
           onSubmit={(event) => {

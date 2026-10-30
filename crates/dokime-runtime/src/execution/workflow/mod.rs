@@ -171,7 +171,7 @@ impl<T: SidecarTemplate> Workflow<T> {
             return Err(Refusal::of("execution mode must be automatic or interactive"));
         }
         let parameters = resolved(&request.parameters_json)?;
-        let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution secret bindings"))?;
+        let secrets = serde_json::from_str(&request.secrets_json).map_err(|_| Refusal::of("invalid execution resolved secrets"))?;
         let bindings = crate::plugin::Configuration {
             secrets,
             settings: BTreeMap::new(),

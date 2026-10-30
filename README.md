@@ -169,10 +169,11 @@ remove it from the registry without connecting first. Revoke individual clients
 from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
-Settings → Plugins keeps installed plugin settings and secrets editable after
-startup fails. A missing-secret failure offers Set Secret in Secret Storage with its identifier prefilled.
-Save corrections and restart Dokime from the plugin page to retry; see
-[Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
+Settings → Plugins keeps ordinary settings editable after startup fails and shows
+required secret identifiers. A missing-secret failure offers Set Secret, which opens
+Secret Storage's Add Secret dialog with its identifier prefilled; then restart Dokime
+or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
+and [Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the
 [application settings model](crates/dokime-domain/src/model/settings/application.rs)

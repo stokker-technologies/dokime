@@ -246,7 +246,7 @@ mod tests {
         let mut failure = PluginStartFailure {
             plugin_id: "hcl".to_owned(),
             plugin_name: "hcl-plugin".to_owned(),
-            message: "Plugin hcl-plugin could not start: secret `api_token` is not set.".to_owned(),
+            message: "Plugin hcl-plugin could not start: secret `api_token` is not in Secret Storage; add it and restart".to_owned(),
             code: Some("10001".to_owned()),
             missing_secret: Some("api_token".to_owned()),
             carrier: vec![1, 2, 3],

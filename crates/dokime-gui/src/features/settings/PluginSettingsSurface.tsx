@@ -12,7 +12,7 @@
  * A plugin does not earn a place in the shell's navigation; it earns a page
  * under Plugins. The page bar carries the breadcrumb and its own Back chevron,
  * so this page publishes no action of its own, and the
- * body is the artifact's own editable settings and secrets followed by the
+ * body is the artifact's own editable settings and declared secrets followed by the
  * status cards it contributes. The Plugins list therefore stays one row per
  * plugin, with nothing nested inside it.
  */
@@ -22,7 +22,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -32,7 +31,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
   useInstalledPluginDetailQuery,
-  useInstalledPluginSecretMutation,
   useInstalledPluginSettingsMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
@@ -175,23 +173,10 @@ function PluginRestart() {
   );
 }
 
-/** The artifact's own editable settings and secret bindings. */
+/** The artifact's settings and read-only secret requirements. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
-  const secretMutation = useInstalledPluginSecretMutation();
-
-  async function saveSecret(operation: () => Promise<unknown>) {
-    try {
-      await operation();
-      toast.success("Secret Stored");
-    } catch (error) {
-      toast.error("Secret Not Stored", { description: error instanceof Error ? error.message : "Settings could not be saved." });
-    } finally {
-      secretMutation.reset();
-    }
-  }
-
   if (detailQuery.isPending) {
     return (
       <SettingsCard title="Settings">
@@ -228,13 +213,9 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   return (
     <InstalledPluginDetail
       detail={detailQuery.data}
-      onSaveSecret={(id, secretId, secret) => void saveSecret(() => secretMutation.mutateAsync({ pluginId: id, secretId, secret }))}
-      /* Settings write themselves and each row reports its own outcome; a
-         secret, which is an explicit write, reports through a toast. */
       onSaveSettings={async (id, values) => {
         await settingsMutation.mutateAsync({ pluginId: id, values });
       }}
-      savingSecret={secretMutation.isPending}
     />
   );
 }
