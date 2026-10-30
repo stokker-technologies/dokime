@@ -1,4 +1,11 @@
-## ADDED Requirements
+# Python Client Specification
+
+## Purpose
+Define the owned async Python cycle lifecycle, terminal evidence readers, saved
+outcomes and exported file manifests. The 2026-10-30 lifecycle API replaces
+callback execution composition while retaining explicit planning and recovery.
+
+## Requirements
 
 ### Requirement: Owned Cycle Lifecycle
 The client SHALL expose `new_cycle(label, **options)` as an async context.
