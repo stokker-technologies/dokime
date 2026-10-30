@@ -878,6 +878,10 @@ replaced by the `sidecar` group.
 | `cargo dokime installer package` | Assemble unchanged local or versioned release distributions. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
+Packaging reports each phase, release download sizes and verified cache hits to
+stderr, then summarizes the output paths and elapsed time. Stdout contains only
+the output paths, or their JSON array with `--json`.
+
 An installer manifest selects the distribution version, optional installation
 identifier, organization override and exact Dokime binary version/target. For example, save
 `company/installer.toml` for a native Windows build:

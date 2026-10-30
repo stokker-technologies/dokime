@@ -51,6 +51,8 @@ pub fn assemble(
     manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
     sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
+    let terminal = dokime::terminal::Terminal::default();
+    terminal.status(format!("Staging distribution with {} plugins", plugins.len()));
     let identity = manifest.identity(&distribution.identity)?;
     let mut pack = resolve_organization(manifest, source)?;
     // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
@@ -295,6 +297,7 @@ pub fn assemble(
             Error::Invalid(message)
         })?;
 
+    terminal.status(format!("Building native installer for {}", distribution.target));
     let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
