@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nIdokime_client/_wire/dokime/v1/RemoteMessages/CreatePairing/messages.proto\x12&dokime.v1.RemoteMessages.CreatePairing\"@\n\x04Row1\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12\x1e\n\x08\x65ndpoint\x18\xdb\x97\xe0\xc5\x01 \x01(\tR\x08\x65ndpoint\"\x9b\x01\n\x04Row2\x12G\n\x06\x63lient\x18\xab\xdf\xca| \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row3R\x06\x63lient\x12J\n\x07pairing\x18\xd3\x86\x95\xcc\x01 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row4R\x07pairing\"\xae\x01\n\x04Row3\x12!\n\nidentifier\x18\x90\xe0\x96\x45 \x01(\tR\nidentifier\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12!\n\ncreated_at\x18\xf4\xa5\xe2\xb9\x01 \x01(\x04R\tcreatedAt\x12(\n\x0clast_seen_at\x18\xfe\x87\x94\x43 \x01(\x04H\x00R\nlastSeenAt\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_140837886\"\xa9\x02\n\x04Row4\x12\x1b\n\x07version\x18\xd2\xf4\xc6\x33 \x01(\rR\x07version\x12\x1e\n\x08\x65ndpoint\x18\xdb\x97\xe0\xc5\x01 \x01(\tR\x08\x65ndpoint\x12\x30\n\x12\x62\x61\x63kend_identifier\x18\xf9\x99\xaf+ \x01(\tR\x11\x62\x61\x63kendIdentifier\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12\x35\n\x12\x63\x61_certificate_pem\x18\xf1\xd1\xc9\xf7\x01 \x01(\tH\x00R\x10\x63\x61\x43\x65rtificatePem\x88\x01\x01\x12%\n\naccess_key\x18\xf4\xc3\xbcW \x01(\tH\x01R\taccessKey\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_519203057B\x1c\n\x1a_harmos_presence_183443956\"\x98\x01\n\x04Row0\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row1R\x07request\x12H\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nIdokime_client/_wire/dokime/v1/RemoteMessages/CreatePairing/messages.proto\x12&dokime.v1.RemoteMessages.CreatePairing\" \n\x04Row1\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\"\x9b\x01\n\x04Row2\x12G\n\x06\x63lient\x18\xab\xdf\xca| \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row3R\x06\x63lient\x12J\n\x07pairing\x18\xd3\x86\x95\xcc\x01 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row4R\x07pairing\"\xae\x01\n\x04Row3\x12!\n\nidentifier\x18\x90\xe0\x96\x45 \x01(\tR\nidentifier\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12!\n\ncreated_at\x18\xf4\xa5\xe2\xb9\x01 \x01(\x04R\tcreatedAt\x12(\n\x0clast_seen_at\x18\xfe\x87\x94\x43 \x01(\x04H\x00R\nlastSeenAt\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_140837886\"\xab\x02\n\x04Row4\x12\x1b\n\x07version\x18\xd2\xf4\xc6\x33 \x01(\rR\x07version\x12 \n\tendpoints\x18\xef\xde\xbb\xc4\x01 \x03(\tR\tendpoints\x12\x30\n\x12\x62\x61\x63kend_identifier\x18\xf9\x99\xaf+ \x01(\tR\x11\x62\x61\x63kendIdentifier\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12\x35\n\x12\x63\x61_certificate_pem\x18\xf1\xd1\xc9\xf7\x01 \x01(\tH\x00R\x10\x63\x61\x43\x65rtificatePem\x88\x01\x01\x12%\n\naccess_key\x18\xf4\xc3\xbcW \x01(\tH\x01R\taccessKey\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_519203057B\x1c\n\x1a_harmos_presence_183443956\"\x98\x01\n\x04Row0\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row1R\x07request\x12H\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,15 +53,15 @@ _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.RemoteMessages.CreatePair
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=117
-  _globals['_ROW1']._serialized_end=181
-  _globals['_ROW2']._serialized_start=184
-  _globals['_ROW2']._serialized_end=339
-  _globals['_ROW3']._serialized_start=342
-  _globals['_ROW3']._serialized_end=516
-  _globals['_ROW4']._serialized_start=519
-  _globals['_ROW4']._serialized_end=816
-  _globals['_ROW0']._serialized_start=819
-  _globals['_ROW0']._serialized_end=971
+  _globals['_ROW1']._serialized_end=149
+  _globals['_ROW2']._serialized_start=152
+  _globals['_ROW2']._serialized_end=307
+  _globals['_ROW3']._serialized_start=310
+  _globals['_ROW3']._serialized_end=484
+  _globals['_ROW4']._serialized_start=487
+  _globals['_ROW4']._serialized_end=786
+  _globals['_ROW0']._serialized_start=789
+  _globals['_ROW0']._serialized_end=941
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

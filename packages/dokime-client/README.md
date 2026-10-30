@@ -48,18 +48,24 @@ OS configuration location. The Rust CLI manages these profiles through
 CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
 Python does not read the native keyring. For an authenticated backend, create a
-pairing file on its host and import that file instead:
+remote access file on its host and import that file instead:
 
 ```python
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     backend = await client.connect()
 ```
 
 The constructor reads and validates that explicit file before connecting. It
-retains the endpoint, expected backend identity, CA and independent access key
-for the connection. Protect the pairing file as a credential; revoking its
+retains all endpoints, expected backend identity, persistent CA and independent access key
+for the connection. Protect the remote file as a credential; revoking its
 paired client on the host prevents further use. See the
-[pairing walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
+[remote access walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
+
+Candidates connect in parallel with the configured short stagger (250 ms by
+default). The first connection that verifies the pinned CA and backend identity
+wins; losing attempts are closed. Reconnects try that endpoint first. A client
+loaded with `from_profile` also saves its successful endpoint for later clients.
+The listener reissues leaves under the same persistent CA when addresses change.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
@@ -75,9 +81,9 @@ async with DokimeClient("http://127.0.0.1:8765") as client:
 ## Client Configuration
 
 Each connection uses the generated application defaults for
-`connect_timeout_ms` and `request_timeout_ms`. Direct construction and
+`connect_timeout_ms`, `request_timeout_ms` and `endpoint_stagger_ms`. Direct construction, `from_pairing` and
 `from_profile` also accept `preferences=`, a generated client-preferences message
-with those two fields, and an explicit `rpc_timeout` override. Streaming
+with those fields, and an explicit `rpc_timeout` override. Streaming
 operation deadlines come from their declared contracts.
 
 Python does not load or create a local application-settings file. Application
@@ -95,7 +101,7 @@ from dokime_client import DokimeClient
 
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
         async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
             run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
             async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
@@ -184,7 +190,7 @@ without waiting for completion so the script can answer:
 import asyncio
 from contextlib import aclosing
 
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     async with client.new_cycle("Confirmation") as cycle:
         execution = await cycle.start("obc.checks.pulse", require_confirmation=True)
         async with asyncio.timeout(60):
@@ -262,7 +268,7 @@ releases; follow their setup instructions to prepare a matching local wheel.
 ```python
 from dokime_client import DokimeClient
 
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     execution = await client.execution(execution_id)
     await execution.start()
     async for record in execution.records("obc.run.*"):
@@ -296,7 +302,7 @@ The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
 ```python
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     providers = await client.operations()
     provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
     request = provider.operation.request()

@@ -51,6 +51,9 @@ dokime-server = { version = "0.1.2", path = "crates/dokime-server" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -64,9 +67,6 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -135,7 +135,7 @@ tokio-util = { version = "=0.7.20" }
 # Networking
 # Excludes the aws-lc-rs TLS, Prometheus metrics and proxy-protocol defaults; the test FTP server needs none of them.
 libunftp = { version = "0.23.1", default-features = false }
-rcgen = { version = "0.14.10" }
+rcgen = { version = "0.14.10", features = ["x509-parser"] }
 # Excludes default TLS provider selection; Dokime installs ring before constructing HTTP clients.
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 # Excludes the default aws-lc-rs provider; Dokime installs ring.
@@ -147,7 +147,6 @@ tonic-types = { version = "=0.14.8" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
-
 zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 # Storage

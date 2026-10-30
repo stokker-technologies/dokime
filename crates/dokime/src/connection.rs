@@ -134,6 +134,9 @@ impl Args {
         let client = tokio::time::timeout_at(deadline, connect)
             .await
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::TimedOut, error))??;
+        if resolved.selection.identifier.is_some() {
+            Store::discover(self.profiles_file.as_deref())?.remember_endpoint(&resolved.selection, client.endpoint())?;
+        }
         Ok(client.with_timeout(self.timeout()))
     }
 

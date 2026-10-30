@@ -56,6 +56,8 @@ pub(super) struct Client {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Identity {
+    pub ca_certificate: String,
+    pub ca_private_key: String,
     pub certificate: String,
     pub private_key: String,
     pub names: Vec<String>,
@@ -91,19 +93,44 @@ impl Identity {
         if names.is_empty() {
             return Err(super::Error::Configuration("TLS requires at least one advertised DNS name or IP address"));
         }
-        let generated = rcgen::generate_simple_self_signed(names.clone())
-            .map_err(|_| super::Error::Configuration("cannot generate remote TLS identity"))?;
-        Ok(Self {
-            certificate: generated.cert.pem(),
-            private_key: generated.signing_key.serialize_pem(),
-            names,
-        })
+        let mut params = rcgen::CertificateParams::default();
+        params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign, rcgen::KeyUsagePurpose::CrlSign];
+        params.distinguished_name.push(rcgen::DnType::CommonName, "Dokime Remote Access CA");
+        let key = rcgen::KeyPair::generate().map_err(|_| super::Error::Configuration("cannot generate remote CA key"))?;
+        let certificate = params.self_signed(&key).map_err(|_| super::Error::Configuration("cannot generate remote CA"))?;
+        let mut identity = Self {
+            ca_certificate: certificate.pem(),
+            ca_private_key: key.serialize_pem(),
+            certificate: String::new(),
+            private_key: String::new(),
+            names: Vec::new(),
+        };
+        identity.reissue(names)?;
+        Ok(identity)
+    }
+
+    pub fn reissue(&mut self, names: Vec<String>) -> Result<(), super::Error> {
+        let invalid = |_| super::Error::Configuration("cannot issue remote TLS certificate from persisted CA");
+        let key = rcgen::KeyPair::from_pem(&self.ca_private_key).map_err(invalid)?;
+        let issuer = rcgen::Issuer::from_ca_cert_pem(&self.ca_certificate, key).map_err(invalid)?;
+        let leaf_key = rcgen::KeyPair::generate().map_err(invalid)?;
+        let mut params = rcgen::CertificateParams::new(names.clone()).map_err(invalid)?;
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+        params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
+        let leaf = params.signed_by(&leaf_key, &issuer).map_err(invalid)?;
+        self.private_key.zeroize();
+        self.certificate = leaf.pem();
+        self.private_key = leaf_key.serialize_pem();
+        self.names = names;
+        Ok(())
     }
 }
 
 impl Drop for Identity {
     fn drop(&mut self) {
         self.private_key.zeroize();
+        self.ca_private_key.zeroize();
     }
 }
 
@@ -196,29 +223,78 @@ pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
 }
 
 // The identities this host answers to: the listen address when it is specific, the host name
-// and every non-loopback interface address, falling back to loopback when nothing else exists.
+// and ranked real interface addresses; virtual adapters are excluded. Loopback is same-PC only.
 pub(super) fn host_names(address: SocketAddr, maximum: usize) -> Vec<String> {
     let networks = sysinfo::Networks::new_with_refreshed_list().ok();
-    let interfaces =
-        networks.iter().flat_map(|networks| networks.values()).flat_map(|network| network.ip_networks().iter().map(|network| network.addr));
+    let interfaces = networks
+        .iter()
+        .flat_map(|networks| networks.iter())
+        .flat_map(|(name, network)| network.ip_networks().iter().map(move |network| (name.to_str().unwrap_or(""), network.addr)));
     default_names(address, sysinfo::System::host_name().ok(), interfaces, maximum)
 }
 
 /* === Private Functions === */
 
-fn default_names(address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = IpAddr>, maximum: usize) -> Vec<String> {
-    let reachable = |ip: &IpAddr| !ip.is_loopback() && !ip.is_unspecified() && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local());
+fn default_names<'a>(
+    address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = (&'a str, IpAddr)>, maximum: usize,
+) -> Vec<String> {
+    if !address.ip().is_unspecified() {
+        return vec![address.ip().to_string()];
+    }
     let host =
         host_name.map(|name| name.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|name| name.len() <= 253 && valid_dns(name));
-    let addresses = std::iter::once(address.ip()).chain(interfaces).filter(reachable).map(|ip| ip.to_string());
-    let mut names: Vec<String> = Vec::new();
-    for name in host.into_iter().chain(addresses) {
+    let mut addresses: Vec<_> = interfaces
+        .filter_map(|(name, ip)| {
+            let adapter = name.to_ascii_lowercase();
+            let virtual_adapter = [
+                "wsl",
+                "hyper-v",
+                "vethernet",
+                "docker",
+                "loopback",
+                "vpn",
+                "tun",
+                "tap",
+                "tailscale",
+                "zerotier",
+                "wireguard",
+                "vmware",
+                "virtualbox",
+                "vbox",
+                "virbr",
+                "veth",
+                "br-",
+            ]
+            .iter()
+            .any(|pattern| adapter.contains(pattern));
+            if virtual_adapter
+                || ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_multicast()
+                || address.is_ipv4() != ip.is_ipv4()
+                || matches!(ip, IpAddr::V4(v4) if v4.is_link_local())
+                || matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local())
+            {
+                return None;
+            }
+            Some(ip)
+        })
+        .collect();
+    addresses.sort_unstable_by_key(|ip| {
+        let private = match ip {
+            IpAddr::V4(ip) => ip.is_private(),
+            IpAddr::V6(ip) => ip.is_unique_local(),
+        };
+        (!private, *ip)
+    });
+    let mut names = Vec::new();
+    for name in host.into_iter().chain(addresses.into_iter().map(|ip| ip.to_string())) {
         if names.len() < maximum && !names.contains(&name) {
             names.push(name);
         }
     }
     if names.is_empty() {
-        names = vec!["localhost".into(), "127.0.0.1".into()];
+        names.push(if address.is_ipv4() { "127.0.0.1" } else { "::1" }.into());
     }
     names.truncate(maximum);
     names
@@ -312,9 +388,13 @@ mod tests {
     fn default_certificate_identities() {
         let wildcard: SocketAddr = "0.0.0.0:8765".parse().unwrap();
         let interfaces = ["127.0.0.1", "192.168.1.20", "fe80::1", "192.168.1.20", "2001:db8::7"].map(|ip| ip.parse().unwrap());
-        let names =
-            default_names(wildcard, Some("Lab-Host.".into()), interfaces.into_iter(), usize::try_from(SERVER_REMOTE_NAMES).unwrap());
-        assert_eq!(names, ["lab-host", "192.168.1.20", "2001:db8::7"]);
+        let names = default_names(
+            wildcard,
+            Some("Lab-Host.".into()),
+            interfaces.into_iter().map(|ip| ("Ethernet", ip)),
+            usize::try_from(SERVER_REMOTE_NAMES).unwrap(),
+        );
+        assert_eq!(names, ["lab-host", "192.168.1.20"]);
         let mut settings = Document::initial().settings;
         settings.certificate_names = names;
         validate(&settings).unwrap();
@@ -323,14 +403,53 @@ mod tests {
             default_names(specific, Some("bad_name".into()), std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()),
             ["10.0.0.5"]
         );
-        assert_eq!(
-            default_names(wildcard, None, std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()),
-            ["localhost", "127.0.0.1"]
-        );
+        assert_eq!(default_names(wildcard, None, std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()), ["127.0.0.1"]);
         let many = (0..64u8).map(|index| IpAddr::from([10, 0, 1, index]));
         assert_eq!(
-            default_names(wildcard, None, many, usize::try_from(SERVER_REMOTE_NAMES).unwrap()).len(),
+            default_names(wildcard, None, many.map(|ip| ("Ethernet", ip)), usize::try_from(SERVER_REMOTE_NAMES).unwrap()).len(),
             usize::try_from(SERVER_REMOTE_NAMES).unwrap()
         );
+    }
+    #[test]
+    fn physical_interfaces_rank_before_public_and_virtual_adapters_are_excluded() {
+        let interfaces = [
+            ("Docker", "172.17.0.1"),
+            ("vEthernet (WSL)", "172.25.0.1"),
+            ("Hyper-V", "10.1.1.1"),
+            ("WireGuard VPN", "10.5.0.1"),
+            ("Loopback", "127.0.0.1"),
+            ("Ethernet", "203.0.113.8"),
+            ("Wi-Fi", "192.168.1.20"),
+            ("Ethernet", "10.0.0.2"),
+        ]
+        .into_iter()
+        .map(|(name, ip)| (name, ip.parse().unwrap()));
+        assert_eq!(
+            default_names("0.0.0.0:8765".parse().unwrap(), Some("Lab".into()), interfaces, 32),
+            ["lab", "10.0.0.2", "192.168.1.20", "203.0.113.8"]
+        );
+        assert_eq!(default_names("192.168.1.20:8765".parse().unwrap(), Some("Lab".into()), std::iter::empty(), 32), ["192.168.1.20"]);
+    }
+
+    #[test]
+    fn leaf_reissue_preserves_persistent_ca() {
+        let mut identity = Identity::generate(vec!["localhost".into()]).unwrap();
+        let ca = identity.ca_certificate.clone();
+        let ca_key = identity.ca_private_key.clone();
+        let leaf = identity.certificate.clone();
+        identity.reissue(vec!["localhost".into(), "192.168.1.21".into()]).unwrap();
+        assert_eq!(identity.ca_certificate, ca);
+        assert!(identity.ca_private_key == ca_key);
+        assert_ne!(identity.certificate, leaf);
+        let key = rcgen::KeyPair::from_pem(&ca_key).unwrap();
+        assert!(rcgen::Issuer::from_ca_cert_pem(&ca, key).is_ok());
+        let root = tempfile::tempdir().unwrap();
+        let mut document = Document::initial();
+        document.identity = Some(identity);
+        let path = root.path().join("access.json");
+        write(&path, &document).unwrap();
+        let mut restored = read(&path, document.settings).unwrap().identity.unwrap();
+        restored.reissue(vec!["localhost".into(), "192.168.1.22".into()]).unwrap();
+        assert_eq!(restored.ca_certificate, ca);
     }
 }

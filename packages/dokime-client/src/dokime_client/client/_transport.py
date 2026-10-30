@@ -74,8 +74,17 @@ class Transport:
         connect_timeout_ms: int,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
+        endpoints: tuple[str, ...] = (),
+        endpoint_stagger_ms: int | None = None,
     ) -> None:
         self._target, self._tls = _target(endpoint)
+        self._endpoint = endpoint
+        self._endpoints = tuple(dict.fromkeys((endpoint, *endpoints)))
+        if len(self._endpoints) > 32 or any(_target(item)[1] != self._tls for item in self._endpoints):
+            raise ValueError("invalid remote endpoint inventory")
+        if len(self._endpoints) > 1 and (type(endpoint_stagger_ms) is not int or not 0 < endpoint_stagger_ms <= MAXIMUM_TIMEOUT_MS):
+            raise ValueError("endpoint stagger must be a positive supported duration")
+        self._endpoint_stagger_ms = endpoint_stagger_ms
         _validate_key(token)
         if expected_backend_id is not None and (
             not expected_backend_id
@@ -123,6 +132,8 @@ class Transport:
                 raise ClientClosed("DokimeClient is closed")
             if self.backend is not None:
                 return self.backend
+            if len(self._endpoints) > 1:
+                return await self._race()
             options = (
                 ("grpc.max_send_message_length", MAX_MESSAGE_BYTES),
                 ("grpc.max_receive_message_length", MAX_MESSAGE_BYTES),
@@ -195,6 +206,54 @@ class Transport:
                 await self._channel.close()
                 self._channel = None
                 raise
+
+    async def _race(self) -> Backend:
+        candidates = []
+        tasks = []
+        winner = None
+        token = self._metadata[0][1][len("Bearer ") :] if self._metadata else None
+        ordered = (self._endpoint, *(item for item in self._endpoints if item != self._endpoint))
+        assert self._endpoint_stagger_ms is not None
+        stagger = self._endpoint_stagger_ms
+
+        async def attempt(index: int, candidate: Transport) -> Transport:
+            await asyncio.sleep(index * stagger / 1000)
+            await candidate.connect()
+            return candidate
+
+        try:
+            for index, endpoint in enumerate(ordered):
+                candidate = Transport(
+                    endpoint,
+                    token,
+                    self.timeout,
+                    connect_timeout_ms=round(self.connect_timeout * 1000),
+                    expected_backend_id=self._expected_backend_id,
+                    ca_certificate_pem=self._ca.decode("utf-8") if self._ca else None,
+                )
+                candidates.append(candidate)
+                tasks.append(asyncio.create_task(attempt(index, candidate)))
+            failure: Exception = ProtocolError("no remote endpoint connected")
+            for completed in asyncio.as_completed(tasks):
+                try:
+                    winner = await completed
+                    break
+                except (RpcError, ProtocolError, OSError, TimeoutError) as error:
+                    failure = error
+            if winner is None:
+                raise failure
+            self._channel, winner._channel = winner._channel, None
+            self.backend = winner.backend
+            self._target, self._endpoint = winner._target, winner._endpoint
+            self._request_limit, self._response_limit = winner._request_limit, winner._response_limit
+            assert self.backend is not None
+            return self.backend
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*(candidate.close() for candidate in candidates))
 
     def _available(self, operation: Operation) -> None:
         if self.closed or self._channel is None:
@@ -650,7 +709,7 @@ class _Stream:
                     self._prefetch.get_nowait()
                 self._prefetch.put_nowait(ClientClosed("DokimeClient is closed"))
             raise
-        except Exception as error:
+        except (RpcError, ProtocolError, OSError, TimeoutError) as error:
             await self._prefetch.put(error)
             raise
 

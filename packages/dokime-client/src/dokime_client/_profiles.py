@@ -31,6 +31,7 @@ type Secret = Literal["none", "keyring"]
 class Profile:
     ca_certificate_pem: str | None
     endpoint: str
+    endpoints: tuple[str, ...]
     expected_backend_id: str | None
     identifier: str
     label: str

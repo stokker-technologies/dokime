@@ -41,7 +41,9 @@ operating conditions, and review the evidence behind each result.
 
 The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
-Settings. The desktop remembers that choice; operators do not need a source checkout.
+Settings. Export a `.dokime-remote` access file on the host and import or drop it
+on another desktop to connect. The desktop remembers that choice; operators do
+not need a source checkout.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 
@@ -164,7 +166,7 @@ Development roots containing older stream-row formats, earlier plugin identities
 or evidence indexes without incremental numeric summaries and report previews require a fresh storage
 root. Dokime reports incompatible data and never resets an existing root.
 
-The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
+The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
 from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret

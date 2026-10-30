@@ -127,35 +127,43 @@ Each history entry shows a severity icon beside its primary title, with secondar
 
 ## Native Remote Access
 
-Settings → Remote Access owns the saved listener settings and explicit restart.
-Management is available only through the native local listener. TLS and
-access-key authentication are independent; disable either only in an isolated lab.
-Use a concrete reachable endpoint whose hostname or IP matches the certificate.
-Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
-port and specific address, or its certificate names for a wildcard listener.
-Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
-The listener's port appears beside the field, including for local Python clients.
-Review that the suggested address is reachable from the client. Rejected pairing
-requests show the host's concrete reason beside the endpoint and in Notifications.
+Choose **Export Remote Access** in Settings → Remote Access. The native save
+picker suggests a readable label and `.dokime-remote` filename. If the listener
+is off, one confirmation enables it on the saved port (8765 by default) and
+continues the export. The same confirmation warns that the file is secret.
+Rename its client later by selecting its label in **Paired Clients**.
 
-Choose **Create Pairing File**, enter a client label and advertised endpoint,
-and select a destination. Cancellation creates no key. Dokime saves one private
-`<label>.dokime-pair` file containing the endpoint, expected backend identifier,
-label, CA certificate and a new access key. Treat it as a secret: it grants full
-remote control. The raw key stays outside the WebView and is returned only once.
-The host persists its verifier, never the recoverable key. Failed file saves
-revoke the newly created client.
+Each file has an independent revocable key. Anyone holding it has full control;
+transfer it privately and revoke its client if it is lost. Raw keys never enter
+the WebView, logs or saved backend profiles. The host retains only verifiers.
 
-Each file has an independent key. **Paired Clients** lists labels, creation
-and last-seen times; **Revoke** rejects further calls and ends that client's
-active streams without affecting other clients. Create a new file to replace a
-lost one. An authentication-off lab pairing has no client record or revocation
-guarantee. Listener reconfiguration does not replay or stop admitted executions.
+Endpoints are automatic: a specific bound address, or the hostname followed by
+real interface addresses in the listener address family, with private networks first. Virtual/VPN adapters are
+excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
+for a specific loopback bind carry **Same PC** in their generated label.
+The backend signs its listener leaf with a persistent CA, which the file pins.
+New interface addresses trigger a leaf reissue under that same CA, so existing
+files keep their trust. An old file still needs at least one reachable candidate,
+such as the hostname; export a new file if all its addresses become obsolete.
 
-Pairing files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
-`endpoint`, `backend_identifier`, `label`, `ca_certificate_pem` and `access_key`.
-Absent CA/key values are null. Unknown fields, invalid identities or PEM,
-wildcard endpoints and inconsistent TLS/CA combinations are rejected.
+Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
+`endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
+`ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
+unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
+origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
+and the old single `endpoint` format are unsupported. The remote security store
+also keeps format v1; old stores require a fresh application root and are never
+silently reset.
+
+Management remains available only through the native local listener. TLS and
+access-key authentication are independent advanced settings; disable either
+only in an isolated lab. Changing interface names or explicitly reissuing the
+leaf preserves its CA and existing access keys.
+
+Windows NSIS installation adds an inbound application firewall rule scoped to
+**Private** networks, with administrator confirmation for that rule. Uninstall
+removes the installation's rule. Tauri installation defaults otherwise remain.
+On other platforms, permit the saved listener port through the host firewall.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -178,9 +186,9 @@ invocation use the current provider contract; rediscover after provider changes.
 The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
-machine **Identifier** and a human **Label**. Import a pairing file as the primary
-setup path. The native importer saves its key in the OS keyring and its CA and
-expected identity in the profile. Validation precedes mutation; a failed profile
+machine **Identifier** and a human **Label**. Choose **Import Remote**, or drop
+one `.dokime-remote` file onto the desktop window, as the primary setup path. The native importer saves its key in the OS keyring and its CA and
+expected identity and ordered endpoints in the profile, then connects. Validation precedes mutation; a failed profile
 save rolls back the newly created keyring entry. Duplicate identifiers are refused.
 
 The desktop tries its saved default once. An unavailable or mismatched backend
@@ -189,14 +197,15 @@ remove a profile; deleting the active profile disconnects it and clears its defa
 Profile editing and local appearance preferences remain available offline.
 
 ```sh
-dokime backend add --pairing lab.dokime-pair --identifier lab
+dokime backend add --remote lab.dokime-remote --identifier lab
 dokime backend use lab
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
 ```
 
-Omit `--identifier` to use the pairing's backend identifier. Manual entry is
+Omit `--identifier` to use the file's backend identifier. CLI remote import verifies
+the connection immediately; manual lab additions only save the profile. Manual entry is
 reserved for unsecured labs:
 
 ```sh
@@ -212,7 +221,7 @@ from pathlib import Path
 from dokime_client import DokimeClient
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
         async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
             run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
             async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
@@ -233,6 +242,14 @@ cancelled. A template expansion returns an ordered tuple of all execution handle
 `cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
 manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
 are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
+
+All clients try endpoint candidates in parallel with a short stagger configured
+by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
+against the pinned CA and expected backend identity can win. The profile remembers
+the last successful endpoint and tries it first next time. Other candidates keep
+their original order. A failed connection leaves the imported profile available
+for retry. Python `from_pairing` retains its successful endpoint for that client;
+`from_profile` also saves successful endpoint selection in the shared profile.
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -357,12 +374,17 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
     "identifier": "lab",
     "label": "Lab PC",
     "endpoint": "https://dokime.example:8765",
+    "endpoints": ["https://dokime.example:8765", "https://192.168.1.50:8765"],
     "expected_backend_id": "BACKEND_ID",
     "ca_certificate_pem": null,
     "secret": "keyring"
   }]
 }
 ```
+
+`endpoints` preserves imported candidate order; `endpoint` is the last verified
+success, initially the first candidate. Manual profiles use an empty candidate
+list. The OS keyring association stays stable when the winning endpoint changes.
 
 Identifiers contain 1–128 ASCII letters, digits, dots, underscores or hyphens;
 `.` and `..` are refused. Labels are nonblank, control-free and at most 256 bytes.
@@ -865,7 +887,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--backend` |
-| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--pairing`, `--identifier`, `--label`, `--profiles-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage profiles; remote import also verifies the connection. | `--remote`, `--identifier`, `--label`, `--profiles-file` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 

@@ -67,12 +67,14 @@ class Row6(_message.Message):
     def __init__(self, source_bytes: _Optional[int] = ..., value_depth: _Optional[int] = ..., table_rows: _Optional[int] = ..., plot_points: _Optional[int] = ..., plot_downsample: _Optional[_Union[Row12, _Mapping]] = ...) -> None: ...
 
 class Row7(_message.Message):
-    __slots__ = ("connect_timeout_ms", "request_timeout_ms")
+    __slots__ = ("connect_timeout_ms", "request_timeout_ms", "endpoint_stagger_ms")
     CONNECT_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINT_STAGGER_MS_FIELD_NUMBER: _ClassVar[int]
     connect_timeout_ms: int
     request_timeout_ms: int
-    def __init__(self, connect_timeout_ms: _Optional[int] = ..., request_timeout_ms: _Optional[int] = ...) -> None: ...
+    endpoint_stagger_ms: int
+    def __init__(self, connect_timeout_ms: _Optional[int] = ..., request_timeout_ms: _Optional[int] = ..., endpoint_stagger_ms: _Optional[int] = ...) -> None: ...
 
 class Row8(_message.Message):
     __slots__ = ("interval_ms",)

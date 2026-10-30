@@ -98,7 +98,7 @@ fn profiles() {
     std::fs::remove_file(&path).unwrap();
     let original_document = profiles::decode(cases[0].document.as_bytes()).unwrap();
     let pairings: Vec<Case> = serde_json::from_str(include_str!("../fixtures/pairing.json")).unwrap();
-    let pairing_path = directory.path().join("fixture.dokime-pair");
+    let pairing_path = directory.path().join("fixture.dokime-remote");
     for case in &pairings {
         std::fs::write(&pairing_path, &case.document).unwrap();
         assert_eq!(dokime_client::pairing::read(&pairing_path).is_ok(), case.valid, "{}", case.name);
@@ -109,6 +109,9 @@ fn profiles() {
     assert!(dokime_client::pairing::read(&pairing_path).is_err());
     std::fs::write(&pairing_path, &pairings[0].document).unwrap();
     let pairing = dokime_client::pairing::read(&pairing_path).unwrap();
+    let obsolete = directory.path().join("old.dokime-pair");
+    std::fs::write(&obsolete, &pairings[0].document).unwrap();
+    assert!(dokime_client::pairing::read(&obsolete).is_err());
 
     // Refused Imports Leave An Empty Store And No Credential.
     let unavailable = Secrets { unavailable: true, ..Secrets::default() };
@@ -222,7 +225,10 @@ fn profiles() {
     assert_eq!(profile.label, pairing.label);
     assert_eq!(profile.expected_backend_id.as_deref(), Some(pairing.backend_identifier.as_str()));
     let selected = profiles::select(&reopened.load().unwrap(), Some("lab"), None, None).unwrap();
-    let target = dokime_client::Target::new(&pairing.endpoint, pairing.ca_certificate_pem.clone()).unwrap();
+    let target = dokime_client::Target::new(&pairing.endpoints[0], pairing.ca_certificate_pem.clone())
+        .unwrap()
+        .with_endpoints(&pairing.endpoints)
+        .unwrap();
     assert!(selected.target == target);
     let key = secrets.read(&selected.credential_key()).unwrap().unwrap();
     assert_eq!(key.as_str(), pairing.access_key.as_ref().unwrap());
@@ -239,4 +245,12 @@ fn profiles() {
     assert!(store.import_pairing(&pairing, "second", &unavailable).is_err());
     assert_eq!(std::fs::read(store.path()).unwrap(), original);
     assert_eq!(secrets.values.lock().unwrap().len(), 1);
+    // Remember The Verified Winner Without Moving The Stable Keyring Association.
+    store.remember_endpoint(&selected, &pairing.endpoints[1]).unwrap();
+    let remembered = profiles::selection(profiles::get(&store.load().unwrap(), "lab").unwrap()).unwrap();
+    assert_eq!(remembered.target.endpoint().trim_end_matches('/'), pairing.endpoints[1]);
+    assert_eq!(remembered.credential_key(), selected.credential_key());
+    assert_eq!(secrets.read(&remembered.credential_key()).unwrap().unwrap().as_str(), key.as_str());
+    assert!(store.remember_endpoint(&selected, "http://unselected:8765").is_err());
+    assert!(store.remember_endpoint(&selected, &pairing.endpoints[0]).is_err());
 }
