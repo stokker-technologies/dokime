@@ -29,6 +29,9 @@ and `src/report`.
   profiles, persisted browser storage or report output.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
   artifact and recording bytes. Do not add ordinary calls to it.
+- Native plugin file installation returns picker, file and backend failures to
+  the install dialog and an error notification. Cancelling the picker installs
+  nothing; a connection change cancels its owning request.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated

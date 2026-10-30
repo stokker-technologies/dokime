@@ -433,7 +433,7 @@ pub fn desktop_set_title(window: WebviewWindow, title: String) -> Result<(), Str
 
 // === Native document delivery helpers === //
 
-pub(crate) fn ensure_main_window(window: &WebviewWindow) -> Result<(), String> {
+pub(crate) fn ensure_main_window<R: tauri::Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
     if window.label() == "main" { Ok(()) } else { Err("Native document delivery is restricted to the main window".into()) }
 }
 

@@ -99,8 +99,10 @@ export function PluginsSection() {
         setInstallOpen(false);
         setRestartPrompt(true);
       }
-    } catch {
-      // Mutation failure is delivered through notifications.
+    } catch (error) {
+      toast.error("Plugin Installation Failed", {
+        description: errorMessage(error, "The plugin could not be installed.") ?? undefined,
+      });
     } finally {
       setUploadingFilename(null);
     }

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { toast } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -106,6 +107,12 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
       .then((stop) => {
         if (disposed) stop();
         else unlisten = stop;
+      })
+      .catch((error: unknown) => {
+        if (disposed) return;
+        toast.error("Plugin File Drop Unavailable", {
+          description: error instanceof Error ? error.message : String(error),
+        });
       });
     return () => {
       disposed = true;

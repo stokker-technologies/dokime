@@ -555,7 +555,7 @@ pub async fn recording_open<R: tauri::Runtime>(
         bridge.prepare::<dokime::domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
     let directory = {
         use tauri::Manager;
-        app.state::<dokime::paths::ApplicationPaths>().cache().join("recordings")
+        app.try_state::<dokime::paths::ApplicationPaths>().ok_or(RpcError::InvalidRequest)?.cache().join("recordings")
     };
     bridge.recordings.open(context, header, directory).await
 }

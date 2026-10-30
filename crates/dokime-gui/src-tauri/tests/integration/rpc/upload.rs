@@ -63,7 +63,11 @@ fn header(size_bytes: u64, scope: Option<model::content::wire::ArtifactScope>) -
 fn app_and_window(
     session: &dokime_gui::connection::ConnectionSession,
 ) -> (tauri::App<tauri::test::MockRuntime>, tauri::WebviewWindow<tauri::test::MockRuntime>) {
+    let root = tempfile::tempdir().unwrap();
+    let paths = dokime::paths::ApplicationPaths::new(root.path());
     let app = tauri::test::mock_builder()
+        .manage(root)
+        .manage(paths)
         .manage(session.clone())
         .manage(Bridge::default())
         .invoke_handler(handler())
@@ -341,6 +345,24 @@ fn recording_files(dir: &std::path::Path) -> std::collections::HashSet<String> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn recording_refuses_missing_paths() {
+    let fixture = Fixture::new().await;
+    let harness = crate::support::bridge::Harness::new(fixture.session.clone());
+    let bytes = request_bytes(generation(&fixture.session), &header(0, None).wire_bytes());
+
+    let error = invoke(&harness.window, "recording_open", bytes).expect_err("missing application paths must refuse the command");
+    assert_eq!(error["kind"], "invalid_request");
+    let reply = crate::support::bridge::invoke(
+        &harness.window,
+        "rpc",
+        request_bytes(generation(&fixture.session), &[]),
+        &serde_json::json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+    );
+    assert!(reply.is_ok(), "the command worker and connection remain usable: {reply:?}");
+    fixture.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn recording_cancel_deletes() {
     let fixture = Fixture::new().await;
     let (app, window) = app_and_window(&fixture.session);
@@ -348,7 +370,7 @@ async fn recording_cancel_deletes() {
 
     let recordings_dir = {
         use tauri::Manager;
-        app.path().app_cache_dir().expect("test app cache dir resolves").join("recordings")
+        app.state::<dokime::paths::ApplicationPaths>().cache().join("recordings")
     };
     let before = recording_files(&recordings_dir);
 

@@ -414,3 +414,76 @@ async fn client_close_drops() {
 
     fixture.close().await;
 }
+
+#[cfg(feature = "testing")]
+mod native {
+    use super::*;
+    use dokime_gui::testing::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
+    use tauri::Manager;
+
+    fn app_and_window(session: &dokime_gui::connection::ConnectionSession) -> (tauri::App<tauri::test::MockRuntime>, bridge::Window) {
+        let app = tauri::test::mock_builder()
+            .manage(session.clone())
+            .manage(DroppedFiles::default())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        (app, window)
+    }
+
+    async fn install_file(
+        app: &tauri::App<tauri::test::MockRuntime>, window: &bridge::Window, drop: bool,
+    ) -> Result<Option<String>, String> {
+        let session = app.state::<dokime_gui::connection::ConnectionSession>();
+        let generation = session.status().generation;
+        desktop_plugin_install_file(
+            window.clone(),
+            session,
+            app.state::<DroppedFiles>(),
+            app.handle().clone(),
+            generation,
+            drop,
+            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn invalid_bundle_returns_error_then_valid_file_installs() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("plugin.dokime");
+        std::fs::write(&path, b"not a plugin bundle").unwrap();
+        app.state::<DroppedFiles>().record("main", std::slice::from_ref(&path));
+
+        let error = install_file(&app, &window, true).await.expect_err("invalid archive returns a normal command failure");
+        assert!(!error.is_empty());
+
+        std::fs::write(&path, large_bundle(1024)).unwrap();
+        app.state::<DroppedFiles>().record("main", &[path]);
+        let installed = install_file(&app, &window, true).await.expect("a failed installation leaves the command usable");
+        assert!(installed.is_some());
+        fixture.close().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn unreadable_file_returns_error() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+        let root = tempfile::tempdir().unwrap();
+        app.state::<DroppedFiles>().record("main", &[root.path().join("missing.dokime")]);
+
+        install_file(&app, &window, true).await.expect_err("file read failure returns to the frontend");
+        fixture.close().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn missing_picker_returns_error() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+
+        install_file(&app, &window, false).await.expect_err("unmanaged dialog state must not panic");
+        fixture.close().await;
+    }
+}
