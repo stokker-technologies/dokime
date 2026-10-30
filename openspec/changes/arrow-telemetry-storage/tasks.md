@@ -1,0 +1,50 @@
+# Arrow IPC Telemetry Storage Tasks
+
+## 1. Contract And Activation
+
+- [x] 1.1 Record all nine owner-locked decisions, the source inventory and the impossibility evidence in proposal/design/spec artifacts; verify OpenSpec structure with strict validation.
+- [x] 1.2 Record the owner's 2026-10-30 amendment approving metadata-only O(batch count) footer emission without payload scans, decoding or rewriting; verify against the Arrow IPC footer schema.
+- [x] 1.3 Activate `arrow-telemetry-storage` through the Hub and create/resume the native persistent goal after contract resolution; verify the marker names this branch and change.
+
+## 2. Configuration, Schema And Catalog
+
+- [x] 2.1 In runtime `src/config/storage.rs`, `src/config/storage/defaults.rs` and configuration consumers, add configured row/time flush thresholds and validation; verify focused policy tests without literals at call sites.
+- [x] 2.2 In runtime `src/storage` and Cargo dependency/lock owners, implement contract-to-Arrow mapping and metadata; verify every value type including nested arrays/objects, unsigned boundaries, nullability and UTC microseconds in round-trip tests.
+- [x] 2.3 Replace stored-file ownership with `files`/`artifacts`, add streams/batch indexes and retain numeric summaries in runtime SQLite schema/file/projection owners; verify catalog joins, telemetry exclusion from artifacts and refusal of incompatible roots without data loss.
+
+## 3. Writer, Durability And Recovery
+
+- [x] 3.1 Implement per-execution/stream and session file ownership, ZSTD batches and row/time flush scheduling under runtime `src/storage`; verify both triggers, durable flush and Windows close-before-rename/delete behavior.
+- [x] 3.2 Integrate batch fsync/catalog commit/saved-cursor ordering with runtime execution evidence and transaction owners; verify failure injection never acknowledges uncommitted or unflushed rows.
+- [x] 3.3 Implement finalize and footerless recovery under runtime storage lifecycle; verify recovered complete batches, partial-write handling and the owner-approved finalize complexity without payload rewriting.
+
+## 4. Consumers And Removal
+
+- [ ] 4.1 Replace runtime storage/query/output/report telemetry readers with overlapping batch reads plus unflushed tail; verify windows, out-of-order times, pagination, no duplicates and saved-versus-live visibility. Functional proofs pass; the 1M-row query median is 3.35 s against the locked ~1 s target, so this item remains open pending optimization and owner-approved query-only revalidation.
+- [x] 4.2 Delete obsolete telemetry payload read/write paths, per-signal tables and indexes, retaining unrelated evidence and summaries; verify source searches and focused storage/durability/recovery tests.
+- [x] 4.3 Review domain/operation/client and GUI consumers; migrate all affected bindings/examples if their contracts change and read `docs/gui.md` before GUI edits; verify focused consumer tests and generated-contract consistency where affected.
+
+## 5. Exports And Documentation
+
+- [x] 5.1 Replace runtime `src/domains/exports/evidence/{database,archive,snapshot}.rs` and cycle export projection with relational catalogs and original Arrow file copies; delete partition tables, column splitting and `stream_columns`; verify execution/cycle paths, manifest hashes and byte identity.
+- [x] 5.2 Update runtime/server export fixtures and add `packages/dokime-client/tests/integration/client/arrow_archive.py`; verify exported Arrow with project Polars and evidence.sqlite joins through the focused Rust export task. Review the SDK's opaque-download `test_exports.py` and retain its unchanged protocol tests.
+- [x] 5.3 Update `docs/product-guide.md`, README claims/examples if affected, export-related remote guides and `docs/exports.md` if present in the delivery base; verify documentation matches final behavior by review. The initial origin/dev has no `docs/exports.md`.
+
+- [x] 5.4 Refresh `crates/dokime-runtime/dist-report/report.html` through `prepare:report` after the required resource check found it stale; review the generated-only difference and rerun `check:rust`.
+
+## 6. Benchmark Source And Closure
+
+- [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, give the existing storage query fixture paired increasing time bounds, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
+- [ ] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
+
+## 7. Final Validation And Local Handback
+
+- [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers. The requested local checks passed on Windows; native Linux/full-graph proof is unrun under the owner's no-umbrella instruction.
+- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures. Retain the original 1M query backend timeout as its baseline outcome; do not extend deadlines or repeat completed measurement cases. The repaired storage fixture passed Criterion test mode. The candidate measurement pass completed; its latency target remains unmet. Native trees are retained under `target/benchmarks/baseline-db2dae5b/` and `target/benchmarks/candidate-52f120d5/`.
+- [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes in small Conventional Commits and hand back status, added/deleted lines, benchmark results, tests and open issues in at most ten lines; do not push or merge.
+
+## Workflow Follow-Up
+
+- The owner resolved the footer blocker; implementation proceeds under the metadata-only footer amendment.
+- Preserve this tracked change until the feature is complete; archive through the Hub only when all required tasks are actually closed.
+- Experimental integration requires the owner's go; no remote delivery is authorized.

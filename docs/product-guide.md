@@ -335,10 +335,17 @@ A sealed execution is exportable while its cycle stays Active. A cycle export
 requires its durable seal and includes every exact member revision. The ZIP
 contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
 reports. The manifest records source identities, revisions, row counts and
-payload checksums; SQLite exposes inputs, definitions, outcomes, records and
-typed stream columns. Query `streams` and `stream_columns` to find each stream's
-tables, field names and units. Wide streams use partitions joined by `m_row`.
-Canonical JSON retains nested values and unsigned integer identity.
+payload checksums. SQLite retains relational evidence and the `files`,
+`artifacts`, `streams` and `stream_summaries` catalogs. Telemetry is stored in
+ZSTD-compressed Arrow IPC files under `telemetry/<stream>.arrow`; exports copy
+those finalized files byte-for-byte. Each file contains typed `values` and
+`_storage` metadata. Timestamps use UTC microseconds. Arrow field metadata retains units,
+descriptions and stream identity; schema metadata identifies the execution, Dokime version and contract.
+
+Execution bundles place captured files under `artifacts/<relative path>`.
+Cycle bundles use `executions/<execution-id>/artifacts/` and
+`executions/<execution-id>/telemetry/`, with their saved cycle report in `reports/`.
+Telemetry is cataloged as a file and never appears as a captured artifact.
 
 Exports use saved storage snapshots and survive server restart. Missing
 required evidence fails the export. The server admits one export at a time,
@@ -1486,10 +1493,26 @@ patched in the shell rather than framed by the WebView.
 
 ## Long-Running Evidence And Report Saves
 
-Telemetry and captured records persist as they arrive with bounded pending
-queues and durable acknowledgement. Plots query saved evidence in bounded pages;
-changing a display window never deletes raw evidence. Recovery restores saved
-frontiers without replaying device actions.
+Telemetry admission retains a bounded in-memory tail. A flush writes a
+ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
+and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
+with the unflushed tail; historical reads retain their requested saved frontier.
+Changing a display window never deletes raw evidence. Only flushed batches are
+durable; accepted tail rows can be lost in a crash.
+
+`RuntimeConfig.local_storage.telemetry_rows` and `telemetry_interval` configure
+row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
+five seconds. Explicit evidence barriers and shutdown also drain pending rows.
+Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
+session-scoped files for telemetry outside executions. Finalize writes only the
+footer from the retained batch descriptors. Recovery rebuilds an interrupted
+footer from batch headers and catalog checkpoints without decoding sample bytes.
+Files close before rename or deletion on Windows.
+
+This experimental storage layout keeps the v1 baseline and requires a fresh
+root for incompatible development data. Existing roots are never reset or
+silently deleted. Captured records keep their bounded durable queue and recovery
+restores saved frontiers without replaying device actions.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.

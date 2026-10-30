@@ -157,7 +157,7 @@ pub(crate) async fn nominal() {
     let history = backend.history().clone();
     let at = |sequence| StorageCursor { history: history.clone(), sequence };
     let waveform_schema = SchemaKey {
-        id: id("story.waveform"),
+        id: id("story.dokime.telemetry.waveform"),
         version: std::num::NonZeroU32::MIN,
         payload_encoding: PayloadEncoding::PostcardV1,
     };
@@ -383,10 +383,11 @@ pub(crate) async fn nominal() {
     let mut typed_count = 0;
     while let Some(output) = typed_query.next().await.unwrap() {
         if let QueryArrow::Batch(batch) = output {
-            let entries = dokime_runtime::storage::telemetry::decode_positioned(&codec, batch).unwrap();
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].1.sample.storage_payload, typed_entry.sample.storage_payload);
-            typed_count += entries.len();
+            let batch = batch.as_record_batch();
+            assert_eq!(batch.num_rows(), 1);
+            let rms = FieldPath::from("payload.values.rms").value(batch, 0).unwrap();
+            assert_eq!(rms, ScalarValue::Float(typed.rms));
+            typed_count += batch.num_rows();
         }
     }
     assert_eq!(typed_count, 1);
@@ -513,6 +514,21 @@ pub(crate) async fn nominal() {
     let objects = backend.read_objects(&view, &revisions, page(0, rows(8))).await.unwrap();
     assert_eq!(objects, [subject.clone(), stopped.clone()]);
     for (file, expected) in files {
+        let identity = file.metadata.id.to_string();
+        let (kind, length, digest): (String, i64, Vec<u8>) = backend
+            .local_state()
+            .call(move |connection| {
+                connection.query_row(
+                    "SELECT f.kind,f.size_bytes,f.sha256 FROM files f JOIN artifacts a ON a.file_id=f.id WHERE f.id=?1",
+                    [identity],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+            })
+            .await
+            .unwrap();
+        assert_eq!(kind, "artifact");
+        assert_eq!(length as u64, file.length);
+        assert_eq!(digest.as_slice(), file.sha256);
         let mut actual = Vec::new();
         while actual.len() < expected.len() {
             let bytes = backend.read_file(&view, &file, actual.len() as u64, NonZeroUsize::new(MAX_BYTES).unwrap()).await.unwrap();

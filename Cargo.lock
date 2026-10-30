@@ -369,6 +369,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "flatbuffers",
+ "zstd",
 ]
 
 [[package]]
@@ -2577,6 +2578,8 @@ name = "dokime-runtime"
 version = "0.1.2"
 dependencies = [
  "arrow-array",
+ "arrow-buffer",
+ "arrow-ipc",
  "arrow-schema",
  "ashpd",
  "async-trait",
@@ -2588,6 +2591,7 @@ dependencies = [
  "dokime-macros",
  "dokime-operations",
  "file-id",
+ "flatbuffers",
  "futures-util",
  "globset",
  "harmos",
@@ -2635,6 +2639,7 @@ name = "dokime-server"
 version = "0.1.2"
 dependencies = [
  "anstream",
+ "arrow-ipc",
  "async-trait",
  "clap",
  "criterion",
