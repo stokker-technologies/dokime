@@ -106,6 +106,17 @@ pub struct PluginLastBoot {
 }
 
 #[harmos::message]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PluginStartFailure {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub message: String,
+    pub code: Option<String>,
+    pub missing_secret: Option<String>,
+    pub carrier: Vec<u8>,
+}
+
+#[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginInstallation {
     pub install_id: String,
@@ -122,7 +133,7 @@ pub struct PluginInstallation {
     pub error: Option<String>,
     pub active: bool,
     pub restart_required: bool,
-    pub boot_error: Option<String>,
+    pub boot_failed: bool,
 }
 
 #[harmos::message]
@@ -191,7 +202,7 @@ pub enum InstallPluginFrameFrame {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PluginLastBootResult {
     Loaded(bool),
-    Error(String),
+    Error(PluginStartFailure),
 }
 
 #[harmos::message]
