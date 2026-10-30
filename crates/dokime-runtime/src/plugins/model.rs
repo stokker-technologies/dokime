@@ -48,7 +48,7 @@ pub struct PluginEntry {
     pub restart_required: bool,
 
     #[serde(default)]
-    pub boot_error: Option<String>,
+    pub boot_failed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -96,7 +96,7 @@ pub enum PluginState {
 #[serde(rename_all = "snake_case", tag = "state")]
 pub enum PluginLastBoot {
     Loaded { at: Timestamp },
-    Failed { error: String, at: Timestamp },
+    Failed { failure: dokime_domain::model::plugins::wire::PluginStartFailure, at: Timestamp },
 }
 
 /* === Traits === */

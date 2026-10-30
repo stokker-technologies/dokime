@@ -189,6 +189,7 @@ impl RuntimeHandle {
         (execution, self.finish_saved_execution(cycle, execution).await)
     }
 
+    #[tracing::instrument(name = "execution.finalize", skip_all)]
     pub(crate) async fn finish_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
         let id = &execution.test_execution_id;
         if execution.saved.is_some() {

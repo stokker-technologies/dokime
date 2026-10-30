@@ -82,6 +82,7 @@ struct SharedTelemetry {
     epoch: Arc<dokime_domain::model::identity::SessionId>,
     sample: Arc<crate::telemetry::TelemetrySample>,
     codec: Arc<telemetry::TypedCodec>,
+    signals: Vec<telemetry::Signal>,
 }
 
 pub(crate) struct ScopedTelemetry {
@@ -148,7 +149,8 @@ impl ScopedTelemetry {
     }
 
     fn into_input(self) -> Result<StreamInput> {
-        let prepared = prepare_staged(&self.row.epoch, &self.row.sample, self.scope.as_ref(), self.ordinal, &self.row.codec)?;
+        let prepared =
+            prepare_staged(&self.row.epoch, &self.row.sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
         Ok(prepared.into_input())
     }
 }
@@ -828,19 +830,31 @@ pub(crate) fn stage_rows(
     for (index, row) in samples.iter().enumerate() {
         let codec = codecs.get(row.contract).ok_or_else(|| invalid("telemetry codec index is missing"))?;
         let decoded = matches!(payloads, crate::domains::telemetry::Payloads::Decoded(decoder) if Arc::ptr_eq(decoder, codec));
-        if row.original() && !decoded {
-            let payload =
-                row.sample.storage_payload.as_deref().ok_or_else(|| invalid("typed telemetry sample has no original row payload"))?;
-            codec.check_payload(payload)?;
-        }
         let identity = Arc::as_ptr(&row.sample);
-        let shared = shared.entry(identity).or_insert_with(|| {
-            Arc::new(SharedTelemetry {
-                epoch: Arc::clone(&epoch),
-                sample: Arc::clone(&row.sample),
-                codec: Arc::clone(codec),
-            })
-        });
+        let shared = match shared.entry(identity) {
+            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                if !row.original() {
+                    return Err(invalid("telemetry lease precedes its original sample"));
+                }
+                let signals = if decoded {
+                    telemetry::signals(&row.sample.values)
+                } else {
+                    let payload = row
+                        .sample
+                        .storage_payload
+                        .as_deref()
+                        .ok_or_else(|| invalid("typed telemetry sample has no original row payload"))?;
+                    codec.payload_signals(payload, &row.sample.values)?
+                };
+                entry.insert(Arc::new(SharedTelemetry {
+                    epoch: Arc::clone(&epoch),
+                    sample: Arc::clone(&row.sample),
+                    codec: Arc::clone(codec),
+                    signals,
+                }))
+            }
+        };
         rows.push((
             index,
             ScopedTelemetry {
@@ -856,8 +870,9 @@ pub(crate) fn stage_rows(
 fn prepare_staged(
     epoch: &dokime_domain::model::identity::SessionId, sample: &crate::telemetry::TelemetrySample,
     scope: Option<&dokime_domain::model::execution::RecordScope>, ordinal: u64, codec: &telemetry::TypedCodec,
+    signals: &[telemetry::Signal],
 ) -> Result<PreparedTelemetry> {
-    let payload = codec.encode_staged(epoch, ordinal, sample, scope)?;
+    let payload = codec.encode_staged(epoch, ordinal, sample, scope, signals)?;
     let scope = scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
     let identifier = |value: &str| Identifier::new(value).map_err(crate::storage::Error::from);
     let at = sample.timestamp.to_datetime().map_err(|_| invalid("typed telemetry timestamp is invalid"))?;

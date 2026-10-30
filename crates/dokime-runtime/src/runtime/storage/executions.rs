@@ -793,6 +793,7 @@ fn validate_report(
     Ok(())
 }
 
+#[tracing::instrument(name = "report.publish_final", skip_all)]
 async fn publish_final(
     ctx: &crate::report::Scope, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
@@ -834,6 +835,7 @@ async fn publish_final(
     Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
 
+#[tracing::instrument(name = "report.seal_final", skip_all)]
 async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);

@@ -148,7 +148,7 @@ impl FileWatch {
 
         // Seal Into The Execution Before It Stops Admitting Artifacts
         let (seal_sender, seal_request) = oneshot::channel();
-        let registration = runtime.execution_storage.captures.register(&execution, seal_sender as SealRequest);
+        let registration = runtime.execution_storage.captures.register(&execution, seal_sender as SealRequest)?;
         Ok(Self {
             state: Some(State {
                 runtime,

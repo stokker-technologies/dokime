@@ -43,12 +43,9 @@ use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
 
-#[allow(unused_imports)]
 use dokime_domain::model::appearance::wire::*;
 
 use dokime_domain::model::content::wire::*;
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 
 /* === Constants === */
 

@@ -162,10 +162,22 @@ async fn start_reports_phases() {
 async fn live_owner_refused() {
     let root = tempfile::tempdir().unwrap();
     let first = owner(root.path());
-    first.select(BackendSelection::OwnedLocal).await.unwrap();
+    let initial = first.select(BackendSelection::OwnedLocal).await.unwrap();
     let successor = owner(root.path());
-    assert!(matches!(successor.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::Startup { .. })));
+    let started = std::time::Instant::now();
+    let error = successor.select(BackendSelection::OwnedLocal).await.unwrap_err();
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "an occupied store must refuse without lease polling");
+    assert!(matches!(&error, DesktopSessionError::BackendRunning { root: data, .. } if data == &root.path().join("store")));
+    let serialized = serde_json::to_value(error).unwrap();
+    assert_eq!(serialized["kind"], "backend_running");
+    assert_eq!(serialized["root"], root.path().join("store").to_str().unwrap());
     assert_eq!(successor.status().ownership, BackendOwnership::None);
+    assert_eq!(successor.status().phase, None);
+    let attached = successor.select(attach(initial.connection.endpoint.clone().unwrap())).await.unwrap();
+    assert_eq!(attached.ownership, BackendOwnership::Attached);
+    assert_eq!(attached.connection.backend.as_ref().unwrap().backend_id, initial.connection.backend.as_ref().unwrap().backend_id);
+    successor.disconnect().await.unwrap();
+    assert_eq!(first.status().connection.generation, initial.connection.generation);
     first.shutdown().await.unwrap();
     successor.select(BackendSelection::OwnedLocal).await.unwrap();
     successor.shutdown().await.unwrap();

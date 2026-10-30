@@ -28,7 +28,6 @@ use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 
-#[allow(unused_imports)]
 use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::telemetry::wire::*;
 

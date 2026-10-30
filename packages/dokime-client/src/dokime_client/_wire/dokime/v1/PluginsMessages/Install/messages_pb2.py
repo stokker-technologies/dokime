@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nDdokime_client/_wire/dokime/v1/PluginsMessages/Install/messages.proto\x12!dokime.v1.PluginsMessages.Install\"\x06\n\x04Row1\"\xb5\x04\n\x04Row2\x12!\n\ninstall_id\x18\xee\xd8\xf8\x92\x01 \x01(\tR\tinstallId\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\x12N\n\x0cinstalled_at\x18\xb3\xdb\xf8\xa4\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row4R\x0binstalledAt\x12\x41\n\x05state\x18\x9a\x85\xc5\xc1\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row5R\x05state\x12H\n\tlast_boot\x18\x9a\xf5\xcf\xcb\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row6R\x08lastBoot\x12\x46\n\x08metadata\x18\xe4\xc5\x89\x31 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row7R\x08metadata\x12\x1c\n\x05\x65rror\x18\xa3\x9e\xc6\x0c \x01(\tH\x00R\x05\x65rror\x88\x01\x01\x12\x1a\n\x06\x61\x63tive\x18\x8e\xe9\xd6\xcb\x01 \x01(\x08R\x06\x61\x63tive\x12-\n\x10restart_required\x18\x81\xb9\xa8\xff\x01 \x01(\x08R\x0frestartRequired\x12%\n\nboot_error\x18\xd1\xcc\xf0\x62 \x01(\tH\x01R\tbootError\x88\x01\x01\x42\x1b\n\x19_harmos_presence_26316579B\x1c\n\x1a_harmos_presence_207365713\"I\n\x04Row3\x12\x41\n\x05\x66rame\x18\x85\x9a\xaa\x90\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row8R\x05\x66rame\"<\n\x04Row4\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"\xda\x02\n\x04Row5\x12N\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row9H\x00R\x0bUnspecified\x12K\n\tInstalled\x18\xe5\xe3\x9d\x45 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row10H\x00R\tInstalled\x12J\n\x08\x44isabled\x18\x9b\xe1\xba\xfe\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row11H\x00R\x08\x44isabled\x12V\n\x0eRemovalPending\x18\xd8\x87\xb4\xf6\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row12H\x00R\x0eRemovalPendingB\x11\n\x0f_harmos_variant\"\x88\x01\n\x04Row6\x12;\n\x02\x61t\x18\xc3\xc2\x94\xb9\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row4R\x02\x61t\x12\x43\n\x06result\x18\x8d\xf4\xddQ \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row13R\x06result\"\x8d\x01\n\x04Row7\x12G\n\x08identity\x18\x91\x98\x95J \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row14R\x08identity\x12\x1a\n\x06owners\x18\xad\x94\xf7\xc4\x01 \x03(\tR\x06owners\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\"\xa6\x01\n\x04Row8\x12\x46\n\x06Header\x18\xe9\xba\xbe\x8a\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row15H\x00R\x06Header\x12\x43\n\x05\x43hunk\x18\xb4\xc0\xd4G \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row16H\x00R\x05\x43hunkB\x11\n\x0f_harmos_variant\"\x06\n\x04Row9\"\x07\n\x05Row10\"\x07\n\x05Row11\"\x07\n\x05Row12\"\xa7\x01\n\x05Row13\x12\x45\n\x06Loaded\x18\xdb\xe5\xa6\x62 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row17H\x00R\x06Loaded\x12\x44\n\x05\x45rror\x18\xb9\xf8\xb6\x9c\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row18H\x00R\x05\x45rrorB\x11\n\x0f_harmos_variant\"a\n\x05Row14\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x1b\n\x07version\x18\xd2\xf4\xc6\x33 \x01(\tR\x07version\x12$\n\x0b\x64\x65scription\x18\xbb\x86\xbd\xa3\x01 \x01(\tR\x0b\x64\x65scription\"N\n\x05Row15\x12\x45\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row19R\x06\x66ield0\"N\n\x05Row16\x12\x45\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row20R\x06\x66ield0\"$\n\x05Row17\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x08R\x06\x66ield0\"$\n\x05Row18\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\tR\x06\x66ield0\"E\n\x05Row19\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\";\n\x05Row20\x12\x1a\n\x06offset\x18\xb3\xaf\xa3\xa6\x01 \x01(\x04R\x06offset\x12\x16\n\x04\x64\x61ta\x18\x84\xfc\xcb\xc3\x01 \x01(\x0cR\x04\x64\x61ta\"\xcd\x01\n\x04Row0\x12\x41\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1R\x07request\x12\x43\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row2R\x08response\x12=\n\x05input\x18\x03 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3R\x05inputb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nDdokime_client/_wire/dokime/v1/PluginsMessages/Install/messages.proto\x12!dokime.v1.PluginsMessages.Install\"\x06\n\x04Row1\"\x94\x04\n\x04Row2\x12!\n\ninstall_id\x18\xee\xd8\xf8\x92\x01 \x01(\tR\tinstallId\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\x12N\n\x0cinstalled_at\x18\xb3\xdb\xf8\xa4\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row4R\x0binstalledAt\x12\x41\n\x05state\x18\x9a\x85\xc5\xc1\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row5R\x05state\x12H\n\tlast_boot\x18\x9a\xf5\xcf\xcb\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row6R\x08lastBoot\x12\x46\n\x08metadata\x18\xe4\xc5\x89\x31 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row7R\x08metadata\x12\x1c\n\x05\x65rror\x18\xa3\x9e\xc6\x0c \x01(\tH\x00R\x05\x65rror\x88\x01\x01\x12\x1a\n\x06\x61\x63tive\x18\x8e\xe9\xd6\xcb\x01 \x01(\x08R\x06\x61\x63tive\x12-\n\x10restart_required\x18\x81\xb9\xa8\xff\x01 \x01(\x08R\x0frestartRequired\x12\"\n\x0b\x62oot_failed\x18\xb1\x89\xa0K \x01(\x08R\nbootFailedB\x1b\n\x19_harmos_presence_26316579\"I\n\x04Row3\x12\x41\n\x05\x66rame\x18\x85\x9a\xaa\x90\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row8R\x05\x66rame\"<\n\x04Row4\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"\xda\x02\n\x04Row5\x12N\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row9H\x00R\x0bUnspecified\x12K\n\tInstalled\x18\xe5\xe3\x9d\x45 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row10H\x00R\tInstalled\x12J\n\x08\x44isabled\x18\x9b\xe1\xba\xfe\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row11H\x00R\x08\x44isabled\x12V\n\x0eRemovalPending\x18\xd8\x87\xb4\xf6\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row12H\x00R\x0eRemovalPendingB\x11\n\x0f_harmos_variant\"\x88\x01\n\x04Row6\x12;\n\x02\x61t\x18\xc3\xc2\x94\xb9\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row4R\x02\x61t\x12\x43\n\x06result\x18\x8d\xf4\xddQ \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row13R\x06result\"\x8d\x01\n\x04Row7\x12G\n\x08identity\x18\x91\x98\x95J \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row14R\x08identity\x12\x1a\n\x06owners\x18\xad\x94\xf7\xc4\x01 \x03(\tR\x06owners\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\"\xa6\x01\n\x04Row8\x12\x46\n\x06Header\x18\xe9\xba\xbe\x8a\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row15H\x00R\x06Header\x12\x43\n\x05\x43hunk\x18\xb4\xc0\xd4G \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row16H\x00R\x05\x43hunkB\x11\n\x0f_harmos_variant\"\x06\n\x04Row9\"\x07\n\x05Row10\"\x07\n\x05Row11\"\x07\n\x05Row12\"\xa7\x01\n\x05Row13\x12\x45\n\x06Loaded\x18\xdb\xe5\xa6\x62 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row17H\x00R\x06Loaded\x12\x44\n\x05\x45rror\x18\xb9\xf8\xb6\x9c\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row18H\x00R\x05\x45rrorB\x11\n\x0f_harmos_variant\"a\n\x05Row14\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x1b\n\x07version\x18\xd2\xf4\xc6\x33 \x01(\tR\x07version\x12$\n\x0b\x64\x65scription\x18\xbb\x86\xbd\xa3\x01 \x01(\tR\x0b\x64\x65scription\"N\n\x05Row15\x12\x45\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row19R\x06\x66ield0\"N\n\x05Row16\x12\x45\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row20R\x06\x66ield0\"$\n\x05Row17\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x08R\x06\x66ield0\"N\n\x05Row18\x12\x45\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32(.dokime.v1.PluginsMessages.Install.Row21R\x06\x66ield0\"E\n\x05Row19\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\";\n\x05Row20\x12\x1a\n\x06offset\x18\xb3\xaf\xa3\xa6\x01 \x01(\x04R\x06offset\x12\x16\n\x04\x64\x61ta\x18\x84\xfc\xcb\xc3\x01 \x01(\x0cR\x04\x64\x61ta\"\x90\x02\n\x05Row21\x12\x1f\n\tplugin_id\x18\xad\xae\xe8\xc7\x01 \x01(\tR\x08pluginId\x12\"\n\x0bplugin_name\x18\x8e\xb0\xb0j \x01(\tR\npluginName\x12\x1b\n\x07message\x18\xb6\xa1\xc8\' \x01(\tR\x07message\x12\x1b\n\x04\x63ode\x18\xbc\x98\xc6\xc9\x01 \x01(\tH\x00R\x04\x63ode\x88\x01\x01\x12.\n\x0emissing_secret\x18\xb3\xb7\x93\xfe\x01 \x01(\tH\x01R\rmissingSecret\x88\x01\x01\x12\x1c\n\x07\x63\x61rrier\x18\xd6\xf0\x90\xb9\x01 \x01(\x0cR\x07\x63\x61rrierB\x1c\n\x1a_harmos_presence_422677564B\x1c\n\x1a_harmos_presence_532994995\"\xcd\x01\n\x04Row0\x12\x41\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1R\x07request\x12\x43\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row2R\x08response\x12=\n\x05input\x18\x03 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3R\x05inputb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -55,45 +55,47 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW1']._serialized_start=107
   _globals['_ROW1']._serialized_end=113
   _globals['_ROW2']._serialized_start=116
-  _globals['_ROW2']._serialized_end=681
-  _globals['_ROW3']._serialized_start=683
-  _globals['_ROW3']._serialized_end=756
-  _globals['_ROW4']._serialized_start=758
-  _globals['_ROW4']._serialized_end=818
-  _globals['_ROW5']._serialized_start=821
-  _globals['_ROW5']._serialized_end=1167
-  _globals['_ROW6']._serialized_start=1170
-  _globals['_ROW6']._serialized_end=1306
-  _globals['_ROW7']._serialized_start=1309
-  _globals['_ROW7']._serialized_end=1450
-  _globals['_ROW8']._serialized_start=1453
-  _globals['_ROW8']._serialized_end=1619
-  _globals['_ROW9']._serialized_start=1621
-  _globals['_ROW9']._serialized_end=1627
-  _globals['_ROW10']._serialized_start=1629
-  _globals['_ROW10']._serialized_end=1636
-  _globals['_ROW11']._serialized_start=1638
-  _globals['_ROW11']._serialized_end=1645
-  _globals['_ROW12']._serialized_start=1647
-  _globals['_ROW12']._serialized_end=1654
-  _globals['_ROW13']._serialized_start=1657
-  _globals['_ROW13']._serialized_end=1824
-  _globals['_ROW14']._serialized_start=1826
-  _globals['_ROW14']._serialized_end=1923
-  _globals['_ROW15']._serialized_start=1925
-  _globals['_ROW15']._serialized_end=2003
-  _globals['_ROW16']._serialized_start=2005
-  _globals['_ROW16']._serialized_end=2083
-  _globals['_ROW17']._serialized_start=2085
-  _globals['_ROW17']._serialized_end=2121
-  _globals['_ROW18']._serialized_start=2123
-  _globals['_ROW18']._serialized_end=2159
-  _globals['_ROW19']._serialized_start=2161
-  _globals['_ROW19']._serialized_end=2230
-  _globals['_ROW20']._serialized_start=2232
-  _globals['_ROW20']._serialized_end=2291
-  _globals['_ROW0']._serialized_start=2294
-  _globals['_ROW0']._serialized_end=2499
+  _globals['_ROW2']._serialized_end=648
+  _globals['_ROW3']._serialized_start=650
+  _globals['_ROW3']._serialized_end=723
+  _globals['_ROW4']._serialized_start=725
+  _globals['_ROW4']._serialized_end=785
+  _globals['_ROW5']._serialized_start=788
+  _globals['_ROW5']._serialized_end=1134
+  _globals['_ROW6']._serialized_start=1137
+  _globals['_ROW6']._serialized_end=1273
+  _globals['_ROW7']._serialized_start=1276
+  _globals['_ROW7']._serialized_end=1417
+  _globals['_ROW8']._serialized_start=1420
+  _globals['_ROW8']._serialized_end=1586
+  _globals['_ROW9']._serialized_start=1588
+  _globals['_ROW9']._serialized_end=1594
+  _globals['_ROW10']._serialized_start=1596
+  _globals['_ROW10']._serialized_end=1603
+  _globals['_ROW11']._serialized_start=1605
+  _globals['_ROW11']._serialized_end=1612
+  _globals['_ROW12']._serialized_start=1614
+  _globals['_ROW12']._serialized_end=1621
+  _globals['_ROW13']._serialized_start=1624
+  _globals['_ROW13']._serialized_end=1791
+  _globals['_ROW14']._serialized_start=1793
+  _globals['_ROW14']._serialized_end=1890
+  _globals['_ROW15']._serialized_start=1892
+  _globals['_ROW15']._serialized_end=1970
+  _globals['_ROW16']._serialized_start=1972
+  _globals['_ROW16']._serialized_end=2050
+  _globals['_ROW17']._serialized_start=2052
+  _globals['_ROW17']._serialized_end=2088
+  _globals['_ROW18']._serialized_start=2090
+  _globals['_ROW18']._serialized_end=2168
+  _globals['_ROW19']._serialized_start=2170
+  _globals['_ROW19']._serialized_end=2239
+  _globals['_ROW20']._serialized_start=2241
+  _globals['_ROW20']._serialized_end=2300
+  _globals['_ROW21']._serialized_start=2303
+  _globals['_ROW21']._serialized_end=2575
+  _globals['_ROW0']._serialized_start=2578
+  _globals['_ROW0']._serialized_end=2783
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

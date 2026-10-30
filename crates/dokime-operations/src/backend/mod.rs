@@ -38,8 +38,6 @@ use super::ORDINARY;
 use super::TRANSFER;
 
 use dokime_domain::model::backend::wire::*;
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 
 /* === Constants === */
 

@@ -61,7 +61,7 @@ def test(
     rules = policy.load(directory)
     key = f"{category}-{language}"
     _preflight(directory, category, language, profile)
-    if language == "python":
+    if language == "python" and not (category in ("unit", "integration") and "-k" in extra):
         archive.install_wheels(directory, profile)
     with _scratch(directory, key, profile) as scratch:
         deadline = rules.deadline(category)
@@ -85,6 +85,8 @@ def test(
             junit = scratch / "junit.xml"
             command = pytest.run(cwd, f"tests/{category}", deadline, junit, extra)
             environment = pytest.environment(directory)
+            if category in ("unit", "integration") and "-k" in extra:
+                environment["PYTHONPATH"] = str(cwd / "src")
         else:
             junit = scratch / "junit.xml"
             command = vitest.run(extra, junit, deadline)

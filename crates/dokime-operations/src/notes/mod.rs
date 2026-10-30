@@ -32,8 +32,6 @@ use super::Endpoint;
 use super::ORDINARY;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::notes::wire::*;
 
 /* === Constants === */

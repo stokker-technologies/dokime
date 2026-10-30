@@ -310,7 +310,7 @@ export type PluginEntry = {
   /**  Whether this installation was admitted by this process. */
   active?: boolean;
   restart_required?: boolean;
-  boot_error?: string | null;
+  boot_failed?: boolean;
 } & Installation;
 
 export type PluginIdentity = {
@@ -319,7 +319,15 @@ export type PluginIdentity = {
   description: string;
 };
 
-export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; error: string; at: Timestamp };
+export type PluginStartFailure = {
+  plugin_id: string;
+  plugin_name: string;
+  message: string;
+  code: string | null;
+  missing_secret: string | null;
+};
+
+export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; failure: PluginStartFailure; at: Timestamp };
 
 export type PluginMetadata = {
   identity: PluginIdentity;

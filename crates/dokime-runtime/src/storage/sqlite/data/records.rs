@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS storage_record_captures (
     PRIMARY KEY(execution,position), UNIQUE(execution,record_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_capture_ordinal ON storage_record_captures(execution,ordinal);
+CREATE INDEX IF NOT EXISTS storage_capture_position ON storage_record_captures(position);
 CREATE INDEX IF NOT EXISTS storage_record_cycle ON storage_record_visibility(cycle,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility(execution,position);
 ";
