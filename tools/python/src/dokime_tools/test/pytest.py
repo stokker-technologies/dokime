@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/test/pytest.py; sha256:c3e5f4973a7cd39e350f8a7ffbff2f9721f7e9e7284571d1d26505e7526a7cdd
 # ***
 #
 # Dokime

@@ -1,5 +1,3 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/plugins.md; sha256:e7f197a9f0f9f9553f34bf2c766394793a54ace90a5f5a310df34a616707ba65 -->
-
 # Dokime Plugin
 
 A Dokime plugin is a native process launched and supervised by the host over piped stdio.

@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:32265d58fa5d2324828a8ab3c0bada99724d127e7d434b7f57a87bdce43d2cd4
 name: CI / Nightly
 "on":
   schedule:
@@ -76,6 +75,9 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,git-cliff
+    concurrency:
+      group: ci-${{ github.workflow }}-source-shared-${{ github.run_id }}
+      cancel-in-progress: false
   check_python:
     name: Check / Python
     runs-on: ubuntu-latest
@@ -133,6 +135,9 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+    concurrency:
+      group: ci-${{ github.workflow }}-check_python-shared-${{ github.run_id }}
+      cancel-in-progress: false
   validate_coverage_rust:
     name: Test / Rust / Coverage
     runs-on: ubuntu-latest
@@ -198,6 +203,9 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
+    concurrency:
+      group: ci-${{ github.workflow }}-validate_coverage_rust-shared-${{ github.run_id }}
+      cancel-in-progress: false
   build_product:
     name: Build / Product (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -230,7 +238,9 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.ci.build --profile release --output product --task build
-      if: matrix.platform == 'unix' && (true) && (env.PROFILE == 'dev')
+      if: >-
+        matrix.platform == 'unix' && (true) && (env.PROFILE == 'dev' &&
+        github.event_name != 'pull_request')
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'unix' && (true) && (success() && ((github.event_name ==
@@ -300,7 +310,9 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.ci.build --profile release --output product --task build
-      if: matrix.platform == 'windows' && (true) && (env.PROFILE == 'dev')
+      if: >-
+        matrix.platform == 'windows' && (true) && (env.PROFILE == 'dev' &&
+        github.event_name != 'pull_request')
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'windows' && (true) && (success() && ((github.event_name ==
@@ -373,6 +385,11 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: >-
+        ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{
+        github.run_id }}
+      cancel-in-progress: false
   build_tests:
     name: Build / Tests (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -538,6 +555,11 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: >-
+        ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{ github.run_id
+        }}
+      cancel-in-progress: false
   check_rust:
     name: Check / Rust (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -705,6 +727,9 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{ github.run_id }}
+      cancel-in-progress: false
   package_rust:
     name: Package / Rust (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -867,6 +892,11 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: >-
+        ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{ github.run_id
+        }}
+      cancel-in-progress: false
   validate_test_rust_integration:
     name: Test / Rust / Integration (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1011,6 +1041,11 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: >-
+        ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform
+        }}-${{ github.run_id }}
+      cancel-in-progress: false
   validate_test_rust_unit:
     name: Test / Rust / Unit (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1155,3 +1190,8 @@ jobs:
           runner: windows-latest
           minutes: 120
           container: ""
+    concurrency:
+      group: >-
+        ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{
+        github.run_id }}
+      cancel-in-progress: false

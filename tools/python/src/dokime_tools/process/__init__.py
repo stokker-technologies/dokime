@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/process/__init__.py; sha256:2c8d6383d0274d78013298261ab4228b85066cc0fe58368c291ab316b0924266
 # ***
 #
 # Dokime

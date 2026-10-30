@@ -1,5 +1,3 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:1c6b9f82a9314554c244168c26d8491bce1a05e7741f13138682f6b59ce5a877 -->
-
 ---
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
