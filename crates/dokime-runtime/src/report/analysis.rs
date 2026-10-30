@@ -20,19 +20,10 @@ use std::{
 };
 
 // Third Party Imports
-use super::Scope;
 
 // Local Imports
+use crate::RuntimeHandle;
 use crate::domains::ActionDispatcher;
-use crate::telemetry::TelemetryContract;
-use crate::telemetry::TelemetrySample;
-use crate::{
-    RuntimeHandle,
-    plot::{PlotPayload, PlotPayloadRequest},
-    runtime::Error,
-    runtime::Result,
-};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -75,44 +66,9 @@ impl Resources {
     pub(crate) fn dispatcher(&self, source: &Identifier) -> Option<Arc<dyn ActionDispatcher>> {
         self.dispatchers.read().expect("analysis dispatcher lock poisoned").get(source).cloned()
     }
-    pub(crate) async fn invoke(
-        &self, source: &Identifier, expected: &Arc<dyn ActionDispatcher>, operation: &str, request: crate::analysis::Request,
-    ) -> Result<crate::analysis::Response> {
-        let invocation = {
-            let dispatchers = self.dispatchers.read().expect("analysis dispatcher lock poisoned");
-            if !self.available(source.as_str()) || !dispatchers.get(source).is_some_and(|current| Arc::ptr_eq(current, expected)) {
-                return Err(Error::Admission(AdmissionFailure::Unavailable {
-                    code: "analysis_owner_changed".into(),
-                    message: "analysis owner changed while its evidence was being selected".into(),
-                }));
-            }
-            expected.analyze(operation, request)
-        };
-        invocation.await.map_err(|error| Error::Operation(error.to_string()))
-    }
 }
 
 /* === Public Functions === */
-
-pub(crate) async fn materialize(
-    ctx: &Scope, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: harmos::storage::ReadBatch<PlotPayload>,
-    contract: Option<&TelemetryContract>, position: &harmos::storage::StorageCursor,
-) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
-    let resources = &ctx.resources().analysis;
-    let state = ctx.state().state();
-    let prepared = state
-        .read(|state| crate::runtime::query::plots::analysis::Prepared::resolve_with(resources, state, request))
-        .await
-        .map_err(|error| Error::Operation(error.to_string()))?
-        .value?;
-    let Some(prepared) = prepared else {
-        return Ok(payload);
-    };
-    prepared.check_evidence(telemetry, request)?;
-    prepared
-        .execute_in(crate::runtime::query::plots::analysis::Environment::Report { resources }, request, position, payload, contract)
-        .await
-}
 
 /* === Private Functions === */
 

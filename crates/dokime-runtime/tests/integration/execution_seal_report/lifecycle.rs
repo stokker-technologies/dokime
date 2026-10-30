@@ -454,13 +454,15 @@ pub(crate) async fn pause_blocks_boundaries() {
 
 /* === Tests === */
 
-pub(crate) async fn continuation_follows_seal() {
+pub(crate) async fn continuation_follows_drain() {
     let root = tempdir().unwrap();
     let executor = Arc::new(SecondExecutionHoldExecutor::default());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
+    let first = runtime.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let report_gate = dokime_runtime::testing::hold_report(&first, false);
     let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
@@ -469,7 +471,11 @@ pub(crate) async fn continuation_follows_seal() {
     assert_eq!(during.phase, dokime_domain::model::execution::result::CyclePhase::Active);
     assert!(during.saved.is_none());
     assert_eq!(during.test_executions[0].status, ExecutionStatus::Passed);
-    assert!(during.test_executions[0].saved.is_some());
+    assert!(during.test_executions[0].finished_at.is_some());
+    assert!(during.test_executions[0].saved.is_none());
+    report_gate.release();
+    runtime.wait_execution_report(&first).await.unwrap();
+    let during = cycle_snapshot(&runtime, &cycle_id).await;
     assert_eq!(during.test_executions[1].status, ExecutionStatus::Running);
     let saved = dokime_runtime::storage::objects::execution::read(
         runtime.storage(),
@@ -484,7 +490,9 @@ pub(crate) async fn continuation_follows_seal() {
 
     executor.release();
     let completed = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
-    assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    for execution in &completed.test_executions {
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
     assert_eq!(completed.phase, dokime_domain::model::execution::result::CyclePhase::Active);
     assert!(completed.saved.is_none());
 }

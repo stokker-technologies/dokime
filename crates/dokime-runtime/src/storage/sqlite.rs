@@ -65,6 +65,7 @@ pub struct State(Arc<Owner>);
 // Local SQLite Connection Settings; `config::local_storage_defaults` Owns Their Defaults.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
+    pub previews: PreviewSettings,
     // Reader Connections, One Per Admitted Active Query.
     pub readers: NonZeroUsize,
     // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
@@ -99,6 +100,7 @@ struct ReadMetrics {
 }
 
 struct Owner {
+    previews: PreviewSettings,
     read_metrics: Arc<ReadMetrics>,
     // The Only Writer Connection; Reads Never Hold It, So Concurrent Queries Cannot Delay A Save.
     live: Arc<Mutex<Option<Live>>>,
@@ -138,6 +140,13 @@ struct ReaderSlot {
 struct Interruption {
     slot: Arc<ReaderSlot>,
     read: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PreviewSettings {
+    pub report_concurrency: NonZeroUsize,
+    pub bucket_count: NonZeroUsize,
+    pub bucket_interval: Duration,
 }
 
 /* === Enums === */
@@ -182,6 +191,12 @@ impl State {
     }
 
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
+        if settings.previews.bucket_interval.is_zero() || settings.previews.bucket_interval.as_nanos() > i128::MAX as u128 {
+            return Err(Error::Data("preview interval must fit positive nanoseconds"));
+        }
+        if settings.previews.report_concurrency.get() > Semaphore::MAX_PERMITS {
+            return Err(Error::Data("report concurrency exceeds native range"));
+        }
         let root = root.as_ref().to_path_buf();
         let readers = settings.readers;
         let count = u32::try_from(readers.get())
@@ -212,6 +227,7 @@ impl State {
             let verification_prefix = data::VerifiedPrefix::default();
             let verification_prefix = std::sync::Mutex::new(verification_prefix);
             Ok(Self(Arc::new(Owner {
+                previews: settings.previews,
                 read_metrics: Arc::new(ReadMetrics::default()),
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
                 readers: Arc::new(Readers {
@@ -398,6 +414,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let readers = NonZeroUsize::new(4).unwrap();
         let settings = Settings {
+            previews: crate::config::local_storage_defaults().previews,
             readers,
             ..crate::config::local_storage_defaults()
         };

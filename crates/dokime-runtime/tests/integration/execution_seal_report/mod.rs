@@ -20,6 +20,7 @@ pub(crate) mod lifecycle;
 pub(crate) mod planning;
 pub(crate) mod reboot;
 pub(crate) mod records;
+pub(crate) mod report_background;
 pub(crate) mod report_cancellation;
 pub(crate) mod report_publication;
 pub(crate) mod report_restart;
@@ -68,7 +69,7 @@ async fn execution_seal_report() {
     lifecycle::stopped_telemetry_refused().await;
     lifecycle::execution_stop_leaves_cycle_idle().await;
     lifecycle::pause_blocks_boundaries().await;
-    lifecycle::continuation_follows_seal().await;
+    lifecycle::continuation_follows_drain().await;
     lifecycle::queued_execution_identity().await;
     lifecycle::continuation_after_failure().await;
     planning::empty_cycle_grows().await;

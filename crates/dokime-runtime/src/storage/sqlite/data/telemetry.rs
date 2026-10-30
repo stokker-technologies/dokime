@@ -11,7 +11,8 @@
 
 /* === Modules === */
 
-pub(super) mod aggregates;
+pub(crate) mod aggregates;
+pub(crate) mod previews;
 
 /* === Re-Exports === */
 

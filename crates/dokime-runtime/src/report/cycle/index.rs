@@ -172,9 +172,13 @@ impl Index {
         }
         let context = &captured.context;
         self.annotations
-            .try_reserve_exact(context.notes.len().saturating_add(context.health.len()))
+            .try_reserve_exact(
+                (context.notes.len().min(captured.report_defaults.table_rows as usize * 2))
+                    .saturating_add(context.health.len().min(captured.report_defaults.table_rows as usize * 2)),
+            )
             .map_err(|source| Error::Operation(source.to_string()))?;
-        for (position, note) in context.notes.iter().enumerate() {
+        for position in crate::report::previews::indices(context.notes.len(), captured.report_defaults.table_rows as usize) {
+            let note = &context.notes[position];
             self.annotations.push(Annotation {
                 kind: AnnotationKind::Note,
                 member: self.members,
@@ -183,7 +187,8 @@ impl Index {
                 at: note.created_at.clone(),
             });
         }
-        for (position, item) in context.health.iter().enumerate() {
+        for position in crate::report::previews::indices(context.health.len(), captured.report_defaults.table_rows as usize) {
+            let item = &context.health[position];
             self.annotations.push(Annotation {
                 kind: AnnotationKind::Health,
                 member: self.members,

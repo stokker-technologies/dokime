@@ -56,6 +56,7 @@ pub struct Appearance {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportDefaults {
+    pub table_rows: u32,
     pub plot_points: u32,
     pub plot_downsample: DownsampleTechnique,
 }
@@ -142,6 +143,7 @@ impl Default for Appearance {
 impl Default for ReportDefaults {
     fn default() -> Self {
         Self {
+            table_rows: 32,
             plot_points: 2_000,
             plot_downsample: DownsampleTechnique::Auto,
         }
@@ -168,6 +170,9 @@ impl ApplicationSettings {
         let invalid_family = self.appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256);
         if invalid_family {
             return Err("theme family must be nonempty and at most 256 bytes".into());
+        }
+        if self.report.table_rows == 0 {
+            return Err("report table rows must be positive".into());
         }
         if self.report.plot_points == 0 || self.report.plot_points > 100_000 {
             return Err("plot points must be between 1 and 100000".into());

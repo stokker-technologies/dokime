@@ -40,7 +40,8 @@ use dokime_domain::model::reports::wire::ReportSubject;
 
 /* === Structs === */
 
-pub(super) struct Resources {
+pub(crate) struct Resources {
+    runtime: RuntimeHandle,
     pub(super) execution_storage: Arc<ExecutionStorage>,
     pub(super) settings: crate::storage::sqlite::State,
     pub(super) providers: Arc<crate::domains::execution::provider::ProviderExecutorRegistry>,
@@ -72,7 +73,7 @@ impl Serve<MaterializeReport> for Runtime {
 }
 
 impl Resources {
-    async fn materialize(&self, request: MaterializeReport) -> Result<MaterializedReport> {
+    pub(crate) async fn materialize(&self, request: MaterializeReport) -> Result<MaterializedReport> {
         let scope = &self.scope;
         if !self.execution_storage.storage.cursor_saved().covers(&request.at)? {
             return Err(invalid("requested report cursor is not durable"));
@@ -101,8 +102,9 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, live: &crat
 }
 
 impl Resources {
-    fn from_runtime(runtime: &RuntimeHandle) -> Self {
+    pub(crate) fn from_runtime(runtime: &RuntimeHandle) -> Self {
         Self {
+            runtime: runtime.clone(),
             execution_storage: runtime.execution_storage.clone(),
             settings: runtime.local_storage.clone(),
             providers: runtime.providers.clone(),
@@ -114,6 +116,7 @@ impl Resources {
                     analysis: crate::report::analysis::Resources::from_runtime(runtime),
                     renderer: crate::report::Renderer,
                 },
+                runtime.local_storage.clone(),
             ),
         }
     }
@@ -150,9 +153,12 @@ async fn execution(
         return Ok(MaterializedReport { report: seal.report.clone() });
     }
     if let Some(seal) = resources.execution_storage.final_seal(id).await? {
-        return Ok(MaterializedReport { report: seal.report.clone() });
+        let report = seal.report.clone();
+        resources.runtime.complete_report_publication(id).await?;
+        return Ok(MaterializedReport { report });
     }
     if let Some(report) = resources.execution_storage.published_final_report(id, at).await? {
+        resources.runtime.complete_report_publication(id).await?;
         return Ok(report);
     }
     let has_lifecycle = resources.execution_storage.has_report_lifecycle(id).await?;
@@ -186,7 +192,9 @@ async fn execution(
     let mut prepared = tokio::task::spawn_blocking(move || renderer.execution_with_outputs(captured, outputs, &saved)).await??;
     progress.phase("Publishing Report");
     if final_report {
-        resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await
+        let report = resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await?;
+        resources.runtime.complete_report_publication(id).await?;
+        Ok(report)
     } else {
         let revision = resources.execution_storage.publication_revision(inspection.execution()).await?;
         prepared.publish_current(storage, &revision, &ctx.resources().schema_settings).await

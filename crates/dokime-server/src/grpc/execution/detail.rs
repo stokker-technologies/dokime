@@ -116,6 +116,17 @@ pub(super) async fn get_execution(service: &Resources, request: &wire::GetExecut
     reply(
         service,
         execution_model::ExecutionDetail {
+            report: {
+                use dokime::domain::model::reports::wire::{ReportProgress, ReportState};
+                if execution.saved.is_some() {
+                    Some(ReportProgress { state: ReportState::Ready, failure: None })
+                } else {
+                    snapshot.state().report_finalizations.get(&execution.test_execution_id).map(|intent| ReportProgress {
+                        state: if intent.failure.is_some() { ReportState::Failed } else { ReportState::Pending },
+                        failure: intent.failure.clone(),
+                    })
+                }
+            },
             summary,
             cycle_id: cycle.test_cycle_id.to_string(),
             scope: Some(canonical::scope(&execution.scope)?),

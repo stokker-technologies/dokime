@@ -283,6 +283,7 @@ pub struct CaseDetail {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionDetail {
+    pub report: Option<crate::model::reports::wire::ReportProgress>,
     pub summary: Option<ExecutionSummary>,
     pub cycle_id: String,
     pub scope: Option<EvidenceScope>,

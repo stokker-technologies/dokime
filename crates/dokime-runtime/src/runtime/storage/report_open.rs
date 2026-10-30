@@ -70,6 +70,19 @@ pub enum ReportOrigin {
 
 impl RuntimeHandle {
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
+        let pending = {
+            let state = self.state_read();
+            state
+                .cycles
+                .get(id)
+                .map(|cycle| {
+                    cycle.execution_ids.iter().filter(|id| state.report_finalizations.contains_key(*id)).cloned().collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        };
+        for execution in pending {
+            self.wait_execution_report(&execution).await?;
+        }
         let live = self.watch_state().latest().state().cycles.get(id).map(|cycle| cycle.saved.is_none());
         match live {
             Some(true) => self.current_cycle_report(id).await,
@@ -78,6 +91,12 @@ impl RuntimeHandle {
     }
 
     pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
+        let pending = self.state_read().executions.get(id).is_some_and(|execution| {
+            execution.finished_at.is_some() && execution.saved.is_none() && self.state_read().report_finalizations.contains_key(id)
+        });
+        if pending {
+            self.wait_execution_report(id).await?;
+        }
         let live = self
             .watch_state()
             .latest()

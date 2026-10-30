@@ -40,25 +40,6 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Implementations === */
 
 impl RuntimeHandle {
-    pub(crate) async fn freeze_report_inputs(&self, ids: Vec<TestExecutionId>) -> crate::runtime::Result<()> {
-        if ids.is_empty() {
-            return Ok(());
-        }
-        self.sampling().fence_executions(&ids).await;
-        let evidence_at = self.storage().cursor_saved();
-        self.commit(crate::transactions::RequestReportFinalization {
-            executions: ids,
-            intent: crate::transactions::ReportFinalization {
-                evidence_at,
-                requested_at: crate::model::time::now_utc(),
-                lifecycle: None,
-            },
-        })
-        .await
-        .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-        Ok(())
-    }
-
     pub(crate) async fn capture_report_lifecycle(
         &self, execution: &dokime_domain::model::execution::result::TestExecution,
     ) -> crate::runtime::Result<crate::transactions::ReportLifecycle> {
@@ -124,7 +105,7 @@ impl RuntimeHandle {
             return Ok(());
         }
         if execution.saved.is_none() && execution.finished_at.is_none() {
-            self.freeze_report_inputs(vec![id.clone()]).await?;
+            self.sampling().fence_executions(std::slice::from_ref(&id)).await;
         }
         self.commit_with_key(
             context.idempotency_key,
@@ -178,7 +159,7 @@ impl RuntimeHandle {
             .find(|execution| execution.test_execution_id == id)
             .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
         if execution.saved.is_none() {
-            self.finish_saved_execution(&cycle, execution).await.map_err(report_not_saved)?;
+            self.queue_saved_execution(&cycle, execution).await?;
         }
         if queued {
             let request = request.expect("queued request");
@@ -242,7 +223,7 @@ impl RuntimeHandle {
 
         // Commit The Skip, Then Stage Its Queued Request Without Provider Work.
         if admitted != CancelAdmission::Cancelled {
-            self.freeze_report_inputs(vec![id.clone()]).await?;
+            self.sampling().fence_executions(std::slice::from_ref(&id)).await;
             self.commit_with_key(context.idempotency_key, transaction).await?;
         }
         let request = crate::transactions::ControlExecution::owning_request(&self.state_read(), &id).cloned();
@@ -258,7 +239,7 @@ impl RuntimeHandle {
         }
         drop(admission);
 
-        // Seal The Skipped Member Before Its Request Becomes Terminal.
+        // Drain The Skipped Member Before Its Request Becomes Terminal.
         let cycle =
             self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "execution cycle not found"))?;
         let execution = cycle
@@ -267,7 +248,7 @@ impl RuntimeHandle {
             .find(|execution| execution.test_execution_id == id)
             .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
         if execution.saved.is_none() {
-            self.finish_saved_execution(&cycle, execution).await.map_err(report_not_saved)?;
+            self.queue_saved_execution(&cycle, execution).await?;
         }
         if let Some(request) = request {
             self.complete_staged_request(&request.summary.request_id).await?;
@@ -330,7 +311,7 @@ impl RuntimeHandle {
             (request.summary.request_id.clone(), request.summary.cycle_id.clone())
         };
         if matches!(action, Action::Stop) {
-            self.freeze_report_inputs(vec![id.clone()]).await?;
+            self.sampling().fence_executions(std::slice::from_ref(&id)).await;
         }
         self.commit_with_key(context.idempotency_key, transaction).await?;
         drop(_admission);
@@ -402,8 +383,8 @@ impl RuntimeHandle {
             .values()
             .filter(|execution| execution.test_cycle_id == test_cycle_id && execution.saved.is_none() && execution.finished_at.is_none())
             .map(|execution| execution.test_execution_id.clone())
-            .collect();
-        self.freeze_report_inputs(unfinished).await?;
+            .collect::<Vec<_>>();
+        self.sampling().fence_executions(&unfinished).await;
         let at = crate::model::time::now_utc();
         self.commit_with_key(
             context.idempotency_key,
@@ -517,8 +498,8 @@ impl RuntimeHandle {
                     execution.test_cycle_id == test_cycle_id && execution.saved.is_none() && execution.finished_at.is_none()
                 })
                 .map(|execution| execution.test_execution_id.clone())
-                .collect();
-            self.freeze_report_inputs(ids).await?;
+                .collect::<Vec<_>>();
+            self.sampling().fence_executions(&ids).await;
         }
         let committed = self.commit_with_key(context.idempotency_key, transaction).await?;
         let bounded = self

@@ -97,16 +97,6 @@ impl<'a> SharedBindings<'a> {
         Ok(Self { selection, data, bytes, rows, limits })
     }
 
-    pub(crate) fn accounting(&self) -> (usize, usize) {
-        (self.bytes, self.rows)
-    }
-
-    pub(crate) fn validated(
-        selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits, bytes: usize, rows: usize,
-    ) -> Self {
-        Self { selection, data, bytes, rows, limits }
-    }
-
     fn validate(&self, definition: &DocumentDefinition) -> crate::Result<()> {
         let bytes = document_size(definition, self.limits.source_bytes, self.limits.depth.saturating_sub(1))
             .map_err(|_| super::DocumentFailure::Limit)?;

@@ -161,7 +161,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing older stream-row formats, earlier plugin identities,
-or evidence indexes without incremental numeric summaries require a fresh storage
+or evidence indexes without incremental numeric summaries and report previews require a fresh storage
 root. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
@@ -183,7 +183,7 @@ selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 
 Client sample following watches saved storage progress and resumes from delivered
-stream cursors after reconnecting. Execution-scoped follows drain the saved seal
+stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier
 before ending; they do not poll a second live-sample history.
 
 Plot Default uses each plot's authored window; All queries its full saved history.

@@ -149,7 +149,9 @@ early-abandoned iterator with `contextlib.aclosing`.
 
 `await cycle.save(directory, report=None)` creates the directory and writes
 `execution-<id>.zip` for every known member, `cycle.zip`, optional `report.html`,
-and `manifest.json`. It returns the same JSON-serializable manifest:
+and `manifest.json`. It waits for pending execution reports, and exposes publication
+failures. `await execution.snapshot()` includes the report state and failure cause.
+It returns the same JSON-serializable manifest:
 
 ```json
 {"cycle_id": "...", "files": [{"path": "cycle.zip", "size": 123, "sha256": "..."}]}
