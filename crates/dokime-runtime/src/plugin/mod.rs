@@ -97,7 +97,7 @@ where
             harmos::domain::Failure::originate(harmos::operations::FailureKind::Permanent, &error, harmos::domain::failure::Origin::Plugin);
         match missing {
             Some(secret) => crate::Refusal::failed(
-                dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE,
+                dokime_domain::model::plugins::error::MISSING_SECRET_CODE,
                 failure.with_detail("dokime.secret", secret),
             ),
             None => crate::Refusal::failed(failure.refusal_code().unwrap_or(harmos::domain::FAILED), failure),

@@ -24,6 +24,11 @@ use super::*;
 
 /* === Constants === */
 
+const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+    cancellation_timeout: crate::STOP_SETTLEMENT.timeout,
+    ..FOLLOW
+};
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -37,7 +42,7 @@ use super::*;
 // cancelled, the bound elapses or the execution seals. Its bytes become the
 // artifact `artifact`, or `<output>/<file name>` when absent.
 #[harmos::operation(resources = [crate::hosting::Host<WatchFile>], response = WatchFileOutcome, id = "dokime.files.watch_file",
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Public)]
+        policy = POLICY, visibility = harmos::operations::Visibility::Public)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchFile {
     #[row(description = "Absent takes the execution of the calling step's context; one of the two is required.")]

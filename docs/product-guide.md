@@ -379,14 +379,22 @@ automatic root resets; existing files and evidence are never silently deleted.
 Each backend owns a catalog of secrets keyed by identifier. Plugins use the shared
 `dokime.secrets.lookup` operation with an identifier; a missing or deleted identifier returns
 an error. Replacing a value affects future lookups. A value already fetched by
-a running plugin remains its responsibility. Required secret settings are
-checked before execution starts.
+a running plugin remains its responsibility.
+
+A declared secret's identifier is its Secret Storage identifier. At plugin start,
+Dokime reads each declaration directly from the store. A missing required secret
+fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+(the identifier varies). Optional secrets are absent when missing. Add the exact
+identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
+to read the store again. There are no per-plugin bindings, environment-variable
+sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
 Existing values are never fetched for display. Leave the replacement field
-empty to retain a value. Known references list saved plugin settings; plugins
-can also look up identifiers dynamically, so this list is not exhaustive. Switching
+empty to retain a value. References lists plugins that declare each identifier,
+including installed plugins that failed to start. Plugins can also look up
+identifiers dynamically, so this list is not exhaustive. Switching
 backends opens that backend's catalog and discards the previous edit form.
 
 Values are stored in the host's OS keyring, separately from backend login
@@ -420,6 +428,22 @@ before retrying.
 Secrets use a shared table with Identifier and Label columns. **Add Secret**
 opens a dialog; the monospace Identifier is the machine key, while Label is the
 human display text. No `name` alias is accepted in secret contracts.
+
+### Plugin Settings
+
+**Settings → Plugins** keeps ordinary plugin settings editable after startup
+fails. Its read-only **Required Secrets** list shows each declared identifier,
+whether it is required or optional, and whether it exists in Secret Storage.
+**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+Secret values are entered only in Secret Storage; the plugin settings form has no
+secret fields. Existing saved references are ignored on load without migrating
+values or changing storage v1. A stored identifier such as `hcl.api_token` does
+not satisfy a declaration named `api_token`.
+
+Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
+`api_token: Option<dokime::plugin::Secret>` for an optional one. The field name is
+the store identifier; secret declarations have no default or `from_environment`
+argument. Rebuild external plugins against the matching SDK after this clean break.
 
 ## Planning And Creating Cycles
 
@@ -745,6 +769,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
@@ -1382,6 +1409,27 @@ compatible plugins, verifies archive and member hashes and inspected identity,
 and installs only the explicitly selected member. Restart the host to activate it.
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
+
+## Plugin Start Failures
+
+Plugin startup failures show readable root causes in notifications, Settings →
+Plugins, CLI errors and Python error text. Unavailable operations from a failed
+startup/prepare pass are summarized separately. When the pass has a construction failure, all missing-resource
+errors in that pass are consequences, regardless of reporting order. Other errors
+remain roots; without a construction failure, missing resources remain roots.
+This is a prepare-pass rule, not a resource dependency graph. Expand the consequence
+summary in the desktop to inspect each unavailable operation without mixing it into the root message.
+
+A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
+**Add Secret** dialog with that identifier prefilled, including after a failed start.
+Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+All owners in an inactive bundle keep their ordinary settings editable; secret
+declarations show their identifiers read-only.
+
+The recorded failure carrier preserves the full structured startup report,
+including each original refusal code, detail and diagnostic chain. The application
+log also retains structured startup diagnostics; the root message is a presentation
+of that data, without Rust Debug formatting.
 
 ## Generated Clients
 

@@ -71,6 +71,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: harmos::operations::RetryPolicy::Never,
     };
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
@@ -127,8 +128,9 @@ async fn boot_failure_persists_plugin_and_carrier() {
         plugin_id: "fixture".into(),
         plugin_name: "Fixture".into(),
         message: String::new(),
-        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
         missing_secret: Some("api_token".into()),
+        consequences: vec!["workflow is unavailable".into()],
         carrier: carrier.clone(),
     };
     store.record_boot(id, Some(failure.clone())).await.unwrap();

@@ -113,6 +113,9 @@ pub struct PluginStartFailure {
     pub code: Option<String>,
     pub missing_secret: Option<String>,
     pub carrier: Vec<u8>,
+
+    #[serde(default)]
+    pub consequences: Vec<String>,
 }
 
 #[harmos::message]
@@ -216,8 +219,46 @@ pub enum AdmittedPluginOwner {
 
 /* === Implementations === */
 
+impl std::fmt::Display for PluginStartFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)?;
+        let count = self.consequences.len();
+        if count > 0 {
+            let noun = if count == 1 { "operation" } else { "operations" };
+            write!(formatter, "; {count} {noun} unavailable because startup failed")?;
+        }
+        Ok(())
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_failure_display() {
+        let mut failure = PluginStartFailure {
+            plugin_id: "hcl".to_owned(),
+            plugin_name: "hcl-plugin".to_owned(),
+            message: "Plugin hcl-plugin could not start: secret `api_token` is not in Secret Storage; add it and restart".to_owned(),
+            code: Some("10001".to_owned()),
+            missing_secret: Some("api_token".to_owned()),
+            carrier: vec![1, 2, 3],
+            consequences: vec!["operation `suite.run` requires missing resource `Workflow`".to_owned()],
+        };
+        let message = failure.to_string();
+        assert!(message.starts_with(&failure.message));
+        assert!(message.ends_with("1 operation unavailable because startup failed"));
+        assert!(!message.contains("suite.run"));
+        assert!(!message.contains("PluginStartFailure {"));
+        assert!(!message.contains("carrier"));
+        failure.consequences.clear();
+        assert_eq!(failure.to_string(), failure.message);
+    }
+}

@@ -20,6 +20,7 @@ pub(crate) mod lifecycle;
 pub(crate) mod planning;
 pub(crate) mod reboot;
 pub(crate) mod records;
+#[cfg(feature = "testing")]
 pub(crate) mod report_background;
 pub(crate) mod report_cancellation;
 pub(crate) mod report_publication;
@@ -84,6 +85,7 @@ async fn execution_seal_report() {
     stage(lifecycle::stopped_telemetry_refused()).await;
     stage(lifecycle::execution_stop_leaves_cycle_idle()).await;
     stage(lifecycle::pause_blocks_boundaries()).await;
+    #[cfg(feature = "testing")]
     stage(lifecycle::continuation_follows_drain()).await;
     stage(lifecycle::queued_execution_identity()).await;
     stage(lifecycle::continuation_after_failure()).await;

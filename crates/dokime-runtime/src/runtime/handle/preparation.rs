@@ -69,7 +69,7 @@ impl Prepared {
         crate::runtime::sidecars::core::prepare_publications(setup)?;
         let record_ingress = crate::runtime::sidecars::core::RecordIngress::prepare(setup)?;
         crate::runtime::operations::runtime::prepare(setup, live);
-        crate::runtime::operations::secrets::prepare(setup, Arc::new(parts.secrets.clone()))?;
+        crate::runtime::operations::secrets::prepare(setup, Arc::new(parts.secrets.clone()), live)?;
         crate::runtime::operations::reports::prepare(setup, live);
         Ok(Self {
             provider_invocations,

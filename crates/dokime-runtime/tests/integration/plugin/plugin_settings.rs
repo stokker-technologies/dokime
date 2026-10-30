@@ -29,6 +29,7 @@ use dokime_runtime::settings::{SettingValues, SettingsEntry};
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -73,9 +74,9 @@ pub struct Workspace {
     pub archive: Option<std::path::PathBuf>,
 }
 
-#[dokime_runtime::section(label = "Secrets", description = "The section nothing but a binding fills in.")]
+#[dokime_runtime::section(label = "Secrets", description = "Shared Secret Storage declarations.")]
 pub struct Secrets {
-    #[setting(label = "Bearer Token", from_environment = "BENCH_TOKEN")]
+    #[setting(label = "Bearer Token")]
     pub token: Option<Secret>,
 }
 #[dokime_runtime::message]
@@ -256,11 +257,7 @@ fn field_type_required() {
             && !field.required));
     assert!(matches!(entry("upload_enabled"), SettingsEntry::Boolean(field) if field.default));
     assert!(matches!(entry("archive"), SettingsEntry::Path(field) if !field.required));
-    assert!(matches!(entry("token"), SettingsEntry::SecretReference(field)
-    if field.default
-        == Some(dokime_runtime::settings::SecretReference::Environment {
-            variable: "BENCH_TOKEN".to_owned(),
-        })));
+    assert!(matches!(entry("token"), SettingsEntry::Secret(field) if field.id == "token" && !field.required));
     // A field with no label of its own is read by its own name, titled.
     assert!(matches!(entry("page_limit"), SettingsEntry::Number(field)
         if field.title == "Page Limit"
@@ -309,8 +306,8 @@ fn admitted_values_handed() {
     assert_eq!(settings.workspace.port, None);
     assert_eq!(settings.workspace.stream, Some(0));
     assert_eq!(settings.workspace.archive, Some(std::path::PathBuf::from("/var/bench")));
-    // A secret never travels in the values: it is read out of the binding the
-    // host admitted, and an unbound one is absent rather than refused.
+    // A secret never travels in the values: the host reads its store identifier;
+    // an optional missing identifier is absent rather than refused.
     assert_eq!(settings.secrets.token, None);
 }
 

@@ -60,6 +60,7 @@ fn bundle_with_registrations(package: &str, owner: &str, version: &str, registra
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: harmos::operations::RetryPolicy::Never,
     };
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.

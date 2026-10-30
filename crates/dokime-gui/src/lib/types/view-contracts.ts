@@ -14,11 +14,6 @@ type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
 type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
 
-export type PluginRuntimeSecretBindings = {
-  bindings?: { [key in string]: RedactedSecretBinding };
-  missing_required?: string[];
-};
-
 export type Boolean = {
   id: string;
   title: string;
@@ -32,8 +27,6 @@ export type Choice = {
   value: string;
   title: string;
 };
-
-export type SecretBackendKind = "os_keyring";
 
 export type CriterionId = string;
 
@@ -325,6 +318,7 @@ export type PluginStartFailure = {
   message: string;
   code: string | null;
   missing_secret: string | null;
+  consequences: string[];
 };
 
 export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; failure: PluginStartFailure; at: Timestamp };
@@ -348,11 +342,7 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type RedactedSecretBinding = {
-  secret_id: string;
-  backend: SecretBackendKind;
-  configured: boolean;
-};
+export type SecretAvailability = { identifier: string; available: boolean };
 
 export type ResultStatus = "pending" | "passed" | "failed" | "blocked" | "cancelled";
 
@@ -395,7 +385,7 @@ export type RuntimePluginSettings = {
    * a `Discovered` marker and no run uses it until it is saved.
    */
   discovered?: { [key in string]: Value };
-  secret_bindings: PluginRuntimeSecretBindings;
+  secrets: SecretAvailability[];
 };
 
 export type RuntimeSettingsCard = {
@@ -440,13 +430,10 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string };
-
 export type SecretSetting = {
   id: string;
   title: string;
   description: string | null;
-  default: SecretReference | null;
   required?: boolean;
 };
 
@@ -475,7 +462,7 @@ export type SettingsEntry =
       kind: "multiple_choice";
     } & MultipleChoice)
   | ({
-      kind: "secret_reference";
+      kind: "secret";
     } & SecretSetting);
 
 export type StepId = string;

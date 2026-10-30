@@ -40,11 +40,7 @@ export type RuntimeInstalledPluginRecord = {
 import type { RuntimePluginSettings as PluginRuntimeSettings } from "@/lib/types/view-contracts";
 
 export type {
-  PluginRuntimeSecretBindings,
-  RedactedSecretBinding,
   RuntimePluginSettings as PluginRuntimeSettings,
-  SecretBackendKind,
-  SecretReference,
   Settings,
   SettingsEntry,
 } from "@/lib/types/view-contracts";

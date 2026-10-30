@@ -45,6 +45,7 @@ use std::time::Duration;
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(30),
     attempt_timeout: Duration::from_secs(30),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -52,6 +53,7 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 pub const RESTORE_POLICY: OperationPolicy = OperationPolicy {
     timeout: POLICY.timeout.saturating_mul(2),
     attempt_timeout: POLICY.attempt_timeout.saturating_mul(2),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 

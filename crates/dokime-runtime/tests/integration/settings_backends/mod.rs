@@ -53,8 +53,7 @@ async fn settings_backends() {
     runtime_settings::dispatcher_alone_probe().await;
     runtime_settings::discovered_settings_until().await;
     runtime_settings::resolves_one_record().await;
-    runtime_settings::secret_references_file().await;
-    runtime_settings::stored_secret_bindings().await;
+    runtime_settings::shared_secret_identifiers().await;
     runtime_settings::source_settings_absent().await;
     runtime_settings::application_preferences_reopen_and_reject_stale_or_invalid_updates().await;
     config_application::explicit_root_local();

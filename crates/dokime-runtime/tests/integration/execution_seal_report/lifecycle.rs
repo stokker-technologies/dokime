@@ -455,6 +455,7 @@ pub(crate) async fn pause_blocks_boundaries() {
 
 /* === Tests === */
 
+#[cfg(feature = "testing")]
 pub(crate) async fn continuation_follows_drain() {
     let root = tempdir().unwrap();
     let executor = Arc::new(SecondExecutionHoldExecutor::default());

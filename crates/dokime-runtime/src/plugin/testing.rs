@@ -287,7 +287,7 @@ impl Harness {
             workflow,
             template_identifier: self.template.clone(),
             parameters_json: serde_json::to_string(&parameters).expect("resolved parameter values serialize"),
-            secrets_json: serde_json::to_string(&self.secrets).expect("secret bindings serialize"),
+            secrets_json: serde_json::to_string(&self.secrets).expect("resolved secrets serialize"),
         };
         let capture = dokime_domain::model::execution::RecordScope {
             test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(start.test_cycle_id.clone()).ok(),

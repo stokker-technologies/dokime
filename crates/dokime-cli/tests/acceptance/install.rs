@@ -33,7 +33,6 @@ use dokime::domain::model;
 /* === Constants === */
 
 const ID: &str = "01900000-0000-7000-8000-000000000001";
-const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
 const CHUNK_LIMIT_BYTES: u32 = 256 * 1024;
 
 /* === Macros === */
@@ -259,6 +258,7 @@ fn install_bundle(schema: u32) -> Bundle {
     let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: dokime::harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
@@ -279,8 +279,8 @@ fn install_bundle(schema: u32) -> Bundle {
             schema,
             &serde_json::json!({
                 "catalog": { "contributions": [
-                    { "kind": "secret_reference", "id": "token", "default": { "kind": "environment", "variable": "PLUGIN_API_TOKEN" } },
-                    { "kind": "secret_reference", "id": "optional", "default": null },
+                    { "kind": "secret", "id": "token", "title": "Token", "required": true },
+                    { "kind": "secret", "id": "optional", "title": "Optional", "required": false },
                     { "kind": "text_area", "id": "notes", "default": "fixture-notes" }
                 ] }
             }),
@@ -312,7 +312,6 @@ fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
         .args(["--color", "never", "plugin", "install"])
         .arg(bundle)
         .args(["--endpoint", endpoint])
-        .env("PLUGIN_API_TOKEN", SECRET_VALUE)
         .stdin(std::process::Stdio::null())
         .output()
         .map_err(|error| error.to_string())?;
@@ -382,7 +381,6 @@ async fn install() {
         if outcome.success {
             assert!(outcome.output.contains(ID));
         }
-        assert!(!outcome.output.contains(SECRET_VALUE));
         assert_eq!(*calls.lock().unwrap(), vec!["install"; index + 1]);
     }
     attachment.detach().await.unwrap();
