@@ -317,7 +317,11 @@ run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --cat
 [tasks."test:python:integration"]
 description = "Test Integration Python"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.test.python --category integration"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}'
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:acceptance"]
