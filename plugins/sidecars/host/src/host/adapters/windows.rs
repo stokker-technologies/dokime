@@ -178,19 +178,18 @@ pub fn snapshot() -> crate::Result<Snapshot> {
 /* === Private Functions === */
 
 fn adapter_status(value: IF_OPER_STATUS) -> crate::Result<AdapterStatus> {
-    match value {
-        IfOperStatusUp => Ok(AdapterStatus::Up),
-        IfOperStatusDown
-        | IfOperStatusTesting
-        | IfOperStatusUnknown
-        | IfOperStatusDormant
-        | IfOperStatusNotPresent
-        | IfOperStatusLowerLayerDown => Ok(AdapterStatus::Down),
-        value => Err(crate::Error::UnknownValue {
-            kind: "adapter status",
-            value: value.0.to_string(),
-        }),
+    if value == IfOperStatusUp {
+        return Ok(AdapterStatus::Up);
     }
+    if [IfOperStatusDown, IfOperStatusTesting, IfOperStatusUnknown, IfOperStatusDormant, IfOperStatusNotPresent, IfOperStatusLowerLayerDown]
+        .contains(&value)
+    {
+        return Ok(AdapterStatus::Down);
+    }
+    Err(crate::Error::UnknownValue {
+        kind: "adapter status",
+        value: value.0.to_string(),
+    })
 }
 
 fn default_interfaces() -> crate::Result<BTreeSet<u32>> {
