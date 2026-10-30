@@ -298,3 +298,53 @@ fn decode<M: Portable>(bytes: &[u8], maximum: usize) -> Result<M, RpcError> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn size<Args, F: Future>(_: impl FnOnce(Args) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+
+    #[test]
+    fn command_future_sizes() {
+        macro_rules! measure {
+            ($handler:path) => {
+                let bytes = size(
+                    |(session, bridge, window, request): (
+                        tauri::State<'_, ConnectionSession>,
+                        tauri::State<'_, Bridge>,
+                        tauri::WebviewWindow,
+                        tauri::ipc::Request<'_>,
+                    )| $handler(session, bridge, window, request),
+                );
+                eprintln!("{}: {bytes} bytes", stringify!($handler));
+                assert!(bytes <= 16 * 1024, "{} command future uses {bytes} bytes", stringify!($handler));
+            };
+        }
+        measure!(calls::rpc);
+        measure!(calls::rpc_stream_open);
+        measure!(calls::rpc_stream_send);
+        measure!(calls::rpc_stream_finish);
+        measure!(calls::rpc_stream_cancel);
+        measure!(calls::rpc_stream_ack);
+        measure!(artifact_upload::artifact_upload_open);
+        measure!(artifact_upload::artifact_upload_write);
+        measure!(artifact_upload::artifact_upload_finish);
+        measure!(artifact_upload::artifact_upload_cancel);
+        measure!(artifact_upload::recording_write);
+        measure!(artifact_upload::recording_cancel);
+        let bytes = size(
+            |(session, bridge, window, app, request): (
+                tauri::State<'_, ConnectionSession>,
+                tauri::State<'_, Bridge>,
+                tauri::WebviewWindow,
+                tauri::AppHandle,
+                tauri::ipc::Request<'_>,
+            )| artifact_upload::recording_open(session, bridge, window, app, request),
+        );
+        eprintln!("recording_open: {bytes} bytes");
+        assert!(bytes <= 16 * 1024, "recording_open command future uses {bytes} bytes");
+    }
+}
