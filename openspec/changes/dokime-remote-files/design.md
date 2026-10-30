@@ -60,3 +60,11 @@ File imports retain transactional profile/keyring rollback and independent keys.
 The owner requests workspace check/format, TypeScript check/lint, Python
 lint/typecheck and focused tests only. Final delivery is local atomic commits;
 leave the change available for review, with no publication or release work.
+
+## Provider Protection Boundary
+
+The extra `stkr project check` provider audit finds no required status checks on
+GitHub `dev`, with no ruleset supplying them. The declared protection is strict
+`CI / Required`, bound to GitHub Actions (app 15368). Restoring remote protection
+requires owner authorization beyond this local-only handback. Preserve this
+repair obligation; do not treat the unavailable provider proof as passed.
