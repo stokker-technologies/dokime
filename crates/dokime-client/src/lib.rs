@@ -288,10 +288,9 @@ impl Client {
             let operation = async {
                 // A Channel May Reconnect Transparently; Check Identity Before Application Calls.
                 if let Some(expected) = &self.inner.expected_backend_id {
-                    let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
+                    let identity = transport::unary::<contracts::backend::GetIdentity>(
                         self.channel()?,
                         self.inner.authorization.as_ref(),
-                        "/dokime.v1.Backend/GetIdentity",
                         contracts::backend::GetIdentity {},
                         DISCOVERY_BYTES as usize,
                         DISCOVERY_BYTES as usize,

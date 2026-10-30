@@ -42,7 +42,6 @@ pub use read_checkpoint_output::ReadCheckpointOutput;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::TRANSFER;
 use super::{MUTATION, ORDINARY};
 
@@ -82,50 +81,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for BrowseCycles {
-    const PATH: &'static str = "/dokime.v1.History/BrowseCycles";
-}
-
-impl Endpoint for BrowseExecutions {
-    const PATH: &'static str = "/dokime.v1.History/BrowseExecutions";
-}
-
-impl Endpoint for GetExecutionCheckpoint {
-    const PATH: &'static str = "/dokime.v1.History/GetExecutionCheckpoint";
-}
-
-impl Endpoint for DeleteExecution {
-    const PATH: &'static str = "/dokime.v1.History/DeleteExecution";
-}
-
-impl Endpoint for GetCheckpointDocument {
-    const PATH: &'static str = "/dokime.v1.History/GetCheckpointDocument";
-}
-
-impl Endpoint for GetCheckpointEvidence {
-    const PATH: &'static str = "/dokime.v1.History/GetCheckpointEvidence";
-}
-
-impl Endpoint for ReadCheckpointOutput {
-    const PATH: &'static str = "/dokime.v1.History/ReadCheckpointOutput";
-}
-
-impl Endpoint for DownloadCheckpointArtifact {
-    const PATH: &'static str = "/dokime.v1.History/DownloadCheckpointArtifact";
-}
-
-impl Endpoint for ListCheckpointRecords {
-    const PATH: &'static str = "/dokime.v1.History/ListCheckpointRecords";
-}
-
-impl Endpoint for ListCheckpointTelemetry {
-    const PATH: &'static str = "/dokime.v1.History/ListCheckpointTelemetry";
-}
-
-impl Endpoint for GetCheckpointContext {
-    const PATH: &'static str = "/dokime.v1.History/GetCheckpointContext";
-}
 
 /* === Public Functions === */
 

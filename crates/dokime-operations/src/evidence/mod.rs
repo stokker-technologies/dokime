@@ -26,7 +26,6 @@ pub use watch_records::WatchRecords;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 
@@ -55,18 +54,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListRecords {
-    const PATH: &'static str = "/dokime.v1.Evidence/ListRecords";
-}
-
-impl Endpoint for WatchRecords {
-    const PATH: &'static str = "/dokime.v1.Evidence/WatchRecords";
-}
-
-impl Endpoint for GetCapturedRecordSchema {
-    const PATH: &'static str = "/dokime.v1.Evidence/GetCapturedRecordSchema";
-}
 
 /* === Public Functions === */
 

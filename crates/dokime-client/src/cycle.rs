@@ -25,7 +25,6 @@ use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contract
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_operations::Endpoint;
 use dokime_operations::execution as contract;
 use dokime_operations::planning;
 
@@ -58,7 +57,7 @@ impl Client {
         &self, request: planning::PreviewSelection,
     ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
         self.verify(true).await?;
-        let reply = self.unary::<planning::PreviewSelection>(planning::PreviewSelection::PATH, request).await?;
+        let reply = self.unary::<planning::PreviewSelection>(request).await?;
         validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
     }
@@ -69,7 +68,7 @@ impl Client {
         dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.verify(true).await?;
-        let reply = self.unary::<planning::RegisterSelection>(planning::RegisterSelection::PATH, request).await?;
+        let reply = self.unary::<planning::RegisterSelection>(request).await?;
         validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         for case in &reply.cases {
             CaseId::from_wire(&case.case_id).map_err(|_| invalid("registered case has an invalid identity"))?;
@@ -81,7 +80,7 @@ impl Client {
         &self, request: planning::MaterializeTemplate,
     ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
         self.verify(true).await?;
-        let reply = self.unary::<planning::MaterializeTemplate>(planning::MaterializeTemplate::PATH, request).await?;
+        let reply = self.unary::<planning::MaterializeTemplate>(request).await?;
         validate_observed_cursor(&self.backend().epoch, reply.observed_cursor.as_ref())?;
         for case in &reply.cases {
             CaseId::from_wire(&case.case_id).map_err(|_| invalid("materialized case has an invalid identity"))?;
@@ -94,7 +93,7 @@ impl Client {
 
     pub async fn create_cycle(&self, request: contract::CreateCycle) -> Result<TestCycleHandle> {
         self.verify(true).await?;
-        let reply = self.unary::<contract::CreateCycle>(contract::CreateCycle::PATH, request).await?;
+        let reply = self.unary::<contract::CreateCycle>(request).await?;
         validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         let id = TestCycleId::from_uuid(&reply.cycle_id).map_err(|_| invalid("created cycle has an invalid identity"))?;
         Ok(self.cycle(id))
@@ -176,13 +175,10 @@ impl TestCycleHandle {
         self.client.verify(true).await?;
         let reply = self
             .client
-            .unary::<SealCycle>(
-                SealCycle::PATH,
-                SealCycle {
-                    cycle_id: self.id.to_string(),
-                    context: None,
-                },
-            )
+            .unary::<SealCycle>(SealCycle {
+                cycle_id: self.id.to_string(),
+                context: None,
+            })
             .await?;
         validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
         super::transport::value(reply)
@@ -242,7 +238,7 @@ impl TestCycleHandle {
             cycle_id: self.id.to_string(),
             executions,
         };
-        let reply = self.client.unary::<contract::AppendExecutions>(contract::AppendExecutions::PATH, request).await?;
+        let reply = self.client.unary::<contract::AppendExecutions>(request).await?;
         validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
         if reply.execution_ids != expected {
             return Err(invalid("append reply differs from the registered execution identities or order"));

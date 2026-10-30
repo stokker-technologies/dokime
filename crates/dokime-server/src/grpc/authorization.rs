@@ -26,7 +26,7 @@ use dokime::harmos::operations::{CallContext, OperationDeclaration};
 // Local Imports
 use super::Error;
 use super::access::{Listeners, Principal};
-use dokime::operations::Endpoints;
+use dokime::harmos::operations::Contracts;
 use dokime::operations::Operations;
 
 /* === Constants === */
@@ -59,10 +59,10 @@ struct Requirement {
 impl Policy {
     fn new(settings: &dokime::harmos::config::SchemaSettings) -> Result<Self, Error> {
         let mut requirements = Vec::new();
-        <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
+        <Operations as Catalog<Contracts>>::ENTRIES.try_for_each(|entry| {
             requirements.push(Requirement {
-                local_only: entry.local_only,
-                contract: entry.wire.contract_with_settings(settings)?,
+                local_only: dokime::operations::local_only(entry.operation.id),
+                contract: entry.contract_with_settings(settings)?,
             });
             Ok::<_, Error>(())
         })?;
