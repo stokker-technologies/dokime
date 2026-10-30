@@ -43,6 +43,20 @@ Shutdown powers it down. These operations control one demonstration device in
 the plugin's embedded runtime; charger executions continue to own separate
 devices. Manual operations are not recorded in execution evidence.
 
+## Host CPU Load Example
+
+`obc.checks.cpu_load` in `src/suites/checks/cpu_load.rs` demonstrates the locked
+host CPU load sequence. Install the host plugin beside OBC. The template requests
+50% total system CPU by default for `duration_s = 1.0`, starts the Public
+`host.cpu.load.hold` operation, waits and calls `cancel_and_join()` for its summary.
+Target percent and hold duration are template parameters. Its subscription captures
+`host.cpu.load.control` evidence, including other-process load in percent feedback.
+
+The example's dispatch requires the pending Harmos cooperative cancellation and
+portable `u16` capabilities described in [Plugins](plugins.md#closed-loop-cpu-load).
+A dropped or forgotten handle is cancelled by Dokime's existing step/run sweep;
+no external-effect inverse is necessary for a live CPU worker.
+
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.

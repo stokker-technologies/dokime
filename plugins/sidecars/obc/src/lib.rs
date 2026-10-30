@@ -100,7 +100,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
 
 #[dokime::plugin(
     id = "plugin_obc",
-    requires(),
+    requires(plugin_host::host::cpu::load::LoadHold),
     contributions(
         dokime::Suites<suites::Suites>,
         dokime::Records<Records, listeners::Listeners>,
