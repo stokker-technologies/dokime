@@ -272,6 +272,8 @@ test("Manual Backend Entry Accepts Only Unsecured Lab Origins And Distinct Ident
 
 type TestElementProps = {
   children?: ReactNode;
+  failure?: ReactNode;
+  retry?: (profile: string | null) => void;
   tabIndex?: number;
   role?: string;
   value?: string;
@@ -316,6 +318,35 @@ test("Backend Loading Stays In The Status Indicator", () => {
   const contents = descendants(BackendsTable());
   assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
   assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
+});
+
+test("Occupied Local Remains Usable", async () => {
+  const failure = { kind: "backend_running", root: "C:/fixture/data", message: "fixture lease refusal: C:/fixture/data" };
+  fixture.invoke.mockRejectedValueOnce(failure);
+  const owner = new NativeSession();
+  await owner.select({ kind: "owned_local" });
+  assert.deepEqual(owner.snapshot(), { phase: "failed", error: failure });
+  assert.equal(fixture.invoke.mock.calls.length, 1);
+
+  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
+    "@/app/native-session/ConnectionScreen",
+  );
+  const tree = ConnectionScreen({
+    launch: { target: null, expectedBackendId: null, localBackendAvailable: true, error: null },
+    launchError: failure,
+  });
+  const contents = descendants(tree);
+  const registry = contents.find((element) => element.type === BackendsTable);
+  assert.ok(registry);
+  assert.ok(isValidElement<{ children: string }>(registry.props.failure));
+  assert.equal(registry.props.failure.props.children, failure.message);
+  assert.ok(registry.props.retry);
+  registry.props.retry(null);
+  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
+  assert.ok(contents.some((element) => element.type === Button && element.props.children === "Settings"));
+
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "connected");
 });
 
 test("Backend Failure Replaces Loading With Notification Feedback", () => {

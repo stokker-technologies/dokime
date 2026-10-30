@@ -51,6 +51,9 @@ pub enum Error {
     #[error("{0}")]
     Setup(String),
 
+    #[error("another instance's backend owns the data folder {}; close that instance and retry, or connect to another backend", .root.display())]
+    BackendRunning { root: PathBuf },
+
     #[error(
         "Dokime cannot open the data root {}.\n\
          The stored data is not usable by this build: {reason}.\n\
@@ -107,8 +110,9 @@ impl Error {
 
     pub fn launch(error: dokime::runtime::Error, root: PathBuf) -> Self {
         let reason = match storage_refusal(&error) {
-            Some(refusal) => refusal.to_string(),
-            None => return Self::Runtime(error),
+            Some(dokime::storage::sqlite::Error::Owned) => return Self::BackendRunning { root },
+            Some(refusal) if incompatible(refusal) => refusal.to_string(),
+            _ => return Self::Runtime(error),
         };
         Self::IncompatibleStorage { root, reason }
     }
@@ -133,7 +137,7 @@ fn storage_refusal(error: &dokime::runtime::Error) -> Option<&dokime::storage::s
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
         if let Some(storage) = cause.downcast_ref::<dokime::storage::sqlite::Error>() {
-            return incompatible(storage).then_some(storage);
+            return Some(storage);
         }
         source = cause.source();
     }

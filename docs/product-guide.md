@@ -1268,9 +1268,13 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
-updater verification trust and code-signing identity remain compiled. Reusing
-binaries with different distribution identities does not isolate those mechanisms.
+deleted automatically. Each desktop launch opens its own window. A local backend
+exclusively owns its data folder; if another backend already owns it, the desktop
+shows the folder and offers connection controls. Connect to another or remote
+backend, or close the other instance and retry Start Local Backend.
+Protocol/deep-link identity, updater verification trust and code-signing identity
+remain compiled. Reusing binaries with different distribution identities does not
+isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon

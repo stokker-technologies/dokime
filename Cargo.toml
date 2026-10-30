@@ -80,7 +80,6 @@ subtle = { version = "=2.6.1" }
 sysinfo = { version = "0.40.0" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
-widestring = { version = "1.2.1" }
 windows = { version = "0.62.2" }
 windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
@@ -125,7 +124,6 @@ quote = { version = "1.0.47" }
 syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 
 # Concurrency
-interprocess = { version = "2.4.7", features = ["tokio"] }
 
 # Async
 async-trait = { version = "0.1.92" }
