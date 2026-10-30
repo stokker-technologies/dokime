@@ -178,18 +178,6 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 
 # === Profiles === #
 
-# Keep Development Debug Archives Small While Retaining Workspace Source Locations.
-[profile.dev]
-debug = "line-tables-only"
-
-[profile.dev.package."*"]
-debug = false
-
-# The Stored Evidence Integrity Check Digests Every Row A Read Returns; Unoptimized,
-# SHA-256 Alone Cost About 21 µs Per Row In Debug Test Builds.
-[profile.dev.package.sha2]
-opt-level = 3
-
 # === Patches === #
 
 # === Other === #
