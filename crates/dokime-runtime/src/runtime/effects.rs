@@ -95,6 +95,7 @@ impl Serve<PrepareEffect> for RecordIngress {
                 description: request.description,
                 prepared_at: at.clone(),
                 applied_at: None,
+                coalesced: Vec::new(),
             };
             runtime
                 .commit(RecordEffect {
@@ -124,10 +125,17 @@ impl Serve<ConfirmEffect> for RecordIngress {
                 let effect = state
                     .pending_effects
                     .iter()
-                    .find(|effect| effect.ticket == request.ticket)
+                    .find(|effect| {
+                        effect.ticket == request.ticket || effect.coalesced.iter().any(|prepare| prepare.ticket == request.ticket)
+                    })
                     .ok_or_else(|| Status::not_found("effect ticket is no longer pending"))?;
+                let source = effect
+                    .coalesced
+                    .iter()
+                    .find(|prepare| prepare.ticket == request.ticket)
+                    .map_or(&effect.source, |prepare| &prepare.source);
                 if effect.scope.test_execution_id.as_ref().map(|id| id.as_str()) != Some(scope.execution.as_str())
-                    || owner.as_ref().is_some_and(|owner| owner != &effect.source)
+                    || owner.as_ref().is_some_and(|owner| owner != source)
                 {
                     return Err(Status::permission_denied("effect belongs to another execution"));
                 }
@@ -137,7 +145,7 @@ impl Serve<ConfirmEffect> for RecordIngress {
             runtime
                 .commit(RecordEffect {
                     ticket: request.ticket,
-                    change: if request.restored { EffectChange::Restored } else { EffectChange::Applied },
+                    change: if request.restored { EffectChange::RolledBack } else { EffectChange::Applied },
                     at,
                 })
                 .await

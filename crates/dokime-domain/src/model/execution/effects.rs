@@ -42,6 +42,17 @@ pub struct PendingEffect {
     pub description: String,
     pub prepared_at: Timestamp,
     pub applied_at: Option<Timestamp>,
+    pub coalesced: Vec<EffectPreparation>,
+}
+
+// Later Calls Keep Their Own Confirmation Metadata, Never Another Inverse.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EffectPreparation {
+    pub ticket: String,
+    pub source: String,
+    pub description: String,
+    pub prepared_at: Timestamp,
+    pub applied_at: Option<Timestamp>,
 }
 
 /* === Enums === */

@@ -23,7 +23,7 @@ use dokime_runtime::transport::{
 use dokime_runtime::{
     InstalledPlugin, Message, Refusal,
     app::Composition,
-    execution::{Caller, ExecutionHost, Runnable, SampleOutput},
+    execution::{Caller, ExecutionHost, ExecutionScope, Runnable, SampleOutput},
     runtime::EmbeddedProvider,
 };
 use std::sync::{
@@ -47,6 +47,8 @@ use std::sync::{
 
 struct Physical {
     on: AtomicBool,
+    adapter_on: AtomicBool,
+    restorations: Mutex<Vec<String>>,
     fail_restore: AtomicBool,
     captured: AtomicUsize,
     runtime: Mutex<Option<RuntimeHandle>>,
@@ -58,6 +60,7 @@ struct Physical {
 #[derive(Clone, Default, PartialEq)]
 struct Inverse {
     pub on: bool,
+    pub resource: String,
 }
 
 #[harmos::operation(id = "fixture.effect.capture", response = StartEvidence, policy = dokime_runtime::operations::ORDINARY, visibility = Host, resources = [Physical])]
@@ -80,6 +83,7 @@ enum Mode {
     Pass,
     Fail,
     Cancel,
+    Resources,
 }
 
 #[harmos::catalog]
@@ -96,6 +100,8 @@ impl Physical {
     fn new() -> Self {
         Self {
             on: AtomicBool::new(true),
+            adapter_on: AtomicBool::new(true),
+            restorations: Mutex::new(Vec::new()),
             fail_restore: AtomicBool::new(false),
             captured: AtomicUsize::new(0),
             runtime: Mutex::new(None),
@@ -112,7 +118,12 @@ impl harmos::Operation for Inverse {
         if physical.fail_restore.load(Ordering::SeqCst) {
             return Err(Refusal::of("controlled inverse failure"));
         }
-        physical.on.store(self.on, Ordering::SeqCst);
+        if self.resource == "fixture.adapter" {
+            physical.adapter_on.store(self.on, Ordering::SeqCst);
+        } else {
+            physical.on.store(self.on, Ordering::SeqCst);
+        }
+        physical.restorations.lock().unwrap().push(self.resource);
         Ok(harmos::Response::new(EffectResult { at: now().to_string() }))
     }
 }
@@ -168,14 +179,76 @@ impl Runnable for Probe {
             assert_eq!(self.physical.captured.load(Ordering::SeqCst), 1);
             let id = TestExecutionId::from_uuid(request.execution_token).unwrap();
             let execution = runtime.watch_state().latest().state().executions.get(&id).unwrap().clone();
-            for on in [false, true] {
-                let pending = pending(execution.capture_scope(), self.physical.on.load(Ordering::SeqCst));
-                let ticket = pending.ticket.clone();
-                runtime.begin_external_change(pending).await.map_err(Refusal::of)?;
-                assert!(runtime.watch_state().latest().state().pending_effects.iter().any(|effect| effect.ticket == ticket));
+            // Match The Bridge's Run Scope Rather Than The Live Evidence Capture Phase.
+            let mut effect_scope = execution.capture_scope();
+            effect_scope.origin = Default::default();
+            let mut context = harmos::operations::CallContext::default();
+            context.insert_portable(ExecutionScope::execution(id.as_str())).unwrap();
+            let caller = runtime.operations().with_context(context);
+            for sample in 0..100 {
+                let on = sample % 2 != 0;
+                let pending = pending(effect_scope.clone(), self.physical.on.load(Ordering::SeqCst));
+                let ticket = if sample == 0 {
+                    let ticket = pending.ticket.clone();
+                    runtime.begin_external_change(pending).await.map_err(Refusal::of)?;
+                    ticket
+                } else {
+                    caller
+                        .call::<PrepareEffect>(PrepareEffect {
+                            resource: pending.resource,
+                            inverse_operation: "effect_fixture.fixture.effect.restore".into(),
+                            inverse: pending.inverse,
+                            description: pending.description,
+                        })
+                        .await
+                        .map_err(Refusal::of)?
+                        .id
+                        .clone()
+                };
+                assert_eq!(runtime.watch_state().latest().state().pending_effects.len(), 1);
                 self.physical.on.store(on, Ordering::SeqCst);
+                caller
+                    .call::<ConfirmEffect>(ConfirmEffect {
+                        ticket,
+                        at: now().to_string(),
+                        restored: false,
+                    })
+                    .await
+                    .map_err(Refusal::of)?;
+            }
+            // A Later Failed Write Rolls Back Only That Call, Keeping The Original Inverse.
+            let mut failed = pending(effect_scope.clone(), true);
+            failed.source = "other_fixture".into();
+            let ticket = failed.ticket.clone();
+            runtime.begin_external_change(failed).await.map_err(Refusal::of)?;
+            self.physical.on.store(false, Ordering::SeqCst);
+            self.physical.on.store(true, Ordering::SeqCst);
+            caller
+                .call::<ConfirmEffect>(ConfirmEffect {
+                    ticket,
+                    at: now().to_string(),
+                    restored: true,
+                })
+                .await
+                .map_err(Refusal::of)?;
+            assert_eq!(runtime.watch_state().latest().state().pending_effects.len(), 1);
+
+            if matches!(self.mode, Mode::Resources) {
+                let mut adapter = pending(effect_scope.clone(), true);
+                adapter.resource = "fixture.adapter".into();
+                adapter.inverse = Inverse {
+                    on: true,
+                    resource: adapter.resource.clone(),
+                }
+                .encode();
+                let ticket = adapter.ticket.clone();
+                runtime.begin_external_change(adapter).await.map_err(Refusal::of)?;
+                self.physical.adapter_on.store(false, Ordering::SeqCst);
                 runtime.complete_external_change(ticket, now()).await.map_err(Refusal::of)?;
             }
+            // A Later Unconfirmed Write Also Leaves The Earliest Inverse In Charge.
+            runtime.begin_external_change(pending(effect_scope, true)).await.map_err(Refusal::of)?;
+            self.physical.on.store(false, Ordering::SeqCst);
             self.physical.entered.notify_one();
             if matches!(self.mode, Mode::Cancel) {
                 self.physical.release.notified().await;
@@ -209,11 +282,12 @@ impl Runnable for Probe {
         if signal.cancel {
             self.physical.release.notify_one();
         }
-        Box::pin(async {
+        let record_ordinal = signal.record.as_ref().map_or(0, |record| record.ordinal);
+        Box::pin(async move {
             Ok(SignalReply {
                 command: None,
                 samples: Vec::new(),
-                record_ordinal: 0,
+                record_ordinal,
             })
         })
     }
@@ -242,10 +316,11 @@ fn pending(scope: RecordScope, on: bool) -> PendingEffect {
         source: "effect_fixture".into(),
         resource: "fixture.radio".into(),
         inverse_operation: "host.fixture.effect.restore".into(),
-        inverse: Inverse { on }.encode(),
+        inverse: Inverse { on, resource: "fixture.radio".into() }.encode(),
         description: "Fixture Radio Off".into(),
         prepared_at: now(),
         applied_at: None,
+        coalesced: Vec::new(),
     }
 }
 fn configured(root: &Path, physical: &Arc<Physical>, mode: Mode) -> RuntimeConfig {
@@ -305,13 +380,19 @@ async fn effect_lifecycle() {
             handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
         }
         let expected = match mode {
-            Mode::Pass => ResultStatus::Passed,
+            Mode::Pass | Mode::Resources => ResultStatus::Passed,
             Mode::Fail => ResultStatus::Failed,
             Mode::Cancel => ResultStatus::Cancelled,
         };
         let settled =
             until_state(&handle, |state| state.executions.get(&execution).is_some_and(|execution| execution.finished_at.is_some())).await;
-        assert_eq!(settled.state().executions.get(&execution).unwrap().result.as_ref().unwrap().status, expected);
+        assert_eq!(
+            settled.state().executions.get(&execution).unwrap().result.as_ref().unwrap().status,
+            expected,
+            "steps: {:?}; failures: {:?}",
+            settled.state().executions.get(&execution).unwrap().steps,
+            settled.state().run_requests.values().map(|request| (&request.failure, &request.publication_failure)).collect::<Vec<_>>()
+        );
         wait_for_cycle_outcome(&handle, &cycle, expected).await;
         assert!(physical.on.load(Ordering::SeqCst));
         assert!(handle.watch_state().latest().state().pending_effects.is_empty());
@@ -330,19 +411,67 @@ async fn effect_lifecycle() {
             records.iter().filter(|record| record.record_type.as_str() == "test.execution.effect.applied").collect::<Vec<_>>();
         let restorations =
             records.iter().filter(|record| record.record_type.as_str() == "test.execution.effect.restored").collect::<Vec<_>>();
-        assert_eq!(applied_changes.len(), 2);
+        let preparations =
+            records.iter().filter(|record| record.record_type.as_str() == "test.execution.effect.prepared").collect::<Vec<_>>();
+        assert_eq!(preparations.len(), 102);
+        assert_eq!(applied_changes.len(), 100);
         assert_eq!(restorations.len(), 2);
-        for (applied, restored) in applied_changes.iter().zip(restorations.iter().rev()) {
-            assert_eq!(applied.details.get("ticket"), restored.details.get("ticket"));
+        let original = preparations[0].details.get("ticket").unwrap();
+        for (index, prepared) in preparations.iter().enumerate() {
+            assert_eq!(prepared.details.get("restoration_ticket"), Some(original));
+            assert_eq!(prepared.details.get("coalesced"), Some(&Value::Bool(index != 0)));
+        }
+        let tickets = preparations
+            .iter()
+            .map(|record| match record.details.get("ticket").unwrap() {
+                Value::Text(ticket) => ticket.as_str(),
+                _ => panic!("effect ticket must be text"),
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(tickets.len(), 102);
+        for (applied, prepared) in applied_changes.iter().zip(&preparations) {
+            assert_eq!(applied.details.get("ticket"), prepared.details.get("ticket"));
+            assert_eq!(applied.details.get("prepared_at"), prepared.details.get("prepared_at"));
             assert_eq!(applied.details.get("applied_at"), Some(&Value::from(applied.timestamp.to_string())));
         }
         let applied = applied_changes[0];
         let restored = restorations[1];
         assert!(applied.timestamp.to_datetime().unwrap() <= restored.timestamp.to_datetime().unwrap());
         assert_eq!(applied.details.get("ticket"), restored.details.get("ticket"));
+        assert_eq!(restorations[0].details.get("resource_restored"), Some(&Value::Bool(false)));
+        assert_eq!(restorations[0].source, "other_fixture");
+        assert_eq!(restored.details.get("resource_restored"), Some(&Value::Bool(true)));
+        assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.radio"]);
         runtime.shutdown().await.unwrap();
         physical.runtime.lock().unwrap().take();
     }
+}
+
+#[tokio::test]
+async fn effect_resource_order() {
+    let root = tempdir().unwrap();
+    let physical = Arc::new(Physical::new());
+    let mut runtime = Runtime::start(configured(root.path(), &physical, Mode::Resources)).await.unwrap();
+    let handle = runtime.handle();
+    let (cycle, execution) = planned(&handle).await;
+    let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
+    assert_ne!(receipt.status, CommandStatus::Rejected, "{:?}", receipt.rejection);
+    let settled =
+        until_state(&handle, |state| state.executions.get(&execution).is_some_and(|execution| execution.finished_at.is_some())).await;
+    assert_eq!(
+        settled.state().executions.get(&execution).unwrap().result.as_ref().unwrap().status,
+        ResultStatus::Passed,
+        "steps: {:?}; failures: {:?}",
+        settled.state().executions.get(&execution).unwrap().steps,
+        settled.state().run_requests.values().map(|request| (&request.failure, &request.publication_failure)).collect::<Vec<_>>()
+    );
+    wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Passed).await;
+    assert!(physical.on.load(Ordering::SeqCst));
+    assert!(physical.adapter_on.load(Ordering::SeqCst));
+    assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.adapter", "fixture.radio"]);
+    assert!(handle.watch_state().latest().state().pending_effects.is_empty());
+    runtime.shutdown().await.unwrap();
+    physical.runtime.lock().unwrap().take();
 }
 
 #[tokio::test]
@@ -360,7 +489,11 @@ async fn effect_recovery() {
         .call::<PrepareEffect>(PrepareEffect {
             resource: "fixture.radio".into(),
             inverse_operation: "host.fixture.effect.restore".into(),
-            inverse: Inverse { on: true }.encode(),
+            inverse: Inverse {
+                on: true,
+                resource: "fixture.radio".into(),
+            }
+            .encode(),
             description: "Standalone Radio".into(),
         })
         .await
@@ -378,11 +511,24 @@ async fn effect_recovery() {
     assert!(handle.watch_state().latest().state().pending_effects.is_empty());
     let (_, execution) = planned(&handle).await;
     let scope = handle.watch_state().latest().state().executions.get(&execution).unwrap().capture_scope();
-    let effect = pending(scope, true);
+    let effect = pending(scope.clone(), true);
     let ticket = effect.ticket.clone();
     handle.begin_external_change(effect).await.unwrap();
     physical.on.store(false, Ordering::SeqCst);
     handle.complete_external_change(ticket, now()).await.unwrap();
+    let later = pending(scope.clone(), false);
+    let ticket = later.ticket.clone();
+    handle.begin_external_change(later).await.unwrap();
+    physical.on.store(true, Ordering::SeqCst);
+    handle.complete_external_change(ticket, now()).await.unwrap();
+    let later = pending(scope.clone(), true);
+    let ticket = later.ticket.clone();
+    handle.begin_external_change(later).await.unwrap();
+    physical.on.store(false, Ordering::SeqCst);
+    handle.complete_external_change(ticket, now()).await.unwrap();
+    handle.begin_external_change(pending(scope, false)).await.unwrap();
+    physical.on.store(true, Ordering::SeqCst);
+    assert_eq!(handle.watch_state().latest().state().pending_effects.len(), 1);
     runtime.shutdown().await.unwrap();
     drop(handle);
     physical.runtime.lock().unwrap().take();
@@ -390,10 +536,11 @@ async fn effect_recovery() {
     physical.fail_restore.store(true, Ordering::SeqCst);
     assert!(Runtime::start(config.clone()).await.is_err());
     physical.runtime.lock().unwrap().take();
-    assert!(!physical.on.load(Ordering::SeqCst));
+    assert!(physical.on.load(Ordering::SeqCst));
     physical.fail_restore.store(false, Ordering::SeqCst);
     let mut recovered = Runtime::start(config).await.unwrap();
     assert!(physical.on.load(Ordering::SeqCst));
+    assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.radio"]);
     assert!(recovered.handle().watch_state().latest().state().pending_effects.is_empty());
     // Startup Retires The Fixture's Closed Cycle; Its Records Stay In Native History.
     let handle = recovered.handle();

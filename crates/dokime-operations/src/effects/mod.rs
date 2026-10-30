@@ -52,6 +52,7 @@ pub struct PrepareEffect {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Ticket {
+    // Execution Prepares Get Unique Tickets; Standalone Calls Return An Empty Id.
     pub id: String,
 }
 
@@ -61,6 +62,7 @@ pub struct Ticket {
 pub struct ConfirmEffect {
     pub ticket: String,
     pub at: String,
+    // This Call Rolled Back To Its Prior State; Earlier Pending Changes Stay Journaled.
     pub restored: bool,
 }
 
