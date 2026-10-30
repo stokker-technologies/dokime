@@ -62,7 +62,7 @@ pub(crate) async fn unsecured_pairing_creates_no_revocable_client() {
         .await
         .unwrap()
         .into_inner();
-    let endpoint = format!("http://{}", status.listening_address.unwrap());
+    assert!(status.listening_address.is_some());
 
     let pairing = native
         .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Unsecured Lab".into() })
