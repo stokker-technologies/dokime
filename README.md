@@ -87,7 +87,7 @@ backend profiles and execution APIs; the [runnable examples](docs/remote/python.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `e9d86d8bfa84a74fa246aca134c16c91b1516c4c`)
+(currently pinned to revision `4e2669fa03cf5a123aa62de1aad0f042fb5cb381`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
