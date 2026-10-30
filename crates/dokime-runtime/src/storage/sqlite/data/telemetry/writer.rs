@@ -256,8 +256,7 @@ impl Store {
                 let harmos::schema::graph::Kind::Message { definition } = field.kind else {
                     return Err(Error::Invalid("telemetry values are not a message"));
                 };
-                let mut graph = schema.schema.as_ref().clone();
-                graph.root = definition;
+                let graph = payload_graph(&schema.schema, definition)?;
                 let mut contract = TelemetryContract::declared(row.stream.as_str(), row.stream.as_str()).with_storage_schema(graph);
                 contract.schema_version = row.record.schema.version.get();
                 contract
@@ -374,6 +373,30 @@ pub(super) fn identity(row: &StoredRow) -> String {
 }
 
 /* === Private Functions === */
+
+fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<harmos::schema::graph::Schema> {
+    use harmos::schema::graph::{Kind, Schema};
+    let mut indices = BTreeMap::from([(root, 0)]);
+    let mut pending = vec![root];
+    let mut definitions = Vec::new();
+    let mut next = 0;
+    while let Some(index) = pending.get(next).copied() {
+        let mut fields = graph.definitions.get(index).ok_or(Error::Invalid("telemetry definition is absent"))?.clone();
+        for field in &mut fields {
+            if let Kind::Message { definition } = &mut field.kind {
+                let mapped = *indices.entry(*definition).or_insert_with(|| {
+                    let mapped = pending.len();
+                    pending.push(*definition);
+                    mapped
+                });
+                *definition = mapped;
+            }
+        }
+        definitions.push(fields);
+        next += 1;
+    }
+    Ok(Schema { root: 0, definitions })
+}
 
 fn summaries(connection: &Connection, file: &str, entries: &[(u64, Admitted)]) -> Result<()> {
     let mut summaries: BTreeMap<&str, (u64, f64, f64, f64)> = BTreeMap::new();
