@@ -53,7 +53,7 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
         {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
     ]);
     let contracts =
-        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
     let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
     let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
