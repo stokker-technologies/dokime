@@ -18,6 +18,7 @@ mod settings;
 pub use crate::storage::Error;
 pub use catalog::Source;
 pub use data::Backend;
+pub(crate) use data::telemetry::StreamFile;
 pub use rusqlite;
 
 /* === Imports === */
@@ -98,6 +99,7 @@ pub struct ReadCounters {
 struct ReadMetrics {
     data_scan_rows: AtomicU64,
     telemetry_anchor_rows: AtomicU64,
+    telemetry_batch: std::sync::Mutex<Option<data::telemetry::CachedBatch>>,
 }
 
 struct Owner {
@@ -110,6 +112,10 @@ struct Owner {
     reads: AtomicU64,
     files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
     verification_prefix: std::sync::Mutex<data::VerifiedPrefix>,
+    telemetry: std::sync::Mutex<data::telemetry::Store>,
+    telemetry_tail: std::sync::Mutex<data::telemetry::Tail>,
+    telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
+    close: tokio::sync::Mutex<()>,
 }
 
 struct Live {
@@ -232,12 +238,45 @@ impl State {
                 reads: AtomicU64::new(1),
                 files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
                 verification_prefix,
+                telemetry: std::sync::Mutex::new(data::telemetry::Store::new(root, settings)),
+                telemetry_tail: Default::default(),
+                telemetry_tasks: Default::default(),
+                close: Default::default(),
             })))
         })
         .await?
     }
 
     pub async fn close(&self) -> Result<(), Error> {
+        let _close = self.0.close.lock().await;
+        let has_tail = !self.0.telemetry_tail.lock().unwrap().entries.is_empty();
+        if has_tail {
+            let saved = self.data_saved().await?;
+            self.0.telemetry_tail.lock().unwrap().entries.retain(|position, _| *position > saved.sequence);
+        }
+        {
+            let mut tail = self.0.telemetry_tail.lock().unwrap();
+            tail.force = true;
+            tail.changed.notify_one();
+        }
+        let mut failure = None;
+        for task in std::mem::take(&mut *self.0.telemetry_tasks.lock().await) {
+            let result = task.await.map_err(Error::from).flatten();
+            if let Err(error) = result {
+                failure.get_or_insert(error);
+            }
+        }
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
+            let saved = self.data_saved().await?;
+            let mut tail = self.0.telemetry_tail.lock().unwrap();
+            tail.entries.retain(|position, _| *position > saved.sequence);
+            if !tail.entries.is_empty() {
+                return Err(Error::Conflict("unflushed telemetry prevents closing"));
+            }
+        }
         self.0.closing.store(true, Ordering::Release);
         // Accepted Reads Settle And Return Their Connections Before The Writer Closes.
         let readers = self.0.readers.clone();
@@ -249,6 +288,9 @@ impl State {
         let mut live = self.0.live.clone().lock_owned().await;
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
+            if let Some(live) = live.as_mut() {
+                owner.telemetry.lock().unwrap().finish(&mut live.connection, None)?;
+            }
             owner.files.lock().unwrap().clear();
             *owner.verification_prefix.lock().unwrap() = data::VerifiedPrefix::default();
             let Some(Live { connection, _lease }) = live.take() else {

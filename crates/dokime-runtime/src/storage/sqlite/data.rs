@@ -16,7 +16,7 @@ mod mutations;
 mod production;
 mod records;
 mod retention;
-mod telemetry;
+pub(super) mod telemetry;
 
 /* === Re-Exports === */
 
@@ -113,8 +113,10 @@ pub(super) struct Scan {
     pub generation: u64,
     pub filters: Vec<(&'static str, Value)>,
     pub source_window: Option<(std::time::SystemTime, std::time::SystemTime)>,
+    pub source_bounds: (Option<std::time::SystemTime>, Option<std::time::SystemTime>),
     pub latest_objects: bool,
     pub page: ScanPage,
+    metrics: Option<std::sync::Arc<super::ReadMetrics>>,
 }
 
 /* === Enums === */
@@ -125,7 +127,15 @@ pub(super) struct Scan {
 
 impl State {
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
-        self.call(move |connection| Ok(open(connection, expected))).await?
+        let owner = self.0.clone();
+        self.call(move |connection| {
+            Ok((|| {
+                let head = open(connection, expected)?;
+                owner.telemetry.lock().unwrap().recover(connection)?;
+                Ok(head)
+            })())
+        })
+        .await?
     }
 
     pub(crate) async fn data_history(&self) -> Result<StoreHistory, Error> {
@@ -158,7 +168,17 @@ impl State {
         .await?
     }
 
-    async fn data_scan(&self, scan: Scan) -> Result<Vec<Entry>, Error> {
+    async fn data_scan(&self, mut scan: Scan) -> Result<Vec<Entry>, Error> {
+        scan.metrics = Some(self.0.read_metrics.clone());
+        if scan.kind == "stream"
+            && scan.filters.iter().any(|(field, value)| {
+                *field == "schema_key"
+                    && matches!(value, Value::Text(key) if
+                    serde_json::from_str::<SchemaKey>(key).is_ok_and(|key|key.id.as_str().starts_with("dokime.telemetry.")))
+            })
+        {
+            return self.arrow_scan(scan).await;
+        }
         let metrics = self.0.read_metrics.clone();
         self.read(move |connection| {
             let result = read_scan(connection, &scan, &metrics);
@@ -176,8 +196,10 @@ impl Scan {
             generation,
             filters: Vec::new(),
             source_window: None,
+            source_bounds: (None, None),
             latest_objects: false,
             page,
+            metrics: None,
         }
     }
 
@@ -197,7 +219,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     if exists {
         let indexed: bool = connection.query_row(
             "SELECT count(*)=4 FROM sqlite_master WHERE type='table' AND name IN
-                ('storage_telemetry_index','storage_telemetry_signals','storage_record_visibility','storage_record_captures')",
+                ('files','streams','storage_record_visibility','storage_record_captures')",
             [],
             |row| row.get(0),
         )?;
@@ -208,6 +230,19 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         )?;
         if initialized && !indexed {
             return Err(Error::Incompatible("local.sqlite does not satisfy the current indexed evidence schema".into()));
+        }
+        if initialized {
+            for query in [
+                "SELECT id,kind,path,size_bytes,sha256,media_type FROM files LIMIT 0",
+                "SELECT file_id,execution,relative_path FROM artifacts LIMIT 0",
+                "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
+                "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
+                "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
+            ] {
+                connection
+                    .prepare(query)
+                    .map_err(|_| Error::Incompatible("local.sqlite requires a fresh storage root for Arrow telemetry".into()))?;
+            }
         }
         let format: Option<String> = connection
             .query_row("SELECT format FROM storage_data_head WHERE singleton=1", [], |row| row.get(0))
@@ -400,8 +435,8 @@ where
         ])?;
         // Release The Bound Row Before Decoding Its Secondary Index Metadata.
         drop(insert);
-        if let Borrowed::Stream(row) = value {
-            telemetry::index(&transaction, row)?;
+        if let Borrowed::File(reference) = value {
+            telemetry::catalog_file(&transaction, reference)?;
         }
         if let Borrowed::Record(row) = value {
             records::index(&transaction, row)?;

@@ -7,55 +7,45 @@
  * ***
  */
 
-// Indexed Eligible Telemetry Anchors At A Durable Frontier.
+// Arrow Telemetry Catalog And Native Reads
 
 /* === Modules === */
 
+mod catalog;
+mod flush;
+mod inventory;
+mod reader;
+#[cfg(test)]
+mod tests;
+mod writer;
+
 /* === Re-Exports === */
+
+pub(super) use catalog::SCHEMA;
+pub(super) use catalog::file as catalog_file;
+pub(crate) use flush::Tail;
+pub(crate) use inventory::StreamFile;
+pub(in crate::storage::sqlite) use reader::CachedBatch;
+pub(crate) use reader::NumericRow;
+pub(crate) use writer::Store;
 
 /* === Imports === */
 
-use super::{Entry, State, blob, check_digest, entry, position, saved};
-use crate::storage::{Error, telemetry::TypedCodec};
-use harmos::storage::{SchemaKey, StorageCursor, StoredRow};
-use rusqlite::{Connection, OptionalExtension, params, types::Value};
-
 // Standard Library Imports
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
+use harmos::storage::{ScanPage, SchemaKey, StorageBatch, StorageCursor, StoredRow, query::StreamSelection};
+use rusqlite::{OptionalExtension, params, types::Value};
 
 // Local Imports
+use super::{Entry, SavedData, Scan, State, position, saved, sequence};
+use crate::storage::{
+    Error,
+    telemetry::{TelemetryEntry, TypedCodec},
+};
 
 /* === Constants === */
-
-pub(super) const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS storage_sample_receipts (
-    execution TEXT NOT NULL, stream TEXT NOT NULL, sample_id TEXT NOT NULL, position TEXT NOT NULL,
-    PRIMARY KEY(execution,stream)
-) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS storage_sample_identity ON storage_data_entries(scope,stream,item,position) WHERE kind='stream';
-CREATE TABLE IF NOT EXISTS storage_telemetry_index (
-    position TEXT PRIMARY KEY REFERENCES storage_data_entries(position) ON DELETE CASCADE,
-    schema_key TEXT NOT NULL, source_time BLOB NOT NULL,
-    scope TEXT NOT NULL, source TEXT NOT NULL
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_telemetry_signals (
-    schema_key TEXT NOT NULL, signal TEXT NOT NULL, position TEXT NOT NULL REFERENCES storage_data_entries(position) ON DELETE CASCADE,
-    source_time BLOB NOT NULL, scope TEXT NOT NULL, source TEXT NOT NULL,
-    PRIMARY KEY(schema_key,signal,position)
-) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS storage_telemetry_signal_time ON storage_telemetry_signals(schema_key,signal,source_time DESC,position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_signal_execution_time ON storage_telemetry_signals(
-    schema_key,signal,json_extract(scope,'$.test_execution_id'),source_time DESC,position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_scope_time ON storage_telemetry_index(schema_key,scope,source_time DESC,position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_time ON storage_telemetry_index(schema_key, source_time DESC, position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_execution_time ON storage_telemetry_index(
-    schema_key, json_extract(scope, '$.test_execution_id'), source_time DESC, position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_cycle_time ON storage_telemetry_index(
-    schema_key, json_extract(scope, '$.test_cycle_id'), source_time DESC, position DESC);
-CREATE INDEX IF NOT EXISTS storage_telemetry_case_time ON storage_telemetry_index(
-    schema_key, json_extract(scope, '$.test_case_id'), source_time DESC, position DESC);
-";
 
 /* === Macros === */
 
@@ -70,155 +60,242 @@ CREATE INDEX IF NOT EXISTS storage_telemetry_case_time ON storage_telemetry_inde
 /* === Implementations === */
 
 impl State {
-    pub(crate) async fn acknowledge_sample(
-        &self, execution: String, stream: String, sample_id: String, through: u64,
-    ) -> Result<u64, Error> {
-        self.call(move |connection| {
-            Ok((|| -> Result<u64, Error> {
-                let transaction = connection.transaction()?;
-                let selected = acknowledged_position(&transaction, &execution, &stream, &sample_id, through)?;
-                transaction.execute(
-                    "INSERT INTO storage_sample_receipts VALUES (?1,?2,?3,?4)
-                 ON CONFLICT(execution,stream) DO UPDATE SET sample_id=excluded.sample_id,position=excluded.position",
-                    params![execution, stream, sample_id, position(selected)],
-                )?;
-                super::super::commit(transaction)?;
-                Ok(selected)
+    pub(crate) async fn telemetry_numeric(
+        &self, at: StorageCursor, selection: StreamSelection, page: ScanPage, keys: Vec<String>,
+        scope: crate::evidence_runtime::ScopeSelection,
+    ) -> Result<Vec<(u64, NumericRow)>, Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        let mut scan = selection_scan(at.sequence, &selection, page)?;
+        scan.metrics = Some(self.0.read_metrics.clone());
+        let owner = self.0.clone();
+        self.read(move |connection| {
+            Ok((|| {
+                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let head = saved(connection)?;
+                head.history.check(&at.history)?;
+                let mut rows = reader::numeric(connection, &root, &scan, &keys, &scope)?;
+                for (position, (_, entry)) in tail {
+                    if position <= head.sequence
+                        || position <= page.after
+                        || position > at.sequence
+                        || !scope.matches(entry.sample.scope.as_ref())
+                        || !reader::selected(&entry, &selection)?
+                    {
+                        continue;
+                    }
+                    rows.push((
+                        position,
+                        NumericRow {
+                            timestamp: entry.sample.timestamp,
+                            sequence: entry.sample.sequence,
+                            values: keys
+                                .iter()
+                                .map(|key| entry.sample.values.get(key).and_then(dokime_domain::model::values::numeric_value))
+                                .collect(),
+                        },
+                    ));
+                }
+                rows.sort_unstable_by_key(|(position, _)| *position);
+                rows.truncate(page.rows.get());
+                Ok(rows)
             })())
         })
         .await?
+    }
+
+    pub(crate) async fn telemetry_files(&self, execution: String) -> Result<Vec<StreamFile>, Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        self.read(move |connection| Ok(inventory::files(connection, &root, &execution))).await?
+    }
+
+    pub(crate) async fn register_telemetry_contract(
+        &self, contract: dokime_domain::model::telemetry::TelemetryContract, codec: Arc<TypedCodec>,
+    ) -> Result<(), Error> {
+        let key = serde_json::to_string(codec.schema())?;
+        let encoded = serde_json::to_string(&contract)?;
+        let owner = self.0.clone();
+        self.call(move |connection| {
+            Ok((|| {
+                owner.telemetry.lock().unwrap().register(&contract, codec)?;
+                connection.execute(
+                    "INSERT INTO telemetry_contracts VALUES (?1,?2) ON CONFLICT(schema_key) DO UPDATE SET contract=excluded.contract",
+                    params![key, encoded],
+                )?;
+                Ok(())
+            })())
+        })
+        .await?
+    }
+
+    pub(super) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
+        let owner = self.0.clone();
+        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().write(connection, batch))).await?
+    }
+
+    pub(crate) async fn finalize_telemetry(&self, execution: String) -> Result<(), Error> {
+        let owner = self.0.clone();
+        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, Some(&execution)))).await?
+    }
+
+    pub(crate) async fn telemetry_read(
+        &self, at: StorageCursor, selection: StreamSelection, page: ScanPage,
+    ) -> Result<Vec<(u64, TelemetryEntry)>, Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        let mut scan = selection_scan(at.sequence, &selection, page)?;
+        scan.metrics = Some(self.0.read_metrics.clone());
+        let owner = self.0.clone();
+        self.read(move |connection| {
+            Ok((|| {
+                // Capture The Tail Before Establishing SQLite's Snapshot; A Concurrent Commit
+                // Then Appears In The Catalog, The Tail, Or Both And Is Deduplicated By Position.
+                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let head = saved(connection)?;
+                head.history.check(&at.history)?;
+                let mut rows = reader::entries(connection, &root, &scan)?;
+                for (position, (_, entry)) in tail {
+                    if position <= head.sequence || position <= page.after || position > at.sequence {
+                        continue;
+                    }
+                    if reader::selected(&entry, &selection)? {
+                        rows.push((position, entry));
+                    }
+                }
+                rows.sort_unstable_by_key(|(position, _)| *position);
+                rows.truncate(page.rows.get());
+                Ok(rows)
+            })())
+        })
+        .await?
+    }
+
+    pub(super) async fn arrow_scan(&self, scan: Scan) -> Result<Vec<Entry>, Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        self.read(move |connection| Ok(reader::stored(connection, &root, &scan).map(|rows| rows.into_iter().map(Entry::Stream).collect())))
+            .await?
     }
 
     pub(crate) async fn telemetry_page(
         &self, at: StorageCursor, after: u64, execution: Option<String>, stream: Option<String>,
-    ) -> Result<Vec<StoredRow>, Error> {
-        let head = self.data_saved().await?;
-        head.history.check(&at.history)?;
-        if at.sequence > head.sequence {
-            return Err(Error::Data("telemetry page exceeds saved frontier"));
-        }
-        let scan = super::Scan::new(
-            "stream",
-            at.sequence,
-            head.retention_generation,
-            harmos::storage::ScanPage {
-                after,
-                rows: std::num::NonZeroUsize::new(512).unwrap(),
-                bytes: std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-            },
-        )
-        .filter("scope", execution)
-        .filter("stream", stream);
-        self.data_scan(scan)
-            .await?
-            .into_iter()
-            .map(|entry| match entry {
-                Entry::Stream(row) => Ok(row),
-                _ => Err(Error::Corrupt("telemetry page contains another collection")),
-            })
-            .collect()
+    ) -> Result<Vec<(u64, TelemetryEntry)>, Error> {
+        let page = ScanPage {
+            after,
+            rows: NonZeroUsize::new(512).unwrap(),
+            bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+        };
+        let mut scan = Scan::new("stream", at.sequence, 0, page).filter("scope", execution).filter("stream", stream);
+        scan.metrics = Some(self.0.read_metrics.clone());
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        self.read(move |connection| Ok(reader::entries(connection, &root, &scan))).await?
+    }
+
+    pub(crate) async fn acknowledge_sample(
+        &self, execution: String, stream: String, sample_id: String, through: u64,
+    ) -> Result<u64, Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        self.call(move |connection| Ok((|| {
+            let previous: Option<String> = connection.query_row("SELECT position FROM storage_sample_receipts WHERE execution=?1 AND stream=?2 AND sample_id=?3 AND position<=?4",
+                params![execution,stream,sample_id,position(through)], |row| row.get(0)).optional()?;
+            if let Some(previous) = previous { return sequence(&previous); }
+            let page = ScanPage { after: 0, rows: NonZeroUsize::new(1).unwrap(), bytes: NonZeroUsize::MAX };
+            let scan = Scan::new("stream",through,0,page).filter("scope",Some(execution.clone())).filter("stream",Some(stream.clone())).filter("item",Some(sample_id.clone()));
+            let rows = reader::entries(connection,&root,&scan)?;
+            let (selected,_) = rows.first().ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?;
+            let transaction = connection.transaction()?;
+            transaction.execute("INSERT INTO storage_sample_receipts VALUES (?1,?2,?3,?4) ON CONFLICT(execution,stream) DO UPDATE SET sample_id=excluded.sample_id,position=excluded.position",
+                params![execution,stream,sample_id,position(*selected)])?;
+            super::super::commit(transaction)?;
+            Ok(*selected)
+        })())).await?
     }
 
     pub(crate) async fn latest_telemetry_time(
         &self, at: StorageCursor, schema: SchemaKey, terms: Vec<(&'static str, Value)>,
-        selection: crate::evidence_runtime::TelemetrySelection, codec: TypedCodec,
+        selection: crate::evidence_runtime::TelemetrySelection, _codec: TypedCodec,
     ) -> Result<Option<std::time::SystemTime>, Error> {
-        let metrics = self.0.read_metrics.clone();
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
+                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
-                if at.sequence > head.sequence {
-                    return Err(Error::Data("telemetry anchor exceeds saved frontier"));
-                }
-                let (sql, arguments) = anchor_query(&schema, at.sequence, &terms, &selection)?;
-                let mut statement = connection.prepare(&sql)?;
-                let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
-                while let Some(row) = rows.next()? {
-                    super::super::TELEMETRY_ANCHOR_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    metrics.telemetry_anchor_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let encoded = blob(row, 0)?;
-                    check_digest(encoded, blob(row, 1)?)?;
-                    let indexed_time = blob(row, 2)?.to_vec();
-                    let indexed_scope: String = row.get(3)?;
-                    let indexed_source: String = row.get(4)?;
-                    let indexed_position: String = row.get(5)?;
-                    let Entry::Stream(row) = Entry::decode("stream", encoded)? else {
-                        return Err(Error::Corrupt("telemetry anchor collection differs"));
-                    };
-                    let sample = codec.decode_stored(&row)?.sample;
-                    let (scope, source, signals) = crate::storage::telemetry::index_metadata(&row.record.payload)?;
-                    let timestamp = row.record.source_time.ok_or(Error::Corrupt("telemetry anchor has no timestamp"))?;
-                    at.history.check(&row.record.position.history)?;
-                    if indexed_position != position(row.record.position.sequence)
-                        || row.record.position.sequence > at.sequence
-                        || indexed_time != entry::timestamp_key(timestamp)
-                        || indexed_scope != serde_json::to_string(&scope)?
-                        || indexed_source != source
-                        || signals.windows(2).any(|pair| pair[0] >= pair[1])
+                let context = reader::Context {
+                    root: &root,
+                    metrics: &owner.read_metrics,
+                };
+                let mut latest = reader::latest(connection, context, &at, &schema, &terms, &selection)?;
+                for (position, (_, entry)) in tail {
+                    if position <= head.sequence
+                        || position > at.sequence
+                        || reader::key(&entry)? != schema
+                        || !reader::matches(&entry, &terms, &selection)?
                     {
-                        return Err(Error::Corrupt("telemetry anchor index differs from immutable evidence"));
-                    }
-                    if !selection.signals.iter().all(|signal| sample.values.contains_key(signal)) {
                         continue;
                     }
-                    return Ok(row.record.source_time);
+                    let time: std::time::SystemTime = entry.sample.timestamp.to_datetime()?.into();
+                    latest = Some(latest.map_or(time, |latest| latest.max(time)));
                 }
-                Ok(None)
+                Ok(latest)
             })())
         })
         .await?
     }
+
     pub(crate) async fn telemetry_predecessor_page(
-        &self, at: StorageCursor, schema: SchemaKey, mut selection: crate::evidence_runtime::TelemetrySelection,
+        &self, at: StorageCursor, schema: SchemaKey, selection: crate::evidence_runtime::TelemetrySelection,
         terms: Vec<(&'static str, Value)>, start: std::time::SystemTime, after: String,
-    ) -> Result<(String, Vec<StoredRow>), Error> {
+    ) -> Result<(String, Vec<(u64, TelemetryEntry)>), Error> {
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
+                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
-                if at.sequence > head.sequence {
-                    return Err(Error::Data("telemetry predecessor exceeds saved frontier"));
-                }
-                let mut statement = connection.prepare(
-                    "SELECT scope FROM storage_telemetry_index INDEXED BY storage_telemetry_scope_time
-                WHERE schema_key=?1 AND scope>?2 ORDER BY scope LIMIT 1",
+                let (_, rows) = reader::predecessors(
+                    connection,
+                    reader::Context {
+                        root: &root,
+                        metrics: &owner.read_metrics,
+                    },
+                    &at,
+                    &schema,
+                    &terms,
+                    &selection,
+                    (start, &after),
                 )?;
-                let schema_key = serde_json::to_string(&schema)?;
-                let mut cursor = after;
-                let mut output = Vec::new();
-                let boundary: time::OffsetDateTime = start.into();
-                let boundary = dokime_domain::model::time::Timestamp::new(
-                    boundary
-                        .format(&time::format_description::well_known::Rfc3339)
-                        .map_err(|_| Error::Data("invalid predecessor boundary"))?,
-                );
-                if selection.end.as_ref().is_none_or(|end| {
-                    end.to_datetime().is_ok_and(|end| end > boundary.to_datetime().expect("constructed boundary is valid"))
-                }) {
-                    selection.end = Some(boundary);
-                }
-                for _ in 0..256 {
-                    let scope = statement.query_row(params![schema_key, cursor], |row| row.get::<_, String>(0));
-                    let scope = match scope {
-                        Ok(scope) => scope,
-                        Err(rusqlite::Error::QueryReturnedNoRows) => break,
-                        Err(error) => return Err(error.into()),
-                    };
-                    cursor = scope.clone();
-                    let mut scoped = terms.clone();
-                    scoped.push(("$scope", Value::Text(scope)));
-                    let (sql, args) = anchor_query(&schema, at.sequence, &scoped, &selection)?;
-                    let mut anchor = connection.prepare(&sql)?;
-                    let mut rows = anchor.query(rusqlite::params_from_iter(args))?;
-                    if let Some(row) = rows.next()? {
-                        let body = blob(row, 0)?;
-                        check_digest(body, blob(row, 1)?)?;
-                        let Entry::Stream(row) = Entry::decode("stream", body)? else { unreachable!() };
-                        output.push(row);
+                let mut groups = std::collections::BTreeMap::new();
+                let mut selected = selection.clone();
+                selected.start = None;
+                let pending = tail
+                    .into_iter()
+                    .filter(|(position, _)| *position > head.sequence && *position <= at.sequence)
+                    .map(|(position, (_, entry))| (position, entry));
+                for (position, entry) in rows.into_iter().chain(pending) {
+                    if reader::key(&entry)? != schema || !reader::matches(&entry, &terms, &selected)? {
+                        continue;
+                    }
+                    let time: std::time::SystemTime = entry.sample.timestamp.to_datetime()?.into();
+                    let scope = serde_json::to_string(&entry.sample.scope.as_ref().map(crate::storage::records::ScopeRow::from))?;
+                    if time >= start || scope <= after {
+                        continue;
+                    }
+                    if groups.get(&scope).is_none_or(|(prior, prior_position, _): &(std::time::SystemTime, u64, TelemetryEntry)| {
+                        (time, position) > (*prior, *prior_position)
+                    }) {
+                        groups.insert(scope, (time, position, entry));
                     }
                 }
-                Ok((cursor, output))
+                let mut cursor = after;
+                let rows = groups
+                    .into_iter()
+                    .take(256)
+                    .map(|(scope, (_, position, entry))| {
+                        cursor = scope;
+                        (position, entry)
+                    })
+                    .collect();
+                Ok((cursor, rows))
             })())
         })
         .await?
@@ -227,194 +304,17 @@ impl State {
 
 /* === Public Functions === */
 
-pub(super) fn index(connection: &Connection, row: &StoredRow) -> Result<(), Error> {
-    if !row.record.schema.id.as_str().starts_with("dokime.telemetry.") {
-        return Ok(());
-    }
-    let (scope, source, signals) = crate::storage::telemetry::index_metadata(&row.record.payload)?;
-    let scope = serde_json::to_string(&scope)?;
-    let time = row.record.source_time.ok_or(Error::Data("telemetry index has no timestamp"))?;
-    let position = position(row.record.position.sequence);
-    let schema = serde_json::to_string(&row.record.schema)?;
-    let time = entry::timestamp_key(time);
-
-    // Reuse The Batch's Index Programs And Metadata For Every Signal.
-    let mut index = connection.prepare_cached("INSERT INTO storage_telemetry_index VALUES (?1,?2,?3,?4,?5)")?;
-    index.execute(params![position, schema, time.as_slice(), scope, source])?;
-    let mut signal_index = connection.prepare_cached("INSERT INTO storage_telemetry_signals VALUES (?1,?2,?3,?4,?5,?6)")?;
-    for signal in signals {
-        signal_index.execute(params![schema, signal, position, time.as_slice(), scope, source])?;
-    }
-    Ok(())
-}
-
 /* === Private Functions === */
 
-fn acknowledged_position(connection: &Connection, execution: &str, stream: &str, sample_id: &str, through: u64) -> Result<u64, Error> {
-    let checkpoint: Option<String> = connection
-        .query_row(
-            "SELECT position FROM storage_sample_receipts WHERE execution=?1 AND stream=?2 AND sample_id=?3 AND position<=?4",
-            params![execution, stream, sample_id, position(through)],
-            |row| row.get(0),
-        )
-        .optional()?;
-    let selected = match checkpoint {
-        Some(position) => position,
-        None => connection
-            .query_row(
-                "SELECT position FROM storage_data_entries WHERE kind='stream' AND scope=?1 AND stream=?2 AND item=?3 AND position<=?4
-             ORDER BY position DESC LIMIT 1",
-                params![execution, stream, sample_id, position(through)],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?
-            .ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?,
-    };
-    u64::from_str_radix(&selected, 16).map_err(|_| Error::Corrupt("invalid sample receipt position"))
-}
-
-fn anchor_query(
-    schema: &SchemaKey, at: u64, terms: &[(&'static str, Value)], selection: &crate::evidence_runtime::TelemetrySelection,
-) -> Result<(String, Vec<Value>), Error> {
-    let signals = !selection.signals.is_empty();
-    let execution = terms.iter().any(|(field, _)| *field == "payload.metadata.scope.test_execution_id");
-    let index = if signals {
-        if execution { "storage_telemetry_signal_execution_time" } else { "storage_telemetry_signal_time" }
-    } else if terms.iter().any(|(field, _)| *field == "$scope") {
-        "storage_telemetry_scope_time"
-    } else if execution {
-        "storage_telemetry_execution_time"
-    } else if terms.iter().any(|(field, _)| *field == "payload.metadata.scope.test_cycle_id") {
-        "storage_telemetry_cycle_time"
-    } else if terms.iter().any(|(field, _)| *field == "payload.metadata.scope.test_case_id") {
-        "storage_telemetry_case_time"
-    } else {
-        "storage_telemetry_time"
-    };
-    let table = if signals { "storage_telemetry_signals" } else { "storage_telemetry_index" };
-    let mut sql = format!(
-        "SELECT e.body,e.digest,i.source_time,i.scope,i.source,i.position FROM {table} i INDEXED BY {index}
-        CROSS JOIN storage_data_entries e ON e.position=i.position WHERE i.schema_key=? AND i.position<=?"
-    );
-    let mut arguments = vec![Value::Text(serde_json::to_string(schema)?), Value::Text(position(at))];
-    if let Some(signal) = selection.signals.first() {
-        sql.push_str(" AND i.signal=?");
-        arguments.push(Value::Text(signal.clone()));
-        for signal in selection.signals.iter().skip(1) {
-            sql.push_str(" AND EXISTS(SELECT 1 FROM storage_telemetry_signals s WHERE s.schema_key=i.schema_key AND s.position=i.position AND s.signal=?)");
-            arguments.push(Value::Text(signal.clone()));
-        }
-    }
-    for (field, value) in terms {
-        if *field == "$scope" {
-            sql.push_str(" AND i.scope=?");
-            arguments.push(value.clone());
-            continue;
-        }
-        let field = field.strip_prefix("payload.metadata.scope.").ok_or(Error::Data("invalid indexed telemetry scope field"))?;
-        if !field.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.')) {
-            return Err(Error::Data("invalid indexed telemetry scope path"));
-        }
-        sql.push_str(&format!(" AND json_extract(i.scope, '$.{field}')=?"));
-        arguments.push(value.clone());
-    }
-    for (bound, operator) in [(selection.start.as_ref(), ">="), (selection.end.as_ref(), "<")] {
-        if let Some(bound) = bound {
-            let instant: std::time::SystemTime = bound.to_datetime()?.into();
-            sql.push_str(&format!(" AND i.source_time{operator}?"));
-            arguments.push(Value::Blob(entry::timestamp_key(instant).to_vec()));
-        }
-    }
-    if !selection.sources.is_empty() {
-        sql.push_str(" AND i.source IN (");
-        for (index, source) in selection.sources.iter().enumerate() {
-            if index != 0 {
-                sql.push(',');
-            }
-            sql.push('?');
-            arguments.push(Value::Text(source.clone()));
-        }
-        sql.push(')');
-    }
-    sql.push_str(" ORDER BY i.source_time DESC,i.position DESC");
-    sql.push_str(" LIMIT 1");
-    Ok((sql, arguments))
+fn selection_scan(at: u64, selection: &StreamSelection, page: ScanPage) -> Result<Scan, Error> {
+    let mut scan = Scan::new("stream", at, 0, page)
+        .filter("schema_key", Some(serde_json::to_string(&selection.schema)?))
+        .filter("scope", selection.scope.as_ref().map(ToString::to_string))
+        .filter("item", selection.item.as_ref().map(ToString::to_string))
+        .filter("stream", selection.stream.as_ref().map(ToString::to_string));
+    scan.source_window = selection.source_start.zip(selection.source_end);
+    scan.source_bounds = (selection.source_start, selection.source_end);
+    Ok(scan)
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn acknowledged_sample_resumes_after_reopen_and_rejects_unsaved_receipts() {
-        let root = tempfile::tempdir().unwrap();
-        let store = State::open(root.path()).await.unwrap();
-        store
-            .call(|connection| {
-                connection.execute_batch(super::super::SCHEMA)?;
-                connection.execute_batch(SCHEMA)?;
-                connection.execute_batch(
-                    "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<10080)
-                 INSERT INTO storage_data_entries(position,kind,identity,item,scope,stream,body,digest)
-                 SELECT printf('%016x',n),'stream',printf('row-%d',n),printf('sample-%d',n),'execution','stream',x'00',zeroblob(32)
-                 FROM rows;",
-                )?;
-                Ok(())
-            })
-            .await
-            .unwrap();
-        let acknowledged = store.acknowledge_sample("execution".into(), "stream".into(), "sample-10079".into(), 10080).await.unwrap();
-        assert_eq!(acknowledged, 10079);
-        store.close().await.unwrap();
-        drop(store);
-
-        let reopened = State::open(root.path()).await.unwrap();
-        let resumed = reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10079".into(), 10080).await.unwrap();
-        assert_eq!(resumed, acknowledged);
-        assert!(reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10080".into(), 10079).await.is_err());
-        let checkpoint = reopened
-            .call(|connection| connection.query_row("SELECT position FROM storage_sample_receipts", [], |row| row.get::<_, String>(0)))
-            .await
-            .unwrap();
-        assert_eq!(checkpoint, position(acknowledged));
-        let next = reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10080".into(), 10080).await.unwrap();
-        assert_eq!(next, 10080);
-        reopened.close().await.unwrap();
-    }
-
-    #[test]
-    fn latest_anchor_skips_historical_rows() {
-        let schema = SchemaKey {
-            id: harmos::Identifier::new("dokime.telemetry.probe").unwrap(),
-            version: std::num::NonZeroU32::new(1).unwrap(),
-            payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        };
-        for history in [128_u64, 4096, 65536] {
-            let connection = Connection::open_in_memory().unwrap();
-            connection.execute_batch(super::super::SCHEMA).unwrap();
-            connection.execute_batch(SCHEMA).unwrap();
-            connection
-                .execute_batch(&format!(
-                    "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<{history})
-                INSERT INTO storage_data_entries(position,kind,identity,schema_key,item,body,digest)
-                SELECT printf('%016x',n),'stream',printf('row-%d',n),'schema','item',x'00',zeroblob(32) FROM rows;"
-                ))
-                .unwrap();
-            connection
-                .execute(
-                    "INSERT INTO storage_telemetry_index SELECT position,?1,CAST(position AS BLOB),
-                '{\"test_execution_id\":\"execution\"}','source' FROM storage_data_entries",
-                    [serde_json::to_string(&schema).unwrap()],
-                )
-                .unwrap();
-            let terms = vec![("payload.metadata.scope.test_execution_id", Value::Text("execution".into()))];
-            let (sql, arguments) = anchor_query(&schema, history, &terms, &Default::default()).unwrap();
-            let mut statement = connection.prepare(&sql).unwrap();
-            let selected: String = statement.query_row(rusqlite::params_from_iter(arguments), |row| row.get(5)).unwrap();
-            assert_eq!(selected, position(history));
-            assert!(statement.get_status(rusqlite::StatementStatus::VmStep) < 100);
-        }
-    }
-}

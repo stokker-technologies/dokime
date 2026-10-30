@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod encode;
 mod sample;
 mod typed;
 
@@ -17,8 +18,8 @@ mod typed;
 pub use sample::Sample;
 #[cfg(test)]
 pub(crate) use typed::PAYLOAD_PASSES;
-pub use typed::{CodecCache, TypedCodec, codec, decode_positioned, decode_values, stored_codecs_where};
-pub(crate) use typed::{index_metadata, selected_schema};
+pub(crate) use typed::{Admitted, selected_schema};
+pub use typed::{CodecCache, TypedCodec, codec, decode_values, stored_codecs_where};
 
 /* === Imports === */
 
