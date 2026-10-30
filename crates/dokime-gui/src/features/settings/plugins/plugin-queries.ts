@@ -39,19 +39,19 @@ export function PluginStartNotifications() {
   const seen = useRef(new Set<string>());
   useEffect(() => {
     for (const entry of query.data ?? []) {
-      if (!entry.boot_error || entry.last_boot?.state !== "failed") continue;
+      if (!entry.boot_failed || entry.last_boot?.state !== "failed") continue;
       const key = `${session.identity.generation}:${entry.install_id}:${entry.last_boot.at}`;
       if (seen.current.has(key)) continue;
       seen.current.add(key);
       const failure = entry.last_boot.failure;
       toast.error("Plugin Could Not Start", {
-        description: failure?.message ?? entry.boot_error,
-        source: failure?.plugin_name ?? entry.metadata?.identity.name,
-        pluginSettings: failure?.plugin_id || undefined,
-        action: failure?.plugin_id
+        description: failure.message,
+        source: failure.plugin_name,
+        pluginSettings: entry.install_id,
+        action: entry.metadata?.owners.length
           ? {
               label: "Open Plugin Settings",
-              onClick: () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: failure.plugin_id } }),
+              onClick: () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: entry.install_id } }),
             }
           : undefined,
       });

@@ -103,7 +103,6 @@ pub struct PluginMetadata {
 pub struct PluginLastBoot {
     pub at: Option<Timestamp>,
     pub result: Option<PluginLastBootResult>,
-    pub failure: Option<PluginStartFailure>,
 }
 
 #[harmos::message]
@@ -112,6 +111,7 @@ pub struct PluginStartFailure {
     pub plugin_id: String,
     pub plugin_name: String,
     pub message: String,
+    pub code: Option<String>,
     pub missing_secret: Option<String>,
     pub carrier: Vec<u8>,
 }
@@ -133,7 +133,7 @@ pub struct PluginInstallation {
     pub error: Option<String>,
     pub active: bool,
     pub restart_required: bool,
-    pub boot_error: Option<String>,
+    pub boot_failed: bool,
 }
 
 #[harmos::message]
@@ -202,7 +202,7 @@ pub enum InstallPluginFrameFrame {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PluginLastBootResult {
     Loaded(bool),
-    Error(String),
+    Error(PluginStartFailure),
 }
 
 #[harmos::message]

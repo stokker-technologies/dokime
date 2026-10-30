@@ -291,11 +291,7 @@ impl PluginStore {
                 let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
                 let at = crate::model::time::now_utc();
                 plugin.last_boot = Some(match failure {
-                    Some(failure) => PluginLastBoot::Failed {
-                        error: failure.message.clone(),
-                        failure: Some(failure),
-                        at,
-                    },
+                    Some(failure) => PluginLastBoot::Failed { failure, at },
                     None => PluginLastBoot::Loaded { at },
                 });
                 Ok(())
@@ -353,8 +349,14 @@ impl PluginStore {
                 for (id, error) in failures {
                     if let Some(plugin) = document.plugins.get_mut(&id) {
                         plugin.last_boot = Some(PluginLastBoot::Failed {
-                            error,
-                            failure: None,
+                            failure: dokime_domain::model::plugins::wire::PluginStartFailure {
+                                plugin_id: String::new(),
+                                plugin_name: id.to_string(),
+                                message: error,
+                                code: None,
+                                missing_secret: None,
+                                carrier: Vec::new(),
+                            },
                             at: crate::model::time::now_utc(),
                         });
                     }
@@ -393,7 +395,7 @@ fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Op
         metadata,
         error,
         active: false,
-        boot_error: None,
+        boot_failed: false,
     }
 }
 

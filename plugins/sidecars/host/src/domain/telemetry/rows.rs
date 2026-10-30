@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use super::HostTelemetryStream;
 use super::host_telemetry_contract;
 use dokime::telemetry::{FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow, TelemetryStream, field};
-use dokime_domain::model::values::Value;
+use dokime_domain::model::values::{MeasurementUnit, Value};
 
 /* === Constants === */
 
@@ -35,7 +35,7 @@ macro_rules! host_rows {
                 id: $id:literal,
                 label: $label:literal,
                 columns: {
-                    $( $field:ident : $value_type:ident , $role:ident , $column_label:literal , $ty:ty ; )*
+                    $( $field:ident : $value_type:ident , $role:ident , $column_label:literal , $ty:ty $(, unit: $unit:literal)? ; )*
                 }
             }
         )*
@@ -69,6 +69,7 @@ macro_rules! host_rows {
                                 TelemetryRole::$role,
                             )
                             .optional()
+                            $(.with_unit(MeasurementUnit::custom(super::identifier($unit), $unit, $unit)))?
                         ),*
                     ]
                 }
@@ -153,6 +154,33 @@ super::table::host_streams!(host_rows);
 mod tests {
     use super::*;
     use dokime::harmos::{self, Message};
+
+    #[test]
+    fn system_memory_contract() {
+        let row = System {
+            memory_used_gib: Some(3.5),
+            memory_total_gib: Some(8.0),
+            memory_pressure_percent: Some(43.75),
+            ..Default::default()
+        };
+        let contract = System::contract();
+        let schema = contract.storage_schema.as_ref().unwrap();
+        let validator = harmos::schema::Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).unwrap();
+        let bytes = row.encode();
+        validator.validate(&bytes).unwrap();
+        assert_eq!(System::decode(&bytes).unwrap(), row);
+        assert_eq!(System::from_row(&row.clone().into_row()).unwrap(), row);
+        assert_eq!(dokime::storage::telemetry::decode_values(&validator, &bytes).unwrap(), row.into_row());
+
+        for columns in [System::columns(), contract.columns] {
+            for field in ["memory_used_gib", "memory_total_gib"] {
+                let column = columns.iter().find(|column| column.metadata.identifier.as_str() == field).unwrap();
+                assert_eq!(column.value_type, dokime::ValueType::Number);
+                assert_eq!(column.unit.as_ref().unwrap().symbol, "GiB");
+            }
+        }
+        assert_eq!(contract.schema_version, 1);
+    }
 
     #[test]
     fn host_lists_roundtrip() {

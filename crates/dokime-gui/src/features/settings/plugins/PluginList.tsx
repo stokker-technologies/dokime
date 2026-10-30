@@ -120,7 +120,11 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   if (entry.state === "removal_pending") {
     return {
       label: "Removal Pending",
-      reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
+      reason: entry.active
+        ? `Active until ${brandLabel} restarts.`
+        : entry.last_boot?.state === "failed"
+          ? entry.last_boot.failure.message
+          : null,
       variant: "warning",
     };
   }
@@ -132,7 +136,7 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
     };
   }
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_error) return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
+  if (entry.boot_failed) return { label: "Failed", reason: null, variant: "destructive" };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

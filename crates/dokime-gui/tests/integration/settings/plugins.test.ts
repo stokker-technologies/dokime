@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
+import { type InstallPluginProgress, getNativePlugin, installNativePlugin } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 
@@ -179,11 +179,25 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
   const failed = {
     ...installation("install-1"),
     restartRequired: false,
-    bootError: "fixture",
+    bootFailed: true,
+    metadata: { identity: { name: "HCL", version: "1.0.0", description: "" }, owners: ["hcl"], sizeBytes: 1n },
     lastBoot: {
       at: { seconds: 1_760_000_001n, nanos: 0 },
-      result: { HarmosVariant: { case: "Error", value: { field0: "fixture" } } },
-      failure: { pluginId: "hcl", pluginName: "HCL", message: "fixture", missingSecret: "api_token", carrier: new Uint8Array() },
+      result: {
+        HarmosVariant: {
+          case: "Error",
+          value: {
+            field0: {
+              pluginId: "hcl",
+              pluginName: "HCL",
+              message: "fixture",
+              code: "10001",
+              missingSecret: "api_token",
+              carrier: new Uint8Array(),
+            },
+          },
+        },
+      },
     },
   };
   fixture.listAdmitted.mockResolvedValue({ plugins: [] });
@@ -194,7 +208,16 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
     values: {},
     discovered: {},
   });
+  fixture.getInstallation.mockResolvedValueOnce(failed);
+  const projected = await getNativePlugin(session, "install-1");
+  assert.equal(projected.boot_failed, true);
+  assert.equal(projected.last_boot?.state, "failed");
+  if (projected.last_boot?.state !== "failed") throw new Error("expected failed boot");
+  assert.equal(projected.last_boot.failure.code, "10001");
+  assert.equal(projected.last_boot.failure.missing_secret, "api_token");
   const detail = await getInstalledPluginDetail(session, "hcl");
+  assert.equal(detail?.label, "HCL");
+  assert.equal(detail?.status, "failed");
   assert.equal(detail?.plugin_id, "hcl");
   assert.equal(detail?.owner?.kind, "bundle");
   assert.deepEqual(detail?.secret_bindings.missing_required, ["api_token"]);

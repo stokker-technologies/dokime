@@ -57,15 +57,17 @@ export function InstalledPluginDetail({ detail, onSaveSettings, onSaveSecret, sa
         </SettingsRow>
       </SettingsCard>
       <SettingsCard title="Settings" description="Settings specific to this program.">
-        <InstalledPluginSettingsForm
-          onSubmit={(values) => onSaveSettings(detail.plugin_id, values)}
-          schema={detail.settings}
-          values={detail.values}
-          discovered={detail.discovered ?? {}}
-          onSaveSecret={(id, secret) => onSaveSecret(detail.plugin_id, id, secret)}
-          savingSecret={savingSecret}
-          bindings={detail.secret_bindings}
-        />
+        <div id={`plugin-settings-${detail.plugin_id}`} className="divide-y scroll-mt-4">
+          <InstalledPluginSettingsForm
+            onSubmit={(values) => onSaveSettings(detail.plugin_id, values)}
+            schema={detail.settings}
+            values={detail.values}
+            discovered={detail.discovered ?? {}}
+            onSaveSecret={(id, secret) => onSaveSecret(detail.plugin_id, id, secret)}
+            savingSecret={savingSecret}
+            bindings={detail.secret_bindings}
+          />
+        </div>
       </SettingsCard>
     </>
   );

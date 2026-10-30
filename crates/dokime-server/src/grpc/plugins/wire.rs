@@ -55,14 +55,13 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
     let last_boot = installation
         .last_boot
         .map(|boot| {
-            let (at, result, failure) = match boot {
-                PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true), None),
-                PluginLastBoot::Failed { error, failure, at } => (at, plugins_model::PluginLastBootResult::Error(error), failure),
+            let (at, result) = match boot {
+                PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true)),
+                PluginLastBoot::Failed { failure, at } => (at, plugins_model::PluginLastBootResult::Error(failure)),
             };
             Ok::<_, Status>(plugins_model::PluginLastBoot {
                 at: Some(canonical::timestamp(&at)?),
                 result: Some(result),
-                failure,
             })
         })
         .transpose()?;
@@ -80,7 +79,7 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
         error: entry.error,
         active: entry.active,
         restart_required: entry.restart_required,
-        boot_error: entry.boot_error,
+        boot_failed: entry.boot_failed,
     };
     if result.wire_len()? > limit {
         return Err(Status::resource_exhausted("plugin metadata exceeds response budget"));

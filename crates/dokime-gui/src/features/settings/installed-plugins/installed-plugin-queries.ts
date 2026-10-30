@@ -70,7 +70,7 @@ export function useInstalledPluginSettingsMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
         queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
-        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId) }),
+        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
         queryClient.invalidateQueries({ queryKey: appearanceQueryKey }),
       ]);
     },
@@ -89,7 +89,7 @@ export function useInstalledPluginSecretMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
         queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
-        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId) }),
+        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
       ]);
     },
   });

@@ -234,3 +234,74 @@ fn settings_artifact() -> dokime_runtime::InstalledPlugin {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn non_admitted_settings() {
+    let root = tempdir().unwrap();
+    let runtime_config = config(root.path());
+    let (mut owner, runtime) = started(runtime_config.clone()).await;
+    let schema = settings_artifact().settings;
+    let bytes = crate::service_support::bundles::bundle_with_settings("failed-settings", "settings_fixture", schema.clone());
+    let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
+    let store = runtime.plugin_store();
+    store
+        .record_boot(
+            entry.installation.install_id,
+            Some(dokime_domain::model::plugins::wire::PluginStartFailure {
+                plugin_id: "fixture".into(),
+                plugin_name: "Fixture".into(),
+                message: "startup-refused".into(),
+                code: None,
+                missing_secret: None,
+                carrier: Vec::new(),
+            }),
+        )
+        .await
+        .unwrap();
+    let id = Identifier::new("settings_fixture").unwrap();
+    let frame = runtime
+        .query_runtime_view(RuntimeViewQuery {
+            topic: RuntimeViewTopic::InstalledPlugins,
+            scope: None,
+            window: RuntimeWindow::Full,
+            resolution: RuntimeResolution::Raw,
+            cursor: None,
+        })
+        .await
+        .unwrap();
+    let RuntimeViewPayload::InstalledPlugins { frame } = frame.payload else {
+        panic!("unexpected payload");
+    };
+    assert!(frame.installed_plugins.iter().all(|plugin| plugin.plugin_id != id));
+    let initial = runtime.plugin_settings(&id).await.unwrap();
+    assert_eq!(initial.settings, schema);
+    let mut values = initial.values;
+    values.insert("workspace_id".into(), Value::from("corrected"));
+    runtime.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
+    let updated = runtime.save_plugin_secret(&id, "token", PluginSecretUpdate { secret: "replacement".into() }).await.unwrap();
+    assert!(updated.secret_bindings.bindings["token"].configured);
+    assert!(runtime.save_plugin_secret(&id, "undeclared", PluginSecretUpdate { secret: "refused".into() }).await.is_err());
+    assert!(!serde_json::to_string(&updated).unwrap().contains("replacement"));
+    store.set_enabled(entry.installation.install_id, false).await.unwrap();
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+
+    let (mut owner, runtime) = started(runtime_config).await;
+    let recovered = runtime.plugin_settings(&id).await.unwrap();
+    let store = runtime.plugin_store();
+    assert_eq!(recovered.values["workspace_id"], Value::from("corrected"));
+    assert!(recovered.secret_bindings.bindings["token"].configured);
+    let mut invalid = recovered.values.clone();
+    invalid.insert("workspace_id".into(), Value::from(true));
+    assert!(runtime.save_plugin_settings(&id, PluginSettingsUpdate { values: invalid }).await.is_err());
+    assert_eq!(runtime.plugin_settings(&id).await.unwrap().values, recovered.values);
+    let path = store.path(entry.installation.install_id);
+    let authorized = std::fs::read(&path).unwrap();
+    std::fs::write(&path, b"unauthorized").unwrap();
+    assert!(runtime.plugin_settings(&id).await.is_err());
+    std::fs::write(&path, authorized).unwrap();
+    store.remove(entry.installation.install_id).await.unwrap();
+    assert!(runtime.plugin_settings(&id).await.is_err());
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}

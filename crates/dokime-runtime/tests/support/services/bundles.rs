@@ -17,6 +17,7 @@
 // Third Party Imports
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 // Local Imports
+use dokime_runtime::harmos;
 
 /* === Constants === */
 
@@ -34,6 +35,20 @@ use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, S
 
 /* === Public Functions === */
 pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
+    bundle_with_registrations(package, owner, version, vec![])
+}
+
+pub fn bundle_with_settings(package: &str, owner: &str, settings: dokime_runtime::settings::Settings) -> Vec<u8> {
+    use dokime_runtime::plugin::registration::{SETTINGS_NAMESPACE, SettingsRegistration, domain_schema};
+    let registration = harmos::sidecar::Registration {
+        namespace: SETTINGS_NAMESPACE.into(),
+        schema: domain_schema(SETTINGS_NAMESPACE),
+        payload: serde_json::to_vec(&SettingsRegistration { catalog: settings, ..Default::default() }).unwrap(),
+    };
+    bundle_with_registrations(package, owner, "1.0.0", vec![registration])
+}
+
+fn bundle_with_registrations(package: &str, owner: &str, version: &str, registrations: Vec<harmos::sidecar::Registration>) -> Vec<u8> {
     let identity = Identity {
         name: package.into(),
         version: version.parse().unwrap(),
@@ -68,8 +83,11 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
             bytes: executable.as_bytes(),
             executable: Some(Executable {
                 facility: Facility::Sidecar,
-                target: env!("DOKIME_NATIVE_TARGET").into(),
-                registrations: vec![],
+                target: option_env!("DOKIME_NATIVE_TARGET")
+                    .or(option_env!("DOKIME_BACKEND_TARGET"))
+                    .expect("the runtime or server build script declares its native target")
+                    .into(),
+                registrations,
             }),
         }],
         Limits::default(),

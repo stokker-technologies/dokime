@@ -64,9 +64,9 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "9287b860842b1e33b7e6421a00780b8a33f3fe20" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "9287b860842b1e33b7e6421a00780b8a33f3fe20" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "9287b860842b1e33b7e6421a00780b8a33f3fe20" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "be695e9902433884e77a198fb31b2c9cf58b2126" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "be695e9902433884e77a198fb31b2c9cf58b2126" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "be695e9902433884e77a198fb31b2c9cf58b2126" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -77,7 +77,7 @@ semver = { version = "1.0.28" }
 sha2 = { version = "0.11.1" }
 starship-battery = { version = "0.12.0" }
 subtle = { version = "=2.6.1" }
-sysinfo = { version = "0.39.6" }
+sysinfo = { version = "0.40.0" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
 widestring = { version = "1.2.1" }

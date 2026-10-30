@@ -169,7 +169,7 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
     error: installation.error ?? null,
     active: installation.active,
     restart_required: installation.restartRequired,
-    boot_error: installation.bootError != null && lastBoot?.state === "failed" ? lastBoot.error : (installation.bootError ?? null),
+    boot_failed: installation.bootFailed,
   };
 }
 
@@ -194,22 +194,18 @@ function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntr
     case "Loaded":
       return { state: "loaded", at };
     case "Error": {
-      const failure = lastBoot.failure;
-      const message = failure?.missingSecret
-        ? `Plugin ${failure.pluginName} could not start: secret \`${failure.missingSecret}\` is not configured — set it in Settings › Plugins › ${failure.pluginName}`
-        : (failure?.message ?? lastBoot.result.HarmosVariant.value.field0);
+      const failure = lastBoot.result.HarmosVariant.value.field0;
+      if (!failure) throw new Error("Native plugin returned a failed boot without a reason.");
       return {
         state: "failed",
-        error: message,
         at,
-        failure: lastBoot.failure
-          ? {
-              plugin_id: lastBoot.failure.pluginId,
-              plugin_name: lastBoot.failure.pluginName,
-              message,
-              missing_secret: lastBoot.failure.missingSecret ?? null,
-            }
-          : null,
+        failure: {
+          plugin_id: failure.pluginId,
+          plugin_name: failure.pluginName,
+          message: failure.message,
+          code: failure.code ?? null,
+          missing_secret: failure.missingSecret ?? null,
+        },
       };
     }
     default:

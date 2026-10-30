@@ -74,6 +74,10 @@ impl PluginPreferences {
         *self.installs.write().unwrap_or_else(PoisonError::into_inner) = installs;
     }
 
+    pub(crate) fn bind_install(&self, plugin_id: &Identifier, install: Uuid) {
+        self.installs.write().unwrap_or_else(PoisonError::into_inner).insert(plugin_id.as_str().to_owned(), install);
+    }
+
     pub(crate) async fn read(
         &self, plugin_id: &Identifier, settings: &Settings, secrets: &SecretStore,
     ) -> Result<ResolvedPluginPreferences, RuntimePluginManagementError> {

@@ -127,6 +127,7 @@ async fn boot_failure_persists_plugin_and_carrier() {
         plugin_id: "fixture".into(),
         plugin_name: "Fixture".into(),
         message: String::new(),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
         missing_secret: Some("api_token".into()),
         carrier: carrier.clone(),
     };
@@ -134,7 +135,7 @@ async fn boot_failure_persists_plugin_and_carrier() {
     database.close().await.unwrap();
     let (reopened, database) = self::store(root.path()).await;
     let row = reopened.get(id).await.unwrap();
-    let Some(PluginLastBoot::Failed { failure: Some(retained), .. }) = row.installation.last_boot else { panic!() };
+    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
     assert_eq!(retained, failure);
     assert_eq!(retained.plugin_id, "fixture");
     assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
@@ -201,6 +202,42 @@ async fn bundled_upgrades() {
     let current = store.list().await.unwrap().into_iter().find(|entry| entry.installation.state == PluginState::Disabled).unwrap();
     assert_eq!(current.metadata.unwrap().identity.version, "5.0.0");
     database.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn bundled_sources_survive() {
+    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.hilti.testhub"] {
+        let root = tempfile::tempdir().unwrap();
+        let application = root.path().join(identifier);
+        let plugins = application.join("plugins");
+        fs::create_dir_all(&plugins).unwrap();
+        let source = plugins.join("plugin-host.dokime");
+        let bytes = bundle("organization-host", "host", "1.0.0");
+        fs::write(&source, &bytes).unwrap();
+        let metadata = application.join("installer.json");
+        let mut installation = None;
+        for version in ["1.0.0", "2.0.0"] {
+            installer_metadata(&metadata, version, &bytes);
+            let (store, database) = self::store(&application).await;
+            assert_eq!(store.root(), application.join("data/plugins"));
+            store.sweep().await.unwrap();
+            store.install_distribution(&plugins, &[], &BTreeSet::new()).await.unwrap();
+            let installed = store.installed().await.unwrap();
+            assert_eq!(installed.len(), 1);
+            assert_eq!(installed[0].path.parent(), Some(store.root()));
+            assert_eq!(fs::read(&installed[0].path).unwrap(), bytes);
+            assert!(source.is_file());
+            assert_eq!(fs::read(&source).unwrap(), bytes);
+            let current = store.list().await.unwrap().pop().unwrap();
+            assert_eq!(current.metadata.unwrap().identity.name, "organization-host");
+            if let Some(previous) = installation {
+                assert_eq!(current.installation.install_id, previous);
+            }
+            installation = Some(current.installation.install_id);
+            drop(store);
+            database.close().await.unwrap();
+        }
+    }
 }
 
 #[tokio::test]
@@ -480,7 +517,7 @@ pub(crate) async fn app_roots_independent() {
 
 pub(crate) async fn unauthorized_files_kept() {
     let root = tempfile::tempdir().unwrap();
-    let plugins = root.path().join("plugins");
+    let plugins = dokime_runtime::paths::ApplicationPaths::new(root.path()).plugins();
     fs::create_dir_all(&plugins).unwrap();
     fs::write(plugins.join("manual.dokime"), bundle("manual", "manual", "1.0.0")).unwrap();
     fs::write(plugins.join(".tmpABC123"), b"interrupted stage").unwrap();

@@ -4,9 +4,12 @@ Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. Missing secret bindings
 identify the secret and offer **Open Plugin Settings**. The verified settings
 remain editable even when the plugin could not start; configure the binding,
-then restart Dokime. Notification history retains the settings link.
+then restart Dokime from that page to retry. The reason appears once beside the
+editable forms; missing-secret links target the same form. Notification history
+retains the settings link.
 
-Plugin boot records retain the encoded Harmos failure, including its kind,
+A failed boot has one typed reason with the plugin identity, message and refusal
+code. Initialization failures also retain the encoded Harmos failure, including its kind,
 application refusal code, named context and source diagnostics. Plugin authors
 should return errors through `dokime::plugin::refusal` to preserve this context;
 missing secret access is classified by `MISSING_SECRET_BINDING_CODE` and the
@@ -111,6 +114,13 @@ it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
 The runtime decodes these rows through the same codec as other plugins.
+`host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
+`memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.
+Each value divides the existing byte reading by 1024³. On Linux and Windows,
+both readings share the snapshot used for `memory_pressure_percent`, which is
+100 × used / total; pressure is absent when total memory is zero. The original
+byte columns remain available. Host document defaults plot used and total GiB;
+OBC system sections plot used GiB beside memory pressure.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`
@@ -165,6 +175,18 @@ listeners and observers read prepared resources from their execution contexts;
 mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
 `Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
 and the plugin's declared streams.
+
+On restart, Harmos prepares and starts plugin generations sequentially in
+dependency order, matching declared required contracts to provided contracts
+exactly, including embedded providers and host operations. Providers become
+ready before consumers; independent plugins have a deterministic order based
+on plugin names. Bundle inspection and extraction happen before activation
+and do not run plugin lifecycle hooks.
+Installed packages with unavailable or circular contracts are refused while
+unrelated plugins start normally. Settings → Plugins retains the boot reason,
+including the affected contract and the `plugin_contract_unavailable` or
+`plugin_contract_cycle` admission code.
+
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
@@ -204,8 +226,13 @@ See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then
 atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at
-`<application root>/plugins/<UUID>.dokime`. Files copied there manually are not
-admitted and the boot sweep deletes them. `DOKIME_PLUGINS_DIR` (or
+`<application root>/data/plugins/<UUID>.dokime`. The boot sweep deletes
+unreferenced files only inside this store-owned directory. Installer bundles
+remain read-only inputs under `<install directory>/plugins`, separate from the
+store even when the install directory equals the application root. Files copied
+into the store manually are not admitted. Earlier development layouts require
+a fresh application root; existing files are never moved or reset automatically.
+`DOKIME_PLUGINS_DIR` (or
 `--plugins-root`) names a development directory whose bundles load for one
 process; it is never a store. A corrupt `settings.json` fails explicitly; missing
 or changed bundle bytes remain visible by UUID and error, without displaying
