@@ -55,7 +55,7 @@ pub struct Probes {
     #[setting(label = "Latency Host", default = LATENCY_HOST)]
     pub latency_host: String,
 
-    #[setting(label = "Minimum Scan Interval (s)", default = MINIMUM_SCAN_INTERVAL_S, min = 1, max = 3_600, step = 1)]
+    #[setting(label = "Minimum Scan Interval [s]", default = MINIMUM_SCAN_INTERVAL_S, min = 1, max = 3_600, step = 1)]
     pub minimum_scan_interval_s: u32,
 }
 

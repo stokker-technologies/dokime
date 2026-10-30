@@ -12,6 +12,15 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Units In Labels
+
+Labels and titles show units in square brackets on the same line, for example
+`Mean [Mbps]`. Use `formatUnitLabel` in `src/lib/format.ts` for table headings,
+plot titles and axes, legends and stat labels. The live GUI and runtime report
+HTML share this formatter. Keep structured units separate from authored labels.
+Table headings truncate as a whole with the full label in a tooltip, while sort
+and filter controls remain usable. Preserve the case of unit symbols.
+
 ## Canonical Bindings And Transport
 
 - Rust `dokime-domain::operations` declarations own the wire shape; do not

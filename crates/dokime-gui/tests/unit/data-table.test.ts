@@ -25,6 +25,7 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
@@ -93,6 +94,28 @@ test("Sorting And Filtering Precede Pagination", () => {
     view.getRowModel().rows.map((row) => row.id),
     ["23", "22", "21", "20"],
   );
+});
+
+test("Unit Header Controls", () => {
+  const view = table();
+  const header = view.getHeaderGroups()[0].headers[0];
+  header.column.columnDef.header = "fixture [Mbps]";
+  header.column.columnDef.meta = { label: "fixture [Mbps]", filter: "text" };
+  const toggle = vi.fn();
+  const handler = vi.spyOn(header.column, "getToggleSortingHandler").mockReturnValue(toggle);
+  const heading = DataTableColumnHeader({ header });
+  const name = findElement(heading, (props) => props.title === "fixture [Mbps]");
+  assert.ok(name);
+  assert.match(String(name.className), /\btruncate\b/);
+  const sort = findElement(heading, (props) => typeof props.onClick === "function");
+  assert.ok(sort);
+  (sort.onClick as (event: object) => void)({ persist() {} });
+  assert.equal(toggle.mock.calls.length, 1);
+  handler.mockRestore();
+  const html = renderToStaticMarkup(heading);
+  assert.match(html, /aria-haspopup="dialog"/);
+  assert.match(html, /<svg/);
+  assert.doesNotMatch(html, /whitespace-normal|break-words|flex-wrap/);
 });
 
 test("Pagination And Page Size Keep All Rows Reachable", () => {

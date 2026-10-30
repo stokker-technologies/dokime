@@ -762,6 +762,12 @@ let mut document = Document::new("default", "Charger Qualification");
 document.section(charging);
 ```
 
+Declare a bare label and a structured unit, such as `"Battery Voltage"` and
+`.unit("V")`. The GUI and report HTML render these as `Battery Voltage [V]` on
+one line. All unit-bearing labels use square brackets directly after the label;
+table headers truncate with a full-text tooltip instead of wrapping the unit
+below the title. Preserve unit symbols and case.
+
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct

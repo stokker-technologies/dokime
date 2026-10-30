@@ -13,7 +13,7 @@ import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatUnitLabel } from "@/lib/format";
 import type { ValueFormat } from "@/lib/types";
 import { HISTOGRAM_COUNT_LABEL } from "@/plots/histogram-axes";
 import { type HistogramDistribution, histogramBars } from "@/plots/histogram-bins";
@@ -60,7 +60,9 @@ export function HistogramChart({
   return (
     <section className="grid min-h-44 min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <strong className="min-w-0 truncate text-sm">{title}</strong>
+        <strong className="min-w-0 truncate text-sm" title={formatUnitLabel(title, unit)}>
+          {formatUnitLabel(title, unit)}
+        </strong>
         <span className="shrink-0 text-xs text-muted-foreground">
           {distribution.count} {sampleLabel}
         </span>
@@ -114,7 +116,11 @@ export function HistogramChart({
             </span>
           ))}
         </div>
-        {xTitle ? <span className="truncate text-center text-xs text-muted-foreground">{xTitle}</span> : null}
+        {xTitle ? (
+          <span className="truncate text-center text-xs text-muted-foreground" title={xTitle}>
+            {xTitle}
+          </span>
+        ) : null}
       </div>
       {children}
     </section>

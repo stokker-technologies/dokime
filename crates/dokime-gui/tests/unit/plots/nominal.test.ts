@@ -18,6 +18,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
+import { formatUnitLabel } from "@/lib/format";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
 import {
@@ -527,7 +529,7 @@ test("Histogram Axes", () => {
     x: { label: "Voltage", unit: "V", format },
     y: { label: HISTOGRAM_COUNT_LABEL },
   });
-  assert.equal(histogramAxisTitle(axes.x), "Voltage (V)");
+  assert.match(histogramAxisTitle(axes.x), / \[V\]$/);
   assert.equal(histogramAxisTitle(axes.y), "Count");
 
   // A Histogram Without A Column Spec Titles X By Its Declared Field
@@ -540,7 +542,7 @@ test("Histogram Axes", () => {
       x_format: null,
     }),
   );
-  assert.equal(histogramAxisTitle(field.x), "time_until_ready_s (s)");
+  assert.match(histogramAxisTitle(field.x), / \[s\]$/);
   assert.equal(field.x.format, null);
 
   // A Histogram Never Titles X By The Row Timestamp
@@ -567,32 +569,29 @@ test("Histogram Axes", () => {
 
 test("Series Legend", () => {
   // Live And Report Legends List The Trace, The Cursor And The Statistics With The Unit In Each Header
-  assert.deepEqual(
-    seriesLegendColumns("V").map((column) => column.header),
-    ["Trace", "X Cursor", "Y Cursor (V)", "Count", "Min (V)", "Max (V)", "Mean (V)", "Median (V)", "Std (V)", "Rms (V)"],
-  );
-  assert.deepEqual(
-    seriesLegendColumns(null).map((column) => column.id),
-    ["trace", "xCursor", "yCursor", "count", "min", "max", "mean", "median", "std", "rms"],
-  );
-
-  // Headers Print The Name And The Unit On Two Lines, So A Long Unit Never Clips The Name
-  const ohms = seriesLegendColumns("M\u03a9");
-  assert.deepEqual(
-    ohms.map((column) => [column.title, column.unit]),
-    [
-      ["Trace", null],
-      ["X Cursor", null],
-      ["Y Cursor", "M\u03a9"],
-      ["Count", null],
-      ["Min", "M\u03a9"],
-      ["Max", "M\u03a9"],
-      ["Mean", "M\u03a9"],
-      ["Median", "M\u03a9"],
-      ["Std", "M\u03a9"],
-      ["Rms", "M\u03a9"],
-    ],
-  );
+  const plain = seriesLegendColumns(null);
+  for (const unit of ["V", "M\u03a9", "Mbps"]) {
+    const columns = seriesLegendColumns(unit);
+    assert.deepEqual(
+      columns.map((column) => column.id),
+      plain.map((column) => column.id),
+    );
+    columns.forEach((column, index) => {
+      const suffix = column.header.slice(plain[index].header.length);
+      assert.equal(suffix, ["trace", "xCursor", "count"].includes(column.id) ? "" : ` [${unit}]`);
+      assert.doesNotMatch(column.header, /[\r\n]/);
+    });
+    const html = renderToStaticMarkup(
+      createElement(StatsSummaryTable, {
+        legend: { columns, rows: [], pending: false },
+      }),
+    );
+    const headings = html.match(/<thead\b[\s\S]*?<\/thead>/)?.[0] ?? "";
+    assert.match(headings, /class="[^"]*truncate[^"]*" title="[^"<>]* \[/);
+    assert.doesNotMatch(headings, /whitespace-normal|overflow-wrap:anywhere/);
+  }
+  assert.equal(formatUnitLabel("fixture", "  "), "fixture");
+  assert.equal(formatUnitLabel("fixture", " ms "), "fixture [ms]");
   // Widths Depend On The Column Alone, So Every Table On A Page Lines Up Whatever Its Unit
   const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
   assert.deepEqual(widths("dBm"), widths(null));
@@ -739,12 +738,12 @@ test("Backend Statistics", () => {
     count: 42,
   });
   assert.deepEqual(cells, [
-    ["Mean", "12.50 V"],
-    ["Median", "12.00 V"],
-    ["Std", "0.25 V"],
-    ["RMS", "12.60 V"],
-    ["Min", "11.00 V"],
-    ["Max", "14.00 V"],
+    ["Mean [V]", "12.50"],
+    ["Median [V]", "12.00"],
+    ["Std [V]", "0.25"],
+    ["RMS [V]", "12.60"],
+    ["Min [V]", "11.00"],
+    ["Max [V]", "14.00"],
     ["Count", "42"],
   ]);
 
