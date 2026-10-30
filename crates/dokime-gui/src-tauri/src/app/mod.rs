@@ -114,6 +114,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let controls = bindings::invoke_handler();
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
+        .manage(_log_guards.journal.clone())
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())
