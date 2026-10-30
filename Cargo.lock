@@ -2540,6 +2540,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-organization"
+version = "0.1.2"
+dependencies = [
+ "base64 0.23.1",
+ "cssparser 0.38.0",
+ "dokime-domain",
+ "image",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+]
+
+[[package]]
 name = "dokime-packaging"
 version = "0.1.2"
 dependencies = [
@@ -2587,6 +2603,7 @@ dependencies = [
  "dokime-domain",
  "dokime-macros",
  "dokime-operations",
+ "dokime-organization",
  "file-id",
  "futures-util",
  "globset",

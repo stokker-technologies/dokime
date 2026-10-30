@@ -14,10 +14,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use super::Source;
+use std::io;
 
 // Third Party Imports
 
@@ -34,39 +32,10 @@ include!(concat!(env!("OUT_DIR"), "/bundled.rs"));
 
 /* === Structs === */
 
-#[derive(Clone, Debug)]
-pub struct Directory {
-    root: PathBuf,
-}
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Bundled;
 
-/* === Enums === */
-
-/* === Traits === */
-
-pub trait Source {
-    fn read(&self, relative: &str) -> io::Result<Vec<u8>>;
-}
-
 /* === Implementations === */
-
-impl Directory {
-    pub fn new(root: &Path) -> io::Result<Self> {
-        Ok(Self { root: root.canonicalize()? })
-    }
-}
-
-impl Source for Directory {
-    fn read(&self, relative: &str) -> io::Result<Vec<u8>> {
-        let path = self.root.join(relative).canonicalize()?;
-        if !path.starts_with(&self.root) {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "path leaves the brand bundle"));
-        }
-        std::fs::read(path)
-    }
-}
 
 impl Bundled {
     pub fn files() -> &'static [(&'static str, &'static [u8])] {
@@ -87,9 +56,3 @@ impl Source for Bundled {
         Self::file(relative).map(<[u8]>::to_vec).ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
     }
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */

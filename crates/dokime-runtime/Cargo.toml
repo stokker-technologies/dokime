@@ -57,7 +57,7 @@ native = [
 derive = ["dep:dokime-macros"]
 # Activates the Harmos operation resource bindings for operations this package declares.
 runtime = []
-configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
+configuration = ["dep:dokime-organization", "dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
 testing = ["native"]
@@ -70,6 +70,7 @@ simulation = ["native", "harmos/simulation"]
 
 [dependencies]
 # Local
+dokime-organization = { workspace = true, optional = true }
 dokime-domain = { version = "0.1.2", path = "../dokime-domain", features = ["diagnostics"] }
 dokime-macros = { version = "0.1.2", path = "../dokime-macros", optional = true }
 dokime-operations = { version = "0.1.2", path = "../dokime-operations", features = ["runtime"] }

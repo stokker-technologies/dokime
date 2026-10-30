@@ -106,6 +106,11 @@ impl ResolvedPack {
         Ok(())
     }
 
+    pub fn materialize(&self) -> Result<super::Materialized, String> {
+        let text = toml::to_string(&self.manifest).map_err(|error| error.to_string())?;
+        super::Materialized::read(&text, self).map_err(|error| error.to_string())
+    }
+
     pub fn brand(&self) -> Result<ResolvedBrand, String> {
         if self.label().trim().is_empty() {
             return Err("organization needs a nonempty app label".into());

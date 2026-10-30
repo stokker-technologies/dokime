@@ -15,7 +15,7 @@ mod source;
 /* === Re-Exports === */
 
 pub use error::{Error, Result};
-pub use source::{Bundled, Directory, Source};
+pub use source::{Directory, Source};
 
 /* === Imports === */
 
@@ -34,7 +34,7 @@ use cssparser::{
 };
 
 // Local Imports
-use crate::domains::{ThemeCornerRadii, ThemeVariant};
+use dokime_domain::model::plugins::{ThemeCornerRadii, ThemeVariant};
 
 /* === Constants === */
 
@@ -236,10 +236,10 @@ pub fn load(dir: &Path) -> Result<Authored, Error> {
 }
 
 pub fn load_from(source: &impl Source) -> Result<Authored, Error> {
-    let typography = inline_local_font_urls(source, &read_css(source, TYPOGRAPHY_CSS_FILE)?)?;
-    let base = read_css(source, BASE_CSS_FILE)?;
-    let light = read_css(source, LIGHT_CSS_FILE)?;
-    let dark = read_css(source, DARK_CSS_FILE)?;
+    let typography = inline_local_urls(source, TYPOGRAPHY_CSS_FILE, &read_css(source, TYPOGRAPHY_CSS_FILE)?)?;
+    let base = inline_local_urls(source, BASE_CSS_FILE, &read_css(source, BASE_CSS_FILE)?)?;
+    let light = inline_local_urls(source, LIGHT_CSS_FILE, &read_css(source, LIGHT_CSS_FILE)?)?;
+    let dark = inline_local_urls(source, DARK_CSS_FILE, &read_css(source, DARK_CSS_FILE)?)?;
     parse(typography, base, light, dark)
 }
 
@@ -289,7 +289,7 @@ fn read_css(source: &impl Source, relative: &'static str) -> Result<String, Erro
     String::from_utf8(bytes).map_err(|utf8| error(std::io::Error::new(std::io::ErrorKind::InvalidData, utf8)))
 }
 
-fn inline_local_font_urls(source: &impl Source, css: &str) -> Result<String, Error> {
+fn inline_local_urls(source: &impl Source, file: &'static str, css: &str) -> Result<String, Error> {
     let mut output = String::with_capacity(css.len());
     let mut cursor = 0;
     while let Some(relative_start) = find_url_function(&css[cursor..]) {
@@ -297,7 +297,7 @@ fn inline_local_font_urls(source: &impl Source, css: &str) -> Result<String, Err
         output.push_str(&css[cursor..start]);
         let value_start = start + 4;
         let end = find_url_end(css, value_start).ok_or_else(|| Error::Parse {
-            file: TYPOGRAPHY_CSS_FILE,
+            file,
             near: css[start..].chars().take(120).collect(),
             message: "unterminated url()".to_owned(),
         })?;
@@ -307,36 +307,28 @@ fn inline_local_font_urls(source: &impl Source, css: &str) -> Result<String, Err
             output.push_str(&css[start..=end]);
         } else {
             let relative = Path::new(url);
-            if url.starts_with("http:")
-                || url.starts_with("https:")
+            if url.contains([':', '\\'])
                 || relative.is_absolute()
                 || relative
                     .components()
                     .any(|component| matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
             {
-                return Err(Error::UnsafeUrl {
-                    file: TYPOGRAPHY_CSS_FILE,
-                    url: url.to_owned(),
-                });
+                return Err(Error::UnsafeUrl { file, url: url.to_owned() });
             }
             let mime = match relative.extension().and_then(|extension| extension.to_str()) {
+                Some("svg") if file != TYPOGRAPHY_CSS_FILE => "image/svg+xml",
+                Some("png") if file != TYPOGRAPHY_CSS_FILE => "image/png",
                 Some("woff2") => "font/woff2",
                 Some("woff") => "font/woff",
                 Some("ttf") => "font/ttf",
                 Some("otf") => "font/otf",
                 _ => {
-                    return Err(Error::UnsupportedFont {
-                        file: TYPOGRAPHY_CSS_FILE,
-                        url: url.to_owned(),
-                    });
+                    return Err(Error::UnsupportedFont { file, url: url.to_owned() });
                 }
             };
             let bytes = source.read(url).map_err(|error| {
                 if error.kind() == std::io::ErrorKind::PermissionDenied {
-                    Error::UnsafeUrl {
-                        file: TYPOGRAPHY_CSS_FILE,
-                        url: url.to_owned(),
-                    }
+                    Error::UnsafeUrl { file, url: url.to_owned() }
                 } else {
                     Error::FontRead {
                         path: relative.to_path_buf(),
