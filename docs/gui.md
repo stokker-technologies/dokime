@@ -30,6 +30,26 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+## Keyboard Focus And Theme Colors
+
+Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
+`--destructive` and the organization palette's required `--ring` token. Tailwind's
+`ring-ring`, `border-ring` and `outline-ring` utilities all use `--focus-ring`.
+Invalid controls continue to use `--destructive`.
+
+Organization packs may set `--focus-ring` in `theme/light.css` and `theme/dark.css`;
+theme families may supply `focus-ring` in their shared or mode-specific variable
+maps, with the mode taking precedence. Organization materialization retains these
+custom properties. Without an explicit focus color, both the desktop and report
+renderer use deep blue `#00205b` in light mode and pale blue `#93c5fd` in dark mode,
+even when the brand primary, palette ring and destructive colors are red.
+
+Custom focus colors must remain visually distinct from destructive/error colors
+and red brand primaries. Verify WCAG non-text contrast of at least 3:1 against the
+adjacent surfaces in both modes, including the 50% opacity used by focus rings.
+The defaults meet this threshold on the bundled background, card and popover
+surfaces; packs that change those surfaces must verify their focus contrast.
+
 ## Units In Labels
 
 Labels and titles show units in square brackets on the same line, for example
