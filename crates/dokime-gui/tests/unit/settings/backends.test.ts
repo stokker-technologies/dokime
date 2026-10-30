@@ -24,7 +24,7 @@ import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
-import { backendValidation } from "@/features/settings/BackendsTable";
+import { BackendsTable, backendValidation } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
@@ -310,4 +310,18 @@ test("Startup Recovery Feedback", async () => {
   actions[0].props.onClick?.();
   assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
   assert.equal(descendants(tree).filter((element) => element.type === "details").length, 0);
+});
+
+test("Backend Loading Stays In The Status Indicator", () => {
+  const contents = descendants(BackendsTable());
+  assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
+  assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
+});
+
+test("Backend Failure Replaces Loading With Notification Feedback", () => {
+  const contents = descendants(BackendsTable({ failure: "fixture-failure" }));
+  const notices = contents.filter((element) => element.type === NotificationMessage);
+  assert.equal(notices.length, 1);
+  assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
+  assert.ok(Children.toArray(notices[0].props.children).includes("fixture-failure"));
 });

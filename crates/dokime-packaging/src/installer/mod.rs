@@ -30,6 +30,7 @@ pub use manifest::{Format, Manifest};
 
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 // Third Party Imports
 
@@ -62,6 +63,9 @@ pub struct PackageOptions {
 /* === Public Functions === */
 
 pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBuf>, Error> {
+    let started = Instant::now();
+    let terminal = dokime::terminal::Terminal::default();
+    terminal.status(format!("Resolving installer manifest {}", path.display()));
     let mut manifest = Manifest::read(path)?;
     if !options.formats.is_empty() {
         manifest.installer.formats = options.formats.clone();
@@ -71,6 +75,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     }
     manifest.validate()?;
     native::validate_signing(&manifest, options.sign)?;
+    terminal.status(format!("Resolving Dokime {} ({})", manifest.dokime.version(), manifest.dokime.target));
     // Tauri drops Windows drive prefixes from resource paths, so staging must share its working directory.
     #[cfg(windows)]
     let scratch = tempfile::Builder::new().prefix("dokime-installer-").tempdir_in(std::env::current_dir()?)?;
@@ -93,6 +98,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
         downloaded
     };
     let distribution = distribution::validate(&source, &manifest.dokime)?;
+    terminal.status(format!("Selecting plugins for Dokime {} ({})", distribution.version, distribution.target));
     let mut selected = options.plugins.clone();
     selected.extend(manifest.plugin_paths(&source.join("organization"))?);
     if let Some(release) = release {
@@ -105,6 +111,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     let staged = scratch.path().join("installers");
     std::fs::create_dir_all(&staged)?;
     let outputs = native::assemble(&manifest, &distribution, &source, &plugins, scratch.path(), &staged, options.sign)?;
+    terminal.status(format!("Writing installer output to {}", output.display()));
     let mut published = Vec::new();
     for path in outputs {
         let destination = output.join(path.file_name().ok_or_else(|| Error::Invalid("invalid installer output".into()))?);
@@ -135,6 +142,8 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
         std::fs::copy(staged.join("latest.json"), output.join("latest.json"))?;
     }
     scratch.close()?;
+    let paths = published.iter().map(|path| path.display().to_string()).collect::<Vec<_>>().join(", ");
+    terminal.success(format!("Packaged {paths} in {:.1}s", started.elapsed().as_secs_f64()));
     Ok(published)
 }
 

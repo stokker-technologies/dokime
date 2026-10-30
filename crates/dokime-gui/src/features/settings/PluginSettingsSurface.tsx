@@ -65,7 +65,9 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         {settings.loading && !settings.frame ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <NotificationMessage tone="info">Reading the settings frame.</NotificationMessage>
+              <p role="status" className="text-sm text-muted-foreground">
+                Reading the settings frame.
+              </p>
             </SettingsRow>
           </SettingsCard>
         ) : settings.error ? (
@@ -119,7 +121,9 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <NotificationMessage tone="info">Loading settings…</NotificationMessage>
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading settings…
+          </p>
         </SettingsRow>
       </SettingsCard>
     );

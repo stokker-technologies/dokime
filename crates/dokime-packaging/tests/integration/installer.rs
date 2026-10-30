@@ -136,6 +136,12 @@ async fn distribution_identity() {
                 extension => panic!("unexpected package extension: {extension}"),
             };
             assert_eq!(package.file_name().unwrap().to_str().unwrap(), expected);
+            if package.extension().unwrap() == "exe" {
+                let bytes = std::fs::read(&package).unwrap();
+                let installer = nsis::NsisInstaller::builder(&bytes).max_decompressed_size(i32::MAX as usize).parse().unwrap();
+                assert_eq!(installer.compression(), nsis::decompress::CompressionMethod::Lzma);
+                assert_eq!(installer.compression_mode(), nsis::decompress::CompressionMode::NonSolid);
+            }
             let inspection = dokime_packaging::installer::inspect(&package).unwrap();
             assert!(!inspection.distribution.files.keys().any(|name| name.contains("plugins/")));
             let identity = &inspection.distribution.identity;

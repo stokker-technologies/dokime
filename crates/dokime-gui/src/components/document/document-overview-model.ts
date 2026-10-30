@@ -13,12 +13,12 @@ import { parseTimestampMs } from "@/lib/time-format";
 
 /* === DocumentOverview model: traceability/progress formatting helpers === */
 
-export function relativeTime(timestamp: string): string {
+export function relativeTime(timestamp: string, now = Date.now()): string {
   const then = parseTimestampMs(timestamp);
   if (then === null) {
     return "-";
   }
-  const diffSeconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  const diffSeconds = Math.max(0, Math.floor((now - then) / 1000));
   if (diffSeconds < 45) {
     return "just now";
   }

@@ -119,7 +119,11 @@ mean three separate cases. Expansion is declared explicitly.
 
 Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
 
+Routine background loading, page navigation and connection progress stay in the inline status indicators without toasts or history entries. Notifications record user-relevant outcomes and failures; backend failures identify the failed operation in their title.
+
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
+Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
 
 ## Native Remote Access
 
@@ -874,6 +878,10 @@ replaced by the `sidecar` group.
 | `cargo dokime installer package` | Assemble unchanged local or versioned release distributions. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
 | `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
+Packaging reports each phase, release download sizes and verified cache hits to
+stderr, then summarizes the output paths and elapsed time. Stdout contains only
+the output paths, or their JSON array with `--json`.
+
 An installer manifest selects the distribution version, optional installation
 identifier, organization override and exact Dokime binary version/target. For example, save
 `company/installer.toml` for a native Windows build:
@@ -1006,7 +1014,8 @@ Native assembly uses Tauri's bundler. The NSIS template at
 `crates/dokime-packaging/src/installer/installer.nsi` is adapted from
 `tauri-bundler` 2.10.4: `PRODUCTNAME` is the display label, while install folders
 and registry keys use `BUNDLEID`. Keep that separation when updating the upstream
-template. Windows NSIS tooling is provisioned by that
+template. NSIS uses per-file LZMA compression so its header and file streams can
+be decoded independently during inspection. Windows NSIS tooling is provisioned by that
 backend. Inspection needs no external archive tool on any platform: the
 authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
 RPM packages with a gzip payload in-process, which are the formats packaging
