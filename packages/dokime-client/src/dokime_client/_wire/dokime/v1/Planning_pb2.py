@@ -48,15 +48,33 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n,dokime_client/_wire/dokime/v1/Planning.proto\x12\tdokime.v1\x1aQdokime_client/_wire/dokime/v1/PlanningMessages/MaterializeTemplate/messages.proto\x1aNdokime_client/_wire/dokime/v1/PlanningMessages/PreviewSelection/messages.proto\x1aOdokime_client/_wire/dokime/v1/PlanningMessages/RegisterSelection/messages.proto2\x85\x03\n\x08Planning\x12\x81\x01\n\x13MaterializeTemplate\x12\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row1\x1a\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row2\x12x\n\x10PreviewSelection\x12\x31.dokime.v1.PlanningMessages.PreviewSelection.Row1\x1a\x31.dokime.v1.PlanningMessages.PreviewSelection.Row2\x12{\n\x11RegisterSelection\x12\x32.dokime.v1.PlanningMessages.RegisterSelection.Row1\x1a\x32.dokime.v1.PlanningMessages.RegisterSelection.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n,dokime_client/_wire/dokime/v1/Planning.proto\x12\tdokime.v1\x1aQdokime_client/_wire/dokime/v1/PlanningMessages/MaterializeTemplate/messages.proto\x1aNdokime_client/_wire/dokime/v1/PlanningMessages/PreviewSelection/messages.proto\x1aOdokime_client/_wire/dokime/v1/PlanningMessages/RegisterSelection/messages.proto\")\n\'PlanningMaterializeTemplateCancellation\"\x9c\x02\n#PlanningMaterializeTemplateRunInput\x12P\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row1H\x00R\x07request\x12L\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x32.dokime.v1.PlanningMaterializeTemplateCancellationH\x00R\x06\x63\x61ncel\x12L\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x32.dokime.v1.PlanningMaterializeTemplateCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x83\x01\n$PlanningMaterializeTemplateRunOutput\x12R\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row2H\x00R\x08responseB\x07\n\x05value\"&\n$PlanningPreviewSelectionCancellation\"\x90\x02\n PlanningPreviewSelectionRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.PlanningMessages.PreviewSelection.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.PlanningPreviewSelectionCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.PlanningPreviewSelectionCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!PlanningPreviewSelectionRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.PlanningMessages.PreviewSelection.Row2H\x00R\x08responseB\x07\n\x05value\"\'\n%PlanningRegisterSelectionCancellation\"\x94\x02\n!PlanningRegisterSelectionRunInput\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x32.dokime.v1.PlanningMessages.RegisterSelection.Row1H\x00R\x07request\x12J\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x30.dokime.v1.PlanningRegisterSelectionCancellationH\x00R\x06\x63\x61ncel\x12J\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x30.dokime.v1.PlanningRegisterSelectionCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x7f\n\"PlanningRegisterSelectionRunOutput\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.PlanningMessages.RegisterSelection.Row2H\x00R\x08responseB\x07\n\x05value2\xf3\x05\n\x08Planning\x12\x81\x01\n\x13MaterializeTemplate\x12\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row1\x1a\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row2\x12}\n\x16RunMaterializeTemplate\x12..dokime.v1.PlanningMaterializeTemplateRunInput\x1a/.dokime.v1.PlanningMaterializeTemplateRunOutput(\x01\x30\x01\x12x\n\x10PreviewSelection\x12\x31.dokime.v1.PlanningMessages.PreviewSelection.Row1\x1a\x31.dokime.v1.PlanningMessages.PreviewSelection.Row2\x12t\n\x13RunPreviewSelection\x12+.dokime.v1.PlanningPreviewSelectionRunInput\x1a,.dokime.v1.PlanningPreviewSelectionRunOutput(\x01\x30\x01\x12{\n\x11RegisterSelection\x12\x32.dokime.v1.PlanningMessages.RegisterSelection.Row1\x1a\x32.dokime.v1.PlanningMessages.RegisterSelection.Row2\x12w\n\x14RunRegisterSelection\x12,.dokime.v1.PlanningRegisterSelectionRunInput\x1a-.dokime.v1.PlanningRegisterSelectionRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Planning_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PLANNING']._serialized_start=304
-  _globals['_PLANNING']._serialized_end=693
+  _globals['_PLANNINGMATERIALIZETEMPLATECANCELLATION']._serialized_start=303
+  _globals['_PLANNINGMATERIALIZETEMPLATECANCELLATION']._serialized_end=344
+  _globals['_PLANNINGMATERIALIZETEMPLATERUNINPUT']._serialized_start=347
+  _globals['_PLANNINGMATERIALIZETEMPLATERUNINPUT']._serialized_end=631
+  _globals['_PLANNINGMATERIALIZETEMPLATERUNOUTPUT']._serialized_start=634
+  _globals['_PLANNINGMATERIALIZETEMPLATERUNOUTPUT']._serialized_end=765
+  _globals['_PLANNINGPREVIEWSELECTIONCANCELLATION']._serialized_start=767
+  _globals['_PLANNINGPREVIEWSELECTIONCANCELLATION']._serialized_end=805
+  _globals['_PLANNINGPREVIEWSELECTIONRUNINPUT']._serialized_start=808
+  _globals['_PLANNINGPREVIEWSELECTIONRUNINPUT']._serialized_end=1080
+  _globals['_PLANNINGPREVIEWSELECTIONRUNOUTPUT']._serialized_start=1082
+  _globals['_PLANNINGPREVIEWSELECTIONRUNOUTPUT']._serialized_end=1207
+  _globals['_PLANNINGREGISTERSELECTIONCANCELLATION']._serialized_start=1209
+  _globals['_PLANNINGREGISTERSELECTIONCANCELLATION']._serialized_end=1248
+  _globals['_PLANNINGREGISTERSELECTIONRUNINPUT']._serialized_start=1251
+  _globals['_PLANNINGREGISTERSELECTIONRUNINPUT']._serialized_end=1527
+  _globals['_PLANNINGREGISTERSELECTIONRUNOUTPUT']._serialized_start=1529
+  _globals['_PLANNINGREGISTERSELECTIONRUNOUTPUT']._serialized_end=1656
+  _globals['_PLANNING']._serialized_start=1659
+  _globals['_PLANNING']._serialized_end=2414
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

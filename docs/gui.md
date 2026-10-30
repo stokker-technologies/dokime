@@ -47,6 +47,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
   select the build's `cargo-dokime` executable, export `bindings proto` and feed
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
+  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
+  Harmos's additional managed `Run…` RPCs remain transport projections.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a

@@ -48,17 +48,35 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n,dokime_client/_wire/dokime/v1/Evidence.proto\x12\tdokime.v1\x1aUdokime_client/_wire/dokime/v1/EvidenceMessages/GetCapturedRecordSchema/messages.proto\x1aIdokime_client/_wire/dokime/v1/EvidenceMessages/ListRecords/messages.proto\x1aJdokime_client/_wire/dokime/v1/EvidenceMessages/WatchRecords/messages.proto\"\xb7\x01\n\x1a\x45videnceWatchRecordsOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row2H\x00R\x08responseB\x07\n\x05value2\xed\x02\n\x08\x45vidence\x12\x8d\x01\n\x17GetCapturedRecordSchema\x12\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row1\x1a\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row2\x12i\n\x0bListRecords\x12,.dokime.v1.EvidenceMessages.ListRecords.Row1\x1a,.dokime.v1.EvidenceMessages.ListRecords.Row2\x12\x66\n\x0cWatchRecords\x12-.dokime.v1.EvidenceMessages.WatchRecords.Row1\x1a%.dokime.v1.EvidenceWatchRecordsOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n,dokime_client/_wire/dokime/v1/Evidence.proto\x12\tdokime.v1\x1aUdokime_client/_wire/dokime/v1/EvidenceMessages/GetCapturedRecordSchema/messages.proto\x1aIdokime_client/_wire/dokime/v1/EvidenceMessages/ListRecords/messages.proto\x1aJdokime_client/_wire/dokime/v1/EvidenceMessages/WatchRecords/messages.proto\"-\n+EvidenceGetCapturedRecordSchemaCancellation\"\xac\x02\n\'EvidenceGetCapturedRecordSchemaRunInput\x12T\n\x07request\x18\x01 \x01(\x0b\x32\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row1H\x00R\x07request\x12P\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x36.dokime.v1.EvidenceGetCapturedRecordSchemaCancellationH\x00R\x06\x63\x61ncel\x12P\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x36.dokime.v1.EvidenceGetCapturedRecordSchemaCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x8b\x01\n(EvidenceGetCapturedRecordSchemaRunOutput\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row2H\x00R\x08responseB\x07\n\x05value\"!\n\x1f\x45videnceListRecordsCancellation\"\xfc\x01\n\x1b\x45videnceListRecordsRunInput\x12H\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.EvidenceMessages.ListRecords.Row1H\x00R\x07request\x12\x44\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32*.dokime.v1.EvidenceListRecordsCancellationH\x00R\x06\x63\x61ncel\x12\x44\n\x06\x66inish\x18\x04 \x01(\x0b\x32*.dokime.v1.EvidenceListRecordsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"s\n\x1c\x45videnceListRecordsRunOutput\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.EvidenceMessages.ListRecords.Row2H\x00R\x08responseB\x07\n\x05value\"\xb7\x01\n\x1a\x45videnceWatchRecordsOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row2H\x00R\x08responseB\x07\n\x05value\"\"\n EvidenceWatchRecordsCancellation\"\x80\x02\n\x1c\x45videnceWatchRecordsRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.EvidenceWatchRecordsCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.EvidenceWatchRecordsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xba\x01\n\x1d\x45videnceWatchRecordsRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row2H\x00R\x08response\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.EvidenceMessages.WatchRecords.Row3H\x00R\x04itemB\x07\n\x05value2\xca\x05\n\x08\x45vidence\x12\x8d\x01\n\x17GetCapturedRecordSchema\x12\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row1\x1a\x38.dokime.v1.EvidenceMessages.GetCapturedRecordSchema.Row2\x12\x89\x01\n\x1aRunGetCapturedRecordSchema\x12\x32.dokime.v1.EvidenceGetCapturedRecordSchemaRunInput\x1a\x33.dokime.v1.EvidenceGetCapturedRecordSchemaRunOutput(\x01\x30\x01\x12i\n\x0bListRecords\x12,.dokime.v1.EvidenceMessages.ListRecords.Row1\x1a,.dokime.v1.EvidenceMessages.ListRecords.Row2\x12\x65\n\x0eRunListRecords\x12&.dokime.v1.EvidenceListRecordsRunInput\x1a\'.dokime.v1.EvidenceListRecordsRunOutput(\x01\x30\x01\x12\x66\n\x0cWatchRecords\x12-.dokime.v1.EvidenceMessages.WatchRecords.Row1\x1a%.dokime.v1.EvidenceWatchRecordsOutput0\x01\x12h\n\x0fRunWatchRecords\x12\'.dokime.v1.EvidenceWatchRecordsRunInput\x1a(.dokime.v1.EvidenceWatchRecordsRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Evidence_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_EVIDENCEWATCHRECORDSOUTPUT']._serialized_start=298
-  _globals['_EVIDENCEWATCHRECORDSOUTPUT']._serialized_end=481
-  _globals['_EVIDENCE']._serialized_start=484
-  _globals['_EVIDENCE']._serialized_end=849
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMACANCELLATION']._serialized_start=297
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMACANCELLATION']._serialized_end=342
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMARUNINPUT']._serialized_start=345
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMARUNINPUT']._serialized_end=645
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMARUNOUTPUT']._serialized_start=648
+  _globals['_EVIDENCEGETCAPTUREDRECORDSCHEMARUNOUTPUT']._serialized_end=787
+  _globals['_EVIDENCELISTRECORDSCANCELLATION']._serialized_start=789
+  _globals['_EVIDENCELISTRECORDSCANCELLATION']._serialized_end=822
+  _globals['_EVIDENCELISTRECORDSRUNINPUT']._serialized_start=825
+  _globals['_EVIDENCELISTRECORDSRUNINPUT']._serialized_end=1077
+  _globals['_EVIDENCELISTRECORDSRUNOUTPUT']._serialized_start=1079
+  _globals['_EVIDENCELISTRECORDSRUNOUTPUT']._serialized_end=1194
+  _globals['_EVIDENCEWATCHRECORDSOUTPUT']._serialized_start=1197
+  _globals['_EVIDENCEWATCHRECORDSOUTPUT']._serialized_end=1380
+  _globals['_EVIDENCEWATCHRECORDSCANCELLATION']._serialized_start=1382
+  _globals['_EVIDENCEWATCHRECORDSCANCELLATION']._serialized_end=1416
+  _globals['_EVIDENCEWATCHRECORDSRUNINPUT']._serialized_start=1419
+  _globals['_EVIDENCEWATCHRECORDSRUNINPUT']._serialized_end=1675
+  _globals['_EVIDENCEWATCHRECORDSRUNOUTPUT']._serialized_start=1678
+  _globals['_EVIDENCEWATCHRECORDSRUNOUTPUT']._serialized_end=1864
+  _globals['_EVIDENCE']._serialized_start=1867
+  _globals['_EVIDENCE']._serialized_end=2581
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

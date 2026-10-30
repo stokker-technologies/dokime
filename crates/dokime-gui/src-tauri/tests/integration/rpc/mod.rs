@@ -90,6 +90,7 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: dokime::harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
