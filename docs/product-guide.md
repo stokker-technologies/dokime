@@ -1251,6 +1251,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
+Desktop and report browser tabs use the brand's logos, preferring contained artwork
+for the viewer's color scheme and keeping the default favicon when no logos apply.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
