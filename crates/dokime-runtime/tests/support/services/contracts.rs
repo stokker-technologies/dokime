@@ -275,7 +275,6 @@ pub fn conflicting_tracking_contract() -> TelemetryContract {
 pub fn wifi_occupancy_contract() -> TelemetryContract {
     let mut contract = plugin_host::host_telemetry_contract(plugin_host::HostTelemetryStream::WifiScan);
     contract.default_x = Some("sample_index".to_owned());
-    contract.interval = None;
     contract.allow_extra_fields = false;
     contract
 }

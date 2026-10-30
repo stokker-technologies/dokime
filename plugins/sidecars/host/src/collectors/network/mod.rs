@@ -43,6 +43,7 @@ const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;
 /* === Structs === */
 
 pub struct NetworkCollector {
+    options: crate::HostOptions,
     sample_index: u64,
     networks: Networks,
     last_refresh: Instant,
@@ -57,8 +58,9 @@ pub struct NetworkCollector {
 /* === Implementations === */
 
 impl NetworkCollector {
-    pub fn new() -> Result<Self> {
+    pub fn new(options: crate::HostOptions) -> Result<Self> {
         Ok(Self {
+            options,
             sample_index: 0,
             networks: Networks::new_with_refreshed_list()?,
             last_refresh: Instant::now(),
@@ -70,7 +72,10 @@ impl NetworkCollector {
     pub fn collect(&mut self) -> Result<HostStreamSample> {
         self.sample_index += 1;
         let now = Instant::now();
-        let elapsed_s = now.duration_since(self.last_refresh).as_secs_f64().max(0.001);
+        let elapsed_s = now
+            .duration_since(self.last_refresh)
+            .as_secs_f64()
+            .max(std::time::Duration::from_millis(self.options.sampling.minimum_rate_window_ms).as_secs_f64());
         self.networks.refresh(true);
         self.last_refresh = now;
 
@@ -82,7 +87,11 @@ impl NetworkCollector {
         let tx_errors = self.networks.values().map(|network| network.errors_on_transmitted()).sum::<u64>();
         if self.refresh_primary {
             self.primary_interface =
-                crate::host::adapters::snapshot()?.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
+                crate::host::adapters::snapshot(std::time::Duration::from_millis(self.options.timing.network_probe_timeout_ms))?
+                    .adapters
+                    .into_iter()
+                    .find(|adapter| adapter.primary)
+                    .map(|adapter| adapter.id);
             self.refresh_primary = false;
         }
 
@@ -98,7 +107,7 @@ impl NetworkCollector {
             ("network_tx_errors".to_owned(), integer(tx_errors)),
         ]);
         maybe_insert(&mut values, "primary_interface", self.primary_interface.clone().map(Value::from));
-        maybe_insert(&mut values, "internet", Self::internet().map(Value::from));
+        maybe_insert(&mut values, "internet", self.internet().map(Value::from));
 
         Ok(HostStreamSample::new(HostTelemetryStream::Network, values))
     }

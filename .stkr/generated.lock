@@ -1,9 +1,9 @@
 {
   "version": 1,
   "files": {
-    ".claude/skills/dokime-architecture/SKILL.md": "44c3b049faba9afa67b0c2843c83ef49b1938684503e9ae2e86a02240bf7c940",
+    ".claude/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
     ".claude/skills/dokime-authoring/SKILL.md": "a6ae4b871b266833020606e822754d59c1a1c51f651c9509c55947365ebc154b",
-    ".claude/skills/dokime-authoring/references/plugins.md": "595ab7cfd6c7c0ae43950526d5f2a9326e4a68454248a61ab8f27936b09e6399",
+    ".claude/skills/dokime-authoring/references/plugins.md": "26cf731a35c0d966914acbb9002d4cbc034a478ec01784ef14d33c5c9a21e8ce",
     ".claude/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".claude/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",
     ".github/actionlint.yaml": "043fee51748318a45d03a2294b5484906b557974f0b563978916cecb708b7859",
@@ -22,9 +22,9 @@
     ".github/actions/setup/action.yml": "d20efe7a2583202a099eb0b660c16b7d8817957f9015c2898da96e5ba9a61aa0",
     ".github/actions/setup/run.py": "3d616a0f6d3cf66f9bcba9c70b445ef8d69950a680be97596254f16479df0a2c",
     ".github/renovate.json5": "9bcbd7257b2502274c89f3fdadc9ef8c20fbf8094b484637553ad883db6232fd",
-    ".github/skills/dokime-architecture/SKILL.md": "44c3b049faba9afa67b0c2843c83ef49b1938684503e9ae2e86a02240bf7c940",
+    ".github/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
     ".github/skills/dokime-authoring/SKILL.md": "a6ae4b871b266833020606e822754d59c1a1c51f651c9509c55947365ebc154b",
-    ".github/skills/dokime-authoring/references/plugins.md": "595ab7cfd6c7c0ae43950526d5f2a9326e4a68454248a61ab8f27936b09e6399",
+    ".github/skills/dokime-authoring/references/plugins.md": "26cf731a35c0d966914acbb9002d4cbc034a478ec01784ef14d33c5c9a21e8ce",
     ".github/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".github/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",
     ".github/workflows/ci.yml": "7054f6a1f439b6c1ebf1c35a6f5614dbdc91e0d1696a5b07e5481db2bfaacb2d",
