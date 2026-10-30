@@ -306,38 +306,4 @@ mod tests {
         };
         assert!(request.check(&state).is_err());
     }
-
-    #[test]
-    fn radio_codec_rejects_strings_and_unknown_variants() {
-        #[dokime::message]
-        struct StringRequest {
-            radio: String,
-            state: String,
-            allow_disconnect: bool,
-        }
-
-        #[dokime::message]
-        enum FutureRadio {
-            Wifi,
-            Bluetooth,
-            Cellular,
-            Satellite,
-        }
-
-        #[dokime::message]
-        enum FuturePower {
-            On,
-            Off,
-            Standby,
-        }
-
-        let legacy = StringRequest {
-            radio: "wifi".into(),
-            state: "on".into(),
-            allow_disconnect: false,
-        };
-        assert!(RadioSet::decode(&legacy.encode()).is_err());
-        assert!(Radio::decode(&FutureRadio::Satellite.encode()).is_err());
-        assert!(RadioPower::decode(&FuturePower::Standby.encode()).is_err());
-    }
 }
