@@ -1,5 +1,14 @@
 # Organization Installers
 
+## Preserved Validation Obligation
+
+This change was archived with task 4.1 still unchecked. Its source requirements
+already live in `openspec/specs/organization-installers/spec.md`; that current
+specification supersedes the historical deltas here, including retired inspection.
+This restored record preserves the outstanding all-platform validation obligation.
+Historical implementation and publication authorization below is not renewed by
+restoration. Do not reapply historical deltas over the current main specification.
+
 ## Why
 Distribute unchanged Dokime binaries with a company organization pack using the same native packaging command in product CI and downstream distributions.
 
