@@ -36,8 +36,6 @@ use super::Endpoint;
 use super::INSTALLATION;
 use super::{MUTATION, ORDINARY};
 
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::plugins::wire::*;
 
 /* === Constants === */

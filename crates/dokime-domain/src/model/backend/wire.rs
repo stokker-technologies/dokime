@@ -21,7 +21,6 @@ use serde::Serialize;
 
 // Local Imports
 
-#[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
 /* === Constants === */
