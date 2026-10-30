@@ -42,6 +42,16 @@ pub use crate::transport::buffer::testing::{records, stream};
 
 /* === Public Functions === */
 
+pub async fn commit<T>(
+    runtime: &crate::RuntimeHandle, transaction: T,
+) -> std::result::Result<harmos::state::Receipt, harmos::Error<T::Error>>
+where
+    T: harmos::state::Transaction<crate::state::RuntimeState> + Into<crate::transactions::Transactions>,
+    T::Error: From<String>,
+{
+    runtime.commit(transaction).await
+}
+
 /* === Private Functions === */
 
 /* === Tests === */
