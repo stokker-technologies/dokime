@@ -52,15 +52,57 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Remote.proto\x12\tdokime.v1\x1aIdokime_client/_wire/dokime/v1/RemoteMessages/CreatePairing/messages.proto\x1aMdokime_client/_wire/dokime/v1/RemoteMessages/ListPairedClients/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ListSessions/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x1aQdokime_client/_wire/dokime/v1/RemoteMessages/RegenerateCertificate/messages.proto\x1aNdokime_client/_wire/dokime/v1/RemoteMessages/RevokePairedClient/messages.proto\x1aJdokime_client/_wire/dokime/v1/RemoteMessages/UpdateListener/messages.proto2\xb4\x06\n\x06Remote\x12k\n\rCreatePairing\x12,.dokime.v1.RemoteMessages.CreatePairing.Row1\x1a,.dokime.v1.RemoteMessages.CreatePairing.Row2\x12w\n\x11ListPairedClients\x12\x30.dokime.v1.RemoteMessages.ListPairedClients.Row1\x1a\x30.dokime.v1.RemoteMessages.ListPairedClients.Row2\x12h\n\x0cListSessions\x12+.dokime.v1.RemoteMessages.ListSessions.Row1\x1a+.dokime.v1.RemoteMessages.ListSessions.Row2\x12h\n\x0cReadListener\x12+.dokime.v1.RemoteMessages.ReadListener.Row1\x1a+.dokime.v1.RemoteMessages.ReadListener.Row2\x12\x83\x01\n\x15RegenerateCertificate\x12\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row1\x1a\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row2\x12z\n\x12RevokePairedClient\x12\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row1\x1a\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row2\x12n\n\x0eUpdateListener\x12-.dokime.v1.RemoteMessages.UpdateListener.Row1\x1a-.dokime.v1.RemoteMessages.UpdateListener.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Remote.proto\x12\tdokime.v1\x1aIdokime_client/_wire/dokime/v1/RemoteMessages/CreatePairing/messages.proto\x1aMdokime_client/_wire/dokime/v1/RemoteMessages/ListPairedClients/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ListSessions/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x1aQdokime_client/_wire/dokime/v1/RemoteMessages/RegenerateCertificate/messages.proto\x1aNdokime_client/_wire/dokime/v1/RemoteMessages/RevokePairedClient/messages.proto\x1aJdokime_client/_wire/dokime/v1/RemoteMessages/UpdateListener/messages.proto\"!\n\x1fRemoteCreatePairingCancellation\"\xfc\x01\n\x1bRemoteCreatePairingRunInput\x12H\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row1H\x00R\x07request\x12\x44\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32*.dokime.v1.RemoteCreatePairingCancellationH\x00R\x06\x63\x61ncel\x12\x44\n\x06\x66inish\x18\x04 \x01(\x0b\x32*.dokime.v1.RemoteCreatePairingCancellationH\x00R\x06\x66inishB\x07\n\x05value\"s\n\x1cRemoteCreatePairingRunOutput\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.RemoteMessages.CreatePairing.Row2H\x00R\x08responseB\x07\n\x05value\"%\n#RemoteListPairedClientsCancellation\"\x8c\x02\n\x1fRemoteListPairedClientsRunInput\x12L\n\x07request\x18\x01 \x01(\x0b\x32\x30.dokime.v1.RemoteMessages.ListPairedClients.Row1H\x00R\x07request\x12H\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32..dokime.v1.RemoteListPairedClientsCancellationH\x00R\x06\x63\x61ncel\x12H\n\x06\x66inish\x18\x04 \x01(\x0b\x32..dokime.v1.RemoteListPairedClientsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"{\n RemoteListPairedClientsRunOutput\x12N\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.RemoteMessages.ListPairedClients.Row2H\x00R\x08responseB\x07\n\x05value\" \n\x1eRemoteListSessionsCancellation\"\xf8\x01\n\x1aRemoteListSessionsRunInput\x12G\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ListSessions.Row1H\x00R\x07request\x12\x43\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32).dokime.v1.RemoteListSessionsCancellationH\x00R\x06\x63\x61ncel\x12\x43\n\x06\x66inish\x18\x04 \x01(\x0b\x32).dokime.v1.RemoteListSessionsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"q\n\x1bRemoteListSessionsRunOutput\x12I\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ListSessions.Row2H\x00R\x08responseB\x07\n\x05value\" \n\x1eRemoteReadListenerCancellation\"\xf8\x01\n\x1aRemoteReadListenerRunInput\x12G\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row1H\x00R\x07request\x12\x43\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32).dokime.v1.RemoteReadListenerCancellationH\x00R\x06\x63\x61ncel\x12\x43\n\x06\x66inish\x18\x04 \x01(\x0b\x32).dokime.v1.RemoteReadListenerCancellationH\x00R\x06\x66inishB\x07\n\x05value\"q\n\x1bRemoteReadListenerRunOutput\x12I\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row2H\x00R\x08responseB\x07\n\x05value\")\n\'RemoteRegenerateCertificateCancellation\"\x9c\x02\n#RemoteRegenerateCertificateRunInput\x12P\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row1H\x00R\x07request\x12L\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x32.dokime.v1.RemoteRegenerateCertificateCancellationH\x00R\x06\x63\x61ncel\x12L\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x32.dokime.v1.RemoteRegenerateCertificateCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x83\x01\n$RemoteRegenerateCertificateRunOutput\x12R\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row2H\x00R\x08responseB\x07\n\x05value\"&\n$RemoteRevokePairedClientCancellation\"\x90\x02\n RemoteRevokePairedClientRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.RemoteRevokePairedClientCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.RemoteRevokePairedClientCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!RemoteRevokePairedClientRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row2H\x00R\x08responseB\x07\n\x05value\"\"\n RemoteUpdateListenerCancellation\"\x80\x02\n\x1cRemoteUpdateListenerRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.RemoteMessages.UpdateListener.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.RemoteUpdateListenerCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.RemoteUpdateListenerCancellationH\x00R\x06\x66inishB\x07\n\x05value\"u\n\x1dRemoteUpdateListenerRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.RemoteMessages.UpdateListener.Row2H\x00R\x08responseB\x07\n\x05value2\xc3\x0c\n\x06Remote\x12k\n\rCreatePairing\x12,.dokime.v1.RemoteMessages.CreatePairing.Row1\x1a,.dokime.v1.RemoteMessages.CreatePairing.Row2\x12g\n\x10RunCreatePairing\x12&.dokime.v1.RemoteCreatePairingRunInput\x1a\'.dokime.v1.RemoteCreatePairingRunOutput(\x01\x30\x01\x12w\n\x11ListPairedClients\x12\x30.dokime.v1.RemoteMessages.ListPairedClients.Row1\x1a\x30.dokime.v1.RemoteMessages.ListPairedClients.Row2\x12s\n\x14RunListPairedClients\x12*.dokime.v1.RemoteListPairedClientsRunInput\x1a+.dokime.v1.RemoteListPairedClientsRunOutput(\x01\x30\x01\x12h\n\x0cListSessions\x12+.dokime.v1.RemoteMessages.ListSessions.Row1\x1a+.dokime.v1.RemoteMessages.ListSessions.Row2\x12\x64\n\x0fRunListSessions\x12%.dokime.v1.RemoteListSessionsRunInput\x1a&.dokime.v1.RemoteListSessionsRunOutput(\x01\x30\x01\x12h\n\x0cReadListener\x12+.dokime.v1.RemoteMessages.ReadListener.Row1\x1a+.dokime.v1.RemoteMessages.ReadListener.Row2\x12\x64\n\x0fRunReadListener\x12%.dokime.v1.RemoteReadListenerRunInput\x1a&.dokime.v1.RemoteReadListenerRunOutput(\x01\x30\x01\x12\x83\x01\n\x15RegenerateCertificate\x12\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row1\x1a\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row2\x12\x7f\n\x18RunRegenerateCertificate\x12..dokime.v1.RemoteRegenerateCertificateRunInput\x1a/.dokime.v1.RemoteRegenerateCertificateRunOutput(\x01\x30\x01\x12z\n\x12RevokePairedClient\x12\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row1\x1a\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row2\x12v\n\x15RunRevokePairedClient\x12+.dokime.v1.RemoteRevokePairedClientRunInput\x1a,.dokime.v1.RemoteRevokePairedClientRunOutput(\x01\x30\x01\x12n\n\x0eUpdateListener\x12-.dokime.v1.RemoteMessages.UpdateListener.Row1\x1a-.dokime.v1.RemoteMessages.UpdateListener.Row2\x12j\n\x11RunUpdateListener\x12\'.dokime.v1.RemoteUpdateListenerRunInput\x1a(.dokime.v1.RemoteUpdateListenerRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Remote_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_REMOTE']._serialized_start=599
-  _globals['_REMOTE']._serialized_end=1419
+  _globals['_REMOTECREATEPAIRINGCANCELLATION']._serialized_start=598
+  _globals['_REMOTECREATEPAIRINGCANCELLATION']._serialized_end=631
+  _globals['_REMOTECREATEPAIRINGRUNINPUT']._serialized_start=634
+  _globals['_REMOTECREATEPAIRINGRUNINPUT']._serialized_end=886
+  _globals['_REMOTECREATEPAIRINGRUNOUTPUT']._serialized_start=888
+  _globals['_REMOTECREATEPAIRINGRUNOUTPUT']._serialized_end=1003
+  _globals['_REMOTELISTPAIREDCLIENTSCANCELLATION']._serialized_start=1005
+  _globals['_REMOTELISTPAIREDCLIENTSCANCELLATION']._serialized_end=1042
+  _globals['_REMOTELISTPAIREDCLIENTSRUNINPUT']._serialized_start=1045
+  _globals['_REMOTELISTPAIREDCLIENTSRUNINPUT']._serialized_end=1313
+  _globals['_REMOTELISTPAIREDCLIENTSRUNOUTPUT']._serialized_start=1315
+  _globals['_REMOTELISTPAIREDCLIENTSRUNOUTPUT']._serialized_end=1438
+  _globals['_REMOTELISTSESSIONSCANCELLATION']._serialized_start=1440
+  _globals['_REMOTELISTSESSIONSCANCELLATION']._serialized_end=1472
+  _globals['_REMOTELISTSESSIONSRUNINPUT']._serialized_start=1475
+  _globals['_REMOTELISTSESSIONSRUNINPUT']._serialized_end=1723
+  _globals['_REMOTELISTSESSIONSRUNOUTPUT']._serialized_start=1725
+  _globals['_REMOTELISTSESSIONSRUNOUTPUT']._serialized_end=1838
+  _globals['_REMOTEREADLISTENERCANCELLATION']._serialized_start=1840
+  _globals['_REMOTEREADLISTENERCANCELLATION']._serialized_end=1872
+  _globals['_REMOTEREADLISTENERRUNINPUT']._serialized_start=1875
+  _globals['_REMOTEREADLISTENERRUNINPUT']._serialized_end=2123
+  _globals['_REMOTEREADLISTENERRUNOUTPUT']._serialized_start=2125
+  _globals['_REMOTEREADLISTENERRUNOUTPUT']._serialized_end=2238
+  _globals['_REMOTEREGENERATECERTIFICATECANCELLATION']._serialized_start=2240
+  _globals['_REMOTEREGENERATECERTIFICATECANCELLATION']._serialized_end=2281
+  _globals['_REMOTEREGENERATECERTIFICATERUNINPUT']._serialized_start=2284
+  _globals['_REMOTEREGENERATECERTIFICATERUNINPUT']._serialized_end=2568
+  _globals['_REMOTEREGENERATECERTIFICATERUNOUTPUT']._serialized_start=2571
+  _globals['_REMOTEREGENERATECERTIFICATERUNOUTPUT']._serialized_end=2702
+  _globals['_REMOTEREVOKEPAIREDCLIENTCANCELLATION']._serialized_start=2704
+  _globals['_REMOTEREVOKEPAIREDCLIENTCANCELLATION']._serialized_end=2742
+  _globals['_REMOTEREVOKEPAIREDCLIENTRUNINPUT']._serialized_start=2745
+  _globals['_REMOTEREVOKEPAIREDCLIENTRUNINPUT']._serialized_end=3017
+  _globals['_REMOTEREVOKEPAIREDCLIENTRUNOUTPUT']._serialized_start=3019
+  _globals['_REMOTEREVOKEPAIREDCLIENTRUNOUTPUT']._serialized_end=3144
+  _globals['_REMOTEUPDATELISTENERCANCELLATION']._serialized_start=3146
+  _globals['_REMOTEUPDATELISTENERCANCELLATION']._serialized_end=3180
+  _globals['_REMOTEUPDATELISTENERRUNINPUT']._serialized_start=3183
+  _globals['_REMOTEUPDATELISTENERRUNINPUT']._serialized_end=3439
+  _globals['_REMOTEUPDATELISTENERRUNOUTPUT']._serialized_start=3441
+  _globals['_REMOTEUPDATELISTENERRUNOUTPUT']._serialized_end=3558
+  _globals['_REMOTE']._serialized_start=3561
+  _globals['_REMOTE']._serialized_end=5164
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -34,8 +34,8 @@ use dokime::transport::{
 };
 use harmos::Context;
 use harmos::plugin::{
-    PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
-    PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
+    PluginArtifact, PluginBackend, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority, PluginLifecyclePhase,
+    PluginManager, PluginScope, PluginTransition, Router,
 };
 use plugin_obc::ObcPlugin;
 
@@ -378,35 +378,13 @@ impl PluginLifecycle for Host {
 impl Bench {
     async fn new() -> Self {
         let path = std::path::PathBuf::from(executable());
-        let bytes = std::fs::read(&path).unwrap();
-        let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
         let configuration = serde_json::to_vec(&dokime::plugin::Configuration::declared::<plugin_obc::BenchSettings>()).unwrap();
         let mut registrar = harmos::plugin::Registrar::new();
         <ObcPlugin as harmos::Plugin>::register(&mut registrar).unwrap();
-        let definition = PluginDefinition {
-            id: declaration.id.clone(),
-            version: declaration.version.clone(),
-            artifact: PluginArtifact::Sidecar {
-                path,
-                sha256: Sha256::digest(&bytes).into(),
-                arguments: Vec::new(),
-                directory: None,
-                environment: Default::default(),
-            },
-            configuration,
-            contributions: PluginContributions {
-                lifecycle: Some(declaration.contracts.lifecycle.clone()),
-                operations: declaration.operations.clone(),
-                wire_contracts: declaration.contracts.provides.clone(),
-                required_contracts: Some(declaration.contracts.requires.clone()),
-                streams: declaration.streams.clone(),
-                observers: declaration.observers.clone(),
-                listeners: declaration.listeners.clone(),
-                sections: declaration.sections.clone(),
-                registrations: registrar.finish(),
-            },
-            requires: Vec::new(),
-        };
+        let executable = harmos::sidecar::Executable::at(&path).unwrap();
+        let declaration = executable.declaration().clone();
+        let mut definition = PluginDefinition::sidecar(&executable, configuration).unwrap();
+        definition.contributions.registrations = registrar.finish();
         let definitions = PluginDefinitions::new([definition], []).unwrap();
         let hosting = Arc::new(Hosting {
             captures: Arc::default(),

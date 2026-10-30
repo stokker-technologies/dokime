@@ -15,7 +15,7 @@ import type uPlot from "uplot";
 /* === Local Imports === */
 
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
-import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
+import { formatNumber, formatTime, formatUnitLabel, type TimeFormatOrigin } from "@/lib/format";
 import { nearestDrawnPoint, type SeriesSummary, seriesLegendColumns, seriesLegendRows, toggleTrace } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
@@ -74,7 +74,7 @@ const PROMPT_CAP_PX = 4;
 
 type CartesianPlotProps = {
   title: string;
-  /** The heading above already prints the title, so the card shows it to assistive tech only. */
+  /** Hide a repeated title only when it has no unit to present beside it. */
   titleRepeated?: boolean;
   cartesian?: PlotCartesianFrame | null;
   description?: string | null;
@@ -792,7 +792,9 @@ export const CartesianPlot = memo(function CartesianPlot({
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <strong className={titleRepeated ? "sr-only" : "block truncate"}>{title}</strong>
+          <strong className={titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
+            {formatUnitLabel(title, unit)}
+          </strong>
           {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
           {contextSummary ? <p className="mt-1 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
@@ -835,7 +837,6 @@ export const CartesianPlot = memo(function CartesianPlot({
                 {renderedPointCount} Points
                 {downsampledLabel(renderedSeries)}
                 {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
-                {unit ? ` - ${unit}` : ""}
                 {xScale === "log" || yScale === "log" ? " - log" : ""}
                 {badge ? ` - ${badge}` : ""}
               </span>

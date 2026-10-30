@@ -67,7 +67,7 @@ impl Resources {
 
         // Calibrate Once At Plugin Start, Away From The Async Runtime Thread.
         let task = workers.0.spawn_blocking(move || {
-            let mut collector = collectors::system::SystemCollector::new();
+            let mut collector = collectors::system::SystemCollector::new()?;
             collector.prepare_cpu(host::system::POLICY.attempt_timeout / 2, sampling_period)?;
             Ok::<_, crate::Error>(collector)
         });
@@ -77,13 +77,13 @@ impl Resources {
         let system = state.clone();
         setup.resource::<Mutex<host::system::State>>(state);
 
-        let collector = collectors::network::NetworkCollector::new();
+        let collector = dokime::plugin::refusal(collectors::network::NetworkCollector::new())?;
         let state = host::network::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::network::State>>(state);
 
         // Each Wi-Fi Stream Owns Its Collector, So No Observer Reads Another's State.
-        let collector = collectors::wifi::WifiLinkCollector::new(options.clone());
+        let collector = dokime::plugin::refusal(collectors::wifi::WifiLinkCollector::new(options.clone()))?;
         let state = host::wifi_link::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::wifi_link::State>>(state);

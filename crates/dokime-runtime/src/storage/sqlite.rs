@@ -31,7 +31,6 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
 };
 
 // Third Party Imports
@@ -332,23 +331,10 @@ fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
 // Takes the root's exclusive lease, waiting a bounded time for a departing
 // owner to let go. A lease still held after that belongs to a live runtime.
 fn acquire_lease(lease: &File) -> Result<(), Error> {
-    let wait = Duration::from_secs(5);
-    let deadline = Instant::now()
-        .checked_add(wait)
-        .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease wait exceeds clock range")))?;
-    let poll = Duration::from_millis(25);
-    if poll.is_zero() {
-        return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease poll must be positive")));
-    }
-    loop {
-        match lease.try_lock() {
-            Ok(()) => return Ok(()),
-            Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
-            Err(std::fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
-                std::thread::sleep(poll.min(deadline.saturating_duration_since(Instant::now())));
-            }
-            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::Owned),
-        }
+    match lease.try_lock() {
+        Ok(()) => Ok(()),
+        Err(std::fs::TryLockError::Error(error)) => Err(Error::Io(error)),
+        Err(std::fs::TryLockError::WouldBlock) => Err(Error::Owned),
     }
 }
 

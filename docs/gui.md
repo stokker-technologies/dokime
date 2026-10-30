@@ -12,6 +12,53 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Desktop Launches And Storage Ownership
+
+Every launch opens its own desktop window. Launch arguments and deep links belong
+to that instance; there is no desktop lock, focus channel or forwarding to another
+window. Startup resolves the distribution identifier before configuring Tauri's
+application directories, logs, settings, organization pack and WebView profile;
+a distribution does not create a second root under the compiled default identifier.
+
+The local backend keeps an exclusive `local.lock` lease on its data folder.
+An occupied folder fails immediately as `storage::Error::Owned`, becomes the
+server's `host::Error::BackendRunning { root }`, and reaches the connection screen
+as `DesktopSessionError::BackendRunning { root, message }`. The message identifies
+the folder and the other instance's backend. The window retains Start Local
+Backend, saved-backend connection controls and Settings: connect to another or
+remote backend, or close the other instance and retry. An attached connection uses
+its existing client preferences when the occupied Local backend cannot supply them.
+Storage reset and backup still refuse an occupied folder with `BackendRunning`.
+
+## Keyboard Focus And Theme Colors
+
+Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
+`--destructive` and the organization palette's required `--ring` token. Tailwind's
+`ring-ring`, `border-ring` and `outline-ring` utilities all use `--focus-ring`.
+Invalid controls continue to use `--destructive`.
+
+Organization packs may set `--focus-ring` in `theme/light.css` and `theme/dark.css`;
+theme families may supply `focus-ring` in their shared or mode-specific variable
+maps, with the mode taking precedence. Organization materialization retains these
+custom properties. Without an explicit focus color, both the desktop and report
+renderer use deep blue `#00205b` in light mode and pale blue `#93c5fd` in dark mode,
+even when the brand primary, palette ring and destructive colors are red.
+
+Custom focus colors must remain visually distinct from destructive/error colors
+and red brand primaries. Verify WCAG non-text contrast of at least 3:1 against the
+adjacent surfaces in both modes, including the 50% opacity used by focus rings.
+The defaults meet this threshold on the bundled background, card and popover
+surfaces; packs that change those surfaces must verify their focus contrast.
+
+## Units In Labels
+
+Labels and titles show units in square brackets on the same line, for example
+`Mean [Mbps]`. Use `formatUnitLabel` in `src/lib/format.ts` for table headings,
+plot titles and axes, legends and stat labels. The live GUI and runtime report
+HTML share this formatter. Keep structured units separate from authored labels.
+Table headings truncate as a whole with the full label in a tooltip, while sort
+and filter controls remain usable. Preserve the case of unit symbols.
+
 ## Canonical Bindings And Transport
 
 - Rust `dokime-domain::operations` declarations own the wire shape; do not
@@ -20,6 +67,8 @@ and `src/report`.
   select the build's `cargo-dokime` executable, export `bindings proto` and feed
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
+  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
+  Harmos's additional managed `Run…` RPCs remain transport projections.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
@@ -32,6 +81,21 @@ and `src/report`.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
+- Tauri constructs its async response future, including command state, on the
+  event-loop thread before spawning it. Native async adapters box their handler
+  bodies so nested runtime futures stay off that thread's stack. Native and RPC
+  command futures have a 16 KiB
+  regression budget; the plugin install guard also constructs the mock-runtime future.
+- Settings › Plugins keeps installed programs' ordinary settings editable after
+  startup fails. Their declared schema comes from the verified bundle inventory.
+  Secret declarations show identifiers and availability read-only; Add In Secret
+  Storage opens the shared Add Secret dialog prefilled with the identifier.
+  Every owner in an inactive bundle remains visible. Add missing identifiers and
+  restart Dokime, or use the existing plugin Retry to read the store again.
+  Startup notifications and plugin views keep root prose separate from collapsed
+  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
+  the identifier prefilled; notification history retains the same destination.
+  Secret Storage References lists declaring plugins, including inactive programs.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
@@ -39,3 +103,13 @@ and `src/report`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
+
+## Console Traces
+
+The desktop logger and its owned backend share one bounded trace journal,
+independent of the terminal log filter. Console replays retained events for the
+selected Instance, Cycle or Execution scope and minimum level, then follows new
+events. These process-local traces are separate from saved execution evidence;
+restarting the desktop or standalone server process starts a new journal. Reconnects resume the scope cursor,
+replaying retained history if its epoch or cursor expires. Stream failures show
+the backend or transport cause beside the reconnect status.

@@ -289,8 +289,8 @@ def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch:
     host.parent.mkdir()
     host.write_bytes(b"host plugin")
     distribution.export(tmp_path, "dev")
-    (tmp_path / ".stkr").mkdir()
-    (tmp_path / ".stkr/project.toml").write_text(
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/project.toml").write_text(
         '[[release.plugins]]\npackage="opaque"\nkind="sidecar"\npath="rust/plugins/plugin-host.dokime"\n[release.plugins.targets]\n'
         + installer.paths.target()
         + '="x86_64-pc-windows-msvc"\n',

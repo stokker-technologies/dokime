@@ -18,6 +18,8 @@
 // Third Party Imports
 
 // Local Imports
+
+import { formatUnitLabel } from "@/lib/format";
 import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
@@ -240,7 +242,7 @@ export function documentSummaryTile(tile: SummaryTile): DocumentViewMetric {
   if (unavailable !== undefined && unavailable !== null) {
     return {
       metric_id: tile.metadata.identifier,
-      label: tile.metadata.label,
+      label: formatUnitLabel(tile.metadata.label, tile.unit),
       value: null,
       unit: null,
       formatted: "Unavailable",
@@ -252,7 +254,7 @@ export function documentSummaryTile(tile: SummaryTile): DocumentViewMetric {
   }
   return {
     metric_id: tile.metadata.identifier,
-    label: tile.metadata.label,
+    label: formatUnitLabel(tile.metadata.label, tile.unit),
     value: tile.value,
     unit: tile.unit ?? null,
     formatted: summaryValue(tile.value, tile.format, tile.unit),

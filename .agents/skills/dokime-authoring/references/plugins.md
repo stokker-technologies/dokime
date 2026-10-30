@@ -83,3 +83,20 @@ so no durable effect inverse is needed. The pinned Harmos revision lacks coopera
 cancellation responses and portable `u16`; do not claim the locked dispatch contract
 is usable until those capabilities land and focused dispatch tests pass. See
 `docs/plugins.md` and the tracked `host-cpu-load` change for this dependency decision.
+## Shared Secrets
+
+```rust
+#[dokime::section(label = "Cloud")]
+pub struct Cloud {
+    pub api_token: dokime::plugin::Secret,
+    pub optional_token: Option<dokime::plugin::Secret>,
+}
+```
+
+These fields name `api_token` and `optional_token` in shared Secret Storage.
+The host resolves declarations before startup: missing required identifiers return
+`UnavailableSecret(identifier)`; optional missing identifiers decode as `None`.
+Add the exact missing identifier and restart Dokime or retry the plugin. There is
+no binding, environment source or secret default. Manual `SecretSetting`
+declarations likewise use their `id` as the store identifier. Rebuild consumers of
+removed `SecretReference` or per-plugin update APIs against the matching SDK.

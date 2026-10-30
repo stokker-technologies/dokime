@@ -123,7 +123,7 @@ Routine background loading, page navigation and connection progress stay in the 
 
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
 
-Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
+Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
 ## Native Remote Access
 
@@ -131,6 +131,12 @@ Settings → Remote Access owns the saved listener settings and explicit restart
 Management is available only through the native local listener. TLS and
 access-key authentication are independent; disable either only in an isolated lab.
 Use a concrete reachable endpoint whose hostname or IP matches the certificate.
+Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
+port and specific address, or its certificate names for a wildcard listener.
+Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
+The listener's port appears beside the field, including for local Python clients.
+Review that the suggested address is reachable from the client. Rejected pairing
+requests show the host's concrete reason beside the endpoint and in Notifications.
 
 Choose **Create Pairing File**, enter a client label and advertised endpoint,
 and select a destination. Cancellation creates no key. Dokime saves one private
@@ -201,11 +207,32 @@ Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
 
 ```python
-client = DokimeClient.from_pairing("lab.dokime-pair")
-async with client:
-    async for suite in client.suites():
-        print(suite)
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
+
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+raise SystemExit(asyncio.run(main()))
 ```
+
+The example requires the corresponding installed template. With the OBC fixture,
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
+on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
+are grouped with the original failure. Await a run directly for its saved outcome.
+Terminal record/sample iterators accept positional filters and provide `.to_json()`.
+The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
+cancelled. A template expansion returns an ordered tuple of all execution handles.
+`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
+manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
+are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -276,7 +303,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
-client provides the same durable boundary with `await cycle.seal()`.
+client provides the same durable boundary with `await cycle.seal()`, and
+`async with client.new_cycle(label)` applies it automatically on every exit.
 
 Download saved evidence without running any work again:
 
@@ -351,14 +379,22 @@ automatic root resets; existing files and evidence are never silently deleted.
 Each backend owns a catalog of secrets keyed by identifier. Plugins use the shared
 `dokime.secrets.lookup` operation with an identifier; a missing or deleted identifier returns
 an error. Replacing a value affects future lookups. A value already fetched by
-a running plugin remains its responsibility. Required secret settings are
-checked before execution starts.
+a running plugin remains its responsibility.
+
+A declared secret's identifier is its Secret Storage identifier. At plugin start,
+Dokime reads each declaration directly from the store. A missing required secret
+fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+(the identifier varies). Optional secrets are absent when missing. Add the exact
+identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
+to read the store again. There are no per-plugin bindings, environment-variable
+sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
 Existing values are never fetched for display. Leave the replacement field
-empty to retain a value. Known references list saved plugin settings; plugins
-can also look up identifiers dynamically, so this list is not exhaustive. Switching
+empty to retain a value. References lists plugins that declare each identifier,
+including installed plugins that failed to start. Plugins can also look up
+identifiers dynamically, so this list is not exhaustive. Switching
 backends opens that backend's catalog and discards the previous edit form.
 
 Values are stored in the host's OS keyring, separately from backend login
@@ -392,6 +428,22 @@ before retrying.
 Secrets use a shared table with Identifier and Label columns. **Add Secret**
 opens a dialog; the monospace Identifier is the machine key, while Label is the
 human display text. No `name` alias is accepted in secret contracts.
+
+### Plugin Settings
+
+**Settings → Plugins** keeps ordinary plugin settings editable after startup
+fails. Its read-only **Required Secrets** list shows each declared identifier,
+whether it is required or optional, and whether it exists in Secret Storage.
+**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+Secret values are entered only in Secret Storage; the plugin settings form has no
+secret fields. Existing saved references are ignored on load without migrating
+values or changing storage v1. A stored identifier such as `hcl.api_token` does
+not satisfy a declaration named `api_token`.
+
+Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
+`api_token: Option<dokime::plugin::Secret>` for an optional one. The field name is
+the store identifier; secret declarations have no default or `from_environment`
+argument. Rebuild external plugins against the matching SDK after this clean break.
 
 ## Planning And Creating Cycles
 
@@ -717,6 +769,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
@@ -761,6 +816,12 @@ charging.plot(voltage);
 let mut document = Document::new("default", "Charger Qualification");
 document.section(charging);
 ```
+
+Declare a bare label and a structured unit, such as `"Battery Voltage"` and
+`.unit("V")`. The GUI and report HTML render these as `Battery Voltage [V]` on
+one line. All unit-bearing labels use square brackets directly after the label;
+table headers truncate with a full-text tooltip instead of wrapping the unit
+below the title. Preserve unit symbols and case.
 
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
@@ -1245,6 +1306,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
+Desktop and report browser tabs use the brand's logos, preferring contained artwork
+for the viewer's color scheme and keeping the default favicon when no logos apply.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
@@ -1260,9 +1323,13 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
-updater verification trust and code-signing identity remain compiled. Reusing
-binaries with different distribution identities does not isolate those mechanisms.
+deleted automatically. Each desktop launch opens its own window. A local backend
+exclusively owns its data folder; if another backend already owns it, the desktop
+shows the folder and offers connection controls. Connect to another or remote
+backend, or close the other instance and retry Start Local Backend.
+Protocol/deep-link identity, updater verification trust and code-signing identity
+remain compiled. Reusing binaries with different distribution identities does not
+isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
@@ -1343,6 +1410,27 @@ and installs only the explicitly selected member. Restart the host to activate i
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
 
+## Plugin Start Failures
+
+Plugin startup failures show readable root causes in notifications, Settings →
+Plugins, CLI errors and Python error text. Unavailable operations from a failed
+startup/prepare pass are summarized separately. When the pass has a construction failure, all missing-resource
+errors in that pass are consequences, regardless of reporting order. Other errors
+remain roots; without a construction failure, missing resources remain roots.
+This is a prepare-pass rule, not a resource dependency graph. Expand the consequence
+summary in the desktop to inspect each unavailable operation without mixing it into the root message.
+
+A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
+**Add Secret** dialog with that identifier prefilled, including after a failed start.
+Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+All owners in an inactive bundle keep their ordinary settings editable; secret
+declarations show their identifiers read-only.
+
+The recorded failure carrier preserves the full structured startup report,
+including each original refusal code, detail and diagnostic chain. The application
+log also retains structured startup diagnostics; the root message is a presentation
+of that data, without Rust Debug formatting.
+
 ## Generated Clients
 
 Export the operation catalog's language-neutral protobuf contract without a running backend:
@@ -1380,6 +1468,22 @@ Telemetry and captured records persist as they arrive with bounded pending
 queues and durable acknowledgement. Plots query saved evidence in bounded pages;
 changing a display window never deletes raw evidence. Recovery restores saved
 frontiers without replaying device actions.
+
+Retiring superseded metadata seeks its matching evidence references. It does not
+scan the accumulated telemetry signals or captured records.
+
+Numeric execution outputs update in the same SQLite transaction as each saved
+telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
+counts, extrema, means, medians, standard deviations, RMS values, sums and
+percentiles. Completion reads these indexes instead of replaying each field's
+whole stream. Pending index work is bounded by the admitted write batch; raw
+evidence remains unchanged. Development roots with older evidence indexes need
+a fresh storage root and are never reset automatically.
+
+Capture close callers join the same in-flight sealing work. Cancelling a waiter
+does not cancel sealing; later Stop or shutdown calls await that work. Closing
+capture admission refuses new capture producers, and successful provider cleanup
+stages remain complete across retries.
 
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture

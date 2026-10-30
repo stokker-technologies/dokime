@@ -23,13 +23,8 @@ use std::{
 use uuid::Uuid;
 
 // Local Imports
-use crate::settings::{SecretReference, SettingValues, Settings};
-use crate::{
-    config::Settings as ApplicationSettings,
-    installed_plugins::{PluginRuntimeSecretBindings, RuntimePluginManagementError},
-    plugins::ProgramValues,
-    secrets::{SecretStore, SecretStoreError},
-};
+use crate::settings::{SettingValues, Settings, SettingsEntry};
+use crate::{config::Settings as ApplicationSettings, installed_plugins::RuntimePluginManagementError, plugins::ProgramValues};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -52,7 +47,6 @@ pub(crate) struct ResolvedPluginPreferences {
     pub values: SettingValues,
     pub saved: BTreeSet<String>,
     pub discovered: SettingValues,
-    pub redacted_secrets: PluginRuntimeSecretBindings,
 }
 
 /* === Enums === */
@@ -74,24 +68,30 @@ impl PluginPreferences {
         *self.installs.write().unwrap_or_else(PoisonError::into_inner) = installs;
     }
 
+    pub(crate) fn bind_install(&self, plugin_id: &Identifier, install: Uuid) {
+        self.installs.write().unwrap_or_else(PoisonError::into_inner).insert(plugin_id.as_str().to_owned(), install);
+    }
+
     pub(crate) async fn read(
-        &self, plugin_id: &Identifier, settings: &Settings, secrets: &SecretStore,
+        &self, plugin_id: &Identifier, settings: &Settings,
     ) -> Result<ResolvedPluginPreferences, RuntimePluginManagementError> {
-        let stored = self.stored(plugin_id).await?;
+        let mut stored = self.stored(plugin_id).await?;
+        // Removed Secret References Are Never Admitted As Setting Values.
+        stored.values.retain(|id, value| {
+            let removed = matches!(value, crate::values::Value::Object(fields)
+                if matches!(fields.get("kind"), Some(crate::values::Value::Text(kind))
+                    if kind == "stored_secret" || kind == "environment"));
+            !removed && !matches!(settings.get(id), Some(SettingsEntry::Secret(_)))
+        });
+        stored.saved.retain(|id| stored.values.contains_key(id));
         let saved_values =
             stored.values.iter().filter(|(id, _)| stored.saved.contains(*id)).map(|(id, value)| (id.clone(), value.clone())).collect();
         let values = settings.resolve(&saved_values).map_err(invalid_input)?;
-        let redacted_secrets = redacted_bindings(settings, &values, secrets).await?;
         // Resolved against the catalog alone: a discovered value this plugin no
         // longer declares is dropped rather than shown.
         let discovered = stored.values.into_iter().filter(|(id, _)| settings.get(id).is_some() && !stored.saved.contains(id)).collect();
 
-        Ok(ResolvedPluginPreferences {
-            saved: stored.saved,
-            values,
-            discovered,
-            redacted_secrets,
-        })
+        Ok(ResolvedPluginPreferences { saved: stored.saved, values, discovered })
     }
 
     pub(crate) async fn record_discovered(
@@ -118,17 +118,6 @@ impl PluginPreferences {
             stored.values.retain(|id, _| !saved.contains(id));
             stored.saved = values.keys().cloned().collect();
             stored.values.extend(values);
-        })
-        .await
-    }
-
-    pub(crate) async fn bind_secret(
-        &self, plugin_id: &Identifier, handle: &str, secret_id: String,
-    ) -> Result<(), RuntimePluginManagementError> {
-        let handle = handle.to_owned();
-        self.update(plugin_id, move |stored| {
-            stored.values.insert(handle.to_owned(), SecretReference::StoredSecret { secret_id }.into());
-            stored.saved.insert(handle.to_owned());
         })
         .await
     }
@@ -176,35 +165,126 @@ impl PluginPreferences {
 
 /* === Private Functions === */
 
-async fn redacted_bindings(
-    settings: &Settings, values: &SettingValues, secrets: &SecretStore,
-) -> Result<PluginRuntimeSecretBindings, RuntimePluginManagementError> {
-    let mut redacted = BTreeMap::new();
-    let mut missing_required = Vec::new();
-    for declaration in settings.secrets() {
-        let configured = match values.get(&declaration.id).map(SecretReference::try_from).transpose().map_err(invalid_input)? {
-            Some(SecretReference::StoredSecret { secret_id }) => {
-                let binding = secrets.redacted_binding(secret_id).await.map_err(secret_error)?;
-                let configured = binding.configured;
-                redacted.insert(declaration.id.clone(), binding);
-                configured
-            }
-            Some(SecretReference::Environment { variable }) => std::env::var(variable).is_ok_and(|value| !value.is_empty()),
-            None => false,
-        };
-        if declaration.required && !configured {
-            missing_required.push(declaration.id.clone());
-        }
-    }
-    Ok(PluginRuntimeSecretBindings { missing_required, bindings: redacted })
-}
-
-fn secret_error(error: SecretStoreError) -> RuntimePluginManagementError {
-    RuntimePluginManagementError::Store(error.to_string())
-}
-
 fn invalid_input(error: impl std::fmt::Display) -> RuntimePluginManagementError {
     RuntimePluginManagementError::InvalidInput(error.to_string())
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::{SecretSetting, TextArea};
+
+    #[tokio::test]
+    async fn direct_secret_startup() {
+        let root = tempfile::tempdir().unwrap();
+        let config =
+            crate::RuntimeConfig::new(root.path(), crate::Metadata::new(Identifier::new("secret.fixture").unwrap(), "Secrets", None))
+                .with_credential_store(keyring_core::mock::Store::new().unwrap());
+        let mut runtime = crate::Runtime::start(config).await.unwrap();
+        let handle = runtime.handle();
+        let plugin = crate::InstalledPlugin {
+            source: "fixture".into(),
+            settings: Settings {
+                contributions: vec![
+                    SettingsEntry::TextArea(TextArea {
+                        id: "workspace".into(),
+                        title: "Workspace".into(),
+                        description: None,
+                        default: "default".into(),
+                        required: true,
+                    }),
+                    SettingsEntry::Secret(SecretSetting {
+                        id: "optional".into(),
+                        title: "Optional".into(),
+                        description: None,
+                        required: false,
+                    }),
+                    SettingsEntry::Secret(SecretSetting {
+                        id: "api_token".into(),
+                        title: "API Token".into(),
+                        description: None,
+                        required: true,
+                    }),
+                ],
+            },
+            ..Default::default()
+        };
+        let id = Identifier::new(&plugin.source).unwrap();
+        handle
+            .plugin_preferences()
+            .update(&id, |stored| {
+                stored.values = SettingValues::from([
+                    ("workspace".into(), "saved".into()),
+                    (
+                        "api_token".into(),
+                        crate::Value::from_plain_json(serde_json::json!({
+                            "kind": "stored_secret", "secret_id": "fixture.api_token"
+                        }))
+                        .unwrap(),
+                    ),
+                    (
+                        "removed".into(),
+                        crate::Value::from_plain_json(serde_json::json!({
+                            "kind": "environment", "variable": "PATH"
+                        }))
+                        .unwrap(),
+                    ),
+                ]);
+                stored.saved = stored.values.keys().cloned().collect();
+            })
+            .await
+            .unwrap();
+        let configured = serde_json::json!({});
+        let missing = handle.plugin_initialization(&plugin, &configured).await.unwrap_err();
+        assert!(
+            matches!(&missing, crate::runtime::Error::Dokime(crate::Error::UnavailableSecret(identifier)) if identifier == "api_token")
+        );
+        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and restart");
+
+        let store = handle.secret_store();
+        // A Similar Plugin-Prefixed Identifier Never Satisfies The Declaration.
+        store
+            .apply(
+                vec![crate::secrets::Change {
+                    metadata: dokime_domain::model::secrets::catalog::Metadata {
+                        identifier: "fixture.api_token".into(),
+                        label: "Other".into(),
+                        description: None,
+                    },
+                    value: Some(crate::secrets::SecretValue::new("other".into())),
+                }],
+                &[],
+                0,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(handle.plugin_initialization(&plugin, &configured).await,
+            Err(crate::runtime::Error::Dokime(crate::Error::UnavailableSecret(identifier))) if identifier == "api_token"));
+
+        store
+            .apply(
+                vec![crate::secrets::Change {
+                    metadata: dokime_domain::model::secrets::catalog::Metadata {
+                        identifier: "api_token".into(),
+                        label: "API Token".into(),
+                        description: None,
+                    },
+                    value: Some(crate::secrets::SecretValue::new("direct-value".into())),
+                }],
+                &[],
+                1,
+            )
+            .await
+            .unwrap();
+        // Retry Reuses The Initialization Path And Reads The Updated Store.
+        let retry = handle.plugin_initialization(&plugin, &configured).await.unwrap();
+        assert_eq!(retry.secret("api_token").unwrap().expose(), "direct-value");
+        assert_eq!(retry.secrets["optional"], None);
+        assert_eq!(retry.settings, SettingValues::from([("workspace".into(), "saved".into())]));
+        assert_eq!(retry.saved, BTreeSet::from(["workspace".into()]));
+        assert!(!format!("{retry:?}").contains("direct-value"));
+        runtime.shutdown().await.unwrap();
+    }
+}

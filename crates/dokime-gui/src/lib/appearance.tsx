@@ -26,6 +26,7 @@ import {
 } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
+import { applyBrandFavicon } from "@/lib/favicon";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
 import { isReportBuild } from "@/lib/ui-mode";
@@ -84,6 +85,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     () => (nativeResource && !organizationPack ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
     [appearance, nativeResource],
   );
+
+  useEffect(() => {
+    applyBrandFavicon(brand);
+  }, [brand]);
 
   useEffect(() => {
     const error = bootOrganization.error;

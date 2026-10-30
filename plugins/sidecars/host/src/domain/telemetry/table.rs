@@ -48,11 +48,13 @@ macro_rules! host_streams {
                     physical_cpu_count: Integer, State, "Physical CPU Count", Option<i64>;
                     logical_cpu_count: Integer, State, "Logical CPU Count", Option<i64>;
                     cpu_load_percent: Number, Value, "CPU Load", Option<f64>;
-                    cpu_capacity_gflops: Number, Value, "Calibrated CPU Capacity (GFLOP/s)", Option<f64>;
+                    cpu_capacity_gflops: Number, Value, "Calibrated CPU Capacity [GFLOP/s]", Option<f64>;
                     cpu_load_gflops: Number, Value, "Estimated CPU Load [GFLOP/s]", Option<f64>;
                     memory_total_bytes: Integer, Value, "Memory Total", Option<i64>;
                     memory_used_bytes: Integer, Value, "Memory Used", Option<i64>;
                     memory_pressure_percent: Number, Value, "Memory Pressure", Option<f64>;
+                    memory_used_gib: Number, Value, "Memory Used [GiB]", Option<f64>, unit: "GiB";
+                    memory_total_gib: Number, Value, "Memory Total [GiB]", Option<f64>, unit: "GiB";
                     system_uptime_s: Number, Value, "System Uptime", Option<f64>;
                     temperature_sensor_count: Integer, Value, "Temperature Sensor Count", Option<i64>;
                     max_temperature_c: Number, Value, "Max Temperature", Option<f64>;
@@ -119,10 +121,10 @@ macro_rules! host_streams {
                     wifi_cipher: Text, State, "WiFi Cipher", Option<String>;
                     wifi_signal_percent: Number, Value, "WiFi Signal", Option<f64>;
                     wifi_rssi_dbm: Number, Value, "WiFi RSSI", Option<f64>;
-                    wifi_rx_phy_mbps: Number, Throughput, "WiFi RX PHY Rate (Mbps)", Option<f64>;
-                    wifi_tx_phy_mbps: Number, Throughput, "WiFi TX PHY Rate (Mbps)", Option<f64>;
-                    wifi_rx_mbps: Number, Throughput, "WiFi RX Throughput (Mbps)", Option<f64>;
-                    wifi_tx_mbps: Number, Throughput, "WiFi TX Throughput (Mbps)", Option<f64>;
+                    wifi_rx_phy_mbps: Number, Throughput, "WiFi RX PHY Rate [Mbps]", Option<f64>;
+                    wifi_tx_phy_mbps: Number, Throughput, "WiFi TX PHY Rate [Mbps]", Option<f64>;
+                    wifi_rx_mbps: Number, Throughput, "WiFi RX Throughput [Mbps]", Option<f64>;
+                    wifi_tx_mbps: Number, Throughput, "WiFi TX Throughput [Mbps]", Option<f64>;
                     wifi_channel: Integer, State, "WiFi Channel", Option<i64>;
                     wifi_band: Text, State, "WiFi Band", Option<String>;
                 }

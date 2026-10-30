@@ -15,6 +15,7 @@ import { useMemo } from "react";
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { formatUnitLabel } from "@/lib/format";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
 import { formatStatValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
@@ -98,12 +99,11 @@ function legendRowKey(row: SeriesLegendRow): string {
 
 function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLegendRow> {
   const legend = dataTableColumns<SeriesLegendRow>();
-  return columns.map(({ header, id, title, unit }) => {
-    const heading = () => <LegendHeader title={title} unit={unit} />;
+  return columns.map(({ header, id }) => {
     if (id === "trace") {
       return legend.accessor("label", {
         cell: ({ row }) => <TraceCell row={row.original} />,
-        header: heading,
+        header,
         id,
         meta: { label: header, primary: true, width: "w-44" },
       });
@@ -111,7 +111,7 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
     return legend.accessor(read, {
       cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
-      header: heading,
+      header,
       id,
       meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
     });
@@ -125,7 +125,7 @@ function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled
     () =>
       rows.map((row) => ({
         count: row.count,
-        label: row.label,
+        label: formatUnitLabel(row.label, row.unit),
         stats: row.statistics ?? {},
         unit: row.unit,
       })),
@@ -155,20 +155,6 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   );
 }
 
-/**
- * A legend header on two lines: the name, then its unit. Every header keeps
- * the second line, blank without a unit, so the names share one baseline and
- * the columns keep one width whatever the unit is.
- */
-function LegendHeader({ title, unit }: { title: string; unit: string | null }) {
-  return (
-    <span className="grid leading-tight">
-      <span>{title}</span>
-      <span className="font-normal whitespace-normal text-muted-foreground [overflow-wrap:anywhere]">{unit ? `(${unit})` : "\u00a0"}</span>
-    </span>
-  );
-}
-
 /** The trace's colour, filled while it draws and outlined while hidden. */
 function TraceCell({ row }: { row: SeriesLegendRow }) {
   return (
@@ -195,11 +181,17 @@ function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boole
       className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg bg-muted/20 p-3"
       data-testid="stats-summary-grid"
     >
-      {titled ? <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong> : null}
+      {titled ? (
+        <strong className="truncate text-sm" title={formatUnitLabel(row.label, row.unit)}>
+          {formatUnitLabel(row.label, row.unit)}
+        </strong>
+      ) : null}
       <dl className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,6.5rem),1fr))]">
         {items.map(([label, value]) => (
           <div className="min-w-0 rounded-lg bg-muted/35 p-2" key={label}>
-            <dt className="text-xs font-bold uppercase text-muted-foreground">{label}</dt>
+            <dt className="truncate text-xs font-bold text-muted-foreground" title={label}>
+              {label}
+            </dt>
             <dd className="mt-1 truncate text-sm font-semibold tabular-nums" title={value}>
               {value}
             </dd>

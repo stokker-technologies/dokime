@@ -47,7 +47,7 @@ pub struct Args {
 
 pub fn run(args: Args) -> Result<(), Error> {
     let limits = Limits::default();
-    let bundle = Bundle::inspect(&dokime_packaging::bundle::read(&args.bundle)?, limits)?;
+    let bundle = Bundle::inspect_with_settings(&dokime_packaging::bundle::read(&args.bundle)?, limits, &dokime::config::schema_defaults())?;
     let mut declarations = std::collections::BTreeMap::new();
     for file in &bundle.manifest().files {
         let Some(declaration) = bundle.declaration(&file.path) else {

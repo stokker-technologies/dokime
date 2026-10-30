@@ -74,7 +74,7 @@ impl fmt::Debug for Registrations {
 impl Config {
     pub fn local(output_root: impl Into<PathBuf>) -> Self {
         Self {
-            schema: harmos::config::SchemaSettings::default(),
+            schema: super::schema_defaults(),
             title: "Dokime".to_owned(),
             label: None,
             output_root: output_root.into(),

@@ -30,13 +30,10 @@ use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 
-#[allow(unused_imports)]
 use dokime_domain::model::definition::wire::*;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 
 use dokime_domain::model::evidence::wire::*;
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 
 /* === Constants === */
 

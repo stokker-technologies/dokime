@@ -198,9 +198,10 @@ pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
 // The identities this host answers to: the listen address when it is specific, the host name
 // and every non-loopback interface address, falling back to loopback when nothing else exists.
 pub(super) fn host_names(address: SocketAddr, maximum: usize) -> Vec<String> {
-    let networks = sysinfo::Networks::new_with_refreshed_list();
-    let interfaces = networks.values().flat_map(|network| network.ip_networks().iter().map(|network| network.addr));
-    default_names(address, sysinfo::System::host_name(), interfaces, maximum)
+    let networks = sysinfo::Networks::new_with_refreshed_list().ok();
+    let interfaces =
+        networks.iter().flat_map(|networks| networks.values()).flat_map(|network| network.ip_networks().iter().map(|network| network.addr));
+    default_names(address, sysinfo::System::host_name().ok(), interfaces, maximum)
 }
 
 /* === Private Functions === */

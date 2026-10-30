@@ -81,22 +81,16 @@ struct PowerProfileContext {
 
 /* === Implementations === */
 
-impl Default for SystemCollector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SystemCollector {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self> {
+        Ok(Self {
             sample_index: 0,
             cpu: None,
-            system: System::new_all(),
-            components: Components::new_with_refreshed_list(),
+            system: System::new_all()?,
+            components: Components::new_with_refreshed_list()?,
             battery_manager: BatteryManager::new().ok(),
             git_identity: None,
-        }
+        })
     }
 
     pub fn calibrate_cpu(&mut self, budget: std::time::Duration) -> Result<()> {
@@ -132,7 +126,6 @@ impl SystemCollector {
         let memory_pressure = if total_memory > 0 { Some((used_memory as f64 / total_memory as f64) * 100.0) } else { None };
         let temperatures = self
             .components
-            .list()
             .iter()
             .filter_map(|component| component.temperature())
             .filter(|temperature| temperature.is_finite())
@@ -148,7 +141,9 @@ impl SystemCollector {
             ("cpu_load_percent".to_owned(), Value::from(cpu.as_ref().map(|load| load.utilization_percent).unwrap_or(0.0))),
             ("memory_total_bytes".to_owned(), integer(total_memory)),
             ("memory_used_bytes".to_owned(), integer(used_memory)),
-            ("system_uptime_s".to_owned(), Value::from(System::uptime() as f64)),
+            ("memory_used_gib".to_owned(), Value::from(used_memory as f64 / 1_073_741_824.0)),
+            ("memory_total_gib".to_owned(), Value::from(total_memory as f64 / 1_073_741_824.0)),
+            ("system_uptime_s".to_owned(), Value::from(System::uptime()? as f64)),
             ("temperature_sensor_count".to_owned(), Value::Integer(temperatures.len() as i64)),
             ("cpu_architecture".to_owned(), Value::from(std::env::consts::ARCH)),
             ("logical_cpu_count".to_owned(), Value::Integer(self.system.cpus().len() as i64)),
@@ -157,7 +152,7 @@ impl SystemCollector {
             values.insert("cpu_capacity_gflops".into(), Value::from(load.capacity_gflops));
             values.insert("cpu_load_gflops".into(), Value::from(load.load_gflops));
         }
-        maybe_insert(&mut values, "physical_cpu_count", System::physical_core_count().map(|count| Value::Integer(count as i64)));
+        maybe_insert(&mut values, "physical_cpu_count", System::physical_core_count().ok().map(|count| Value::Integer(count as i64)));
         maybe_insert(&mut values, "cpu_name", first_cpu.map(|cpu| cpu.name().trim()).filter(|value| !value.is_empty()).map(Value::from));
         maybe_insert(&mut values, "cpu_brand", first_cpu.map(|cpu| cpu.brand().trim()).filter(|value| !value.is_empty()).map(Value::from));
         maybe_insert(
@@ -166,14 +161,14 @@ impl SystemCollector {
             first_cpu.map(|cpu| cpu.vendor_id().trim()).filter(|value| !value.is_empty()).map(Value::from),
         );
         maybe_insert(&mut values, "cpu_frequency_mhz", first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)));
-        maybe_insert(&mut values, "host_name", System::host_name().map(Value::from));
+        maybe_insert(&mut values, "host_name", System::host_name().ok().map(Value::from));
         maybe_insert(&mut values, "user", std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok().map(Value::from));
         let git = self.git_identity.get_or_insert_with(git_identity);
         maybe_insert(&mut values, "git_user_name", git.name.clone().map(Value::from));
         maybe_insert(&mut values, "git_user_email", git.email.clone().map(Value::from));
-        maybe_insert(&mut values, "os_name", System::name().map(Value::from));
-        maybe_insert(&mut values, "os_version", System::long_os_version().map(Value::from));
-        maybe_insert(&mut values, "kernel_version", System::kernel_version().map(Value::from));
+        maybe_insert(&mut values, "os_name", System::name().ok().map(Value::from));
+        maybe_insert(&mut values, "os_version", System::long_os_version().ok().map(Value::from));
+        maybe_insert(&mut values, "kernel_version", System::kernel_version().ok().map(Value::from));
         maybe_insert(&mut values, "memory_pressure_percent", memory_pressure.map(Value::from));
         maybe_insert(&mut values, "max_temperature_c", temperatures.into_iter().reduce(f64::max).map(Value::from));
         for (key, value) in battery_values(battery.as_ref()) {
@@ -270,7 +265,7 @@ mod tests {
     fn concurrent_system_collection_and_controller_reads_preserve_cpu_sample() {
         use std::sync::{Arc, Mutex};
         let expected = crate::host::cpu::Load::measured(12.0, 37.5);
-        let mut collector = super::SystemCollector::new();
+        let mut collector = super::SystemCollector::new().unwrap();
         collector.cpu = Some(crate::host::cpu::sampling::tests::fixed(expected.clone()));
         let source = collector.cpu_source().unwrap();
         let collector = Arc::new(Mutex::new(collector));

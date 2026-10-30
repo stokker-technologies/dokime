@@ -16,9 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
 import { NotificationMessage } from "@/components/NotificationMessage";
+import { FailureConsequences } from "@/components/FailureConsequences";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +37,13 @@ import { PageShell } from "@/shell/PageShell";
 /* === Re-Exports === */
 
 /* === Constants === */
+
+const tones = {
+  error: { icon: CircleAlert, label: "Error", className: "bg-destructive/10 text-destructive" },
+  warning: { icon: TriangleAlert, label: "Warning", className: "bg-warning/10 text-warning" },
+  info: { icon: Info, label: "Info", className: "bg-info/10 text-info" },
+  success: { icon: CircleCheck, label: "Success", className: "bg-success/10 text-success" },
+};
 
 /* === Types === */
 
@@ -79,11 +89,8 @@ export function NotificationsSurface() {
   }, [selection, summary.revision]);
   return (
     <PageShell trail={["Notifications"]}>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <span className="text-sm text-muted-foreground">{summary.count} Notifications</span>
-        <Button variant="outline" disabled={loading && !summary.error} onClick={() => setSelection((current) => ({ ...current }))}>
-          Refresh
-        </Button>
         <Button
           variant="outline"
           disabled={!summary.count || loading}
@@ -98,26 +105,53 @@ export function NotificationsSurface() {
       </div>
       {error && <NotificationMessage source="Notifications">{error}</NotificationMessage>}
       <ol className="divide-y rounded-lg border bg-card" aria-busy={loading}>
-        {page.records.map((record) => (
-          <li key={record.id} className="grid gap-1 px-4 py-3" data-tone={record.tone}>
-            <div className="flex min-w-0 items-baseline gap-2">
-              <strong className="min-w-0 break-words text-sm">{record.title}</strong>
-              {record.source.trim() && record.source.trim() !== "/" && (
-                <span className="min-w-0 truncate text-xs text-muted-foreground" title={record.source}>
-                  {record.source}
-                </span>
-              )}
-              <time
-                className="ml-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground"
-                dateTime={new Date(record.at).toISOString()}
-                title={new Date(record.at).toLocaleString()}
-              >
-                {relativeTime(new Date(record.at).toISOString(), now)}
-              </time>
-            </div>
-            {record.description?.trim() && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
-          </li>
-        ))}
+        {page.records.map((record) => {
+          const tone = tones[record.tone];
+          const Icon = tone.icon;
+          return (
+            <li key={record.id} className="flex gap-3 px-4 py-4" data-tone={record.tone}>
+              <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${tone.className}`}>
+                <Icon className="size-4" aria-hidden="true" />
+                <span className="sr-only">{tone.label}</span>
+              </span>
+              <div className="grid min-w-0 flex-1 gap-2">
+                <div className="flex items-baseline justify-between gap-4">
+                  <strong className="min-w-0 text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{record.title}</strong>
+                  <time
+                    className="shrink-0 whitespace-nowrap text-xs text-muted-foreground"
+                    dateTime={new Date(record.at).toISOString()}
+                    title={new Date(record.at).toLocaleString()}
+                  >
+                    {relativeTime(new Date(record.at).toISOString(), now)}
+                  </time>
+                </div>
+                {record.description?.trim() && (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                    {record.description}
+                  </p>
+                )}
+                {record.source.trim() && record.source.trim() !== "/" && (
+                  <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{record.source}</span>
+                )}
+                <FailureConsequences items={record.consequences ?? []} />
+                {record.missingSecret ? (
+                  <Link
+                    className="text-sm underline"
+                    to="/settings/$section"
+                    params={{ section: "secrets" }}
+                    hash={`add-secret=${record.missingSecret}`}
+                  >
+                    Set Secret
+                  </Link>
+                ) : record.pluginSettings ? (
+                  <Link className="text-sm underline" to="/settings/plugins/$pluginId" params={{ pluginId: record.pluginSettings }}>
+                    Open Plugin Settings
+                  </Link>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
         {!page.records.length && (
           <li className="px-4 py-8 text-center text-muted-foreground">{loading ? "Loading Notifications" : "No Notifications"}</li>
         )}

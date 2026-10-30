@@ -46,15 +46,21 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Query.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/QueryMessages/Aggregate/messages.proto2f\n\x05Query\x12]\n\tAggregate\x12\'.dokime.v1.QueryMessages.Aggregate.Row1\x1a\'.dokime.v1.QueryMessages.Aggregate.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Query.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/QueryMessages/Aggregate/messages.proto\"\x1c\n\x1aQueryAggregateCancellation\"\xe8\x01\n\x16QueryAggregateRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17QueryAggregateRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row2H\x00R\x08responseB\x07\n\x05value2\xc1\x01\n\x05Query\x12]\n\tAggregate\x12\'.dokime.v1.QueryMessages.Aggregate.Row1\x1a\'.dokime.v1.QueryMessages.Aggregate.Row2\x12Y\n\x0cRunAggregate\x12!.dokime.v1.QueryAggregateRunInput\x1a\".dokime.v1.QueryAggregateRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Query_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_QUERY']._serialized_start=126
-  _globals['_QUERY']._serialized_end=228
+  _globals['_QUERYAGGREGATECANCELLATION']._serialized_start=126
+  _globals['_QUERYAGGREGATECANCELLATION']._serialized_end=154
+  _globals['_QUERYAGGREGATERUNINPUT']._serialized_start=157
+  _globals['_QUERYAGGREGATERUNINPUT']._serialized_end=389
+  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_start=391
+  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_end=496
+  _globals['_QUERY']._serialized_start=499
+  _globals['_QUERY']._serialized_end=692
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

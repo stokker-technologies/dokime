@@ -266,9 +266,9 @@ impl<O: OperationDeclaration> StepInstance<O> {
         }
     }
 
-    pub async fn cancel(&self) -> Result<(), CallError> {
+    pub async fn request_cancel(&self) -> Result<(), CallError> {
         match self.slot.running.lock().await.as_ref() {
-            Some(Running::Host(instance)) => instance.cancel().await,
+            Some(Running::Host(instance)) => instance.request_cancel().await,
             Some(Running::Local(run)) => {
                 run.request_cancel();
                 Ok(())
@@ -294,8 +294,8 @@ impl<O: OperationDeclaration> StepInstance<O> {
         }
     }
 
-    pub async fn cancel_and_join(self) -> Result<Response<O::Response>, CallError> {
-        self.cancel().await?;
+    pub async fn cancel(self) -> Result<Response<O::Response>, CallError> {
+        self.request_cancel().await?;
         self.join().await
     }
 
@@ -363,8 +363,8 @@ impl<O: OperationDeclaration> Instance<O> for StepInstance<O> {
         StepInstance::status(self)
     }
 
-    fn cancel(&self) -> impl Future<Output = Result<(), CallError>> + Send {
-        StepInstance::cancel(self)
+    fn request_cancel(&self) -> impl Future<Output = Result<(), CallError>> + Send {
+        StepInstance::request_cancel(self)
     }
 
     fn join(self) -> impl Future<Output = Result<Response<O::Response>, CallError>> + Send {
@@ -386,7 +386,7 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                         // Settled on its own; dropping the handle releases it.
                         return None;
                     }
-                    tokio::time::timeout(self.settlement, instance.cancel_and_join()).await.is_ok()
+                    tokio::time::timeout(self.settlement, instance.cancel()).await.is_ok()
                 }
                 Running::Local(run) => {
                     if run.task.is_finished() {

@@ -12,7 +12,7 @@
 /* === Local Imports === */
 
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
+import { listNativeAdmittedPlugins, listNativePlugins } from "@/lib/api/native-plugins";
 import { getNativePluginSettings } from "@/lib/api/native-settings";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
@@ -20,7 +20,26 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 export async function getInstalledPluginDetail(session: SessionIdentity, pluginId: string): Promise<InstalledPluginDetail | null> {
   const plugins = await listNativeAdmittedPlugins(session);
-  const plugin = plugins.find((candidate) => candidate.plugin_id === pluginId);
+  let plugin = plugins.find((candidate) => candidate.plugin_id === pluginId);
+  if (!plugin) {
+    const installations = await listNativePlugins(session);
+    const entry = installations.find((candidate) => candidate.state !== "removal_pending" && candidate.metadata?.owners.includes(pluginId));
+    if (entry?.metadata) {
+      plugin = {
+        plugin_id: pluginId,
+        owner: { kind: "bundle", package: entry.metadata.identity.name, installation: entry.install_id, path: null },
+        label:
+          entry.last_boot?.state === "failed" && entry.last_boot.failure.plugin_id === pluginId
+            ? entry.last_boot.failure.plugin_name
+            : pluginId,
+        version: entry.metadata.identity.version,
+        enabled: entry.state === "installed",
+        runtime: "code",
+        status: entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "pending",
+        error: entry.error,
+      };
+    }
+  }
   if (!plugin) return null;
   const config = await getNativePluginSettings(session, pluginId);
   return { ...plugin, ...config };

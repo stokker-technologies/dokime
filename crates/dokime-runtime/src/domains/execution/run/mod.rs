@@ -18,6 +18,9 @@ mod replay;
 mod session;
 mod supervision;
 
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
+
 /* === Re-Exports === */
 
 pub(crate) use host::Sessions;
@@ -112,6 +115,7 @@ struct ExecutionCleanup {
     settled: bool,
     stop_deadline: Option<tokio::time::Instant>,
     capture: HostCapture,
+    stage: CleanupStage,
 }
 
 #[derive(Clone, Default)]
@@ -135,6 +139,18 @@ struct ProgressCleanup {
 }
 
 /* === Enums === */
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CleanupStage {
+    Settle,
+    Effects,
+    Publications,
+    Records,
+    Prompts,
+    Steps,
+    Capture,
+    Complete,
+}
 
 /* === Traits === */
 
@@ -379,18 +395,10 @@ async fn execute_case(
         })
         .collect::<BTreeMap<String, Value>>();
     let secrets = match context.runtime.state_read().installed_plugins.get(source) {
-        Some(artifact) => {
-            let settings = context.runtime.settings_snapshot(artifact).await.map_err(|error| {
-                let message = error.to_string();
-                failure("sidecar_start", message)
-            })?;
-            let secrets = context.runtime.resolve_secrets(&artifact.settings, &settings).await.map_err(|error| {
-                let message = error.to_string();
-                failure("sidecar_start", message)
-            })?;
-            check_secret_bindings(&artifact.settings, &secrets)?;
-            secrets
-        }
+        Some(artifact) => context.runtime.resolve_secrets(&artifact.settings).await.map_err(|error| {
+            let message = error.to_string();
+            failure("sidecar_start", message)
+        })?,
         None => BTreeMap::new(),
     };
     let request = RunExecution {
@@ -401,7 +409,7 @@ async fn execute_case(
         template_identifier: case.metadata.identifier.to_string(),
         workflow: workflow.to_owned(),
         secrets_json: serde_json::to_string(&secrets)
-            .map_err(|_| failure("sidecar_start", "failed to encode execution secret bindings"))?,
+            .map_err(|_| failure("sidecar_start", "failed to encode resolved execution secrets"))?,
         parameters_json: serde_json::to_string(&parameters).map_err(|error| {
             let message = format!("failed to encode resolved case parameters: {error}");
             failure("sidecar_start", message)
@@ -457,6 +465,7 @@ async fn execute_case(
     context
         .finalization
         .register(ExecutionCleanup {
+            stage: CleanupStage::Settle,
             capture,
             _publication_admission: publication_admission,
             _record_demand: record_demand,
@@ -708,24 +717,6 @@ async fn run_sidecar_cycle(
 fn admit_prompt(declared: &[crate::prompts::PromptDefinition], prompt: &PromptRequest) -> Result<(), ProviderExecutionFailure> {
     if !declared.iter().any(|definition| definition.prompt_type == prompt.prompt_type) {
         return Err(failure("sidecar_prompt", format!("operator question {} is not declared by this template", prompt.prompt_type)));
-    }
-    Ok(())
-}
-
-fn check_secret_bindings(
-    catalog: &crate::settings::Settings, secrets: &BTreeMap<String, Option<String>>,
-) -> Result<(), ProviderExecutionFailure> {
-    let mut definitions = catalog.secrets();
-    let missing = definitions.find(|definition| {
-        if !definition.required {
-            return false;
-        }
-        let value = secrets.get(&definition.id);
-        value.is_none_or(Option::is_none)
-    });
-    if let Some(definition) = missing {
-        let message = format!("required secret setting {:?} is missing", definition.id);
-        return Err(failure("sidecar_start", message));
     }
     Ok(())
 }

@@ -70,18 +70,38 @@ where
     install_panic_hook();
     install_subscriber();
     let capacity = std::num::NonZeroUsize::new(128).expect("native invocation capacity is positive");
-    crate::process::block_on(harmos::sidecar::run_plugin::<P>(capacity))?
+    crate::process::block_on(async move {
+        let settings = crate::config::schema_defaults();
+        harmos::sidecar::run_plugin_with_settings::<P>(capacity, &settings).await
+    })?
 }
 
 #[cfg(feature = "native")]
 #[track_caller]
 pub fn refusal<T, E>(answered: Result<T, E>) -> Result<T, crate::Refusal>
 where
-    E: std::error::Error,
+    E: std::error::Error + 'static,
 {
-    captured(answered).map_err(|diagnostic| {
+    let location = std::panic::Location::caller();
+    answered.map_err(|error| {
+        let diagnostic = crate::diagnostics::Diagnostic::at(location, &error).redacted();
         tracing::error!("{diagnostic}");
-        crate::Refusal::of(diagnostic.summary())
+        let missing =
+            std::iter::successors(Some(&error as &(dyn std::error::Error + 'static)), |source| source.source()).find_map(|source| {
+                match source.downcast_ref::<crate::Error>() {
+                    Some(crate::Error::UnavailableSecret(secret)) => Some(secret.as_str()),
+                    _ => None,
+                }
+            });
+        let failure =
+            harmos::domain::Failure::originate(harmos::operations::FailureKind::Permanent, &error, harmos::domain::failure::Origin::Plugin);
+        match missing {
+            Some(secret) => crate::Refusal::failed(
+                dokime_domain::model::plugins::error::MISSING_SECRET_CODE,
+                failure.with_detail("dokime.secret", secret),
+            ),
+            None => crate::Refusal::failed(failure.refusal_code().unwrap_or(harmos::domain::FAILED), failure),
+        }
     })
 }
 

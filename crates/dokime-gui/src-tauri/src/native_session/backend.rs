@@ -43,6 +43,7 @@ pub struct Backend {
     arguments: host::Args,
     application: Option<dokime::paths::ApplicationPaths>,
     log: Option<PathBuf>,
+    trace_journal: Option<std::sync::Arc<dokime_server::trace::Journal>>,
 }
 
 /* === Enums === */
@@ -53,7 +54,12 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(arguments: host::Args) -> Self {
-        Self { arguments, application: None, log: None }
+        Self {
+            arguments,
+            application: None,
+            log: None,
+            trace_journal: None,
+        }
     }
 
     #[must_use]
@@ -67,6 +73,12 @@ impl Backend {
         self.log = path;
         self
     }
+
+    #[must_use]
+    pub fn with_trace_journal(mut self, journal: std::sync::Arc<dokime_server::trace::Journal>) -> Self {
+        self.trace_journal = Some(journal);
+        self
+    }
 }
 
 /* === Public Functions === */
@@ -77,11 +89,21 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
         if let Some(paths) = &backend.application {
             config.application = Some(paths.clone());
         }
-        let network = backend.arguments.network.config()?;
+        let mut network = backend.arguments.network.config()?;
+        if let Some(journal) = &backend.trace_journal {
+            network = network.with_trace_journal(journal.clone());
+        }
         host::Session::start(&backend.arguments, config, network, on_phase).await
     };
     let started = tokio::time::timeout(Duration::from_millis(DESKTOP_READINESS_TIMEOUT_MS), launch).await;
     let result = match started {
+        Ok(Err(host::Error::BackendRunning { root })) => {
+            let message = format!(
+                "The data folder {} is in use by another instance's backend. Connect to another or remote backend below, or close the other instance and retry Start Local Backend.",
+                root.display()
+            );
+            return Err(Error::BackendRunning { root, message });
+        }
         Ok(result) => result.map_err(|error| {
             let message = error.to_string();
             redact(&message[..message.floor_char_boundary(DESKTOP_STARTUP_DIAGNOSTIC_BYTES as usize)])

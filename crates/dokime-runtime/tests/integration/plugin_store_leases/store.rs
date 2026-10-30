@@ -71,6 +71,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: harmos::operations::RetryPolicy::Never,
     };
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
@@ -114,6 +115,73 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn boot_failure_persists_plugin_and_carrier() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let id = store.install(&bundle("fixture", "fixture", "1.0.0"), &[], &BTreeSet::new()).await.unwrap().installation.install_id;
+    let carrier = dokime_runtime::harmos::domain::Failure::new(dokime_runtime::harmos::operations::FailureKind::Permanent, "api_token")
+        .with_detail("dokime.secret", "api_token")
+        .encode();
+    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: "fixture".into(),
+        plugin_name: "Fixture".into(),
+        message: String::new(),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
+        missing_secret: Some("api_token".into()),
+        consequences: vec!["workflow is unavailable".into()],
+        carrier: carrier.clone(),
+    };
+    store.record_boot(id, Some(failure.clone())).await.unwrap();
+    database.close().await.unwrap();
+    let (reopened, database) = self::store(root.path()).await;
+    let row = reopened.get(id).await.unwrap();
+    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
+    assert_eq!(retained, failure);
+    assert_eq!(retained.plugin_id, "fixture");
+    assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
+    assert_eq!(
+        dokime_runtime::harmos::domain::Failure::decode(&retained.carrier).unwrap().code(),
+        dokime_runtime::harmos::operations::FailureKind::Permanent
+    );
+    database.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn schema_budget_installation() {
+    use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
+    use std::num::NonZeroUsize;
+    let root = tempfile::tempdir().unwrap();
+    let database = dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap();
+    let saved = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
+    let defaults = schema_defaults();
+    assert_eq!(Config::local(root.path()).schema.preparation_bytes, defaults.preparation_bytes);
+    let config = RuntimeConfig::new(
+        root.path(),
+        dokime_domain::model::identity::Metadata::new(dokime_domain::model::identity::Identifier::new("fixture").unwrap(), "Fixture", None),
+    );
+    assert_eq!(config.schema.preparation_work, defaults.preparation_work);
+    let bytes = bundle("budget-fixture", "fixture", "1.0.0");
+    for budget in ["memory bytes", "work"] {
+        let mut schema = defaults;
+        if budget == "work" {
+            schema.preparation_work = NonZeroUsize::new(1).unwrap();
+        } else {
+            schema.preparation_bytes = NonZeroUsize::new(1).unwrap();
+        }
+        let store = PluginStore::new(saved.clone(), schema);
+        let error = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap_err().to_string();
+        assert!(error.contains("budget-fixture") && error.contains(budget) && error.contains("allowed 1"), "{error}");
+        assert!(store.list().await.unwrap().is_empty());
+        assert!(!store.root().exists());
+    }
+    let store = PluginStore::new(saved, defaults);
+    let installed = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(installed.metadata.unwrap().identity.name, "budget-fixture");
+    drop(store);
+    database.close().await.unwrap();
+}
 
 #[tokio::test]
 async fn bundled_upgrades() {

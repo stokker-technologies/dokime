@@ -139,6 +139,8 @@ for (const file of set.file)
     for (const method of service.method) {
       const name = service.name[0].toLowerCase() + service.name.slice(1) + method.name;
       const path = `/${file.package}.${service.name}/${method.name}`;
+      // Bind Declared Contracts; Managed Run RPCs Are Additional Transport Projections.
+      if (!deadlines.has(path)) continue;
       let input = method.inputType;
       let output = method.outputType;
       let envelope;

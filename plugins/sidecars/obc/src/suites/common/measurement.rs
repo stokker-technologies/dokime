@@ -46,16 +46,16 @@ pub struct InputMeasurement {
     #[row(label = "Current", unit = "A")]
     pub current_a: f64,
 
-    #[row(label = "RMS Voltage (V)", unit = "V")]
+    #[row(label = "RMS Voltage", unit = "V")]
     pub voltage_rms_v: f64,
 
-    #[row(label = "RMS Current (A)", unit = "A")]
+    #[row(label = "RMS Current", unit = "A")]
     pub current_rms_a: f64,
 
-    #[row(label = "Frequency (Hz)", unit = "Hz")]
+    #[row(label = "Frequency", unit = "Hz")]
     pub frequency_hz: f64,
 
-    #[row(label = "Current Phase (deg)", unit = "deg")]
+    #[row(label = "Current Phase", unit = "deg")]
     pub phase_deg: f64,
 
     #[row(label = "AC Input Power", unit = "W")]

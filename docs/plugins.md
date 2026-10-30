@@ -1,5 +1,20 @@
 # Dokime Plugins
 
+Startup failures appear in a desktop notification and in Settings › Plugins,
+with the bundle's display name and the underlying cause. The verified ordinary
+settings remain editable even when the plugin could not start. Secret declarations
+show their shared Secret Storage identifiers and availability read-only. Use
+**Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
+then restart Dokime or use the existing plugin Retry. There are no secret bindings
+or environment-variable sources. Notification history retains the settings link.
+
+A failed boot has one typed reason with the plugin identity, message and refusal
+code. Initialization failures also retain the encoded Harmos failure, including its kind,
+application refusal code, named context and source diagnostics. Plugin authors
+should return errors through `dokime::plugin::refusal` to preserve this context;
+missing secret access is classified by `MISSING_SECRET_CODE` and the
+`dokime.secret` field, without parsing diagnostic messages.
+
 `plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
@@ -158,6 +173,13 @@ remain pending those upstream capabilities; the control core alone does not prov
 The OBC Checks template `obc.checks.cpu_load` records the intended consumer sequence.
 
 The runtime decodes these rows through the same codec as other plugins.
+`host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
+`memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.
+Each value divides the existing byte reading by 1024³. On Linux and Windows,
+both readings share the snapshot used for `memory_pressure_percent`, which is
+100 × used / total; pressure is absent when total memory is zero. The original
+byte columns remain available. Host document defaults plot used and total GiB;
+OBC system sections plot used GiB beside memory pressure.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`
@@ -212,9 +234,27 @@ listeners and observers read prepared resources from their execution contexts;
 mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
 `Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
 and the plugin's declared streams.
+
+On restart, Harmos prepares and starts plugin generations sequentially in
+dependency order, matching declared required contracts to provided contracts
+exactly, including embedded providers and host operations. Providers become
+ready before consumers; independent plugins have a deterministic order based
+on plugin names. Bundle inspection and extraction happen before activation
+and do not run plugin lifecycle hooks.
+Installed packages with unavailable or circular contracts are refused while
+unrelated plugins start normally. Settings → Plugins retains the boot reason,
+and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+Unavailable-contract reasons identify the owner and required contract; cycle
+reasons identify every involved plugin.
+
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
+
+Template runners stop cooperatively through `Signal<T>` with
+`ExecutionSignal.cancel = true`, retaining the run's final response and evidence.
+Cancelling the owning Harmos invocation aborts its child calls, including evidence
+delivery, so run policies retain immediate abort for that control path.
 
 `cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,

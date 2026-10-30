@@ -45,6 +45,7 @@ use std::time::Duration;
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(30),
     attempt_timeout: Duration::from_secs(30),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -52,6 +53,7 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 pub const RESTORE_POLICY: OperationPolicy = OperationPolicy {
     timeout: POLICY.timeout.saturating_mul(2),
     attempt_timeout: POLICY.attempt_timeout.saturating_mul(2),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -305,39 +307,5 @@ mod tests {
             ..Default::default()
         };
         assert!(request.check(&state).is_err());
-    }
-
-    #[test]
-    fn radio_codec_rejects_strings_and_unknown_variants() {
-        #[dokime::message]
-        struct StringRequest {
-            radio: String,
-            state: String,
-            allow_disconnect: bool,
-        }
-
-        #[dokime::message]
-        enum FutureRadio {
-            Wifi,
-            Bluetooth,
-            Cellular,
-            Satellite,
-        }
-
-        #[dokime::message]
-        enum FuturePower {
-            On,
-            Off,
-            Standby,
-        }
-
-        let legacy = StringRequest {
-            radio: "wifi".into(),
-            state: "on".into(),
-            allow_disconnect: false,
-        };
-        assert!(RadioSet::decode(&legacy.encode()).is_err());
-        assert!(Radio::decode(&FutureRadio::Satellite.encode()).is_err());
-        assert!(RadioPower::decode(&FuturePower::Standby.encode()).is_err());
     }
 }

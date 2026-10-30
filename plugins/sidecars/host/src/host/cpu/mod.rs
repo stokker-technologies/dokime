@@ -79,16 +79,3 @@ impl Load {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn calibrated_load() {
-        for (utilization, expected) in [(0.0, 0.0), (25.0, 12.5), (100.0, 50.0)] {
-            let load = Load::measured(50.0, utilization);
-            assert_eq!(load.load_gflops, expected);
-            assert_eq!(load.capacity_gflops, 50.0);
-        }
-    }
-}

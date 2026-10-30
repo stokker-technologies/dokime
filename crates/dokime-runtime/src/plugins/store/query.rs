@@ -42,6 +42,64 @@ pub struct PluginPage {
 /* === Implementations === */
 
 impl PluginStore {
+    pub(crate) async fn secret_declarations(&self) -> Result<std::collections::BTreeMap<String, Vec<String>>, PluginError> {
+        let plugins = self.settings.read(|document| document.plugins.clone()).await?;
+        let mut uses = std::collections::BTreeMap::<String, Vec<String>>::new();
+        for (id, plugin) in plugins {
+            if plugin.state == PluginState::RemovalPending {
+                continue;
+            }
+            let Ok((bundle, _)) = self.verified(id, &plugin) else { continue };
+            for file in super::super::catalog::selected_files(&bundle)? {
+                let declaration = bundle.declaration(&file.path).expect("verified executable declaration");
+                let executable = file.executable.as_ref().expect("selected executable");
+                let Ok(program) = crate::domains::installed_plugins::contributions::decode_registrations(
+                    &declaration.id,
+                    &declaration.version.to_string(),
+                    &declaration.description,
+                    &executable.registrations,
+                ) else {
+                    continue;
+                };
+                for secret in program.settings.secrets() {
+                    uses.entry(secret.id.clone()).or_default().push(declaration.id.clone());
+                }
+            }
+        }
+        Ok(uses)
+    }
+
+    pub(crate) async fn program_settings(&self, owner: &str) -> Result<Option<(Uuid, crate::settings::Settings)>, PluginError> {
+        let plugins = self.settings.read(|document| document.plugins.clone()).await?;
+        for (id, plugin) in plugins {
+            if plugin.state == PluginState::RemovalPending {
+                continue;
+            }
+            let Ok((bundle, metadata)) = self.verified(id, &plugin) else {
+                continue;
+            };
+            if !metadata.owners.iter().any(|candidate| candidate == owner) {
+                continue;
+            }
+            for file in super::super::catalog::selected_files(&bundle)? {
+                let declaration = bundle.declaration(&file.path).expect("verified executable declaration");
+                if declaration.id != owner {
+                    continue;
+                }
+                let executable = file.executable.as_ref().expect("selected executable");
+                let program = crate::domains::installed_plugins::contributions::decode_registrations(
+                    owner,
+                    &declaration.version.to_string(),
+                    &declaration.description,
+                    &executable.registrations,
+                )
+                .map_err(|error| PluginError::Invalid(error.to_string()))?;
+                return Ok(Some((id, program.settings)));
+            }
+        }
+        Ok(None)
+    }
+
     pub async fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
         let plugin = self.settings.read(|document| document.plugins.get(&id).cloned()).await?.ok_or(PluginError::Unknown(id))?;
         Ok(self.entry(id, &plugin))

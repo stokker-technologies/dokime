@@ -13,6 +13,8 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
+import { formatUnitLabel } from "@/lib/format";
+
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
 
@@ -49,7 +51,7 @@ export function FrequencySeriesPlot({
       viewportMode={viewportMode}
       xScale={plot.xScale}
       yScale={plot.yScale}
-      xLabel="Frequency (Hz)"
+      xLabel={formatUnitLabel("Frequency", "Hz")}
       xFormat={{ kind: "normal" }}
       yFormat={{ kind: "normal" }}
     />

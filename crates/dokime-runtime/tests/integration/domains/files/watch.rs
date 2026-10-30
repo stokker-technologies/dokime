@@ -460,7 +460,7 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
     let (operations, ticket) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
     let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
-    watch.cancel();
+    watch.request_cancel();
     assert!(watch.join().await.is_err());
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(120),
@@ -786,7 +786,7 @@ async fn watch_file_matchers() {
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
-        maximum_seconds: Some(2),
+        maximum_seconds: None,
         maximum_bytes: None,
         matchers: vec![LineMatcher {
             storage_schema: crate::service_support::contracts::minimal_tracking_contract().storage_schema.unwrap(),
@@ -816,7 +816,7 @@ async fn watch_file_matchers() {
         .await
         .unwrap();
     append(&log, APPENDED);
-    let outcome = watch.join().await.unwrap().into_owned();
+    let outcome = watch.cancel().await.unwrap().into_owned();
     assert_eq!(
         outcome.artifacts,
         vec![WatchedArtifact {

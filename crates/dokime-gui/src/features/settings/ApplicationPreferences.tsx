@@ -17,6 +17,7 @@ import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { formatUnitLabel } from "@/lib/format";
 import { toast } from "@/lib/notifications";
 import { preferencesError, usePreferences, useSavePreferences } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
@@ -80,7 +81,7 @@ const FIELDS: PreferenceField[] = [
   {
     group: "client",
     key: "connect_timeout_ms",
-    label: "Connect Timeout (ms)",
+    label: "Connect Timeout",
     help: "Time allowed to establish a new connection.",
     unit: "ms",
     advanced: true,
@@ -88,7 +89,7 @@ const FIELDS: PreferenceField[] = [
   {
     group: "client",
     key: "request_timeout_ms",
-    label: "Request Timeout (ms)",
+    label: "Request Timeout",
     help: "Time allowed for a new request.",
     unit: "ms",
     advanced: true,
@@ -96,7 +97,7 @@ const FIELDS: PreferenceField[] = [
   {
     group: "telemetry",
     key: "interval_ms",
-    label: "Telemetry Interval (ms)",
+    label: "Telemetry Interval",
     help: "Delay between telemetry samples.",
     unit: "ms",
     advanced: true,
@@ -273,6 +274,7 @@ function PreferencesForm({
   });
   function row(field: PreferenceField) {
     const name = `${field.group}.${field.key}`;
+    const label = formatUnitLabel(field.label, field.unit);
     const value = (draft[field.group] as unknown as Record<string, string | number | boolean | string[] | null>)[field.key];
     const error = invalid[name] ?? (edited.has(name) && (failure || save.error) ? preferencesError(failure ?? save.error) : null);
     const change = (next: string | number | boolean | string[] | null) => {
@@ -305,19 +307,23 @@ function PreferencesForm({
     return (
       <SettingsRow
         key={name}
-        label={field.label}
+        label={
+          <span className="block truncate" title={label}>
+            {label}
+          </span>
+        }
         description={field.help}
         htmlFor={`${scope}-${name}`}
         error={error}
         status={<span data-state={error ? "error" : edited.has(name) ? state : "saved"} className="inline-block min-h-5" />}
       >
         {field.kind === "boolean" ? (
-          <Switch id={`${scope}-${name}`} aria-label={field.label} checked={Boolean(value)} onCheckedChange={change} />
+          <Switch id={`${scope}-${name}`} aria-label={label} checked={Boolean(value)} onCheckedChange={change} />
         ) : field.options ? (
           <select
             id={`${scope}-${name}`}
             className={SELECT_CLASS}
-            aria-label={field.label}
+            aria-label={label}
             value={String(value)}
             onChange={(event) => change(event.target.value)}
           >
@@ -331,7 +337,7 @@ function PreferencesForm({
           <div className="flex w-full items-center gap-2">
             <Input
               id={`${scope}-${name}`}
-              aria-label={field.label}
+              aria-label={label}
               aria-invalid={Boolean(error)}
               className={field.unit ? "text-right tabular-nums" : undefined}
               type={field.unit ? "number" : "text"}

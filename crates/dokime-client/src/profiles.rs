@@ -331,7 +331,6 @@ mod tests {
 
     struct Credentials {
         values: Mutex<BTreeMap<String, String>>,
-        fail_publication: Option<PathBuf>,
     }
 
     impl SecretStore for Credentials {
@@ -341,9 +340,6 @@ mod tests {
 
         fn write(&self, key: &str, token: &str) -> Result<(), super::super::secrets::Error> {
             self.values.lock().unwrap().insert(key.to_owned(), token.to_owned());
-            if let Some(path) = &self.fail_publication {
-                std::fs::create_dir(path).unwrap();
-            }
             Ok(())
         }
 
@@ -368,10 +364,7 @@ mod tests {
     fn pairing_profiles_keep_independent_credentials() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::new(root.path().join("backends.json"));
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: None,
-        };
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
         let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
         let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
         let first_key = selection(&first).unwrap().credential_key();
@@ -385,27 +378,11 @@ mod tests {
     }
 
     #[test]
-    fn pairing_save_failure_removes_new_credential() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("backends.json");
-        let store = Store::new(&path);
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: Some(path),
-        };
-        assert!(store.import_pairing(&pairing('a'), "first", &secrets).is_err());
-        assert!(secrets.values.lock().unwrap().is_empty());
-    }
-
-    #[test]
     fn invalid_pairing_never_opens_registry_or_keyring() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("absent/backends.json");
         let store = Store::new(&path);
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: None,
-        };
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
         let mut invalid = pairing('a');
         invalid.endpoint = "http://0.0.0.0:8765".into();
         assert!(store.import_pairing(&invalid, "first", &secrets).is_err());

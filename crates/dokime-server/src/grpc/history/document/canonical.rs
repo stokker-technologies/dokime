@@ -128,8 +128,8 @@ pub(in crate::grpc) fn historical_plot(
         reference_lines: collect(value.reference_lines.iter().map(reference_line))?,
         reference_bands: collect(value.reference_bands.iter().map(reference_band))?,
         live_window_s: value.live_window_s,
-        x_format: value.x_format.as_ref().map(canonical::format),
-        y_format: value.y_format.as_ref().map(canonical::format),
+        x_format: value.x_format.as_ref().map(canonical::value_format),
+        y_format: value.y_format.as_ref().map(canonical::value_format),
         x_axis,
         x_axis_unit,
     };

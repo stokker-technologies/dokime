@@ -413,7 +413,7 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
             executable: executable.clone(),
         })
         .collect::<Vec<_>>();
-    let bundle = Bundle::build(package_identity(package), &sources, limits)?;
+    let bundle = Bundle::build_with_settings(package_identity(package), &sources, limits, &dokime::config::schema_defaults())?;
     let parent = output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(parent)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
@@ -455,8 +455,14 @@ async fn collect_executable(
     path: &std::path::Path, package: &Package, target: &str, max_bytes: usize, catalog_remaining: &mut usize,
 ) -> Result<(String, Vec<u8>, Executable), Error> {
     let binary = files::read(path, max_bytes)?;
-    let declaration = Declaration::inspect(&binary, dokime::harmos::plugin::inventory::Facility::Sidecar)
-        .map_err(|error| Error::Invalid(format!("selected binary has no complete native declaration: {error}")))?;
+    let declaration = Declaration::inspect_with_settings(
+        &binary,
+        dokime::harmos::plugin::inventory::Facility::Sidecar,
+        &dokime::config::schema_defaults(),
+    )
+    .map_err(|error| {
+        Error::Invalid(format!("plugin `{}` binary `{}` has no complete native declaration: {error}", package.name, path.display()))
+    })?;
     if declaration.version.to_string() != package.version.to_string() {
         return Err(Error::Invalid(format!(
             "executable version {} differs from Cargo package version {}; the executable declaration must derive its version from the selected Cargo package",
@@ -583,6 +589,7 @@ mod tests {
         const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
             timeout: Duration::from_secs(5),
             attempt_timeout: Duration::from_secs(5),
+            cancellation_timeout: std::time::Duration::ZERO,
             retries: dokime::harmos::operations::RetryPolicy::Never,
         };
         const SIZE: usize = contracts::encoded_fragments_len("sidecar", OWNER, &[], &[], &[POLICY; 2]);

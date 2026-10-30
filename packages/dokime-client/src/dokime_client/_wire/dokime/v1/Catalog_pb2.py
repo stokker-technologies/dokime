@@ -51,15 +51,51 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Catalog.proto\x12\tdokime.v1\x1aLdokime_client/_wire/dokime/v1/CatalogMessages/GetRecordSchema/messages.proto\x1a\x45\x64okime_client/_wire/dokime/v1/CatalogMessages/GetSuite/messages.proto\x1aOdokime_client/_wire/dokime/v1/CatalogMessages/GetTelemetrySchema/messages.proto\x1aNdokime_client/_wire/dokime/v1/CatalogMessages/ListRecordSchemas/messages.proto\x1aGdokime_client/_wire/dokime/v1/CatalogMessages/ListSuites/messages.proto\x1aQdokime_client/_wire/dokime/v1/CatalogMessages/ListTelemetrySchemas/messages.proto2\xc2\x05\n\x07\x43\x61talog\x12s\n\x0fGetRecordSchema\x12/.dokime.v1.CatalogMessages.GetRecordSchema.Row1\x1a/.dokime.v1.CatalogMessages.GetRecordSchema.Row2\x12^\n\x08GetSuite\x12(.dokime.v1.CatalogMessages.GetSuite.Row1\x1a(.dokime.v1.CatalogMessages.GetSuite.Row2\x12|\n\x12GetTelemetrySchema\x12\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row1\x1a\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row2\x12y\n\x11ListRecordSchemas\x12\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row1\x1a\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row2\x12\x64\n\nListSuites\x12*.dokime.v1.CatalogMessages.ListSuites.Row1\x1a*.dokime.v1.CatalogMessages.ListSuites.Row2\x12\x82\x01\n\x14ListTelemetrySchemas\x12\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row1\x1a\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Catalog.proto\x12\tdokime.v1\x1aLdokime_client/_wire/dokime/v1/CatalogMessages/GetRecordSchema/messages.proto\x1a\x45\x64okime_client/_wire/dokime/v1/CatalogMessages/GetSuite/messages.proto\x1aOdokime_client/_wire/dokime/v1/CatalogMessages/GetTelemetrySchema/messages.proto\x1aNdokime_client/_wire/dokime/v1/CatalogMessages/ListRecordSchemas/messages.proto\x1aGdokime_client/_wire/dokime/v1/CatalogMessages/ListSuites/messages.proto\x1aQdokime_client/_wire/dokime/v1/CatalogMessages/ListTelemetrySchemas/messages.proto\"$\n\"CatalogGetRecordSchemaCancellation\"\x88\x02\n\x1e\x43\x61talogGetRecordSchemaRunInput\x12K\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.CatalogMessages.GetRecordSchema.Row1H\x00R\x07request\x12G\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32-.dokime.v1.CatalogGetRecordSchemaCancellationH\x00R\x06\x63\x61ncel\x12G\n\x06\x66inish\x18\x04 \x01(\x0b\x32-.dokime.v1.CatalogGetRecordSchemaCancellationH\x00R\x06\x66inishB\x07\n\x05value\"y\n\x1f\x43\x61talogGetRecordSchemaRunOutput\x12M\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.CatalogMessages.GetRecordSchema.Row2H\x00R\x08responseB\x07\n\x05value\"\x1d\n\x1b\x43\x61talogGetSuiteCancellation\"\xec\x01\n\x17\x43\x61talogGetSuiteRunInput\x12\x44\n\x07request\x18\x01 \x01(\x0b\x32(.dokime.v1.CatalogMessages.GetSuite.Row1H\x00R\x07request\x12@\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32&.dokime.v1.CatalogGetSuiteCancellationH\x00R\x06\x63\x61ncel\x12@\n\x06\x66inish\x18\x04 \x01(\x0b\x32&.dokime.v1.CatalogGetSuiteCancellationH\x00R\x06\x66inishB\x07\n\x05value\"k\n\x18\x43\x61talogGetSuiteRunOutput\x12\x46\n\x08response\x18\x02 \x01(\x0b\x32(.dokime.v1.CatalogMessages.GetSuite.Row2H\x00R\x08responseB\x07\n\x05value\"\'\n%CatalogGetTelemetrySchemaCancellation\"\x94\x02\n!CatalogGetTelemetrySchemaRunInput\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row1H\x00R\x07request\x12J\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x30.dokime.v1.CatalogGetTelemetrySchemaCancellationH\x00R\x06\x63\x61ncel\x12J\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x30.dokime.v1.CatalogGetTelemetrySchemaCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x7f\n\"CatalogGetTelemetrySchemaRunOutput\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row2H\x00R\x08responseB\x07\n\x05value\"&\n$CatalogListRecordSchemasCancellation\"\x90\x02\n CatalogListRecordSchemasRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.CatalogListRecordSchemasCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.CatalogListRecordSchemasCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!CatalogListRecordSchemasRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row2H\x00R\x08responseB\x07\n\x05value\"\x1f\n\x1d\x43\x61talogListSuitesCancellation\"\xf4\x01\n\x19\x43\x61talogListSuitesRunInput\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32*.dokime.v1.CatalogMessages.ListSuites.Row1H\x00R\x07request\x12\x42\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32(.dokime.v1.CatalogListSuitesCancellationH\x00R\x06\x63\x61ncel\x12\x42\n\x06\x66inish\x18\x04 \x01(\x0b\x32(.dokime.v1.CatalogListSuitesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"o\n\x1a\x43\x61talogListSuitesRunOutput\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.CatalogMessages.ListSuites.Row2H\x00R\x08responseB\x07\n\x05value\")\n\'CatalogListTelemetrySchemasCancellation\"\x9c\x02\n#CatalogListTelemetrySchemasRunInput\x12P\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row1H\x00R\x07request\x12L\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x32.dokime.v1.CatalogListTelemetrySchemasCancellationH\x00R\x06\x63\x61ncel\x12L\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x32.dokime.v1.CatalogListTelemetrySchemasCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x83\x01\n$CatalogListTelemetrySchemasRunOutput\x12R\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row2H\x00R\x08responseB\x07\n\x05value2\xe2\n\n\x07\x43\x61talog\x12s\n\x0fGetRecordSchema\x12/.dokime.v1.CatalogMessages.GetRecordSchema.Row1\x1a/.dokime.v1.CatalogMessages.GetRecordSchema.Row2\x12o\n\x12RunGetRecordSchema\x12).dokime.v1.CatalogGetRecordSchemaRunInput\x1a*.dokime.v1.CatalogGetRecordSchemaRunOutput(\x01\x30\x01\x12^\n\x08GetSuite\x12(.dokime.v1.CatalogMessages.GetSuite.Row1\x1a(.dokime.v1.CatalogMessages.GetSuite.Row2\x12Z\n\x0bRunGetSuite\x12\".dokime.v1.CatalogGetSuiteRunInput\x1a#.dokime.v1.CatalogGetSuiteRunOutput(\x01\x30\x01\x12|\n\x12GetTelemetrySchema\x12\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row1\x1a\x32.dokime.v1.CatalogMessages.GetTelemetrySchema.Row2\x12x\n\x15RunGetTelemetrySchema\x12,.dokime.v1.CatalogGetTelemetrySchemaRunInput\x1a-.dokime.v1.CatalogGetTelemetrySchemaRunOutput(\x01\x30\x01\x12y\n\x11ListRecordSchemas\x12\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row1\x1a\x31.dokime.v1.CatalogMessages.ListRecordSchemas.Row2\x12u\n\x14RunListRecordSchemas\x12+.dokime.v1.CatalogListRecordSchemasRunInput\x1a,.dokime.v1.CatalogListRecordSchemasRunOutput(\x01\x30\x01\x12\x64\n\nListSuites\x12*.dokime.v1.CatalogMessages.ListSuites.Row1\x1a*.dokime.v1.CatalogMessages.ListSuites.Row2\x12`\n\rRunListSuites\x12$.dokime.v1.CatalogListSuitesRunInput\x1a%.dokime.v1.CatalogListSuitesRunOutput(\x01\x30\x01\x12\x82\x01\n\x14ListTelemetrySchemas\x12\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row1\x1a\x34.dokime.v1.CatalogMessages.ListTelemetrySchemas.Row2\x12~\n\x17RunListTelemetrySchemas\x12..dokime.v1.CatalogListTelemetrySchemasRunInput\x1a/.dokime.v1.CatalogListTelemetrySchemasRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Catalog_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_CATALOG']._serialized_start=525
-  _globals['_CATALOG']._serialized_end=1231
+  _globals['_CATALOGGETRECORDSCHEMACANCELLATION']._serialized_start=524
+  _globals['_CATALOGGETRECORDSCHEMACANCELLATION']._serialized_end=560
+  _globals['_CATALOGGETRECORDSCHEMARUNINPUT']._serialized_start=563
+  _globals['_CATALOGGETRECORDSCHEMARUNINPUT']._serialized_end=827
+  _globals['_CATALOGGETRECORDSCHEMARUNOUTPUT']._serialized_start=829
+  _globals['_CATALOGGETRECORDSCHEMARUNOUTPUT']._serialized_end=950
+  _globals['_CATALOGGETSUITECANCELLATION']._serialized_start=952
+  _globals['_CATALOGGETSUITECANCELLATION']._serialized_end=981
+  _globals['_CATALOGGETSUITERUNINPUT']._serialized_start=984
+  _globals['_CATALOGGETSUITERUNINPUT']._serialized_end=1220
+  _globals['_CATALOGGETSUITERUNOUTPUT']._serialized_start=1222
+  _globals['_CATALOGGETSUITERUNOUTPUT']._serialized_end=1329
+  _globals['_CATALOGGETTELEMETRYSCHEMACANCELLATION']._serialized_start=1331
+  _globals['_CATALOGGETTELEMETRYSCHEMACANCELLATION']._serialized_end=1370
+  _globals['_CATALOGGETTELEMETRYSCHEMARUNINPUT']._serialized_start=1373
+  _globals['_CATALOGGETTELEMETRYSCHEMARUNINPUT']._serialized_end=1649
+  _globals['_CATALOGGETTELEMETRYSCHEMARUNOUTPUT']._serialized_start=1651
+  _globals['_CATALOGGETTELEMETRYSCHEMARUNOUTPUT']._serialized_end=1778
+  _globals['_CATALOGLISTRECORDSCHEMASCANCELLATION']._serialized_start=1780
+  _globals['_CATALOGLISTRECORDSCHEMASCANCELLATION']._serialized_end=1818
+  _globals['_CATALOGLISTRECORDSCHEMASRUNINPUT']._serialized_start=1821
+  _globals['_CATALOGLISTRECORDSCHEMASRUNINPUT']._serialized_end=2093
+  _globals['_CATALOGLISTRECORDSCHEMASRUNOUTPUT']._serialized_start=2095
+  _globals['_CATALOGLISTRECORDSCHEMASRUNOUTPUT']._serialized_end=2220
+  _globals['_CATALOGLISTSUITESCANCELLATION']._serialized_start=2222
+  _globals['_CATALOGLISTSUITESCANCELLATION']._serialized_end=2253
+  _globals['_CATALOGLISTSUITESRUNINPUT']._serialized_start=2256
+  _globals['_CATALOGLISTSUITESRUNINPUT']._serialized_end=2500
+  _globals['_CATALOGLISTSUITESRUNOUTPUT']._serialized_start=2502
+  _globals['_CATALOGLISTSUITESRUNOUTPUT']._serialized_end=2613
+  _globals['_CATALOGLISTTELEMETRYSCHEMASCANCELLATION']._serialized_start=2615
+  _globals['_CATALOGLISTTELEMETRYSCHEMASCANCELLATION']._serialized_end=2656
+  _globals['_CATALOGLISTTELEMETRYSCHEMASRUNINPUT']._serialized_start=2659
+  _globals['_CATALOGLISTTELEMETRYSCHEMASRUNINPUT']._serialized_end=2943
+  _globals['_CATALOGLISTTELEMETRYSCHEMASRUNOUTPUT']._serialized_start=2946
+  _globals['_CATALOGLISTTELEMETRYSCHEMASRUNOUTPUT']._serialized_end=3077
+  _globals['_CATALOG']._serialized_start=3080
+  _globals['_CATALOG']._serialized_end=4458
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

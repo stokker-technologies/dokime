@@ -257,6 +257,7 @@ impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
     const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
         timeout: A::TIMEOUT,
         attempt_timeout: A::TIMEOUT,
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: harmos::operations::RetryPolicy::Never,
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Public;

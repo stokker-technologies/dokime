@@ -20,8 +20,9 @@ use sysinfo::{Pid, System as Machine};
 
 // Local Imports
 // Third-Party Imports
-use crate::ObcPlugin;
-use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use crate::{Error, ObcPlugin};
+use dokime::harmos::ExecutionContext;
+use dokime::harmos::sidecar::{ObserverContext, Publisher};
 
 /* === Constants === */
 
@@ -59,15 +60,13 @@ pub enum Streams {
 
 /* === Implementations === */
 
-impl Default for System {
-    fn default() -> Self {
-        Self { machine: Machine::new() }
-    }
-}
-
 #[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<ObcPlugin>>) -> Result<(), PublishError> {
+    async fn initialize(_: &ExecutionContext) -> Result<Self, Error> {
+        Ok(Self { machine: Machine::new()? })
+    }
+
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<ObcPlugin>>) -> Result<(), Error> {
         self.machine.refresh_all();
         let system_cpu_percent = f64::from(self.machine.global_cpu_usage());
         let system_memory_used_bytes = integer(self.machine.used_memory());

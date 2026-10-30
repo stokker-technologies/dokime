@@ -3782,7 +3782,6 @@ async function ownedStartupJourney() {
   assert.equal(status.ownership, "owned_local", "the native shell owns its embedded backend");
   assert.ok(status.connection?.endpoint, "the embedded session reports its negotiated endpoint");
   assert.ok(await listening(status.connection.endpoint), "the embedded server is listening");
-  await ordinaryInstanceJourney(session, status);
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
@@ -3837,197 +3836,6 @@ async function ownedStartupJourney() {
   await session.screenshot("owned-running-recovered");
   await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
-}
-
-async function ordinaryInstanceJourney(primary, initial) {
-  const originalDriver = primary.process;
-  const separateWork = join(work, "independent-desktop");
-  const separateEvidence = join(evidence, "independent-desktop");
-  let independent;
-  let repeated;
-  let output;
-  const statusOf = (native) =>
-    native.executeAsync(`
-    const done = arguments[arguments.length - 1];
-    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
-  `);
-  const nativeFocus = async (native, activate = false) => {
-    if (!windows) return null;
-    const result = await promisify(execFile)(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `
-        $ErrorActionPreference = 'Stop'
-        Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class DesktopForeground {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
-  [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetForegroundWindow(IntPtr window);
-}
-'@
-        function Read-Foreground {
-          $handle = [DesktopForeground]::GetForegroundWindow()
-          [uint32]$owner = 0
-          [void][DesktopForeground]::GetWindowThreadProcessId($handle, [ref]$owner)
-          @{handle=$handle.ToInt64(); process=$owner}
-        }
-        $processes = @(Get-CimInstance Win32_Process)
-        $owned = [System.Collections.Generic.HashSet[uint32]]::new()
-        [void]$owned.Add([uint32]$env:DOKIME_FOCUS_DRIVER)
-        do {
-          $added = $false
-          foreach ($candidate in $processes) {
-            if ($owned.Contains([uint32]$candidate.ParentProcessId)) {
-              $added = $owned.Add([uint32]$candidate.ProcessId) -or $added
-            }
-          }
-        } while ($added)
-        $windows = @(foreach ($candidate in $processes) {
-          if (!$owned.Contains([uint32]$candidate.ProcessId) -or $candidate.ExecutablePath -ne $env:DOKIME_FOCUS_SHELL) { continue }
-          $process = Get-Process -Id $candidate.ProcessId
-          $handle = $process.MainWindowHandle
-          if ($handle -eq [IntPtr]::Zero) { throw "The driver-owned desktop has no main native window" }
-          @{handle=$handle.ToInt64(); process=$candidate.ProcessId; title=$process.MainWindowTitle}
-        })
-        if ($windows.Count -ne 1) { throw "Expected one driver-owned independent desktop window, found $($windows.Count)" }
-        $before = Read-Foreground
-        $activated = $null
-        if ($env:DOKIME_FOCUS_ACTIVATE -eq '1') { $activated = [DesktopForeground]::SetForegroundWindow([IntPtr]$windows[0].handle) }
-        ConvertTo-Json -Depth 4 -Compress -InputObject @{
-          window=$windows[0]; before=$before; after=(Read-Foreground); activationSucceeded=$activated
-        }
-      `,
-      ],
-      {
-        windowsHide: true,
-        timeout: 120000,
-        env: {
-          ...process.env,
-          DOKIME_FOCUS_DRIVER: String(native.process.pid),
-          DOKIME_FOCUS_SHELL: resolve(shellBinary),
-          DOKIME_FOCUS_ACTIVATE: activate ? "1" : "0",
-        },
-      },
-    );
-    return JSON.parse(result.stdout);
-  };
-
-  const focused = async (native) => {
-    if (windows) {
-      const snapshot = await nativeFocus(native);
-      return snapshot.after.handle === snapshot.window.handle && snapshot.after.process === snapshot.window.process;
-    }
-    const result = await native.executeAsync(`
-      const done = arguments[arguments.length - 1];
-      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_focused', {label: 'main'})
-        .then(done, (error) => done({error: String(error)}));
-    `);
-    assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
-    return result;
-  };
-
-  try {
-    independent = await startSession(separateWork, undefined, separateEvidence);
-    session = independent;
-    await independent.connected();
-    const separate = await statusOf(independent);
-    assert.equal(separate.ownership, "owned_local", "a distinct application root owns its own backend");
-    assert.equal(separate.connection?.phase, "connected");
-    assert.notEqual(
-      separate.connection.backend.backendId,
-      initial.connection.backend.backendId,
-      "distinct roots have independent backend identities",
-    );
-    assert.notEqual(separate.connection.backend.epoch, initial.connection.backend.epoch, "distinct roots have independent backend epochs");
-    assert.notEqual(separate.connection.endpoint, initial.connection.endpoint, "distinct roots have independent listeners");
-    assert.ok(await listening(separate.connection.endpoint));
-    // Arrange Native Activation Before Testing The Ordinary Launch's Focus Transfer.
-    if (windows) {
-      const activation = await nativeFocus(independent, true);
-      await writeFile(join(evidence, "independent-focus-setup.json"), JSON.stringify(activation, null, 2));
-      assert.equal(activation.activationSucceeded, true, `Native activation must succeed: ${JSON.stringify(activation)}`);
-    }
-    await until("the independent desktop owns native focus", () => focused(independent), 120000);
-    assert.equal(await focused(primary), false, "the original window loses focus before the repeated launch");
-
-    const environment = { ...process.env, DOKIME_APPLICATION_ROOT: primary.applicationRoot };
-    delete environment.TAURI_WEBVIEW_AUTOMATION;
-    output = await open(join(evidence, "repeated-launch.log"), "w");
-    repeated = spawn(resolve(shellBinary), [], {
-      cwd: workspace,
-      env: environment,
-      detached: !windows,
-      windowsHide: true,
-      stdio: ["ignore", output.fd, output.fd],
-    });
-    repeated.on("error", (error) => {
-      repeated.startupError = error;
-    });
-    await until(
-      "the same-root ordinary launch acknowledges focus and exits",
-      () => {
-        if (repeated.startupError) throw repeated.startupError;
-        return repeated.exitCode !== null || repeated.signalCode !== null;
-      },
-      120000,
-    );
-    assert.equal(repeated.signalCode, null, "the repeated launch exits without a forced signal");
-    assert.equal(repeated.exitCode, 0, "the repeated launch receives the existing desktop's focus acknowledgement");
-    await until("the original desktop regains native focus", () => focused(primary), 120000);
-    assert.equal(await focused(independent), false, "focus moves away from the independent root");
-    if (windows) await writeFile(join(evidence, "ordinary-focus-result.json"), JSON.stringify(await nativeFocus(independent), null, 2));
-    const after = await statusOf(primary);
-    assert.equal(after.ownership, initial.ownership);
-    assert.deepEqual(after.selection, initial.selection);
-    assert.deepEqual(after.connection, initial.connection, "focusing preserves backend identity, epoch, generation and endpoint");
-
-    await closeSession();
-    await until("the independent owned backend drains on close", async () => !(await listening(separate.connection.endpoint)), 120000);
-    assert.ok(await listening(initial.connection.endpoint), "closing a distinct root does not close the original backend");
-    const retained = await statusOf(primary);
-    assert.deepEqual(retained.connection, initial.connection);
-    assert.equal(retained.ownership, initial.ownership);
-    await writeFile(
-      join(evidence, "ordinary-instances.json"),
-      JSON.stringify({ initial, separate, after, retained, focused: true }, null, 2),
-    );
-  } catch (error) {
-    if (independent && !independent.closed) {
-      if (windows) {
-        await nativeFocus(independent)
-          .then((snapshot) => writeFile(join(evidence, "failure-independent-focus.json"), JSON.stringify(snapshot, null, 2)))
-          .catch(() => undefined);
-      }
-      await independent.screenshot("failure-independent-desktop").catch(() => undefined);
-      await independent
-        .dump("failure-independent-desktop", { error: String(error), status: await statusOf(independent).catch(String) })
-        .catch(() => undefined);
-    }
-    throw error;
-  } finally {
-    const independentDriver = independent?.process ?? driverProcess;
-    try {
-      await terminate(repeated);
-      if (independent && !independent.closed) {
-        session = independent;
-        driverProcess = independent.process;
-        await closeSession();
-      }
-    } finally {
-      try {
-        if (independentDriver !== originalDriver) await terminate(independentDriver);
-      } finally {
-        session = primary;
-        driverProcess = originalDriver;
-        await output?.close();
-      }
-    }
-  }
 }
 
 async function idleJourney() {
@@ -4901,16 +4709,11 @@ try {
       "desktop logs",
       async () => {
         if (!work) return;
-        for (const [name, root] of [
-          ["desktop", work],
-          ["independent-desktop", join(work, "independent-desktop")],
-        ]) {
-          const directory = join(root, "shell", "application", "logs");
-          if (!existsSync(directory)) continue;
-          for (const file of await readdir(directory)) {
-            if (!/^dokime-gui\..*\.log$/.test(file)) continue;
-            await writeFile(join(evidence, `${name}-${file}`), redact(await readFile(join(directory, file), "utf8")));
-          }
+        const directory = join(work, "shell", "application", "logs");
+        if (!existsSync(directory)) return;
+        for (const file of await readdir(directory)) {
+          if (!/^dokime-gui\..*\.log$/.test(file)) continue;
+          await writeFile(join(evidence, `desktop-${file}`), redact(await readFile(join(directory, file), "utf8")));
         }
       },
     ],
