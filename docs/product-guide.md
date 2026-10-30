@@ -1004,6 +1004,8 @@ Verified downloads are cached by SHA-256 under
 is rehashed; corrupted bytes are replaced only by a verified download. Feed v1
 and the old `release_url`/`sha256`, `[dokime] plugins` and
 `[[dokime.external_plugins]]` manifest keys are rejected.
+Manifest parse errors include the file path, TOML details and line/column;
+removed installer keys also include a hint for their replacement.
 `--artifacts <dir>` retains build-tree assembly without acquiring a distribution;
 when named release plugins are requested, their release feed is still resolved.
 Native installers are outputs and cannot substitute for a distribution archive.
@@ -1251,7 +1253,7 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 | Directory | Windows | Unix |
 | --- | --- | --- |
 | Application | `%LOCALAPPDATA%/<identifier>` | `${XDG_DATA_HOME:-$HOME/.local/share}/<identifier>` |
-| Data And Plugins | `<application>/data`, `<application>/plugins` | `<application>/data`, `<application>/plugins` |
+| Data And Plugins | `<application>/data`, `<application>/data/plugins` | `<application>/data`, `<application>/data/plugins` |
 | Logs | `<application>/logs` | `${XDG_STATE_HOME:-$HOME/.local/state}/<identifier>/logs` |
 | WebView | `<application>/EBWebView` | Engine profile beneath `<application>/webview` |
 
