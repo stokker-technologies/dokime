@@ -260,7 +260,13 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 /* === Tests === */
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    pub(crate) fn with_cpu(cpu: crate::host::cpu::sampling::Sampler) -> crate::Result<super::SystemCollector> {
+        let mut collector = super::SystemCollector::new()?;
+        collector.cpu = Some(cpu);
+        Ok(collector)
+    }
+
     #[test]
     fn concurrent_system_collection_and_controller_reads_preserve_cpu_sample() {
         use std::sync::{Arc, Mutex};

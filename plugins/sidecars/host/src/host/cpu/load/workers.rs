@@ -13,8 +13,7 @@
 
 /* === Imports === */
 
-use super::super::kernel::Kernel;
-use super::CpuLoadSettings;
+// Standard Library Imports
 use std::{
     sync::{
         Arc, Condvar, Mutex,
@@ -24,11 +23,11 @@ use std::{
     time::Instant,
 };
 
-// Standard Library Imports
-
 // Third Party Imports
 
 // Local Imports
+use super::super::kernel::Kernel;
+use super::CpuLoadSettings;
 
 /* === Constants === */
 
@@ -167,7 +166,8 @@ mod tests {
         workers.stop().unwrap();
         assert!(start.elapsed() < DEFAULT.settlement());
         let operations = workers.operations();
-        assert_eq!(operations % 65_536, 0);
+        let batch_operations = Kernel::new().batch();
+        assert_eq!(operations % batch_operations, 0);
         assert_eq!(workers.operations(), operations);
     }
 }

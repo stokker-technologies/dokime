@@ -56,7 +56,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
     description = "Native host telemetry collected through the supervised plugin boundary.",
     restart = "never",
     requires(dokime::harmos::builtins::streams::Publish, dokime::operations::effects::ReadEnvironment, dokime::operations::effects::PrepareEffect, dokime::operations::effects::ConfirmEffect),
-    contributions(dokime::RunStart<host::adapters::CaptureAdapters>, dokime::Evidence<host::Catalog>, dokime::Settings<plugin_host::Settings>),
+    contributions(dokime::RunStart<host::adapters::CaptureAdapters>, dokime::Evidence<host::Evidence>, dokime::Settings<plugin_host::Settings>),
     observers = host::observers::Observers
 )]
 impl dokime::Plugin for HostPlugin {

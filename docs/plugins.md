@@ -117,7 +117,7 @@ current machine and power state at startup. The method is beside `CpuLoad`.
 
 ### Closed-Loop CPU Load
 
-The `host-cpu-load` change adds the Public request
+The host plugin provides the Public request
 `plugin_host::host::cpu::load::LoadHold` (`host.cpu.load.hold`):
 
 ```rust
@@ -126,7 +126,7 @@ LoadHold { target: LoadTarget::Flops(1_000_000_000.0), threads: Some(2) }
 ```
 
 Finite percent targets lie in `(0,100]`; finite FLOP/s targets are positive.
-Zero workers is refused; `None` selects the available logical cores. Percent
+`threads: Option<u32>` accepts `1..=logical_cores`; `None` selects all available logical cores. Percent
 control includes other processes and only adds missing host load. FLOP/s control
 counts this generator's work; the OS exposes no system-wide floating-point counter.
 Unreachable targets saturate at zero or full duty rather than claiming success.
@@ -152,7 +152,8 @@ control timing and tuning. Plugin settings expose the CPU Load Control section:
 | `settlement_ms` | 2000 | Worker settlement budget |
 
 Sampling and slices must fit a controller period; settlement must cover a slice.
-The operation policy has no practical deadline and never retries. Actual elapsed
+The operation policy has no practical deadline and never retries. Its 60 s cancellation
+grace is defined beside the settings defaults; the settlement budget must fit that grace. Actual elapsed
 wall time determines counted FLOP/s and the duration-weighted mean and RMS error.
 The PI controller clamps duty to `[0,1]` and back-calculates integration on saturation.
 
@@ -161,16 +162,17 @@ percent or FLOP/s target/measurement columns, duty and generator FLOP/s. Columns
 have structured units and bracketed labels such as `Target [%]` and
 `Generator [FLOP/s]`; existing estimated load uses `Estimated CPU Load [GFLOP/s]`.
 
-The locked lifecycle is `.start()`, hold, then `cancel_and_join()` returning
-`LoadSummary { target, mean, error_rms, duration_s }`. Dokime's step/run handle
+Use the runtime invocation builder’s `.start()`, hold, then `.cancel().await?` to stop and join, returning
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Dokime's step/run handle
 sweep cancels forgotten handles; native drop cleanup also stops and joins workers.
 No effect-journal inverse is needed: stopping restores CPU use and process death
 cannot leave generation running or persistent native state changed.
 
-The pinned Harmos revision currently lacks cooperative cancellation with a response
-and portable `u16` support. Public dispatch and the cancellation-summary promise
-remain pending those upstream capabilities; the control core alone does not prove them.
-The OBC Checks template `obc.checks.cpu_load` records the intended consumer sequence.
+`mean` and `error_rms` use the selected target's units; `samples` counts measured
+intervals, including the final partial interval. Cancellation during publication
+also settles the workers and returns the final summary. The OBC Checks template
+`obc.checks.cpu_load` demonstrates the complete consumer sequence using the
+step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
 
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and

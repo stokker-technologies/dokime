@@ -23,19 +23,19 @@ pub use config::CpuLoadSettings;
 
 /* === Imports === */
 
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
-
 // Standard Library Imports
 
 // Third Party Imports
+use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 
 // Local Imports
 
 /* === Constants === */
 
 pub const POLICY: OperationPolicy = OperationPolicy {
-    timeout: std::time::Duration::from_secs(1 << 32),
-    attempt_timeout: std::time::Duration::from_secs(1 << 32),
+    timeout: config::HOLD_BUDGET,
+    attempt_timeout: config::HOLD_BUDGET,
+    cancellation_timeout: config::CANCELLATION_GRACE,
     retries: RetryPolicy::Never,
 };
 
@@ -45,11 +45,13 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 
 /* === Structs === */
 
-#[dokime::operation(id = "host.cpu.load.hold", response = LoadSummary, policy = POLICY, visibility = Public)]
+#[dokime::operation(id = "host.cpu.load.hold", response = LoadSummary, policy = POLICY, visibility = Public,
+    resources = [tokio::sync::Mutex<super::super::system::State>, CpuLoadSettings],
+    operations = [dokime::harmos::builtins::streams::Publish])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoadHold {
     pub target: LoadTarget,
-    pub threads: Option<u16>,
+    pub threads: Option<u32>,
 }
 
 #[dokime::message]
@@ -59,6 +61,7 @@ pub struct LoadSummary {
     pub mean: f64,
     pub error_rms: f64,
     pub duration_s: f64,
+    pub samples: u64,
 }
 
 #[dokime::stream(
@@ -132,6 +135,15 @@ impl LoadTarget {
     }
 }
 impl LoadHold {
+    pub fn worker_count(&self, logical_cores: usize) -> crate::Result<usize> {
+        self.validate()?;
+        let count = self.threads.map(|count| count as usize).unwrap_or(logical_cores);
+        if count == 0 || count > logical_cores {
+            return Err(crate::Error::Probe("CPU worker count must fit the available logical cores".into()));
+        }
+        Ok(count)
+    }
+
     pub fn validate(&self) -> crate::Result<()> {
         self.target.validate()?;
         if self.threads == Some(0) {
@@ -140,24 +152,6 @@ impl LoadHold {
         Ok(())
     }
 }
-impl LoadControl {
-    pub(crate) fn measured(target: LoadTarget, measured: f64, duty: f64, generator_flops: f64) -> Self {
-        let (mode, target_percent, measured_percent, target_flops, measured_flops) = match target {
-            LoadTarget::Percent(value) => ("percent", Some(value), Some(measured), None, None),
-            LoadTarget::Flops(value) => ("flops", None, None, Some(value), Some(measured)),
-        };
-        Self {
-            mode: mode.into(),
-            target_percent,
-            measured_percent,
-            target_flops,
-            measured_flops,
-            duty_percent: duty * 100.0,
-            generator_flops,
-        }
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
@@ -171,7 +165,6 @@ mod tests {
         Message,
         operations::{OperationDeclaration, Visibility},
     };
-    use dokime::telemetry::TelemetryRow;
     #[test]
     fn validates_percent_flops_and_workers() {
         for target in [LoadTarget::Percent(0.01), LoadTarget::Percent(100.0), LoadTarget::Flops(1.0)] {
@@ -184,23 +177,16 @@ mod tests {
             assert!(LoadTarget::Percent(value).validate().is_err());
             assert!(LoadTarget::Flops(value).validate().is_err());
         }
+        let request = LoadHold {
+            target: LoadTarget::Percent(50.0),
+            threads: None,
+        };
+        assert_eq!(request.worker_count(4).unwrap(), 4);
+        assert_eq!(LoadHold { threads: Some(2), ..request.clone() }.worker_count(4).unwrap(), 2);
+        assert!(LoadHold { threads: Some(5), ..request.clone() }.worker_count(4).is_err());
+        assert!(LoadHold { threads: Some(u32::MAX), ..request }.worker_count(4).is_err());
         assert!(LoadTarget::Percent(100.01).validate().is_err());
         assert_eq!(LoadHold::ID, "host.cpu.load.hold");
         assert_eq!(LoadHold::VISIBILITY, Visibility::Public);
-    }
-    #[test]
-    fn evidence_preserves_units_and_target_mode() {
-        for target in [LoadTarget::Percent(30.0), LoadTarget::Flops(123.0)] {
-            let row = LoadControl::measured(target, 20.0, 0.25, 123.0);
-            assert_eq!(row.duty_percent, 25.0);
-            assert_eq!(row.target_percent.is_some(), matches!(target, LoadTarget::Percent(_)));
-            assert_eq!(row, LoadControl::decode(&row.encode()).unwrap());
-        }
-        for column in LoadControl::columns().into_iter().filter(|column| column.unit.is_some()) {
-            let unit = column.unit.unwrap();
-            assert!(column.metadata.label.ends_with(&format!("[{}]", unit.symbol)));
-        }
-        assert_eq!(LoadTarget::Percent(25.0).approximate_flops(4.0), 1_000_000_000.0);
-        assert_eq!(LoadTarget::Flops(1_000_000_000.0).approximate_percent(4.0), 25.0);
     }
 }

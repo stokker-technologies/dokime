@@ -19,4 +19,4 @@ Owner design locked on 2026-10-30, including the shared-sampling amendment.
 `plugin-host` owns definitions, settings, native workers, sampling and controller evidence.
 `plugin-obc` consumes the Public contract. Existing estimated system GFLOP/s remains an approximation.
 No system-wide FLOP counter, storage migration, effect inverse, push or PR is included.
-Pinned Harmos currently aborts attempts on cancellation; preserving the summary response requires an upstream capability decision.
+Owner resume adopts Harmos 4e2669fa typed cancellation responses and portable `Option<u32>` threads.

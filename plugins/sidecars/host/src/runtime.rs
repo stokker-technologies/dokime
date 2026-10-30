@@ -56,6 +56,7 @@ impl Resources {
         let settings = dokime::plugin::refusal(settings)?;
         dokime::plugin::refusal(settings.cpu_load.validate())?;
         let sampling_period = settings.cpu_load.sample_period();
+        setup.resource::<host::cpu::load::CpuLoadSettings>(settings.cpu_load);
         let options = HostOptions::from(settings.probes);
 
         let controls = Arc::new(host::controls::State::new(P::ID));

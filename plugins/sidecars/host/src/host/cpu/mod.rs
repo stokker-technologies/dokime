@@ -46,7 +46,7 @@ pub(crate) use runtime::calibrate;
 // The Kernel Stops At Half This Operation's Attempt Budget; Release And Debug
 // Builds Calibrate Their Own Compiled Kernel On The Current Machine.
 #[dokime::operation(id = "host.cpu.load", response = Load, policy = super::system::POLICY, visibility = Public,
-    resources = [tokio::sync::Mutex<super::system::State>, crate::Workers])]
+    resources = [tokio::sync::Mutex<super::system::State>])]
 #[derive(Clone, Default, PartialEq)]
 pub struct CpuLoad {}
 

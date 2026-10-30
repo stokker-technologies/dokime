@@ -13,13 +13,12 @@
 
 /* === Imports === */
 
-use super::{CpuLoadSettings, LoadSummary, LoadTarget};
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+use super::{CpuLoadSettings, LoadSummary, LoadTarget};
 
 /* === Constants === */
 
@@ -38,6 +37,7 @@ pub(super) struct Summary {
     mean: f64,
     error_rms: f64,
     elapsed: f64,
+    samples: u64,
 }
 
 /* === Enums === */
@@ -70,6 +70,7 @@ impl Summary {
             mean: 0.0,
             error_rms: 0.0,
             elapsed: 0.0,
+            samples: 0,
         }
     }
     pub(super) fn record(&mut self, measured: f64, elapsed_s: f64) {
@@ -78,9 +79,10 @@ impl Summary {
         }
         let elapsed = self.elapsed + elapsed_s;
         let weight = elapsed_s / elapsed;
-        self.mean = self.mean * (1.0 - weight) + measured * weight;
+        self.mean += (measured - self.mean) * weight;
         self.error_rms = (self.error_rms * (1.0 - weight).sqrt()).hypot((measured - self.target.value()).abs() * weight.sqrt());
         self.elapsed = elapsed;
+        self.samples += 1;
     }
     pub(super) fn finish(self) -> LoadSummary {
         LoadSummary {
@@ -88,6 +90,7 @@ impl Summary {
             mean: self.mean,
             error_rms: if self.elapsed > 0.0 { self.error_rms } else { self.target.value() },
             duration_s: self.elapsed,
+            samples: self.samples,
         }
     }
 }
@@ -104,14 +107,27 @@ mod tests {
     use super::*;
     #[test]
     fn simulated_plant_converges_in_both_modes() {
+        use crate::host::cpu::{
+            Load,
+            sampling::tests::{fixed, update},
+        };
         for (target, capacity, background) in [(LoadTarget::Percent(60.0), 100.0, 20.0), (LoadTarget::Flops(400.0), 1000.0, 0.0)] {
+            let sampler = fixed(Load::measured(capacity / 1_000_000_000.0, background));
+            let source = sampler.source();
             let mut controller = Controller::new(DEFAULT);
-            let mut measured = background;
+            let mut plant = background;
+            let mut flops = 0.0;
             for _ in 0..400 {
+                let measured = match target {
+                    LoadTarget::Percent(_) => source.read().unwrap().utilization_percent,
+                    LoadTarget::Flops(_) => flops,
+                };
                 let duty = controller.update((target.value() - measured) / capacity, DEFAULT.period().as_secs_f64());
-                measured += (background + capacity * duty - measured) * 0.4;
+                plant += (background + capacity * duty - plant) * 0.4;
+                flops = plant;
+                update(&sampler, Load::measured(capacity / 1_000_000_000.0, plant));
             }
-            assert!((measured - target.value()).abs() < capacity * 0.01, "{target:?}: {measured}");
+            assert!((plant - target.value()).abs() < capacity * 0.01, "{target:?}: {plant}");
         }
     }
     #[test]
@@ -138,6 +154,7 @@ mod tests {
         assert_eq!(result.mean, 55.0);
         assert!((result.error_rms - 10.0).abs() < 0.000_001);
         assert_eq!(result.duration_s, 4.0);
+        assert_eq!(result.samples, 2);
         assert!(Summary::new(LoadTarget::Flops(1.0)).finish().error_rms.is_finite());
         let mut extreme = Summary::new(LoadTarget::Flops(f64::MAX));
         extreme.record(0.0, 1.0);

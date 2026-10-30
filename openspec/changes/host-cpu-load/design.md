@@ -3,18 +3,19 @@
 ## Locked Contract
 
 ```rust
-pub struct LoadHold { pub target: LoadTarget, pub threads: Option<u16> }
+pub struct LoadHold { pub target: LoadTarget, pub threads: Option<u32> }
 pub enum LoadTarget { Percent(f64), Flops(f64) }
 pub struct LoadSummary {
     pub target: LoadTarget,
     pub mean: f64,
     pub error_rms: f64,
     pub duration_s: f64,
+    pub samples: u64,
 }
 ```
 
 `host.cpu.load.hold` is Public. Finite percent targets are in `(0, 100]`;
-finite FLOP/s targets are positive. Zero threads is refused; absent threads uses logical cores.
+finite FLOP/s targets are positive. Thread counts outside `1..=logical_cores` are refused; absent threads uses logical cores.
 Targets beyond available capacity saturate rather than claiming convergence.
 Mean and RMS error use the selected variable's units, weighted by measured interval duration.
 
@@ -37,6 +38,8 @@ All controller timing, gains, bounds and settlement deadlines belong to one docu
 The operation policy owns the long-running deadline; retries are disabled.
 `host.cpu.load.control` publishes target, measured variable, duty and generator FLOP/s each period.
 Separate nullable percent/FLOP/s columns keep structured units unambiguous within one stream.
+One Evidence catalog combines collected streams with control rows: the contribution namespace
+is unique, while collection operations retain their existing executable catalog.
 
 ## Lifecycle
 
@@ -48,13 +51,12 @@ and process death cannot leave CPU generation running or durable native state al
 
 ## Dependency Decision
 
-At pinned Harmos `9287b860842b1e33b7e6421a00780b8a33f3fe20`, `Context` has no cancellation signal.
-The sidecar reply loop drops the attempt future on cancellation and sends Finished without a payload.
-A local drop guard can restore CPU use but cannot return the locked summary to the caller.
-The pinned portable traits also omit `u16`: PostcardValue, MemorySize and Described are absent,
-so the exact locked `Option<u16>` request needs primitive support upstream as well.
-Upstream cooperative cancellation or an explicitly approved summary-evidence contract is required.
-Implementation must not claim drop cleanup proves cancellation returns a summary.
+Harmos `4e2669fa` supplies `Context::cancelled()` and typed final cancellation responses.
+The owner approved portable `Option<u32>` instead of unsupported `u16` on resume.
+The handler observes cancellation while waiting, controlling and publishing; worker drop joins
+all native threads even if the attempt is forcibly dropped. The policy grace is owned by the
+configuration module; the configurable settlement budget must fit that grace.
+Summary `samples` counts measured intervals, including the final partial interval.
 
 ## Validation Boundary
 

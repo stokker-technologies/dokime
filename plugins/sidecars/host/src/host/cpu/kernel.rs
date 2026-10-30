@@ -13,9 +13,8 @@
 
 /* === Imports === */
 
-use std::{hint::black_box, time::Instant};
-
 // Standard Library Imports
+use std::{hint::black_box, time::Instant};
 
 // Third Party Imports
 
@@ -76,9 +75,17 @@ impl Kernel {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn counts_two_operations_per_fma() {
+    fn counted_work_matches_accumulator_evolution() {
         let mut kernel = super::Kernel::new();
-        assert_eq!(kernel.batch(), 65_536);
-        assert_eq!(kernel.batch(), 65_536);
+        for _ in 0..2 {
+            let before = kernel.values[0];
+            let operations = kernel.batch();
+            let operations_per_iteration = kernel.values.len() as u64 * 2;
+            assert!(operations > 0);
+            assert_eq!(operations % operations_per_iteration, 0);
+            let iterations = operations / operations_per_iteration;
+            let expected = (0..iterations).fold(before, |value, _| value.mul_add(kernel.multiplier, kernel.addend));
+            assert_eq!(kernel.values, [expected; 8]);
+        }
     }
 }

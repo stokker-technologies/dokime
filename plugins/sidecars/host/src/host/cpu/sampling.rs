@@ -13,17 +13,16 @@
 
 /* === Imports === */
 
-use super::Load;
+// Standard Library Imports
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
-use sysinfo::{CpuRefreshKind, System};
-
-// Standard Library Imports
 
 // Third Party Imports
+use sysinfo::{CpuRefreshKind, System};
 
 // Local Imports
+use super::Load;
 
 /* === Constants === */
 
@@ -67,8 +66,8 @@ impl Sampler {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let stopping = stop.clone();
         // Only This Thread Refreshes CPU Deltas. Consumers Read A Completed Window.
-        let mut system = System::new();
-        system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
+        let mut system = System::new().map_err(|error| crate::Error::Probe(error.to_string()))?;
+        system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
         let worker = std::thread::Builder::new()
             .name("host-cpu-sampler".into())
             .spawn(move || {
@@ -83,11 +82,14 @@ impl Sampler {
                         break;
                     }
                     drop(stopped);
-                    system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
+                    system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
                     let utilization = f64::from(system.global_cpu_usage()).clamp(0.0, 100.0);
                     *target.latest.write().unwrap_or_else(std::sync::PoisonError::into_inner) =
                         Load::measured(capacity_gflops, utilization);
-                    deadline = Instant::now() + period;
+                    deadline += period;
+                    if deadline <= Instant::now() {
+                        deadline = Instant::now() + period;
+                    }
                 }
             })
             .map_err(|error| crate::Error::Probe(error.to_string()))?;
@@ -117,6 +119,9 @@ impl Drop for Sampler {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    pub(crate) fn update(sampler: &Sampler, load: Load) {
+        *sampler.source.latest.write().unwrap() = load;
+    }
     pub(crate) fn fixed(load: Load) -> Sampler {
         Sampler {
             source: Source { latest: Arc::new(RwLock::new(load)) },

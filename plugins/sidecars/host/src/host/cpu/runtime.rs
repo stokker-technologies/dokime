@@ -38,9 +38,8 @@ use super::{CpuLoad, Load};
 impl dokime::harmos::Operation for CpuLoad {
     type Error = dokime::prelude::Refusal;
     async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::Response<Load>, Self::Error> {
-        let state = ctx.resource::<tokio::sync::Mutex<super::super::system::State>>().clone();
-        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || state.blocking_lock().collector.cpu_load());
-        let load = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
+        let state = ctx.resource::<tokio::sync::Mutex<super::super::system::State>>();
+        let load = dokime::plugin::refusal(state.lock().await.collector.cpu_load())?;
         Ok(dokime::harmos::Response::new(load))
     }
 }

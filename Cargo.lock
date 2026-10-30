@@ -6977,6 +6977,7 @@ version = "0.1.2"
 dependencies = [
  "dokime",
  "dokime-domain",
+ "harmos-sdk",
  "libc",
  "serde",
  "serde_json",

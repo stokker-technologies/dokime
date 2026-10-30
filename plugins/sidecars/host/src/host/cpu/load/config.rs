@@ -13,15 +13,18 @@
 
 /* === Imports === */
 
-use std::time::Duration;
-
 // Standard Library Imports
+use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
+// Static Operation Deadlines; Runtime Settlement Must Fit The Cancellation Grace.
+pub const HOLD_BUDGET: Duration = Duration::from_secs(1 << 32);
+pub const CANCELLATION_GRACE: Duration = Duration::from_secs(60);
 
 pub const DEFAULT: CpuLoadSettings = CpuLoadSettings {
     period_ms: 250,
@@ -85,11 +88,12 @@ impl CpuLoadSettings {
             || self.sample_ms == 0
             || self.slice_ms == 0
             || self.settlement_ms < self.slice_ms
+            || self.settlement() > CANCELLATION_GRACE
             || self.sample_ms > self.period_ms
             || self.slice_ms > self.period_ms
         {
             return Err(crate::Error::Probe(
-                "CPU timing must be positive; sampling and slices must fit a control period and settlement must cover a slice".into(),
+                "CPU timing must be positive; sampling and slices must fit a control period; settlement must cover a slice and fit the cancellation grace".into(),
             ));
         }
         if !self.proportional_gain.is_finite()
@@ -139,6 +143,7 @@ mod tests {
                 ..DEFAULT
             },
             CpuLoadSettings { settlement_ms: 1, ..DEFAULT },
+            CpuLoadSettings { settlement_ms: u32::MAX, ..DEFAULT },
             CpuLoadSettings { proportional_gain: f64::NAN, ..DEFAULT },
             CpuLoadSettings { integral_max: -1.0, ..DEFAULT },
         ] {

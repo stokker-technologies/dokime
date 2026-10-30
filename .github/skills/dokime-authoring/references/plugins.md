@@ -70,19 +70,22 @@ Cancellation must retain native work and its serialization gate until it settles
 `LoadControl` and `CpuLoadSettings`. The locked Public operation is
 `host.cpu.load.hold`; preserve existing `host.cpu.load` as the capacity/load query.
 Use finite `LoadTarget::Percent(value)` in `(0,100]` or positive finite
-`LoadTarget::Flops(value)`; `threads: None` selects logical cores and zero is refused.
+`LoadTarget::Flops(value)`; `threads: Option<u32>` selects logical cores when absent; explicit counts must fit `1..=logical_cores`.
 One shared CPU sampling owner serves telemetry and control; consumers never refresh
 CPU deltas. Reuse the calibrated kernel/capacity rather than adding another peak probe.
 Controller evidence uses distinct `host.cpu.load.control`, structured units and
 `Label [unit]` labels. Percent feedback counts the whole host; FLOP/s counts only
 this generator. Timing and gains belong to the CPU Load Control settings section.
 
-The intended suite sequence is `.start()`, hold, `cancel_and_join()` returning a
-summary. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
-so no durable effect inverse is needed. The pinned Harmos revision lacks cooperative
-cancellation responses and portable `u16`; do not claim the locked dispatch contract
-is usable until those capabilities land and focused dispatch tests pass. See
-`docs/plugins.md` and the tracked `host-cpu-load` change for this dependency decision.
+Start a suite handle with `ctx.host().submit::<LoadHold>(request).await?` (the
+scoped equivalent of the runtime builder’s `.start()`), hold, then `.cancel().await?` for a typed
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
+so no durable effect inverse is needed. The handler uses Harmos cooperative
+cancellation and returns the final summary within its configured policy grace.
+Use the host CPU control stream as evidence in the consuming template. Combine
+its row with the collected streams in one `Evidence` contribution; collection
+operations remain in their executable catalog.
+
 ## Shared Secrets
 
 ```rust

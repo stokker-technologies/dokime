@@ -8,7 +8,7 @@ The host plugin SHALL provide Public `host.cpu.load.hold` accepting one `LoadHol
 - **THEN** the request is accepted and an absent worker count uses logical cores
 
 #### Scenario: Invalid Request
-- **WHEN** a target is nonfinite, zero, negative, above 100 percent or threads is zero
+- **WHEN** a target is nonfinite, zero, negative, above 100 percent or threads is outside `1..=logical_cores`
 - **THEN** the operation refuses before starting workers
 
 ### Requirement: Counted Closed-Loop Work
@@ -37,7 +37,7 @@ The host SHALL publish each control period on `host.cpu.load.control` with targe
 - **THEN** evidence identifies the mode and represents values in the corresponding structured units
 
 ### Requirement: Cancellation Restores CPU Use
-Cancelling the operation handle SHALL promptly stop all workers and return `LoadSummary` with target, achieved mean, RMS error and duration in seconds.
+Cancelling the operation handle SHALL promptly stop all workers and return `LoadSummary` with target, achieved mean, RMS error, duration in seconds and measured interval count.
 
 #### Scenario: Cancel And Join
 - **WHEN** a caller starts a hold, waits and cancels its handle
