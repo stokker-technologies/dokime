@@ -877,6 +877,24 @@ The advanced collection path and `sidecar package` do not invoke the compiler.
 The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
 
+### Plugin Schema Budgets
+
+`dokime::config::schema_defaults()` in `crates/dokime-runtime/src/config/schema.rs`
+owns plugin metadata preparation allowances. Packaging, installer verification,
+bundle inspection, plugin store installation and native admission use these
+defaults, including GUI uploads through the backend plugin store.
+The finite memory allowance is 64 times `INSTALL_ARCHIVE_MAX_BYTES`; the work
+allowance is 16 times that limit. They cover encoded metadata decoding, fragment
+overhead and shared contract schema resolution. These are accounting ceilings,
+not memory allocations made up front. Bundle and individual fragment size limits
+still apply independently.
+
+Embedding applications can set `Config.schema` or `RuntimeConfig.schema` to
+stricter allowances; the same settings reach inspection, installation and
+executable admission. Refusals identify the plugin and the exhausted memory or
+work allowance, with attempted usage and the allowed amount. Reduce the plugin's
+metadata or increase the embedding application's schema allowance to admit it.
+
 ### Native Installers
 
 | Command | Purpose | Key Flags |
