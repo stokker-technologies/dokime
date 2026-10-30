@@ -1120,94 +1120,6 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     assert!(summary["sample_count"].as_u64().is_some_and(|count| count >= STEADY_SAMPLE_COUNT));
 }
 
-async fn scene_reports(client: &Client, changes: &mut Changes) {
-    let mut catalog = client.clone();
-    let steady = suite(&mut catalog, STEADY_SUITE).await;
-    let template = steady
-        .templates
-        .iter()
-        .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STEADY_TEMPLATE))
-        .expect("steady template is registered");
-    let mut plan = selection(
-        STEADY_SUITE,
-        &template.template_id,
-        [
-            ("ac_voltage_v", number(230.0)),
-            ("load_ohm", number(100.0)),
-            ("frequency_hz", number(1.0)),
-            ("duration_s", number(0.2)),
-            ("sample_interval_s", number(0.1)),
-        ],
-    );
-    for parameter in &mut plan.selections[0].parameters {
-        let values = match parameter.key.as_str() {
-            "ac_voltage_v" => vec![number(220.0), number(230.0), number(240.0)],
-            "load_ohm" => vec![number(50.0), number(100.0), number(200.0)],
-            _ => continue,
-        };
-        parameter.value.as_mut().unwrap().values = values;
-    }
-    let mut planning = client.clone();
-    let mut execution = client.clone();
-    let cycle_id = create_cycle(&mut planning, &mut execution, plan, "obc.charger.steady.reports", 9).await;
-    execution
-        .call(contracts::execution::UpdateCyclePolicy {
-            cycle_id: cycle_id.clone(),
-            continue_automatically: true,
-            context: None,
-        })
-        .await
-        .unwrap();
-    run_cycle(&mut execution, &cycle_id).await;
-
-    // Answer Every Case, Then Explicitly Seal The Completed Container.
-    let prompts = client.clone();
-    on_change(changes, "steady report sweep completion", async || {
-        let pending = prompts
-            .call(contracts::prompts::ListPending {
-                cycle_id: Some(cycle_id.clone()),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        for prompt in pending.prompts {
-            prompts
-                .call(contracts::prompts::Respond {
-                    prompt_id: prompt.prompt_id,
-                    action: "submit".into(),
-                    values: Some(value_object([("operator_note", text("steady-report-sweep")), ("accepted", boolean(true))])),
-                    accepted: true,
-                    ..Default::default()
-                })
-                .await
-                .unwrap();
-        }
-        let cycle = execution.call(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
-        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
-            result.status,
-            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
-        )));
-        (cycle.status == model::execution::wire::CycleStatus::Ready
-            && cycle.running_count == 0
-            && cycle.queued_count == 0
-            && passed(&cycle))
-        .then_some(())
-    })
-    .await;
-    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
-    execution.cycle(id).seal().await.unwrap();
-    let executions = execution
-        .call(contracts::execution::ListExecutions {
-            cycle_id: cycle_id.clone(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .executions;
-    assert_eq!(executions.len(), 9);
-    assert!(executions.iter().all(|execution| execution.sealed), "all nine execution reports seal before the cycle report: {executions:?}");
-}
-
 /* === Tests === */
 
 // The Plugin-And-Host Walkthrough Over The Built Bundle Is One Story Of Independently Runnable
@@ -1233,14 +1145,6 @@ async fn startup() {
 async fn steady_sweep() {
     let mut session = Session::ready().await;
     scene_steady_sweep(&session.client.clone(), &mut session.changes).await;
-    session.stop().await;
-}
-
-// A Nine-Case Sweep Seals Every Execution Report Before Its Cycle Report.
-#[tokio::test]
-async fn reports() {
-    let mut session = Session::ready().await;
-    scene_reports(&session.client.clone(), &mut session.changes).await;
     session.stop().await;
 }
 
@@ -1342,7 +1246,6 @@ async fn walkthrough() {
     Box::pin(scene_development_session(&mut session)).await;
     Box::pin(scene_startup(&mut session)).await;
     Box::pin(scene_steady_sweep(&session.client.clone(), &mut session.changes)).await;
-    Box::pin(scene_reports(&session.client.clone(), &mut session.changes)).await;
     Box::pin(scene_open_report_while_cycle_runs(&mut session)).await;
     Box::pin(scene_remote_scripts(&mut session)).await;
     Box::pin(scene_interruptions(&mut session)).await;

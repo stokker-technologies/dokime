@@ -42,7 +42,8 @@ use dokime_runtime::{TestCycleId, TestExecutionId, Value};
 const STEADY_SUITE: &str = "obc.charger.steady";
 
 const STEADY_DURATION_S: f64 = 0.5;
-const SETTLE: Duration = Duration::from_secs(600);
+const SETTLE: Duration = <MaterializeReport as harmos::OperationDeclaration>::POLICY.timeout;
+const LARGE_CYCLE_COPIES: usize = 32;
 const POLL: Duration = Duration::from_millis(20);
 
 /* === Macros === */
@@ -66,9 +67,9 @@ struct MaterializationFixture {
 /* === Implementations === */
 
 impl MaterializationFixture {
-    async fn new(concurrency: usize, duration: f64) -> Self {
+    async fn new(concurrency: usize, duration: f64, copies: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let (owner, runtime, cycle, _) = started_cycle(root.path(), concurrency, duration).await;
+        let (owner, runtime, cycle, _) = started_cycle(root.path(), concurrency, duration, copies).await;
         let execution =
             tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
         let at = runtime.storage().flush().await.unwrap();
@@ -95,11 +96,8 @@ impl MaterializationFixture {
 /* === Public Functions === */
 
 pub fn benchmark(criterion: &mut Criterion) {
-    let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
-    if std::env::var_os("DOKIME_REPORT_MEASURE_COPIES").is_some() {
-        executor.block_on(large_cycle_save_measurement());
-        return;
-    }
+    let executor = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    large_cycle_saves(criterion, &executor);
     fresh_materialization(criterion, &executor);
     let root = tempfile::tempdir().unwrap();
     let (mut owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
@@ -125,53 +123,74 @@ pub fn benchmark(criterion: &mut Criterion) {
 
 /* === Private Functions === */
 
-async fn large_cycle_save_measurement() {
-    let mut fixture = MaterializationFixture::new(4, STEADY_DURATION_S).await;
-    measure_cycle_save(&fixture.runtime, &fixture.cycle, "current").await;
-    fixture.runtime.seal_cycle(fixture.cycle.clone(), CommandContext::default()).await.unwrap();
-    measure_cycle_save(&fixture.runtime, &fixture.cycle, "sealed").await;
-    drop(fixture.runtime);
-    fixture.owner.shutdown().await.unwrap();
+fn large_cycle_saves(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
+    let mut group = criterion.benchmark_group("report_saves_large_cycle");
+    group.sampling_mode(SamplingMode::Flat);
+    for state in ["current", "sealed"] {
+        let mut fixture: Option<MaterializationFixture> = None;
+        group.bench_function(BenchmarkId::new(state, LARGE_CYCLE_COPIES), |bencher| {
+            let fixture = fixture.get_or_insert_with(|| {
+                let mut fixture = executor.block_on(MaterializationFixture::new(4, STEADY_DURATION_S, LARGE_CYCLE_COPIES));
+                fixture.request.subject = model::reports::wire::ReportSubject::Cycle(fixture.cycle.to_string());
+                if state == "sealed" {
+                    executor.block_on(fixture.runtime.seal_cycle(fixture.cycle.clone(), CommandContext::default())).unwrap();
+                    fixture.request.at = executor.block_on(fixture.runtime.storage().flush()).unwrap();
+                }
+                fixture
+            });
+            bencher.iter_custom(|iterations| {
+                executor.block_on(async {
+                    let mut elapsed = Duration::ZERO;
+                    for _ in 0..iterations {
+                        elapsed += save_cycle(&fixture.runtime, &fixture.request).await;
+                    }
+                    elapsed
+                })
+            });
+        });
+        if let Some(fixture) = fixture {
+            executor.block_on(fixture.close());
+        }
+    }
+    group.finish();
 }
 
-async fn measure_cycle_save(runtime: &RuntimeHandle, cycle: &TestCycleId, dataset: &str) {
+async fn save_cycle(runtime: &RuntimeHandle, request: &MaterializeReport) -> Duration {
     let output = tempfile::tempfile().unwrap();
     let mut writer = BufWriter::with_capacity(1024 * 1024, output);
     let started = Instant::now();
-    let mut report = runtime.open_cycle_report(cycle).await.unwrap();
-    let opened = started.elapsed();
-    let mut first_byte = None;
+    let report = runtime
+        .operations()
+        .call::<MaterializeReport>(MaterializeReport {
+            subject: request.subject.clone(),
+            at: request.at.clone(),
+        })
+        .await
+        .unwrap();
+    let mut reader = runtime
+        .storage()
+        .read_file(harmos::storage::FileRead {
+            source: harmos::storage::FileSource::Stored(report.report.clone()),
+            range: harmos::storage::ByteRange { offset: 0, limit: None },
+        })
+        .await
+        .unwrap();
     let mut bytes = 0_u64;
-    let mut peak_batch = 0_usize;
     let mut digest = Sha256::new();
-
-    while let Some(batch) = report.reader.next().await.unwrap() {
-        first_byte.get_or_insert_with(|| started.elapsed());
+    while let Some(batch) = reader.next().await.unwrap() {
         assert_eq!(batch.offset(), bytes);
-        peak_batch = peak_batch.max(batch.bytes().len());
         writer.write_all(batch.bytes()).unwrap();
         digest.update(batch.bytes());
         bytes += batch.bytes().len() as u64;
     }
-    report.reader.completion().unwrap();
+    reader.completion().unwrap();
     writer.flush().unwrap();
     writer.get_ref().sync_all().unwrap();
     let elapsed = started.elapsed();
-
-    assert_eq!(bytes, report.file.length);
-    assert_eq!(digest.finalize().as_slice(), report.file.sha256.as_slice());
-    let result = serde_json::json!({
-        "kind": "large_cycle_html_save", "dataset": dataset,
-        "copies": std::env::var("DOKIME_REPORT_MEASURE_COPIES").unwrap(),
-        "runtime_ns": elapsed.as_nanos(), "open_ns": opened.as_nanos(),
-        "first_byte_ns": first_byte.map(|duration| duration.as_nanos()),
-        "delivery_peak_retained_bytes": peak_batch + 1024 * 1024,
-        "file_bytes": bytes, "delivery_file_passes": 1,
-        "materialization_peak_retained_bytes": null, "rows_scanned": null,
-        "materialization_file_passes": null, "ingest_latency_ns": null,
-        "instrumentation_note": "Null fields require source-owned counters; delivery peak excludes materialization.",
-    });
-    println!("{result}");
+    assert_eq!(bytes, report.report.length);
+    assert_eq!(digest.finalize().as_slice(), report.report.sha256.as_slice());
+    black_box(writer);
+    elapsed
 }
 
 fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
@@ -183,7 +202,7 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
         for concurrency in [1, 2, 4] {
             let mut fixture = None;
             group.bench_function(BenchmarkId::new(format!("{duration}s"), concurrency), |bencher| {
-                let fixture = fixture.get_or_insert_with(|| executor.block_on(MaterializationFixture::new(concurrency, duration)));
+                let fixture = fixture.get_or_insert_with(|| executor.block_on(MaterializationFixture::new(concurrency, duration, 1)));
 
                 bencher.iter_custom(|iterations| {
                     executor.block_on(async {
@@ -246,20 +265,21 @@ fn plot_payload_count(value: &serde_json::Value) -> usize {
 }
 
 async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecutionId>) {
-    let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S).await;
+    let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S, 1).await;
     let settled = settle(&runtime, &cycle, &request).boxed_local();
     let executions = tokio::time::timeout(SETTLE, settled).await.expect("the steady cycle seals");
     (owner, runtime, executions)
 }
 
-async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
+async fn started_cycle(root: &Path, concurrency: usize, duration: f64, copies: usize) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
     let bundle = root.join("obc-plugin.dokime");
-    std::fs::copy(super::plugin_bundle(), &bundle).unwrap();
+    std::fs::copy(super::plugin_bundle("obc-plugin.dokime"), &bundle).unwrap();
+    let host = super::plugin_bundle("host.dokime");
     let mut config = dokime_runtime::RuntimeConfig::new(
         root,
         dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("bench.report").unwrap(), "Report Bench", None),
     )
-    .with_plugins([PluginBundle::new(bundle)]);
+    .with_plugins([PluginBundle::new(host), PluginBundle::new(bundle)]);
     config.storage.request.max_active_queries = NonZeroUsize::new(concurrency).unwrap();
     let owner = Runtime::start(config).boxed_local().await.unwrap();
     let runtime = owner.handle();
@@ -287,16 +307,12 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
             cases.push(case);
         }
     }
-    if let Ok(copies) = std::env::var("DOKIME_REPORT_MEASURE_COPIES") {
-        let copies: usize = copies.parse().expect("measurement copies is an integer");
-        assert!((1..=128).contains(&copies));
-        let originals = cases.clone();
-        for _ in 1..copies {
-            for original in &originals {
-                let mut case = original.clone();
-                case.test_case_id = dokime_runtime::model::identity::new_id();
-                cases.push(case);
-            }
+    let originals = cases.clone();
+    for _ in 1..copies {
+        for original in &originals {
+            let mut case = original.clone();
+            case.test_case_id = dokime_runtime::model::identity::new_id();
+            cases.push(case);
         }
     }
     let test_cycle_id = runtime

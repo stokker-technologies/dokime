@@ -34,6 +34,7 @@ use tokio::process::{Child, ChildStdout, Command};
 
 pub struct Host {
     child: Child,
+    finalize_reports: bool,
     endpoint: String,
     replies: Lines<BufReader<ChildStdout>>,
     stderr: PathBuf,
@@ -114,6 +115,7 @@ impl Host {
         let endpoint = ready["endpoint"].as_str().unwrap().to_owned();
         Self {
             child,
+            finalize_reports: super::system_reports::required(),
             endpoint,
             replies: lines,
             stderr,
@@ -152,6 +154,10 @@ impl Host {
     }
 
     pub async fn stop(mut self, signal: bool) {
+        if self.finalize_reports {
+            let client = self.connect().await;
+            Box::pin(super::story_reports::finalize(&client)).await;
+        }
         // `Child::wait` closes stdin, which is itself a stop request: a signalled
         // stop holds it open so the interrupt is the only request the host sees.
         let stdin = self.child.stdin.take();

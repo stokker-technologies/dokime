@@ -1,0 +1,26 @@
+{
+  "dokime-runtime": {
+    "evidence_durability::evidence_durability": "Exercises raw storage durability without an execution.",
+    "managed_durability::managed_durability": "Exercises checkpoint storage without an execution.",
+    "retained_evidence::retained_evidence": "Exercises retained evidence volume drivers without an execution.",
+    "telemetry_plot_history::telemetry_plot_history": "Publishes telemetry without admitting an execution."
+  },
+  "dokime-server": {
+    "plot_admission::plot_admission": "Exercises telemetry history without an execution.",
+    "plugin::development_session": "Exercises plugin catalog reload before execution admission.",
+    "plugin::clean_stop": "Exercises process ownership without admitting an execution.",
+    "plugin::store": "Exercises installation and restart without admitting an execution."
+  },
+  "desktop": {
+    "installation": "Installer lifecycle has no execution.",
+    "startup": "Connection and empty catalog navigation precede execution admission.",
+    "library": "Plans executions without running them.",
+    "active-cycle": "Checks active navigation before the execution story runs.",
+    "idle": "Measures idle shell behavior without creating an execution.",
+    "settings": "Edits preferences without creating an execution.",
+    "plugin-install": "Installs and restarts plugins without creating an execution.",
+    "organization": "Imports organization configuration without creating an execution.",
+    "attachment": "Proves attachment ownership with an empty container.",
+    "distribution-identity": "Checks isolated distribution directories without admitting an execution."
+  }
+}

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "files": {
-    ".claude/skills/dokime-architecture/SKILL.md": "f6d893f2137f1ff62ba8b256b500d98a033a5524cd2353898c0d14b0649bd2cb",
-    ".claude/skills/dokime-authoring/SKILL.md": "2264f6521a0f874b2a8e5a07e0ef15e58cb6819162549e8a840acfd6fc5c1ceb",
+    ".claude/skills/dokime-architecture/SKILL.md": "79a29ef60ca6192ed9ef469353c5f500267717eab7056e3a79506df466ddde60",
+    ".claude/skills/dokime-authoring/SKILL.md": "32f0fe974f1f93db066d1f7390e81e98321f7f94cc9d422d24ca53135fbd85a2",
     ".claude/skills/dokime-authoring/references/plugins.md": "5e35bdab40653e955d26a32cd05122a5c1c6ded4d682bc944d4865ff4f9a1e37",
     ".claude/skills/dokime-authoring/references/suites.md": "12199faf431a3ab4958aa3a9de0202c8eedcef0516011dd1e281e3204aa6e711",
     ".github/actionlint.yaml": "043fee51748318a45d03a2294b5484906b557974f0b563978916cecb708b7859",
@@ -21,8 +21,8 @@
     ".github/actions/setup/action.yml": "d20efe7a2583202a099eb0b660c16b7d8817957f9015c2898da96e5ba9a61aa0",
     ".github/actions/setup/run.py": "3d616a0f6d3cf66f9bcba9c70b445ef8d69950a680be97596254f16479df0a2c",
     ".github/renovate.json5": "9bcbd7257b2502274c89f3fdadc9ef8c20fbf8094b484637553ad883db6232fd",
-    ".github/skills/dokime-architecture/SKILL.md": "f6d893f2137f1ff62ba8b256b500d98a033a5524cd2353898c0d14b0649bd2cb",
-    ".github/skills/dokime-authoring/SKILL.md": "2264f6521a0f874b2a8e5a07e0ef15e58cb6819162549e8a840acfd6fc5c1ceb",
+    ".github/skills/dokime-architecture/SKILL.md": "79a29ef60ca6192ed9ef469353c5f500267717eab7056e3a79506df466ddde60",
+    ".github/skills/dokime-authoring/SKILL.md": "32f0fe974f1f93db066d1f7390e81e98321f7f94cc9d422d24ca53135fbd85a2",
     ".github/skills/dokime-authoring/references/plugins.md": "5e35bdab40653e955d26a32cd05122a5c1c6ded4d682bc944d4865ff4f9a1e37",
     ".github/skills/dokime-authoring/references/suites.md": "12199faf431a3ab4958aa3a9de0202c8eedcef0516011dd1e281e3204aa6e711",
     ".github/workflows/ci.yml": "e4f48169ea20d750390c33d262479cd7a24c3ed4f5cd654233cf62720f49e1a1",

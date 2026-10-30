@@ -34,7 +34,7 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn provider_runtime(root: &Path) -> (Runtime, RuntimeHandle) {
+async fn provider_runtime(root: &Path) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
     let executor = Arc::new(FakePythonExecutor::fixed("passed"));
     let (owner, runtime) = booted_with_fixture(root, executor).await;
     register_python_suite(&runtime, fixture_suite(&["passed"])).await;

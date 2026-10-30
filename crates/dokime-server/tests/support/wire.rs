@@ -26,13 +26,14 @@ use tonic::{
     transport::{Channel, Endpoint},
 };
 // Local Imports
+use super::system_reports::Runtime;
 use dokime::client::contracts;
 use dokime::domain::model;
 use dokime::domains::ExecutionProviderTarget;
 use dokime_server::grpc::{Config, Server};
 use {
     dokime::ExecutionFixture, dokime::ExecutionFixtureContext, dokime::ExecutionFixtureFuture, dokime::Identifier, dokime::Metadata,
-    dokime::Runtime, dokime::domain::model::execution::result::CycleView, dokime::domain::model::execution::result::ExecutionStatus,
+    dokime::domain::model::execution::result::CycleView, dokime::domain::model::execution::result::ExecutionStatus,
     dokime::transport::ProviderCycleOutcome, dokime::transport::ProviderExecutionOutcome, dokime::transport::ProviderStatusOutcome,
 };
 
@@ -473,7 +474,7 @@ impl ExecutionFixture for Gate {
 
 pub async fn runtime(root: &std::path::Path, server: &dokime_server::grpc::PreparedService) -> Runtime {
     let config = super::budgets::runtime_config(root, Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None));
-    Runtime::start(server.configuration(config)).boxed_local().await.unwrap()
+    dokime::Runtime::start(server.configuration(config)).boxed_local().await.unwrap().into()
 }
 
 pub fn keyed() -> Config {
@@ -530,7 +531,7 @@ pub async fn connect(server: &Server) -> WireClient {
     WireClient::connect(server.local_endpoint()).await.unwrap()
 }
 
-pub fn selection_plan(owner: &Runtime) -> model::planning::wire::SelectionPlan {
+pub fn selection_plan(owner: &dokime::Runtime) -> model::planning::wire::SelectionPlan {
     let snapshot = owner.handle().watch_state().latest();
     let suite = snapshot.state().suites.get("fixture.suite").unwrap();
     model::planning::wire::SelectionPlan {
@@ -557,16 +558,17 @@ pub async fn fixture(root: &std::path::Path, gate: Arc<Gate>, server: &dokime_se
 pub async fn fixture_with_provider(
     root: &std::path::Path, provider: Arc<dyn ExecutionFixture>, server: &dokime_server::grpc::PreparedService,
 ) -> Runtime {
-    let owner = Runtime::with_execution_fixture(
+    let owner = started_with_fixture(
         server.configuration(super::budgets::runtime_config(root, super::metadata("grpc.fixture", "Fixture"))),
-        "fixture",
         provider,
     )
-    .boxed_local()
-    .await
-    .unwrap();
+    .await;
     super::register_fixture_execution(&owner.handle(), super::fixture_suite(&["passed"])).await;
     owner
+}
+
+pub async fn started_with_fixture(config: dokime::RuntimeConfig, provider: Arc<dyn ExecutionFixture>) -> Runtime {
+    dokime::Runtime::with_execution_fixture(config, "fixture", provider).boxed_local().await.unwrap().into()
 }
 
 pub fn create() -> contracts::execution::CreateCycle {
