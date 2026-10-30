@@ -535,6 +535,7 @@ dev_channel = true
 provider = "github"
 repository = "stokker-technologies/dokime"
 product = "dokime"
+plugin_extension = "dokime"
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
 # Prepare The Tutorial From The Same Versioned Client Bytes As The Release.
 lock_commands = [
@@ -587,18 +588,6 @@ package = "plugin-host"
 requires_dokime = ">=0.1.1, <0.2.0"
 targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
 path = "target/package/{profile}/{target}/rust/plugins/plugin-host.dokime"
-
-[[release.assets]]
-kind = "sidecars"
-target = "linux-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-sidecars-{version}-x86_64-unknown-linux-gnu.tar.gz"
-name = "{product}-sidecars-{version}-x86_64-unknown-linux-gnu.tar.gz"
-
-[[release.assets]]
-kind = "sidecars"
-target = "windows-x86_64"
-path = "target/package/{profile}/{target}/rust/dokime-sidecars-{version}-x86_64-pc-windows-msvc.zip"
-name = "{product}-sidecars-{version}-x86_64-pc-windows-msvc.zip"
 
 [[release.package_signing]]
 language = "rust"
