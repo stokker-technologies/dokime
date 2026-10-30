@@ -21,17 +21,17 @@ pub(crate) mod policy;
 use std::{
     collections::BTreeMap,
     io::Read,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 
 // Third Party Imports
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
+use dokime::domain::model::plugins::OrganizationIdentity as Organization;
 
 /* === Constants === */
 
@@ -45,14 +45,6 @@ const PENDING: &str = "pending";
 const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
 /// Licence and readme text beside fonts and logos; skipped, never applied.
 const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
-const THEME_FILES: [&str; 4] = ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"];
-const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
-    ("transparent", "on_light", "transparent_on_light"),
-    ("transparent", "on_dark", "transparent_on_dark"),
-    ("contained", "on_light", "contained_on_light"),
-    ("contained", "on_dark", "contained_on_dark"),
-];
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -96,15 +88,6 @@ pub(crate) struct LoadedPack {
     tray_icon: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Organization {
-    name: String,
-    #[serde(default)]
-    unit: Option<String>,
-    #[serde(default)]
-    website: Option<String>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PackSummary {
@@ -130,32 +113,6 @@ pub(crate) struct OrganizationStatus {
 struct BootScript<'a> {
     pack: Option<&'a LoadedPack>,
     error: Option<&'a str>,
-}
-
-#[derive(Deserialize)]
-struct Manifest {
-    app: AppSection,
-    #[serde(default)]
-    theme: Option<ThemeSection>,
-    #[serde(default)]
-    updates: Option<policy::UpdatePolicy>,
-}
-
-#[derive(Deserialize)]
-struct AppSection {
-    label: String,
-    #[serde(default)]
-    title_template: Option<String>,
-    #[serde(default)]
-    organization: Option<Organization>,
-    #[serde(default)]
-    logos: BTreeMap<String, BTreeMap<String, String>>,
-}
-
-#[derive(Deserialize)]
-struct ThemeSection {
-    #[serde(default)]
-    corner_radii: BTreeMap<String, String>,
 }
 
 /* === Enums === */
@@ -482,133 +439,42 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
 }
 
 fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack, String> {
-    let staging = tempfile::tempdir().map_err(|error| error.to_string())?;
-    pack.write_to(staging.path())?;
-    let mut loaded = load_resolved(staging.path())?;
+    let materialized = pack.materialize()?;
+    if materialized.logos.is_empty() {
+        return Err("organization.toml names no logo the pack contains".to_owned());
+    }
+    let css = materialized.stylesheet().unwrap_or_default();
+    let logos = materialized
+        .logos
+        .iter()
+        .map(|logo| (dokime::config::organization::variant_name(logo.variant).to_owned(), logo.data_uri()))
+        .collect();
+    let updates = pack
+        .manifest
+        .get("updates")
+        .map(|value| value.clone().try_into())
+        .transpose()
+        .map_err(|_| "organization update policy is invalid")?;
+    let mut loaded = LoadedPack {
+        label: materialized.identity.label,
+        title_template: if materialized.identity.title_template.trim().is_empty() {
+            "{app}".to_owned()
+        } else {
+            materialized.identity.title_template
+        },
+        organization: materialized.organization,
+        logos,
+        css,
+        updates,
+        application_icon: None,
+        tray_icon: None,
+    };
     loaded.application_icon = pack.asset("application").map(|(_, bytes)| bytes.to_vec());
     loaded.tray_icon = pack.asset("tray").map(|(_, bytes)| bytes.to_vec());
     for bytes in [&loaded.application_icon, &loaded.tray_icon].into_iter().flatten() {
         tauri::image::Image::from_bytes(bytes).map_err(|_| "organization application and tray artwork must be valid PNG images")?;
     }
     Ok(loaded)
-}
-
-fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
-    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|error: toml::de::Error| {
-        let position = error.span().map_or(0, |span| span.start);
-        format!("organization.toml does not parse near byte {position}")
-    })?;
-    if let Some(updates) = &manifest.updates {
-        updates.validate()?;
-    }
-    let app = manifest.app;
-    if app.label.trim().is_empty() {
-        return Err("organization.toml needs an app label".to_owned());
-    }
-    let mut logos = BTreeMap::new();
-    for (treatment, surface, variant) in LOGO_VARIANTS {
-        let Some(file) = app.logos.get(treatment).and_then(|surfaces| surfaces.get(surface)) else { continue };
-        let bytes = read_inside(dir, file)?;
-        let mime = match Path::new(file).extension().and_then(|extension| extension.to_str()) {
-            Some("svg") => "image/svg+xml",
-            Some("png") => "image/png",
-            _ => return Err(format!("logos must be SVG or PNG: {file}")),
-        };
-        logos.insert(variant.to_owned(), format!("data:{mime};base64,{}", BASE64.encode(bytes)));
-    }
-    if logos.is_empty() {
-        return Err("organization.toml names no logo the pack contains".to_owned());
-    }
-    let mut css = String::new();
-    for file in THEME_FILES {
-        if !dir.join(file).is_file() {
-            continue;
-        }
-        let source = String::from_utf8(read_inside(dir, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
-        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(dir, file, &source)?));
-        if file == "theme/base.css" {
-            css.push_str(&corner_radii(manifest.theme.as_ref()));
-        }
-    }
-    Ok(LoadedPack {
-        title_template: app.title_template.filter(|template| !template.trim().is_empty()).unwrap_or_else(|| "{app}".to_owned()),
-        label: app.label,
-        organization: app.organization,
-        logos,
-        css,
-        updates: manifest.updates,
-        application_icon: None,
-        tray_icon: None,
-    })
-}
-
-fn corner_radii(theme: Option<&ThemeSection>) -> String {
-    let Some(radii) = theme.map(|theme| &theme.corner_radii).filter(|radii| !radii.is_empty()) else { return String::new() };
-    let mut css = String::from(":root {\n");
-    for (key, suffix) in
-        [("base", ""), ("sm", "-sm"), ("md", "-md"), ("lg", "-lg"), ("xl", "-xl"), ("2xl", "-2xl"), ("3xl", "-3xl"), ("4xl", "-4xl")]
-    {
-        if let Some(value) = radii.get(key).filter(|value| value.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')) {
-            css.push_str(&format!("  --brand-radius{suffix}: {value};\n"));
-        }
-    }
-    css.push_str("}\n");
-    css
-}
-
-/// Inlines local font and image references; the theme never reaches the network or leaves the pack.
-fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
-    let stripped = strip_comments(css)?;
-    let css = stripped.as_str();
-    if css.to_ascii_lowercase().contains("@import") {
-        return Err(format!("{file} may not @import other stylesheets"));
-    }
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.to_ascii_lowercase().find("url(") {
-        output.push_str(&rest[..start]);
-        let after = &rest[start + 4..];
-        let end = after.find(')').ok_or_else(|| format!("{file} has an unterminated url()"))?;
-        let raw = after[..end].trim().trim_matches(['"', '\'']).trim();
-        if raw.starts_with("data:") {
-            output.push_str(&rest[start..start + 4 + end + 1]);
-        } else {
-            let mime = match Path::new(raw).extension().and_then(|extension| extension.to_str()) {
-                Some("woff2") => "font/woff2",
-                Some("svg") => "image/svg+xml",
-                Some("png") => "image/png",
-                _ => return Err(format!("{file} references an unsupported file: {raw}")),
-            };
-            let bytes = read_inside(dir, raw)?;
-            output.push_str(&format!("url(\"data:{mime};base64,{}\")", BASE64.encode(bytes)));
-        }
-        rest = &after[end + 1..];
-    }
-    output.push_str(rest);
-    Ok(output)
-}
-
-/// Comments may mention `url()` and `@import`; only declarations count.
-fn strip_comments(css: &str) -> Result<String, String> {
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.find("/*") {
-        output.push_str(&rest[..start]);
-        let end = rest[start + 2..].find("*/").ok_or("a theme stylesheet has an unterminated comment")?;
-        rest = &rest[start + 2 + end + 2..];
-    }
-    output.push_str(rest);
-    Ok(output)
-}
-
-/// Reads a pack-relative path that cannot escape the pack folder.
-fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
-    let path = Path::new(relative);
-    if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {
-        return Err(format!("unsafe path in the organization pack: {relative}"));
-    }
-    std::fs::read(dir.join(path)).map_err(|error| format!("{relative} could not be read: {error}"))
 }
 
 fn remove_folder(path: &Path) -> Result<(), String> {
