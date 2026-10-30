@@ -23,7 +23,6 @@ use std::{
 };
 
 // Third Party Imports
-use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::{Runtime, progress::Operation};
@@ -897,41 +896,15 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
         }
 
-        let bytes = read_bounded(executable.path(), harmos_packaging::bundle::Limits::default().file_bytes).map_err(operation)?;
-        let hash = Sha256::digest(&bytes);
-        if hash.iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
+        if executable.sha256().iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
             return Err(operation(format!("extracted executable `{id}` differs from its verified bundle")));
         }
-        let sha256 = hash.into();
-        drop(bytes);
         let configured = input.programs.get(id).cloned().unwrap_or_else(crate::plugins::config::empty_object);
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
-        let declaration = executable.declaration();
-        let operations = declaration.operations.clone();
-        let definition = harmos::plugin::PluginDefinition {
-            id: id.clone(),
-            version: version.clone(),
-            requires: Vec::new(),
-            artifact: harmos::plugin::PluginArtifact::Sidecar {
-                path: executable.path().to_owned(),
-                sha256,
-                arguments: executable.arguments().to_vec(),
-                directory: executable.working_directory().map(std::path::Path::to_owned),
-                environment: executable.environment().iter().cloned().collect(),
-            },
-            configuration: serde_json::to_vec(&initialization).map_err(operation)?,
-            contributions: harmos::plugin::PluginContributions {
-                operations,
-                wire_contracts: declaration.contracts.provides.clone(),
-                required_contracts: Some(declaration.contracts.requires.clone()),
-                observers: declaration.observers.clone(),
-                lifecycle: Some(declaration.contracts.lifecycle.clone()),
-                listeners: declaration.listeners.clone(),
-                streams: executable.declaration().streams.clone(),
-                registrations,
-                sections: declaration.sections.clone(),
-            },
-        };
+        let mut definition =
+            harmos::plugin::PluginDefinition::sidecar(&executable, serde_json::to_vec(&initialization).map_err(operation)?)
+                .map_err(operation)?;
+        definition.contributions.registrations = registrations;
 
         programs.push(Program {
             plugin,
