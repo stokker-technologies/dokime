@@ -144,6 +144,8 @@ impl ExecutionContext {
 
 /* === Public Functions === */
 
+// Each execution owns its own projections and copies only its cycle/case ancestors.
+// Global items are deliberately outside the cycle export selection.
 pub(crate) fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
     (scope.test_cycle_id.is_some() || scope.test_execution_id.is_some())
         && scope.test_cycle_id.as_ref().is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
@@ -151,6 +153,8 @@ pub(crate) fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> b
         && scope.test_execution_id.as_ref().is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
 }
 
+// Annotation context also retains session/global observations. Export selection
+// separately decides whether these belong to an explicitly cycle-scoped bundle.
 pub(crate) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> bool {
     if (scope.step_id.is_some() || scope.criterion_id.is_some()) && scope.test_execution_id.is_none() {
         return false;
