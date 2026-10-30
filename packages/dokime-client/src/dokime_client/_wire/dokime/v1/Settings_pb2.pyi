@@ -153,26 +153,6 @@ class SettingsUpdateApplicationSettingsRunOutput(_message.Message):
     response: _messages_pb2_1_1_1_1_1_1.Row2
     def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
 
-class SettingsUpdatePluginSecretCancellation(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class SettingsUpdatePluginSecretRunInput(_message.Message):
-    __slots__ = ("request", "cancel", "finish")
-    REQUEST_FIELD_NUMBER: _ClassVar[int]
-    CANCEL_FIELD_NUMBER: _ClassVar[int]
-    FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1_1_1_1.Row1
-    cancel: SettingsUpdatePluginSecretCancellation
-    finish: SettingsUpdatePluginSecretCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[SettingsUpdatePluginSecretCancellation, _Mapping]] = ..., finish: _Optional[_Union[SettingsUpdatePluginSecretCancellation, _Mapping]] = ...) -> None: ...
-
-class SettingsUpdatePluginSecretRunOutput(_message.Message):
-    __slots__ = ("response",)
-    RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    response: _messages_pb2_1_1_1_1_1_1_1.Row2
-    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
-
 class SettingsUpdatePluginSettingsCancellation(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
@@ -182,13 +162,13 @@ class SettingsUpdatePluginSettingsRunInput(_message.Message):
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CANCEL_FIELD_NUMBER: _ClassVar[int]
     FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1_1_1_1_1.Row1
+    request: _messages_pb2_1_1_1_1_1_1_1.Row1
     cancel: SettingsUpdatePluginSettingsCancellation
     finish: SettingsUpdatePluginSettingsCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[SettingsUpdatePluginSettingsCancellation, _Mapping]] = ..., finish: _Optional[_Union[SettingsUpdatePluginSettingsCancellation, _Mapping]] = ...) -> None: ...
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[SettingsUpdatePluginSettingsCancellation, _Mapping]] = ..., finish: _Optional[_Union[SettingsUpdatePluginSettingsCancellation, _Mapping]] = ...) -> None: ...
 
 class SettingsUpdatePluginSettingsRunOutput(_message.Message):
     __slots__ = ("response",)
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    response: _messages_pb2_1_1_1_1_1_1_1_1.Row2
-    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
+    response: _messages_pb2_1_1_1_1_1_1_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
