@@ -34,6 +34,20 @@ export type ProgramRow = {
 
 /* === Public Functions === */
 
+export function bundleSettingsPage(
+  entry: PluginEntry,
+  programs: RuntimeInstalledPluginRecord[],
+  frame: RuntimeSettingsFrame | null,
+): string | null {
+  const owners = new Set(
+    programs
+      .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.install_id)
+      .map((program) => program.plugin_id),
+  );
+  const section = frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && owners.has(candidate.owner.plugin_id));
+  return section?.section_id ?? (entry.state !== "removal_pending" && entry.metadata?.owners.length ? entry.install_id : null);
+}
+
 /** Groups the programs into rows, one per host, bundle package or lone
     program, each carrying the settings page one of its programs contributes.
     A host row opens its own contributed page like any other plugin. */
