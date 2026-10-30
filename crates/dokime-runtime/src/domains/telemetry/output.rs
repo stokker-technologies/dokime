@@ -55,11 +55,11 @@ impl Drop for AggregateCancellation {
 
 /* === Public Functions === */
 
-pub(crate) async fn project_saved(
-    session: &crate::storage::Manager, local: &crate::storage::sqlite::State, _settings: &harmos::config::SchemaSettings,
-    scope: &dokime_domain::model::execution::RecordScope, contracts: &[TelemetryContract],
+pub(crate) async fn project(
+    session: &crate::storage::Manager, local: &crate::storage::sqlite::State, scope: &dokime_domain::model::execution::RecordScope,
+    contracts: &[TelemetryContract],
 ) -> crate::runtime::Result<Vec<AggregateOutput>> {
-    let at = session.cursor_saved();
+    let at = session.cursor_accepted();
     let mut outputs = Vec::new();
     for contract in contracts {
         let mut columns = contract.normalized().columns;
@@ -67,7 +67,7 @@ pub(crate) async fn project_saved(
         if columns.is_empty() {
             continue;
         }
-        // The Saved Cursor Is Immutable: Reuse Its First Bounded Page Across Fields.
+        // Reuse The First Bounded Page At This Fixed Frontier Across Fields.
         let execution = scope.test_execution_id.as_ref().map(ToString::to_string);
         let stream = Some(contract.stream.to_string());
         let first_page = local.telemetry_page(at.clone(), 0, execution.clone(), stream.clone()).await?;

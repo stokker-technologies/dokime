@@ -204,8 +204,7 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<Vec<crate::telemetry_runtime::output::AggregateOutput>> {
         let state = self.settled_evidence_state().await;
         let contracts = state.telemetry_contracts();
-        crate::telemetry_runtime::output::project_saved(self.storage(), &self.local_storage, self.schema_settings(), scope, &contracts)
-            .await
+        crate::telemetry_runtime::output::project(self.storage(), &self.local_storage, scope, &contracts).await
     }
 
     pub(crate) fn retained_traceability_in(

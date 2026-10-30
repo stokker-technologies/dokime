@@ -1412,7 +1412,7 @@ patched in the shell rather than framed by the WebView.
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a
 ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
-and advancing saved progress. Live plots and queries merge indexed saved batches
+and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
 with the unflushed tail; historical reads retain their requested saved frontier.
 Changing a display window never deletes raw evidence. Only flushed batches are
 durable; accepted tail rows can be lost in a crash.

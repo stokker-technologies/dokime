@@ -182,10 +182,40 @@ impl State {
             rows: NonZeroUsize::new(512).unwrap(),
             bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
         };
-        let mut scan = Scan::new("stream", at.sequence, 0, page).filter("scope", execution).filter("stream", stream);
+        let mut scan = Scan::new("stream", at.sequence, 0, page).filter("scope", execution.clone()).filter("stream", stream.clone());
         scan.metrics = Some(self.0.read_metrics.clone());
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        self.read(move |connection| Ok(reader::entries(connection, &root, &scan))).await?
+        let owner = self.0.clone();
+        self.read(move |connection| {
+            Ok((|| {
+                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let head = saved(connection)?;
+                head.history.check(&at.history)?;
+                let mut rows = reader::entries(connection, &root, &scan)?;
+                for (position, (_, entry)) in tail {
+                    if position <= head.sequence
+                        || position <= after
+                        || position > at.sequence
+                        || !execution.as_deref().is_none_or(|id| {
+                            entry
+                                .sample
+                                .scope
+                                .as_ref()
+                                .and_then(|scope| scope.test_execution_id.as_ref())
+                                .is_some_and(|owner| owner.as_str() == id)
+                        })
+                        || !stream.as_deref().is_none_or(|stream| entry.sample.stream.as_str() == stream)
+                    {
+                        continue;
+                    }
+                    rows.push((position, entry));
+                }
+                rows.sort_unstable_by_key(|(position, _)| *position);
+                rows.truncate(page.rows.get());
+                Ok(rows)
+            })())
+        })
+        .await?
     }
 
     pub(crate) async fn acknowledge_sample(

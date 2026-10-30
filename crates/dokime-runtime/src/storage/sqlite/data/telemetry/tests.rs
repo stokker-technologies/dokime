@@ -304,6 +304,26 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
         .await
         .unwrap();
     assert_eq!(numeric.iter().map(|(_, row)| row.values[0]).collect::<Vec<_>>(), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]);
+    let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
+        crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
+    );
+    let saved = fixture.storage.cursor_saved();
+    let outputs = crate::telemetry_runtime::output::project(
+        &fixture.storage,
+        &fixture.local,
+        &RecordScope {
+            test_execution_id: Some(fixture.execution.clone()),
+            ..Default::default()
+        },
+        &[contract],
+    )
+    .await
+    .unwrap();
+    for (suffix, expected) in [("count", 5.0), ("mean", 3.0), ("sum", 15.0)] {
+        let output = outputs.iter().find(|output| output.key.ends_with(&format!(".{suffix}"))).unwrap();
+        assert_eq!(output.value, Cell::Number(expected));
+    }
+    assert_eq!(fixture.storage.cursor_saved(), saved);
     fixture.finish().await;
 }
 
