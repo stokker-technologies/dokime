@@ -24,8 +24,10 @@ malformed certificates and existing size/secret/identity violations.
 - `dokime-domain/model/remote.rs` owns file and operation contracts.
 - `dokime-server/grpc/remote/` owns interface discovery, ranking, persistent CA,
   leaf issuance/reissue, listener transitions, per-file keys and revocation.
-- `dokime-domain/model/backends.rs` owns ordered profile endpoints and remembered
-  successful endpoint. Credentials use a stable profile association.
+- `dokime-domain/model/backends.rs` owns ordered profile `endpoints`; its existing
+  `endpoint` records the last success (initially the first candidate). Manual lab
+  profiles have no alternatives. Credentials bind the profile identifier and expected backend identity; manual
+  profiles keep their endpoint association.
 - `dokime-client` owns bounded file import, keyring transactions and the verified
   candidate race. `ClientPreferences` owns connection stagger configuration.
 - Native desktop code owns confirmation, picker/drop imports, file publication
@@ -40,7 +42,8 @@ with a persistent CA certificate/key and a separately signed leaf/key. Reissue
 under the same CA on startup, export and periodic interface changes. Persist
 before replacing the listener, preserving existing secrets and storage on errors.
 Specific binds advertise their address. Wildcard binds advertise hostname first,
-private physical addresses before public addresses; exclude virtual/VPN adapters,
+private physical addresses before public addresses in the listener address family;
+exclude virtual/VPN adapters,
 link-local, multicast and unspecified addresses. Loopback fallback is same-PC.
 All exported names are included in the active leaf SANs.
 
