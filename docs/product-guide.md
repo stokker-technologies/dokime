@@ -1253,7 +1253,7 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 | Directory | Windows | Unix |
 | --- | --- | --- |
 | Application | `%LOCALAPPDATA%/<identifier>` | `${XDG_DATA_HOME:-$HOME/.local/share}/<identifier>` |
-| Data And Plugins | `<application>/data`, `<application>/plugins` | `<application>/data`, `<application>/plugins` |
+| Data And Plugins | `<application>/data`, `<application>/data/plugins` | `<application>/data`, `<application>/data/plugins` |
 | Logs | `<application>/logs` | `${XDG_STATE_HOME:-$HOME/.local/state}/<identifier>/logs` |
 | WebView | `<application>/EBWebView` | Engine profile beneath `<application>/webview` |
 
