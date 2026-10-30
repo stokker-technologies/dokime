@@ -1443,15 +1443,18 @@ read the incremental numeric indexes.
 
 SQLite construction settings `RuntimeConfig.local_storage.previews` own
 `bucket_count`, `bucket_interval` and `report_concurrency`; application report
-settings own `table_rows` and `plot_points`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
+settings own `table_rows`, `plot_points`, `source_bytes` and `value_depth`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
 end, four background renders and 2,000 display points. Each bucket contributes at most four points, and
 report plots merge buckets further when their authored display budget is smaller.
 Report envelopes replace the live plot's chosen downsampling technique; the viewer
 fits their extrema to its measured pixel width.
-These are presentation bounds, independent of raw evidence retention.
+Document input/materialization defaults to 64 MiB and report value encoding to
+128 levels. These are presentation bounds, independent of raw evidence retention.
+Lifecycle definitions, annotations and file inventories retain complete captured
+metadata; capture cost still scales with their cardinality, rather than sample history.
 
 Analyses without an exact incremental index are visibly unavailable in reports:
-FFT, filtered/grouped/transformed series, record-time correlations, repeated
+FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
 sections and non-time plots. Full evidence remains available for external analysis.
 A historical cut whose preview has advanced is refused instead of replaying raw
 history. Current reports use the saved frontier; final reports use the frozen cut.

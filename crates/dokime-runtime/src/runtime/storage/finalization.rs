@@ -225,6 +225,9 @@ impl RuntimeHandle {
             let rendered = std::panic::AssertUnwindSafe(runtime.materialize_saved_execution(&cycle, &execution)).catch_unwind().await;
             let rendered = rendered.unwrap_or_else(|_| Err(Error::Operation("report worker panicked".into())));
             if let Err(error) = rendered {
+                if matches!(error, Error::ShuttingDown) {
+                    return;
+                }
                 tracing::error!(execution_id = %execution.test_execution_id, %error, "background report failed");
                 if let Err(failure) = runtime
                     .commit(crate::transactions::FailReport {
@@ -243,9 +246,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn stop_report_jobs(&self) {
         let jobs = std::mem::take(&mut *self.execution_storage.report_jobs.lock().await);
-        for job in jobs.values() {
-            job.abort();
-        }
+        // Presentation Observes Shutdown; A Started Publication Settles Its Durable Writes.
         for (_, job) in jobs {
             let _ = job.await;
         }
@@ -283,7 +284,9 @@ impl RuntimeHandle {
     #[tracing::instrument(name = "execution.finalize", skip_all)]
     pub(crate) async fn finish_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
         let queued = self.execution_storage.report_jobs.lock().await.contains_key(&execution.test_execution_id);
-        if queued {
+        let failed =
+            self.state_read().report_finalizations.get(&execution.test_execution_id).is_some_and(|intent| intent.failure.is_some());
+        if queued && !failed {
             return self.wait_execution_report(&execution.test_execution_id).await;
         }
         self.materialize_saved_execution(cycle, execution).await

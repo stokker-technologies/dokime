@@ -223,7 +223,7 @@ pub(crate) fn plot(
         });
         payload.series.clear();
     }
-    Ok((super::value::Value::from_serializable(&payload, 128)?, warning))
+    Ok((super::value::Value::from_serializable(&payload, source.report_defaults.value_depth as usize)?, warning))
 }
 
 pub(crate) fn summaries(
@@ -361,17 +361,29 @@ mod tests {
             width: 1,
             buckets: BTreeMap::new(),
         };
+        let mut fixture = Vec::new();
         for position in 0..4096 {
             let value = match position {
                 25 => 1_000_000.0,
                 45 => -1_000_000.0,
                 _ => (position % 97) as f64,
             };
+            fixture.push(value);
             envelope.push(Point { time: position as i128, position, value }, 256).unwrap();
         }
-        let mut expected = envelope.clone();
-        expected.fit(8).unwrap();
-        let expected: Vec<_> = expected.buckets.values().flat_map(|bucket| bucket.points()).map(|point| point.value).collect();
+        // Reference Each Of The Eight Final Time Intervals By Scanning The Fixture.
+        let expected: Vec<_> = fixture
+            .chunks(512)
+            .flat_map(|bucket| {
+                let min = bucket.iter().enumerate().min_by(|(_, left), (_, right)| left.total_cmp(right)).unwrap().0;
+                let max = bucket.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let max = bucket.iter().position(|value| *value == max).unwrap();
+                let mut positions = vec![0, min, max, bucket.len() - 1];
+                positions.sort_unstable();
+                positions.dedup();
+                positions.into_iter().map(|position| bucket[position]).collect::<Vec<_>>()
+            })
+            .collect();
         let fields = [FieldPreview {
             stream: "tracking".into(),
             field: "distance_m".into(),

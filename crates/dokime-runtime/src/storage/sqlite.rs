@@ -23,6 +23,7 @@ pub use rusqlite;
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::Duration;
 use std::{
     fs::{File, OpenOptions},
     num::{NonZeroU32, NonZeroUsize},

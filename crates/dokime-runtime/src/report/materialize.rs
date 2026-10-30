@@ -151,7 +151,7 @@ async fn materialize_execution(
                 if row.record.schema != *codec.schema() {
                     continue;
                 }
-                samples.push(codec.decode(&row.record.payload, usize::MAX)?.sample);
+                samples.push(codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample);
             }
         }
     }
@@ -169,7 +169,11 @@ async fn materialize_execution(
             telemetry: &samples,
             artifacts: crate::document::input::Artifacts::Outputs(&outputs),
         },
-        crate::document::bounded::DocumentLimits::default(),
+        crate::document::bounded::DocumentLimits {
+            source_bytes: captured.report_defaults.source_bytes as usize,
+            materialized_bytes: captured.report_defaults.source_bytes as usize,
+            ..crate::document::bounded::DocumentLimits::default()
+        },
     )?;
     let mut documents = BTreeMap::new();
     let mut plots = BTreeMap::new();
@@ -253,7 +257,7 @@ fn assemble(
             });
         }
     }
-    let appearance = super::value::Value::from_serializable(&captured.context.appearance, 32)?;
+    let appearance = super::value::Value::from_serializable(&captured.context.appearance, report_defaults.value_depth as usize)?;
     Ok(CapturedExecutionReportInput {
         report_defaults,
         final_report,

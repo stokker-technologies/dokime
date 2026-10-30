@@ -76,17 +76,18 @@ async fn report_background() {
         };
         let (_, closed) = runtime.telemetry_page_at(runtime.storage(), &selection, &runtime.storage().cursor_saved(), 0).await.unwrap();
         assert!(closed);
-        let download = {
-            let runtime = runtime.clone();
-            let execution = execution.clone();
-            tokio::spawn(async move { runtime.open_execution_report(&execution).await })
-        };
-        assert!(!download.is_finished());
+        let download = runtime.open_execution_report(&execution);
+        tokio::pin!(download);
+        assert!(futures_util::poll!(&mut download).is_pending());
         gate.release();
         assert_eq!(runtime.wait_execution_report(&execution).await.is_err(), fail);
-        assert_eq!(download.await.unwrap().is_err(), fail);
+        assert_eq!(download.await.is_err(), fail);
         // An Already-Settled Stop Never Becomes A Report Error.
-        runtime.stop_execution(execution, CommandContext::default()).await.unwrap();
+        runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+        if fail {
+            runtime.finish_execution_for_test(&execution).await.unwrap();
+            runtime.wait_execution_report(&execution).await.unwrap();
+        }
         owner.shutdown().await.unwrap();
     }
 

@@ -81,7 +81,7 @@ pub(crate) async fn cycle_container_lifecycle() {
 
     let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
-    let completed = cycle_snapshot(&runtime, &first).await;
+    let completed = super::published_cycle(&runtime, &first).await;
     assert_eq!(completed.phase, CyclePhase::Active);
     assert!(completed.saved.is_none());
     let original = completed.test_executions[0].clone();
@@ -95,7 +95,7 @@ pub(crate) async fn cycle_container_lifecycle() {
     let run =
         runtime.start_execution(execution, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
-    let completed = cycle_snapshot(&runtime, &first).await;
+    let completed = super::published_cycle(&runtime, &first).await;
     assert_eq!(completed.test_executions[0], original);
     assert!(completed.test_executions[1].saved.is_some());
     assert_eq!(completed.phase, CyclePhase::Active);
@@ -134,7 +134,8 @@ pub(crate) async fn rerun_fresh_started() {
     let test_cycle_id = start_cycle(&runtime, suite).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    let completed = super::published_cycle(&runtime, &test_cycle_id).await;
     let test_case_id = completed.cases().next().unwrap().test_case_id.clone();
     let first_started_at = completed.test_executions[0].started_at.clone().expect("first execution should have a start timestamp");
 
@@ -165,7 +166,7 @@ pub(crate) async fn rerun_fresh_started() {
     assert_eq!(original.status, first.status);
     assert_eq!(original.started_at, first.started_at);
     assert_eq!(original.finished_at, first.finished_at);
-    assert_eq!(format!("{:?}", original.saved), format!("{:?}", first.saved));
+    assert_eq!(original.saved, first.saved);
 }
 
 pub(crate) async fn stop_archive_state() {
@@ -536,7 +537,7 @@ pub(crate) async fn queued_execution_identity() {
     );
     stopped_once.unwrap();
     stopped_twice.unwrap();
-    let stopped = cycle_snapshot(&runtime, &queued).await;
+    let stopped = super::published_cycle(&runtime, &queued).await;
     assert_eq!(stopped.phase, CyclePhase::Active);
     assert!(!stopped.continue_automatically);
     assert_eq!(stopped.test_executions[0].status, ExecutionStatus::Cancelled);

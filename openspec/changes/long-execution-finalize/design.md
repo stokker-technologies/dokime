@@ -41,7 +41,9 @@ filters, grouping, correlations, repeated sections and non-time plots without an
 incremental index are explicitly unavailable, with the retained evidence identified.
 Old evidence cuts whose mutable preview has advanced are refused; no raw replay
 is a fallback. Presentation settings are construction snapshots owned by SQLite
-and report defaults. Fresh v1 roots are required; no migration or reset occurs.
+and report defaults, including byte/depth budgets. Lifecycle metadata and file
+inventories retain complete captured ownership and scale with their own cardinality.
+Fresh v1 roots are required; no migration or reset occurs.
 
 ## Background Publication
 
@@ -52,8 +54,9 @@ failed publication; a durable execution seal means ready. Execution detail expos
 that state and failure cause through the shared generated contract. GUI displays
 it; CLI and Python snapshots expose it. Downloads and evidence saves join readiness.
 Publication failure cannot change the provider outcome or fail a repeated Stop.
-Shutdown cancels presentation jobs after evidence settlement and preserves their
-intent; startup resumes publication without rerunning providers.
+Shutdown cancels presentation after evidence settlement, joins any already-started
+durable publication, and preserves unfinished intents; startup resumes without
+rerunning providers.
 
 ## Incremental Numeric Index
 
@@ -86,5 +89,6 @@ the same acknowledged byte frontier makes subsequent cleanup idempotent.
 Deterministic default-cadence host streams plus OBC-like data, records, logs,
 traceability and documents at one hour and four times that volume. Compare actual
 Stop-to-seal, Cancel-to-settled and report/save measurements separately. Physical
-drain counts prove concurrency, re-entry and cancelled-waiter behavior. Full check
-and format follow source closure, with focused tests throughout. Commit only.
+drain counts prove concurrency, re-entry and cancelled-waiter behavior. Requested
+workspace checks and format follow source closure, with focused tests throughout.
+Commit only.

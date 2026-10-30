@@ -17,6 +17,7 @@
 import assert from "node:assert/strict";
 // Local Imports
 import type { SettingsSnapshot } from "@generated/application-settings";
+import defaults from "@generated/application-settings.json";
 // Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -66,7 +67,7 @@ function snapshot(): SettingsSnapshot {
     revision: 7,
     settings: {
       appearance: { theme_mode: "dark", theme_family: "fixture", density: "compact" },
-      report: { plot_points: 3210, plot_downsample: "lttb" },
+      report: { ...defaults.report, plot_points: 3210, plot_downsample: "lttb" },
       client: { connect_timeout_ms: 1234, request_timeout_ms: 5678 },
       telemetry: { interval_ms: 42 },
       listener: {
@@ -169,7 +170,7 @@ test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
       settings.appearance = { theme_mode: "light", theme_family: "other", density: "touch" };
       settings.client = { connect_timeout_ms: 2000, request_timeout_ms: 9000 };
     } else {
-      settings.report = { plot_points: 4000, plot_downsample: "raw" };
+      settings.report = { ...settings.report, plot_points: 4000, plot_downsample: "raw" };
       settings.telemetry.interval_ms = 200;
       settings.listener = {
         enabled: false,

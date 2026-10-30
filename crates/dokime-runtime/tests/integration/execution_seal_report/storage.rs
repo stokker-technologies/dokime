@@ -221,18 +221,28 @@ pub(crate) async fn execution_save_sealing() {
 pub(crate) async fn terminal_capture_repaired() {
     let root = tempdir().unwrap();
     let (mut owner, handle, cycle_id, executor) = blocked_cycle(root.path()).await;
-    std::fs::write(root.path().join("organization.toml"), "[app]\nlabel = \"Stokker Technologies\"\n").unwrap();
-    let mut brand = dokime_runtime::domains::installed_plugins::load_brand(root.path()).unwrap();
-    brand.customization.display_name = Some("x".repeat(4 * 1024 * 1024));
-    handle.set_brand(Some(brand));
+    let original = handle.read_application_settings().await.unwrap();
+    let mut settings = original.settings.clone();
+    settings.report.source_bytes = 1;
+    let limited = handle
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: original.revision,
+            settings,
+        })
+        .await
+        .unwrap();
     let id = cycle_snapshot(&handle, &cycle_id).await.test_executions[0].test_execution_id.clone();
     executor.release();
-    until_state(&handle, |state| {
-        state.cycle_views().any(|cycle| cycle.test_cycle_id == cycle_id && cycle.test_executions[0].finished_at.is_some())
-    })
-    .await;
+    until_state(&handle, |state| state.report_finalizations.get(&id).is_some_and(|intent| intent.failure.is_some())).await;
     assert!(handle.execution_saved_checkpoint(id.clone()).await.is_err());
-    handle.set_brand(None);
+    handle
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: limited.revision,
+            settings: original.settings,
+        })
+        .await
+        .unwrap();
+    handle.finish_execution_for_test(&id).await.unwrap();
     let checkpoint = crate::service_support::native::checkpoint(&handle, &id).await;
     assert_eq!(crate::service_support::native::open(&handle, &checkpoint).await.execution().status, ExecutionStatus::Passed);
     drop(handle);
@@ -263,9 +273,14 @@ pub(crate) async fn unsealed_cycle_survives_restart() {
     drop(terminal);
     drop(watch);
 
-    // The Diagnostic Lands After The Freeze, As Host Sampling Failures Do On A Wedged Machine.
+    // Cycle Diagnostics Remain Writable After The Execution Closes.
     runtime
-        .add_health_item(member.scope.clone(), dokime_domain::model::execution::HealthSeverity::Error, "late diagnostic".into(), None)
+        .add_health_item(
+            dokime_domain::model::execution::RecordScope::default().with_cycle(test_cycle_id.clone()),
+            dokime_domain::model::execution::HealthSeverity::Error,
+            "late diagnostic".into(),
+            None,
+        )
         .await
         .unwrap();
     drop(runtime);
