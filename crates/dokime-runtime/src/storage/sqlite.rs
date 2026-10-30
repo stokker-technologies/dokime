@@ -70,6 +70,8 @@ pub struct Settings {
     // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
     // Spans Write Each Repeatedly Updated Index Page Once Instead Of After Every Commit.
     pub checkpoint_pages: NonZeroU32,
+    pub telemetry_rows: NonZeroUsize,
+    pub telemetry_interval: Duration,
 }
 
 // Process-Wide SQLite Diagnostics; These Exclude Autocommit Statements And The Harmos State Journal.
@@ -182,6 +184,12 @@ impl State {
     }
 
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
+        if settings.telemetry_interval.is_zero() {
+            return Err(Error::Invalid("telemetry flush interval must be positive"));
+        }
+        if tokio::time::Instant::now().checked_add(settings.telemetry_interval).is_none() {
+            return Err(Error::Invalid("telemetry flush deadline overflows"));
+        }
         let root = root.as_ref().to_path_buf();
         let readers = settings.readers;
         let count = u32::try_from(readers.get())
