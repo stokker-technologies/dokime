@@ -132,7 +132,16 @@ impl ExportFixture {
         assert_eq!(receipt.status, CommandStatus::Accepted);
         let settle = async {
             loop {
-                if fixture.runtime.run_request(&receipt.command_id).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal()) {
+                let settled =
+                    fixture.runtime.run_request(&receipt.command_id).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal());
+                let saved = fixture
+                    .runtime
+                    .cycles()
+                    .await
+                    .into_iter()
+                    .find(|stored| stored.test_cycle_id == cycle)
+                    .is_some_and(|stored| stored.test_executions.first().is_some_and(|execution| execution.saved.is_some()));
+                if settled && saved {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(10)).await;

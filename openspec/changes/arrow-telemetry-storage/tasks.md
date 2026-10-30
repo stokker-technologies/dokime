@@ -34,7 +34,7 @@
 
 ## 6. Benchmark Source And Closure
 
-- [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs and reproducible before/after output without running the benchmark yet.
+- [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
 - [x] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
 
 ## 7. Final Validation And Local Handback
