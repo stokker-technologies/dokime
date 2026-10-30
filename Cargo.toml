@@ -64,9 +64,9 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "3d3b12314a0e54e06a7cddf58e3fcfd527f8572e" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "3d3b12314a0e54e06a7cddf58e3fcfd527f8572e" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "3d3b12314a0e54e06a7cddf58e3fcfd527f8572e" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }

@@ -44,8 +44,6 @@ pub fn storage_defaults() -> StorageSettings {
     StorageSettings {
         filesystem: StorageFilesystemSettings {
             poll_interval: std::time::Duration::from_millis(100),
-            max_entries: nonzero(100_000),
-            event_capacity: nonzero(1024),
         },
         request: StorageRequestSettings {
             max_pending_queries: nonzero(128),
