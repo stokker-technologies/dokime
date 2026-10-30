@@ -361,7 +361,7 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 
 [skeletons]
 # Audit Native Sources And Cargo/CI Policy Skeletons.
-include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", "stkr.toml"]
+include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", ".stkr/project.toml"]
 # Generated RPC output is owned and checked by the binding generators.
 exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 

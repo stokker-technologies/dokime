@@ -18,7 +18,6 @@ use super::support;
 // Standard Library Imports
 use std::{fs, path::Path, process::Output};
 // Third Party Imports
-use sha2::{Digest, Sha256};
 
 // Local Imports
 
@@ -89,7 +88,7 @@ fn standalone_scaffold_offline() {
     let plugin = root.path().join("my-plugin");
     for file in [
         "mise.toml",
-        "stkr.toml",
+        ".stkr/project.toml",
         ".github/workflows/ci.yml",
         ".gitlab-ci.yml",
         "tools/python/pyproject.toml",
@@ -106,12 +105,10 @@ fn standalone_scaffold_offline() {
     assert!(members.iter().any(|member| member.as_str() == Some("tools/python")));
     for file in ["mise.toml", "tools/python/src/project_tools/test/run.py"] {
         let contents = fs::read_to_string(plugin.join(file)).unwrap();
-        let (marker, body) = contents.split_once('\n').unwrap();
-        assert!(marker.starts_with("# Rendered by stkr project update from "));
-        let (_, recorded) = marker.rsplit_once("; sha256:").unwrap();
-        let digest = Sha256::digest(body.as_bytes());
-        let encoded = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        assert_eq!(recorded, encoded);
+        let public_contents = contents.replace(".stkr", "").to_ascii_lowercase();
+        for word in public_contents.split(|character: char| !character.is_ascii_alphanumeric() && character != '_') {
+            assert!(!matches!(word, "hub" | "stkr"), "{file} has no internal tooling mentions");
+        }
         assert!(!contents.contains("{{package}}"), "{file} has no unresolved package placeholder");
     }
 }

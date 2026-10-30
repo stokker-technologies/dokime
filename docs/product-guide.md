@@ -955,7 +955,7 @@ with paths relative to the invocation directory. Explicit paths also accept a
 local sidecars ZIP or tar.gz and include its `.dokime` members. Every selected
 bundle receives the same integrity, native-target and `requires_dokime` checks
 before embedding; duplicate filenames or package names fail. The product
-packaging task selects shipping plugins explicitly from `stkr.toml`; OBC is
+packaging task selects shipping plugins explicitly from `.stkr/project.toml`; OBC is
 test-only.
 `cargo dokime sidecar build` and `package` include integrity-indexed `dokime.json`
 metadata (schema v1) containing `requires_dokime`, taken from the plugin's Cargo
