@@ -160,7 +160,7 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing the older JSON stream-row format or earlier plugin identities require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
+Development roots containing earlier telemetry layouts or plugin identities require a fresh storage root. Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
@@ -176,7 +176,7 @@ and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
 Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
 for packaging, inspection and installation.
 
-Live plots display saved telemetry. The time-range slider filters storage queries:
+Live plots combine saved telemetry batches with the unflushed in-memory tail. The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 

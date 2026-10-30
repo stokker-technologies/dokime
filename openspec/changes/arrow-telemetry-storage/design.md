@@ -36,6 +36,20 @@ The single writer is the current chat in `feat/arrow-telemetry`; the initial tre
 
 Implement schema/configuration and catalog first, then writer/recovery, reader/durable cursor consumers, exports, documentation and benchmarks. Retire superseded code in the same feature. Keep existing managed Harmos lifecycle contracts and public operation declarations as the boundary.
 
+## Implementation Decisions
+
+The IPC schema separates `_storage` metadata from contract-typed `values`; authored field names cannot collide with storage metadata. Each indexed batch retains a digest for bounded integrity-checked reads. SQLite retains the SHA-256 continuation state at each committed batch boundary so recovery can hash its new footer without reading payload bytes.
+
+Admission owns an in-memory tail and schedules configured row-or-time flushes. Accepted rows are volatile until saved progress advances; explicit evidence barriers and shutdown also drain them. Live reads merge that tail at the admitted frontier, while historical reads remain at their requested durable frontier. Harmos's row adapter reconstitutes its envelope from Arrow values; native consumers read Arrow values directly.
+
+Footer presence and execution sealing are distinct catalog states. Recovery and shutdown produce a valid footer without preventing an interrupted execution from resuming; explicit execution finalization seals its streams. Resumption removes only the metadata footer, restoring the committed hash/block checkpoint. A file created before its first catalog commit has no saved rows; after verifying its embedded schema, retry retains its header and discards only that uncommitted suffix. Incompatible schemas are refused.
+
+The batch index retains complete-scope time ranges for predecessor selection, avoiding scans of older sample bodies. Window pagination selects native position/time columns before projecting rows and retains one decoded batch. Numeric plots project requested numeric columns directly, including the tail, without reconstructing telemetry envelopes.
+
+Pending values use the same timestamp/JSON projection as persisted values. A native timestamp projection whose contract declares a string remains Arrow Utf8; its original spelling is retained for exact native envelope reconstruction. Reports use their existing owner-plus-UUID report/context file identity to distinguish them from artifacts. Runtime contract registration shares its validated codec with the backend, preserving configured schema allowances. Shutdown joins owned flush tasks and reports failures or remaining unsaved rows before closing the store, retaining the opportunity to repair and retry.
+
+The comparison baseline is the task's original origin/dev revision `9f4546ea6a49cbf24c72625fb923c873d3745abc`. The same Criterion workload measures durable 1,024-row writes, a bounded plot query over 1M saved rows, finalization plus runtime/storage close after 65,536 rows (excluding directory deletion), and execution ZIP generation/download for 16,384 rows. The close metric includes runtime teardown and SQLite checkpoint work; footer-only complexity is established separately by IPC correctness proofs. Copy only the benchmark harness additions into the baseline checkout; no storage implementation changes belong there. The baseline and candidate run sequentially in this owned workspace, avoiding retirement of other active worktrees.
+
 ## Validation And Delivery
 
 Use discovered mise tasks with standard compiler preflight and `UV_PROJECT_ENVIRONMENT` absent; do not redirect Python or temporary environments. Run targeted proof during implementation. After complete source closure, run the requested workspace checks/format and the existing benchmark task exactly once with an origin/dev comparison; no installers or umbrella lanes. TypeScript check/lint applies only if GUI changes. The owner's explicit no-push instruction overrides ordinary delivery automation.

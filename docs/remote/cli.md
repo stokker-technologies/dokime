@@ -215,8 +215,10 @@ checksums and replace files atomically; download retries never rerun hardware.
 The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
 shell redirection. The `.id` files retain confirmed native identities.
 
-Bundles contain `manifest.json`, `evidence.sqlite`, captured `files/` and
-saved `reports/`. Inspect the SQLite database and verify manifest checksums.
+Bundles contain `manifest.json`, `evidence.sqlite`, captured `artifacts/`,
+original Arrow IPC files under `telemetry/` and saved `reports/`. Cycle bundles
+place artifacts and telemetry under `executions/<execution-id>/`. Join the
+SQLite catalogs and verify manifest checksums.
 An execution bundle saved before the cycle is sealed records an Active cycle;
 the final cycle bundle includes all members and its sealed phase.
 
