@@ -9,6 +9,8 @@
 
 /* === Local Imports === */
 
+import { formatUnitLabel } from "@/lib/format";
+
 import { isNumber } from "@/lib/utils";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
@@ -51,12 +53,13 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-4 rounded-lg bg-muted/20 p-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
+          <h4 className="truncate text-sm font-semibold" title={formatUnitLabel(plot.title, plot.unit)}>
+            {formatUnitLabel(plot.title, plot.unit)}
+          </h4>
           <p className="text-xs text-muted-foreground">
             {buckets.length} categor{buckets.length === 1 ? "y" : "ies"}, {totalSamples} samples
           </p>
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground">{plot.unit ?? "value"}</span>
       </header>
       <div className="grid gap-3 pt-1">
         {buckets.map((bucket) => (

@@ -16,6 +16,8 @@ import { interpolateYlOrRd } from "d3-scale-chromatic";
 
 /* === Local Imports === */
 
+import { formatUnitLabel } from "@/lib/format";
+
 import { formatNumber } from "@/lib/format";
 import type { PlotCardSpec } from "@/plots/types";
 
@@ -92,7 +94,9 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3" data-testid="heatmap-plot">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
+          <h4 className="truncate text-sm font-semibold" title={formatUnitLabel(plot.title, plot.unit)}>
+            {formatUnitLabel(plot.title, plot.unit)}
+          </h4>
           {plot.description ? <p className="text-xs text-muted-foreground">{plot.description}</p> : null}
           <p className="text-xs text-muted-foreground">{summary}</p>
         </div>
@@ -297,7 +301,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
             </text>
             <g transform={`translate(${SVG_WIDTH - MARGIN.right - LEGEND_WIDTH} 18)`}>
               <text fill="var(--muted-foreground)" fontSize={11} x={0} y={0}>
-                Value {plot.unit ?? ""}
+                {formatUnitLabel("Value", plot.unit)}
               </text>
               <rect fill={`url(#${legendId})`} height={LEGEND_HEIGHT} rx={4} width={LEGEND_WIDTH} y={12} />
               <text fill="var(--muted-foreground)" fontSize={10} x={0} y={34}>

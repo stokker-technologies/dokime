@@ -56,6 +56,12 @@ const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
 
 /* === Public Functions === */
 
+/** A label and its optional unit share one line in every presentation. */
+export function formatUnitLabel(label: string, unit?: string | null): string {
+  const symbol = unit?.trim();
+  return symbol ? `${label} [${symbol}]` : label;
+}
+
 /** A duration split into the figure and the unit it is printed in. */
 export type DurationParts = { figure: string; unit: string };
 

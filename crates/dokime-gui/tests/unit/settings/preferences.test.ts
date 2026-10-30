@@ -130,22 +130,28 @@ test("Advanced Reveals Additional Preference Fields", () => {
     renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true })) +
     renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, section: "remote" }));
   const visible = [
-    "Theme Mode",
-    "Theme Family",
-    "Density",
-    "Report Points",
-    "Report Downsampling",
-    "Listener Enabled",
-    "Listener Address",
-    "Listener TLS",
-    "Listener Authentication",
+    "local-appearance.theme_mode",
+    "local-appearance.theme_family",
+    "local-appearance.density",
+    "backend-report.plot_points",
+    "backend-report.plot_downsample",
+    "backend-listener.enabled",
+    "backend-listener.address",
+    "backend-listener.tls_enabled",
+    "backend-listener.authentication_enabled",
   ];
-  const additional = ["Connect Timeout (ms)", "Request Timeout (ms)", "Telemetry Interval (ms)", "Certificate Names"];
-  for (const label of visible) assert.ok(simple.includes(`aria-label="${label}"`), label);
-  for (const label of additional) {
-    assert.ok(!simple.includes(`aria-label="${label}"`), label);
-    assert.ok(advanced.includes(`aria-label="${label}"`), label);
+  const additional = [
+    "local-client.connect_timeout_ms",
+    "local-client.request_timeout_ms",
+    "backend-telemetry.interval_ms",
+    "backend-listener.certificate_names",
+  ];
+  for (const id of visible) assert.ok(simple.includes(`id="${id}"`), id);
+  for (const id of additional) {
+    assert.ok(!simple.includes(`id="${id}"`), id);
+    assert.ok(advanced.includes(`id="${id}"`), id);
   }
+  assert.equal((advanced.match(/aria-label="[^"<>]* \[ms\]"/g) ?? []).length, 3);
   assert.equal((advanced.match(/aria-label=/g) ?? []).length, 13);
   for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"])
     assert.ok(advanced.includes(`value="${value}"`), value);

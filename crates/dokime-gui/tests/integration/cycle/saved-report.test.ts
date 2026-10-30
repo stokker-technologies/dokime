@@ -13,9 +13,15 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
+import { Metric } from "@/components/Metric";
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
+import { documentSummaryTile } from "@/lib/document-presentation";
+import { seriesLegendColumns } from "@/lib/statistics";
 
 /* === Re-Exports === */
 
@@ -30,6 +36,29 @@ import { test, vi } from "vitest";
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+test("Report Unit Labels", () => {
+  const tile = documentSummaryTile({
+    metadata: { identifier: "fixture", label: "fixture" },
+    value: 12,
+    unit: "Mbps",
+    stat: "latest",
+    format: "number",
+    presentation: "value",
+    state: null,
+  });
+  assert.match(tile.label, / \[Mbps\]$/);
+  const metric = renderToStaticMarkup(createElement(Metric, { label: tile.label, value: tile.formatted }));
+  assert.match(metric, /<span[^>]*class="[^"]*truncate[^"]*"[^>]*title="[^"<>]* \[Mbps\]"/);
+  const table = renderToStaticMarkup(
+    createElement(StatsSummaryTable, {
+      legend: { columns: seriesLegendColumns("Mbps"), rows: [], pending: false },
+    }),
+  );
+  const headings = table.match(/<thead\b[\s\S]*?<\/thead>/)?.[0] ?? "";
+  assert.match(headings, /title="[^"<>]* \[Mbps\]"/);
+  assert.doesNotMatch(headings, /whitespace-normal|overflow-wrap:anywhere|<br/);
+});
 
 test("Saved Report Browser", async () => {
   const opened: string[] = [];

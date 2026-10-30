@@ -35,7 +35,9 @@ export function Metric({ label, value, rawValue, detail, presentation = "value",
   return (
     <Card className={cn("min-h-18 min-w-0 rounded-lg bg-muted/35 py-2", stateClass(state))} size="sm">
       <CardContent className="grid min-w-0 grid-rows-[--spacing(5)_minmax(--spacing(6),auto)_--spacing(3)] gap-1 px-3">
-        <span className="min-w-0 self-end truncate text-xs font-bold uppercase leading-tight text-muted-foreground">{label}</span>
+        <span className="min-w-0 self-end truncate text-xs font-bold leading-tight text-muted-foreground" title={label}>
+          {label}
+        </span>
         {progress === null ? (
           <strong className="min-w-0 text-lg leading-tight">
             <MetricValue forceBadge={presentation === "badge"} state={state} value={value} />

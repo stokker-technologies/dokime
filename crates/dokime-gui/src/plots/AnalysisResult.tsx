@@ -20,6 +20,8 @@ import { useId, useMemo, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
+
+import { formatUnitLabel } from "@/lib/format";
 import type { EvidenceAnalysisResult } from "@/lib/types";
 import { CartesianPlot } from "./CartesianPlot";
 
@@ -89,7 +91,7 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
         <CartesianPlot
           title={label}
           timeAxis={false}
-          xLabel={[schema.axis.key, output.axisUnit].filter(Boolean).join(" · ")}
+          xLabel={formatUnitLabel(schema.axis.key, output.axisUnit)}
           unit={output.unit}
           viewportMode="fit"
           series={[
@@ -108,7 +110,9 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
         />
       ) : (
         <dl className="grid gap-1">
-          <dt className="text-sm text-muted-foreground">{label}</dt>
+          <dt className="truncate text-sm text-muted-foreground" title={formatUnitLabel(label, output.unit)}>
+            {formatUnitLabel(label, output.unit)}
+          </dt>
           <dd className="text-xl tabular-nums">
             {output.values[0]} {output.unit}
           </dd>
