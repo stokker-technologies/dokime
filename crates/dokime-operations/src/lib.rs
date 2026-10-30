@@ -210,6 +210,7 @@ const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy {
         timeout,
         attempt_timeout: timeout,
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: RetryPolicy::Never,
     }
 }

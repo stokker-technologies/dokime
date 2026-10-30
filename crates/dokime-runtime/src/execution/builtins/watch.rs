@@ -251,8 +251,8 @@ pub(super) async fn run(
     let baseline = vec![path.file_name().unwrap().to_string_lossy().into_owned()];
     if request.selection == dokime_domain::model::files::wire::FileWatchSelection::New {
         ready.send_replace(Some(Ok(dokime_domain::model::files::wire::FileWatchArmed { baseline })));
-        let cancelled = wait(&mut cancel, bound, started).await;
-        return if cancelled { Err(CANCELLED.into()) } else { Ok(WatchFileOutcome { artifacts: Vec::new(), gaps: Vec::new() }) };
+        wait(&mut cancel, bound, started).await;
+        return Ok(WatchFileOutcome { artifacts: Vec::new(), gaps: Vec::new() });
     }
     if !matches!(policy, FileWatchPolicy::Stream | FileWatchPolicy::Mirror) {
         if policy == FileWatchPolicy::SnapshotAtStart {
@@ -261,9 +261,8 @@ pub(super) async fn run(
             return Ok(outcome);
         }
         ready.send_replace(Some(Ok(dokime_domain::model::files::wire::FileWatchArmed { baseline })));
-        let cancelled = wait(&mut cancel, bound, started).await;
-        let outcome = snapshot(&binding, &path, artifact, maximum_bytes)?;
-        return if cancelled { Err(CANCELLED.into()) } else { Ok(outcome) };
+        wait(&mut cancel, bound, started).await;
+        return snapshot(&binding, &path, artifact, maximum_bytes);
     }
 
     // Stream From The Length At The Start
@@ -290,26 +289,23 @@ pub(super) async fn run(
     tail.pass(&binding).await?;
     let started = Instant::now();
     ready.send_replace(Some(Ok(dokime_domain::model::files::wire::FileWatchArmed { baseline })));
-    let cancelled = loop {
+    loop {
         if let Err(error) = tail.pass(&binding).await {
             tail.seal(&binding).await?;
             return Err(error);
         }
         let pause = bound.map_or(poll, |bound| bound.saturating_sub(started.elapsed()).min(poll));
         if bound.is_some_and(|bound| started.elapsed() >= bound) {
-            break false;
+            break;
         }
         tokio::select! {
-            _ = cancel.wait_for(|cancelled| *cancelled) => break true,
+            _ = cancel.wait_for(|cancelled| *cancelled) => break,
             () = tokio::time::sleep(pause) => {}
         }
-    };
+    }
     let final_pass = tail.pass(&binding).await;
     let outcome = tail.finish(&binding).await?;
     final_pass?;
-    if cancelled {
-        return Err(CANCELLED.into());
-    }
     Ok(outcome)
 }
 
@@ -323,8 +319,7 @@ fn artifact_name(path: &Path, output: &str, artifact: Option<&str>) -> Result<St
     Ok(if output.is_empty() { file.to_owned() } else { format!("{output}/{file}") })
 }
 
-// Whether the watch was cancelled rather than bounded.
-async fn wait(cancel: &mut watch::Receiver<bool>, bound: Option<Duration>, started: Instant) -> bool {
+async fn wait(cancel: &mut watch::Receiver<bool>, bound: Option<Duration>, started: Instant) {
     let until = async {
         match bound {
             Some(bound) => tokio::time::sleep(bound.saturating_sub(started.elapsed())).await,
@@ -332,8 +327,8 @@ async fn wait(cancel: &mut watch::Receiver<bool>, bound: Option<Duration>, start
         }
     };
     tokio::select! {
-        changed = cancel.wait_for(|cancelled| *cancelled) => changed.is_ok(),
-        () = until => false,
+        _ = cancel.wait_for(|cancelled| *cancelled) => {},
+        () = until => {},
     }
 }
 

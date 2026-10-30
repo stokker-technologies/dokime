@@ -22,6 +22,7 @@
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: sdk::harmos::operations::RetryPolicy::Never,
 };
 

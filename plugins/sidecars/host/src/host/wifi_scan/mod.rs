@@ -41,6 +41,7 @@ const BUDGET: Duration = Duration::from_millis(12000);
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: BUDGET,
     attempt_timeout: BUDGET,
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 

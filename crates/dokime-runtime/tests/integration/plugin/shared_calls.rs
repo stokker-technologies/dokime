@@ -28,7 +28,7 @@ use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 
 // Local Imports
 use dokime_runtime::catalog::required_by;
-use dokime_runtime::execution::{InitializationContext, Run, SidecarTemplate, StepContext};
+use dokime_runtime::execution::{InitializationContext, Run, SidecarTemplate, Signal, StepContext};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
 
@@ -383,27 +383,50 @@ async fn template_calls_own_public() {
 async fn own_public_call_cancels() {
     let native = opened().await;
     let operations = &native.runtime.operations;
-    let mut settled = Vec::new();
-    for public in [false, true] {
-        let token = format!("cancelled-{public}");
-        let probed = registered(&token);
-        let run = format!("{OWNER}.{}", <Run<Probe> as OperationDeclaration>::ID);
-        let request = dokime_runtime::harmos::Message::encode(&start(&token, &token, public, true));
-        let invocation = operations.submit_encoded(&run, request).unwrap();
-        until(|| probed.started.load(Ordering::SeqCst) == 1).await;
-        invocation.cancel();
-        let cancelled = invocation.await;
-        // The cancelled run cancels the call in flight on the provider.
-        until(|| probed.cancelled.load(Ordering::SeqCst) == 1).await;
-        settled.push((
-            format!("{cancelled:?}"),
-            probed.started.load(Ordering::SeqCst),
-            probed.answered.load(Ordering::SeqCst),
-            probed.cancelled.load(Ordering::SeqCst),
-        ));
+    for abort in [false, true] {
+        let mut settled = Vec::new();
+        for public in [false, true] {
+            let token = format!("cancelled-{abort}-{public}");
+            let probed = registered(&token);
+            let run = format!("{OWNER}.{}", <Run<Probe> as OperationDeclaration>::ID);
+            let request = dokime_runtime::harmos::Message::encode(&start(&token, &token, public, true));
+            let invocation = operations.submit_encoded(&run, request).unwrap();
+            until(|| probed.started.load(Ordering::SeqCst) == 1).await;
+            if abort {
+                invocation.request_cancel();
+                let cancelled = invocation.await;
+                assert!(matches!(
+                    cancelled,
+                    Err(dokime_runtime::harmos::Error::OperationRefused(dokime_runtime::harmos::Refusal::Cancelled))
+                ));
+            } else {
+                super::native::call_wire::<Signal<Probe>>(
+                    operations,
+                    OWNER,
+                    Signal::new(dokime_runtime::transport::ExecutionSignal {
+                        execution_token: token,
+                        cancel: true,
+                        ..Default::default()
+                    }),
+                )
+                .await
+                .unwrap();
+                let response = invocation.await.expect("cooperative stop returns the run's final response");
+                let response =
+                    <dokime_runtime::transport::SidecarExecutionOutcome as dokime_runtime::harmos::Message>::decode(response.as_slice())
+                        .expect("the final run response decodes");
+                assert!(!response.passed);
+                assert!(response.failed_in.is_none());
+            }
+            until(|| probed.cancelled.load(Ordering::SeqCst) == 1).await;
+            settled.push((
+                probed.started.load(Ordering::SeqCst),
+                probed.answered.load(Ordering::SeqCst),
+                probed.cancelled.load(Ordering::SeqCst),
+            ));
+        }
+        assert_eq!(settled, [(1, 0, 1), (1, 0, 1)]);
     }
-    assert!(settled[0].0.contains("Cancelled"), "{}", settled[0].0);
-    assert_eq!(settled[0], settled[1], "the public call settles exactly as the private one");
     native.shutdown().await;
 }
 

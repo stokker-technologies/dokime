@@ -37,11 +37,13 @@ use crate::transport::{
 const RUN_POLICY: OperationPolicy = OperationPolicy {
     timeout: RUN_BOUND,
     attempt_timeout: RUN_BOUND,
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 pub const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
     timeout: SIGNAL_BOUND,
     attempt_timeout: SIGNAL_BOUND,
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
