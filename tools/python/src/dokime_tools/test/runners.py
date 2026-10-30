@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/test/runners.py; sha256:6898006a2e4187f0b466a16a72f9bd9fb9d0d9069e82957634cc632845d537fe
 # ***
 #
 # Dokime

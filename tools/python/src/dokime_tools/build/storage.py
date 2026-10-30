@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/build/storage.py; sha256:12caceaccdf1f8e667c917b1f5dea7e4164164d04f70ba6b34becdff0ef92205
 # ***
 #
 # Dokime

@@ -83,7 +83,7 @@ Thumbs.db
 /.stkr/task/
 /.stkr/specifications/
 
-# Hub Machine State
+# Local Machine State
 /.stkr/generated/
 
 # Core dumps left by an aborted WebView under the e2e gate.
@@ -93,14 +93,14 @@ Thumbs.db
 # Retired Private Namespace Must Never Enter History
 /.stkr/agents/
 
-# Hub Machine State
+# Local Machine State
 /.stkr/tests/
 /.stkr/benchmarks/
 
-# BEGIN Stkr CI
+# BEGIN CI
 /.cache/
 /.mise/
-# END Stkr CI
+# END CI
 
 # OpenSpec Changes And Specs Are Tracked; Uncomment To Keep Them Local.
 # /openspec/
