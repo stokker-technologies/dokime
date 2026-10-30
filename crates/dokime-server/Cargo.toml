@@ -100,13 +100,13 @@ dokime = { workspace = true }
 dokime-packaging = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -134,18 +134,18 @@ serde_json = { workspace = true }
 [dev-dependencies]
 # Local
 dokime-cli = { path = "../dokime-cli" }
-plugin-host = { workspace = true }
 dokime-runtime = { workspace = true }
+plugin-host = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 keyring-core = { workspace = true }
 
 # Serialization

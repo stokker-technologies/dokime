@@ -51,6 +51,9 @@ dokime-server = { version = "0.1.2", path = "crates/dokime-server" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -64,9 +67,6 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -147,7 +147,6 @@ tonic-types = { version = "=0.14.8" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
-
 zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 # Storage
