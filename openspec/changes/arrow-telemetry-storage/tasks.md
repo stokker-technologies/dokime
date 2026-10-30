@@ -30,6 +30,8 @@
 - [x] 5.2 Update runtime/server export fixtures and add `packages/dokime-client/tests/integration/client/arrow_archive.py`; verify exported Arrow with project Polars and evidence.sqlite joins through the focused Rust export task. Review the SDK's opaque-download `test_exports.py` and retain its unchanged protocol tests.
 - [x] 5.3 Update `docs/product-guide.md`, README claims/examples if affected, export-related remote guides and `docs/exports.md` if present in the delivery base; verify documentation matches final behavior by review. The initial origin/dev has no `docs/exports.md`.
 
+- [x] 5.4 Refresh `crates/dokime-runtime/dist-report/report.html` through `prepare:report` after the required resource check found it stale; review the generated-only difference and rerun `check:rust`.
+
 ## 6. Benchmark Source And Closure
 
 - [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs and reproducible before/after output without running the benchmark yet.
