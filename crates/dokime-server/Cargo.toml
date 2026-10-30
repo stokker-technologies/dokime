@@ -135,7 +135,7 @@ serde_json = { workspace = true }
 # Local
 dokime-cli = { path = "../dokime-cli" }
 plugin-host = { workspace = true }
-dokime-runtime = { workspace = true }
+dokime-runtime = { workspace = true, features = ["testing"] }
 
 # Git
 

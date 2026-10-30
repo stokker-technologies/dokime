@@ -11,9 +11,9 @@
 
 /* === Modules === */
 
-pub(crate) mod authoring;
 pub(crate) mod definition;
 pub(crate) mod embedded;
+pub(crate) mod handle;
 pub(crate) mod prompts;
 pub(crate) mod queue;
 pub(crate) mod session;
@@ -81,7 +81,6 @@ async fn execution_workflow() {
     workflow::capture_declared_scope().await;
     workflow::settlement_late_receipt().await;
     workflow::callbacks::interrupted_join_teardown().await;
-    authoring::wait_completes_duration().await;
 }
 
 // Embedded Provider Stages Own Process-Wide Fixture Registrations.
@@ -135,12 +134,6 @@ async fn execution_workflow_pooled() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_workflow_threaded() {
-    authoring::resource_store_handle().await;
-    authoring::wait_until_shutdown().await;
-    authoring::file_helpers_scope().await;
-    authoring::param_helpers_values().await;
-    definition::doc_example_contract().await.unwrap();
-    definition::doc_example_context().await.unwrap();
     session::live_replay_settles().await;
 }
 
@@ -175,6 +168,8 @@ async fn execution_workflow_paused() {
 #[test]
 fn execution_workflow_sync() {
     workflow::signal_refuses_deliveries();
+    handle::scoped_parameter_values();
+    definition::doc_example_contract().unwrap();
     definition::doc_example_matrix().unwrap();
     #[cfg(feature = "simulation")]
     simulation::declaration_boots_runtime();
