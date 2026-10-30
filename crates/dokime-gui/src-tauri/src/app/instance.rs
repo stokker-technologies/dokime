@@ -46,7 +46,7 @@ const FOCUS_BUDGET: Duration = Duration::from_secs(10);
 
 /* === Structs === */
 
-pub(crate) struct Instance {
+pub struct Instance {
     listener: Listener,
     _lease: File,
 }
@@ -63,7 +63,8 @@ pub(crate) struct InstanceControl {
 /* === Implementations === */
 
 impl Instance {
-    pub(crate) async fn acquire(root: &Path) -> io::Result<Option<Self>> {
+    pub async fn acquire(paths: &dokime::paths::ApplicationPaths) -> io::Result<Option<Self>> {
+        let root = &paths.root;
         let deadline = tokio::time::Instant::now() + FOCUS_BUDGET;
         dokime::harmos::filesystem::publication::create_dir_all(root)?;
         let root = root.canonicalize()?;

@@ -46,6 +46,38 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 }
 
 /* === Tests === */
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn branded_desktop_locks() {
+    use dokime::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID, distribution_identity};
+    use dokime_gui::testing::Instance;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let executable = fixture.path().join("dokime-gui.exe");
+    let manifest = fixture.path().join("distribution.json");
+    fs::write(&manifest, br#"{"schema":1,"identifier":"com.hilti.testhub"}"#).unwrap();
+    let identity = distribution_identity(&executable, DEFAULT_APPLICATION_ID).unwrap();
+    assert_eq!(identity.identifier, "com.hilti.testhub");
+    let root = fixture.path().join(&identity.identifier);
+    let paths = ApplicationPaths::resolve_for(&executable, DEFAULT_APPLICATION_ID, Some(root.clone())).unwrap();
+    let branded = Instance::acquire(&paths).await.unwrap().unwrap();
+    assert!(root.join("desktop.lock").is_file());
+    assert!(root.join("desktop-startup.lock").is_file());
+    assert!(!fixture.path().join(DEFAULT_APPLICATION_ID).exists());
+
+    // The Compiled Fallback Owns A Separate Lease When No Distribution Exists.
+    fs::remove_file(manifest).unwrap();
+    let identity = distribution_identity(&executable, DEFAULT_APPLICATION_ID).unwrap();
+    assert_eq!(identity.identifier, DEFAULT_APPLICATION_ID);
+    let root = fixture.path().join(&identity.identifier);
+    let paths = ApplicationPaths::resolve_for(&executable, DEFAULT_APPLICATION_ID, Some(root.clone())).unwrap();
+    let fallback = Instance::acquire(&paths).await.unwrap().unwrap();
+    assert!(root.join("desktop.lock").is_file());
+    assert!(root.join("desktop-startup.lock").is_file());
+    drop((branded, fallback));
+}
+
 #[tokio::test]
 async fn reset_refuses_unowned() {
     let root = tempfile::tempdir().unwrap();
