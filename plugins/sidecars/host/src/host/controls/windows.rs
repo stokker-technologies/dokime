@@ -15,7 +15,7 @@
 
 use crate::{
     Error, Result,
-    domain::controls::{AdapterState, ControlState, RadioState},
+    domain::controls::{AdapterState, ControlState, Radio, RadioPower, RadioState},
 };
 use std::{
     collections::BTreeSet,
@@ -24,7 +24,7 @@ use std::{
 use windows::{
     Devices::{
         Enumeration::DeviceInformation,
-        Radios::{Radio, RadioAccessStatus, RadioKind, RadioState as NativeRadioState},
+        Radios::{Radio as NativeRadio, RadioAccessStatus, RadioKind, RadioState as NativeRadioState},
     },
     Win32::{
         Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS},
@@ -87,31 +87,34 @@ pub fn administrator() -> Result<bool> {
     Ok(member.as_bool())
 }
 
-pub fn read_radio(kind: &str) -> Result<ControlState> {
+pub fn read_radio(kind: Radio) -> Result<ControlState> {
     let _apartment = Apartment::new()?;
-    let selector = Radio::GetDeviceSelector().map_err(probe)?;
+    let selector = NativeRadio::GetDeviceSelector().map_err(probe)?;
     let devices = DeviceInformation::FindAllAsyncAqsFilter(&selector).map_err(probe)?.join().map_err(probe)?;
     let mut radios = Vec::new();
     for device in devices {
         let id = device.Id().map_err(probe)?;
-        let radio = Radio::FromIdAsync(&id).map_err(probe)?.join().map_err(probe)?;
+        let radio = NativeRadio::FromIdAsync(&id).map_err(probe)?.join().map_err(probe)?;
         let actual = match radio.Kind().map_err(probe)? {
-            RadioKind::WiFi => "wifi",
-            RadioKind::Bluetooth => "bluetooth",
-            RadioKind::MobileBroadband => "cellular",
-            _ => continue,
+            RadioKind::WiFi => Radio::Wifi,
+            RadioKind::Bluetooth => Radio::Bluetooth,
+            RadioKind::MobileBroadband => Radio::Cellular,
+            RadioKind::Other => continue,
+            value => {
+                return Err(Error::UnknownValue {
+                    kind: "radio kind",
+                    value: value.0.to_string(),
+                });
+            }
         };
         if actual != kind {
             continue;
         }
-        let state = radio.State().map_err(probe)?;
-        if state != NativeRadioState::On && state != NativeRadioState::Off {
-            return Err(Error::Probe("radio is disabled by hardware or policy".into()));
-        }
+        let state = radio_power(radio.State().map_err(probe)?)?;
         radios.push(RadioState {
             id: id.to_string(),
-            kind: kind.into(),
-            on: state == NativeRadioState::On,
+            kind,
+            on: state == RadioPower::On,
         });
     }
     Ok(ControlState { radios, ..Default::default() })
@@ -129,12 +132,12 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
     if !state.radios.is_empty() {
         let deadline = std::time::Instant::now() + super::POLICY.attempt_timeout / 2;
         let _apartment = Apartment::new()?;
-        let access = Radio::RequestAccessAsync().map_err(probe)?.join().map_err(probe)?;
+        let access = NativeRadio::RequestAccessAsync().map_err(probe)?.join().map_err(probe)?;
         if access != RadioAccessStatus::Allowed {
             return Err(Error::Probe(format!("radio access refused: {}", access.0)));
         }
         for value in &state.radios {
-            let radio = Radio::FromIdAsync(&value.id.as_str().into()).map_err(probe)?.join().map_err(probe)?;
+            let radio = NativeRadio::FromIdAsync(&value.id.as_str().into()).map_err(probe)?.join().map_err(probe)?;
             let target = if value.on { NativeRadioState::On } else { NativeRadioState::Off };
             if radio.State().map_err(probe)? == target && !restoring {
                 continue;
@@ -164,9 +167,14 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn radio_affects(kind: &str, adapter: &crate::host::adapters::Adapter) -> Result<bool> {
-    if kind != "bluetooth" {
-        return Ok(adapter.kind == if kind == "cellular" { "cellular" } else { "wifi" });
+pub fn radio_affects(kind: Radio, adapter: &crate::host::adapters::Adapter) -> Result<bool> {
+    if kind != Radio::Bluetooth {
+        return Ok(adapter.kind
+            == if kind == Radio::Cellular {
+                crate::host::adapters::AdapterKind::Cellular
+            } else {
+                crate::host::adapters::AdapterKind::Wifi
+            });
     }
     let guid = GUID::try_from(adapter.id.trim_matches(['{', '}'])).map_err(probe)?;
     let mut luid = NET_LUID_LH::default();
@@ -238,17 +246,29 @@ pub fn connected_adapters(pid: u32) -> Result<Vec<String>> {
 
 /* === Private Functions === */
 
-fn set_radio(radio: &Radio, target: NativeRadioState, deadline: std::time::Instant) -> Result<()> {
+fn radio_power(state: NativeRadioState) -> Result<RadioPower> {
+    match state {
+        NativeRadioState::On => Ok(RadioPower::On),
+        NativeRadioState::Off => Ok(RadioPower::Off),
+        NativeRadioState::Disabled | NativeRadioState::Unknown => Err(Error::Probe("radio is disabled by hardware or policy".into())),
+        value => Err(Error::UnknownValue {
+            kind: "radio power",
+            value: value.0.to_string(),
+        }),
+    }
+}
+
+fn set_radio(radio: &NativeRadio, target: NativeRadioState, deadline: std::time::Instant) -> Result<()> {
     use std::{sync::mpsc, time::Instant};
     use windows::{Foundation::TypedEventHandler, core::IInspectable};
     let (changed, changes) = mpsc::sync_channel(1);
-    let handler = TypedEventHandler::<Radio, IInspectable>::new(move |_, _| {
+    let handler = TypedEventHandler::<NativeRadio, IInspectable>::new(move |_, _| {
         let _ = changed.try_send(());
         Ok(())
     });
     let token = radio.StateChanged(&handler).map_err(probe)?;
     struct Watching {
-        radio: Radio,
+        radio: NativeRadio,
         token: i64,
     }
     impl Drop for Watching {
@@ -288,6 +308,15 @@ fn probe(error: impl std::fmt::Display) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_radio_power() {
+        assert_eq!(radio_power(NativeRadioState::On).unwrap(), RadioPower::On);
+        assert_eq!(radio_power(NativeRadioState::Off).unwrap(), RadioPower::Off);
+        assert!(radio_power(NativeRadioState::Disabled).is_err());
+        assert!(radio_power(NativeRadioState::Unknown).is_err());
+        assert!(matches!(radio_power(NativeRadioState(99)), Err(Error::UnknownValue { kind: "radio power", .. })));
+    }
+
     #[test]
     fn native_power_write() {
         let prior = crate::host::power::active_plan().unwrap();

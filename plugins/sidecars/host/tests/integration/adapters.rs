@@ -26,7 +26,7 @@ use dokime::harmos::{
 use dokime_host::{
     HostPlugin,
     host::{
-        adapters::{Adapters, Snapshot, snapshot},
+        adapters::{AdapterKind, AdapterStatus, Adapters, Snapshot, snapshot},
         network::NetworkObserver,
     },
 };
@@ -58,6 +58,10 @@ fn adapter_inventory() {
     assert_eq!(Adapters::VISIBILITY, Visibility::Public);
     let decoded = Snapshot::decode(&snapshot.encode()).unwrap();
     assert!(snapshot == decoded);
+    let captured = serde_json::to_string(&snapshot).unwrap();
+    let decoded = serde_json::from_str::<Snapshot>(&captured).unwrap();
+    assert!(snapshot == decoded);
+
     let mut ids = std::collections::BTreeSet::new();
     for adapter in snapshot.adapters {
         assert!(ids.insert(adapter.id));
@@ -74,6 +78,12 @@ fn adapter_inventory() {
             assert!(address.parse::<std::net::IpAddr>().is_ok());
         }
     }
+}
+
+#[test]
+fn inventory_rejects_unknown_kind_and_status() {
+    assert!(serde_json::from_str::<AdapterKind>("\"satellite\"").is_err());
+    assert!(serde_json::from_str::<AdapterStatus>("\"sleeping\"").is_err());
 }
 
 #[tokio::test]

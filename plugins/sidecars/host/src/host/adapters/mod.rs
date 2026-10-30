@@ -57,9 +57,9 @@ pub struct Adapter {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub kind: String,
+    pub kind: AdapterKind,
     pub mac: Option<String>,
-    pub status: String,
+    pub status: AdapterStatus,
     pub mtu: u32,
     pub speed_bps: Option<u64>,
     pub ipv4: Vec<Address>,
@@ -84,6 +84,26 @@ pub struct Address {
 pub struct CaptureAdapters {}
 
 /* === Enums === */
+
+#[dokime::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterKind {
+    Ethernet,
+    Wifi,
+    Cellular,
+    Loopback,
+    Virtual,
+    Other,
+}
+
+#[dokime::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterStatus {
+    Up,
+    Down,
+}
 
 /* === Traits === */
 

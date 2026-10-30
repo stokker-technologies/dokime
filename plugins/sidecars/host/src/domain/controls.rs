@@ -39,7 +39,7 @@ pub struct ControlState {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadioState {
     pub id: String,
-    pub kind: String,
+    pub kind: Radio,
     pub on: bool,
 }
 
@@ -52,9 +52,55 @@ pub struct AdapterState {
 
 /* === Enums === */
 
+#[dokime::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Radio {
+    Wifi,
+    Bluetooth,
+    Cellular,
+}
+
+#[dokime::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioPower {
+    On,
+    Off,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Radio {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Wifi => "wifi",
+            Self::Bluetooth => "bluetooth",
+            Self::Cellular => "cellular",
+        }
+    }
+}
+
+impl std::fmt::Display for Radio {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl RadioPower {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::On => "on",
+            Self::Off => "off",
+        }
+    }
+}
+
+impl std::fmt::Display for RadioPower {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
 
 /* === Public Functions === */
 

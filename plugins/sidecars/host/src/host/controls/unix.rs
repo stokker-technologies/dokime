@@ -15,7 +15,7 @@
 
 use crate::{
     Error, Result,
-    domain::controls::{AdapterState, ControlState, RadioState},
+    domain::controls::{AdapterState, ControlState, Radio, RadioState},
 };
 use std::{
     collections::BTreeSet,
@@ -60,17 +60,17 @@ pub fn administrator() -> Result<bool> {
     Ok(capabilities & (1 << 12) != 0)
 }
 
-pub fn read_radio(kind: &str) -> Result<ControlState> {
+pub fn read_radio(kind: Radio) -> Result<ControlState> {
     let connection = connection()?;
     let mut radios = Vec::new();
-    if kind == "wifi" || kind == "cellular" {
+    if kind == Radio::Wifi || kind == Radio::Cellular {
         let proxy =
             Proxy::new(&connection, "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager", "org.freedesktop.NetworkManager")
                 .map_err(probe)?;
-        let property = if kind == "wifi" { "WirelessEnabled" } else { "WwanEnabled" };
+        let property = if kind == Radio::Wifi { "WirelessEnabled" } else { "WwanEnabled" };
         let on = proxy.get_property::<bool>(property).map_err(probe)?;
-        radios.push(RadioState { id: kind.into(), kind: kind.into(), on });
-    } else if kind == "bluetooth" {
+        radios.push(RadioState { id: kind.as_str().into(), kind, on });
+    } else if kind == Radio::Bluetooth {
         let directory = match fs::read_dir("/sys/class/bluetooth") {
             Ok(directory) => Some(directory),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -86,11 +86,9 @@ pub fn read_radio(kind: &str) -> Result<ControlState> {
                 let path = format!("/org/bluez/{name}");
                 let proxy = Proxy::new(&connection, "org.bluez", path.as_str(), "org.bluez.Adapter1").map_err(probe)?;
                 let on = proxy.get_property::<bool>("Powered").map_err(probe)?;
-                radios.push(RadioState { id: path, kind: kind.into(), on });
+                radios.push(RadioState { id: path, kind, on });
             }
         }
-    } else {
-        return Err(Error::Probe("radio must be wifi, bluetooth or cellular".into()));
     }
     Ok(ControlState { radios, ..Default::default() })
 }
@@ -109,7 +107,7 @@ pub fn read_adapter(id: &str) -> Result<ControlState> {
 
 pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
     for radio in &state.radios {
-        let current = read_radio(&radio.kind)?;
+        let current = read_radio(radio.kind)?;
         let current = current
             .radios
             .iter()
@@ -119,7 +117,7 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
             continue;
         }
         let connection = connection()?;
-        if radio.kind == "bluetooth" {
+        if radio.kind == Radio::Bluetooth {
             let proxy = Proxy::new(&connection, "org.bluez", radio.id.as_str(), "org.bluez.Adapter1").map_err(probe)?;
             proxy.set_property("Powered", radio.on).map_err(probe)?;
         } else {
@@ -130,7 +128,7 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
                 "org.freedesktop.NetworkManager",
             )
             .map_err(probe)?;
-            proxy.set_property(if radio.kind == "wifi" { "WirelessEnabled" } else { "WwanEnabled" }, radio.on).map_err(probe)?;
+            proxy.set_property(if radio.kind == Radio::Wifi { "WirelessEnabled" } else { "WwanEnabled" }, radio.on).map_err(probe)?;
         }
     }
     for adapter in &state.adapters {
@@ -158,7 +156,7 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
         fs::write("/sys/firmware/acpi/platform_profile", format!("{plan}\n")).map_err(probe)?;
     }
     for radio in &state.radios {
-        if read_radio(&radio.kind)?.radios.iter().find(|current| current.id == radio.id).is_none_or(|current| current.on != radio.on) {
+        if read_radio(radio.kind)?.radios.iter().find(|current| current.id == radio.id).is_none_or(|current| current.on != radio.on) {
             return Err(Error::Probe("radio did not reach the requested state".into()));
         }
     }
@@ -175,9 +173,14 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn radio_affects(kind: &str, adapter: &crate::host::adapters::Adapter) -> Result<bool> {
-    if kind != "bluetooth" {
-        return Ok(adapter.kind == if kind == "cellular" { "cellular" } else { "wifi" });
+pub fn radio_affects(kind: Radio, adapter: &crate::host::adapters::Adapter) -> Result<bool> {
+    if kind != Radio::Bluetooth {
+        return Ok(adapter.kind
+            == if kind == Radio::Cellular {
+                crate::host::adapters::AdapterKind::Cellular
+            } else {
+                crate::host::adapters::AdapterKind::Wifi
+            });
     }
     let subsystem = fs::canonicalize(format!("/sys/class/net/{}/device/subsystem", adapter.name));
     Ok(adapter.name.starts_with("bnep")
