@@ -149,6 +149,7 @@ harmos-sdk = { workspace = true, features = ["grpc"] }
 keyring-core = { workspace = true }
 
 # Serialization
+arrow-ipc = { workspace = true }
 
 # Configuration
 

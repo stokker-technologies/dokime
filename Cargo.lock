@@ -2647,6 +2647,7 @@ name = "dokime-server"
 version = "0.1.2"
 dependencies = [
  "anstream",
+ "arrow-ipc",
  "async-trait",
  "clap",
  "criterion",

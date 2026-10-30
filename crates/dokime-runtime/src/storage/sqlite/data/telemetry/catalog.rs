@@ -107,7 +107,12 @@ pub(super) fn composed(connection: &Connection, key: &harmos::storage::SchemaKey
 
 pub(in crate::storage::sqlite::data) fn file(connection: &Connection, reference: &harmos::storage::FileReference) -> Result<()> {
     let scope = reference.metadata.scope.as_ref().map(harmos::Identifier::as_str);
-    let report = scope.is_some_and(|scope| scope.starts_with("execution.") || scope.starts_with("cycle."));
+    // Report Producers Already Reserve <Owner>.<UUID>.report/.context Identities.
+    let report = scope
+        .and_then(|owner| reference.metadata.id.as_str().strip_prefix(owner))
+        .and_then(|suffix| suffix.strip_prefix('.'))
+        .and_then(|suffix| suffix.strip_suffix(".report").or_else(|| suffix.strip_suffix(".context")))
+        .is_some_and(|nonce| uuid::Uuid::parse_str(nonce).is_ok());
     let kind = if report { "report" } else { "artifact" };
     let length = i64::try_from(reference.length).map_err(|_| Error::Invalid("catalog file size exceeds SQLite range"))?;
     connection.execute(
