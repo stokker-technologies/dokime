@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
-import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
+import { bundleSettingsPage, programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import {
   useInstallPluginMutation,
@@ -76,17 +76,7 @@ export function PluginsSection() {
      by installed plugin, and an artifact names the installation it came
      from, so the bundle reaches its own page through its programs. */
   const settingsSectionOf = useCallback(
-    (entry: PluginEntry): string | null => {
-      const artifacts = new Set(
-        programs
-          .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.install_id)
-          .map((program) => program.plugin_id),
-      );
-      const section = (settings.frame?.sections ?? []).find(
-        (candidate) => candidate.owner.kind === "installed_plugin" && artifacts.has(candidate.owner.plugin_id),
-      );
-      return section?.section_id ?? null;
-    },
+    (entry: PluginEntry): string | null => bundleSettingsPage(entry, programs, settings.frame),
     [programs, settings.frame],
   );
 
