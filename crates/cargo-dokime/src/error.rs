@@ -52,6 +52,12 @@ pub enum Error {
     Bindings(#[from] harmos_packaging::python::Error),
 
     #[error(transparent)]
+    Proto(#[from] harmos_packaging::proto::ExportError),
+
+    #[error(transparent)]
+    Contract(#[from] dokime::harmos::operations::ContractError),
+
+    #[error(transparent)]
     Bundle(#[from] harmos_packaging::bundle::Error),
 }
 

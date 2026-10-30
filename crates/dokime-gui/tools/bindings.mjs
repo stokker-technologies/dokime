@@ -1,5 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-// Project Standard ES Bindings From The dokime-server Contract Export Of One Cargo Build.
+// Project Standard ES Bindings From cargo-dokime's Protobuf Export.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -13,11 +13,12 @@ const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(resolve(gui, "package.json"));
 const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
 const { CodeGeneratorRequestSchema, CodeGeneratorResponseSchema, FileDescriptorSetSchema } = require("@bufbuild/protobuf/wkt");
-const compilerMessages = process.argv[2];
-const check = process.argv[3] === "--check";
-if (!compilerMessages || (process.argv.length !== 3 && !(process.argv.length === 4 && check)))
-  throw new Error("Usage: node tools/bindings.mjs <cargo-compiler-messages.jsonl> [--check]");
-const root = resolve(exported(resolve(compilerMessages)), "grpc/operations");
+const proto = process.argv[2];
+const settings = process.argv[3];
+const check = process.argv[4] === "--check";
+if (!proto || !settings || (process.argv.length !== 4 && !(process.argv.length === 5 && check)))
+  throw new Error("Usage: node tools/bindings.mjs <proto-output> <application-settings-export> [--check]");
+const root = resolve(proto);
 const descriptor = readFileSync(resolve(root, "descriptors.bin"));
 const set = fromBinary(FileDescriptorSetSchema, descriptor);
 const files = new Map(set.file.map((file) => [file.name, file]));
@@ -52,8 +53,8 @@ if (response.error) throw new Error(response.error);
 const output = resolve(gui, "../../target/generated/typescript");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
-writeFileSync(resolve(output, "application-settings.json"), readFileSync(resolve(root, "application-settings.json")));
-writeFileSync(resolve(output, "application-settings.ts"), readFileSync(resolve(root, "application-settings.ts")));
+writeFileSync(resolve(output, "application-settings.json"), readFileSync(resolve(settings, "application-settings.json")));
+writeFileSync(resolve(output, "application-settings.ts"), readFileSync(resolve(settings, "application-settings.ts")));
 const protocolSource = readFileSync(resolve(gui, "src-tauri/src/rpc/protocol.rs"), "utf8");
 const protocolConstants = [...protocolSource.matchAll(/^pub const ([A-Z_]+): u64 = ([0-9_]+);$/gm)];
 if (protocolConstants.length !== 3) throw new Error("Native IPC protocol constants are incomplete.");
@@ -164,27 +165,6 @@ emit(
   resolve(gui, "src/lib/rpc/generated/identity.ts"),
   `// Generated From Canonical Harmos Descriptors. Do Not Edit.\nexport const descriptorSha256 = "${createHash("sha256").update(descriptor).digest("hex")}";\n`,
 );
-
-/** The `OUT_DIR` Of The One `dokime-server` Build Script Of A Successful Cargo Build. */
-function exported(path) {
-  const servers = new Set();
-  const scripts = new Map();
-  const finished = [];
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    const event = JSON.parse(line);
-    if (event.reason === "compiler-artifact" && event.target.name === "dokime_server" && event.target.kind.includes("lib"))
-      servers.add(event.package_id);
-    else if (event.reason === "build-script-executed")
-      scripts.set(event.package_id, [...(scripts.get(event.package_id) ?? []), event.out_dir]);
-    else if (event.reason === "build-finished") finished.push(event.success);
-  }
-  if (finished.length !== 1 || !finished[0] || servers.size !== 1)
-    throw new Error("expected one dokime-server contract producer from a successful Cargo build");
-  const outputs = new Set(scripts.get([...servers][0]) ?? []);
-  if (outputs.size !== 1) throw new Error("the selected build has no single dokime-server build-script output");
-  return [...outputs][0];
-}
 
 function emit(path, content) {
   if (!check) {

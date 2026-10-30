@@ -17,7 +17,7 @@
 use std::path::PathBuf;
 // Third Party Imports
 use harmos_packaging::{
-    proto::Artifacts,
+    proto::{self, Artifacts},
     python::{self, Settings},
 };
 // Local Imports
@@ -34,6 +34,12 @@ use harmos_packaging::{
 pub struct Args {
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(clap::Args)]
+pub struct ProtoArgs {
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(clap::Args)]
@@ -60,6 +66,9 @@ pub struct PythonArgs {
 
 #[derive(clap::Subcommand)]
 enum Command {
+    #[command(about = "Export Protobuf Contracts")]
+    Proto(ProtoArgs),
+
     #[command(about = "Generate The Python Client Package From One Contract Export")]
     Python(PythonArgs),
 }
@@ -71,7 +80,15 @@ enum Command {
 /* === Public Functions === */
 
 pub fn run(args: Args) -> Result<(), crate::error::Error> {
-    let Command::Python(args) = args.command;
+    let args = match args.command {
+        Command::Proto(args) => {
+            let contracts = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>()?;
+            let output = proto::generate(&contracts, &args.output)?;
+            println!("{}", output.display());
+            return Ok(());
+        }
+        Command::Python(args) => args,
+    };
     let artifacts = Artifacts::read(&args.export).map_err(python::Error::from)?;
     let contracts = artifacts.operation_contracts().map_err(python::Error::from)?;
     let settings = Settings {

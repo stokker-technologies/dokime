@@ -86,8 +86,7 @@ description = "Regenerate Python And Desktop Contracts From One Cargo Build"
 usage = 'arg "<messages>"'
 run = [
   '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
-  'node crates/dokime-gui/tools/bindings.mjs "{{usage.messages}}"',
-  '{{vars.tools}} dokime_tools.prepare.generated --stage',
+  '{{vars.tools}} dokime_tools.prepare.generated --build-json "{{usage.messages}}" --stage',
 ]
 
 [tasks."prepare:report"]
@@ -278,7 +277,7 @@ env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
   "cargo build --locked -p dokime-cli -p cargo-dokime -p dokime-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
-  "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
+  "{{vars.tools}} dokime_tools.prepare.generated --build-json target/contracts/dev.jsonl",
   "cargo run --locked -p cargo-dokime -- sidecar build --package dokime-host --output target/debug/plugins/host.dokime",
   "cargo run --locked -p cargo-dokime -- sidecar build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
@@ -309,8 +308,11 @@ env = { CARGO_INCREMENTAL = "0" }
 [tasks."test:python:unit"]
 description = "Test Unit Python"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit {% if usage.select %}-- -k "{{usage.select}}"{% endif %}'
 
 [tasks."test:python:integration"]
 description = "Test Integration Python"

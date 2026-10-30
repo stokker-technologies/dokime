@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+mod bindings;
 mod development_environment;
 mod isolation;
 mod new;
