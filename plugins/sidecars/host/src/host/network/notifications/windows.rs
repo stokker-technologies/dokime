@@ -69,7 +69,15 @@ struct Pending {
 impl Notifications {
     pub fn new() -> crate::Result<Self> {
         let inventory = crate::host::adapters::snapshot()?;
-        let links = inventory.adapters.into_iter().map(|adapter| (adapter.id.to_lowercase(), adapter.status == "up")).collect();
+        let links = inventory
+            .adapters
+            .into_iter()
+            .map(|adapter| {
+                let id = adapter.id.to_lowercase();
+                let up = adapter.status == crate::host::adapters::AdapterStatus::Up;
+                (id, up)
+            })
+            .collect();
         let mut notifications = Self {
             handles: Vec::new(),
             sink: Box::new(Sink {

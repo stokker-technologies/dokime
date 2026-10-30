@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/ci/environment.py; sha256:7031c6b56248feb51071b6bc7634d7af28358a96ffa896185e8ab1b918e8aa7e
 # ***
 #
 # Dokime
@@ -87,15 +86,15 @@ def commands(windows: bool, python: str, helper: str) -> list[str]:
     if windows:
         python, helper = (value.replace("'", "''") for value in (python, helper))
         return [
-            f"$stkrStepEnvironment = & '{python}' '{helper}' --format json",
+            f"$projectStepEnvironment = & '{python}' '{helper}' --format json",
             "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
-            "$stkrStepEnvironment = $stkrStepEnvironment | ConvertFrom-Json -AsHashtable",
-            "foreach ($stkrEntry in $stkrStepEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($stkrEntry.Key, [string]$stkrEntry.Value, 'Process') }",
+            "$projectStepEnvironment = $projectStepEnvironment | ConvertFrom-Json -AsHashtable",
+            "foreach ($projectEntry in $projectStepEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($projectEntry.Key, [string]$projectEntry.Value, 'Process') }",
         ]
     python, helper = ("'" + value.replace("'", "'\"'\"'") + "'" for value in (python, helper))
     return [
         f'{python} {helper} --format nul > "$GITHUB_ENV.exports"',
-        "while IFS= read -r -d '' stkrName && IFS= read -r -d '' stkrValue; do export \"$stkrName=$stkrValue\"; done < \"$GITHUB_ENV.exports\"",
+        "while IFS= read -r -d '' projectName && IFS= read -r -d '' projectValue; do export \"${projectName}=${projectValue}\"; done < \"$GITHUB_ENV.exports\"",
     ]
 
 

@@ -27,8 +27,25 @@ DHCP is unknown when NetworkManager does not manage an interface.
 The installed host contributes a synchronous `RunStart` capture: every execution
 records its adapter inventory before the first step.
 
-The Public `host.network.radio.set` request is
-`{ radio: "wifi" | "bluetooth" | "cellular", state: "on" | "off", allow_disconnect: false }`.
+The Public `host.network.radio.set` request uses the shared
+`dokime_host::domain::controls::{Radio, RadioPower}` enums:
+
+```rust
+use dokime_host::{domain::controls::{Radio, RadioPower}, host::controls::RadioSet};
+
+let request = RadioSet {
+    radio: Radio::Wifi, // Wifi, Bluetooth Or Cellular
+    state: RadioPower::Off, // On Or Off
+    allow_disconnect: false,
+};
+```
+
+`RadioState.kind` uses the same `Radio` enum. Adapter inventory uses
+`host::adapters::{AdapterKind, AdapterStatus}` for kind and status; identities,
+addresses and native power-plan IDs remain strings. Requests and inverse
+snapshots encode enum variants, with no legacy string aliases. Unknown native
+Wi-Fi or radio values return `dokime_host::Error::UnknownValue`; telemetry
+renders known Wi-Fi and Bluetooth states as text.
 It uses Windows.Devices.Radios or NetworkManager/BlueZ native switches.
 `host.network.adapter.set` takes `{ adapter_id, enabled, allow_disconnect: false }`;
 Windows uses quiet SetupAPI and refuses without administrator rights, without UAC.
@@ -67,10 +84,15 @@ Explicitly supplied timestamp values remain subject to contract validation.
 `dokime-host` is one crate: with no features it is the light definitions crate
 (operation requests and responses, ids, policies and stream rows); the `runtime`
 feature adds the operation implementations, platform dependencies and the
-sidecar executable, which the product build enables. It is never published to
-crates.io; the host ships as the `host.dokime` plugin artifact. A plugin outside
-this repository calls host operations through the definitions from a Dokime
-release tag, matching the tag used for its `dokime` SDK dependency:
+sidecar executable, which the product build enables. The concrete plugin and
+its native declaration live in the binary's `src/app.rs`; the library owns
+contracts, native resources and observers parameterized by the serving plugin.
+Even when workspace feature unification enables `runtime`, linking the library
+cannot introduce a host sidecar declaration into another plugin's executable.
+It is never published to crates.io; the host ships as the `host.dokime` plugin
+artifact. A plugin outside this repository calls host operations through the
+definitions from a Dokime release tag, matching the tag used for its `dokime`
+SDK dependency:
 
 ```toml
 dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }

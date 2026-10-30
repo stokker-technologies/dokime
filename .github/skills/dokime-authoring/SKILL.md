@@ -1,5 +1,3 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/SKILL.md; sha256:58697e9dba8612a67a0abdda3786fbd2ca848c9a0c68ae406098757dc6f6fb45 -->
-
 ---
 name: dokime-authoring
 description: Author Dokime plugins, suites, steps, criteria, evidence and documents.

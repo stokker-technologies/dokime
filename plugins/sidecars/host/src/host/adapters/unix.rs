@@ -25,7 +25,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use super::{Adapter, Address, Snapshot};
+use super::{Adapter, AdapterKind, AdapterStatus, Address, Snapshot};
 
 /* === Constants === */
 
@@ -75,21 +75,21 @@ pub fn snapshot() -> crate::Result<Snapshot> {
             let base = format!("/sys/class/net/{name}");
             let read = |file: &str| fs::read_to_string(format!("{base}/{file}")).ok().map(|text| text.trim().to_owned());
             let kind = if entry.ifa_flags & libc::IFF_LOOPBACK as u32 != 0 {
-                "loopback"
+                AdapterKind::Loopback
             } else if std::path::Path::new(&format!("{base}/wireless")).exists() {
-                "wifi"
+                AdapterKind::Wifi
             } else if !std::path::Path::new(&format!("{base}/device")).exists() {
-                "virtual"
+                AdapterKind::Virtual
             } else {
-                "ethernet"
+                AdapterKind::Ethernet
             };
             Adapter {
                 id: name.clone(),
                 name: name.clone(),
                 description: name.clone(),
-                kind: kind.into(),
+                kind,
                 mac: read("address"),
-                status: if entry.ifa_flags & libc::IFF_RUNNING as u32 != 0 { "up" } else { "down" }.into(),
+                status: if entry.ifa_flags & libc::IFF_RUNNING as u32 != 0 { AdapterStatus::Up } else { AdapterStatus::Down },
                 mtu: read("mtu").and_then(|value| value.parse().ok()).unwrap_or(0),
                 speed_bps: read("speed").and_then(|value| value.parse::<u64>().ok()).and_then(|speed| speed.checked_mul(1_000_000)),
                 ipv4: Vec::new(),
@@ -228,13 +228,12 @@ fn network_manager(adapters: &mut BTreeMap<String, Adapter>) {
         };
         if field == "GENERAL.TYPE" {
             adapter.kind = match value {
-                "wifi" => "wifi",
-                "ethernet" => "ethernet",
-                "gsm" | "cdma" => "cellular",
-                "loopback" => "loopback",
-                _ => "virtual",
-            }
-            .into();
+                "wifi" => AdapterKind::Wifi,
+                "ethernet" => AdapterKind::Ethernet,
+                "gsm" | "cdma" => AdapterKind::Cellular,
+                "loopback" => AdapterKind::Loopback,
+                _ => AdapterKind::Virtual,
+            };
         } else if field == "GENERAL.STATE" {
             // State 10 Is Unmanaged; Other States Have Known Active DHCP State.
             adapter.dhcp = if value.split_whitespace().next() == Some("10") { None } else { Some(false) };

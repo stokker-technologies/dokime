@@ -20,8 +20,10 @@ use std::time::Duration;
 
 // Local Imports
 use super::System;
-use crate::{Error, HostPlugin, HostTelemetryStream};
+use crate::{Error, HostTelemetryStream};
 use dokime::harmos::operations::Host;
+use dokime::harmos::plugin;
+use dokime::harmos::sidecar::inventory::observers::Declared;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
 
 /* === Constants === */
@@ -42,19 +44,18 @@ pub struct State {
 
 /* === Implementations === */
 
-impl Observer<Publisher<HostPlugin>> for System {
+impl<P: plugin::Declared> Observer<Publisher<P>> for System {
     type Error = Error;
-    const ID: &'static str = "host.system";
-    const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] =
-        &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Self>()];
-    const ACTIVATION: Activation = Activation::Demand;
-    const INTERVAL: Duration = Duration::from_millis(HostTelemetryStream::System.interval().0);
+    const ID: &'static str = <Self as Declared>::ENTRY.id;
+    const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] = <Self as Declared>::ENTRY.streams;
+    const ACTIVATION: Activation = <Self as Declared>::ENTRY.activation;
+    const INTERVAL: Duration = <Self as Declared>::ENTRY.interval;
 
     async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
         Ok(Self {})
     }
 
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<HostPlugin>>) -> Result<(), Error> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<P>>) -> Result<(), Error> {
         let response = ctx.host().supervisor().call::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
         let mut batch = ctx.host().batch::<Self>();
         for sample in &response.rows {
@@ -65,14 +66,14 @@ impl Observer<Publisher<HostPlugin>> for System {
     }
 }
 
-impl dokime::harmos::sidecar::inventory::observers::Declared for System {
+impl Declared for System {
     const ENTRY: dokime::harmos::sidecar::inventory::observers::Entry = dokime::harmos::sidecar::inventory::observers::Entry {
-        id: <Self as Observer<Publisher<HostPlugin>>>::ID,
-        description: <Self as Observer<Publisher<HostPlugin>>>::DESCRIPTION,
-        interval: <Self as Observer<Publisher<HostPlugin>>>::INTERVAL,
-        activation: <Self as Observer<Publisher<HostPlugin>>>::ACTIVATION,
-        streams: <Self as Observer<Publisher<HostPlugin>>>::STREAMS,
-        demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
+        id: "host.system",
+        description: "",
+        interval: Duration::from_millis(HostTelemetryStream::System.interval().0),
+        activation: Activation::Demand,
+        streams: &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Self>()],
+        demand_keys: &[],
     };
 }
 

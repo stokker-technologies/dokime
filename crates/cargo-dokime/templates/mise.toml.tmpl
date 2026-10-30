@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:fd1491b62681b467b8fba2c943b946efb9f15350a3b46271bd5b723029a273bd
 # === Settings === #
 
 [settings]
@@ -226,7 +225,7 @@ run = "uv run --locked --project tools/python python -m project_tools.release.ru
 
 [tasks.housekeeping]
 description = "Clean Owned Build Outputs And State"
-run = "uv run --locked --project tools/python python -m project_tools.stkr project housekeeping"
+run = "uv run --locked --project tools/python python .stkr/commands.py project housekeeping"
 
 [tasks."housekeeping:outdated"]
 description = "Report Available Dependency And Tool Updates Without Changing Anything"

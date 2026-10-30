@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/build/cargo.py; sha256:c65e6876da0bca864c63a727b4a44f27fc3cf37a68fdbb380ee5b0b9bc73f1de
 # ***
 #
 # Dokime

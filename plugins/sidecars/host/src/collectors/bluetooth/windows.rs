@@ -55,7 +55,7 @@ fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnaps
         snapshot.connected_device_count.map(|count| Value::Integer(count as i64)),
     );
     values.insert("bluetooth_present_device_count".to_owned(), Value::Integer(snapshot.present_device_count as i64));
-    maybe_insert(&mut values, "bluetooth_radio_state", snapshot.radio_state.map(Value::from));
+    values.insert("bluetooth_radio_state".into(), Value::from(snapshot.radio_state.map_or("unavailable", |power| power.as_str())));
     values.insert("bluetooth_device_names".to_owned(), Value::Array(snapshot.device_names.into_iter().map(Value::from).collect()));
 
     values

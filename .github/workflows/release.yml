@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/release.yml; sha256:7dbc776d923c426e13a817bd249913caf13b36cda9fff1f328c46efbd129cbb9
 name: Release
 "on":
   workflow_dispatch: {}
@@ -137,6 +136,7 @@ jobs:
       env:
         RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
         CARGO_REGISTRY_TOKEN: >-
           ${{ env.CARGO_REGISTRY_TOKEN != '' && env.CARGO_REGISTRY_TOKEN ||
           steps.crates.outputs.token }}
@@ -199,8 +199,8 @@ jobs:
     environment: release
     permissions:
       contents: read
-      id-token: write
       actions: read
+      id-token: write
     concurrency:
       group: release-tag
       cancel-in-progress: false

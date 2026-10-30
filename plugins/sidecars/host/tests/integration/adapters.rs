@@ -19,16 +19,12 @@
 
 // Local Imports
 use dokime::harmos::{
-    ExecutionContext, Message,
+    Message,
     operations::{OperationDeclaration, Visibility},
-    sidecar::{Observer, Publisher},
 };
-use dokime_host::{
-    HostPlugin,
-    host::{
-        adapters::{Adapters, Snapshot, snapshot},
-        network::NetworkObserver,
-    },
+use dokime_host::host::{
+    adapters::{AdapterKind, AdapterStatus, Adapters, Snapshot, snapshot},
+    network::NetworkObserver,
 };
 
 /* === Constants === */
@@ -58,6 +54,10 @@ fn adapter_inventory() {
     assert_eq!(Adapters::VISIBILITY, Visibility::Public);
     let decoded = Snapshot::decode(&snapshot.encode()).unwrap();
     assert!(snapshot == decoded);
+    let captured = serde_json::to_string(&snapshot).unwrap();
+    let decoded = serde_json::from_str::<Snapshot>(&captured).unwrap();
+    assert!(snapshot == decoded);
+
     let mut ids = std::collections::BTreeSet::new();
     for adapter in snapshot.adapters {
         assert!(ids.insert(adapter.id));
@@ -76,12 +76,17 @@ fn adapter_inventory() {
     }
 }
 
-#[tokio::test]
-async fn notification_lifetime() {
-    let context = ExecutionContext::default();
+#[test]
+fn inventory_rejects_unknown_kind_and_status() {
+    assert!(serde_json::from_str::<AdapterKind>("\"satellite\"").is_err());
+    assert!(serde_json::from_str::<AdapterStatus>("\"sleeping\"").is_err());
+}
+
+#[test]
+fn notification_lifetime() {
     // Releasing The Observer Cancels Native Registrations And Joins Its Callbacks.
-    let observer = <NetworkObserver as Observer<Publisher<HostPlugin>>>::initialize(&context).await.unwrap();
+    let observer = NetworkObserver::new().unwrap();
     drop(observer);
-    let observer = <NetworkObserver as Observer<Publisher<HostPlugin>>>::initialize(&context).await.unwrap();
+    let observer = NetworkObserver::new().unwrap();
     drop(observer);
 }

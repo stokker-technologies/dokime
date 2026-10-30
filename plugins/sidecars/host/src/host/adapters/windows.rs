@@ -23,12 +23,18 @@ use std::{
 // Third Party Imports
 use windows::Win32::{
     Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS},
-    NetworkManagement::{IpHelper::*, Ndis::IfOperStatusUp},
+    NetworkManagement::{
+        IpHelper::*,
+        Ndis::{
+            IF_OPER_STATUS, IfOperStatusDormant, IfOperStatusDown, IfOperStatusLowerLayerDown, IfOperStatusNotPresent, IfOperStatusTesting,
+            IfOperStatusUnknown, IfOperStatusUp,
+        },
+    },
     Networking::WinSock::{AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6},
 };
 
 // Local Imports
-use super::{Adapter, Address, Snapshot};
+use super::{Adapter, AdapterKind, AdapterStatus, Address, Snapshot};
 
 /* === Constants === */
 
@@ -123,12 +129,12 @@ pub fn snapshot() -> crate::Result<Snapshot> {
                 dns = address.Next;
             }
             let mut kind = match entry.IfType {
-                IF_TYPE_ETHERNET_CSMACD => "ethernet",
-                IF_TYPE_IEEE80211 => "wifi",
-                IF_TYPE_WWANPP | IF_TYPE_WWANPP2 => "cellular",
-                IF_TYPE_SOFTWARE_LOOPBACK => "loopback",
-                IF_TYPE_TUNNEL => "virtual",
-                _ => "other",
+                IF_TYPE_ETHERNET_CSMACD => AdapterKind::Ethernet,
+                IF_TYPE_IEEE80211 => AdapterKind::Wifi,
+                IF_TYPE_WWANPP | IF_TYPE_WWANPP2 => AdapterKind::Cellular,
+                IF_TYPE_SOFTWARE_LOOPBACK => AdapterKind::Loopback,
+                IF_TYPE_TUNNEL => AdapterKind::Virtual,
+                _ => AdapterKind::Other,
             };
             let mut interface = MIB_IF_ROW2 {
                 InterfaceLuid: entry.Luid,
@@ -136,9 +142,9 @@ pub fn snapshot() -> crate::Result<Snapshot> {
             };
             if unsafe { GetIfEntry2(&mut interface) } == ERROR_SUCCESS
                 && interface.InterfaceAndOperStatusFlags._bitfield & 1 == 0
-                && kind == "ethernet"
+                && kind == AdapterKind::Ethernet
             {
-                kind = "virtual";
+                kind = AdapterKind::Virtual;
             }
             let length = (entry.PhysicalAddressLength as usize).min(entry.PhysicalAddress.len());
             let mac = (length != 0)
@@ -147,9 +153,9 @@ pub fn snapshot() -> crate::Result<Snapshot> {
                 id,
                 name,
                 description,
-                kind: kind.into(),
+                kind,
                 mac,
-                status: if entry.OperStatus == IfOperStatusUp { "up".into() } else { "down".into() },
+                status: adapter_status(entry.OperStatus)?,
                 mtu: entry.Mtu,
                 speed_bps: (entry.TransmitLinkSpeed > 0).then_some(entry.TransmitLinkSpeed),
                 ipv4,
@@ -170,6 +176,21 @@ pub fn snapshot() -> crate::Result<Snapshot> {
 }
 
 /* === Private Functions === */
+
+fn adapter_status(value: IF_OPER_STATUS) -> crate::Result<AdapterStatus> {
+    if value == IfOperStatusUp {
+        return Ok(AdapterStatus::Up);
+    }
+    if [IfOperStatusDown, IfOperStatusTesting, IfOperStatusUnknown, IfOperStatusDormant, IfOperStatusNotPresent, IfOperStatusLowerLayerDown]
+        .contains(&value)
+    {
+        return Ok(AdapterStatus::Down);
+    }
+    Err(crate::Error::UnknownValue {
+        kind: "adapter status",
+        value: value.0.to_string(),
+    })
+}
 
 fn default_interfaces() -> crate::Result<BTreeSet<u32>> {
     let mut table = null_mut();
@@ -209,6 +230,22 @@ pub(crate) unsafe fn socket_address(address: *const SOCKADDR) -> Option<(String,
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_status() {
+        assert_eq!(adapter_status(IfOperStatusUp).unwrap(), AdapterStatus::Up);
+        for value in [
+            IfOperStatusDown,
+            IfOperStatusTesting,
+            IfOperStatusUnknown,
+            IfOperStatusDormant,
+            IfOperStatusNotPresent,
+            IfOperStatusLowerLayerDown,
+        ] {
+            assert_eq!(adapter_status(value).unwrap(), AdapterStatus::Down);
+        }
+        assert!(matches!(adapter_status(IF_OPER_STATUS(99)), Err(crate::Error::UnknownValue { kind: "adapter status", .. })));
+    }
+
     #[test]
     fn native_addresses() {
         let mut ipv4 = SOCKADDR_IN {
