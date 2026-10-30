@@ -37,6 +37,7 @@ import {
   type ListenerStatus,
   listenerError,
   listenerRunning,
+  pairingEndpoint,
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -132,11 +133,14 @@ function ListenerControls({
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState("");
   const fieldId = useId();
-  const [endpoint, setEndpoint] = useState("");
+  const [endpointDraft, setEndpointDraft] = useState<string | null>(null);
   const [clientsRevision, setClientsRevision] = useState(0);
+  const [pairingError, setPairingError] = useState<string | null>(null);
   const settings = status.settings;
   if (!settings) throw new Error("Backend omitted listener settings.");
   const running = listenerRunning(status);
+  const suggested = pairingEndpoint(settings);
+  const endpoint = endpointDraft ?? suggested.endpoint;
 
   const publish = (updated: ListenerStatus) => {
     if (!session.identity.isCurrent()) stale();
@@ -168,6 +172,7 @@ function ListenerControls({
     });
 
   async function createPairing() {
+    setPairingError(null);
     await run(async () => {
       try {
         const path = await commands.desktopPairingCreate(label, endpoint);
@@ -177,7 +182,9 @@ function ListenerControls({
           setClientsRevision((revision) => revision + 1);
         }
       } catch (error) {
-        fail("Pairing File Not Saved", listenerError(error));
+        const reason = listenerError(error);
+        setPairingError(reason);
+        fail("Pairing File Not Saved", reason);
         setClientsRevision((revision) => revision + 1);
       }
     });
@@ -223,6 +230,7 @@ function ListenerControls({
       )}
       <SettingsCard title="Pairing Files" description="Create a separate file for each client. Transfer it privately to that PC.">
         <form
+          noValidate
           className="grid gap-3 p-4"
           onSubmit={(event) => {
             event.preventDefault();
@@ -247,11 +255,25 @@ function ListenerControls({
               type="url"
               required
               value={endpoint}
+              aria-invalid={Boolean(pairingError)}
+              aria-describedby={`${fieldId}-endpoint-hint${pairingError ? ` ${fieldId}-endpoint-error` : ""}`}
               disabled={busy}
-              placeholder="https://lab.example:8765"
-              onChange={(event) => setEndpoint(event.target.value)}
+              placeholder={suggested.endpoint || `${settings.tlsEnabled ? "https" : "http"}://host:${suggested.port}`}
+              onChange={(event) => {
+                setEndpointDraft(event.target.value);
+                setPairingError(null);
+              }}
             />
           </label>
+          <p id={`${fieldId}-endpoint-hint`} className="text-xs text-muted-foreground">
+            Listener Port: {suggested.port || "Unavailable"}. Use an address reachable from the client. Local Python scripts use the same
+            port.
+          </p>
+          {pairingError && (
+            <p id={`${fieldId}-endpoint-error`} role="alert" className="text-sm text-destructive">
+              {pairingError}
+            </p>
+          )}
           <Button type="submit" disabled={busy || preferencesPending}>
             Create Pairing File
           </Button>

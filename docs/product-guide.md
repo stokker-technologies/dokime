@@ -131,6 +131,12 @@ Settings → Remote Access owns the saved listener settings and explicit restart
 Management is available only through the native local listener. TLS and
 access-key authentication are independent; disable either only in an isolated lab.
 Use a concrete reachable endpoint whose hostname or IP matches the certificate.
+Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
+port and specific address, or its certificate names for a wildcard listener.
+Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
+The listener's port appears beside the field, including for local Python clients.
+Review that the suggested address is reachable from the client. Rejected pairing
+requests show the host's concrete reason beside the endpoint and in Notifications.
 
 Choose **Create Pairing File**, enter a client label and advertised endpoint,
 and select a destination. Cancellation creates no key. Dokime saves one private
