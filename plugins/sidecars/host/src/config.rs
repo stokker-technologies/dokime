@@ -41,6 +41,7 @@ pub(crate) const MINIMUM_SCAN_INTERVAL_S: u32 = 30;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Settings {
     pub probes: Probes,
+    pub cpu_load: crate::host::cpu::load::CpuLoadSettings,
 }
 
 #[dokime::section(label = "Collection")]

@@ -49,7 +49,7 @@ macro_rules! host_streams {
                     logical_cpu_count: Integer, State, "Logical CPU Count", Option<i64>;
                     cpu_load_percent: Number, Value, "CPU Load", Option<f64>;
                     cpu_capacity_gflops: Number, Value, "Calibrated CPU Capacity (GFLOP/s)", Option<f64>;
-                    cpu_load_gflops: Number, Value, "Estimated CPU Load (GFLOP/s)", Option<f64>;
+                    cpu_load_gflops: Number, Value, "Estimated CPU Load [GFLOP/s]", Option<f64>;
                     memory_total_bytes: Integer, Value, "Memory Total", Option<i64>;
                     memory_used_bytes: Integer, Value, "Memory Used", Option<i64>;
                     memory_pressure_percent: Number, Value, "Memory Pressure", Option<f64>;

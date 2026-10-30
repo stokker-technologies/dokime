@@ -10,6 +10,12 @@
 /* === Modules === */
 
 #[cfg(feature = "runtime")]
+mod kernel;
+pub mod load;
+#[cfg(feature = "runtime")]
+pub(crate) mod sampling;
+
+#[cfg(feature = "runtime")]
 mod runtime;
 
 /* === Re-Exports === */

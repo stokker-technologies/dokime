@@ -14,10 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    hint::black_box,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 // Third Party Imports
 
@@ -58,7 +55,7 @@ pub(crate) fn calibrate(budget: Duration) -> crate::Result<f64> {
     let start = Instant::now();
     let deadline = start + budget;
     let operations = std::thread::scope(|scope| {
-        let workers = (0..threads).map(|_| scope.spawn(move || kernel(deadline))).collect::<Vec<_>>();
+        let workers = (0..threads).map(|_| scope.spawn(move || super::kernel::Kernel::new().until(deadline))).collect::<Vec<_>>();
         workers.into_iter().try_fold(0u64, |total, worker| {
             let operations = worker.join().map_err(|_| crate::Error::Probe("CPU calibration worker panicked".into()))?;
             total.checked_add(operations).ok_or_else(|| crate::Error::Probe("CPU calibration work count overflowed".into()))
@@ -71,23 +68,5 @@ pub(crate) fn calibrate(budget: Duration) -> crate::Result<f64> {
 }
 
 /* === Private Functions === */
-
-fn kernel(deadline: Instant) -> u64 {
-    let mut values = black_box([1.0f64; 8]);
-    let multiplier = black_box(1.000_000_000_000_001f64);
-    let addend = black_box(0.000_001f64);
-    let mut operations = 0;
-    while Instant::now() < deadline {
-        for _ in 0..4096 {
-            for value in &mut values {
-                *value = value.mul_add(multiplier, addend);
-            }
-        }
-        black_box(values);
-        operations += 4096 * 8 * 2;
-    }
-    black_box(values);
-    operations
-}
 
 /* === Tests === */
