@@ -57,8 +57,31 @@ cannot bypass the guard. Bluetooth device presence uses native enumeration.
 
 Radio, adapter and `host.power.plan.set { plan_id }` changes preserve the exact
 prior state as invertible transactions. During an execution the backend durably
-journals the inverse before writing, records native apply/restore timestamps,
-and restores in reverse order after completion, failure or cancellation.
+journals the inverse before writing and records native apply/restore timestamps.
+It keeps one inverse per `(RecordScope, resource)`: the earliest inverse preserves
+the original state, and later prepares never replace it or move its restoration
+position. Cleanup restores each resource once in reverse first-prepare order
+after completion, failure or cancellation. Each ticket retains its calling
+provider for confirmation ownership and evidence; cross-execution resource
+exclusion still applies.
+
+Every prepare gets a unique ticket, including coalesced calls. Confirming an
+applied call records that ticket's native timestamp. If a later write fails, the
+host rolls back to that call's prior state and confirms `restored: true`; this
+does not retire the earliest inverse. An unconfirmed prepare also leaves it
+pending. A rollback of the first call retires the inverse only when no later
+prepare has joined it. Later tickets and their metadata persist with the kept
+inverse until resource restoration succeeds.
+
+`test.execution.effect.prepared` and `.applied` describe individual calls using
+their own `ticket`, `prepared_at`, description and native `applied_at`.
+`restoration_ticket` identifies the earliest prepare; `coalesced` is true for
+later tickets. `.restored` with `resource_restored: false` records a call rollback
+that leaves the inverse pending. Cleanup or recovery emits one `.restored` with
+the earliest ticket and `resource_restored: true`. A first-call rollback with no
+later prepares also has `resource_restored: true`. Prepared/applied records have
+`resource_restored: false`.
+
 Cancellation keeps native work owned until it settles. On restart, pending
 inverses run before startup returns; a failed or unavailable inverse blocks
 startup and stays pending. Keep the restoring plugin installed. Standalone

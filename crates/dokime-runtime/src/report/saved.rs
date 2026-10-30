@@ -564,7 +564,8 @@ fn report_allocation_error(_: std::collections::TryReserveError) -> Error {
 mod tests {
     use super::*;
 
-    // The Published Payload Of A Fixed Input; Changing It Changes Every Sealed Report Digest.
+    // The Published Payload Of A Fixed Input At Its Original Generator Version.
+    const PAYLOAD_HUB: &str = r#""hub":{"generator":"dokime-runtime","name":"Dokime","version":"0.1.0"}"#;
     const PAYLOAD_SHA256: &str = "8c4a6d2aa30cbc895613b8c9c1eeef0e5de409661abc65d95800cbb4197ccc12";
 
     #[tokio::test]
@@ -592,6 +593,10 @@ mod tests {
         let html = std::str::from_utf8(&bytes).unwrap();
         let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
         let payload = payload.split_once("</script>").unwrap().0;
+        // Verify The Build Metadata Before Normalizing Only Its Version For The Golden Digest.
+        let hub = format!(r#""hub":{{"generator":"dokime-runtime","name":"Dokime","version":"{}"}}"#, env!("CARGO_PKG_VERSION"));
+        assert_eq!(payload.matches(&hub).count(), 1);
+        let payload = payload.replacen(&hub, PAYLOAD_HUB, 1);
         let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         assert_eq!(digest, PAYLOAD_SHA256);
         drop(report);
