@@ -33,6 +33,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("unknown {kind}: {value}")]
+    UnknownValue { kind: &'static str, value: String },
+
     #[error("host probe failed: {0}")]
     Probe(String),
 
