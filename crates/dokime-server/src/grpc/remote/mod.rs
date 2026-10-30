@@ -64,6 +64,7 @@ struct State {
 enum Change {
     Settings(RemoteListenerSettings),
     Certificate(Vec<String>),
+    Refresh,
 }
 
 /* === Traits === */
@@ -88,6 +89,14 @@ impl Controller {
         state.closing = false;
         if state.server.is_some() {
             return;
+        }
+        if state.document.settings.enabled {
+            let mut candidate = state.document.clone();
+            if let Err(error) = refresh_identity(&mut candidate).and_then(|()| store::write(&self.path, &candidate)) {
+                state.error = Some(error.to_string());
+                return;
+            }
+            state.document = candidate;
         }
         let started = match self.config(&state.document) {
             Ok(Some(config)) => {
@@ -228,31 +237,32 @@ impl Controller {
                 if settings == state.document.settings && state.error.is_none() && state.server.is_some() == settings.enabled {
                     return Ok(state.status());
                 }
-                let mut settings = settings;
-                if let Some(identity) = &candidate.identity {
-                    if identity.names != settings.certificate_names {
-                        return Err(Error::Configuration("certificate identities changed; explicitly regenerate the certificate first"));
-                    }
-                } else if settings.tls_enabled || !settings.certificate_names.is_empty() {
-                    // TLS Never Waits On Typed Names; The Host's Own Identities Seed The Certificate.
-                    if settings.certificate_names.is_empty() {
-                        settings.certificate_names = store::host_names(
-                            store::validate(&settings)?,
-                            usize::try_from(SERVER_REMOTE_NAMES).expect("validated remote identity count"),
-                        );
-                    }
-                    candidate.identity = Some(store::Identity::generate(settings.certificate_names.clone())?);
-                }
                 candidate.settings = settings;
+                refresh_identity(&mut candidate)?;
             }
             Change::Certificate(names) => {
                 candidate.settings.certificate_names = names;
-                let address = store::validate(&candidate.settings)?;
-                if candidate.settings.certificate_names.is_empty() {
-                    candidate.settings.certificate_names =
-                        store::host_names(address, usize::try_from(SERVER_REMOTE_NAMES).expect("validated remote identity count"));
+                let detected = store::host_names(store::validate(&candidate.settings)?, SERVER_REMOTE_NAMES as usize);
+                let mut names = detected;
+                for name in &candidate.settings.certificate_names {
+                    if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
+                        names.push(name.clone());
+                    }
                 }
-                candidate.identity = Some(store::Identity::generate(candidate.settings.certificate_names.clone())?);
+                match &mut candidate.identity {
+                    Some(identity) => identity.reissue(names)?,
+                    None => candidate.identity = Some(store::Identity::generate(names)?),
+                }
+            }
+            Change::Refresh => {
+                if !candidate.settings.enabled {
+                    return Ok(state.status());
+                }
+                let previous_names = candidate.identity.as_ref().map(|identity| identity.names.clone());
+                refresh_identity(&mut candidate)?;
+                if previous_names == candidate.identity.as_ref().map(|identity| identity.names.clone()) {
+                    return Ok(state.status());
+                }
             }
         }
         let next = self.config(&candidate)?;
@@ -348,6 +358,9 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
         loop {
             interval.tick().await;
             let Some(controller) = weak.upgrade() else { return };
+            if let Err(error) = controller.change(Change::Refresh).await {
+                tracing::error!(%error, "remote certificate names could not be refreshed");
+            }
             if let Err(error) = controller.flush_clients().await {
                 tracing::error!(%error, "paired client timestamps could not be saved");
             }
@@ -357,6 +370,24 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
 }
 
 /* === Private Functions === */
+
+fn refresh_identity(document: &mut store::Document) -> Result<(), Error> {
+    if !document.settings.tls_enabled {
+        return Ok(());
+    }
+    let mut names = store::host_names(store::validate(&document.settings)?, SERVER_REMOTE_NAMES as usize);
+    for name in &document.settings.certificate_names {
+        if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
+            names.push(name.clone());
+        }
+    }
+    match &mut document.identity {
+        Some(identity) if identity.names == names => {}
+        Some(identity) => identity.reissue(names)?,
+        None => document.identity = Some(store::Identity::generate(names)?),
+    }
+    Ok(())
+}
 
 // Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
 fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbeat: std::time::Duration) {
