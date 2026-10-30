@@ -77,7 +77,6 @@ pub struct ExecutionSnapshot {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExecutionImplementation {
     Bundle { content_digest: String },
-    Embedded { generation: String },
 }
 
 /* === Traits === */
@@ -118,7 +117,6 @@ impl harmos::MemorySize for ExecutionImplementation {
     fn memory_size(&self) -> usize {
         let value = match self {
             Self::Bundle { content_digest } => content_digest,
-            Self::Embedded { generation } => generation,
         };
         std::mem::size_of::<Self>().saturating_add(value.capacity())
     }
@@ -128,7 +126,6 @@ impl ExecutionPluginIdentity {
     pub fn content_digest(&self) -> Option<&str> {
         match &self.implementation {
             ExecutionImplementation::Bundle { content_digest } => Some(content_digest),
-            ExecutionImplementation::Embedded { .. } => None,
         }
     }
 }

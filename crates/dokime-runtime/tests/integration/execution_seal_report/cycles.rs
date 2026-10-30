@@ -352,10 +352,13 @@ pub(crate) fn catalog_reconciliation_preserves_execution_evidence() {
         version: "2.0.0".into(),
         ..Default::default()
     };
-    let provider = ProviderCatalog::Embedded {
-        plugin: Box::new(plugin),
-        generation: "replacement".into(),
-    };
+    let provider = ProviderCatalog::Bundle(dokime_runtime::state::BundleCatalog {
+        package: "fixture_package".into(),
+        path: "fixture.dokime".into(),
+        installation: None,
+        content_digest: "replacement".into(),
+        plugins: vec![plugin],
+    });
     let update = ReconcileProviders { providers: vec![provider.clone()] };
     update.check(&state).unwrap();
     assert_eq!(state, before);

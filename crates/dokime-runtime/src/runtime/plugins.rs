@@ -205,8 +205,7 @@ impl Runtime {
                 })
                 .collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(operation)?;
-            let host_sources = self.embedded.keys().cloned().collect();
-            store.install_distribution(directory, &configured, &host_sources).await.map_err(operation)?;
+            store.install_distribution(directory, &configured, &Default::default()).await.map_err(operation)?;
         }
         inputs.extend(store.installed().await.map_err(operation)?);
         for input in &inputs {
@@ -263,9 +262,7 @@ impl Runtime {
                 })
                 .collect(),
         );
-        let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
-        let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
-        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins, &self.handle.operations).await {
+        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &self.handle.operations).await {
             Ok(plan) => plan,
             Err(error) => {
                 self.pending_plugins.extend(packages);
@@ -275,21 +272,16 @@ impl Runtime {
         // Validate the entire desired catalog before any process runs. An
         // installed package that conflicts is pruned together with dependents.
         loop {
-            let catalogs: Vec<ProviderCatalog> = embedded_catalogs
+            let catalogs: Vec<ProviderCatalog> = packages
                 .iter()
-                .cloned()
-                .chain(
-                    packages
-                        .iter()
-                        .enumerate()
-                        .filter(|(index, _)| !removed.contains(index))
-                        .map(|(_, package)| package.catalog.clone().into()),
-                )
+                .enumerate()
+                .filter(|(index, _)| !removed.contains(index))
+                .map(|(_, package)| package.catalog.clone().into())
                 .collect();
             if self.handle.state_read().validate_providers(&catalogs).is_ok() {
                 break;
             }
-            let mut accepted = embedded_catalogs.clone();
+            let mut accepted: Vec<ProviderCatalog> = Vec::new();
             let mut refused = None;
             for (index, package) in packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)) {
                 accepted.push(package.catalog.clone().into());
@@ -302,36 +294,20 @@ impl Runtime {
                 break;
             };
             let reason = rejection(&packages[index].catalog.package, reason.to_string(), None);
-            if let Err(error) = prune(
-                &store,
-                &packages.iter().collect::<Vec<_>>(),
-                &mut removed,
-                index,
-                &reason,
-                &embedded_plugins,
-                &self.handle.operations,
-            )
-            .await
+            if let Err(error) =
+                prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason, &self.handle.operations).await
             {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
         }
-        let catalogs: Vec<ProviderCatalog> = embedded_catalogs
+        let catalogs: Vec<ProviderCatalog> = packages
             .iter()
-            .cloned()
-            .chain(
-                packages
-                    .iter()
-                    .enumerate()
-                    .filter(|(index, _)| !removed.contains(index))
-                    .map(|(_, package)| package.catalog.clone().into()),
-            )
+            .enumerate()
+            .filter(|(index, _)| !removed.contains(index))
+            .map(|(_, package)| package.catalog.clone().into())
             .collect();
         self.handle.state_read().validate_providers(&catalogs).map_err(operation)?;
-        for provider in self.embedded.values() {
-            self.handle.streams.validate_publications(&provider.definition.id, provider.streams.clone()).map_err(operation)?;
-        }
 
         for (index, package) in packages.into_iter().enumerate() {
             if removed.contains(&index) {
@@ -340,7 +316,7 @@ impl Runtime {
                 self.plugins.insert(package.catalog.package.clone(), ActivePackage { package, running: Vec::new() });
             }
         }
-        let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), self.embedded.values(), [])?;
+        let candidate = graph(self.plugins.values().flat_map(|active| &active.package.programs), [])?;
         let manager = harmos::plugin::PluginManager::new(candidate)?;
         self.handle.routing.set(manager.router().clone()).map_err(|_| operation("plugin manager was already configured"))?;
         self.plugin_manager = Some(manager);
@@ -353,7 +329,6 @@ impl Runtime {
                 handle: &self.handle,
                 publications: &self.publications,
                 packages: &mut self.plugins,
-                embedded: &mut self.embedded,
             };
             let result = match next.take() {
                 Some(candidate) => manager.reload(candidate, &mut lifecycle).await,
@@ -365,9 +340,6 @@ impl Runtime {
                     let Some((plugin, source, cleanup)) = start_failure(&error) else {
                         return Err(error.into());
                     };
-                    if self.embedded.contains_key(plugin) {
-                        return Err(error.into());
-                    }
                     let packages: Vec<_> = self.plugins.values().map(|active| &active.package).collect();
                     let initial = packages
                         .iter()
@@ -386,11 +358,10 @@ impl Runtime {
                         });
                     }
                     let failure = start_error(plugin, &package.catalog.package, source);
-                    prune(&store, &packages, &mut removed, initial, &failure, &embedded_plugins, &self.handle.operations).await?;
+                    prune(&store, &packages, &mut removed, initial, &failure, &self.handle.operations).await?;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
-                        self.embedded.values(),
                         [],
                     )?);
                 }
@@ -401,7 +372,7 @@ impl Runtime {
             self.pending_plugins.extend(vec![active.package]);
         }
         let admitted: Vec<_> = self.plugins.values().map(|active| active.package.catalog.clone()).collect();
-        let providers: Vec<_> = admitted.into_iter().map(Into::into).chain(embedded_catalogs).collect();
+        let providers: Vec<_> = admitted.into_iter().map(Into::into).collect();
         let state = self.handle.state_read();
         let has_previous_providers = state.plugin_owners.values().any(|owner| !matches!(owner, crate::state::PluginOwner::Host));
         // An unchanged catalog set is not journaled again; otherwise every
@@ -434,12 +405,6 @@ impl Runtime {
                 bundle.plugins.retain(|plugin| ready.contains(plugin.source.as_str()));
                 (!bundle.plugins.is_empty()).then_some(bundle.into())
             })
-            .chain(
-                self.embedded
-                    .values()
-                    .filter(|provider| ready.contains(provider.definition.id.as_str()))
-                    .map(|provider| provider.catalog.clone()),
-            )
             .collect()
     }
 
@@ -473,59 +438,13 @@ impl Runtime {
                 self.handle.engage_owned_demand(&live.source);
             }
         }
-        for (source, provider) in &mut self.embedded {
-            if ready.contains(source) {
-                provider.expose(&self.handle);
-            }
-        }
         self.handle.unavailable_plugins.write().expect("plugin availability lock poisoned").retain(|source| !ready.contains(source));
         self.handle.reconcile_listener_record_demand()?;
         Ok(())
     }
 
-    pub async fn register(&mut self, provider: Arc<dyn super::EmbeddedProvider>) -> Result<()> {
-        let candidate = super::embedded::Active::prepare(provider, self.handle.schema_settings())?;
-        let source = candidate.definition.id.clone();
-        let catalogs: Vec<ProviderCatalog> = self
-            .plugins
-            .values()
-            .map(|active| active.package.catalog.clone().into())
-            .chain(self.embedded.iter().filter(|(id, _)| *id != &source).map(|(_, active)| active.catalog.clone()))
-            .chain(std::iter::once(candidate.catalog.clone()))
-            .collect();
-        self.handle.state_read().validate_provider_reload(&catalogs, &source).map_err(operation)?;
-        self.handle.streams.validate_publications(&source, candidate.streams.clone()).map_err(operation)?;
-        let definitions = graph(
-            self.plugins.values().flat_map(|active| &active.package.programs),
-            self.embedded.iter().filter(|(id, _)| *id != &source).map(|(_, active)| active).chain(std::iter::once(&candidate)),
-            [source.clone()],
-        )?;
-        let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
-
-        self.embedded.insert(source.clone(), candidate);
-        let mut lifecycle = lifecycle::Adapter {
-            handle: &self.handle,
-            publications: &self.publications,
-            packages: &mut self.plugins,
-            embedded: &mut self.embedded,
-        };
-        let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
-        if let Err(error) = manager.apply_reload(reload, &mut lifecycle).await {
-            if start_failure(&error).is_some() {
-                self.handle.commit(ReconcileProviders { providers: self.ready_catalogs() }).await.map_err(operation)?;
-            }
-            return Err(error.into());
-        }
-
-        self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: source }).await.map_err(operation)?;
-        self.capture_ready_catalogs().await?;
-        self.expose_plugins()?;
-        Ok(())
-    }
-
     pub async fn reinitialize_plugin(&mut self, plugin: &str) -> Result<()> {
-        let owned = self.plugins.values().flat_map(|active| &active.package.programs).any(|program| program.executable.id() == plugin)
-            || self.embedded.contains_key(plugin);
+        let owned = self.plugins.values().flat_map(|active| &active.package.programs).any(|program| program.executable.id() == plugin);
         if !owned {
             return Err(operation(format!("no admitted plugin owns `{plugin}`")));
         }
@@ -540,7 +459,7 @@ impl Runtime {
             self.plugins.values().flat_map(|active| &active.package.programs).map(|program| {
                 refreshed.as_ref().filter(|candidate| candidate.executable.id() == program.executable.id()).unwrap_or(program)
             });
-        let definitions = graph(programs, self.embedded.values(), [plugin.to_owned()])?;
+        let definitions = graph(programs, [plugin.to_owned()])?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
         // Desired preparation changes only after complete descriptor preflight.
@@ -559,7 +478,6 @@ impl Runtime {
             handle: &self.handle,
             publications: &self.publications,
             packages: &mut self.plugins,
-            embedded: &mut self.embedded,
         };
         let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
         manager.apply_reload(reload, &mut lifecycle).await.map_err(Error::from)?;
@@ -614,13 +532,8 @@ impl Runtime {
         {
             return Err(operation("only explicitly configured development plugins can be reloaded"));
         }
-        let mut catalogs: Vec<ProviderCatalog> = self
-            .plugins
-            .iter()
-            .filter(|(key, _)| *key != &name)
-            .map(|(_, active)| active.package.catalog.clone().into())
-            .chain(self.embedded.values().map(|provider| provider.catalog.clone()))
-            .collect();
+        let mut catalogs: Vec<ProviderCatalog> =
+            self.plugins.iter().filter(|(key, _)| *key != &name).map(|(_, active)| active.package.catalog.clone().into()).collect();
         catalogs.push(candidate.catalog.clone().into());
         self.handle.state_read().validate_provider_reload(&catalogs, &name).map_err(operation)?;
         let redefined: Vec<_> = {
@@ -655,7 +568,7 @@ impl Runtime {
                 .map_err(operation)?;
         }
         let rebuilt = candidate.programs.iter().map(|program| program.executable.id().to_owned());
-        let definitions = graph(programs.iter().copied(), self.embedded.values(), rebuilt)?;
+        let definitions = graph(programs.iter().copied(), rebuilt)?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
 
         let mut desired = ActivePackage { package: candidate, running: Vec::new() };
@@ -670,7 +583,6 @@ impl Runtime {
             handle: &self.handle,
             publications: &self.publications,
             packages: &mut self.plugins,
-            embedded: &mut self.embedded,
         };
         let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
         if let Err(error) = manager.apply_reload(reload, &mut lifecycle).await {
@@ -795,13 +707,9 @@ fn plugin_log_filter(filter: std::ffi::OsString) -> std::ffi::OsString {
 }
 
 fn graph<'a>(
-    programs: impl IntoIterator<Item = &'a Program>, embedded: impl IntoIterator<Item = &'a super::embedded::Active>,
-    rebuilt: impl IntoIterator<Item = String>,
+    programs: impl IntoIterator<Item = &'a Program>, rebuilt: impl IntoIterator<Item = String>,
 ) -> Result<harmos::plugin::PluginDefinitions> {
-    let definitions = programs
-        .into_iter()
-        .map(|program| program.definition.clone())
-        .chain(embedded.into_iter().map(|provider| provider.definition.clone()));
+    let definitions = programs.into_iter().map(|program| program.definition.clone());
     harmos::plugin::PluginDefinitions::new(definitions, rebuilt).map_err(Error::from)
 }
 
@@ -1016,13 +924,10 @@ fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginD
     packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
 
-async fn plan(
-    store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition], operations: &crate::app::OperationManager,
-) -> Result<BTreeSet<usize>> {
+async fn plan(store: &PluginStore, packages: &[&Package], operations: &crate::app::OperationManager) -> Result<BTreeSet<usize>> {
     let mut refusals = Vec::new();
     let result = plan_graph(
         &package_definitions(packages),
-        embedded,
         |candidate| operations.validate_requirements(candidate),
         |index, reason| {
             let package = packages[index];
@@ -1038,7 +943,7 @@ async fn plan(
 }
 
 fn plan_graph(
-    packages: &[Vec<harmos::plugin::PluginDefinition>], embedded: &[harmos::plugin::PluginDefinition],
+    packages: &[Vec<harmos::plugin::PluginDefinition>],
     mut validate_host: impl FnMut(&harmos::plugin::PluginDefinitions) -> harmos::Result<()>,
     mut refuse: impl FnMut(usize, &Error) -> Result<()>,
 ) -> Result<BTreeSet<usize>> {
@@ -1052,7 +957,6 @@ fn plan_graph(
                 plugins.push(plugin.clone());
             }
         }
-        plugins.extend_from_slice(embedded);
         match harmos::plugin::PluginGraph::resolve(plugins.clone()) {
             Ok(_) => {
                 let candidate = harmos::plugin::PluginDefinitions::new(plugins, [])?;
@@ -1128,8 +1032,7 @@ fn plan_graph(
 
 async fn prune(
     store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize,
-    reason: &dokime_domain::model::plugins::wire::PluginStartFailure, embedded: &[harmos::plugin::PluginDefinition],
-    operations: &crate::app::OperationManager,
+    reason: &dokime_domain::model::plugins::wire::PluginStartFailure, operations: &crate::app::OperationManager,
 ) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
         let failure = if index == initial {
@@ -1146,7 +1049,7 @@ async fn prune(
     // Removing A Provider Can Turn A Previously Routed Contract Into A Host
     // Requirement. Replan Before Activation, Including Startup Failure Retries.
     let remaining: Vec<_> = packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)).collect();
-    let further = plan(store, &remaining.iter().map(|(_, package)| **package).collect::<Vec<_>>(), embedded, operations).await?;
+    let further = plan(store, &remaining.iter().map(|(_, package)| **package).collect::<Vec<_>>(), operations).await?;
     removed.extend(further.into_iter().map(|index| remaining[index].0));
     Ok(())
 }
@@ -1413,7 +1316,6 @@ mod tests {
             vec![vec![definition("z_consumer", &[], &["order.provider"])], vec![definition("a_provider", &["order.provider"], &[])]];
         let removed = plan_graph(
             &packages,
-            &[],
             |candidate| host.operations.validate_requirements(candidate),
             |_, reason| panic!("unexpected refusal: {reason}"),
         )
@@ -1442,7 +1344,6 @@ mod tests {
         let mut refusals = BTreeMap::new();
         let removed = plan_graph(
             &packages,
-            &[],
             |candidate| host.operations.validate_requirements(candidate),
             |index, reason| {
                 let failure = rejection(&packages[index][0].id, reason, reason.code());
@@ -1481,7 +1382,6 @@ mod tests {
         let mut refusals = BTreeMap::new();
         let removed = plan_graph(
             &packages,
-            &[],
             |candidate| host.operations.validate_requirements(candidate),
             |index, reason| {
                 let failure = rejection(&packages[index][0].id, reason, reason.code());
@@ -1511,16 +1411,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn embedded_provider_order() {
+    async fn provider_and_host_requirements() {
         let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
         let registration = Registration::new(crate::app::Lanes::Open).operation::<Probe>("order.host").unwrap();
         host.operations.register_batch(registration).await.unwrap();
-        let packages = vec![vec![definition("z_consumer", &[], &["order.embedded", "order.host"])]];
-        let embedded = [definition("a_embedded", &["order.embedded"], &[])];
+        let packages = vec![
+            vec![definition("z_consumer", &[], &["order.provider", "order.host"])],
+            vec![definition("a_provider", &["order.provider"], &[])],
+        ];
         let mut checked = Vec::new();
         let removed = plan_graph(
             &packages,
-            &embedded,
             |candidate| {
                 let requirements: Vec<_> =
                     candidate.host_requirements().map(|(_, required)| required.contract.operation().id.to_string()).collect();
@@ -1533,14 +1434,14 @@ mod tests {
         .unwrap();
         assert!(removed.is_empty());
         assert_eq!(checked, ["order.host"]);
-        let definitions = PluginDefinitions::new(packages.into_iter().flatten().chain(embedded), []).unwrap();
+        let definitions = PluginDefinitions::new(packages.into_iter().flatten(), []).unwrap();
         let mut manager = PluginManager::new(definitions).unwrap();
         let mut lifecycle = Lifecycle {
             events: Vec::new(),
             operations: host.operations.clone(),
         };
         manager.initialize(&mut lifecycle).await.unwrap();
-        assert_eq!(lifecycle.events, ["prepare:a_embedded", "start:a_embedded", "prepare:z_consumer", "start:z_consumer"]);
+        assert_eq!(lifecycle.events, ["prepare:a_provider", "start:a_provider", "prepare:z_consumer", "start:z_consumer"]);
         manager.shutdown(&mut lifecycle).await.unwrap();
         host.shutdown().await.unwrap();
     }

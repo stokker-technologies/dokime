@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{fmt, path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 // Third Party Imports
 
@@ -49,27 +49,17 @@ pub struct Config {
     pub plugin_lookup: Option<PathBuf>,
     pub explicit_plugins: Vec<PathBuf>,
     pub brand: Option<ResolvedBrand>,
-    registrations: Registrations,
 }
 
 pub(crate) struct ShellStartup {
     pub(crate) brand: Option<ResolvedBrand>,
 }
 
-#[derive(Clone, Default)]
-struct Registrations(Vec<Arc<dyn crate::runtime::EmbeddedProvider>>);
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-impl fmt::Debug for Registrations {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_tuple("Registrations").field(&self.0.len()).finish()
-    }
-}
 
 impl Config {
     pub fn local(output_root: impl Into<PathBuf>) -> Self {
@@ -85,13 +75,7 @@ impl Config {
             plugin_lookup: None,
             explicit_plugins: Vec::new(),
             brand: None,
-            registrations: Registrations::default(),
         }
-    }
-
-    pub fn register(mut self, provider: Arc<dyn crate::runtime::EmbeddedProvider>) -> Self {
-        self.registrations.0.push(provider);
-        self
     }
 
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
@@ -109,11 +93,7 @@ impl Config {
         config.bundled_plugins = super::organization::installation_directory()
             .and_then(|directory| directory.parent().map(|parent| parent.join("plugins")))
             .filter(|directory| directory.parent().is_some_and(|parent| parent.join("installer.json").is_file()));
-        let mut config = config.with_plugins(PluginBundle::all(&self.explicit_plugins));
-
-        for provider in self.registrations.0 {
-            config = config.register(provider);
-        }
+        let config = config.with_plugins(PluginBundle::all(&self.explicit_plugins));
 
         (config, startup)
     }

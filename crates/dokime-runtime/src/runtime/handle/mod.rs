@@ -91,7 +91,6 @@ pub struct RuntimeHandle {
     grpc: harmos::grpc::GrpcManager,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
     pub(crate) execution_sessions: Arc<crate::domains::execution::run::Sessions>,
-    pub(crate) embedded_templates: Arc<crate::runtime::EmbeddedTemplates>,
 
     pub(crate) sampling: Arc<Sampling>,
     pub(crate) stream_leases: Arc<crate::telemetry_runtime::StreamLeases>,
@@ -349,7 +348,6 @@ impl RuntimeHandle {
         let Prepared {
             provider_invocations,
             execution_sessions,
-            embedded_templates,
             step_builtins,
             record_ingress,
         } = prepared;
@@ -408,7 +406,6 @@ impl RuntimeHandle {
             grpc: harmos_runtime.grpc().clone(),
             record_ingress,
             execution_sessions,
-            embedded_templates,
             sampling: Arc::new(sampling),
             evidence_admission: Default::default(),
             effect_admission: Default::default(),

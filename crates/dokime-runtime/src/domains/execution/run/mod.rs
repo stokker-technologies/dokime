@@ -165,19 +165,9 @@ impl ExecutionFixture for TemplateRunExecutor {
 }
 
 impl Target {
-    // An embedded template runs through the host-level template operations;
-    // any other template answers under its own identity, qualified by the
-    // owner that serves it: its bundle's plugin id, or the host.
+    // Each template answers under its own identity, qualified by its serving owner.
     pub(crate) fn of(runtime: &RuntimeHandle, template: &str) -> Self {
         let operations = runtime.operations.clone();
-        if runtime.embedded_templates.contains(template) {
-            use harmos::OperationDeclaration;
-            return Self {
-                operations,
-                run: format!("host.{}", <crate::execution::Run<()> as OperationDeclaration>::ID),
-                signal: format!("host.{}", <crate::execution::Signal<()> as OperationDeclaration>::ID),
-            };
-        }
         let owner = {
             let snapshot = runtime.watch_state().latest();
             let state = snapshot.state();

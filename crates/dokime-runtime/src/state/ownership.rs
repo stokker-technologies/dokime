@@ -47,9 +47,6 @@ pub struct BundleCatalog {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PluginOwner {
     Host,
-    Embedded {
-        generation: String,
-    },
     Bundle {
         package: String,
         path: String,
@@ -64,7 +61,6 @@ pub enum PluginOwner {
 #[serde(rename_all = "snake_case", tag = "kind", content = "catalog")]
 pub enum ProviderCatalog {
     Bundle(BundleCatalog),
-    Embedded { plugin: Box<InstalledPlugin>, generation: String },
 }
 
 /* === Traits === */
@@ -79,7 +75,6 @@ impl RuntimeState {
         let implementation = match self.plugin_owners.get(source)? {
             PluginOwner::Host => return None,
             PluginOwner::Bundle { content_digest, .. } => ExecutionImplementation::Bundle { content_digest: content_digest.clone() },
-            PluginOwner::Embedded { generation } => ExecutionImplementation::Embedded { generation: generation.clone() },
         };
 
         Some(ExecutionPluginIdentity {
@@ -100,14 +95,12 @@ impl ProviderCatalog {
     pub fn id(&self) -> &str {
         match self {
             Self::Bundle(bundle) => &bundle.package,
-            Self::Embedded { plugin, .. } => &plugin.source,
         }
     }
 
     pub fn plugins(&self) -> &[InstalledPlugin] {
         match self {
             Self::Bundle(bundle) => &bundle.plugins,
-            Self::Embedded { plugin, .. } => std::slice::from_ref(plugin.as_ref()),
         }
     }
 
@@ -119,21 +112,19 @@ impl ProviderCatalog {
                 installation: bundle.installation.clone(),
                 content_digest: bundle.content_digest.clone(),
             },
-            Self::Embedded { generation, .. } => PluginOwner::Embedded { generation: generation.clone() },
         }
     }
 
     fn allows_redefinition(&self) -> bool {
         match self {
             Self::Bundle(bundle) => bundle.installation.is_none(),
-            Self::Embedded { .. } => true,
         }
     }
 }
 
 impl RuntimeState {
     pub fn install_host_plugin(&mut self, installation: InstalledPlugin) -> Result<(), String> {
-        if matches!(self.plugin_owners.get(&installation.source), Some(PluginOwner::Bundle { .. } | PluginOwner::Embedded { .. })) {
+        if matches!(self.plugin_owners.get(&installation.source), Some(PluginOwner::Bundle { .. })) {
             return Err(format!("source `{}` belongs to a registered provider", installation.source));
         }
         let source = installation.source.clone();
@@ -178,7 +169,7 @@ impl RuntimeState {
         if let Some(package) = redefine
             && !providers.iter().any(|provider| provider.id() == package && provider.allows_redefinition())
         {
-            return Err("record redefinition requires a configured or embedded provider".into());
+            return Err("record redefinition requires a configured provider".into());
         }
         let mut candidate = self.catalog_candidate();
         let old: Vec<_> = candidate
@@ -196,11 +187,6 @@ impl RuntimeState {
         for provider in &providers {
             if !identities.insert(provider.id()) {
                 return Err(format!("duplicate provider `{}`", provider.id()));
-            }
-            if let ProviderCatalog::Embedded { generation, .. } = provider
-                && generation.trim().is_empty()
-            {
-                return Err("an embedded provider requires a registration generation".into());
             }
             for plugin in provider.plugins() {
                 if !sources.insert(&plugin.source) || candidate.plugin_owners.contains_key(&plugin.source) {

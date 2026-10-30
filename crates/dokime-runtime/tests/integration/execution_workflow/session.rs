@@ -16,18 +16,15 @@
 use std::sync::{Arc, Mutex};
 
 // Third Party Imports
-use async_trait::async_trait;
-use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
+use dokime_runtime::Refusal;
 use dokime_runtime::execution::log::{Entry, Level};
-use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::transport::{
     EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
     TransportFuture,
 };
-use dokime_runtime::{InstalledPlugin, Refusal};
 use {
     dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
     dokime_domain::model::execution::termination::TerminationReason, dokime_runtime::execution::Caller,
@@ -61,6 +58,15 @@ struct Probe {
 }
 
 struct Provider(Arc<Probe>);
+struct Session(Arc<Probe>);
+struct HostSession(Arc<Probe>);
+struct SessionSuites<const HOST: bool>;
+
+#[harmos::catalog]
+enum Operations {
+    Run(dokime_runtime::testing::Run<Probe>),
+    Signal(dokime_runtime::testing::Signal<Probe>),
+}
 
 /* === Enums === */
 #[derive(Clone, Copy, PartialEq)]
@@ -331,40 +337,101 @@ impl Runnable for Probe {
     }
 }
 
-#[async_trait]
-impl EmbeddedProvider for Provider {
-    fn catalog(&self) -> InstalledPlugin {
+impl Provider {
+    fn configure(self, config: dokime_runtime::RuntimeConfig, directory: &std::path::Path) -> dokime_runtime::RuntimeConfig {
+        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
+            dokime_runtime::testing::bound_plugin::<HostSession, Probe>(config, directory, self.0).unwrap()
+        } else {
+            dokime_runtime::testing::bound_plugin::<Session, Probe>(config, directory, self.0).unwrap()
+        }
+    }
+}
+
+impl<const HOST: bool> harmos::plugin::Contribution for SessionSuites<HOST> {
+    const NAMESPACE: &'static str = dokime_runtime::plugin::registration::SUITES_NAMESPACE;
+    const SECTION: harmos::plugin::inventory::Section = harmos::plugin::inventory::Section::new(Self::NAMESPACE, r#"{"schema":2}"#);
+    fn register(registrar: &mut harmos::plugin::Registrar) -> Result<(), harmos::plugin::RegistrationError> {
         let mut suite = fixture_suite(&["cancelled"]);
         suite.metadata = metadata(SOURCE, "Session Fixture");
         let template = &mut suite.test_case_templates[0];
         template.metadata = metadata(TEMPLATE, "Cancellation");
+        template.test_case_template_id = TemplateId::from_seed(TEMPLATE);
+        for parameter in &mut template.parameters {
+            parameter.parameter_id = dokime_runtime::ParameterId::from_seed(parameter.metadata.identifier.as_str());
+        }
+        for criterion in &mut template.criteria {
+            criterion.criterion_id = dokime_runtime::CriterionId::from_seed(criterion.metadata.identifier.as_str());
+        }
         template.phases[0].metadata = metadata(PHASE, "Stream");
         template.phases[0].step_id = dokime_runtime::StepId::from_seed(PHASE);
-        // The failing provider samples host telemetry, so its run holds a stream
-        // lease the failure cleanup has to close.
-        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
+        // Failure Cleanup And Replay Both Hold A Real Host Stream Lease.
+        if HOST {
             template.subscriptions = vec![dokime_runtime::definition::Subscription::Stream(identifier("host.system"))];
         }
         let mut definition = TestSuiteDefinition::new(SOURCE, suite).unwrap();
         definition.workflow = Some(SOURCE.into());
-        InstalledPlugin {
-            source: SOURCE.into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([definition]),
-            ..Default::default()
+        registrar.register(
+            Self::NAMESPACE,
+            dokime_runtime::plugin::registration::domain_schema(Self::NAMESPACE),
+            &dokime_runtime::definition::SuiteSet::new([definition]),
+        )
+    }
+}
+
+impl dokime_runtime::execution::Served for Probe {
+    const RUN: &'static str = "fixture.sessions.cancel.run";
+    const SIGNAL: &'static str = "fixture.sessions.cancel.signal";
+}
+
+macro_rules! session_plugin {
+    ($plugin:ident) => {
+        impl harmos::builtins::lifecycle::Policy for $plugin {
+            const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+                timeout: Duration::from_secs(120),
+                attempt_timeout: Duration::from_secs(120),
+                cancellation_timeout: Duration::ZERO,
+                retries: harmos::operations::RetryPolicy::Never,
+            };
+            const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
         }
-    }
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        Vec::new()
-    }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        Ok(vec![self.0.clone()])
-    }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        self.0.interrupt();
-        Ok(())
-    }
+        impl harmos::Lifecycle for $plugin {
+            type Config = dokime_runtime::plugin::Configuration;
+            type Error = Refusal;
+            type Context = dokime_runtime::Supervisor;
+            async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Refusal> {
+                let probe = dokime_runtime::testing::resource::<Probe>(&config)?;
+                setup.resource::<dokime_runtime::testing::Runner<Probe>>(Arc::new(dokime_runtime::testing::Runner(probe.clone())));
+                Ok(Self(probe))
+            }
+            async fn stop(&mut self, _: &Self::Context) -> Result<(), Refusal> {
+                self.0.interrupt();
+                self.0.shutdown().await;
+                Ok(())
+            }
+        }
+    };
+}
+session_plugin!(Session);
+session_plugin!(HostSession);
+
+#[dokime_runtime::plugin(
+    id = "fixture_sessions",
+    requires(EvidenceBatch, dokime_runtime::transport::OperatorQuestion, dokime_runtime::transport::LeaseAsk),
+    contributions(SessionSuites<false>),
+    restart = "never"
+)]
+impl dokime_runtime::Plugin for Session {
+    const CATALOGS: &'static [harmos::Catalog] = &[Operations::CATALOG];
+}
+
+#[dokime_runtime::plugin(
+    id = "fixture_sessions",
+    requires(EvidenceBatch, dokime_runtime::transport::OperatorQuestion, dokime_runtime::transport::LeaseAsk),
+    contributions(SessionSuites<true>),
+    restart = "never"
+)]
+impl dokime_runtime::Plugin for HostSession {
+    const CATALOGS: &'static [harmos::Catalog] = &[Operations::CATALOG];
 }
 
 /* === Public Functions === */
@@ -415,7 +482,7 @@ pub(crate) async fn cancellation_retains_verdict() {
         let provider = Provider(probe.clone());
         let settings = config(root.path());
 
-        let (mut owner, handle) = started(settings.register(Arc::new(provider))).await;
+        let (mut owner, handle) = started(provider.configure(settings, root.path())).await;
         let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
         let cycle_id = start_cases(&handle, metadata("session.cancel", "Cancellation"), materialize_cases(SOURCE, &suite)).await;
         let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -470,7 +537,7 @@ pub(crate) async fn cancellation_retains_verdict() {
 
         let probe = Arc::new(Probe::new(mode));
         let provider = Provider(probe);
-        let configuration = config(root.path()).register(Arc::new(provider));
+        let configuration = provider.configure(config(root.path()), root.path());
         let (mut restarted, handle) = started(configuration).await;
         let saved = crate::service_support::native::open(&handle, &checkpoint).await;
         assert_eq!(saved.execution().status, ExecutionStatus::Cancelled);
@@ -498,7 +565,7 @@ pub(crate) async fn ignored_signal_identity() {
 async fn ignored_stop(mode: Settlement) {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(mode));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let (mut owner, handle) = started(Provider(probe.clone()).configure(config(root.path()), root.path())).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -547,7 +614,7 @@ async fn ignored_stop(mode: Settlement) {
 pub(crate) async fn refused_settlement_winds_down() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::RefusedPage));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let (mut owner, handle) = started(Provider(probe.clone()).configure(config(root.path()), root.path())).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.refused", "Refused Settlement"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -571,7 +638,7 @@ pub(crate) async fn refused_settlement_winds_down() {
 pub(crate) async fn abandoned_admission_closes() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::AbandonedAdmission));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let (mut owner, handle) = started(Provider(probe.clone()).configure(config(root.path()), root.path())).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.abandoned", "Abandoned Admission"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -596,9 +663,11 @@ pub(crate) async fn abandoned_admission_closes() {
 pub(crate) async fn live_replay_settles() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::LiveReplay));
-    let configuration = config(root.path())
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())])
-        .register(Arc::new(Provider(probe.clone())));
+    let configuration = Provider(probe.clone()).configure(
+        config(root.path())
+            .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]),
+        root.path(),
+    );
     let (mut owner, handle) = started(configuration).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     // A Viewer Keeps Host Collection Ticking After The Run's Own Measurement Closes.
@@ -635,9 +704,11 @@ pub(crate) async fn live_replay_settles() {
 pub(crate) async fn provider_failure_releases() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Failure));
-    let configuration = config(root.path())
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())])
-        .register(Arc::new(Provider(probe.clone())));
+    let configuration = Provider(probe.clone()).configure(
+        config(root.path())
+            .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]),
+        root.path(),
+    );
     let (mut owner, handle) = started(configuration).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite)).await;

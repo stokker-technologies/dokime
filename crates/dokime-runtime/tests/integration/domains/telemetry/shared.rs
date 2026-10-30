@@ -16,15 +16,9 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use async_trait::async_trait;
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::runtime::EmbeddedProvider;
-use dokime_runtime::schema::Described;
-use harmos::sidecar::StreamDeclaration;
 use harmos::storage::{
     Query,
     query::{RowSlice, SchemaSelection, Source},
@@ -50,9 +44,7 @@ struct First;
 
 struct Second;
 
-struct SharedProvider {
-    catalog: InstalledPlugin,
-}
+struct Shared;
 
 /* === Enums === */
 #[dokime_runtime::catalog]
@@ -64,6 +56,11 @@ enum Streams {
 enum Templates {
     First(First),
     Second(Second),
+}
+
+#[dokime_runtime::catalog]
+enum Suites {
+    Checks(Checks),
 }
 
 /* === Traits === */
@@ -98,55 +95,30 @@ impl Second {
     }
 }
 
-impl SharedProvider {
-    fn new() -> Self {
-        let evidence = dokime_runtime::catalog::entries::<Streams, dokime_runtime::catalog::StreamContracts>()
-            .into_iter()
-            .map(|contract| contract())
-            .collect();
-        Self {
-            catalog: InstalledPlugin {
-                source: SOURCE.into(),
-                version: "0.1.0".into(),
-                enabled: true,
-                suites: SuiteSet::new([Checks::definition()]),
-                telemetry_contracts: evidence,
-                ..Default::default()
-            },
-        }
-    }
+impl harmos::builtins::lifecycle::Policy for Shared {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+        timeout: std::time::Duration::from_secs(120),
+        attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
 }
 
-#[async_trait]
-impl EmbeddedProvider for SharedProvider {
-    fn catalog(&self) -> InstalledPlugin {
-        self.catalog.clone()
-    }
+#[dokime_runtime::plugin(id = "fixture_shared", requires(), contributions(dokime_runtime::Suites<Suites>), restart = "never")]
+impl dokime_runtime::Plugin for Shared {
+    const CATALOGS: &'static [harmos::Catalog] = &[];
+}
 
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        vec![StreamDeclaration {
-            metadata: <Sample as harmos::StreamSpec>::metadata(),
-            row_metadata: <Sample as harmos::RowMetadata>::row_metadata(),
-            id: Sample::ID.into(),
-            schema: Sample::VERSION,
-            window: Sample::WINDOW,
-            row: harmos::schema::graph::Schema::from_declaration(
-                <Sample as Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .unwrap(),
-        }]
-    }
+impl harmos::Lifecycle for Shared {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = dokime_runtime::Refusal;
+    type Context = dokime_runtime::Supervisor;
 
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<First>::new(SUITE, SOURCE)) as Arc<dyn Runnable>,
-            Arc::new(dokime_runtime::execution::Workflow::<Second>::new(SUITE, SOURCE)),
-        ])
-    }
-
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        Ok(())
+    async fn prepare(_: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        setup.resource::<()>(Arc::new(()));
+        dokime_runtime::execution::prepare::<Self, Suites>(setup)?;
+        Ok(Self)
     }
 }
 
@@ -162,7 +134,8 @@ fn shared_stream_refusal(detail: &str) -> bool {
 async fn shared_stream_publishes() {
     let root = tempdir().unwrap();
     let config = config(root.path());
-    let mut runtime = Runtime::start(config.register(Arc::new(SharedProvider::new()))).await.unwrap();
+    let config = dokime_runtime::testing::plugin::<Shared>(config, root.path()).unwrap();
+    let mut runtime = Runtime::start(config).await.unwrap();
     let handle = runtime.handle();
     let suite = Checks::definition().suite;
 
@@ -195,7 +168,7 @@ async fn shared_stream_publishes() {
         ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );
 
-    // Run Admission Registers The Embedded Stream; Publication Only Appends Rows.
+    // Plugin Admission Registers The Shared Stream; Publication Only Appends Rows.
     let contracts = handle.telemetry_contracts().await;
     let stream = Identifier::new(Sample::ID).unwrap();
     let contract = contracts.into_iter().find(|contract| contract.stream == stream);
@@ -222,16 +195,16 @@ async fn shared_stream_publishes() {
 async fn shared_schema_refused() {
     let root = tempdir().unwrap();
     let mut runtime = Runtime::start(config(root.path())).await.unwrap();
-    let mut provider = SharedProvider::new();
+    let mut definition = Checks::definition();
     let second = <Second as dokime_runtime::definition::DeclaredTemplate>::template_id();
-    let suite = &mut provider.catalog.suites.suites[0];
+    let suite = &mut definition;
     for contract in &mut suite.telemetry_contracts {
         if contract.template_id.as_ref() == Some(&second) {
             contract.columns[0].required = !contract.columns[0].required;
         }
     }
 
-    let refused = runtime.register(Arc::new(provider)).await;
+    let refused = runtime.handle().set_suites(SOURCE, SuiteSet::new([definition])).await;
 
     assert!(refused.as_ref().is_err_and(|error| shared_stream_refusal(&error.to_string())), "{refused:?}");
     runtime.shutdown().await.unwrap();
@@ -240,7 +213,8 @@ async fn shared_schema_refused() {
 #[tokio::test]
 async fn shared_owner_refused() {
     let root = tempdir().unwrap();
-    let mut runtime = Runtime::start(config(root.path()).register(Arc::new(SharedProvider::new()))).await.unwrap();
+    let config = dokime_runtime::testing::plugin::<Shared>(config(root.path()), root.path()).unwrap();
+    let mut runtime = Runtime::start(config).await.unwrap();
     let handle = runtime.handle();
     let mut definition = Checks::definition();
     definition.suite_id = "fixture.other.checks".to_owned();

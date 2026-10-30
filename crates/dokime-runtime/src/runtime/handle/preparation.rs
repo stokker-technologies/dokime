@@ -36,7 +36,6 @@ use crate::runtime::Result;
 pub(crate) struct Prepared {
     pub(super) provider_invocations: Arc<crate::runtime::operations::provider::ProviderInvocations>,
     pub(super) execution_sessions: Arc<crate::domains::execution::run::Sessions>,
-    pub(super) embedded_templates: Arc<crate::runtime::EmbeddedTemplates>,
     pub(super) step_builtins: Arc<crate::domains::files::StepBuiltins>,
     pub(super) record_ingress: Arc<crate::runtime::sidecars::core::RecordIngress>,
 }
@@ -62,8 +61,6 @@ impl Prepared {
         crate::runtime::operations::provider::prepare(setup, provider_invocations.clone())?;
         let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
         crate::domains::execution::run::host::prepare(setup, &execution_sessions)?;
-        let embedded_templates = Arc::new(crate::runtime::EmbeddedTemplates::new(execution_sessions.clone()));
-        crate::runtime::embedded::prepare(setup, &embedded_templates)?;
         crate::plot::builtins::prepare(setup);
         let step_builtins = crate::domains::files::prepare(setup)?;
         crate::runtime::sidecars::core::prepare_publications(setup)?;
@@ -74,7 +71,6 @@ impl Prepared {
         Ok(Self {
             provider_invocations,
             execution_sessions,
-            embedded_templates,
             step_builtins,
             record_ingress,
         })

@@ -11,7 +11,6 @@
 
 pub mod command;
 pub(crate) mod effects;
-mod embedded;
 pub mod error;
 pub(crate) mod handle;
 mod native_telemetry;
@@ -27,8 +26,6 @@ pub(crate) mod storage;
 /* === Re-Exports === */
 
 pub use crate::execution::context::ExecutionCycleContext;
-pub use embedded::EmbeddedProvider;
-pub(crate) use embedded::Templates as EmbeddedTemplates;
 pub use error::{Error, Result};
 pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;
@@ -74,7 +71,6 @@ pub struct Runtime {
     background: Vec<Box<dyn Send>>,
     background_tasks: Vec<BackgroundTask>,
     plugins: BTreeMap<String, plugins::ActivePackage>,
-    embedded: BTreeMap<String, embedded::Active>,
     pending_plugins: plugins::StagedPackages,
     plugin_manager: Option<plugins::lifecycle::Manager>,
     publications: sidecars::PublicationIngest,
@@ -128,18 +124,8 @@ impl Runtime {
         starting.await
     }
 
-    async fn start_inner(mut config: RuntimeConfig) -> Result<Self> {
-        let mut providers = BTreeMap::new();
-        for provider in std::mem::take(&mut config.embedded_providers) {
-            let provider = embedded::Active::prepare(provider, &config.schema)?;
-            let source = provider.definition.id.clone();
-            if providers.insert(source.clone(), provider).is_some() {
-                return Err(crate::runtime::Error::Operation(format!("duplicate embedded provider `{source}`")));
-            }
-        }
-
-        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
-        runtime.embedded = providers;
+    async fn start_inner(config: RuntimeConfig) -> Result<Self> {
+        let runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
         runtime.finish_start().await
     }
 
@@ -222,7 +208,6 @@ impl Runtime {
             background_tasks: vec![ingest, forwarding, lease_gaps],
             publications,
             plugins: BTreeMap::new(),
-            embedded: BTreeMap::new(),
             pending_plugins: plugins::StagedPackages::default(),
             plugin_manager: None,
             shutdown: Shutdown::default(),
@@ -320,7 +305,6 @@ impl Runtime {
                     handle: &self.handle,
                     publications: &self.publications,
                     packages: &mut self.plugins,
-                    embedded: &mut self.embedded,
                 };
                 // A plugin that outstays its grace loses its sidecar: dropping the manager ends it.
                 let grace_ms = 5000;
@@ -330,7 +314,6 @@ impl Runtime {
                     Err(_) => tracing::warn!(grace_ms, "plugins did not stop in time; ending their sidecars"),
                 }
             }
-            self.embedded.clear();
             self.plugin_manager = None;
             self.background.clear();
             self.handle.record_ingress.detach();

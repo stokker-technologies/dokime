@@ -22,16 +22,11 @@ use std::{
     sync::Arc,
 };
 // Third Party Imports
-use async_trait::async_trait;
-use dokime::harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use crate::support::bridge::{Harness, Local};
-use dokime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
-use dokime::{
-    execution::{CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow},
-    schema::Described,
-};
+use dokime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext};
+use dokime::{Runtime, RuntimeConfig};
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 use dokime_server::grpc::Config;
@@ -48,17 +43,12 @@ static ROOT: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
 /* === Structs === */
 
-#[derive(Clone)]
-struct State {
-    root: PathBuf,
-}
-
 struct Resources {
     root: PathBuf,
     writer: std::sync::Mutex<dokime::artifacts::ArtifactWriter>,
 }
 
-struct Provider(State);
+struct Provider;
 
 struct Lab;
 
@@ -170,38 +160,30 @@ impl Probe {
     }
 }
 
-#[async_trait]
-impl EmbeddedProvider for Provider {
-    fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin {
-            source: "matrix_rust".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime::definition::SuiteSet::new([Lab::definition()]),
-            ..Default::default()
-        }
-    }
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        vec![StreamDeclaration {
-            id: Reading::ID.into(),
-            schema: Reading::VERSION,
-            window: Reading::WINDOW,
-            metadata: <Reading as dokime::harmos::StreamSpec>::metadata(),
-            row_metadata: <Reading as dokime::harmos::RowMetadata>::row_metadata(),
-            row: dokime::harmos::schema::graph::Schema::from_declaration(
-                <Reading as Described>::DEFINITION,
-                &dokime::harmos::config::SchemaSettings::default(),
-            )
-            .unwrap(),
-        }]
-    }
-    async fn start(&self) -> dokime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        *ROOT.lock().unwrap() = Some(self.0.root.clone());
-        let lab = Lab::definition();
-        Ok(vec![Arc::new(Workflow::<Probe>::new(&lab.suite_id, "matrix_rust").with_records(&lab.record_contracts)) as Arc<dyn Runnable>])
-    }
-    async fn stop(&self) -> dokime::runtime::Result<()> {
-        Ok(())
+#[dokime::catalog]
+enum Suites {
+    Lab(Lab),
+}
+
+impl dokime::harmos::builtins::lifecycle::Policy for Provider {
+    const INITIALIZATION_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::builtins::lifecycle::POLICY;
+    const SHUTDOWN_POLICY: dokime::harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
+
+#[dokime::plugin(id = "matrix_rust", requires(), contributions(dokime::Suites<Suites>), restart = "never")]
+impl dokime::Plugin for Provider {
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[];
+}
+
+impl dokime::harmos::Lifecycle for Provider {
+    type Config = dokime::plugin::Configuration;
+    type Error = dokime::Refusal;
+    type Context = dokime::Supervisor;
+
+    async fn prepare(_: Self::Config, setup: &mut dokime::harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        setup.resource::<()>(Arc::new(()));
+        dokime::execution::prepare::<Self, Suites>(setup)?;
+        Ok(Self)
     }
 }
 
@@ -261,14 +243,18 @@ async fn run_matrix(interface: &str) {
         .unwrap();
     let contract: Value = serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();
     for scenario in contract["scenarios"].as_array().unwrap() {
-        // Backend With The Matrix Provider
+        // Backend With The Matrix Plugin
         let name = scenario["name"].as_str().unwrap();
         let directory = tempfile::tempdir().unwrap();
-        let config = RuntimeConfig::new(
-            directory.path().join("backend"),
-            dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
+        *ROOT.lock().unwrap() = Some(directory.path().into());
+        let config = dokime_runtime::testing::plugin::<Provider>(
+            RuntimeConfig::new(
+                directory.path().join("backend"),
+                dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
+            ),
+            &directory.path().join("plugins"),
         )
-        .register(Arc::new(Provider(State { root: directory.path().into() })));
+        .unwrap();
         let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
         let mut runtime = Runtime::start(prepared_runtime.configuration(config)).await.unwrap();
         let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();

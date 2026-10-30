@@ -74,9 +74,6 @@ pub(super) fn page(
             enabled: artifact.enabled,
             owner: owner.map(|owner| match owner {
                 PluginOwner::Host => plugins_model::AdmittedPluginOwner::Host(true),
-                PluginOwner::Embedded { generation } => {
-                    plugins_model::AdmittedPluginOwner::Embedded(plugins_model::AdmittedEmbeddedOwner { generation: generation.clone() })
-                }
                 PluginOwner::Bundle {
                     package,
                     path,

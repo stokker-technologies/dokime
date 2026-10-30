@@ -653,7 +653,6 @@ fn visit_test_entries(
             use dokime_domain::model::execution::snapshot::ExecutionImplementation;
             let (identifier, label, value) = match &plugin.implementation {
                 ExecutionImplementation::Bundle { content_digest } => ("execution.plugin_digest", "Plugin Digest", content_digest),
-                ExecutionImplementation::Embedded { generation } => ("execution.provider_generation", "Provider Generation", generation),
             };
             visible_entry(
                 sink,

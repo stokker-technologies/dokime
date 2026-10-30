@@ -54,7 +54,7 @@ pub(crate) fn provider(state: &RuntimeState, owner: &str, kind: &Identifier) -> 
     }
     match state.plugin_owners.get(owner) {
         Some(PluginOwner::Host) => Ok(false),
-        Some(PluginOwner::Bundle { .. } | PluginOwner::Embedded { .. }) => Ok(true),
+        Some(PluginOwner::Bundle { .. }) => Ok(true),
         None => Err(format!("record publisher {owner} has no admitted ownership; re-register its catalog")),
     }
 }

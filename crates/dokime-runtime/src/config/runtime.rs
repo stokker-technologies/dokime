@@ -32,7 +32,10 @@ use dokime_domain::model::identity::SessionId;
 
 /* === Type Aliases === */
 
+#[cfg(not(feature = "testing"))]
 pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
+#[cfg(feature = "testing")]
+pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, crate::testing::NativeSource, SidecarNoticeHandler>;
 pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
@@ -78,8 +81,9 @@ pub struct RuntimeConfig {
     #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
 
+    #[cfg(feature = "testing")]
     #[serde(skip)]
-    pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
+    pub(crate) native_fixtures: BTreeMap<String, crate::testing::NativeAttachment>,
 
     #[serde(skip)]
     pub composition: Vec<crate::app::Composition>,
@@ -114,15 +118,11 @@ impl RuntimeConfig {
             plugin_lookup: None,
             bundled_plugins: None,
             action_dispatchers: BTreeMap::new(),
-            embedded_providers: Vec::new(),
+            #[cfg(feature = "testing")]
+            native_fixtures: BTreeMap::new(),
             composition: Vec::new(),
             storage_root,
         }
-    }
-
-    pub fn register(mut self, provider: Arc<dyn crate::runtime::EmbeddedProvider>) -> Self {
-        self.embedded_providers.push(provider);
-        self
     }
 
     pub fn with_application_root(mut self, root: impl Into<PathBuf>) -> Self {
@@ -173,7 +173,6 @@ impl fmt::Debug for RuntimeConfig {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("RuntimeConfig")
-            .field("embedded_providers", &self.embedded_providers.len())
             .field("session_id", &self.session_id)
             .field("storage_root", &self.storage_root)
             .field("storage", &self.storage)

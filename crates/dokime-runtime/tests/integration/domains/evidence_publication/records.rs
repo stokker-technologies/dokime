@@ -19,16 +19,10 @@
 
 // Local Imports
 use crate::service_support::prelude::*;
-use async_trait::async_trait;
 use dokime_domain::model;
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::runtime::EmbeddedProvider;
-use harmos::sidecar::StreamDeclaration;
-use std::sync::Arc;
-use {dokime_runtime::InstalledPlugin, dokime_runtime::ValueType};
 use {
-    dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField, dokime_runtime::records::RecordPublication,
-    dokime_runtime::records::RecordSeverity, model::records::publication::RecordPublishRequest,
+    dokime_runtime::records::{RecordPublication, RecordSeverity},
+    model::records::publication::RecordPublishRequest,
 };
 
 /* === Constants === */
@@ -40,52 +34,57 @@ use {
 /* === Structs === */
 struct Publisher;
 
+#[dokime_runtime::record(id = "fixture.sidecar.observed", label = "Observed")]
+struct Observed {
+    value: f64,
+}
+
+#[dokime_runtime::catalog]
+enum Records {
+    Observed(Observed),
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-#[async_trait]
-impl EmbeddedProvider for Publisher {
-    fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin {
-            source: "fixture_records".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            record_contracts: vec![RecordContract {
-                record_type: identifier("fixture.sidecar.observed"),
-                schema_version: 1,
-                metadata: metadata("fixture.sidecar.observed", "Observed"),
-                display: Default::default(),
-                template_id: None,
-                owner: None,
-                default_severity: RecordSeverity::Info,
-                fields: vec![RecordField::new(metadata("value", "Value"), ValueType::Number)],
-                validation_mode: None,
-                allow_extra_fields: false,
-            }],
-            ..Default::default()
-        }
-    }
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        Vec::new()
-    }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        Ok(Vec::new())
-    }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        Ok(())
+impl harmos::builtins::lifecycle::Policy for Publisher {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+        timeout: Duration::from_secs(120),
+        attempt_timeout: Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
+
+#[dokime_runtime::plugin(id = "fixture_records", requires(), contributions(dokime_runtime::Records<Records>), restart = "never")]
+impl dokime_runtime::Plugin for Publisher {
+    const CATALOGS: &'static [harmos::Catalog] = &[];
+}
+
+impl harmos::Lifecycle for Publisher {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = dokime_runtime::Refusal;
+    type Context = dokime_runtime::Supervisor;
+
+    async fn prepare(_: Self::Config, _: &mut harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        Ok(Self)
     }
 }
 
 /* === Public Functions === */
+
+pub(super) fn configured(config: dokime_runtime::RuntimeConfig, directory: &std::path::Path) -> dokime_runtime::RuntimeConfig {
+    dokime_runtime::testing::plugin::<Publisher>(config, directory).unwrap()
+}
 
 /* === Private Functions === */
 
 /* === Tests === */
 
 pub(super) async fn native_publications_order(owner: &mut Runtime) {
-    owner.register(Arc::new(Publisher)).await.unwrap();
     let runtime = owner.handle();
     let caller = owner.fixture_operation_caller("fixture_records").unwrap();
     let mut records = runtime.subscribe_records();

@@ -147,6 +147,7 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 [dev-dependencies]
 # Local
+dokime-runtime = { path = ".", features = ["testing"] }
 plugin-host = { workspace = true }
 
 # Git

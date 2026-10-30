@@ -87,10 +87,7 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
 /* === Private Functions === */
 
 fn ensure_host_source(state: &RuntimeState, source: &str) -> Result<(), String> {
-    if matches!(
-        state.plugin_owners.get(source),
-        Some(crate::state::PluginOwner::Bundle { .. } | crate::state::PluginOwner::Embedded { .. })
-    ) {
+    if matches!(state.plugin_owners.get(source), Some(crate::state::PluginOwner::Bundle { .. })) {
         Err(format!("source `{source}` belongs to a registered provider"))
     } else {
         Ok(())

@@ -61,7 +61,14 @@ impl RuntimeHandle {
 
         let secrets = self.resolve_secrets(&plugin.settings).await?;
 
-        Ok(Configuration { settings, secrets, saved })
+        let configuration = Configuration { settings, secrets, saved };
+        #[cfg(feature = "testing")]
+        let configuration = {
+            let mut configuration = configuration;
+            crate::testing::configure(&self.config(), &plugin.source, &mut configuration);
+            configuration
+        };
+        Ok(configuration)
     }
 
     pub(crate) async fn resolve_secrets(&self, catalog: &Settings) -> Result<BTreeMap<String, Option<String>>> {

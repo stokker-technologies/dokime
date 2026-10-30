@@ -265,7 +265,7 @@ pub async fn contended_reads(size: Contention) {
     let root = tempdir().unwrap();
     let provider = Smoke::new(Behaviour::new(size.rows, 0, true));
     let behaviour = provider.behaviour();
-    let configuration = config(root.path()).register(Arc::new(provider));
+    let configuration = provider.configure(config(root.path()), root.path());
 
     let (mut owner, handle) = started(configuration).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
@@ -384,7 +384,7 @@ fn replay_diagnostics() {
 async fn smoke_runtime(root: &Path, behaviour: Behaviour, page_bytes: Option<usize>) -> (Runtime, RuntimeHandle, Arc<Behaviour>) {
     let smoke = Smoke::new(behaviour);
     let behaviour = smoke.behaviour();
-    let mut config = config(root).register(Arc::new(smoke));
+    let mut config = smoke.configure(config(root), root);
     if let Some(bytes) = page_bytes {
         small_storage_pages(&mut config, bytes);
     }

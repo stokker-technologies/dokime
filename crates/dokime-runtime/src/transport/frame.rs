@@ -175,7 +175,6 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
             crate::execution::SampleOutput::Host(host) => Some(
                 self.publisher.map(|publish| (host, publish)).ok_or_else(|| "native workflow has no owning plugin publisher".to_owned()),
             ),
-            crate::execution::SampleOutput::Embedded(_) => None,
         }
     }
 }
@@ -263,15 +262,6 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
                 let rows = pending.take(stream);
                 return publish(host, &self.token, stream, &rows).await;
             }
-            if let Some(crate::execution::SampleOutput::Embedded(publisher)) = &self.host {
-                return publisher.publish(
-                    &self.token,
-                    stream,
-                    values,
-                    storage_payload.ok_or("typed publication requires original row bytes")?,
-                );
-            }
-
             let mut executions = lock(&self.executions);
             let state = executions.get_mut(&self.token).ok_or("execution evidence is closed")?;
             let mut sample = TelemetrySample::new(

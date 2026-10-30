@@ -36,8 +36,8 @@ const NATIVE_INVOCATION_ITEMS: usize = 128;
 
 /* === Type Aliases === */
 
-pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
-type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, Infallible>;
+type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, Infallible>;
 
 /* === Structs === */
 
@@ -45,7 +45,6 @@ pub(in crate::runtime) struct Adapter<'a> {
     pub(in crate::runtime) handle: &'a RuntimeHandle,
     pub(in crate::runtime) publications: &'a PublicationIngest,
     pub(in crate::runtime) packages: &'a mut BTreeMap<String, ActivePackage>,
-    pub(in crate::runtime) embedded: &'a mut BTreeMap<String, crate::runtime::embedded::Active>,
 }
 
 pub(in crate::runtime) struct Sidecar {
@@ -76,7 +75,7 @@ pub(in crate::runtime) struct Sidecar {
 impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     type Guest = Infallible;
     type Sidecar = Sidecar;
-    type Embedded = crate::runtime::embedded::Instance;
+    type Embedded = Infallible;
 
     fn preflight(&mut self, candidate: &harmos::plugin::PluginDefinitions) -> harmos::Result<()> {
         self.handle.operations.validate_requirements(candidate)
@@ -112,10 +111,7 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
         }
         let publications = match backend {
             Backend::Guest(guest) => match *guest {},
-            Backend::Embedded(provider) => {
-                provider.stop(authority).await.map_err(lifecycle_error)?;
-                &provider.publications
-            }
+            Backend::Embedded(never) => match *never {},
             Backend::Sidecar(sidecar) => {
                 sidecar.stop(authority).await.map_err(lifecycle_error)?;
                 &sidecar.publications
@@ -230,10 +226,6 @@ impl Adapter<'_> {
     }
 
     fn prepare_artifact(&self, artifact: &harmos::plugin::PluginDefinition) -> Result<Backend> {
-        if let Some(provider) = self.embedded.get(&artifact.id) {
-            return Ok(Backend::Embedded(provider.instance(self.publications.clone())));
-        }
-
         let (name, package, program) = self
             .packages
             .iter()
@@ -276,9 +268,7 @@ impl Adapter<'_> {
     ) -> Result<()> {
         let sidecar = match backend {
             Backend::Guest(guest) => match *guest {},
-            Backend::Embedded(provider) => {
-                return provider.start(self.handle, router, authority).await;
-            }
+            Backend::Embedded(never) => match *never {},
             Backend::Sidecar(sidecar) => sidecar,
         };
         let program = &sidecar.program;
@@ -315,6 +305,10 @@ impl Sidecar {
         let program = &self.program;
         let executable = &program.executable.0;
         let source = program.executable.id().to_owned();
+        #[cfg(feature = "testing")]
+        let fixture = crate::testing::NativeSource::new(executable.clone(), handle.config().native_fixtures.get(&source).cloned());
+        #[cfg(feature = "testing")]
+        let executable = &fixture;
         let logged_by = source.clone();
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),

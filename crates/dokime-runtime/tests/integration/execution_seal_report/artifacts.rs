@@ -14,7 +14,6 @@
 /* === Imports === */
 // Standard Library Imports
 use std::path::Path;
-use std::sync::Arc;
 
 // Third Party Imports
 
@@ -43,7 +42,7 @@ const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 /* === Private Functions === */
 async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
     let provider = Smoke::new(Behaviour::new(777, 0, false).artifacts(abandoned));
-    let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
+    let (runtime, handle) = started(provider.configure(config(root), root)).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
     let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;

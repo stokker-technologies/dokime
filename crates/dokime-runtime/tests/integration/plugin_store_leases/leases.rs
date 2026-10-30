@@ -20,14 +20,13 @@ use harmos::Message;
 use super::*;
 use crate::service_support::system_reports::Runtime;
 use dokime_runtime::InstalledPlugin;
-use dokime_runtime::execution::Signal;
 use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::transport::{ExecutionSignal, SignalReply};
 use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 
 /* === Constants === */
 // One attribute line: rustfmt re-indents a continued attribute inside a macro body on every pass.
-const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::OperationDeclaration>::POLICY;
+const DELIVERY_POLICY: harmos::OperationPolicy = dokime_runtime::execution::SIGNAL_POLICY;
 
 /* === Macros === */
 

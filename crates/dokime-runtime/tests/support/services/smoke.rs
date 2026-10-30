@@ -18,17 +18,11 @@ use std::io::Write;
 use std::sync::Arc;
 
 // Third Party Imports
-use async_trait::async_trait;
-use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
-use dokime_runtime::InstalledPlugin;
 use dokime_runtime::Refusal;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::execution::{Caller, ExecutionHost, SampleOutput, SidecarTemplate, Workflow};
-use dokime_runtime::runtime::EmbeddedProvider;
-use dokime_runtime::runtime::Result;
-use dokime_runtime::schema::Described;
 use dokime_runtime::transport::{
     EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RunExecution,
     SidecarExecutionOutcome, SignalReply, TransportFuture,
@@ -77,12 +71,28 @@ pub struct Smoke {
 
 struct Checks;
 
+struct Fixture {
+    runner: Arc<Observed<Check>>,
+    behaviour: Arc<Behaviour>,
+}
+struct FixtureSuites;
+
+#[dokime_runtime::catalog]
+enum Suites {
+    Checks(Checks),
+}
+
+#[harmos::catalog]
+enum Operations {
+    Run(dokime_runtime::testing::Run<Observed<Check>>),
+    Signal(dokime_runtime::testing::Signal<Observed<Check>>),
+}
+
 struct Check {
     behaviour: Arc<Behaviour>,
 }
 
-// In-Process Pushes Have No IPC Backpressure, So The Window Holds Every Row The
-// Largest Story Pushes Before Ingest Takes Them In.
+// The Window Holds Every Row The Largest Story Pushes Before Ingest Takes Them In.
 #[dokime_runtime::stream(
     id = "fixture_suites.pulse",
     window = 32_768,
@@ -165,6 +175,10 @@ impl Smoke {
 
     pub fn behaviour(&self) -> Arc<Behaviour> {
         Arc::clone(&self.behaviour)
+    }
+
+    pub fn configure(self, config: dokime_runtime::RuntimeConfig, directory: &std::path::Path) -> dokime_runtime::RuntimeConfig {
+        dokime_runtime::testing::bound_plugin::<Fixture, Behaviour>(config, directory, self.behaviour).unwrap()
     }
 }
 
@@ -263,34 +277,64 @@ impl Check {
     }
 }
 
-#[async_trait]
-impl EmbeddedProvider for Smoke {
-    fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin {
-            source: SOURCE.into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([Checks::definition()]),
-            ..Default::default()
-        }
+impl harmos::plugin::Contribution for FixtureSuites {
+    const NAMESPACE: &'static str = <dokime_runtime::Suites<Suites> as harmos::plugin::Contribution>::NAMESPACE;
+    const SECTION: harmos::plugin::inventory::Section = <dokime_runtime::Suites<Suites> as harmos::plugin::Contribution>::SECTION;
+    fn register(registrar: &mut harmos::plugin::Registrar) -> Result<(), harmos::plugin::RegistrationError> {
+        <dokime_runtime::Suites<Suites> as harmos::plugin::Contribution>::register(registrar)
     }
+}
 
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        vec![declaration::<Pulse>(), declaration::<Spectrum>()]
+impl harmos::builtins::lifecycle::Policy for Fixture {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+        timeout: std::time::Duration::from_secs(120),
+        attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
+
+#[dokime_runtime::plugin(id = "fixture_suites", restart = "never",
+    requires(EvidenceBatch, OperatorQuestion, LeaseAsk, harmos::builtins::streams::Publish,
+        dokime_runtime::operations::files::WatchFile, dokime_runtime::operations::files::AwaitFileWatchArmed),
+    contributions(FixtureSuites, dokime_runtime::Evidence<Streams>, dokime_runtime::Records<Records>))]
+impl dokime_runtime::Plugin for Fixture {
+    const CATALOGS: &'static [harmos::Catalog] = &[Operations::CATALOG];
+}
+
+impl harmos::Lifecycle for Fixture {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = Refusal;
+    type Context = dokime_runtime::Supervisor;
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let behaviour = dokime_runtime::testing::resource::<Behaviour>(&config)?;
+        let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(behaviour.clone());
+        let records = dokime_runtime::catalog::entries::<Records, dokime_runtime::catalog::Records>()
+            .into_iter()
+            .map(|contract| contract())
+            .collect::<Vec<_>>();
+        let runner = Arc::new(Observed {
+            workflow: Workflow::<Check>::new(SUITE, SOURCE)
+                .bound(binding)
+                .with_records(&records)
+                .with_publisher(<Check as SidecarTemplate>::publish_sample::<Self>),
+            watched: behaviour.watched.clone(),
+        });
+        setup.resource::<dokime_runtime::testing::Runner<Observed<Check>>>(Arc::new(dokime_runtime::testing::Runner(runner.clone())));
+        Ok(Self { runner, behaviour })
     }
-
-    async fn start(&self) -> Result<Vec<Arc<dyn Runnable>>> {
-        let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(self.behaviour());
-        Ok(vec![Arc::new(Observed {
-            workflow: dokime_runtime::execution::Workflow::<Check>::new(SUITE, SOURCE).bound(binding),
-            watched: self.behaviour.watched.clone(),
-        }) as Arc<dyn Runnable>])
-    }
-
-    async fn stop(&self) -> Result<()> {
+    async fn stop(&mut self, _: &Self::Context) -> Result<(), Refusal> {
         self.behaviour.release();
+        self.runner.interrupt();
+        self.runner.shutdown().await;
         Ok(())
     }
+}
+
+impl<T: SidecarTemplate> dokime_runtime::execution::Served for Observed<T> {
+    const RUN: &'static str = T::RUN;
+    const SIGNAL: &'static str = T::SIGNAL;
 }
 
 impl ExecutionHost for Admitted {
@@ -346,19 +390,4 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn declaration<R>() -> StreamDeclaration
-where
-    R: harmos::StreamSpec + harmos::RowMetadata + Described,
-{
-    StreamDeclaration {
-        metadata: <R as harmos::StreamSpec>::metadata(),
-        row_metadata: <R as harmos::RowMetadata>::row_metadata(),
-        id: <R as harmos::StreamSpec>::ID.into(),
-        schema: <R as harmos::StreamSpec>::VERSION,
-        window: <R as harmos::StreamSpec>::WINDOW,
-        row: harmos::schema::graph::Schema::from_declaration(<R as Described>::DEFINITION, &harmos::config::SchemaSettings::default())
-            .unwrap(),
-    }
-}
-
 /* === Tests === */

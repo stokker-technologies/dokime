@@ -19,15 +19,8 @@ use crate::service_support::suites::ExecutionFixtureStart;
 // Third Party Imports
 
 // Local Imports
-use crate::service_support::waits::until_telemetry;
-use async_trait::async_trait;
-use dokime_runtime::InstalledPlugin;
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::runtime::EmbeddedProvider;
-use dokime_runtime::runtime::Result;
-use dokime_runtime::schema::Described;
+use crate::service_support::waits::{until_telemetry, wait_for_cycle_outcome};
 use dokime_runtime::{Identifier, Value};
-use harmos::sidecar::StreamDeclaration;
 use std::sync::{Arc, Mutex};
 
 /* === Constants === */
@@ -59,7 +52,7 @@ struct Signals {
 
 static SIGNALLED: Mutex<Option<Signals>> = Mutex::new(None);
 
-#[dokime_runtime::stream(id = "fixture.embedded.reading", window = 32, label = "Reading")]
+#[dokime_runtime::stream(id = "fixture.native.reading", window = 32, label = "Reading")]
 struct Reading {
     value: f64,
     signed: i64,
@@ -80,11 +73,16 @@ enum Streams {
     Reading(Reading),
 }
 
-#[dokime_runtime::suite(id = "fixture.embedded.checks", label = "Checks", templates = Templates)]
+#[dokime_runtime::catalog]
+enum Suites {
+    Checks(Checks),
+}
+
+#[dokime_runtime::suite(id = "fixture.native.checks", label = "Checks", templates = Templates)]
 impl Checks {}
 
 struct Pulse;
-#[dokime_runtime::template(id = "fixture.embedded.checks.pulse", label = "Pulse", streams = Streams)]
+#[dokime_runtime::template(id = "fixture.native.checks.pulse", label = "Pulse", streams = Streams)]
 impl Pulse {
     async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
         Ok(Self)
@@ -118,61 +116,48 @@ fn signalled() -> Signals {
 }
 
 struct Probe {
-    label: &'static str,
-    fail: bool,
-    block_start: bool,
-    events: Arc<Mutex<Vec<String>>>,
-    signals: Signals,
+    signals: Arc<Signals>,
 }
 
-#[async_trait]
-impl EmbeddedProvider for Probe {
-    fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin {
-            source: "fixture_embedded".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([Checks::definition()]),
-            ..Default::default()
-        }
+impl harmos::builtins::lifecycle::Policy for Probe {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+        timeout: std::time::Duration::from_secs(120),
+        attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
+
+#[dokime_runtime::plugin(id = "fixture_native", requires(), contributions(dokime_runtime::Suites<Suites>), restart = "never")]
+impl dokime_runtime::Plugin for Probe {
+    const CATALOGS: &'static [harmos::Catalog] = &[];
+}
+
+impl harmos::Lifecycle for Probe {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = dokime_runtime::Refusal;
+    type Context = dokime_runtime::Supervisor;
+
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        let signals = dokime_runtime::testing::resource::<Signals>(&config)?;
+        setup.resource::<()>(Arc::new(()));
+        dokime_runtime::execution::prepare::<Self, Suites>(setup)?;
+        Ok(Self { signals })
     }
 
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        vec![StreamDeclaration {
-            metadata: <Reading as harmos::StreamSpec>::metadata(),
-            row_metadata: <Reading as harmos::RowMetadata>::row_metadata(),
-            id: Reading::ID.into(),
-            schema: Reading::VERSION,
-            window: Reading::WINDOW,
-            row: harmos::schema::graph::Schema::from_declaration(
-                <Reading as Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .unwrap(),
-        }]
+    async fn initialize(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
+        self.signals.events.lock().unwrap().push("plugin:initialize".into());
+        Ok(())
     }
 
-    async fn start(&self) -> Result<Vec<Arc<dyn Runnable>>> {
-        self.events.lock().unwrap().push(format!("start:{}", self.label));
-        if self.fail {
-            return Err(dokime_runtime::runtime::Error::Operation("fixture initialization refused".into()));
-        }
-        if self.block_start {
-            self.signals.entered.notify_one();
-            std::future::pending::<()>().await;
-        }
-        Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<Pulse>::new("fixture.embedded.checks", "fixture_embedded")) as Arc<dyn Runnable>
-        ])
-    }
-
-    async fn stop(&self) -> Result<()> {
-        self.events.lock().unwrap().push(format!("stop:{}", self.label));
+    async fn stop(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
+        self.signals.events.lock().unwrap().push("plugin:stop".into());
         Ok(())
     }
 }
 
-// live rows and reload use the shared execution and capture paths.
+// Live rows and plugin shutdown use the ordinary execution and capture paths.
 
 pub(crate) async fn live_rows_paths() {
     use dokime_runtime::Metadata;
@@ -181,7 +166,7 @@ pub(crate) async fn live_rows_paths() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
-        Metadata::new(Identifier::new("fixture.live.host").unwrap(), "Embedded Host", None),
+        Metadata::new(Identifier::new("fixture.live.host").unwrap(), "Native Host", None),
     );
     let events = Arc::new(Mutex::new(Vec::new()));
     let signals = Signals {
@@ -189,32 +174,23 @@ pub(crate) async fn live_rows_paths() {
         ..Default::default()
     };
     *SIGNALLED.lock().unwrap() = Some(signals.clone());
-    let provider = |label| {
-        Arc::new(Probe {
-            label,
-            fail: false,
-            block_start: false,
-            events: Arc::clone(&events),
-            signals: signals.clone(),
-        })
-    };
-    let mut runtime = dokime_runtime::Runtime::start(config.register(provider("first"))).await.unwrap();
+    let config = dokime_runtime::testing::bound_plugin::<Probe, Signals>(config, root.path(), Arc::new(signals.clone())).unwrap();
+    let bundled_digest = harmos_packaging::digest(&std::fs::read(root.path().join("fixture_native.dokime")).unwrap());
+    let mut runtime = dokime_runtime::Runtime::start(config).await.unwrap();
     let handle = runtime.handle();
     let cycle = crate::service_support::suites::start_cases(
         &handle,
         Metadata::new(Identifier::new("fixture.live.cycle").unwrap(), "Live Cycle", None),
-        crate::service_support::suites::materialize_cases("fixture.embedded.checks", &Checks::definition().suite),
+        crate::service_support::suites::materialize_cases("fixture.native.checks", &Checks::definition().suite),
     )
     .await;
-    let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
     let admitted_identity = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
         .snapshot
         .plugin()
         .unwrap()
         .clone();
-    assert!(matches!(&admitted_identity.implementation,
-        dokime_domain::model::execution::snapshot::ExecutionImplementation::Embedded { generation } if !generation.is_empty()));
-    assert_eq!(admitted_identity.content_digest(), None);
+    assert!(matches!(&admitted_identity.implementation, dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle { .. }));
+    assert_eq!(admitted_identity.content_digest(), Some(bundled_digest.as_str()));
 
     let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
@@ -234,29 +210,20 @@ pub(crate) async fn live_rows_paths() {
         (!rows.is_empty()).then_some(rows)
     })
     .await;
-    assert_eq!(rows.len(), 1, "embedded rows reach the same retained evidence as sidecar rows");
+    assert_eq!(rows.len(), 1, "native plugin rows reach retained evidence");
     assert_eq!(rows[0].values["value"], Value::Number(7.0));
     assert_eq!(rows[0].values["signed"], Value::Integer(-2));
     assert_eq!(rows[0].values["optional"], Value::Integer(3));
     assert_eq!(rows[0].values["unsigned"], Value::Unsigned(9));
     assert_eq!(rows[0].values["samples"], Value::Array(vec![Value::Number(1.5), Value::Number(2.0)]));
     assert_eq!(rows[0].values["label"], Value::Text("live".into()));
-    let mut replacement = Box::pin(runtime.register(provider("second")));
-    // The Replacement Drains Behind The Held Step, So Its First Poll Stays Pending.
-    tokio::task::yield_now().await;
-    let pending = std::future::poll_fn(|context| std::task::Poll::Ready(replacement.as_mut().poll(context).is_pending())).await;
-    assert!(pending, "replacement completed before the active step settled");
-    assert_eq!(*events.lock().unwrap(), ["start:first"], "the active generation must remain owned while draining");
+    assert_eq!(*events.lock().unwrap(), ["plugin:initialize"], "the plugin remains live while its step waits");
     signals.release.notify_one();
-    (&mut replacement).await.unwrap();
-    drop(replacement);
-    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
+    let ended = wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
     assert_eq!(ended.test_executions[0].snapshot.plugin(), Some(&admitted_identity));
-    let replacement_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
-    assert_ne!(admitted_owner, replacement_owner);
-
     assert_eq!(ended.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Passed);
-    assert_eq!(*events.lock().unwrap(), ["start:first", "execution:cleanup", "stop:first", "start:second"]);
+    assert_eq!(*events.lock().unwrap(), ["plugin:initialize", "execution:cleanup"]);
     drop(handle);
     runtime.shutdown().await.unwrap();
+    assert_eq!(*events.lock().unwrap(), ["plugin:initialize", "execution:cleanup", "plugin:stop"]);
 }

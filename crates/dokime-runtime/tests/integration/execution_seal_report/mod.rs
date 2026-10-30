@@ -116,7 +116,7 @@ async fn execution_seal_report_threaded() {
     stage(storage::unsealed_cycle_survives_restart()).await;
 }
 
-// The Smoke Provider Stages Share One Embedded Fixture Binding.
+// The Smoke Provider Stages Share One Native SDK Fixture Binding.
 #[tokio::test]
 async fn execution_seal_report_smoke() {
     stage(contention::contended_reads_interactive()).await;
@@ -125,7 +125,7 @@ async fn execution_seal_report_smoke() {
     stage(artifacts::chunked_artifact_rewrite()).await;
 }
 
-// Each Of These Stages Boots Its Own Embedded Runtime And Owns Process-Wide Fixture State.
+// Each Stage Boots Its Own Runtime And Owns Its Native SDK Fixture State.
 #[tokio::test]
 async fn execution_seal_report_streams() {
     stage(streams::live_rows_paths()).await;

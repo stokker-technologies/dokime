@@ -178,7 +178,7 @@ and the plugin's declared streams.
 
 On restart, Harmos prepares and starts plugin generations sequentially in
 dependency order, matching declared required contracts to provided contracts
-exactly, including embedded providers and host operations. Providers become
+exactly, including host operations. Providers become
 ready before consumers; independent plugins have a deterministic order based
 on plugin names. Bundle inspection and extraction happen before activation
 and do not run plugin lifecycle hooks.
@@ -253,5 +253,4 @@ A failed package loses all its executable siblings and dependent packages.
 A bundle that declares a Harmos guest is refused at admission.
 
 Catalog ownership is explicit. Host registrations survive plugin removal.
-Provider reconciliation rebuilds the catalogs owned by configured, embedded and
-installed plugins from their admitted registrations.
+Provider reconciliation rebuilds the catalogs owned by configured and installed plugins from their admitted registrations.

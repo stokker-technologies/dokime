@@ -13,7 +13,6 @@
 
 pub(crate) mod authoring;
 pub(crate) mod definition;
-pub(crate) mod embedded;
 pub(crate) mod prompts;
 pub(crate) mod queue;
 pub(crate) mod session;
@@ -58,8 +57,6 @@ pub(crate) use crate::service_support::prelude::*;
 async fn execution_workflow() {
     workflow::interactive_commands_downstream().await;
     workflow::interactive_idle_stop().await;
-    workflow::embedded_execution_output().await;
-    workflow::refused_publication_fails().await;
     workflow::runtime_bindings_metadata().await;
     workflow::stated_section_step().await;
     workflow::step_failure_isolation().await;
@@ -84,15 +81,9 @@ async fn execution_workflow() {
     authoring::wait_completes_duration().await;
 }
 
-// Embedded Provider Stages Own Process-Wide Fixture Registrations.
+// Cancellation And Settlement Cross The Native SDK Connection.
 #[tokio::test]
-async fn execution_workflow_embedded() {
-    embedded::admitted_catalog_is_durable_before_exposure().await;
-    embedded::replacement_settles_generation().await;
-    embedded::shutdown_retains_owner().await;
-    embedded::cancelled_shutdown_retry().await;
-    embedded::failed_start_causes().await;
-    embedded::cancelled_startup_owned().await;
+async fn execution_workflow_session() {
     session::cancellation_retains_verdict().await;
     session::ignored_run_identity().await;
     session::ignored_signal_identity().await;
@@ -142,13 +133,6 @@ async fn execution_workflow_threaded() {
     definition::doc_example_contract().await.unwrap();
     definition::doc_example_context().await.unwrap();
     session::live_replay_settles().await;
-}
-
-// These Stages Serve An Embedded Template Whose Initialization Fails In This Environment Even Alone.
-#[tokio::test]
-async fn execution_workflow_registration() {
-    embedded::registration_replaces_failed().await;
-    embedded::cancelled_registration_until().await;
 }
 
 #[tokio::test]

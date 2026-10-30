@@ -28,7 +28,7 @@ use dokime_runtime::Value;
 use dokime_runtime::definition::TestCaseTemplate;
 use dokime_runtime::definition::authoring::{criterion as authored_criterion, metadata as authored_metadata};
 use dokime_runtime::definition::{DeclaredTemplate, Step, TemplateContext};
-use dokime_runtime::execution::{Caller, SampleOutput, Workflow};
+use dokime_runtime::execution::Workflow;
 use dokime_runtime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::execution::{DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture};
 use dokime_runtime::plugin::Diagnostic;
@@ -63,7 +63,6 @@ static LATE_SAMPLE: AtomicBool = AtomicBool::new(false);
 /* === Macros === */
 
 /* === Type Aliases === */
-type PublishedRow = (String, String, BTreeMap<String, Value>);
 
 /* === Structs === */
 struct Probe;
@@ -76,11 +75,6 @@ struct ProbeResources {
     sampling: AtomicBool,
     _resource: ExecutionResource,
 }
-
-struct PublishedExecutionRows(std::sync::Mutex<Vec<PublishedRow>>, Workflow<Probe>, std::sync::Mutex<dokime_runtime::RecordScope>);
-
-// A host that refuses every row the way `host.publish` answers a refusal.
-struct RefusedPublication(String);
 
 struct SamplingGuard<'a>(&'a AtomicBool);
 
@@ -119,39 +113,6 @@ enum ProbeError {
 /* === Traits === */
 
 /* === Implementations === */
-impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
-    fn publish(
-        &self, execution: &str, stream: &dokime_runtime::Identifier, values: BTreeMap<String, Value>, storage_payload: Vec<u8>,
-    ) -> Result<(), String> {
-        let sequence = {
-            let mut rows = self.0.lock().unwrap();
-            let sequence = rows.len() as u64;
-            rows.push((execution.into(), stream.to_string(), values.clone()));
-            sequence
-        };
-        let scope = self.2.lock().unwrap().clone();
-        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-            dokime_runtime::model::identity::new_id(),
-            stream.clone(),
-            sequence,
-            dokime_runtime::model::time::now_utc(),
-            SOURCE,
-        );
-        sample.values = values;
-        sample.storage_payload = Some(storage_payload);
-        sample.scope = Some(scope.clone());
-        sample.received_at = sample.timestamp.clone();
-        self.1.deliver_samples(&scope, &[sample], &[]).map_err(|error| error.to_string())?;
-        Ok(())
-    }
-}
-
-impl dokime_runtime::execution::EmbeddedPublisher for RefusedPublication {
-    fn publish(&self, _: &str, _: &dokime_runtime::Identifier, _: BTreeMap<String, Value>, _: Vec<u8>) -> Result<(), String> {
-        Err(self.0.clone())
-    }
-}
-
 impl Drop for SamplingGuard<'_> {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
@@ -994,106 +955,6 @@ pub(crate) async fn unacknowledged_invoke_callback() {
     }
 }
 
-pub(crate) async fn embedded_execution_output() {
-    let workflow = workflow();
-    let mut unknown = start_request("wrong", serde_json::json!({ "samples": 1 }));
-    unknown.workflow = "someone.elses.suite".to_owned();
-    let refusal = workflow.start(unknown).expect_err("an unknown workflow is refused");
-    assert!(refusal.to_string().contains("someone.elses.suite"));
-    assert!(workflow.drain("wrong", 0).is_err());
-
-    let rows = Arc::new(PublishedExecutionRows(
-        std::sync::Mutex::new(Vec::new()),
-        workflow.clone(),
-        std::sync::Mutex::new(dokime_runtime::RecordScope {
-            test_cycle_id: Some(cycle()),
-            test_execution_id: Some(execution()),
-            origin: dokime_runtime::EvidenceOrigin::Initialization,
-            ..Default::default()
-        }),
-    ));
-    let output = SampleOutput::Embedded(rows.clone());
-    let start = start_request("embedded", serde_json::json!({"samples": 2}));
-    for _ in 0..2 {
-        workflow.start_on(start.clone(), Some(output.clone()), Caller::default()).unwrap();
-    }
-    let changed = start_request("embedded", serde_json::json!({ "samples": 9 }));
-    let refusal =
-        workflow.start_on(changed, Some(output.clone()), Caller::default()).expect_err("a reused token with different inputs is refused");
-    assert!(refusal.to_string().contains("embedded"));
-
-    let mut replies = Vec::new();
-    let mut cursor = 0;
-    loop {
-        let reply = workflow.next("embedded", cursor).await.unwrap();
-        cursor = reply.cursor;
-        for encoded in &reply.capture_phases {
-            let phase: dokime_runtime::CapturePhase = serde_json::from_str(encoded).unwrap();
-            rows.2.lock().unwrap().origin = phase.into();
-        }
-        for encoded in &reply.step_begins {
-            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
-            rows.2.lock().unwrap().origin = dokime_runtime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
-            workflow.admit(
-                "embedded",
-                &StepAdmission {
-                    attempt_id: start.attempt_id.to_string(),
-                    accepted: true,
-                    message: String::new(),
-                },
-            );
-        }
-        if reply.record_subscriptions_settling {
-            workflow.settle_records("embedded");
-        }
-        let terminal = reply.outcome.is_some();
-        replies.push(reply);
-        if terminal {
-            break;
-        }
-    }
-    assert!(outcome(&replies).0.passed, "{:?}", outcome(&replies).0);
-    workflow.start_on(start, Some(output), Caller::default()).unwrap();
-    // A repeated cursor re-delivers the terminal outcome.
-    let replayed = workflow.drain("embedded", replies[..replies.len() - 1].last().map_or(0, |reply| reply.cursor)).unwrap();
-    assert!(replayed.outcome.unwrap().passed);
-    assert!(workflow.take_local_samples("embedded").unwrap().is_empty(), "hosted output must not use the fixture buffer");
-    {
-        let rows = rows.0.lock().unwrap();
-        assert!(rows.len() >= 2);
-        for (index, (token, stream, values)) in rows.iter().enumerate() {
-            assert_eq!(token, "embedded");
-            assert_eq!(stream, STREAM);
-            assert_eq!(values["index"], Value::Integer(index as i64));
-        }
-    }
-    workflow.shutdown().await;
-}
-
-// A host that cannot take a row in losslessly refuses it; the execution fails
-// naming the stream and the refusal instead of losing rows or the plugin.
-pub(crate) async fn refused_publication_fails() {
-    for refusal in [harmos::streams::StreamPublicationError::Backlog, harmos::streams::StreamPublicationError::Capacity] {
-        let cause = harmos::Error::<std::convert::Infallible>::OperationFailed {
-            operation: "host.publish".into(),
-            source: Arc::new(refusal),
-        }
-        .to_string();
-        let workflow = workflow();
-        let output = SampleOutput::Embedded(Arc::new(RefusedPublication(cause.clone())));
-        workflow.start_on(start_request("refused", serde_json::json!({"samples": 1})), Some(output), Caller::default()).unwrap();
-
-        let replies = drain_until_terminal(&workflow, "refused", None).await;
-
-        let detail = detail(&replies);
-
-        assert!(!outcome(&replies).0.passed);
-        assert_eq!(detail.message, format!("step `publishing stream evidence` failed in {TEMPLATE}"));
-        assert_eq!(detail.chain, vec![format!("stream {STREAM} publication failed: {cause}")]);
-        workflow.shutdown().await;
-    }
-}
-
 pub(crate) async fn runtime_bindings_metadata() {
     for identifier in ["registered.first", "registered.second"] {
         let mut definition = Probe::declaration();
@@ -1757,11 +1618,7 @@ pub(crate) async fn capture_declared_scope() {
 pub(crate) async fn settlement_late_receipt() {
     let workflow = workflow();
     let token = "late-receipt";
-    let rows =
-        Arc::new(PublishedExecutionRows(std::sync::Mutex::new(Vec::new()), workflow.clone(), std::sync::Mutex::new(captured(execution()))));
-    workflow
-        .start_on(start_request(token, serde_json::json!({"samples": 0})), Some(SampleOutput::Embedded(rows)), Caller::default())
-        .unwrap();
+    workflow.start(start_request(token, serde_json::json!({"samples": 0}))).unwrap();
     let mut cursor = 0;
     loop {
         let reply = next(&workflow, token, cursor).await;

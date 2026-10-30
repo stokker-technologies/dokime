@@ -56,7 +56,8 @@ pub(crate) use crate::service_support::prelude::*;
 #[tokio::test]
 async fn evidence_publication() {
     let root = tempdir().unwrap();
-    let (mut owner, runtime) = started(wifi_config(root.path())).await;
+    let config = records::configured(wifi_config(root.path()), root.path());
+    let (mut owner, runtime) = started(config).await;
     publication::publish_record_warning(&runtime).await;
     publication::telemetry_refuses_partial(&runtime).await;
     notes::empty_cycle_datasets(&owner).await;

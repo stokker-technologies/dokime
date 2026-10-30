@@ -60,17 +60,9 @@ pub struct Workflow<T: SidecarTemplate> {
 #[derive(Clone)]
 pub enum SampleOutput {
     Host(harmos::sidecar::Supervisor),
-    Embedded(Arc<dyn EmbeddedPublisher>),
 }
 
 /* === Traits === */
-
-pub trait EmbeddedPublisher: Send + Sync {
-    fn publish(
-        &self, execution: &str, stream: &dokime_domain::model::identity::Identifier, values: BTreeMap<String, Value>,
-        storage_payload: Vec<u8>,
-    ) -> Result<(), String>;
-}
 
 /* === Implementations === */
 

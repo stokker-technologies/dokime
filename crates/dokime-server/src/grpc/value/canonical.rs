@@ -187,7 +187,6 @@ pub(in crate::grpc) fn execution_plugin(
     use dokime::domain::model::execution::wire::ExecutionPluginIdentityImplementation as Implementation;
     let implementation = match &value.implementation {
         ExecutionImplementation::Bundle { content_digest } => Implementation::ContentDigest(content_digest.clone()),
-        ExecutionImplementation::Embedded { generation } => Implementation::Generation(generation.clone()),
     };
     Ok(ExecutionPluginIdentity {
         source: value.source.clone(),

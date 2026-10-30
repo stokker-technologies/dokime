@@ -16,17 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use async_trait::async_trait;
 // Local Imports
 use crate::service_support::prelude::*;
-use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
-use dokime_runtime::execution::Runnable;
 use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
 use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::{Refusal, Supervisor};
-use harmos::sidecar::StreamDeclaration;
 
 /* === Constants === */
 const SOURCE: &str = "fixture_declaring";
@@ -74,10 +69,6 @@ struct First;
 struct Second;
 
 struct Declaring;
-
-struct DeclaringProvider {
-    catalog: InstalledPlugin,
-}
 
 /* === Enums === */
 #[dokime_runtime::catalog]
@@ -200,53 +191,6 @@ impl Declaring {
     }
 }
 
-impl DeclaringProvider {
-    fn new() -> Self {
-        Self {
-            catalog: InstalledPlugin {
-                source: SOURCE.into(),
-                version: "0.1.0".into(),
-                enabled: true,
-                suites: SuiteSet::new([Checks::definition()]),
-                ..Default::default()
-            },
-        }
-    }
-}
-
-#[async_trait]
-impl EmbeddedProvider for DeclaringProvider {
-    fn catalog(&self) -> InstalledPlugin {
-        self.catalog.clone()
-    }
-
-    // The grant the plugin attribute derived, exactly as its artifact carries it.
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        <Declaring as Declared>::STREAMS
-            .iter()
-            .map(|entry| StreamDeclaration {
-                metadata: entry.metadata(),
-                row_metadata: entry.row_metadata(),
-                id: entry.id.into(),
-                schema: entry.schema,
-                window: entry.window,
-                row: harmos::schema::graph::Schema::from_declaration(entry.row, &harmos::config::SchemaSettings::default()).unwrap(),
-            })
-            .collect()
-    }
-
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        Ok(vec![
-            Arc::new(dokime_runtime::execution::Workflow::<First>::new(SUITE, SOURCE)) as Arc<dyn Runnable>,
-            Arc::new(dokime_runtime::execution::Workflow::<Second>::new(SUITE, SOURCE)),
-        ])
-    }
-
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        Ok(())
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
@@ -259,7 +203,8 @@ async fn template_declarations_register() {
     assert_eq!(granted, [Sample::ID], "two templates share one stream grant");
 
     let root = tempdir().unwrap();
-    let mut runtime = Runtime::start(config(root.path()).register(Arc::new(DeclaringProvider::new()))).await.unwrap();
+    let native = dokime_runtime::testing::plugin::<Declaring>(config(root.path()), root.path()).unwrap();
+    let mut runtime = Runtime::start(native).await.unwrap();
     let handle = runtime.handle();
 
     // Admission Registered The Template Record And Prompt
@@ -299,16 +244,16 @@ async fn template_declarations_register() {
 async fn conflicting_record_refused() {
     let root = tempdir().unwrap();
     let mut runtime = Runtime::start(config(root.path())).await.unwrap();
-    let mut provider = DeclaringProvider::new();
+    let mut definition = Checks::definition();
     let second = <Second as dokime_runtime::definition::DeclaredTemplate>::template_id();
-    let suite = &mut provider.catalog.suites.suites[0];
+    let suite = &mut definition;
     for contract in &mut suite.record_contracts {
         if contract.template_id.as_ref() == Some(&second) {
             contract.fields[0].required = !contract.fields[0].required;
         }
     }
 
-    let refused = runtime.register(Arc::new(provider)).await;
+    let refused = runtime.handle().set_suites(SOURCE, SuiteSet::new([definition])).await;
 
     assert!(
         refused.as_ref().is_err_and(|error| error.to_string().contains(&format!("event definition {RECORD} is already registered"))),
@@ -321,11 +266,11 @@ async fn conflicting_record_refused() {
 async fn conflicting_prompt_refused() {
     let root = tempdir().unwrap();
     let mut runtime = Runtime::start(config(root.path())).await.unwrap();
-    let mut provider = DeclaringProvider::new();
-    let suite = &mut provider.catalog.suites.suites[0];
+    let mut definition = Checks::definition();
+    let suite = &mut definition;
     suite.suite.test_case_templates[1].prompt_definitions[0].title = "Another Title".into();
 
-    let refused = runtime.register(Arc::new(provider)).await;
+    let refused = runtime.handle().set_suites(SOURCE, SuiteSet::new([definition])).await;
 
     assert!(
         refused.as_ref().is_err_and(|error| error.to_string().contains(&format!("conflicting definitions for prompt {PROMPT}"))),

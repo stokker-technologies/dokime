@@ -11,11 +11,17 @@
 
 /* === Modules === */
 
+mod native;
+mod runner;
+
 /* === Re-Exports === */
 pub use crate::domains::execution::outputs::tail::testing::early_log_stop;
 pub use crate::domains::execution::run::logs::testing::logs;
 pub use crate::domains::execution::run::testing::{drain_counts, hold_report};
 pub use crate::execution::evidence_rows::testing::capture;
+pub(crate) use native::{NativeAttachment, configure};
+pub use native::{NativeSource, bound_plugin, plugin, resource};
+pub use runner::{Run, Runner, Signal};
 
 pub use crate::runtime::storage::captures::testing::joined_drains;
 pub use crate::runtime::storage::telemetry::testing::telemetry;

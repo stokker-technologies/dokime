@@ -75,29 +75,35 @@ impl Hold {
 
 struct Asking;
 
-#[async_trait::async_trait]
-impl dokime_runtime::runtime::EmbeddedProvider for Asking {
-    fn catalog(&self) -> dokime_runtime::InstalledPlugin {
-        dokime_runtime::InstalledPlugin {
-            source: "fixture_asking".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([AskingChecks::definition()]),
-            ..Default::default()
-        }
-    }
+#[dokime_runtime::catalog]
+enum AskingSuites {
+    Checks(AskingChecks),
+}
 
-    fn streams(&self) -> Vec<harmos::sidecar::StreamDeclaration> {
-        Vec::new()
-    }
+impl harmos::builtins::lifecycle::Policy for Asking {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+        timeout: Duration::from_secs(120),
+        attempt_timeout: Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
 
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn dokime_runtime::execution::Runnable>>> {
-        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Hold>::new("fixture.asking.checks", "fixture_asking"))
-            as Arc<dyn dokime_runtime::execution::Runnable>])
-    }
+#[dokime_runtime::plugin(id = "fixture_asking", requires(), contributions(dokime_runtime::Suites<AskingSuites>), restart = "never")]
+impl dokime_runtime::Plugin for Asking {
+    const CATALOGS: &'static [harmos::Catalog] = &[];
+}
 
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        Ok(())
+impl harmos::Lifecycle for Asking {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = dokime_runtime::Refusal;
+    type Context = dokime_runtime::Supervisor;
+
+    async fn prepare(_: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        setup.resource::<()>(Arc::new(()));
+        dokime_runtime::execution::prepare::<Self, AskingSuites>(setup)?;
+        Ok(Self)
     }
 }
 
@@ -659,7 +665,7 @@ pub(crate) async fn answer_rules_commit() {
 
 pub(crate) async fn answered_execution_question() {
     let root = tempdir().unwrap();
-    let config = config(root.path()).register(Arc::new(Asking));
+    let config = dokime_runtime::testing::plugin::<Asking>(config(root.path()), root.path()).unwrap();
     let (mut owner, runtime) = started(config).await;
     let suite = AskingChecks::definition().suite;
     let cases = crate::service_support::suites::materialize_cases("fixture.asking.checks", &suite);
@@ -673,6 +679,8 @@ pub(crate) async fn answered_execution_question() {
     wait_for_run_settled(&runtime, &receipt.command_id).await;
     let ended = cycle_snapshot(&runtime, &cycle).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Passed);
+    runtime.wait_execution_report(&ended.test_executions[0].test_execution_id).await.unwrap();
+    let ended = cycle_snapshot(&runtime, &cycle).await;
     assert!(ended.test_executions[0].saved.is_some());
     assert!(runtime.pending_prompt_projection().await.is_empty());
     assert!(runtime.prompt_response(&id).await.unwrap().accepted);
@@ -701,8 +709,8 @@ async fn check_stopped_question(stop_cycle: bool) {
     let config = crate::service_support::budgets::runtime_config(
         root.path(),
         Metadata::new(Identifier::new("fixture.asking.host").unwrap(), "Asking Host", None),
-    )
-    .register(Arc::new(Asking));
+    );
+    let config = dokime_runtime::testing::plugin::<Asking>(config, root.path()).unwrap();
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let suite = AskingChecks::definition().suite;

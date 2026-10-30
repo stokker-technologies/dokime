@@ -14,7 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 // Third Party Imports
 use tokio::sync::Notify;
@@ -28,7 +30,6 @@ use dokime::runtime::command::CommandContext;
 
 /* === Constants === */
 
-const SOURCE: &str = "fixture_bench";
 const SUITE: &str = "fixture.bench";
 
 /* === Macros === */
@@ -43,9 +44,7 @@ struct Expectation {
     heard: std::sync::Mutex<Option<String>>,
 }
 
-struct Bench {
-    expectation: Arc<Expectation>,
-}
+struct Bench;
 
 struct BenchSuite;
 
@@ -53,11 +52,22 @@ struct Waiting {
     expectation: Arc<Expectation>,
 }
 
+#[dokime::parameters]
+struct WaitingParameters {
+    #[parameter(label = "Expectation fixture", default = "unregistered")]
+    token: String,
+}
+
 /* === Enums === */
 
 #[dokime::catalog]
 enum Templates {
     Waiting(Waiting),
+}
+
+#[dokime::catalog]
+enum Suites {
+    Bench(BenchSuite),
 }
 
 #[dokime::catalog]
@@ -75,11 +85,12 @@ impl BenchSuite {}
 #[dokime::template(
     id = "fixture.bench.waiting",
     label = "Wait For The Unit",
+    parameters = WaitingParameters,
     subscribes = Subscriptions
 )]
 impl Waiting {
-    async fn initialize(ctx: &mut dokime::execution::InitializationContext<'_>) -> dokime::Result<Self> {
-        let expectation = Arc::clone(ctx.environment().binding::<Arc<Expectation>>());
+    async fn initialize(parameters: &WaitingParameters, _: &mut dokime::execution::InitializationContext<'_>) -> dokime::Result<Self> {
+        let expectation = expectations().lock().unwrap().remove(&parameters.token).expect("the case names its registered fixture");
         Ok(Self { expectation })
     }
 
@@ -93,33 +104,30 @@ impl Waiting {
     }
 }
 
-#[async_trait::async_trait]
-impl dokime::runtime::EmbeddedProvider for Bench {
-    fn catalog(&self) -> dokime::InstalledPlugin {
-        dokime::InstalledPlugin {
-            source: SOURCE.into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime::definition::SuiteSet::new([BenchSuite::definition()]),
-            ..Default::default()
-        }
-    }
+impl dokime::harmos::builtins::lifecycle::Policy for Bench {
+    const INITIALIZATION_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
+        timeout: Duration::from_secs(120),
+        attempt_timeout: Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
+        retries: dokime::harmos::operations::RetryPolicy::Never,
+    };
+    const SHUTDOWN_POLICY: dokime::harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
 
-    fn streams(&self) -> Vec<dokime::harmos::sidecar::StreamDeclaration> {
-        Vec::new()
-    }
+#[dokime::plugin(id = "fixture_bench", requires(), contributions(dokime::Suites<Suites>), restart = "never")]
+impl dokime::Plugin for Bench {
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[];
+}
 
-    async fn start(&self) -> dokime::runtime::Result<Vec<Arc<dyn dokime::execution::Runnable>>> {
-        let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(Arc::clone(&self.expectation));
-        Ok(
-            vec![
-                Arc::new(dokime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding)) as Arc<dyn dokime::execution::Runnable>
-            ],
-        )
-    }
+impl dokime::harmos::Lifecycle for Bench {
+    type Config = dokime::plugin::Configuration;
+    type Error = dokime::Refusal;
+    type Context = dokime::Supervisor;
 
-    async fn stop(&self) -> dokime::runtime::Result<()> {
-        Ok(())
+    async fn prepare(_: Self::Config, setup: &mut dokime::harmos::Setup<Self>) -> Result<Self, Self::Error> {
+        setup.resource::<()>(Arc::new(()));
+        dokime::execution::prepare::<Self, Suites>(setup)?;
+        Ok(Self)
     }
 }
 
@@ -127,15 +135,23 @@ impl dokime::runtime::EmbeddedProvider for Bench {
 
 /* === Private Functions === */
 
+fn expectations() -> &'static Mutex<BTreeMap<String, Arc<Expectation>>> {
+    static EXPECTATIONS: OnceLock<Mutex<BTreeMap<String, Arc<Expectation>>>> = OnceLock::new();
+    EXPECTATIONS.get_or_init(Mutex::default)
+}
+
 async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime::TestCycleId) {
-    let config =
-        support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host")).register(Arc::new(Bench { expectation }));
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let token = format!("record-listener-{}", NEXT.fetch_add(1, Ordering::Relaxed));
+    expectations().lock().unwrap().insert(token.clone(), expectation);
+    let config = support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host"));
+    let config = dokime::testing::plugin::<Bench>(config, root).unwrap();
     let owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
-    let suite = BenchSuite::definition().suite;
-    let cycle =
-        support::cycle_with_cases(&handle, support::metadata("records.cycle", "Records Cycle"), support::materialize_cases(SUITE, &suite))
-            .await;
+    let mut suite = BenchSuite::definition().suite;
+    suite.test_case_templates[0].parameters[0].expression = dokime::definition::ParameterExpr::Literal { value: token.into() };
+    let cases = support::materialize_cases(SUITE, &suite);
+    let cycle = support::cycle_with_cases(&handle, support::metadata("records.cycle", "Records Cycle"), cases).await;
     let execution_id = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
     handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     (owner, cycle)

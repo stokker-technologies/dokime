@@ -14,7 +14,6 @@
 /* === Imports === */
 
 use crate::service_support::prelude::*;
-use async_trait::async_trait;
 use dokime_domain::model::{execution::effects::PendingEffect, plugins::RunStartRegistration};
 use dokime_runtime::operations::effects::{ConfirmEffect, EffectResult, PrepareEffect, ReadEnvironment, StartEvidence};
 use dokime_runtime::transport::{
@@ -24,7 +23,6 @@ use dokime_runtime::{
     InstalledPlugin, Message, Refusal,
     app::Composition,
     execution::{Caller, ExecutionHost, ExecutionScope, Runnable, SampleOutput},
-    runtime::EmbeddedProvider,
 };
 use std::sync::{
     Arc, Mutex,
@@ -70,10 +68,9 @@ struct Inverse {
 #[derive(Clone, Default, PartialEq)]
 struct Capture {}
 
-struct Provider {
-    physical: Arc<Physical>,
-    mode: Mode,
-}
+struct FixturePlugin(Arc<Probe>);
+struct FixtureSuites;
+
 struct Probe {
     physical: Arc<Physical>,
     mode: Mode,
@@ -150,29 +147,75 @@ impl harmos::Operation for Capture {
     }
 }
 
-#[async_trait]
-impl EmbeddedProvider for Provider {
-    fn catalog(&self) -> InstalledPlugin {
-        let mut suite = TestSuiteDefinition::new("fixture.effects", fixture_suite(&["passed"])).unwrap();
-        suite.workflow = Some("run".into());
-        InstalledPlugin {
-            source: "effect_fixture".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([suite]),
-            ..Default::default()
+#[harmos::catalog]
+enum FixtureOperations {
+    Run(dokime_runtime::testing::Run<Probe>),
+    Signal(dokime_runtime::testing::Signal<Probe>),
+}
+
+impl harmos::plugin::Contribution for FixtureSuites {
+    const NAMESPACE: &'static str = dokime_runtime::plugin::registration::SUITES_NAMESPACE;
+    const SECTION: harmos::plugin::inventory::Section = harmos::plugin::inventory::Section::new(Self::NAMESPACE, r#"{"schema":2}"#);
+
+    fn register(registrar: &mut harmos::plugin::Registrar) -> Result<(), harmos::plugin::RegistrationError> {
+        let mut definition = fixture_suite(&["passed"]);
+        // The Frozen Bundle And The Live SDK Catalog Must Describe The Same IDs.
+        for template in &mut definition.test_case_templates {
+            template.test_case_template_id = dokime_runtime::TemplateId::from_seed(template.metadata.identifier.as_str());
+            for parameter in &mut template.parameters {
+                parameter.parameter_id = dokime_runtime::ParameterId::from_seed(parameter.metadata.identifier.as_str());
+            }
+            for phase in &mut template.phases {
+                phase.step_id = dokime_runtime::StepId::from_seed(phase.metadata.identifier.as_str());
+            }
+            for criterion in &mut template.criteria {
+                criterion.criterion_id = dokime_runtime::CriterionId::from_seed(criterion.metadata.identifier.as_str());
+            }
         }
+        let mut suite = TestSuiteDefinition::new("fixture.effects", definition).unwrap();
+        suite.workflow = Some("run".into());
+        registrar.register(
+            Self::NAMESPACE,
+            dokime_runtime::plugin::registration::domain_schema(Self::NAMESPACE),
+            &dokime_runtime::definition::SuiteSet::new([suite]),
+        )
     }
-    fn streams(&self) -> Vec<harmos::sidecar::StreamDeclaration> {
-        Vec::new()
+}
+
+impl dokime_runtime::execution::Served for Probe {
+    const RUN: &'static str = "fixture.template.t0.run";
+    const SIGNAL: &'static str = "fixture.template.t0.signal";
+}
+
+impl harmos::builtins::lifecycle::Policy for FixturePlugin {
+    const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = harmos::builtins::lifecycle::POLICY;
+    const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = Self::INITIALIZATION_POLICY;
+}
+
+#[dokime_runtime::plugin(
+    id = "effect_fixture",
+    restart = "never",
+    requires(dokime_runtime::transport::EvidenceBatch, dokime_runtime::transport::OperatorQuestion, dokime_runtime::transport::LeaseAsk),
+    contributions(FixtureSuites)
+)]
+impl dokime_runtime::Plugin for FixturePlugin {
+    const CATALOGS: &'static [harmos::Catalog] = &[FixtureOperations::CATALOG];
+}
+
+impl harmos::Lifecycle for FixturePlugin {
+    type Config = dokime_runtime::plugin::Configuration;
+    type Error = Refusal;
+    type Context = dokime_runtime::Supervisor;
+
+    async fn prepare(config: Self::Config, setup: &mut harmos::Setup<Self>) -> Result<Self, Refusal> {
+        let probe = dokime_runtime::testing::resource::<Probe>(&config)?;
+        setup.resource::<dokime_runtime::testing::Runner<Probe>>(Arc::new(dokime_runtime::testing::Runner(probe.clone())));
+        Ok(Self(probe))
     }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        Ok(vec![Arc::new(Probe {
-            physical: self.physical.clone(),
-            mode: self.mode,
-        })])
-    }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+
+    async fn stop(&mut self, _: &Self::Context) -> Result<(), Refusal> {
+        self.0.interrupt();
+        self.0.shutdown().await;
         Ok(())
     }
 }
@@ -358,7 +401,12 @@ fn configured(root: &Path, physical: &Arc<Physical>, mode: Mode) -> RuntimeConfi
         }),
         ..Default::default()
     };
-    let mut config = config(root).with_installed_plugins([host]).register(Arc::new(Provider { physical: physical.clone(), mode }));
+    let mut config = dokime_runtime::testing::bound_plugin::<FixturePlugin, Probe>(
+        config(root).with_installed_plugins([host]),
+        root,
+        Arc::new(Probe { physical: physical.clone(), mode }),
+    )
+    .unwrap();
     config.composition.push(composition);
     config
 }
@@ -463,7 +511,8 @@ async fn stop_shutdown_joins() {
 
     let root = tempdir().unwrap();
     let physical = Arc::new(Physical::new());
-    let mut runtime = Runtime::start(configured(root.path(), &physical, Mode::Cancel)).await.unwrap();
+    let configuration = configured(root.path(), &physical, Mode::Cancel);
+    let mut runtime = Runtime::start(configuration.clone()).await.unwrap();
     let handle = runtime.handle();
     let (cycle, execution) = planned(&handle).await;
     let receipt = handle.start_next_execution(cycle, CommandContext::default()).await;
@@ -488,6 +537,12 @@ async fn stop_shutdown_joins() {
     let (stopped, shutdown) = tokio::join!(retry, shutdown);
     stopped.unwrap();
     shutdown.unwrap();
+    // Shutdown Leaves HTML Deferred; Recovery Publishes The Already-Frozen Report.
+    physical.runtime.lock().unwrap().take();
+    let mut recovered = Runtime::start(configuration).await.unwrap();
+    let reopened = recovered.handle();
+    let report = reopened.open_execution_report(&execution).await.unwrap();
+    assert!(report.file.length > 0);
     #[cfg(feature = "testing")]
     assert_eq!(
         dokime_runtime::testing::drain_counts(&execution),
@@ -495,6 +550,9 @@ async fn stop_shutdown_joins() {
         "Stop, retry and shutdown share each physical cleanup stage and final report"
     );
     assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.radio"], "physical restoration runs once across Stop, retry and shutdown");
+    drop(report);
+    drop(reopened);
+    recovered.shutdown().await.unwrap();
     physical.runtime.lock().unwrap().take();
 }
 

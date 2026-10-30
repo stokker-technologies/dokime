@@ -64,10 +64,6 @@ pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
 // One template's signal operation over the portable `ExecutionSignal`.
 pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
 
-// The resource the generic template pair reads; see `EmbeddedRegistry`.
-#[derive(Clone)]
-pub struct EmbeddedTemplates(pub Arc<dyn EmbeddedRegistry>);
-
 struct InputAdmission {
     executions: crate::transport::buffer::Executions,
     token: String,
@@ -91,16 +87,6 @@ enum Answered {
 }
 
 /* === Traits === */
-
-// The host's embedded template registry behind the generic
-// `dokime.template.run`/`dokime.template.signal` pair (`Run<()>`/`Signal<()>`):
-// the host inserts `EmbeddedTemplates(Arc<dyn EmbeddedRegistry>)` as the
-// registration resource and routes each request to its embedded template.
-pub trait EmbeddedRegistry: Send + Sync + 'static {
-    fn run(&self, request: RunExecution) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>>;
-
-    fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>>;
-}
 
 pub trait ExecutionHost: Send + Sync + 'static {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>>;
@@ -146,12 +132,6 @@ impl Drop for InputAdmission {
             state.settle_operation();
         }
     }
-}
-
-// The host's embedded runner serves the generic template identities.
-impl Served for () {
-    const RUN: &'static str = "dokime.template.run";
-    const SIGNAL: &'static str = "dokime.template.signal";
 }
 
 impl<T: SidecarTemplate> Served for T {
@@ -214,34 +194,6 @@ impl<T: SidecarTemplate> harmos::Operation for Signal<T> {
 
     async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
         ctx.resource::<Workflow<T>>().signal(self.0).map(Into::into)
-    }
-}
-
-impl Requires<EmbeddedTemplates> for Run<()> {}
-
-impl Requires<EmbeddedTemplates> for Signal<()> {}
-
-impl harmos::Dependent for Run<()> {
-    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
-}
-
-impl harmos::Dependent for Signal<()> {
-    const RESOURCES: &'static [harmos::Resource] = &[harmos::Resource::of::<EmbeddedTemplates>()];
-}
-
-impl harmos::Operation for Run<()> {
-    type Error = Refusal;
-
-    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SidecarExecutionOutcome>, Refusal> {
-        ctx.resource::<EmbeddedTemplates>().0.run(self.0).await.map(Into::into)
-    }
-}
-
-impl harmos::Operation for Signal<()> {
-    type Error = Refusal;
-
-    async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<SignalReply>, Refusal> {
-        ctx.resource::<EmbeddedTemplates>().0.signal(self.0).await.map(Into::into)
     }
 }
 
@@ -457,7 +409,12 @@ pub fn contracts_with_settings(
         operation.fingerprint = fingerprint;
         harmos::operations::Contract::new_with_settings(operation, fingerprint, contract.codec(), contract.schema().clone(), settings)
     }
-    Ok([named::<Run<()>>(template, "run", settings)?, named::<Signal<()>>(template, "signal", settings)?])
+    struct Shape;
+    impl Served for Shape {
+        const RUN: &'static str = "shape.run";
+        const SIGNAL: &'static str = "shape.signal";
+    }
+    Ok([named::<Run<Shape>>(template, "run", settings)?, named::<Signal<Shape>>(template, "signal", settings)?])
 }
 
 pub fn prepare<P, S>(setup: &mut harmos::Setup<P>) -> Result<(), Refusal>

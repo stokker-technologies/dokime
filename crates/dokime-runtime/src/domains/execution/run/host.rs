@@ -26,7 +26,7 @@ use tonic::Status;
 use super::session::Session;
 use crate::execution::ExecutionScope;
 use crate::operations::hosting::{Host, Serve, Served};
-use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture};
+use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion};
 
 /* === Constants === */
 
@@ -39,11 +39,6 @@ use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution
 #[derive(Default)]
 pub(crate) struct Sessions {
     open: Mutex<BTreeMap<String, Arc<Session>>>,
-}
-
-pub(crate) struct Embedded {
-    sessions: Arc<Sessions>,
-    execution: String,
 }
 
 struct Serving(Arc<Sessions>);
@@ -111,30 +106,6 @@ impl Sessions {
             return Err(Status::permission_denied("the caller does not own this execution"));
         }
         Ok(session)
-    }
-}
-
-impl Embedded {
-    pub(crate) fn new(sessions: Arc<Sessions>, execution: impl Into<String>) -> Self {
-        Self { sessions, execution: execution.into() }
-    }
-
-    fn session(&self) -> Result<Arc<Session>, String> {
-        self.sessions.get(&self.execution).ok_or_else(|| format!("execution {} is not running", self.execution))
-    }
-}
-
-impl crate::execution::ExecutionHost for Embedded {
-    fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(async move { Ok(self.session()?.accept(batch).await) })
-    }
-
-    fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
-        Box::pin(async move { self.session()?.ask(question).await })
-    }
-
-    fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        Box::pin(async move { Ok(self.session()?.lease(ask).await) })
     }
 }
 

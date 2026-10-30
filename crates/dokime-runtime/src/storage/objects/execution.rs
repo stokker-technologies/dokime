@@ -183,7 +183,6 @@ struct Plugin {
 struct Implementation {
     kind: String,
     content_digest: Option<String>,
-    generation: Option<String>,
 }
 
 #[harmos::message]
@@ -1030,7 +1029,6 @@ impl Implementation {
         use dokime_domain::model::execution::snapshot::ExecutionImplementation;
         let (kind, identity) = match value {
             ExecutionImplementation::Bundle { content_digest } => ("bundle", content_digest),
-            ExecutionImplementation::Embedded { generation } => ("embedded", generation),
         };
         std::mem::size_of::<Self>().saturating_add(kind.len()).saturating_add(identity.len())
     }
@@ -1048,12 +1046,6 @@ impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionImplementation
             ExecutionImplementation::Bundle { content_digest } => Self {
                 kind: "bundle".into(),
                 content_digest: Some(content_digest.as_str().to_owned()),
-                generation: None,
-            },
-            ExecutionImplementation::Embedded { generation } => Self {
-                kind: "embedded".into(),
-                content_digest: None,
-                generation: Some(generation.as_str().to_owned()),
             },
         })
     }
@@ -1062,9 +1054,8 @@ impl TryFrom<&dokime_domain::model::execution::snapshot::ExecutionImplementation
 impl TryFrom<Implementation> for dokime_domain::model::execution::snapshot::ExecutionImplementation {
     type Error = Error;
     fn try_from(row: Implementation) -> Result<Self> {
-        match (row.kind.as_str(), row.content_digest, row.generation) {
-            ("bundle", Some(content_digest), None) => Ok(Self::Bundle { content_digest }),
-            ("embedded", None, Some(generation)) => Ok(Self::Embedded { generation }),
+        match (row.kind.as_str(), row.content_digest) {
+            ("bundle", Some(content_digest)) => Ok(Self::Bundle { content_digest }),
             _ => Err(Error::Invalid("invalid execution implementation identity")),
         }
     }
@@ -1087,8 +1078,7 @@ impl Plugin {
         Ok(std::mem::size_of::<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity>()
             .saturating_add(self.source.capacity())
             .saturating_add(self.version.as_ref().map_or(0, String::capacity))
-            .saturating_add(implementation.content_digest.as_ref().map_or(0, String::capacity))
-            .saturating_add(implementation.generation.as_ref().map_or(0, String::capacity)))
+            .saturating_add(implementation.content_digest.as_ref().map_or(0, String::capacity)))
     }
 }
 
