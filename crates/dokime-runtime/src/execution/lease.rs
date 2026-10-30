@@ -41,7 +41,7 @@ pub struct Lease<'a, R> {
     lease_token: String,
     release: Arc<dyn LeaseRelease>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     streams: Streams,
 
     row: PhantomData<fn() -> R>,
@@ -60,14 +60,14 @@ pub trait LeaseRelease: Send + Sync {
 
 impl<'a, R> Lease<'a, R> {
     pub fn new(stream: Identifier, hold: LeaseHold, streams: Streams) -> Self {
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         let _ = streams;
 
         Self {
             stream,
             lease_token: hold.lease_token,
             release: hold.release,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             streams,
             row: PhantomData,
             borrowed: PhantomData,
@@ -80,7 +80,7 @@ impl<'a, R> Lease<'a, R> {
 }
 
 impl<R: TelemetryStream> Lease<'_, R> {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn listen(&self) -> crate::execution::listen::ListeningRows<R> {
         crate::execution::listen::ListeningRows::new(&self.streams)
     }

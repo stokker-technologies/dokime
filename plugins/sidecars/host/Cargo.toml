@@ -86,6 +86,8 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 [dev-dependencies]
 # Local
+# Codec Assertions Also Exercise The Host Storage Projection.
+dokime = { workspace = true, features = ["native"] }
 
 # Git
 

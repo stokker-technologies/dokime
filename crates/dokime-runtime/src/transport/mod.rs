@@ -9,13 +9,13 @@
 
 /* === Modules === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub(crate) mod buffer;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub(crate) mod control;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub(crate) mod frame;
 pub mod protocol;
 pub mod provider;

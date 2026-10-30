@@ -162,26 +162,26 @@ pub trait DeclaredTemplate {
 pub trait DeclaredSuite {
     const ID: &'static str;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     const TEMPLATE_IDENTIFIERS: &'static [crate::catalog::Node<&'static str>];
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     const CATALOGS: &'static [harmos::Catalog];
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     const STREAMS: &'static [harmos::catalog::Node<crate::catalog::Publication>];
 
     fn definition() -> TestSuiteDefinition;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn bind<P: harmos::Plugin + harmos::plugin::Declared>(
         setup: &mut harmos::Setup<P>, workflow: &str, records: &[RecordContract],
     ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn runners() -> Vec<std::sync::Arc<dyn crate::execution::Runnable>>;
 }
 

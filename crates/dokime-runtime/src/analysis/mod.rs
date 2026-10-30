@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 mod serving;
 
 /* === Re-Exports === */

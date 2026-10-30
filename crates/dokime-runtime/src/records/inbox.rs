@@ -41,11 +41,11 @@ pub struct Deliveries {
 pub trait RecordSource: Send + Sync {
     fn delivered(&self, index: usize) -> Option<Record>;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     /// Retain One Signal And Wake All Registered Readers After Publication Or Closure.
     fn changed(&self) -> Arc<tokio::sync::Notify>;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn closed(&self) -> bool;
 
     fn next_record(&self, cursor: &mut usize) -> Option<Record> {
@@ -58,7 +58,7 @@ pub trait RecordSource: Send + Sync {
 /* === Implementations === */
 
 impl Deliveries {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn new(source: Arc<dyn RecordSource>) -> Self {
         Self { source }
     }

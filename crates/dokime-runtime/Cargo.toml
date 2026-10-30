@@ -26,19 +26,9 @@ include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/
 [features]
 default = ["native", "derive"]
 native = [
-  "runtime",
+  "sidecar",
   "harmos/grpc",
-  "harmos/sidecar",
-  "dep:file-id",
-  "dep:futures-util",
-  "dep:globset",
-  "dep:tempfile",
-  "dep:tokio",
-  "dep:tokio-stream",
-  "dep:tracing-subscriber",
-  "dep:tracing-error",
   "configuration",
-  "derive",
   "storage",
   "dep:async-trait",
   "dep:base64",
@@ -52,7 +42,21 @@ native = [
   "dep:tonic",
   "dep:walkdir",
   "dep:zip",
+  "dep:harmos-packaging",
   "dep:zeroize",
+]
+sidecar = [
+  "runtime",
+  "derive",
+  "harmos/sidecar",
+  "dep:file-id",
+  "dep:globset",
+  "dep:futures-util",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:tokio-stream",
+  "dep:tracing-subscriber",
+  "dep:tracing-error",
 ]
 derive = ["dep:dokime-macros"]
 # Activates the Harmos operation resource bindings for operations this package declares.
@@ -87,7 +91,7 @@ tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
 harmos = { workspace = true, features = ["plugin", "signal"] }
-harmos-packaging = { workspace = true }
+harmos-packaging = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }

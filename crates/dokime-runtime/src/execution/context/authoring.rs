@@ -55,7 +55,7 @@ macro_rules! own_resources {
 
 own_resources!(Step, Cleanup);
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 own_resources!(Observing);
 
 macro_rules! own_document {
@@ -70,7 +70,7 @@ macro_rules! own_document {
 
 own_document!(Initialize, Step, Cleanup);
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 own_document!(Observing);
 
 /* === Type Aliases === */
@@ -78,7 +78,7 @@ own_document!(Observing);
 pub type InitializationContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Initialize>;
 pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub type ObserverContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Observing>;
 pub type CleanupContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Cleanup>;
 
@@ -95,7 +95,7 @@ pub struct Initialize;
 
 pub struct Step;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct Observing {
     pub(in crate::execution) tick: crate::execution::tick::Tick,
     pub(in crate::execution) publisher: std::sync::Arc<crate::execution::observing::ExecutionPublisher>,
@@ -108,10 +108,10 @@ pub struct Cleanup {
 pub struct CriterionContext<'a, C = (), I = ()> {
     calls: std::marker::PhantomData<fn() -> C>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     caller: crate::execution::Caller,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
 
     parameters: &'a I,
@@ -120,7 +120,7 @@ pub struct CriterionContext<'a, C = (), I = ()> {
     selected_attempts: Arc<BTreeSet<StepAttemptId>>,
     log: Option<(&'a dyn ExecutionTransport, &'a str)>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     callbacks: crate::execution::Callbacks,
 }
 
@@ -206,7 +206,7 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<C, O, I, S> Context<'_, C, O, I, S> {
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
@@ -253,12 +253,12 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
         prompt.decode(response)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub async fn lease<R: crate::telemetry::TelemetryStream>(&mut self) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
         self.lease_stream(R::stream_id()).await
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub async fn lease_stream<R>(
         &mut self, stream: dokime_domain::model::identity::Identifier,
     ) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
@@ -286,13 +286,13 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
         self.environment.streams().selecting()
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn listen<T: crate::execution::listen::Listenable>(&self) -> T::Listening {
         T::listening(self.environment.streams(), self.environment.deliveries())
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
     pub fn tick(&self) -> &crate::execution::tick::Tick {
         &self.stage.tick
@@ -330,21 +330,21 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     pub fn new(parameters: &'a I, raw: &'a BTreeMap<String, Value>, evidence: &'a ExecutionEvidence) -> Self {
         Self {
             calls: std::marker::PhantomData,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             caller: crate::execution::Caller::default(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             binding: None,
             parameters,
             raw,
             evidence,
             selected_attempts: Arc::default(),
             log: None,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             callbacks: crate::execution::Callbacks::default(),
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub fn calling(mut self, caller: crate::execution::Caller) -> Self {
         self.caller = caller;
@@ -352,7 +352,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub fn bound(mut self, binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>) -> Self {
         self.binding = binding;
@@ -360,7 +360,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn binding<B: 'static>(&self) -> &B {
         self.binding
             .as_deref()
@@ -368,7 +368,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
             .expect("a bound workflow is decided against the binding it was built from")
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
         Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
@@ -377,14 +377,14 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         self.caller.call_at(&stage, request).await
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(in crate::execution) fn with_callbacks(mut self, callbacks: crate::execution::Callbacks) -> Self {
         self.callbacks = callbacks;
 
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn callbacks(&self) -> &crate::execution::Callbacks {
         &self.callbacks
     }
@@ -458,7 +458,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn selecting(mut self, attempts: Arc<BTreeSet<StepAttemptId>>) -> Self {
         self.selected_attempts = attempts;
         self

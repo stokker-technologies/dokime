@@ -58,7 +58,7 @@ pub fn install_panic_hook() {
     });
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub fn install_subscriber() {
     use tracing_subscriber::Layer;
     use tracing_subscriber::layer::SubscriberExt;

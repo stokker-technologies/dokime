@@ -22,7 +22,6 @@ mod runtime;
 #[cfg(feature = "native")]
 mod settings;
 
-mod schema;
 mod storage;
 
 #[cfg(feature = "native")]
@@ -44,7 +43,7 @@ pub use settings::{ApplicationMetadata, Settings};
 
 pub use dokime_domain::model::settings::{Appearance, Density, ReportDefaults, ThemeMode};
 
-pub use schema::schema_defaults;
+pub use crate::plugin::schema_defaults;
 pub use storage::{managed_storage_defaults, storage_defaults, storage_state_defaults};
 
 #[cfg(feature = "storage")]

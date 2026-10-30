@@ -38,19 +38,19 @@ use dokime_domain::model::values::Value;
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     flush_window: std::time::Duration,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     admission: Option<Arc<Admission>>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     failure: tokio::sync::watch::Sender<Option<crate::diagnostics::Diagnostic>>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     flushing: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -67,7 +67,7 @@ pub struct Pushing<'a, R> {
     borrowed: PhantomData<&'a ()>,
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 struct Admission {
     template: String,
     streams: std::collections::BTreeSet<String>,
@@ -105,26 +105,26 @@ impl Streams {
         // stream facade delegates publication directly to its supplied sink.
         Self {
             sink,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             flush_window: std::time::Duration::from_millis(10),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             admission: None,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             failure: tokio::sync::watch::channel(None).0,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             listening: crate::execution::listening_rows(1024),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn with_listening(mut self, listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>) -> Self {
         self.listening = listening;
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn restricted(mut self, template: &str, streams: impl IntoIterator<Item = String>) -> Self {
         self.admission = Some(Arc::new(Admission {
             template: template.to_owned(),
@@ -133,19 +133,19 @@ impl Streams {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn failure(&self) -> Option<crate::diagnostics::Diagnostic> {
         self.failure.borrow().clone()
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) async fn refused(&self) -> crate::diagnostics::Diagnostic {
         let mut receiver = self.failure.subscribe();
         let value = receiver.wait_for(Option::is_some).await.expect("the grant retains its sender");
         value.as_ref().expect("a refusal is present").clone()
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<crate::execution::PublishedRow> {
         self.listening.subscribe()
     }
@@ -170,7 +170,7 @@ impl Streams {
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
         self.published_as(stream, values, Some(payload), stream.as_str()).await;
     }
@@ -186,9 +186,9 @@ impl Streams {
         // it; `or_insert_with` never overwrites.
         values.entry("timestamp".to_owned()).or_insert_with(|| Value::from(crate::model::time::now_utc()));
 
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         let _ = row_type;
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         if let Some(admission) = &self.admission
             && !admission.streams.contains(stream.as_str())
         {
@@ -211,7 +211,7 @@ impl Streams {
         // listen to nothing at all — paying for a map clone on every sample so
         // that a subscription nobody opened could have read it would be the
         // whole mechanism costing something on the runs that do not use it.
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         if self.listening.receiver_count() > 0 {
             // A send that races the last subscriber away is not a failure: the
             // row is already this run's evidence either way.
@@ -224,7 +224,7 @@ impl Streams {
     }
 
     fn failed(&self, stream: &Identifier, error: &str) {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         self.failure.send_if_modified(|failure| {
             if failure.is_some() {
                 return false;
@@ -232,14 +232,14 @@ impl Streams {
             *failure = Some(crate::diagnostics::Diagnostic::of(format!("stream {stream} publication failed: {error}")));
             true
         });
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         let _ = (stream, error);
     }
 
     // A buffered row waits at most one window: the first row after a flush
     // arms one timer, and the timer flushes whatever is buffered by then.
     fn flush_later(&self) {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         if self.sink.buffering()
             && let Ok(runtime) = tokio::runtime::Handle::try_current()
             && !self.flushing.swap(true, std::sync::atomic::Ordering::AcqRel)

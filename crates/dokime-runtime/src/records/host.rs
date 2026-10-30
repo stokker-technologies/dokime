@@ -86,7 +86,7 @@ macro_rules! host_record {
             }
         }
 
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         impl crate::execution::Listenable for $record {
             type Item = Self;
             type Listening = crate::execution::ListeningRecords<Self>;
@@ -294,7 +294,7 @@ impl DeclaredRecord for StepHandleCancelled {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl crate::execution::Listenable for TestCycleCompleted {
     type Item = Self;
     type Listening = crate::execution::ListeningRecords<Self>;

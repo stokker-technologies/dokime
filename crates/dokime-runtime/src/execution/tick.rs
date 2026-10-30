@@ -18,10 +18,10 @@ use std::time::Duration;
 
 // Third Party Imports
 // Third-Party Imports
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use tokio::sync::watch;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
 
 // Local Imports
@@ -40,7 +40,7 @@ pub struct Tick {
     elapsed: Duration,
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub(crate) struct Cadence {
     started: Instant,
     timer: tokio::time::Interval,
@@ -68,7 +68,7 @@ impl Tick {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Cadence {
     pub(crate) fn every(interval: Duration, stop: watch::Receiver<bool>) -> Self {
         let started = Instant::now();

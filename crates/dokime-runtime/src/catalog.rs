@@ -16,23 +16,23 @@ pub use harmos::catalog::{Catalog, Contains, InertCatalog, Member, Node, Visitor
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use std::marker::PhantomData;
 
 // Third Party Imports
 
 // Local Imports
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use crate::definition::DeclaredTemplate;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use crate::execution::SidecarTemplate;
 use crate::records::{DeclaredRecord, RecordContract};
 use crate::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Constants === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const UNSET: Publication = Publication {
     id: "",
     metadata_json: "",
@@ -46,25 +46,25 @@ const UNSET: Publication = Publication {
 
 /* === Type Aliases === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub type Publication = harmos::sidecar::inventory::publications::Entry;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 type Observer = harmos::sidecar::inventory::observers::Entry;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub type Publish = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
     &'a [crate::execution::StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub type Bind<P> = fn(&mut harmos::Setup<P>, &str, &[RecordContract]) -> Result<(), harmos::sidecar::operations::ServingError>;
 
 /* === Structs === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct Streams;
 
 pub struct StreamContracts;
@@ -73,25 +73,25 @@ pub struct Records;
 
 pub struct Prompts;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct Subscriptions;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateStreams;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteStreams;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct Templates;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateIdentifiers;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateIdentifierNodes;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteTemplateIdentifiers;
 
 pub struct SuiteIdentifiers;
@@ -102,43 +102,43 @@ pub struct StreamIdentifiers;
 
 pub struct Suites;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateBindings<P>(PhantomData<fn() -> P>);
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateOperations;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteBindings<P>(PhantomData<fn() -> P>);
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteOperations;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateCatalogs;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteCatalogs;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct Publications<P>(PhantomData<fn() -> P>);
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateRunners;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct SuiteRunners;
 
 pub struct Listeners;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct TemplateEntry {
     pub declaration: fn() -> crate::definition::TestCaseTemplate,
     pub records: fn() -> Vec<RecordContract>,
     pub streams: fn() -> Vec<TelemetryContract>,
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub struct PublicationEntry {
     pub id: &'static str,
     pub publish: Publish,
@@ -164,13 +164,13 @@ impl<V: Visitor<Entry = Node<&'static str>>> IdentifierCatalog<V> for () {
     const IDENTIFIERS: &'static [Node<&'static str>] = &[];
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for Streams {
     type Entry = Node<Publication>;
 }
 
 // A stream the plugin only reads is no part of what it publishes.
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: TelemetryStream<Row: harmos::schema::Described>> Member<T> for Streams {
     const ENTRY: Self::Entry = match T::PUBLISHED {
         true => Node::Leaf(Publication::of::<T>()),
@@ -178,22 +178,22 @@ impl<T: TelemetryStream<Row: harmos::schema::Described>> Member<T> for Streams {
     };
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateStreams {
     type Entry = Node<Publication>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: SidecarTemplate> Member<T> for TemplateStreams {
     const ENTRY: Self::Entry = Node::Nested(T::STREAMS);
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for SuiteStreams {
     type Entry = Node<Publication>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteStreams {
     const ENTRY: Self::Entry = Node::Nested(T::STREAMS);
 }
@@ -222,12 +222,12 @@ impl<T: crate::prompts::DeclaredPrompt> Member<T> for Prompts {
     const ENTRY: Self::Entry = T::definition;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for Subscriptions {
     type Entry = fn() -> crate::definition::Subscription;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::execution::Listenable> Member<T> for Subscriptions {
     const ENTRY: Self::Entry = T::subscription;
 }
@@ -240,12 +240,12 @@ impl<T: crate::definition::DeclaredSuite> Member<T> for Suites {
     const ENTRY: Self::Entry = T::definition;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for Templates {
     type Entry = TemplateEntry;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: DeclaredTemplate + SidecarTemplate> Member<T> for Templates {
     const ENTRY: Self::Entry = TemplateEntry {
         declaration: <T as DeclaredTemplate>::declaration,
@@ -254,32 +254,32 @@ impl<T: DeclaredTemplate + SidecarTemplate> Member<T> for Templates {
     };
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateIdentifiers {
     type Entry = &'static str;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: DeclaredTemplate> Member<T> for TemplateIdentifiers {
     const ENTRY: Self::Entry = T::IDENTIFIER;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateIdentifierNodes {
     type Entry = Node<&'static str>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: DeclaredTemplate> Member<T> for TemplateIdentifierNodes {
     const ENTRY: Self::Entry = Node::Leaf(T::IDENTIFIER);
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for SuiteTemplateIdentifiers {
     type Entry = Node<&'static str>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteTemplateIdentifiers {
     const ENTRY: Self::Entry = Node::Nested(T::TEMPLATE_IDENTIFIERS);
 }
@@ -308,12 +308,12 @@ impl<T: TelemetryStream> Member<T> for StreamIdentifiers {
     const ENTRY: Self::Entry = Node::Leaf(T::ID);
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P: harmos::Plugin> Visitor for TemplateBindings<P> {
     type Entry = Bind<P>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P, T> Member<T> for TemplateBindings<P>
 where
     P: harmos::Plugin + harmos::plugin::Declared,
@@ -328,52 +328,52 @@ where
     };
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateRunners {
     type Entry = fn(&str, &[RecordContract]) -> std::sync::Arc<dyn crate::execution::Runnable>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: SidecarTemplate> Member<T> for TemplateRunners {
     const ENTRY: Self::Entry = crate::execution::runner::<T>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for SuiteRunners {
     type Entry = fn() -> Vec<std::sync::Arc<dyn crate::execution::Runnable>>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteRunners {
     const ENTRY: Self::Entry = T::runners;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateOperations {
     type Entry = Node<harmos::operations::WireDeclaration>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: SidecarTemplate> Member<T> for TemplateOperations {
     const ENTRY: Self::Entry = Node::Nested(T::OPERATIONS);
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for SuiteOperations {
     type Entry = Node<harmos::operations::WireDeclaration>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteOperations {
     const ENTRY: Self::Entry = Node::Nested(T::OPERATIONS);
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P: harmos::Plugin> Visitor for SuiteBindings<P> {
     type Entry = Bind<P>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P, T> Member<T> for SuiteBindings<P>
 where
     P: harmos::Plugin + harmos::plugin::Declared,
@@ -382,12 +382,12 @@ where
     const ENTRY: Self::Entry = T::bind::<P>;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P> Visitor for Publications<P> {
     type Entry = PublicationEntry;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<P, T> Member<T> for Publications<P>
 where
     P: harmos::Plugin + harmos::plugin::Declared,
@@ -400,7 +400,7 @@ impl Visitor for Listeners {
     type Entry = ListenerEntry;
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::plugin::Listener> Member<T> for Listeners {
     const ENTRY: Self::Entry = ListenerEntry {
         operation: T::ID,
@@ -408,26 +408,26 @@ impl<T: crate::plugin::Listener> Member<T> for Listeners {
     };
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for TemplateCatalogs {
     type Entry = harmos::Catalog;
 }
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: SidecarTemplate> Member<T> for TemplateCatalogs {
     const ENTRY: Self::Entry = crate::execution::Operations::<T>::CATALOG;
 }
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Visitor for SuiteCatalogs {
     type Entry = &'static [harmos::Catalog];
 }
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteCatalogs {
     const ENTRY: Self::Entry = T::CATALOGS;
 }
 
 /* === Public Functions === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn contribution_catalog_count(nodes: &[Node<&[harmos::Catalog]>]) -> usize {
     let mut count = 0;
     let mut index = 0;
@@ -441,7 +441,7 @@ pub const fn contribution_catalog_count(nodes: &[Node<&[harmos::Catalog]>]) -> u
     count
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn plugin_catalogs<const N: usize>(
     authored: &[harmos::Catalog], contributed: &[Node<&[harmos::Catalog]>],
 ) -> [harmos::Catalog; N] {
@@ -456,7 +456,7 @@ pub const fn plugin_catalogs<const N: usize>(
     catalogs
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const fn write_catalogs<const N: usize>(nodes: &[Node<&[harmos::Catalog]>], catalogs: &mut [harmos::Catalog; N], mut at: usize) -> usize {
     let mut index = 0;
     while index < nodes.len() {
@@ -535,12 +535,12 @@ pub const fn required_by(
     true
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn publication_count(streams: &[Node<Publication>], observers: &[Node<Observer>]) -> usize {
     harmos::catalog::count(streams) + observed_count(observers)
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn publications<const N: usize>(streams: &[Node<Publication>], observers: &[Node<Observer>]) -> [Publication; N] {
     let mut gathered = [UNSET; N];
     let at = write(streams, &mut gathered, 0);
@@ -549,7 +549,7 @@ pub const fn publications<const N: usize>(streams: &[Node<Publication>], observe
     gathered
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn distinct_publications(declared: &[Publication]) -> usize {
     let mut distinct = 0;
     let mut index = 0;
@@ -580,7 +580,7 @@ pub const fn assert_unique(identifiers: &[&str]) {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publication; N] {
     let mut distinct = [UNSET; N];
     let mut written = 0;
@@ -636,7 +636,7 @@ const fn provided_locally(provided: &[Node<harmos::operations::WireDeclaration>]
     false
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const fn observed_count(observers: &[Node<Observer>]) -> usize {
     let mut count = 0;
     let mut index = 0;
@@ -650,7 +650,7 @@ const fn observed_count(observers: &[Node<Observer>]) -> usize {
     count
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const fn write_observed<const N: usize>(observers: &[Node<Observer>], flat: &mut [Publication; N], at: usize) -> usize {
     let mut cursor = at;
     let mut index = 0;
@@ -671,7 +671,7 @@ const fn write_observed<const N: usize>(observers: &[Node<Observer>], flat: &mut
     cursor
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const fn earlier(declared: &[Publication], index: usize) -> Option<usize> {
     let mut candidate = 0;
     while candidate < index {
@@ -686,7 +686,7 @@ const fn earlier(declared: &[Publication], index: usize) -> Option<usize> {
 // The row's fields are reached only through function pointers, which a
 // constant cannot call; its type name stands for them here, and admission
 // compares the fields themselves.
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const fn same_publication(left: &Publication, right: &Publication) -> bool {
     left.schema == right.schema
         && left.window == right.window
@@ -726,7 +726,7 @@ const fn write<E: Copy, const N: usize>(nodes: &[Node<E>], flat: &mut [E; N], at
     cursor
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 fn publish<'a, T, P>(
     host: &'a harmos::sidecar::Supervisor, token: &'a str, rows: &'a [crate::execution::StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>

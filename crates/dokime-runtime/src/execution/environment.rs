@@ -47,10 +47,10 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
     bindings: &'a crate::plugin::Configuration,
     calls: std::marker::PhantomData<fn() -> C>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     caller: super::Caller,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
 
     own: Option<Arc<O>>,
@@ -60,13 +60,13 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
     document: Arc<std::sync::Mutex<DocumentIndex>>,
     traceability: std::sync::Mutex<super::traceability::TraceabilityIndex>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     callbacks: super::Callbacks,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     identity: Arc<super::ExecutionIdentity>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     handles: super::instances::Handles,
 }
 
@@ -86,9 +86,9 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             raw,
             bindings,
             calls: std::marker::PhantomData,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             caller: super::Caller::default(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             binding: None,
             own: None,
             artifacts,
@@ -96,16 +96,16 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             deliveries,
             document: Arc::new(std::sync::Mutex::new(DocumentIndex::new(None))),
             traceability: std::sync::Mutex::default(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             callbacks: super::Callbacks::default(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             identity: Arc::default(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             handles: super::instances::Handles::new(),
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub fn identified(mut self, identity: super::ExecutionIdentity) -> Self {
         self.identity = Arc::new(identity);
@@ -113,17 +113,17 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn identity(&self) -> Arc<super::ExecutionIdentity> {
         Arc::clone(&self.identity)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn handles(&self) -> &super::instances::Handles {
         &self.handles
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub fn calling(mut self, caller: super::Caller) -> Self {
         self.caller = caller;
@@ -131,12 +131,12 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn caller(&self) -> &super::Caller {
         &self.caller
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub fn bound(mut self, binding: Arc<dyn std::any::Any + Send + Sync>) -> Self {
         self.binding = Some(binding);
@@ -144,7 +144,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         self
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn binding<B: 'static>(&self) -> &B {
         self.binding
             .as_deref()
@@ -152,7 +152,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             .expect("a bound workflow is run against the binding it was built from")
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[must_use]
     pub(crate) fn declaring(mut self, document: Arc<std::sync::Mutex<DocumentIndex>>) -> Self {
         self.document = document;
@@ -168,7 +168,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         &self.document
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(super) fn with_callbacks(mut self, callbacks: super::Callbacks) -> Self {
         self.callbacks = callbacks;
 
@@ -193,7 +193,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         Context::new(self, transport, Step)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(super) fn observing<'c>(
         &'c self, transport: &'c mut dyn ExecutionTransport, tick: super::tick::Tick, publisher: Arc<super::observing::ExecutionPublisher>,
     ) -> super::ObserverContext<'c, C, O, I> {
@@ -206,13 +206,13 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
 
     pub fn criterion(&'a self, evidence: &'a ExecutionEvidence) -> CriterionContext<'a, C, I> {
         let context = CriterionContext::new(self.parameters, self.raw, evidence);
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         let context = context.calling(self.caller.clone()).bound(self.binding.clone()).with_callbacks(self.callbacks.clone());
 
         context
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub fn callbacks(&self) -> &super::Callbacks {
         &self.callbacks
     }

@@ -17,7 +17,7 @@
 use std::fmt;
 
 // Third Party Imports
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use tokio_stream::Elapsed;
 
 // Local Imports
@@ -92,7 +92,7 @@ pub enum Error {
     #[error("{0}")]
     Record(#[source] RecordFailure),
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[error("the deadline elapsed before the stream produced an item")]
     Deadline(#[source] Elapsed),
 
@@ -202,7 +202,7 @@ impl From<dokime_domain::Error> for Error {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl From<Elapsed> for Error {
     fn from(source: Elapsed) -> Self {
         Self::Deadline(source)

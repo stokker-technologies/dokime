@@ -33,7 +33,7 @@ pub mod error;
 pub mod evidence;
 pub mod execution;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub mod files;
 pub mod host;
 pub mod model;
@@ -41,10 +41,10 @@ pub mod parameters;
 pub mod paths;
 pub mod plugin;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub mod prelude;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub mod process;
 pub mod prompts;
 pub mod publication;
@@ -162,7 +162,7 @@ pub use harmos::operations::{CallContext, Operation, OperationDeclaration};
 pub use harmos::plugin::{Contribution, Grant};
 
 pub use harmos;
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub use harmos::sidecar::{Refusal, Supervisor};
 pub use values::{FieldError, FieldValue};
 
@@ -183,7 +183,7 @@ pub use dokime_domain as __domain;
 pub use harmos as __harmos;
 pub use prost as __prost;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub use tokio as __tokio;
 
 #[cfg(feature = "native")]

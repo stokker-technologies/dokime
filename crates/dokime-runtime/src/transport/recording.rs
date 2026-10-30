@@ -71,7 +71,7 @@ pub struct RecordingSink {
     samples: Mutex<Vec<TelemetrySample>>,
     delivered: Mutex<Vec<Record>>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     changed: Arc<tokio::sync::Notify>,
 }
 
@@ -253,7 +253,7 @@ impl RecordingSink {
 
     pub fn deliver(&self, record: Record) {
         self.delivered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(record);
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         self.changed.notify_waiters();
     }
 
@@ -302,12 +302,12 @@ impl SampleSink for RecordingSink {
 }
 
 impl RecordSource for RecordingSink {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn changed(&self) -> Arc<tokio::sync::Notify> {
         Arc::clone(&self.changed)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn closed(&self) -> bool {
         false
     }

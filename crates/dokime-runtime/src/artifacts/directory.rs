@@ -17,17 +17,17 @@
 use std::collections::BTreeMap;
 use std::io;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use std::io::{Read, Seek, SeekFrom};
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use std::path::Path;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use std::time::SystemTime;
 
 // Third Party Imports
@@ -35,15 +35,15 @@ use std::time::SystemTime;
 // Local Imports
 use super::stream::{ArtifactSink, validated};
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use super::stream::{inferred_mime, transfer_identity};
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES};
 
 /* === Constants === */
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const GROWTH_FLOOR: u64 = 64 * 1024;
 
 const ARTIFACTS: &str = "artifacts";
@@ -60,22 +60,22 @@ const ROOT: &str = "";
 pub(super) struct Directories {
     area: PathBuf,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     token: Arc<str>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     sink: Arc<dyn ArtifactSink>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     ordinals: Arc<AtomicU64>,
 
     registered: BTreeMap<String, PathBuf>,
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     watched: BTreeMap<String, Watched>,
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 struct Watched {
     transfer_id: String,
     mime: String,
@@ -94,19 +94,19 @@ struct Watched {
 
 impl Directories {
     pub(super) fn new(token: Arc<str>, sink: Arc<dyn ArtifactSink>, ordinals: Arc<AtomicU64>) -> Self {
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         let _ = (sink, ordinals);
 
         Self {
             area: working_area(&token),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             token,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             sink,
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             ordinals,
             registered: BTreeMap::new(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             watched: BTreeMap::new(),
         }
     }
@@ -137,12 +137,12 @@ impl Directories {
         Ok(path)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(super) fn scan(&mut self) -> Vec<String> {
         self.walk(false)
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(super) fn sweep(&mut self) -> Vec<String> {
         if self.registered.is_empty() {
             return Vec::new();
@@ -156,7 +156,7 @@ impl Directories {
         notes
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn walk(&mut self, sweeping: bool) -> Vec<String> {
         let mut notes = Vec::new();
         let registered = std::mem::take(&mut self.registered);
@@ -174,7 +174,7 @@ impl Directories {
         notes
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn file(&mut self, name: String, path: &Path, sweeping: bool, notes: &mut Vec<String>) {
         if self.watched.get(&name).is_some_and(|watched| watched.refused) {
             return;
@@ -252,13 +252,13 @@ impl Directories {
         }
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     fn refuse(&mut self, name: String) {
         self.watched.entry(name).or_insert_with(|| Watched::new(String::new(), String::new())).refused = true;
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Watched {
     fn new(transfer_id: String, mime: String) -> Self {
         Self {
@@ -309,7 +309,7 @@ fn working_area(token: &str) -> PathBuf {
     std::env::temp_dir().join(format!("dokime-{readable}-{:016x}", hasher.finish()))
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathBuf)> {
     let mut found = Vec::new();
     let mut pending = vec![(name.to_owned(), root.to_owned())];
@@ -341,7 +341,7 @@ fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathB
     found
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 fn read(path: &Path, from: u64, pending: u64, sweeping: bool) -> io::Result<Vec<Vec<u8>>> {
     let mut file = std::fs::File::open(path)?;
     file.seek(SeekFrom::Start(from))?;

@@ -14,7 +14,7 @@
 #[cfg(feature = "testing")]
 pub(crate) mod testing;
 
-#[cfg(all(test, feature = "native"))]
+#[cfg(all(test, feature = "sidecar"))]
 mod tests {
     use super::*;
 
@@ -48,7 +48,7 @@ mod tests {
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 use std::{
     io::{Read, Seek, SeekFrom, Write},
     sync::{Arc, Mutex},
@@ -63,7 +63,7 @@ use serde::{Serialize, de::DeserializeOwned, ser::SerializeSeq};
 
 const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
 // One Read Fills Many Rows: Iteration Costs One Seek And Read Per Window, Not Per Row Or Byte.
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 const READ_WINDOW_BYTES: u64 = 1024 * 1024;
 
 /* === Macros === */
@@ -75,24 +75,24 @@ const READ_WINDOW_BYTES: u64 = 1024 * 1024;
 // Payloads And Identity Receipts Live On Disk; Clones Share The Same Owner.
 #[derive(Debug)]
 pub struct EvidenceRows<T> {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     spool: Arc<Mutex<Option<Spool>>>,
 
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(feature = "sidecar"))]
     rows: Vec<T>,
 
     marker: std::marker::PhantomData<T>,
 }
 
 // One Scratch Row Keeps Its Shared Spool Alive Without Retaining Its Payload In Memory.
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 pub(crate) struct EvidenceRow<T> {
     spool: Arc<Mutex<Option<Spool>>>,
     offset: u64,
     marker: std::marker::PhantomData<T>,
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 #[derive(Debug)]
 struct Spool {
     // Close The Data Handle Before Removing Its Directory (Field Drop Order).
@@ -106,9 +106,9 @@ pub struct Rows<'a, T> {
     owner: &'a EvidenceRows<T>,
     offset: u64,
     remaining: usize,
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     window: Vec<u8>,
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     window_start: u64,
 }
 
@@ -121,9 +121,9 @@ pub struct Rows<'a, T> {
 impl<T: Clone> Clone for EvidenceRows<T> {
     fn clone(&self) -> Self {
         Self {
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             spool: self.spool.clone(),
-            #[cfg(not(feature = "native"))]
+            #[cfg(not(feature = "sidecar"))]
             rows: self.rows.clone(),
             marker: std::marker::PhantomData,
         }
@@ -133,9 +133,9 @@ impl<T: Clone> Clone for EvidenceRows<T> {
 impl<T> Default for EvidenceRows<T> {
     fn default() -> Self {
         Self {
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             spool: Arc::new(Mutex::new(None)),
-            #[cfg(not(feature = "native"))]
+            #[cfg(not(feature = "sidecar"))]
             rows: Vec::new(),
             marker: std::marker::PhantomData,
         }
@@ -144,11 +144,11 @@ impl<T> Default for EvidenceRows<T> {
 
 impl<T> EvidenceRows<T> {
     pub fn len(&self) -> usize {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         {
             self.spool.lock().unwrap().as_ref().map_or(0, |spool| spool.count)
         }
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         {
             self.rows.len()
         }
@@ -156,17 +156,17 @@ impl<T> EvidenceRows<T> {
 
     #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
     pub fn retained_rows(&self) -> usize {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         {
             0
         }
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         {
             self.rows.len()
         }
     }
 
-    #[cfg(all(feature = "native", any(test, feature = "fault-injection", feature = "testing")))]
+    #[cfg(all(feature = "sidecar", any(test, feature = "fault-injection", feature = "testing")))]
     pub fn spooled_bytes(&self) -> u64 {
         self.spool.lock().unwrap().as_ref().map_or(0, |spool| spool.bytes)
     }
@@ -180,16 +180,16 @@ impl<T> EvidenceRows<T> {
             owner: self,
             offset: 0,
             remaining: self.len(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             window: Vec::new(),
-            #[cfg(feature = "native")]
+            #[cfg(feature = "sidecar")]
             window_start: 0,
         }
     }
 }
 
 impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     pub(crate) fn retain(&mut self, value: &T) -> Result<EvidenceRow<T>, String> {
         let mut owner = self.spool.lock().unwrap();
         if owner.is_none() {
@@ -204,7 +204,7 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
     }
 
     pub(crate) fn append(&mut self, value: &T) -> Result<(), String> {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         {
             let mut owner = self.spool.lock().unwrap();
             if owner.is_none() {
@@ -212,7 +212,7 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
             }
             owner.as_mut().unwrap().append(value).map(|_| ()).map_err(|error| error.to_string())
         }
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         {
             self.rows.push(
                 serde_json::from_value(serde_json::to_value(value).map_err(|error| error.to_string())?)
@@ -223,7 +223,7 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
     }
 
     pub(crate) fn push(&mut self, key: &str, value: &T) -> Result<bool, String> {
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         {
             let mut owner = self.spool.lock().unwrap();
             if owner.is_none() {
@@ -231,7 +231,7 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
             }
             owner.as_mut().unwrap().push(key, value).map_err(|error| error.to_string())
         }
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         {
             let _ = key;
             self.rows.push(
@@ -251,7 +251,7 @@ impl<T: Serialize + DeserializeOwned> EvidenceRows<T> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: DeserializeOwned> EvidenceRow<T> {
     pub(crate) fn read(&self) -> Result<T, String> {
         let mut owner = self.spool.lock().unwrap();
@@ -276,9 +276,9 @@ impl<T: Serialize + DeserializeOwned> Rows<'_, T> {
         if self.remaining == 0 {
             return None;
         }
-        #[cfg(feature = "native")]
+        #[cfg(feature = "sidecar")]
         let row = self.read_windowed().map_err(|error| error.to_string());
-        #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "sidecar"))]
         let row = serde_json::to_value(&self.owner.rows[self.owner.len() - self.remaining])
             .and_then(serde_json::from_value)
             .map_err(|error| error.to_string());
@@ -287,7 +287,7 @@ impl<T: Serialize + DeserializeOwned> Rows<'_, T> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl<T: Serialize + DeserializeOwned> Rows<'_, T> {
     fn read_windowed(&mut self) -> std::io::Result<T> {
         let header = self.windowed(self.offset, 8)?;
@@ -327,7 +327,7 @@ impl<T: Serialize + DeserializeOwned> Iterator for Rows<'_, T> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "sidecar")]
 impl Spool {
     fn new() -> std::io::Result<Self> {
         // Windows Reports Access Denied When A Random File Name Matches An Existing

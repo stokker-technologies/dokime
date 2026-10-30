@@ -62,13 +62,13 @@ mod tests {
         pub fallback: Option<Sweep>,
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[dokime_runtime::record(id = "parameters.sweep_selected", label = "Sweep Selected")]
     struct SweepSelected {
         sweep: Sweep,
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[dokime_runtime::stream(id = "parameters.sweep_samples", window = 4096, label = "Sweep Samples")]
     #[derive(Debug)]
     struct SweepSample {
@@ -506,7 +506,7 @@ mod tests {
         assert_eq!(DataExpression::from(Soak::sweep()), dokime_runtime::expressions::parameter("sweep"));
     }
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "sidecar")]
     #[test]
     fn choices_round_fields() {
         use dokime_runtime::records::DeclaredRecord;
