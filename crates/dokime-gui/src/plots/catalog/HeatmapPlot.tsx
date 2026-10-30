@@ -9,7 +9,10 @@
 
 /* === External Imports === */
 
-import { contours, geoPath, interpolateYlOrRd, scaleLinear, scaleLog, scaleSequential } from "d3";
+import { contours } from "d3-contour";
+import { geoPath } from "d3-geo";
+import { scaleLinear, scaleLog, scaleSequential } from "d3-scale";
+import { interpolateYlOrRd } from "d3-scale-chromatic";
 
 /* === Local Imports === */
 

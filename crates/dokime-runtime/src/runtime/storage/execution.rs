@@ -335,10 +335,6 @@ impl ExecutionView {
         super::records::RecordReader::open(self, true).await
     }
 
-    pub async fn context_telemetry(&self, settings: &harmos::config::SchemaSettings) -> Result<super::telemetry::TelemetryReader> {
-        super::telemetry::TelemetryReader::open(self, settings).await
-    }
-
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {
         let owned = self.captured.as_ref().is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
             || self.execution().saved.as_ref().is_some_and(|seal| seal.files().any(|owned| owned == file));

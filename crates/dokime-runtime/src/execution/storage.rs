@@ -32,8 +32,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";
-
 /* === Macros === */
 
 /* === Type Aliases === */
