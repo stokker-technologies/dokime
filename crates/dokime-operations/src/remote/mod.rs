@@ -45,6 +45,18 @@ use dokime_domain::model::remote::{CreatedPairing, PairedClientPage, RemoteListe
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(
+    CreatePairing,
+    ListPairedClients,
+    ListSessions,
+    ReadListener,
+    RegenerateCertificate,
+    RenamePairedClient,
+    RevokePairedClient,
+    UpdateListener
+);
+
 /* === Type Aliases === */
 
 /* === Structs === */

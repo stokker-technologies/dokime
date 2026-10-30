@@ -30,6 +30,9 @@ use dokime_domain::model::query::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(Aggregate);
+
 /* === Type Aliases === */
 
 /* === Structs === */

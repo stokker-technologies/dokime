@@ -51,6 +51,19 @@ use dokime_domain::model::content::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(
+    DownloadAppearanceAsset,
+    DownloadArtifact,
+    DownloadEvidence,
+    DownloadExecutionFile,
+    FollowExecutionFile,
+    ListArtifacts,
+    ListExecutionFiles,
+    ReadExecutionFile,
+    UploadArtifact
+);
+
 /* === Type Aliases === */
 
 /* === Structs === */

@@ -45,11 +45,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(BrowseCycles),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -84,7 +79,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<BrowseCycles>>(Host::<BrowseCycles>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

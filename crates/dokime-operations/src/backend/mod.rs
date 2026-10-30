@@ -43,6 +43,9 @@ use dokime_domain::model::backend::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(CollectDiagnostics, GetAvailability, GetHealth, GetIdentity, WatchLogs, WatchTrace);
+
 /* === Type Aliases === */
 
 /* === Structs === */

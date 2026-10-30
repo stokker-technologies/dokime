@@ -37,6 +37,9 @@ pub const PACKAGE: &str = "dokime.v1";
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetHealth, GetIdentity);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -82,12 +85,3 @@ impl super::Endpoint for GetIdentity {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod hosted {
-    use super::*;
-
-    crate::hosted!(GetHealth, GetIdentity);
-}

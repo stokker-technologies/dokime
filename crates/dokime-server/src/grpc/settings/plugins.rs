@@ -38,13 +38,6 @@ use dokime::operations::settings as wire;
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::GetSettings),
-    Operation1(wire::GetPluginSettings),
-    Operation2(wire::UpdatePluginSettings),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -109,7 +102,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::GetPluginSettings>>(Host::<wire::GetPluginSettings>::new(served.clone()));
     setup.resource::<Host<wire::UpdatePluginSettings>>(Host::<wire::UpdatePluginSettings>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

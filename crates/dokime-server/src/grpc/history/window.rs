@@ -44,11 +44,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(history::ReadCheckpointOutput),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -180,7 +175,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<history::ReadCheckpointOutput>>(Host::<history::ReadCheckpointOutput>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
