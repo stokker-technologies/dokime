@@ -314,14 +314,6 @@ impl dokime_runtime::harmos::Lifecycle for Owner {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         let probe = &self.shared.probe;
@@ -401,18 +393,6 @@ impl dokime_runtime::harmos::Lifecycle for MissingSecrets {
         };
         setup.resource::<()>(owner.resources());
         Ok(owner)
-    }
-
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
     }
 }
 

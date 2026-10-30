@@ -88,10 +88,6 @@ impl harmos::Lifecycle for Dokime {
         Ok(())
     }
 
-    async fn stop(&mut self, _: &Self::Context) -> Result<()> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<()> {
         for composition in self.composition.iter().rev() {
             (composition.cleanup)().await?;

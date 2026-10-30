@@ -84,10 +84,6 @@ impl dokime_runtime::harmos::Lifecycle for DirectStreams {
         Ok(())
     }
 
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         let host = self.host.take().expect("initialization kept its supervisor");
         assert!(
