@@ -123,6 +123,8 @@ Routine background loading, page navigation and connection progress stay in the 
 
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
 
+Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
+
 ## Native Remote Access
 
 Settings → Remote Access owns the saved listener settings and explicit restart.
