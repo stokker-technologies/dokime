@@ -162,6 +162,30 @@ impl Manager {
 
 impl RuntimeHandle {
     pub async fn export_evidence(&self, subject: EvidenceSubject) -> Result<Bundle> {
+        let pending = {
+            let state = self.state_read();
+            match &subject {
+                EvidenceSubject::Execution(execution_id) => {
+                    let id = dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
+                        .map_err(|_| Error::Invalid("invalid execution identity"))?;
+                    if state.report_finalizations.contains_key(&id) { vec![id] } else { Vec::new() }
+                }
+                EvidenceSubject::Cycle(cycle_id) => {
+                    let id = dokime_domain::model::identity::TestCycleId::from_uuid(cycle_id.clone())
+                        .map_err(|_| Error::Invalid("invalid cycle identity"))?;
+                    state
+                        .cycles
+                        .get(&id)
+                        .map(|cycle| {
+                            cycle.execution_ids.iter().filter(|id| state.report_finalizations.contains_key(*id)).cloned().collect()
+                        })
+                        .unwrap_or_default()
+                }
+            }
+        };
+        for id in pending {
+            self.wait_execution_report(&id).await?;
+        }
         self.evidence_exports.export(self, subject).await
     }
 }

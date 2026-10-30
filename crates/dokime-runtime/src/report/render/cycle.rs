@@ -238,7 +238,8 @@ impl MemberRows {
         for (ordinal, sample) in input.telemetry.iter().enumerate() {
             self.append("samples", member, ordinal, &telemetry::SampleValues(sample))?;
         }
-        for (ordinal, note) in captured.context.notes.iter().enumerate() {
+        for ordinal in crate::report::previews::indices(captured.context.notes.len(), captured.report_defaults.table_rows as usize) {
+            let note = &captured.context.notes[ordinal];
             self.append(
                 "notes",
                 member,
@@ -252,7 +253,8 @@ impl MemberRows {
                 },
             )?;
         }
-        for (ordinal, item) in captured.context.health.iter().enumerate() {
+        for ordinal in crate::report::previews::indices(captured.context.health.len(), captured.report_defaults.table_rows as usize) {
+            let item = &captured.context.health[ordinal];
             self.append(
                 "health",
                 member,

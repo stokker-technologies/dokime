@@ -27,5 +27,11 @@ including executions lasting days, with complete durable raw evidence.
 
 Runtime telemetry/storage, execution lifecycle, report projection, associated
 benchmarks/tests and maintained product documentation. Commit only; no push/PR.
-The rendered-data bound for existing full-history documents is an explicit owner
-decision pending clarification; independent reproduction and lifecycle work proceed.
+Owner Decisions Locked On 2026-10-30: numeric plots consume time-bucket
+first/last/min/max/count envelopes built during ingestion; tables retain bounded
+first/last rows and identify complete evidence. Exact statistics and raw data remain
+complete. Unbounded analyses are explicitly unavailable rather than scanned.
+Stop, Cancel and shutdown close and drain evidence independently of background
+report publication. Pending/ready/failed state is observable; downloads and saves
+wait for readiness. Report failure cannot fail Stop. All presentation limits come
+from configuration. Storage remains v1 with fresh roots and no migration.

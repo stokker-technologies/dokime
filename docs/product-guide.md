@@ -83,7 +83,7 @@ starts hardware; an execution is the Start/Stop unit.
 Several cycles can stay **Active** at once, with one execution running across
 the server. Start admits an execution once by its durable identity. Optional
 server-owned ordered continuation can start the next unstarted member after
-natural completion and sealing; it defaults to false. Stop durably disables that
+natural completion and evidence drain; it defaults to false. Stop durably disables that
 continuation policy. Each execution saves and seals its evidence while its cycle stays
 Active. Select the destination cycle in the Library before adding attempts.
 
@@ -1479,6 +1479,45 @@ percentiles. Completion reads these indexes instead of replaying each field's
 whole stream. Pending index work is bounded by the admitted write batch; raw
 evidence remains unchanged. Development roots with older evidence indexes need
 a fresh storage root and are never reset automatically.
+
+Report presentation is built during ingestion. Each numeric field has adaptive
+time buckets containing first, last, minimum, maximum and count, committed with
+its raw samples. Plots render the resulting extrema envelope within their display
+budget; extending a run coarsens time resolution while retaining peaks and dips.
+Tables show bounded first/last rows. Each report identifies its execution and
+saved evidence frontier; evidence paging and exported bundles retain the full data.
+Exact numeric summaries, including percentiles and the built-in mean analysis,
+read the incremental numeric indexes.
+
+SQLite construction settings `RuntimeConfig.local_storage.previews` own
+`bucket_count`, `bucket_interval` and `report_concurrency`; application report
+settings own `table_rows`, `plot_points`, `source_bytes` and `value_depth`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
+end, four background renders and 2,000 display points. Each bucket contributes at most four points, and
+report plots merge buckets further when their authored display budget is smaller.
+Report envelopes replace the live plot's chosen downsampling technique; the viewer
+fits their extrema to its measured pixel width.
+Document input/materialization defaults to 64 MiB and report value encoding to
+128 levels. These are presentation bounds, independent of raw evidence retention.
+Lifecycle definitions, annotations and file inventories retain complete captured
+metadata; capture cost still scales with their cardinality, rather than sample history.
+
+Analyses without an exact incremental index are visibly unavailable in reports:
+FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
+sections and non-time plots. Full evidence remains available for external analysis.
+A historical cut whose preview has advanced is refused instead of replaying raw
+history. Current reports use the saved frontier; final reports use the frozen cut.
+Development roots without report previews require a fresh root; storage remains
+v1 and existing data is never migrated or reset automatically.
+
+Stop and Cancel close and drain evidence, then return while HTML publication runs
+in the background. Execution detail exposes report **Pending**, **Ready** or
+**Failed**, including the failure cause. The GUI shows it beside report actions;
+CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
+and Python `await execution.snapshot()` expose the same `report` field. A report failure never fails Stop or changes the execution result.
+Execution-scoped sample follows drain the closed evidence frontier independently
+of HTML. Report download and evidence export wait for readiness and return publication
+failures. `cycle.save(...)` uses those same waits. Shutdown preserves pending
+publication for startup recovery without waiting for HTML or replaying providers.
 
 Capture close callers join the same in-flight sealing work. Cancelling a waiter
 does not cancel sealing; later Stop or shutdown calls await that work. Closing

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS storage_record_captures (
 CREATE INDEX IF NOT EXISTS storage_capture_ordinal ON storage_record_captures(execution,ordinal);
 CREATE INDEX IF NOT EXISTS storage_capture_position ON storage_record_captures(position);
 CREATE INDEX IF NOT EXISTS storage_record_cycle ON storage_record_visibility(cycle,position);
+CREATE INDEX IF NOT EXISTS storage_record_context ON storage_record_visibility(cycle,execution,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility(execution,position);
 ";
 const CAPTURE_PAGE_SQL: &str = "SELECT e.body,e.digest FROM storage_record_captures c

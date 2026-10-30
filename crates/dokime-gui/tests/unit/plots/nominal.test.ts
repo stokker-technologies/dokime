@@ -226,6 +226,12 @@ test("Window Resampling", () => {
 
   // Traces On One Axis Are Resampled Together
   const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
+  const fitted = windowIndices(x, [sine, cosine], null, columns, true);
+  assert.ok(fitted && fitted.length <= columns);
+  for (const trace of [sine, cosine]) {
+    assert.equal(Math.min(...fitted.map((index) => trace[index])), Math.min(...trace));
+    assert.equal(Math.max(...fitted.map((index) => trace[index])), Math.max(...trace));
+  }
   const both = windowIndices(x, [sine, cosine], zoom, columns);
   assert.ok(both);
   assert.ok(zoomed.every((index) => both.includes(index)));

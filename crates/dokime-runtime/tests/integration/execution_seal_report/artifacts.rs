@@ -49,7 +49,7 @@ async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokim
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     wait_for_run_settled(&handle, &receipt.command_id).await;
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    let cycle = super::published_cycle(&handle, &cycle_id).await;
     assert_eq!(cycle.test_executions.len(), 1);
     assert_eq!(
         cycle.test_executions[0].status,

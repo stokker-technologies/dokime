@@ -53,7 +53,7 @@ pub struct Dokime {
     composition: Vec<Composition>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 pub struct LaunchConfig {
     pub(crate) config: crate::config::RuntimeConfig,
     pub(crate) record_namespace: dokime_domain::model::identity::SessionId,
@@ -69,7 +69,7 @@ pub struct LaunchConfig {
 
     #[cfg(feature = "fault-injection")]
     #[serde(skip)]
-    pub(crate) decorate: Option<crate::runtime::handle::BackendDecorator>,
+    pub(crate) decorate: Option<std::sync::Arc<std::sync::Mutex<Option<crate::runtime::handle::BackendDecorator>>>>,
 }
 
 #[derive(Clone)]
