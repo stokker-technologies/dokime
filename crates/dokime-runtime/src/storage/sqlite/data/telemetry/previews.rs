@@ -208,138 +208,128 @@ impl Batch {
     }
 }
 
-impl crate::storage::sqlite::State {
-    pub(crate) async fn report_sample_rows(
-        &self, execution: String, stream: String, at: harmos::storage::StorageCursor, limit: usize,
-    ) -> Result<Vec<harmos::storage::StoredRow>, Error> {
-        let Some(rows) = std::num::NonZeroUsize::new(limit) else { return Ok(Vec::new()) };
-        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        self.read(move |connection| {
-            Ok((|| {
-                let head = super::super::saved(connection)?;
-                head.history.check(&at.history)?;
-                let scan = |after: u64| {
-                    super::super::Scan::new(
-                        "stream",
-                        at.sequence,
-                        0,
-                        harmos::storage::ScanPage {
-                            after,
-                            rows,
-                            bytes: std::num::NonZeroUsize::MAX,
-                        },
-                    )
-                    .filter("scope", Some(execution.clone()))
-                    .filter("stream", Some(stream.clone()))
-                };
-                let mut selected = BTreeMap::new();
-                for row in super::reader::stored(connection, &root, &scan(0))? {
-                    selected.insert(row.record.position.sequence, row);
-                }
-                // The Batch Index Locates The Final Rows Without Reading Earlier Flushed Batches.
-                let mut batches = connection.prepare(
-                    "SELECT b.rows,b.first_position FROM stream_batches b JOIN streams s ON s.file_id=b.file_id
+/* === Public Functions === */
+
+pub(super) fn report_sample_rows(
+    connection: &Connection, root: &std::path::Path, execution: String, stream: String, at: harmos::storage::StorageCursor, limit: usize,
+) -> Result<Vec<harmos::storage::StoredRow>, Error> {
+    let Some(rows) = std::num::NonZeroUsize::new(limit) else { return Ok(Vec::new()) };
+    let head = super::super::saved(connection)?;
+    head.history.check(&at.history)?;
+    let scan = |after: u64| {
+        super::super::Scan::new(
+            "stream",
+            at.sequence,
+            0,
+            harmos::storage::ScanPage {
+                after,
+                rows,
+                bytes: std::num::NonZeroUsize::MAX,
+            },
+        )
+        .filter("scope", Some(execution.clone()))
+        .filter("stream", Some(stream.clone()))
+    };
+    let mut selected = BTreeMap::new();
+    for row in super::reader::stored(connection, root, &scan(0))? {
+        selected.insert(row.record.position.sequence, row);
+    }
+    // The Batch Index Locates The Final Rows Without Reading Earlier Flushed Batches.
+    let mut batches = connection.prepare(
+        "SELECT b.rows,b.first_position FROM stream_batches b JOIN streams s ON s.file_id=b.file_id
                      WHERE s.execution=?1 AND s.stream=?2 AND b.first_position<=?3 ORDER BY b.last_position DESC",
-                )?;
-                let mut candidates = batches.query(params![execution, stream, super::super::position(at.sequence)])?;
-                let (mut counted, mut first) = (0_u64, None::<String>);
-                while let Some(row) = candidates.next()? {
-                    counted = counted.saturating_add(u64::try_from(row.get::<_, i64>(0)?).unwrap_or_default());
-                    first = Some(row.get(1)?);
-                    if counted >= limit as u64 {
-                        break;
-                    }
-                }
-                let Some(first) = first else { return Ok(selected.into_values().collect()) };
-                let mut after = super::super::sequence(&first)?.saturating_sub(1);
-                let mut last = std::collections::VecDeque::with_capacity(limit);
-                loop {
-                    let page = super::reader::stored(connection, &root, &scan(after))?;
-                    let Some(end) = page.last().map(|row| row.record.position.sequence) else { break };
-                    for row in page {
-                        if last.len() == limit {
-                            last.pop_front();
-                        }
-                        last.push_back(row);
-                    }
-                    after = end;
-                }
-                for row in last {
-                    selected.insert(row.record.position.sequence, row);
-                }
-                Ok(selected.into_values().collect())
-            })())
-        })
-        .await?
+    )?;
+    let mut candidates = batches.query(params![execution, stream, super::super::position(at.sequence)])?;
+    let (mut counted, mut first) = (0_u64, None::<String>);
+    while let Some(row) = candidates.next()? {
+        counted = counted.saturating_add(u64::try_from(row.get::<_, i64>(0)?).unwrap_or_default());
+        first = Some(row.get(1)?);
+        if counted >= limit as u64 {
+            break;
+        }
     }
-
-    pub(crate) async fn report_record_rows(
-        &self, execution: String, cycle: String, at: harmos::storage::StorageCursor, limit: usize,
-    ) -> Result<Vec<dokime_domain::model::records::evidence::RecordEntry>, Error> {
-        self.read(move |connection| {
-            Ok((|| {
-                let head = super::super::saved(connection)?;
-                head.history.check(&at.history)?;
-                let mut selected = BTreeMap::new();
-                for order in ["ASC", "DESC"] {
-                    // Each Branch Seeks Its Own Owner Index Before The Bounded Union.
-                    for selection in [
-                        "SELECT position FROM storage_record_visibility WHERE execution=?1",
-                        "SELECT position FROM storage_record_visibility WHERE cycle=?2 AND execution IS NULL",
-                        "SELECT position FROM storage_record_visibility WHERE cycle IS NULL AND execution IS NULL",
-                        "SELECT position FROM storage_record_captures WHERE execution=?1",
-                    ] {
-                        let sql = format!("SELECT e.body,e.digest FROM ({selection} AND position<=?3 ORDER BY position {order} LIMIT ?4) i JOIN storage_data_entries e ON e.position=i.position");
-                        let mut query = connection.prepare(&sql)?;
-                        let mut rows = query.query(params![execution, cycle, super::super::position(at.sequence), limit as i64])?;
-                        while let Some(row) = rows.next()? {
-                            let body = super::super::blob(row, 0)?;
-                            super::super::check_digest(body, super::super::blob(row, 1)?)?;
-                            let super::super::Entry::Record(row) = super::super::Entry::decode("record", body)? else { unreachable!() };
-                            let mut record = crate::storage::records::RecordRow::decode_entry(&row.payload)?;
-                            if let Some(scope) = record.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str()==execution)) {
-                                record.scope = Some(scope.clone());
-                            }
-                            selected.insert(row.position.sequence, record);
-                        }
-                    }
-                }
-                let mut rows: Vec<_> = selected.into_values().collect();
-                if rows.len() > limit * 2 { rows.drain(limit..rows.len()-limit); }
-                Ok(rows)
-            })())
-        }).await?
+    let Some(first) = first else { return Ok(selected.into_values().collect()) };
+    let mut after = super::super::sequence(&first)?.saturating_sub(1);
+    let mut last = std::collections::VecDeque::with_capacity(limit);
+    loop {
+        let page = super::reader::stored(connection, root, &scan(after))?;
+        let Some(end) = page.last().map(|row| row.record.position.sequence) else { break };
+        for row in page {
+            if last.len() == limit {
+                last.pop_front();
+            }
+            last.push_back(row);
+        }
+        after = end;
     }
-
-    pub(crate) async fn report_previews(&self, execution: String, at: harmos::storage::StorageCursor) -> Result<Vec<FieldPreview>, Error> {
-        self.read(move |connection| {
-            Ok((|| {
-                let head = super::super::saved(connection)?;
-                head.history.check(&at.history)?;
-                let mut query = connection.prepare(
-                    "SELECT stream,field,envelope,through FROM storage_report_previews WHERE execution=?1 ORDER BY stream,field",
-                )?;
-                let mut rows = query.query([execution])?;
-                let mut fields = Vec::new();
-                while let Some(row) = rows.next()? {
-                    let through: String = row.get(3)?;
-                    if through > super::super::position(at.sequence) {
-                        return Err(Error::Data("preview has advanced beyond requested evidence; request a current snapshot"));
-                    }
-                    fields.push(FieldPreview {
-                        stream: row.get(0)?,
-                        field: row.get(1)?,
-                        envelope: serde_json::from_slice(super::super::blob(row, 2)?)?,
-                    });
-                }
-                Ok(fields)
-            })())
-        })
-        .await?
+    for row in last {
+        selected.insert(row.record.position.sequence, row);
     }
+    Ok(selected.into_values().collect())
 }
 
-/* === Public Functions === */
+pub(super) fn report_record_rows(
+    connection: &Connection, execution: String, cycle: String, at: harmos::storage::StorageCursor, limit: usize,
+) -> Result<Vec<dokime_domain::model::records::evidence::RecordEntry>, Error> {
+    let head = super::super::saved(connection)?;
+    head.history.check(&at.history)?;
+    let mut selected = BTreeMap::new();
+    for order in ["ASC", "DESC"] {
+        // Each Branch Seeks Its Own Owner Index Before The Bounded Union.
+        for selection in [
+            "SELECT position FROM storage_record_visibility WHERE execution=?1",
+            "SELECT position FROM storage_record_visibility WHERE cycle=?2 AND execution IS NULL",
+            "SELECT position FROM storage_record_visibility WHERE cycle IS NULL AND execution IS NULL",
+            "SELECT position FROM storage_record_captures WHERE execution=?1",
+        ] {
+            let sql = format!(
+                "SELECT e.body,e.digest FROM ({selection} AND position<=?3 ORDER BY position {order} LIMIT ?4) i JOIN storage_data_entries e ON e.position=i.position"
+            );
+            let mut query = connection.prepare(&sql)?;
+            let mut rows = query.query(params![execution, cycle, super::super::position(at.sequence), limit as i64])?;
+            while let Some(row) = rows.next()? {
+                let body = super::super::blob(row, 0)?;
+                super::super::check_digest(body, super::super::blob(row, 1)?)?;
+                let super::super::Entry::Record(row) = super::super::Entry::decode("record", body)? else { unreachable!() };
+                let mut record = crate::storage::records::RecordRow::decode_entry(&row.payload)?;
+                if let Some(scope) =
+                    record.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == execution))
+                {
+                    record.scope = Some(scope.clone());
+                }
+                selected.insert(row.position.sequence, record);
+            }
+        }
+    }
+    let mut rows: Vec<_> = selected.into_values().collect();
+    if rows.len() > limit * 2 {
+        rows.drain(limit..rows.len() - limit);
+    }
+    Ok(rows)
+}
+
+pub(super) fn report_previews(
+    connection: &Connection, execution: String, at: harmos::storage::StorageCursor,
+) -> Result<Vec<FieldPreview>, Error> {
+    let head = super::super::saved(connection)?;
+    head.history.check(&at.history)?;
+    let mut query =
+        connection.prepare("SELECT stream,field,envelope,through FROM storage_report_previews WHERE execution=?1 ORDER BY stream,field")?;
+    let mut rows = query.query([execution])?;
+    let mut fields = Vec::new();
+    while let Some(row) = rows.next()? {
+        let through: String = row.get(3)?;
+        if through > super::super::position(at.sequence) {
+            return Err(Error::Data("preview has advanced beyond requested evidence; request a current snapshot"));
+        }
+        fields.push(FieldPreview {
+            stream: row.get(0)?,
+            field: row.get(1)?,
+            envelope: serde_json::from_slice(super::super::blob(row, 2)?)?,
+        });
+    }
+    Ok(fields)
+}
 
 /* === Private Functions === */
 

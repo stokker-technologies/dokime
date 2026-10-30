@@ -1550,7 +1550,10 @@ Analyses without an exact incremental index are visibly unavailable in reports:
 FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
 sections and non-time plots. Full evidence remains available for external analysis.
 A historical cut whose preview has advanced is refused instead of replaying raw
-history. Current reports use the saved frontier; final reports use the frozen cut.
+history. Running reports capture previews, exact summaries and first/last rows
+in one committed storage snapshot, shared across active cycle members. They show
+an **As Of** time and the saved evidence frontier for that cut; ingestion can
+continue while the report renders. Final reports retain their exact frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
