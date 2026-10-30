@@ -23,7 +23,7 @@ identifier = "com.hilti.dokime"     # storage + install identity for this distri
 { "schema": 1, "identifier": "com.hilti.dokime" }
 ```
 
-It is hashed in `installer.json`, the verified installed-file inventory used by inspection and bundled-plugin startup (the previous full `distribution.json` role is removed). Absent identity file: the compiled identifier applies; invalid files fail startup.
+It is hashed in `installer.json`, the verified installed-file inventory used by bundled-plugin startup (the previous full `distribution.json` role is removed). Absent identity file: the compiled identifier applies; invalid files fail startup.
 
 Linux installs binaries and resources together under `/usr/lib/<slug>/`, with identifier-derived `/usr/bin/<slug>` and `<slug>-gui` launchers; dots become hyphens in explicit identifiers. With no override, the payload slug stays `dokime`. NSIS uses the identifier for its install folder and registry keys. Its product name, installer pages, shortcuts and Add/Remove Programs display name use the resolved organization manifest's `[app] label`. Linux package descriptions and desktop entries use that label; package names keep the slug. NSIS output filenames are `<slug>-<version>-<Rust-target>-setup.exe`, preserving the release layout.
 

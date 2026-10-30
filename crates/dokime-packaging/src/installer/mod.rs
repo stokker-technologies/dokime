@@ -11,7 +11,6 @@
 
 mod artwork;
 mod distribution;
-mod inspect;
 mod manifest;
 mod native;
 mod plugins;
@@ -23,7 +22,6 @@ mod windows;
 
 /* === Re-Exports === */
 
-pub use inspect::{Inspection, inspect};
 pub use manifest::{Format, Manifest};
 
 /* === Imports === */
