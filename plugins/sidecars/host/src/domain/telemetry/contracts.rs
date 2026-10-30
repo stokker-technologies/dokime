@@ -21,7 +21,7 @@
 use super::{HOST_STREAMS, HostTelemetryStream};
 use dokime_domain::model::identity::{Identifier, Metadata};
 use dokime_domain::model::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
-use dokime_domain::model::values::ValueType;
+use dokime_domain::model::values::{MeasurementUnit, ValueType};
 
 /* === Constants === */
 
@@ -30,7 +30,7 @@ use dokime_domain::model::values::ValueType;
 macro_rules! host_contracts {
     (
         $( $stream:ident { id: $id:literal, label: $label:literal, columns: {
-            $( $field:ident : $value_type:ident, $role:ident, $column_label:literal, $ty:ty; )*
+            $( $field:ident : $value_type:ident, $role:ident, $column_label:literal, $ty:ty $(, unit: $unit:literal)?; )*
         } } )*
     ) => {
         $(
@@ -60,6 +60,7 @@ macro_rules! host_contracts {
                                     ValueType::$value_type,
                                     TelemetryRole::$role,
                                 )
+                                $(.with_unit(MeasurementUnit::custom(identifier($unit), $unit, $unit)))?
                             ),*
                         ],
                         default_x: Some("timestamp".to_owned()),

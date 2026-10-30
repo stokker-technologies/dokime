@@ -53,6 +53,8 @@ macro_rules! host_streams {
                     memory_total_bytes: Integer, Value, "Memory Total", Option<i64>;
                     memory_used_bytes: Integer, Value, "Memory Used", Option<i64>;
                     memory_pressure_percent: Number, Value, "Memory Pressure", Option<f64>;
+                    memory_used_gib: Number, Value, "Memory Used [GiB]", Option<f64>, unit: "GiB";
+                    memory_total_gib: Number, Value, "Memory Total [GiB]", Option<f64>, unit: "GiB";
                     system_uptime_s: Number, Value, "System Uptime", Option<f64>;
                     temperature_sensor_count: Integer, Value, "Temperature Sensor Count", Option<i64>;
                     max_temperature_c: Number, Value, "Max Temperature", Option<f64>;
