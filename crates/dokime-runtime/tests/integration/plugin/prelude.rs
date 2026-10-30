@@ -17,8 +17,8 @@ mod one_prelude {
     fn elapsed(_: Elapsed) {}
 
     fn stage_contexts(
-        _initialization: &InitializationContext<'_>, _traceability: &TraceabilityContext<'_>, _step: &StepContext<'_>,
-        _observer: &ObserverContext<'_>, _cleanup: &CleanupContext<'_>, _criterion: &CriterionContext<'_>,
+        _initialization: &InitializationContext<'_>, _step: &StepContext<'_>, _observer: &ObserverContext<'_>,
+        _cleanup: &CleanupContext<'_>, _criterion: &CriterionContext<'_>,
     ) {
     }
 

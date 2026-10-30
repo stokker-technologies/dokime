@@ -27,6 +27,7 @@ operating conditions, and review the evidence behind each result.
 ## Features
 
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
+- **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
 - **Measurements And Reports:** Capture live data and retain plots, records and attachments in self-contained HTML reports.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.

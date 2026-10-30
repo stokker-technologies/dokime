@@ -99,7 +99,7 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn journal(&self) -> std::sync::Arc<dyn Journal>;
 
-    fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>);
+    fn traceability(&self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>);
 
     fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase);
 

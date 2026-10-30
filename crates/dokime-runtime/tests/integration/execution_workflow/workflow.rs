@@ -29,8 +29,8 @@ use dokime_runtime::definition::TestCaseTemplate;
 use dokime_runtime::definition::authoring::{criterion as authored_criterion, metadata as authored_metadata};
 use dokime_runtime::definition::{DeclaredTemplate, Step, TemplateContext};
 use dokime_runtime::execution::{Caller, SampleOutput, Workflow};
-use dokime_runtime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext, TraceabilityContext};
-use dokime_runtime::execution::{DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture, TraceabilityFuture};
+use dokime_runtime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext};
+use dokime_runtime::execution::{DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture};
 use dokime_runtime::plugin::Diagnostic;
 use dokime_runtime::prelude::StreamExt as _;
 use dokime_runtime::prompts::{PromptRequest, PromptResponse};
@@ -345,10 +345,6 @@ impl SidecarTemplate for Probe {
         })
     }
 
-    fn traceability<'a>(&'a self, ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>) -> TraceabilityFuture<'a> {
-        Box::pin(async move { dokime_runtime::plugin::captured(Self::stated(ctx)) })
-    }
-
     fn declared_observers() -> Vec<DeclaredObserver> {
         vec![
             DeclaredObserver::new("pulse", "Probe Pulse", INTERVAL_MS)
@@ -454,18 +450,20 @@ impl Probe {
         })
     }
 
-    fn stated(ctx: &TraceabilityContext<'_, Probe, ProbeResources>) -> Result<Vec<TraceabilitySection>, ProbeError> {
+    fn stated(ctx: &StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
         if flag(ctx.raw_parameters(), "traceability_error") {
             return Err(ProbeError::Unmeasurable);
         }
         if !flag(ctx.raw_parameters(), "traceability") {
-            return Ok(Vec::new());
+            return Ok(());
         }
 
         let mut dut = TraceabilitySection::new("dut", "Device Under Test");
         dut.row(TraceabilityRow::text("serial_number", "Serial number", "SN-7"));
         dut.row(TraceabilityRow::number("target_c", "Target", 60.0).unit("°C"));
-        Ok(vec![dut])
+        ctx.traceability().section(dut);
+        ctx.traceability().row("dut", TraceabilityRow::text("serial_number", "Serial Number", "SN-8"));
+        Ok(())
     }
 
     async fn cleaned_up(&mut self, ctx: &mut CleanupContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
@@ -512,6 +510,7 @@ impl Probe {
     }
 
     async fn start(&mut self, ctx: &mut StepContext<'_, Probe, ProbeResources>) -> Result<(), ProbeError> {
+        Self::stated(ctx)?;
         if flag(ctx.raw_parameters(), "panic") {
             panic!("the probe blew up");
         }
@@ -1128,8 +1127,7 @@ pub(crate) async fn stated_section_step() {
     let refused = drain_until_terminal(&workflow, "unstated", None).await;
     let terminal = outcome(&refused).0;
     assert!(!terminal.passed);
-    assert!(terminal.message.as_deref().is_some_and(|message| message.contains("traceability")), "{terminal:?}");
-    assert!(workflow.take_local_samples("unstated").unwrap().is_empty());
+    assert!(terminal.message.as_deref().is_some_and(|message| message.contains("start")), "{terminal:?}");
     assert!(diagnostics(&refused).any(|entry| entry.message.contains("cleanup-finished")));
 
     workflow.start(start_request("stated", serde_json::json!({"samples": 1, "traceability": true}))).unwrap();
@@ -1141,15 +1139,14 @@ pub(crate) async fn stated_section_step() {
         .flat_map(|reply| reply.traceability.iter())
         .map(|encoded| serde_json::from_str::<TraceabilitySection>(encoded).expect("the engine encodes a decodable section"))
         .collect::<Vec<_>>();
-    assert_eq!(stated.len(), 1);
+    assert_eq!(stated.len(), 2);
+    assert_eq!(stated[1].rows[0].value, Value::Text("SN-8".into()));
     assert_eq!(stated[0].identifier.as_str(), "dut");
     assert_eq!(stated[0].label, "Device Under Test");
     assert_eq!(stated[0].rows[1].unit.as_deref(), Some("°C"));
-    // Stated before the run measured anything, which is the whole point of the
-    // hook: an operator can read what is on the bench while it is still going.
     let stated_cursor = replies.iter().position(|reply| !reply.traceability.is_empty()).expect("a reply carries the section");
     let first_step = replies.iter().position(|reply| reply.phase == "start").expect("the run entered its first step");
-    assert!(stated_cursor < first_step);
+    assert!(stated_cursor >= first_step);
     assert!(outcome(&replies).0.passed);
     workflow.shutdown().await;
 }

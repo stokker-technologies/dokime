@@ -716,6 +716,28 @@ access. Permission and invalid-path failures remain immediate.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
+### Capture And Edit Traceability
+
+Steps contribute traceability through their context, alongside document additions:
+
+```rust
+ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
+ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-7"));
+// A later step can correct the same row without duplicating it.
+ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-8"));
+```
+
+`section` adds or replaces the complete section by identifier. `row` adds or
+replaces a row in an existing section, preserving its other rows. Missing
+sections, duplicate row identifiers and reserved host-derived section identifiers
+are refused and logged. Edits use the same buffered evidence delivery as documents;
+the GUI and new reports show the latest captured values. Sealed reports and Python
+checkpoint reads retain the values captured at their persisted boundary.
+Criteria consume captured evidence and cannot mutate traceability. Initialization,
+observers and cleanup have no traceability mutation handle. The former template
+`traceability()` lifecycle method is removed; move identity discovery into steps.
+The storage baseline remains v1 and existing storage is never automatically reset.
+
 ### Present The Result
 
 Compose plots from the same typed measurement fields used by the procedure.
