@@ -71,6 +71,9 @@ pub(crate) struct ExecutionStorage {
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(crate) cycle_save: Arc<Mutex<()>>,
+    pub(crate) report_workers: Arc<tokio::sync::Semaphore>,
+    pub(crate) report_concurrency: std::num::NonZeroUsize,
+    pub(crate) report_jobs: Mutex<BTreeMap<TestExecutionId, tokio::task::JoinHandle<()>>>,
     pub(super) cycle_reports:
         Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
@@ -232,6 +235,7 @@ impl ExecutionStorage {
     pub(crate) async fn new(
         storage: Manager, local: crate::storage::sqlite::State, state_manager: StateManager, context_epoch: SessionId,
         brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>, schema_settings: harmos::config::SchemaSettings,
+        report_concurrency: std::num::NonZeroUsize,
     ) -> Result<Self> {
         let captures = super::captures::Captures::new();
         Ok(Self {
@@ -243,6 +247,9 @@ impl ExecutionStorage {
             brand,
             cycle_save: Arc::new(Mutex::new(())),
             cycle_reports: Mutex::new(BTreeMap::new()),
+            report_jobs: Mutex::new(BTreeMap::new()),
+            report_workers: Arc::new(tokio::sync::Semaphore::new(report_concurrency.get())),
+            report_concurrency,
             active: Mutex::new(BTreeMap::new()),
             open_scopes: Default::default(),
             codecs: Default::default(),
@@ -799,6 +806,7 @@ fn validate_report(
     Ok(())
 }
 
+#[tracing::instrument(name = "report.publish_final", skip_all)]
 async fn publish_final(
     ctx: &crate::report::Scope, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
@@ -840,6 +848,7 @@ async fn publish_final(
     Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
 
+#[tracing::instrument(name = "report.seal_final", skip_all)]
 async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);

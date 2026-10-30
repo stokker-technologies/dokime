@@ -9,12 +9,13 @@ The desktop SHALL retain ownership of an admitted local shutdown until its drain
 - **WHEN** a local shutdown times out and the user retries
 - **THEN** the retry observes the same authoritative drain and reports completion only after owned resources have stopped
 
-### Requirement: One Ordinary Desktop Per Application Root
-Repeated ordinary launches SHALL focus the existing desktop for the same application root. Explicitly distinct application roots SHALL remain independent. This SHALL NOT introduce a shared backend daemon or bypass storage leases.
+### Requirement: Independent Desktop Launches
+Every desktop launch SHALL open its own window. Launch arguments and deep links SHALL remain in the launched instance without forwarding. The backend SHALL exclusively lease its data folder and immediately refuse a competing local start with a typed `BackendRunning` error identifying that folder. The connection screen SHALL remain usable and explain that the operator can connect to another or remote backend, or close the other instance and retry.
 
-#### Scenario: Repeated Launch
-- **WHEN** another ordinary desktop starts for an already open application root
-- **THEN** the existing desktop is focused without starting a competing embedded backend
+#### Scenario: Occupied Local Data Folder
+- **WHEN** another desktop attempts to start Local on a folder already leased by a backend
+- **THEN** it immediately shows the typed refusal and folder while retaining connection and retry controls
+- **AND** attaching to another backend remains possible without acquiring Local's lease
 
 ### Requirement: Owned Backend Selection
 One desktop-session owner SHALL manage Local and saved remote selection. Local SHALL be the initial choice. Saved remotes SHALL reuse the existing backend catalog, and the desktop SHALL remember its choice separately from the CLI default without persisting ephemeral local endpoints.

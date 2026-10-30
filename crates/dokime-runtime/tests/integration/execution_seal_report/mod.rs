@@ -20,6 +20,8 @@ pub(crate) mod lifecycle;
 pub(crate) mod planning;
 pub(crate) mod reboot;
 pub(crate) mod records;
+#[cfg(feature = "testing")]
+pub(crate) mod report_background;
 pub(crate) mod report_cancellation;
 pub(crate) mod report_publication;
 pub(crate) mod report_restart;
@@ -34,6 +36,7 @@ pub(crate) use crate::service_support::prelude::*;
 /* === Imports === */
 
 // Standard Library Imports
+use std::{future::Future, pin::Pin};
 
 // Third Party Imports
 
@@ -55,71 +58,86 @@ pub(crate) use crate::service_support::prelude::*;
 
 /* === Public Functions === */
 
+pub(crate) async fn published_cycle(runtime: &RuntimeHandle, id: &TestCycleId) -> dokime_domain::model::execution::result::CycleView {
+    let cycle = cycle_snapshot(runtime, id).await;
+    for execution in cycle.test_executions.iter().filter(|execution| execution.finished_at.is_some()) {
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
+    cycle_snapshot(runtime, id).await
+}
+
 /* === Private Functions === */
+
+fn stage<F: Future<Output = ()>>(future: F) -> Pin<Box<F>> {
+    eprintln!("Stage: {}", std::any::type_name::<F>());
+    Box::pin(future)
+}
 
 /* === Tests === */
 
 #[tokio::test]
 async fn execution_seal_report() {
-    lifecycle::cycle_container_lifecycle().await;
-    lifecycle::rerun_fresh_started().await;
-    lifecycle::stop_archive_state().await;
-    lifecycle::rename_admission_seal().await;
-    lifecycle::stopped_telemetry_refused().await;
-    lifecycle::execution_stop_leaves_cycle_idle().await;
-    lifecycle::pause_blocks_boundaries().await;
-    lifecycle::continuation_follows_seal().await;
-    lifecycle::queued_execution_identity().await;
-    lifecycle::continuation_after_failure().await;
-    planning::empty_cycle_grows().await;
-    planning::empty_cycle_seals().await;
-    run::cycle_exposes_rows().await;
-    run::provider_lane_run().await;
-    run::failing_panicking_failed().await;
-    run::stop_holds_unwind().await;
-    run::stop_spares_sibling().await;
-    run::cycle_spanning_group().await;
-    run::group_continues_after_failure().await;
-    storage::execution_save_sealing().await;
-    storage::terminal_capture_repaired().await;
-    cancel::cancel_skips_unstarted().await;
-    reboot::native_history_index().await;
-    reboot::stored_telemetry_reboot().await;
-    diagnostics::stored_provider_paths().await;
-    report_publication::dependency_publication_retry().await;
-    report_publication::admitted_create_window().await;
-    report_restart::persisted_cycle_restart().await;
-    report_cancellation::stopped_report_boundary().await;
+    // Each Story Stage Owns Its Async Frame Independently.
+    stage(lifecycle::cycle_container_lifecycle()).await;
+    stage(lifecycle::rerun_fresh_started()).await;
+    stage(lifecycle::stop_archive_state()).await;
+    stage(lifecycle::rename_admission_seal()).await;
+    stage(lifecycle::stopped_telemetry_refused()).await;
+    stage(lifecycle::execution_stop_leaves_cycle_idle()).await;
+    stage(lifecycle::pause_blocks_boundaries()).await;
+    #[cfg(feature = "testing")]
+    stage(lifecycle::continuation_follows_drain()).await;
+    stage(lifecycle::queued_execution_identity()).await;
+    stage(lifecycle::continuation_after_failure()).await;
+    stage(planning::empty_cycle_grows()).await;
+    stage(planning::empty_cycle_seals()).await;
+    stage(run::cycle_exposes_rows()).await;
+    stage(run::provider_lane_run()).await;
+    stage(run::failing_panicking_failed()).await;
+    stage(run::stop_holds_unwind()).await;
+    stage(run::stop_spares_sibling()).await;
+    stage(run::cycle_spanning_group()).await;
+    stage(run::group_continues_after_failure()).await;
+    stage(storage::execution_save_sealing()).await;
+    stage(storage::terminal_capture_repaired()).await;
+    stage(cancel::cancel_skips_unstarted()).await;
+    stage(reboot::native_history_index()).await;
+    stage(reboot::stored_telemetry_reboot()).await;
+    stage(diagnostics::stored_provider_paths()).await;
+    stage(report_publication::dependency_publication_retry()).await;
+    stage(report_publication::admitted_create_window()).await;
+    stage(report_restart::persisted_cycle_restart()).await;
+    stage(report_cancellation::stopped_report_boundary()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_threaded() {
-    storage::permanent_finalization_settles().await;
-    storage::unsealed_cycle_survives_restart().await;
+    stage(storage::permanent_finalization_settles()).await;
+    stage(storage::unsealed_cycle_survives_restart()).await;
 }
 
 // The Smoke Provider Stages Share One Embedded Fixture Binding.
 #[tokio::test]
 async fn execution_seal_report_smoke() {
-    contention::contended_reads_interactive().await;
-    artifacts::chunked_artifact_rewrite().await;
+    stage(contention::contended_reads_interactive()).await;
+    stage(artifacts::chunked_artifact_rewrite()).await;
 }
 
 #[tokio::test]
 async fn execution_arrow_evidence_export() {
-    artifacts::saved_evidence_export().await;
-    artifacts::required_evidence_files().await;
+    stage(artifacts::saved_evidence_export()).await;
+    stage(artifacts::required_evidence_files()).await;
 }
 
 // Each Of These Stages Boots Its Own Embedded Runtime And Owns Process-Wide Fixture State.
 #[tokio::test]
 async fn execution_seal_report_streams() {
-    streams::live_rows_paths().await;
+    stage(streams::live_rows_paths()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_transfers() {
-    artifacts::abandoned_transfer_slots().await;
+    stage(artifacts::abandoned_transfer_slots()).await;
 }
 
 #[test]

@@ -11,10 +11,15 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
+import hashlib
+import json
+import os
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import aclosing
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self
 
 # Third Party Imports
 from google.protobuf.json_format import MessageToDict
@@ -34,6 +39,7 @@ from ..models import (
     Record,
     ResultSummary,
     Sample,
+    SaveManifest,
     Value,
 )
 from .handle import Execution
@@ -41,6 +47,8 @@ from .listeners import read_records, read_samples
 from .request import _identity
 
 # Type Checking Imports
+if TYPE_CHECKING:
+    from ..client import DokimeClient
 
 # === Public Exports === #
 
@@ -65,12 +73,108 @@ class Cycle:
         transport: Transport,
         backend: Backend,
         executions: tuple[Execution, ...],
+        *,
+        client: "DokimeClient | None" = None,
     ) -> None:
         _identity(cycle_id)
         self._id = cycle_id
         self._transport = transport
         self._backend = backend
         self._executions = executions
+        self._client = client
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        # Shield Cleanup Even From Repeated Cancellation (Including Ctrl+C).
+        cleanup = asyncio.create_task(self._close())
+        cancellation: asyncio.CancelledError | None = None
+        try:
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError as error:
+                    cancellation = cancellation or error
+            cleanup.result()
+        except BaseException as error:
+            original = exc if exc is not None else cancellation
+            if original is not None:
+                raise BaseExceptionGroup("cycle body and cleanup failed", [original, error]) from None
+            raise
+        if exc is None and cancellation is not None:
+            raise cancellation
+
+    async def _close(self) -> None:
+        # SealCycle Stops Owned Work And Closes Admission Before Draining Seals.
+        await self.seal()
+        results = await asyncio.gather(*(execution.wait() for execution in self._executions), return_exceptions=True)
+        failures = [result for result in results if isinstance(result, BaseException)]
+        if failures:
+            raise BaseExceptionGroup("cycle outcome drain failed", failures)
+
+    async def start(self, template: str, **parameters: Value) -> Execution | tuple[Execution, ...]:
+        """Materialize, Append And Start; Expansion Returns All Handles In Case Order.
+
+        Starts are admitted in order to the server's execution queue. A single
+        case returns one handle; multiple cases return a tuple, including every
+        attempt. Partial/uncertain admission remains owned by this cycle.
+        """
+        if self._client is None:
+            raise ValueError("start requires a cycle obtained from DokimeClient")
+        selected = await self._client.template(template)
+        cases = await selected.materialize(parameters=parameters)
+        executions = tuple(Execution(case) for case in cases)
+        await self.append(executions)
+        for execution in executions:
+            await execution.start()
+        return executions[0] if len(executions) == 1 else executions
+
+    async def save(self, directory: str | Path, report: str | None = None) -> SaveManifest:
+        """Wait For Reports And Save Sealed Evidence With A Digest Manifest.
+
+        Existing output files are refused. File paths in the manifest are
+        relative to directory; manifest.json does not hash itself.
+        """
+        destination = Path(directory)
+        destination.mkdir(parents=True, exist_ok=True)
+        names = [f"execution-{execution.id}.zip" for execution in self._executions]
+        names.append("cycle.zip")
+        if report is not None:
+            names.append("report.html")
+        for name in [*names, "manifest.json", "manifest.json.part"]:
+            path = destination / name
+            if path.exists() or path.is_symlink():
+                raise FileExistsError(path)
+
+        for execution in self._executions:
+            await execution.export(destination / f"execution-{execution.id}.zip")
+        await self.export(destination / "cycle.zip")
+        if report is not None:
+            await self.download_report(destination / "report.html", identifier=report)
+
+        manifest: SaveManifest = {"cycle_id": self.id, "files": []}
+        for name in names:
+            path = destination / name
+            with path.open("rb") as content:
+                digest = hashlib.file_digest(content, "sha256").hexdigest()
+            manifest["files"].append({"path": name, "size": path.stat().st_size, "sha256": digest})
+        partial = destination / "manifest.json.part"
+        content = partial.open("x", encoding="utf-8")
+        try:
+            with content:
+                content.write(json.dumps(manifest, indent=2) + "\n")
+                content.flush()
+                os.fsync(content.fileno())
+            os.link(partial, destination / "manifest.json")
+        finally:
+            partial.unlink()
+        return manifest
 
     @property
     def id(self) -> str:
@@ -126,8 +230,8 @@ class Cycle:
         return self._executions
 
     @classmethod
-    async def _bind(cls, transport: Transport, cycle_id: str, backend: Backend) -> "Cycle":
-        result = cls(cycle_id, transport, backend, ())
+    async def _bind(cls, transport: Transport, cycle_id: str, backend: Backend, *, client: "DokimeClient | None" = None) -> "Cycle":
+        result = cls(cycle_id, transport, backend, (), client=client)
         await result._snapshot()
         request = _wire.request("Execution", "ListExecutions", cycle_id=cycle_id, limit=PAGE_ITEMS)
         members = []
@@ -208,9 +312,6 @@ class Cycle:
         async with aclosing(scope.pending()) as pending:
             async for prompt in pending:
                 yield prompt
-
-    async def _prompt(self, prompt_id: str):
-        return await prompts.Scope(self._transport, self._backend, self.id).read(prompt_id)
 
     async def respond(
         self,

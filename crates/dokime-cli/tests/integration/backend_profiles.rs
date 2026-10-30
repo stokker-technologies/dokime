@@ -127,9 +127,9 @@ async fn backend_profiles() {
     assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "http://127.0.0.1", "--timeout-seconds", "0"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "auth", "login", "--key-file", "missing-key"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "auth", "logout"]).is_err());
-    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair"]).is_ok());
-    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair", "--identifier", "lab"]).is_ok());
-    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair", "--endpoint", "http://lab"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--remote", "lab.dokime-remote"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--remote", "lab.dokime-remote", "--identifier", "lab"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--remote", "lab.dokime-remote", "--endpoint", "http://lab"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "backend", "add", "--name", "lab", "--endpoint", "http://lab"]).is_err());
 
     let check = Error::Check(Box::new(Error::Client(dokime::client::Error::IncompatibleApi)));

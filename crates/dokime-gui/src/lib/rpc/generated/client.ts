@@ -329,6 +329,9 @@ export const remoteReadListener = (session: SessionIdentity, request: Parameters
 import { Row1Schema as remoteRegenerateCertificateRequest } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 import { Row2Schema as remoteRegenerateCertificateResponse } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 export const remoteRegenerateCertificate = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRegenerateCertificateRequest, typeof remoteRegenerateCertificateResponse>>[4]) => unary("/dokime.v1.Remote/RegenerateCertificate", remoteRegenerateCertificateRequest, remoteRegenerateCertificateResponse, session, request, 300000);
+import { Row1Schema as remoteRenamePairedClientRequest } from "@generated/dokime/v1/RemoteMessages/RenamePairedClient/messages_pb.js";
+import { Row2Schema as remoteRenamePairedClientResponse } from "@generated/dokime/v1/RemoteMessages/RenamePairedClient/messages_pb.js";
+export const remoteRenamePairedClient = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRenamePairedClientRequest, typeof remoteRenamePairedClientResponse>>[4]) => unary("/dokime.v1.Remote/RenamePairedClient", remoteRenamePairedClientRequest, remoteRenamePairedClientResponse, session, request, 300000);
 import { Row1Schema as remoteRevokePairedClientRequest } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
 import { Row2Schema as remoteRevokePairedClientResponse } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
 export const remoteRevokePairedClient = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRevokePairedClientRequest, typeof remoteRevokePairedClientResponse>>[4]) => unary("/dokime.v1.Remote/RevokePairedClient", remoteRevokePairedClientRequest, remoteRevokePairedClientResponse, session, request, 300000);
@@ -394,9 +397,6 @@ export const settingsSetStorageSourceEnabled = (session: SessionIdentity, reques
 import { Row1Schema as settingsUpdateApplicationSettingsRequest } from "@generated/dokime/v1/SettingsMessages/UpdateApplicationSettings/messages_pb.js";
 import { Row2Schema as settingsUpdateApplicationSettingsResponse } from "@generated/dokime/v1/SettingsMessages/UpdateApplicationSettings/messages_pb.js";
 export const settingsUpdateApplicationSettings = (session: SessionIdentity, request: Parameters<typeof unary<typeof settingsUpdateApplicationSettingsRequest, typeof settingsUpdateApplicationSettingsResponse>>[4]) => unary("/dokime.v1.Settings/UpdateApplicationSettings", settingsUpdateApplicationSettingsRequest, settingsUpdateApplicationSettingsResponse, session, request, 120000);
-import { Row1Schema as settingsUpdatePluginSecretRequest } from "@generated/dokime/v1/SettingsMessages/UpdatePluginSecret/messages_pb.js";
-import { Row2Schema as settingsUpdatePluginSecretResponse } from "@generated/dokime/v1/SettingsMessages/UpdatePluginSecret/messages_pb.js";
-export const settingsUpdatePluginSecret = (session: SessionIdentity, request: Parameters<typeof unary<typeof settingsUpdatePluginSecretRequest, typeof settingsUpdatePluginSecretResponse>>[4]) => unary("/dokime.v1.Settings/UpdatePluginSecret", settingsUpdatePluginSecretRequest, settingsUpdatePluginSecretResponse, session, request, 10000);
 import { Row1Schema as settingsUpdatePluginSettingsRequest } from "@generated/dokime/v1/SettingsMessages/UpdatePluginSettings/messages_pb.js";
 import { Row2Schema as settingsUpdatePluginSettingsResponse } from "@generated/dokime/v1/SettingsMessages/UpdatePluginSettings/messages_pb.js";
 export const settingsUpdatePluginSettings = (session: SessionIdentity, request: Parameters<typeof unary<typeof settingsUpdatePluginSettingsRequest, typeof settingsUpdatePluginSettingsResponse>>[4]) => unary("/dokime.v1.Settings/UpdatePluginSettings", settingsUpdatePluginSettingsRequest, settingsUpdatePluginSettingsResponse, session, request, 10000);

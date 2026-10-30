@@ -47,6 +47,8 @@ dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 dokime-server = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -57,8 +59,6 @@ tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
@@ -81,7 +81,6 @@ tempfile = { workspace = true }
 # Parsing
 
 # Concurrency
-interprocess = { workspace = true }
 
 # Async
 tokio = { workspace = true, features = ["process"] }
@@ -111,13 +110,13 @@ tauri-plugin-updater = { workspace = true, optional = true }
 dokime = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -148,13 +147,13 @@ tauri-build = { workspace = true, features = [] }
 dokime = { path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 
@@ -193,15 +192,7 @@ tauri = { workspace = true, features = ["test"] }
 # Logging
 
 # Utilities
-widestring = { workspace = true }
-windows = { workspace = true, features = [
-  "Win32_Foundation",
-  "Win32_Security",
-  "Win32_Security_Authorization",
-  "Win32_System_Com",
-  "Win32_System_Threading",
-  "Win32_UI_WindowsAndMessaging",
-] }
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_WindowsAndMessaging"] }
 
 # Serialization
 

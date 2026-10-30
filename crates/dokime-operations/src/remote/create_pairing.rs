@@ -35,7 +35,6 @@ use super::*;
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePairing {
     pub label: String,
-    pub endpoint: String,
 }
 
 /* === Enums === */

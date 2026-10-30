@@ -8,7 +8,7 @@ The storage optimization combined useful storage improvements with hundreds of o
 
 This change is active on `refactor/prototype-streamline`. Its task inventory distinguishes landed source, superseded requests and remaining implementation/proof; checked historical tasks are not evidence of a new validation run. The former `storage-optimization` change is absent from the current inventory. This assignment authorizes local commits and targeted proof only, with no push, broad validation or other-worktree writes. Retirement remains blocked until all obligations close.
 
-Later locked changes own overlapping contracts: `embedded-server-and-ci` replaces desktop startup/default selection, `distribution-identity` owns installation identity and application-root resolution, `organization-installers` owns installer composition, and `host-plugin-features` owns host controls and telemetry leases. Those changes are not implemented by this assignment. Their requirements supersede the corresponding historical requests here; all other obligations remain.
+Later locked changes own overlapping contracts: `embedded-server-and-ci` replaces desktop startup/default selection, `distribution-identity` owns installation identity and application-root resolution, `organization-installers` owns installer composition, and `host-plugin-features` owns host controls and telemetry leases. `dokime-remote-files` supersedes remote file/export/import, endpoint selection, persistent CA and endpoint-stagger preferences. Those changes are not implemented by this assignment. Their requirements supersede the corresponding historical requests here; all other obligations remain.
 
 ## Locked Decisions
 
@@ -23,7 +23,7 @@ Later locked changes own overlapping contracts: `embedded-server-and-ci` replace
 
 When a user changes a setting, domain validation precedes one transactional database update; reopening returns the saved value. A stale update returns a conflict without overwriting another edit. No configuration file is created.
 
-When startup cannot connect to the remembered backend, the GUI remains usable and presents saved backends with the connection error. Adding a profile does not require a connection; cancelled deletion changes nothing. The later owned-selection contract separates remembered desktop selection from the CLI default and forbids an unavailable remote from silently starting Local.
+When startup cannot connect to the remembered backend, the GUI remains usable and presents saved backends with the connection error. Manual lab profile addition remains offline; remote-file import now verifies and connects under dokime-remote-files. Cancelled deletion changes nothing. The later owned-selection contract separates remembered desktop selection from the CLI default and forbids an unavailable remote from silently starting Local.
 
 When memory accounting is removed, saved evidence, stream ordering, cancellation settlement, exact wire limits and original opened-file identity remain correct. No unbounded replacement queue or silent sample dropping is introduced.
 

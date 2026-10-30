@@ -81,7 +81,7 @@ pub(crate) async fn cycle_container_lifecycle() {
 
     let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
-    let completed = cycle_snapshot(&runtime, &first).await;
+    let completed = super::published_cycle(&runtime, &first).await;
     assert_eq!(completed.phase, CyclePhase::Active);
     assert!(completed.saved.is_none());
     let original = completed.test_executions[0].clone();
@@ -95,7 +95,7 @@ pub(crate) async fn cycle_container_lifecycle() {
     let run =
         runtime.start_execution(execution, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
-    let completed = cycle_snapshot(&runtime, &first).await;
+    let completed = super::published_cycle(&runtime, &first).await;
     assert_eq!(completed.test_executions[0], original);
     assert!(completed.test_executions[1].saved.is_some());
     assert_eq!(completed.phase, CyclePhase::Active);
@@ -134,7 +134,8 @@ pub(crate) async fn rerun_fresh_started() {
     let test_cycle_id = start_cycle(&runtime, suite).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    let completed = super::published_cycle(&runtime, &test_cycle_id).await;
     let test_case_id = completed.cases().next().unwrap().test_case_id.clone();
     let first_started_at = completed.test_executions[0].started_at.clone().expect("first execution should have a start timestamp");
 
@@ -165,7 +166,7 @@ pub(crate) async fn rerun_fresh_started() {
     assert_eq!(original.status, first.status);
     assert_eq!(original.started_at, first.started_at);
     assert_eq!(original.finished_at, first.finished_at);
-    assert_eq!(format!("{:?}", original.saved), format!("{:?}", first.saved));
+    assert_eq!(original.saved, first.saved);
 }
 
 pub(crate) async fn stop_archive_state() {
@@ -454,13 +455,16 @@ pub(crate) async fn pause_blocks_boundaries() {
 
 /* === Tests === */
 
-pub(crate) async fn continuation_follows_seal() {
+#[cfg(feature = "testing")]
+pub(crate) async fn continuation_follows_drain() {
     let root = tempdir().unwrap();
     let executor = Arc::new(SecondExecutionHoldExecutor::default());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
+    let first = runtime.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let report_gate = dokime_runtime::testing::hold_report(&first, false);
     let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
@@ -469,7 +473,11 @@ pub(crate) async fn continuation_follows_seal() {
     assert_eq!(during.phase, dokime_domain::model::execution::result::CyclePhase::Active);
     assert!(during.saved.is_none());
     assert_eq!(during.test_executions[0].status, ExecutionStatus::Passed);
-    assert!(during.test_executions[0].saved.is_some());
+    assert!(during.test_executions[0].finished_at.is_some());
+    assert!(during.test_executions[0].saved.is_none());
+    report_gate.release();
+    runtime.wait_execution_report(&first).await.unwrap();
+    let during = cycle_snapshot(&runtime, &cycle_id).await;
     assert_eq!(during.test_executions[1].status, ExecutionStatus::Running);
     let saved = dokime_runtime::storage::objects::execution::read(
         runtime.storage(),
@@ -484,7 +492,9 @@ pub(crate) async fn continuation_follows_seal() {
 
     executor.release();
     let completed = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
-    assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    for execution in &completed.test_executions {
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
     assert_eq!(completed.phase, dokime_domain::model::execution::result::CyclePhase::Active);
     assert!(completed.saved.is_none());
 }
@@ -528,7 +538,7 @@ pub(crate) async fn queued_execution_identity() {
     );
     stopped_once.unwrap();
     stopped_twice.unwrap();
-    let stopped = cycle_snapshot(&runtime, &queued).await;
+    let stopped = super::published_cycle(&runtime, &queued).await;
     assert_eq!(stopped.phase, CyclePhase::Active);
     assert!(!stopped.continue_automatically);
     assert_eq!(stopped.test_executions[0].status, ExecutionStatus::Cancelled);

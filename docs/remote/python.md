@@ -58,11 +58,11 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 Open each `control-*.py` file and select the private pairing file:
 
 ```python
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 ```
 
 Run from `python/` so the path resolves. Each script constructs its client with
-`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies endpoint, expected
+`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies ordered endpoints, expected
 backend identity, CA and access key together. The client validates the file before
 connecting and checks TLS and backend identity before application calls.
 It retains the key only in its transport credentials.
@@ -113,7 +113,7 @@ OVERWRITE = False
 The story spells out two attempts of one materialized case. Set `EXECUTION_COUNT`
 to `1` to study only the first attempt or leave it at `2`; add explicit calls
 and evidence destinations to teach additional attempts.
-`WAIT_SECONDS` is each Run's positive deadline. Filters are case-sensitive
+`WAIT_SECONDS` is each execution's positive local deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
 for its supplied reader. Filters affect observation, not captured evidence.
@@ -122,21 +122,22 @@ for its supplied reader. Filters affect observation, not captured evidence.
 uv run --locked control-test.py
 ```
 
-Read the script from top to bottom. Its only coroutine, `run()`, lets Python
-await the client calls; there are no workflow helpers. It checks evidence
+Read the script from top to bottom. `run()` awaits the client calls and its
+local reader coroutines consume the evidence iterators. It checks evidence
 destinations, materializes one immutable case, constructs two attempts with
 separate execution UUIDs, creates a cycle and appends without starting hardware.
-The first explicit `first.run(...)` blocks until the saved outcome and reader
-drain. Client callbacks put records and samples into queues; the script then
-prints each returned item, `Saved Outcome:` and `Drained Evidence:`, and saves
-that attempt. The second explicit `second.run(...)` repeats those calls for the
-other attempt. Data-reading loops print observations, never dispatch steps.
+Each attempt starts explicitly. Independent async iterators consume its
+records and samples inside an `asyncio.TaskGroup`; awaiting the handle retrieves
+the saved outcome, and the task group waits for both final drains. The script
+then prints each item, `Saved Outcome:` and `Drained Evidence:`, and saves that
+attempt. The second attempt repeats this flow with its own execution identity.
+Data-reading loops print observations, never dispatch steps.
 
 The script saves `test-evidence/execution-1.zip`,
 `test-evidence/execution-2.zip` and the explicitly sealed
 `test-evidence/cycle.zip`. The default successful attempts each capture eight
-pulse samples. Saved outcomes are printed without aggregating them into a
-process exit status; exceptions still report a failed workflow. Set a fresh
+pulse samples. The process returns the largest execution exit code: 0 for passed, 1 for
+nonpassing and 130 for interrupted; exceptions report a failed workflow. Set a fresh
 `OUTPUT_DIRECTORY` before rerunning or explicitly
 choose `OVERWRITE = True` to replace bundle destinations atomically.
 
@@ -198,7 +199,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
-| `lab.dokime-pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
+| `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |

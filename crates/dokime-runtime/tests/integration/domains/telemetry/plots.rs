@@ -53,14 +53,16 @@ async fn snapshot_query_samples() {
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let saved = runtime.storage().cursor_saved();
-    assert!(runtime.storage().cursor_accepted().sequence > saved.sequence);
+    let accepted = runtime.storage().cursor_accepted();
+    assert!(accepted.sequence > saved.sequence);
     let pending = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
     let mut marked = wifi_request(None, Some(5));
     marked.marker_record_types = vec!["test.cycle.started".into()];
     let pending = runtime.query_plot_payloads(vec![marked], RuntimePlotQueryMode::Snapshot).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
-    assert_eq!(runtime.storage().cursor_saved(), saved);
+    // Unrelated Background Records May Settle, But Queries Never Flush The Unsaved Telemetry Tail.
+    assert!(runtime.storage().cursor_saved().sequence < accepted.sequence);
     let historical =
         runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &saved).await.unwrap();
     assert!(historical[0].payload.series.iter().all(|series| series.raw_points == 0));

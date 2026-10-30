@@ -41,7 +41,9 @@ operating conditions, and review the evidence behind each result.
 
 The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
-Settings. The desktop remembers that choice; operators do not need a source checkout.
+Settings. Export a `.dokime-remote` access file on the host and import or drop it
+on another desktop to connect. The desktop remembers that choice; operators do
+not need a source checkout.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 
@@ -68,8 +70,8 @@ dokime operation list --backend lab
 
 ### Python
 
-The async Python client controls a running backend and reads live or saved
-evidence. The distribution is `dokime-client`; imports use `dokime_client`.
+The async Python client controls a running backend with owned cycle contexts,
+terminal evidence iterators and saved bundles with digest manifests. The distribution is `dokime-client`; imports use `dokime_client`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
@@ -87,7 +89,7 @@ backend profiles and execution APIs; the [runnable examples](docs/remote/python.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `2a0422175ce8818085208c88ac0e772fa1631c2e`)
+(currently pinned to revision `4e2669fa03cf5a123aa62de1aad0f042fb5cb381`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -160,15 +162,20 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing earlier telemetry layouts or plugin identities require a fresh storage root. Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
+Development roots containing earlier telemetry layouts, plugin identities,
+or evidence indexes without incremental numeric summaries and report previews require a fresh storage root.
+Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
-The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
+The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
 from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
-Settings → Plugins keeps installed plugin settings and secrets editable after
-startup fails. Save corrections and restart Dokime from the plugin page to retry.
+Settings → Plugins keeps ordinary settings editable after startup fails and shows
+required secret identifiers. A missing-secret failure offers Set Secret, which opens
+Secret Storage's Add Secret dialog with its identifier prefilled; then restart Dokime
+or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
+and [Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the
 [application settings model](crates/dokime-domain/src/model/settings/application.rs)
@@ -181,7 +188,7 @@ selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 
 Client sample following watches saved storage progress and resumes from delivered
-stream cursors after reconnecting. Execution-scoped follows drain the saved seal
+stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier
 before ending; they do not poll a second live-sample history.
 
 Plot Default uses each plot's authored window; All queries its full saved history.

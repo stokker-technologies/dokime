@@ -307,8 +307,7 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
     let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
         crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
     );
-    let saved = fixture.storage.cursor_saved();
-    let outputs = crate::telemetry_runtime::output::project(
+    let outputs = crate::telemetry_runtime::output::project_saved(
         &fixture.storage,
         &fixture.local,
         &RecordScope {
@@ -323,7 +322,8 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
         let output = outputs.iter().find(|output| output.key.ends_with(&format!(".{suffix}"))).unwrap();
         assert_eq!(output.value, Cell::Number(expected));
     }
-    assert_eq!(fixture.storage.cursor_saved(), saved);
+    // Outputs Flush The Admitted Tail And Read The Summaries Committed With Its Arrow Batches.
+    assert_eq!(fixture.storage.cursor_saved(), through);
     fixture.finish().await;
 }
 

@@ -19,6 +19,7 @@
 
 // Local Imports
 import type { Wire } from "@/lib/rpc/canonical";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 import type * as rpc from "@/lib/rpc/generated/client";
 
 /* === Re-Exports === */
@@ -72,7 +73,8 @@ export function certificateIssue(status: ListenerStatus): string | null {
 }
 
 export function listenerError(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : "The host rejected the remote access change.";
+  const normalized = normalizeRpcError(error);
+  return normalized instanceof Error && normalized.message.trim() ? normalized.message : "The host rejected the remote access change.";
 }
 
 /* === Private Functions === */

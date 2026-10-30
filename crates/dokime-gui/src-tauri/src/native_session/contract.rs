@@ -71,6 +71,7 @@ pub enum DesktopSessionError {
     LocalBackendUnavailable,
     ShuttingDown,
     Superseded,
+    BackendRunning { root: std::path::PathBuf, message: String },
     Startup { message: String, diagnostics: Option<Box<BackendDiagnostics>> },
     Shutdown { message: String },
     Connection { error: ConnectionError },

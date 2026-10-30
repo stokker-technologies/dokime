@@ -259,17 +259,6 @@ pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     entries.map(|entry| entry()).collect()
 }
 
-pub(crate) fn evaluate_report(operation: &str, request: crate::analysis::Request) -> Result<Response, Error> {
-    match operation {
-        Mean::ID => Operation::<Mean>::evaluate(request),
-        Lttb::ID => Operation::<Lttb>::evaluate(request),
-        Extrema::ID => Operation::<Extrema>::evaluate(request),
-        #[cfg(feature = "fft")]
-        Fft::ID => Operation::<Fft>::evaluate(request),
-        _ => Err(Error::Input("report builtin analysis is unavailable".into())),
-    }
-}
-
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) {
     setup.operations::<Operations>(crate::app::Lanes::Open);
     prepare_fourier(setup);

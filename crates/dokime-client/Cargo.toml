@@ -29,6 +29,7 @@ dokime-domain = { version = "0.1.2", path = "../dokime-domain" }
 dokime-operations = { version = "0.1.2", path = "../dokime-operations" }
 
 # Git
+harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -36,7 +37,6 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
-harmos = { workspace = true, features = ["grpc"] }
 keyring = { workspace = true }
 sha2 = { workspace = true }
 zeroize = { workspace = true }

@@ -18,7 +18,7 @@ mod typed;
 pub use sample::Sample;
 #[cfg(test)]
 pub(crate) use typed::PAYLOAD_PASSES;
-pub(crate) use typed::{Admitted, selected_schema};
+pub(crate) use typed::{Admitted, Signal, numeric_metadata, selected_schema, signals};
 pub use typed::{CodecCache, TypedCodec, codec, decode_values, stored_codecs_where};
 
 /* === Imports === */

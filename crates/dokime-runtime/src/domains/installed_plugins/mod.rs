@@ -25,9 +25,7 @@ pub use appearance::{
 pub use brand::{EmbeddedLogo, ResolvedBrand, compiled_brand, load_brand};
 pub use dokime_domain::model::plugins::InstalledPluginErrorRecord;
 pub use dokime_domain::model::plugins::InstalledPluginPhase;
-pub use management::{
-    PluginRuntimeSecretBindings, PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings,
-};
+pub use management::{PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings};
 
 /* === Imports === */
 

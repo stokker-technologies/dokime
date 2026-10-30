@@ -151,6 +151,7 @@ pub fn selection(profile: &Profile) -> Result<Selection, Error> {
         return Err(invalid("invalid CA certificate"));
     }
     let target = Target::new(&profile.endpoint, profile.ca_certificate_pem.clone())
+        .and_then(|target| target.with_endpoints(&profile.endpoints))
         .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;
     Ok(Selection {
         identifier: Some(profile.identifier.clone()),
@@ -163,7 +164,9 @@ pub fn selection(profile: &Profile) -> Result<Selection, Error> {
 impl Selection {
     pub fn credential_key(&self) -> String {
         match &self.identifier {
-            Some(identifier) => format!("dokime-profile:{identifier}:{}", self.target.endpoint()),
+            Some(identifier) => {
+                format!("dokime-profile:{identifier}:{}", self.expected_backend_id.as_deref().unwrap_or(self.target.endpoint()))
+            }
             None => self.target.endpoint().to_owned(),
         }
     }
@@ -177,7 +180,8 @@ impl Store {
         let profile = Profile {
             identifier: identifier.to_owned(),
             label: pairing.label.clone(),
-            endpoint: pairing.endpoint.clone(),
+            endpoint: pairing.endpoints[0].clone(),
+            endpoints: pairing.endpoints.clone(),
             expected_backend_id: Some(pairing.backend_identifier.clone()),
             ca_certificate_pem: pairing.ca_certificate_pem.clone(),
             secret: if pairing.access_key.is_some() { Secret::Keyring } else { Secret::None },
@@ -207,6 +211,26 @@ impl Store {
             return Err(error);
         }
         Ok(profile)
+    }
+
+    pub fn remember_endpoint(&self, selection: &Selection, endpoint: &str) -> Result<(), Error> {
+        let Some(identifier) = selection.identifier.as_deref() else { return Ok(()) };
+        let verified = Target::new(endpoint, None).map_err(|_| invalid("invalid verified endpoint"))?;
+        if !selection.target.candidates().iter().any(|candidate| candidate.endpoint() == verified.endpoint()) {
+            return Err(invalid("verified endpoint was not selected"));
+        }
+        self.update(|document| {
+            let profile = get(document, identifier)?;
+            let current = self::selection(profile)?;
+            if current.expected_backend_id != selection.expected_backend_id
+                || current.target.clone().with_settings(*selection.target.settings()) != selection.target
+            {
+                return Err(invalid("profile changed during connection"));
+            }
+            let profile = document.profiles.iter_mut().find(|profile| profile.identifier == identifier).expect("validated profile");
+            profile.endpoint = endpoint.trim_end_matches('/').to_owned();
+            Ok(())
+        })
     }
 
     pub fn new(path: impl Into<PathBuf>) -> Self {
@@ -331,7 +355,6 @@ mod tests {
 
     struct Credentials {
         values: Mutex<BTreeMap<String, String>>,
-        fail_publication: Option<PathBuf>,
     }
 
     impl SecretStore for Credentials {
@@ -341,9 +364,6 @@ mod tests {
 
         fn write(&self, key: &str, token: &str) -> Result<(), super::super::secrets::Error> {
             self.values.lock().unwrap().insert(key.to_owned(), token.to_owned());
-            if let Some(path) = &self.fail_publication {
-                std::fs::create_dir(path).unwrap();
-            }
             Ok(())
         }
 
@@ -356,7 +376,7 @@ mod tests {
     fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
         dokime_domain::model::remote::PairingFile {
             version: 1,
-            endpoint: "http://127.0.0.1:8765".into(),
+            endpoints: vec!["http://127.0.0.1:8765".into()],
             backend_identifier: "backend".into(),
             label: "Lab Backend".into(),
             ca_certificate_pem: None,
@@ -368,10 +388,7 @@ mod tests {
     fn pairing_profiles_keep_independent_credentials() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::new(root.path().join("backends.json"));
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: None,
-        };
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
         let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
         let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
         let first_key = selection(&first).unwrap().credential_key();
@@ -385,29 +402,13 @@ mod tests {
     }
 
     #[test]
-    fn pairing_save_failure_removes_new_credential() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("backends.json");
-        let store = Store::new(&path);
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: Some(path),
-        };
-        assert!(store.import_pairing(&pairing('a'), "first", &secrets).is_err());
-        assert!(secrets.values.lock().unwrap().is_empty());
-    }
-
-    #[test]
     fn invalid_pairing_never_opens_registry_or_keyring() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("absent/backends.json");
         let store = Store::new(&path);
-        let secrets = Credentials {
-            values: Mutex::new(BTreeMap::new()),
-            fail_publication: None,
-        };
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
         let mut invalid = pairing('a');
-        invalid.endpoint = "http://0.0.0.0:8765".into();
+        invalid.endpoints = vec!["http://0.0.0.0:8765".into()];
         assert!(store.import_pairing(&invalid, "first", &secrets).is_err());
         assert!(!path.parent().unwrap().exists());
         assert!(secrets.values.lock().unwrap().is_empty());

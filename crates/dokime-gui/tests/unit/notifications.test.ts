@@ -156,6 +156,19 @@ test("Updated Toasts Stay Recorded", async () => {
   assert.deepEqual(page.records.map((value) => value.title).sort(), ["fixture-one", "fixture-two"]);
 });
 
+test("Plugin Settings Action Survives History", async () => {
+  const history = await import("@/lib/notifications");
+  history.toast.error("fixture", {
+    pluginSettings: "hcl",
+    missingSecret: "api_token",
+    consequences: ["workflow unavailable"],
+  });
+  const page = await history.notificationPage();
+  assert.equal(page.records[0].pluginSettings, "hcl");
+  assert.equal(page.records[0].missingSecret, "api_token");
+  assert.deepEqual(page.records[0].consequences, ["workflow unavailable"]);
+});
+
 test("Notification Sources Never Use Empty Or Root Route Labels", async () => {
   const history = await import("@/lib/notifications");
   vi.stubGlobal("location", { pathname: "/" });

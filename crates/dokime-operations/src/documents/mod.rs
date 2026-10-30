@@ -28,15 +28,7 @@ use super::Endpoint;
 use super::ORDINARY;
 use super::TRANSFER;
 
-#[allow(unused_imports)]
-use dokime_domain::model::definition::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
-
 use dokime_domain::model::documents::wire::*;
-#[allow(unused_imports)]
-use dokime_domain::model::plots::wire::*;
 
 /* === Constants === */
 

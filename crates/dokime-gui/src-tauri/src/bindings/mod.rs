@@ -58,7 +58,7 @@ macro_rules! native_commands {
 native_commands! {
     async desktop_pairing_create
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (label: String, endpoint: String) -> Result<Option<std::path::PathBuf>, crate::connection::ConnectionError>
+        () -> Result<Option<std::path::PathBuf>, crate::Error>
         => crate::app::desktop::desktop_pairing_create;
     async desktop_backend_import_pairing
         [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]

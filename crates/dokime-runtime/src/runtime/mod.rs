@@ -272,8 +272,8 @@ impl Runtime {
             .values()
             .filter(|execution| execution.saved.is_none() && execution.finished_at.is_none())
             .map(|execution| execution.test_execution_id.clone())
-            .collect();
-        let report_inputs = self.handle.freeze_report_inputs(report_ids).await;
+            .collect::<Vec<_>>();
+        self.handle.sampling().fence_executions(&report_ids).await;
         self.handle.owned_work.close();
         self.handle.owned_work.wait().await;
 
@@ -306,9 +306,8 @@ impl Runtime {
             }
             // Monitors Settle Their Invocations; Orphans Still Settle Before Plugins Stop.
             self.handle.provider_invocations.settle_all().await;
+            self.handle.stop_report_jobs().await;
 
-            // Cancellation Must Settle Even If Capturing The Report Boundary Failed.
-            report_inputs?;
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
@@ -353,8 +352,6 @@ impl Runtime {
                 package.release_dispatchers(&self.handle);
             }
             self.shutdown.prepared = true;
-        } else {
-            report_inputs?;
         }
 
         self.shutdown.stage = "writing the final checkpoint";

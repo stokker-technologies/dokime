@@ -44,6 +44,7 @@ const DEFAULT_PORT: &str = "/dev/ttyUSB0";
 const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -127,7 +128,7 @@ impl dokime::harmos::Lifecycle for Plugin {
                 bench: Arc::new(Bench {
                     sensor: bench::Sensor::open(port, AMBIENT_C),
                     units: Mutex::default(),
-                    // An unbound optional secret decodes as `None`, which is how "not
+                    // A missing optional store identifier decodes as `None`, which is how "not
                     // configured" is told apart from "configured and empty".
                     upload_configured: settings.chamber.cloud_token.is_some(),
                 }),

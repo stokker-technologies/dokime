@@ -84,13 +84,13 @@ tokio = { workspace = true }
 # Local
 
 # Git
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-sdk = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

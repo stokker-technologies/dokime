@@ -24,6 +24,7 @@ pub use rusqlite;
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::Duration;
 use std::{
     fs::{File, OpenOptions},
     num::{NonZeroU32, NonZeroUsize},
@@ -32,7 +33,6 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
 };
 
 // Third Party Imports
@@ -66,6 +66,7 @@ pub struct State(Arc<Owner>);
 // Local SQLite Connection Settings; `config::local_storage_defaults` Owns Their Defaults.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
+    pub previews: PreviewSettings,
     // Reader Connections, One Per Admitted Active Query.
     pub readers: NonZeroUsize,
     // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
@@ -148,6 +149,13 @@ struct Interruption {
     read: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PreviewSettings {
+    pub report_concurrency: NonZeroUsize,
+    pub bucket_count: NonZeroUsize,
+    pub bucket_interval: Duration,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -195,6 +203,12 @@ impl State {
         }
         if tokio::time::Instant::now().checked_add(settings.telemetry_interval).is_none() {
             return Err(Error::Invalid("telemetry flush deadline overflows"));
+        }
+        if settings.previews.bucket_interval.is_zero() || settings.previews.bucket_interval.as_nanos() > i128::MAX as u128 {
+            return Err(Error::Data("preview interval must fit positive nanoseconds"));
+        }
+        if settings.previews.report_concurrency.get() > Semaphore::MAX_PERMITS {
+            return Err(Error::Data("report concurrency exceeds native range"));
         }
         let root = root.as_ref().to_path_buf();
         let readers = settings.readers;
@@ -382,23 +396,10 @@ fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
 // Takes the root's exclusive lease, waiting a bounded time for a departing
 // owner to let go. A lease still held after that belongs to a live runtime.
 fn acquire_lease(lease: &File) -> Result<(), Error> {
-    let wait = Duration::from_secs(5);
-    let deadline = Instant::now()
-        .checked_add(wait)
-        .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease wait exceeds clock range")))?;
-    let poll = Duration::from_millis(25);
-    if poll.is_zero() {
-        return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite lease poll must be positive")));
-    }
-    loop {
-        match lease.try_lock() {
-            Ok(()) => return Ok(()),
-            Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
-            Err(std::fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
-                std::thread::sleep(poll.min(deadline.saturating_duration_since(Instant::now())));
-            }
-            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::Owned),
-        }
+    match lease.try_lock() {
+        Ok(()) => Ok(()),
+        Err(std::fs::TryLockError::Error(error)) => Err(Error::Io(error)),
+        Err(std::fs::TryLockError::WouldBlock) => Err(Error::Owned),
     }
 }
 
@@ -448,6 +449,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let readers = NonZeroUsize::new(4).unwrap();
         let settings = Settings {
+            previews: crate::config::local_storage_defaults().previews,
             readers,
             ..crate::config::local_storage_defaults()
         };

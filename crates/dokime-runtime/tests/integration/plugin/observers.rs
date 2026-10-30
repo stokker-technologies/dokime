@@ -81,7 +81,7 @@ pub struct OwnerSettings {
 
 #[dokime_runtime::section(label = "Required Secrets")]
 struct RequiredSecrets {
-    #[setting(label = "Token", from_environment = "OBSERVER_FIXTURE_TOKEN")]
+    #[setting(label = "Token")]
     token: dokime_runtime::plugin::Secret,
 }
 
@@ -384,7 +384,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for MissingSecrets {
     id = "missing_observer_secrets",
     requires(),
     contributions(dokime_runtime::Settings<MissingSecretSettings>),
-    restart = "never", description = "A plugin whose card requires a secret nobody bound.")]
+    restart = "never", description = "A plugin whose card requires an identifier absent from Secret Storage.")]
 impl dokime_runtime::Plugin for MissingSecrets {
     const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
 }
@@ -635,7 +635,8 @@ async fn activation_starts_execution() {
     else {
         panic!("the required secret is absent");
     };
-    assert!(refused.to_string().contains("token"), "{refused}");
+    assert_eq!(refused.code(), dokime_domain::model::plugins::error::MISSING_SECRET_CODE);
+    assert_eq!(refused.failure().detail("dokime.secret"), Some("token"));
     let previous = probe.secret_ticks.load(Ordering::Acquire);
     // The original observer ticks after another preparation fails.
     probe.until(|probe| probe.secret_ticks.load(Ordering::Acquire) > previous).await;

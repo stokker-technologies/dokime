@@ -10,7 +10,8 @@
 /* === External Imports === */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 
 /* === Local Imports === */
 
@@ -19,6 +20,7 @@ import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-sourc
 import type { InstallPluginProgress, PluginSource } from "@/lib/api/native-plugins";
 import { installNativePlugin, listNativePlugins, removeNativePlugin, setNativePluginEnabled } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
+import { toast } from "@/lib/notifications";
 
 /* === Query Keys === */
 
@@ -29,6 +31,42 @@ export const pluginQueryKeys = {
 };
 
 /* === Hooks === */
+
+export function PluginStartNotifications() {
+  const session = useNativeSession();
+  const query = usePluginsQuery();
+  const navigate = useNavigate();
+  const seen = useRef(new Set<string>());
+  useEffect(() => {
+    for (const entry of query.data ?? []) {
+      if (!entry.boot_failed || entry.last_boot?.state !== "failed") continue;
+      const key = `${session.identity.generation}:${entry.install_id}:${entry.last_boot.at}`;
+      if (seen.current.has(key)) continue;
+      seen.current.add(key);
+      const failure = entry.last_boot.failure;
+      toast.error("Plugin Could Not Start", {
+        description: failure.message,
+        source: failure.plugin_name,
+        pluginSettings: entry.install_id,
+        missingSecret: failure.missing_secret ?? undefined,
+        consequences: failure.consequences,
+        action:
+          failure.missing_secret || entry.metadata?.owners.length
+            ? {
+                label: failure.missing_secret ? "Set Secret" : "Open Plugin Settings",
+                onClick: () =>
+                  void navigate(
+                    failure.missing_secret
+                      ? { to: "/settings/$section", params: { section: "secrets" }, hash: `add-secret=${failure.missing_secret}` }
+                      : { to: "/settings/plugins/$pluginId", params: { pluginId: entry.install_id } },
+                  ),
+              }
+            : undefined,
+      });
+    }
+  }, [query.data, session.identity.generation, navigate]);
+  return null;
+}
 
 export function usePluginsQuery() {
   const session = useNativeSession();

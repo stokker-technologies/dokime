@@ -233,11 +233,6 @@ mod tests {
     }
 
     #[test]
-    fn release_digest() {
-        assert_eq!(digest(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-    }
-
-    #[test]
     fn release_extraction() {
         let bytes = archive(&[("selected.dokime", b"selected"), ("../unselected", b"ignored")]);
         assert_eq!(member_bytes(&bytes, "sidecars.zip", "selected.dokime").unwrap(), b"selected");

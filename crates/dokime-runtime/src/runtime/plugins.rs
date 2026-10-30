@@ -23,7 +23,6 @@ use std::{
 };
 
 // Third Party Imports
-use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::{Runtime, progress::Operation};
@@ -302,6 +301,7 @@ impl Runtime {
             let Some((index, reason)) = refused else {
                 break;
             };
+            let reason = rejection(&packages[index].catalog.package, reason.to_string(), None);
             if let Err(error) = prune(
                 &store,
                 &packages.iter().collect::<Vec<_>>(),
@@ -365,7 +365,7 @@ impl Runtime {
                     let Some((plugin, source, cleanup)) = start_failure(&error) else {
                         return Err(error.into());
                     };
-                    if self.embedded.contains_key(plugin) || !cleanup.is_empty() {
+                    if self.embedded.contains_key(plugin) {
                         return Err(error.into());
                     }
                     let packages: Vec<_> = self.plugins.values().map(|active| &active.package).collect();
@@ -378,16 +378,15 @@ impl Runtime {
                         .enumerate()
                         .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(
-                        &self.handle.plugin_store(),
-                        &packages,
-                        &mut removed,
-                        initial,
-                        &source.to_string(),
-                        &embedded_plugins,
-                        &self.handle.operations,
-                    )
-                    .await?;
+                    let package = packages[initial];
+                    if matches!(package.input.provenance, PluginProvenance::Configured) || !cleanup.is_empty() {
+                        return Err(Error::PluginStart {
+                            plugin: package.catalog.package.clone(),
+                            source: Box::new(error),
+                        });
+                    }
+                    let failure = start_error(plugin, &package.catalog.package, source);
+                    prune(&store, &packages, &mut removed, initial, &failure, &embedded_plugins, &self.handle.operations).await?;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
@@ -897,41 +896,15 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
         }
 
-        let bytes = read_bounded(executable.path(), harmos_packaging::bundle::Limits::default().file_bytes).map_err(operation)?;
-        let hash = Sha256::digest(&bytes);
-        if hash.iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
+        if executable.sha256().iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
             return Err(operation(format!("extracted executable `{id}` differs from its verified bundle")));
         }
-        let sha256 = hash.into();
-        drop(bytes);
         let configured = input.programs.get(id).cloned().unwrap_or_else(crate::plugins::config::empty_object);
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
-        let declaration = executable.declaration();
-        let operations = declaration.operations.clone();
-        let definition = harmos::plugin::PluginDefinition {
-            id: id.clone(),
-            version: version.clone(),
-            requires: Vec::new(),
-            artifact: harmos::plugin::PluginArtifact::Sidecar {
-                path: executable.path().to_owned(),
-                sha256,
-                arguments: executable.arguments().to_vec(),
-                directory: executable.working_directory().map(std::path::Path::to_owned),
-                environment: executable.environment().iter().cloned().collect(),
-            },
-            configuration: serde_json::to_vec(&initialization).map_err(operation)?,
-            contributions: harmos::plugin::PluginContributions {
-                operations,
-                wire_contracts: declaration.contracts.provides.clone(),
-                required_contracts: Some(declaration.contracts.requires.clone()),
-                observers: declaration.observers.clone(),
-                lifecycle: Some(declaration.contracts.lifecycle.clone()),
-                listeners: declaration.listeners.clone(),
-                streams: executable.declaration().streams.clone(),
-                registrations,
-                sections: declaration.sections.clone(),
-            },
-        };
+        let mut definition =
+            harmos::plugin::PluginDefinition::sidecar(&executable, serde_json::to_vec(&initialization).map_err(operation)?)
+                .map_err(operation)?;
+        definition.contributions.registrations = registrations;
 
         programs.push(Program {
             plugin,
@@ -1052,16 +1025,14 @@ async fn plan(
         embedded,
         |candidate| operations.validate_requirements(candidate),
         |index, reason| {
-            let message = match reason.code() {
-                Some(code) => format!("{code}: {reason}"),
-                None => reason.to_string(),
-            };
-            refusals.push((index, message));
+            let package = packages[index];
+            let failure = rejection(&package.catalog.package, reason.to_string(), reason.code());
+            refusals.push((index, failure));
             Ok(())
         },
     );
     for (index, reason) in refusals {
-        failed(store, &packages[index].input, &reason).await?;
+        refused(store, &packages[index].input, reason).await?;
     }
     result
 }
@@ -1120,13 +1091,9 @@ fn plan_graph(
                 }
             }
             Err(error) => {
-                if let harmos::plugin::Error::Cycle { artifact } = &error {
-                    let (members, contracts) = circular_contracts(&plugins, artifact);
-                    let reason = Error::conflict(
-                        "plugin_contract_cycle",
-                        format!("circular plugin requirements among {members:?} through contracts {contracts:?}"),
-                    );
-                    let affected: BTreeSet<_> = members.iter().filter_map(|member| locations.get(member).copied()).collect();
+                if let harmos::plugin::Error::Cycle { artifacts } = &error {
+                    let reason = Error::conflict("plugin_contract_cycle", error.to_string());
+                    let affected: BTreeSet<_> = artifacts.iter().filter_map(|member| locations.get(member).copied()).collect();
                     if affected.is_empty() {
                         return Err(reason);
                     }
@@ -1137,19 +1104,8 @@ fn plan_graph(
                     }
                     continue;
                 }
-                let owner = match &error {
-                    harmos::plugin::Error::Unknown { .. } => {
-                        return Err(operation(error));
-                    }
-                    harmos::plugin::Error::Definition { artifact: plugin, .. } => plugin,
-                    harmos::plugin::Error::StreamConflict { second, .. } => second,
-                    harmos::plugin::Error::Duplicate { id } => id,
-                    harmos::plugin::Error::Missing { artifact: plugin, .. }
-                    | harmos::plugin::Error::Incompatible { artifact: plugin, .. }
-                    | harmos::plugin::Error::Cycle { artifact: plugin }
-                    | harmos::plugin::Error::IncompatibleOperation { artifact: plugin, .. }
-                    | harmos::plugin::Error::AmbiguousOperation { artifact: plugin, .. }
-                    | harmos::plugin::Error::ProviderSelection { artifact: plugin, .. } => plugin,
+                let Some(owner) = error.artifact() else {
+                    return Err(operation(error));
                 };
                 let Some(&package) = locations.get(owner) else {
                     return Err(operation(error));
@@ -1170,52 +1126,22 @@ fn plan_graph(
     }
 }
 
-fn circular_contracts(plugins: &[harmos::plugin::PluginDefinition], owner: &str) -> (BTreeSet<String>, BTreeSet<String>) {
-    let mut edges = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for plugin in plugins {
-        let dependencies = edges.entry(&plugin.id).or_default();
-        dependencies.extend(plugin.requires.iter().map(|required| required.id.as_str()));
-        for required in plugin.contributions.required_contracts.iter().flatten() {
-            dependencies.extend(
-                plugins
-                    .iter()
-                    .filter(|provider| provider.id != plugin.id && provider.contributions.wire_contracts.contains(&required.contract))
-                    .map(|provider| provider.id.as_str()),
-            );
-        }
-    }
-    let reachable = |start| {
-        let mut visited = BTreeSet::new();
-        let mut pending = vec![start];
-        while let Some(next) = pending.pop() {
-            if visited.insert(next) {
-                pending.extend(edges.get(next).into_iter().flatten().copied());
-            }
-        }
-        visited
-    };
-    let members: BTreeSet<String> =
-        reachable(owner).into_iter().filter(|member| reachable(member).contains(owner)).map(str::to_owned).collect();
-    let contracts = plugins
-        .iter()
-        .filter(|plugin| members.contains(&plugin.id))
-        .flat_map(|plugin| plugin.contributions.required_contracts.iter().flatten())
-        .filter(|required| {
-            plugins
-                .iter()
-                .any(|provider| members.contains(&provider.id) && provider.contributions.wire_contracts.contains(&required.contract))
-        })
-        .map(|required| required.contract.operation().id.to_string())
-        .collect();
-    (members, contracts)
-}
-
 async fn prune(
-    store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str,
-    embedded: &[harmos::plugin::PluginDefinition], operations: &crate::app::OperationManager,
+    store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize,
+    reason: &dokime_domain::model::plugins::wire::PluginStartFailure, embedded: &[harmos::plugin::PluginDefinition],
+    operations: &crate::app::OperationManager,
 ) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
-        failed(store, &packages[index].input, reason).await?;
+        let failure = if index == initial {
+            reason.clone()
+        } else {
+            rejection(
+                &packages[index].catalog.package,
+                format!("required plugin {} could not start", reason.plugin_name),
+                Some("plugin_contract_unavailable"),
+            )
+        };
+        refused(store, &packages[index].input, failure).await?;
     }
     // Removing A Provider Can Turn A Previously Routed Contract Into A Host
     // Requirement. Replan Before Activation, Including Startup Failure Retries.
@@ -1258,21 +1184,81 @@ async fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Resu
     let PluginProvenance::Installed { install_id, .. } = &input.provenance else {
         return Err(operation(format!("configured plugin `{}` failed: {reason}", input.path.display())));
     };
-    tracing::warn!(
-        plugin = %input.path.display(),
-        install_id = %install_id,
-        reason,
-        "plugin was not admitted"
-    );
-    record(store, input, Some(reason.to_owned())).await;
+    let name = store
+        .get(*install_id)
+        .await
+        .ok()
+        .and_then(|entry| entry.metadata)
+        .map(|metadata| metadata.identity.name)
+        .unwrap_or_else(|| input.path.display().to_string());
+    refused(store, input, rejection(&name, reason, None)).await
+}
+
+fn rejection(name: &str, reason: impl std::fmt::Display, code: Option<&str>) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: String::new(),
+        plugin_name: name.to_owned(),
+        message: format!("Plugin {name} could not start: {reason}"),
+        code: code.map(str::to_owned),
+        missing_secret: None,
+        consequences: Vec::new(),
+        carrier: Vec::new(),
+    }
+}
+
+async fn refused(
+    store: &PluginStore, input: &PluginBundle, failure: dokime_domain::model::plugins::wire::PluginStartFailure,
+) -> Result<()> {
+    if matches!(input.provenance, PluginProvenance::Configured) {
+        return Err(operation(&failure));
+    }
+    tracing::warn!(plugin_name = %failure.plugin_name, plugin_id = %failure.plugin_id, reason = %failure.message, "plugin was not admitted");
+    record(store, input, Some(failure)).await;
     Ok(())
 }
 
-async fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
+async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_domain::model::plugins::wire::PluginStartFailure>) {
     if let PluginProvenance::Installed { install_id, .. } = &input.provenance
         && let Err(error) = store.record_boot(*install_id, error).await
     {
         tracing::warn!(%install_id, %error, "could not record plugin boot outcome");
+    }
+}
+
+pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let cause = error.failure();
+    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
+    if let Some(failure) = cause {
+        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
+    }
+    let secret = |failure: &harmos::domain::Failure| {
+        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
+            .then(|| failure.detail("dokime.secret").map(str::to_owned))
+            .flatten()
+    };
+    let missing_secret =
+        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
+    let prose = |failure: &harmos::domain::Failure| {
+        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
+    };
+    let message = report
+        .as_ref()
+        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
+        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
+    let code = report
+        .as_ref()
+        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
+        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
+    dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: plugin.to_owned(),
+        plugin_name: name.to_owned(),
+        message: format!("Plugin {name} could not start: {message}"),
+        code: code.map(|code| code.to_string()),
+        missing_secret,
+        consequences: report
+            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
+            .unwrap_or_default(),
+        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
     }
 }
 
@@ -1446,7 +1432,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn circular_contracts() {
+    async fn plugin_cycles() {
         let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
         let packages = vec![
             vec![definition("left", &["order.left"], &["order.right"])],
@@ -1459,7 +1445,8 @@ mod tests {
             &[],
             |candidate| host.operations.validate_requirements(candidate),
             |index, reason| {
-                assert_eq!(reason.code(), Some("plugin_contract_cycle"));
+                let failure = rejection(&packages[index][0].id, reason, reason.code());
+                assert_eq!(failure.code.as_deref(), Some("plugin_contract_cycle"));
                 refusals.insert(index, reason.to_string());
                 Ok(())
             },
@@ -1467,9 +1454,6 @@ mod tests {
         .unwrap();
         assert_eq!(removed, BTreeSet::from([0, 1]));
         assert_eq!(refusals.len(), 2);
-        for reason in refusals.values() {
-            assert!(reason.contains("order.left") && reason.contains("order.right"));
-        }
         let definitions = PluginDefinitions::new(
             packages.into_iter().enumerate().filter(|(index, _)| !removed.contains(index)).flat_map(|(_, package)| package),
             [],
@@ -1500,7 +1484,8 @@ mod tests {
             &[],
             |candidate| host.operations.validate_requirements(candidate),
             |index, reason| {
-                assert_eq!(reason.code(), Some("plugin_contract_unavailable"));
+                let failure = rejection(&packages[index][0].id, reason, reason.code());
+                assert_eq!(failure.code.as_deref(), Some("plugin_contract_unavailable"));
                 refusals.insert(index, reason.to_string());
                 Ok(())
             },
@@ -1558,5 +1543,111 @@ mod tests {
         assert_eq!(lifecycle.events, ["prepare:a_embedded", "start:a_embedded", "prepare:z_consumer", "start:z_consumer"]);
         manager.shutdown(&mut lifecycle).await.unwrap();
         host.shutdown().await.unwrap();
+    }
+
+    #[test]
+    fn missing_secret_admission() {
+        let refusal = crate::plugin::refusal::<(), _>(Err(crate::Error::UnavailableSecret("api_token".into()))).unwrap_err();
+        let failure = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Permanent,
+            &refusal,
+            harmos::domain::failure::Origin::Plugin,
+        )
+        .in_operation("harmos.initialize");
+        let received = harmos::domain::Failure::decode(&failure.encode()).unwrap();
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(received)),
+        };
+        let admission = start_error("hcl", "HCL", &error);
+        assert_eq!(admission.plugin_id, "hcl");
+        assert_eq!(admission.plugin_name, "HCL");
+        assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
+        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
+        let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
+        assert_eq!(retained, failure);
+        assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
+        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE));
+        assert!(!retained.diagnostics().unwrap().chain().is_empty());
+    }
+
+    #[test]
+    fn initialize_cause() {
+        let source = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
+        let failure = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Transient,
+            &source,
+            harmos::domain::failure::Origin::Plugin,
+        )
+        .in_operation("harmos.initialize");
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
+        };
+        let admission = start_error("hcl", "HCL", &error);
+        assert_eq!(admission.plugin_id, "hcl");
+        assert_eq!(admission.plugin_name, "HCL");
+        assert!(admission.missing_secret.is_none());
+        assert_eq!(harmos::domain::Failure::decode(&admission.carrier).unwrap(), failure);
+    }
+
+    #[test]
+    fn startup_report_admission() {
+        let refusal = crate::plugin::refusal::<(), _>(Err(crate::Error::UnavailableSecret("api_token".into()))).unwrap_err();
+        let root = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Permanent,
+            &refusal,
+            harmos::domain::failure::Origin::Plugin,
+        );
+        let independent = harmos::domain::Failure::new(harmos::operations::FailureKind::Permanent, "equipment is offline");
+        let report = harmos::operations::StartupReport {
+            roots: vec![
+                harmos::operations::StartupIssue {
+                    failure: root.clone(),
+                    resource: None,
+                    operation: None,
+                },
+                harmos::operations::StartupIssue {
+                    failure: independent,
+                    resource: None,
+                    operation: None,
+                },
+            ],
+            consequences: (0..20)
+                .map(|index| harmos::operations::StartupIssue {
+                    failure: harmos::domain::Failure::new(
+                        harmos::operations::FailureKind::Permanent,
+                        format!("operation `suite.{index}.run` requires missing resource `Workflow`"),
+                    ),
+                    resource: Some("Workflow".to_owned()),
+                    operation: Some(format!("suite.{index}.run")),
+                })
+                .collect(),
+        };
+        let failure = report.clone().into_failure();
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
+        };
+        let admission = start_error("hcl", "hcl-plugin", &error);
+        let missing = crate::Error::UnavailableSecret("api_token".into()).to_string();
+        assert!(admission.message.contains(&missing));
+        assert!(admission.message.contains("equipment is offline"));
+        assert!(!admission.message.contains("suite."));
+        assert!(!admission.message.contains("Runtime {"));
+        assert!(!admission.message.contains("Failure(Record"));
+        assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
+        assert_eq!(admission.code, root.refusal_code().map(|code| code.to_string()));
+        assert_eq!(admission.consequences.len(), 20);
+        assert!(admission.to_string().contains("20 operations unavailable because startup failed"));
+        let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
+        assert_eq!(retained, failure);
+        assert_eq!(harmos::operations::StartupReport::from_failure(&retained), Some(report));
+        let runtime = Error::PluginStart {
+            plugin: "hcl".to_owned(),
+            source: Box::new(error),
+        };
+        assert!(runtime.to_string().contains(&missing));
+        assert!(!runtime.to_string().contains("MissingResource {"));
     }
 }

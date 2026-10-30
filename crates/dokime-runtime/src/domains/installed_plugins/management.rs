@@ -22,7 +22,7 @@ use thiserror::Error;
 // Local Imports
 use crate::settings::{SettingValues, Settings};
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::secrets::RedactedSecretBinding;
+use dokime_domain::model::secrets::SecretAvailability;
 
 /* === Constants === */
 
@@ -40,27 +40,13 @@ pub struct RuntimePluginSettings {
     #[serde(default)]
     pub discovered: SettingValues,
 
-    pub secret_bindings: PluginRuntimeSecretBindings,
+    pub secrets: Vec<SecretAvailability>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PluginSettingsUpdate {
     #[serde(default)]
     pub values: SettingValues,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PluginSecretUpdate {
-    pub secret: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeSecretBindings {
-    #[serde(default)]
-    pub bindings: std::collections::BTreeMap<String, RedactedSecretBinding>,
-
-    #[serde(default)]
-    pub missing_required: Vec<String>,
 }
 
 /* === Enums === */

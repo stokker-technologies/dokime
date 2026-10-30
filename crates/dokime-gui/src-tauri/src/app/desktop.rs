@@ -145,27 +145,67 @@ pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), S
 }
 
 pub async fn desktop_pairing_create(
-    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, label: String, endpoint: String,
-) -> Result<Option<PathBuf>, crate::connection::ConnectionError> {
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle,
+) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
-    use dokime::operations::remote::{CreatePairing, RevokePairedClient};
+    use dokime::operations::remote::{ReadListener, RevokePairedClient};
     let local = |message: String| ConnectionError::Registry { message };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();
     let lease = state.lease(&status.generation)?;
+    let client = lease.client();
+    let listener = client.call(ReadListener {}).await?;
+    let settings = listener.settings.ok_or_else(|| local("Listener settings unavailable".into()))?;
+    let enable = listener.listening_address.is_none();
+    let confirm_app = app.clone();
+    let confirmed = if enable {
+        tauri::async_runtime::spawn_blocking(move || {
+            let warning = concat!(
+                "Enable Remote Access on the saved port and export a secret access file? ",
+                "Anyone with this file has full control. Transfer it privately."
+            );
+            confirm_app
+                .dialog()
+                .message(warning)
+                .title("Export Remote Access")
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom("Export".into(), "Cancel".into()))
+                .blocking_show()
+        })
+        .await
+        .map_err(|_| ConnectionError::BackendUnavailable)?
+    } else {
+        true
+    };
+    if !confirmed {
+        return Ok(None);
+    }
+    let now = time::OffsetDateTime::now_utc();
+    let mut label = format!(
+        "Remote {}-{:02}-{:02} {:02}-{:02}-{:02}",
+        now.year(),
+        u8::from(now.month()),
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second()
+    );
+    if settings.address.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
+        label.push_str(" (Same PC)");
+    }
     let filename = sanitize_filename(&label, DesktopSaveKind::Artifact, 128).map_err(local)?;
     let selected = tauri::async_runtime::spawn_blocking(move || {
         let picked = app
             .dialog()
             .file()
-            .set_file_name(format!("{filename}.dokime-pair"))
-            .add_filter("Dokime Pairing File", &["dokime-pair"])
+            .set_file_name(format!("{filename}.dokime-remote"))
+            .add_filter("Dokime Remote Access File", &["dokime-remote"])
             .blocking_save_file();
         let Some(picked) = picked else { return Ok(None) };
         let path = picked.into_path().map_err(|error| error.to_string())?;
-        let path = if path.extension().is_none() { path.with_extension("dokime-pair") } else { path };
-        if path.extension().and_then(|value| value.to_str()) != Some("dokime-pair") {
-            return Err("Pairing files require the .dokime-pair extension".into());
+        let path = if path.extension().is_none() { path.with_extension("dokime-remote") } else { path };
+        if path.extension().and_then(|value| value.to_str()) != Some("dokime-remote") {
+            return Err("Remote access files require the .dokime-remote extension".into());
         }
         match std::fs::symlink_metadata(&path) {
             Ok(metadata) => {
@@ -175,7 +215,7 @@ pub async fn desktop_pairing_create(
                 let confirmed = app
                     .dialog()
                     .message(format!("Replace {}?", path.display()))
-                    .title("Replace Pairing File")
+                    .title("Replace Remote Access File")
                     .kind(MessageDialogKind::Warning)
                     .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
                     .blocking_show();
@@ -194,7 +234,7 @@ pub async fn desktop_pairing_create(
     let Some((path, overwrite)) = selected else { return Ok(None) };
     state.with_current(&status.generation, || ())?;
     let client = lease.client();
-    let mut created = client.call(CreatePairing { label, endpoint }).await.map_err(ConnectionError::from)?;
+    let mut created = create_remote_access(&client, label, enable).await?;
     let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
     if let Some(key) = created.pairing.access_key.as_mut() {
         zeroize::Zeroize::zeroize(key);
@@ -206,7 +246,7 @@ pub async fn desktop_pairing_create(
         Ok(bytes) => tauri::async_runtime::spawn_blocking(move || {
             use std::io::Write;
             let parent = destination.parent().ok_or("Pairing destination has no parent")?;
-            let mut staged = tempfile::Builder::new().prefix(".dokime-pair-").tempfile_in(parent).map_err(|error| error.to_string())?;
+            let mut staged = tempfile::Builder::new().prefix(".dokime-remote-").tempfile_in(parent).map_err(|error| error.to_string())?;
             set_private_file(staged.path())?;
             staged.write_all(&bytes).map_err(|error| error.to_string())?;
             staged.as_file().sync_all().map_err(|error| error.to_string())?;
@@ -233,9 +273,23 @@ pub async fn desktop_pairing_create(
                 .await
                 .map_err(|_| local(format!("{message}; the new paired client could not be revoked. Revoke it in Paired Clients.")))?;
         }
-        return Err(local(message));
+        return Err(local(message).into());
     }
     Ok(Some(path))
+}
+
+pub async fn create_remote_access(
+    client: &dokime::client::Client, label: String, enable: bool,
+) -> Result<dokime::domain::model::remote::CreatedPairing, crate::Error> {
+    use dokime::operations::remote::{CreatePairing, ReadListener, UpdateListener};
+    if enable {
+        let mut settings = client.call(ReadListener {}).await?.settings.ok_or_else(|| crate::connection::ConnectionError::Registry {
+            message: "Listener settings unavailable".into(),
+        })?;
+        settings.enabled = true;
+        client.call(UpdateListener { settings: Some(settings) }).await?;
+    }
+    Ok(client.call(CreatePairing { label }).await?)
 }
 
 pub async fn desktop_save_document(
@@ -742,6 +796,17 @@ pub async fn move_verified_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pairing_validation_error_retains_native_rpc_reason() {
+        let status = tonic::Status::invalid_argument("fixture-endpoint-rejection");
+        let expected = status.message().to_owned();
+        let error = crate::Error::from(dokime::client::Error::Rpc(status));
+        let encoded = serde_json::to_value(error).unwrap();
+        assert_eq!(encoded["kind"], "grpc");
+        assert_eq!(encoded["detail"]["code"], 3);
+        assert_eq!(encoded["detail"]["message"], expected);
+    }
 
     #[test]
     fn reports_require_verified_native_delivery() {

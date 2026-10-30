@@ -16,14 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::{StorageCursor, query::StreamSelection};
-
+use harmos::storage::StorageCursor;
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
 use crate::storage::telemetry::TypedCodec;
 use crate::telemetry::TelemetryContract;
-use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
 
@@ -40,38 +38,6 @@ use crate::telemetry::TelemetrySample;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub(in crate::report) async fn visit(
-    ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
-    mut visit: impl FnMut(&TelemetrySample) -> Result<()>,
-) -> Result<()> {
-    let codec = saved_codec(ctx, session, at, contract).await?;
-    let mut source = StreamSelection {
-        schema: codec.schema().clone(),
-        scope: Some(harmos::Identifier::new(scope).map_err(|_| invalid("invalid telemetry scope"))?),
-        item: None,
-        stream: Some(contract.stream.clone()),
-        source_start: None,
-        source_end: None,
-        after: 0,
-    };
-    loop {
-        let page = harmos::storage::ScanPage {
-            after: source.after,
-            rows: session.settings().response.batch_rows,
-            bytes: session.settings().response.batch_bytes,
-        };
-        let rows = ctx.local.telemetry_read(at.clone(), source.clone(), page).await?;
-        if rows.is_empty() {
-            break;
-        }
-        for (position, entry) in rows {
-            source.after = position;
-            visit(&entry.sample)?;
-        }
-    }
-    Ok(())
-}
 
 /* === Private Functions === */
 
@@ -101,36 +67,6 @@ pub(in crate::report) async fn saved_codec(
             return Err(invalid("captured report schema is missing or ambiguous"));
         }
         Ok(codecs.pop().expect("one report codec"))
-    })
-}
-pub(in crate::report) fn sort(
-    samples: harmos::storage::ReadBatch<Vec<TelemetrySample>>,
-) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-    samples.try_map(|mut samples| {
-        let mut order = Vec::new();
-        order.try_reserve_exact(samples.len()).map_err(|_| invalid("report ordering allocation failed"))?;
-        order.extend(0..samples.len());
-        order.sort_unstable_by(|left, right| {
-            samples[*left]
-                .timestamp
-                .cmp(&samples[*right].timestamp)
-                .then(samples[*left].sequence.cmp(&samples[*right].sequence))
-                .then(left.cmp(right))
-        });
-        let mut destinations = Vec::new();
-        destinations.try_reserve_exact(samples.len()).map_err(|_| invalid("report ordering allocation failed"))?;
-        destinations.resize(samples.len(), 0);
-        for (destination, source) in order.into_iter().enumerate() {
-            destinations[source] = destination;
-        }
-        for index in 0..samples.len() {
-            while destinations[index] != index {
-                let destination = destinations[index];
-                samples.swap(index, destination);
-                destinations.swap(index, destination);
-            }
-        }
-        Ok(samples)
     })
 }
 /* === Tests === */

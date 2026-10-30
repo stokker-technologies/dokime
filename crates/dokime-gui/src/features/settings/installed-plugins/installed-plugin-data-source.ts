@@ -28,12 +28,15 @@ export async function getInstalledPluginDetail(session: SessionIdentity, pluginI
       plugin = {
         plugin_id: pluginId,
         owner: { kind: "bundle", package: entry.metadata.identity.name, installation: entry.install_id, path: null },
-        label: pluginId,
+        label:
+          entry.last_boot?.state === "failed" && entry.last_boot.failure.plugin_id === pluginId
+            ? entry.last_boot.failure.plugin_name
+            : pluginId,
         version: entry.metadata.identity.version,
         enabled: entry.state === "installed",
         runtime: "code",
-        status: entry.boot_error ? "failed" : entry.state === "disabled" ? "disabled" : "pending",
-        error: entry.boot_error ?? entry.error,
+        status: entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "pending",
+        error: entry.error,
       };
     }
   }

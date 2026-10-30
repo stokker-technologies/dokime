@@ -47,15 +47,27 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Runtime.proto\x12\tdokime.v1\x1a\x46\x64okime_client/_wire/dokime/v1/RuntimeMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/RuntimeMessages/GetIdentity/messages.proto2\xd5\x01\n\x07Runtime\x12\x61\n\tGetHealth\x12).dokime.v1.RuntimeMessages.GetHealth.Row1\x1a).dokime.v1.RuntimeMessages.GetHealth.Row2\x12g\n\x0bGetIdentity\x12+.dokime.v1.RuntimeMessages.GetIdentity.Row1\x1a+.dokime.v1.RuntimeMessages.GetIdentity.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Runtime.proto\x12\tdokime.v1\x1a\x46\x64okime_client/_wire/dokime/v1/RuntimeMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/RuntimeMessages/GetIdentity/messages.proto\"\x1e\n\x1cRuntimeGetHealthCancellation\"\xf0\x01\n\x18RuntimeGetHealthRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.RuntimeMessages.GetHealth.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.RuntimeGetHealthCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.RuntimeGetHealthCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19RuntimeGetHealthRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.RuntimeMessages.GetHealth.Row2H\x00R\x08responseB\x07\n\x05value\" \n\x1eRuntimeGetIdentityCancellation\"\xf8\x01\n\x1aRuntimeGetIdentityRunInput\x12G\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.RuntimeMessages.GetIdentity.Row1H\x00R\x07request\x12\x43\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32).dokime.v1.RuntimeGetIdentityCancellationH\x00R\x06\x63\x61ncel\x12\x43\n\x06\x66inish\x18\x04 \x01(\x0b\x32).dokime.v1.RuntimeGetIdentityCancellationH\x00R\x06\x66inishB\x07\n\x05value\"q\n\x1bRuntimeGetIdentityRunOutput\x12I\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.RuntimeMessages.GetIdentity.Row2H\x00R\x08responseB\x07\n\x05value2\x99\x03\n\x07Runtime\x12\x61\n\tGetHealth\x12).dokime.v1.RuntimeMessages.GetHealth.Row1\x1a).dokime.v1.RuntimeMessages.GetHealth.Row2\x12]\n\x0cRunGetHealth\x12#.dokime.v1.RuntimeGetHealthRunInput\x1a$.dokime.v1.RuntimeGetHealthRunOutput(\x01\x30\x01\x12g\n\x0bGetIdentity\x12+.dokime.v1.RuntimeMessages.GetIdentity.Row1\x1a+.dokime.v1.RuntimeMessages.GetIdentity.Row2\x12\x63\n\x0eRunGetIdentity\x12%.dokime.v1.RuntimeGetIdentityRunInput\x1a&.dokime.v1.RuntimeGetIdentityRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Runtime_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_RUNTIME']._serialized_start=205
-  _globals['_RUNTIME']._serialized_end=418
+  _globals['_RUNTIMEGETHEALTHCANCELLATION']._serialized_start=204
+  _globals['_RUNTIMEGETHEALTHCANCELLATION']._serialized_end=234
+  _globals['_RUNTIMEGETHEALTHRUNINPUT']._serialized_start=237
+  _globals['_RUNTIMEGETHEALTHRUNINPUT']._serialized_end=477
+  _globals['_RUNTIMEGETHEALTHRUNOUTPUT']._serialized_start=479
+  _globals['_RUNTIMEGETHEALTHRUNOUTPUT']._serialized_end=588
+  _globals['_RUNTIMEGETIDENTITYCANCELLATION']._serialized_start=590
+  _globals['_RUNTIMEGETIDENTITYCANCELLATION']._serialized_end=622
+  _globals['_RUNTIMEGETIDENTITYRUNINPUT']._serialized_start=625
+  _globals['_RUNTIMEGETIDENTITYRUNINPUT']._serialized_end=873
+  _globals['_RUNTIMEGETIDENTITYRUNOUTPUT']._serialized_start=875
+  _globals['_RUNTIMEGETIDENTITYRUNOUTPUT']._serialized_end=988
+  _globals['_RUNTIME']._serialized_start=991
+  _globals['_RUNTIME']._serialized_end=1400
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

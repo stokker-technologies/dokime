@@ -53,7 +53,7 @@ def test_ca_input_is_bounded(monkeypatch) -> None:
 )
 def test_pairing_conformance(case, tmp_path, monkeypatch):
     monkeypatch.setenv("DOKIME_KEY", "ambient-key-must-not-enter-pairing-client")
-    path = tmp_path / "lab.dokime-pair"
+    path = tmp_path / "lab.dokime-remote"
     path.write_text(case["document"], encoding="utf-8")
     if not case["valid"]:
         with pytest.raises(ValueError):
@@ -70,7 +70,7 @@ def test_pairing_conformance(case, tmp_path, monkeypatch):
 
 
 def test_pairing_read_bound_and_utf8(tmp_path):
-    path = tmp_path / "lab.dokime-pair"
+    path = tmp_path / "lab.dokime-remote"
     for data in [b" " * (1024 * 1024 + 1), b"\xff"]:
         path.write_bytes(data)
         with pytest.raises(ValueError):

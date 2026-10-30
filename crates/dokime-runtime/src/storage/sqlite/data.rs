@@ -16,7 +16,7 @@ mod mutations;
 mod production;
 mod records;
 mod retention;
-pub(super) mod telemetry;
+pub(crate) mod telemetry;
 
 /* === Re-Exports === */
 
@@ -218,8 +218,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=4 FROM sqlite_master WHERE type='table' AND name IN
-                ('files','streams','storage_record_visibility','storage_record_captures')",
+            "SELECT count(*)=7 FROM sqlite_master WHERE type='table' AND name IN
+                ('files','streams','storage_record_visibility','storage_record_captures',
+                 'storage_numeric_summaries','storage_numeric_ranks','storage_report_previews')",
             [],
             |row| row.get(0),
         )?;
@@ -365,6 +366,8 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
     transaction.execute_batch(telemetry::SCHEMA)?;
+    transaction.execute_batch(telemetry::aggregates::SCHEMA)?;
+    transaction.execute_batch(telemetry::previews::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     initialize_head(&transaction, expected.as_ref())?;
@@ -617,6 +620,46 @@ fn read_scan(connection: &Connection, scan: &Scan, metrics: &super::ReadMetrics)
 mod tests {
     use super::*;
     use std::num::NonZeroUsize;
+
+    #[test]
+    fn retiring_metadata_does_not_scan_evidence_children() {
+        for count in [4096, 16384] {
+            let connection = Connection::open_in_memory().unwrap();
+            connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA] {
+                connection.execute_batch(schema).unwrap();
+            }
+            connection
+                .execute(
+                    "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<?1)
+                 INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
+                 SELECT printf('%016x',n),'stream',printf('sample-%d',n),printf('sample-%d',n),x'00',zeroblob(32) FROM rows",
+                    [count],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO storage_record_captures
+                 SELECT 'execution',position,identity,position,'{}' FROM storage_data_entries;
+                 INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
+                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
+                )
+                .unwrap();
+            // Foreign-Key Checks Must Seek The Parent Position Even When It Has No Children.
+            for position in ["ffffffffffffffff", "0000000000000001"] {
+                let mut delete = connection.prepare("DELETE FROM storage_data_entries WHERE position=?1").unwrap();
+                assert_eq!(delete.execute([position]).unwrap(), 1);
+                assert_eq!(delete.get_status(rusqlite::StatementStatus::FullscanStep), 0);
+                let steps = delete.get_status(rusqlite::StatementStatus::VmStep);
+                assert!(steps < 512, "retirement took {steps} VM steps with {count} evidence children");
+            }
+            for table in ["storage_record_captures"] {
+                let remaining: i64 = connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+                assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
+            }
+            assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
+        }
+    }
 
     #[tokio::test]
     async fn absent_schema_does_not_scan_other_streams() {

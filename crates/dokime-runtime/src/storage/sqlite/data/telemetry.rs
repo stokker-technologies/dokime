@@ -11,9 +11,11 @@
 
 /* === Modules === */
 
+pub(crate) mod aggregates;
 mod catalog;
 mod flush;
 mod inventory;
+pub(crate) mod previews;
 mod reader;
 #[cfg(test)]
 mod tests;

@@ -9,12 +9,9 @@
 
 /* === Modules === */
 
-pub(crate) mod plots;
 pub(crate) mod telemetry;
 
 /* === Re-Exports === */
-
-pub(super) use plots::{ReadCache, ReadPlan, materialize, read_plan};
 
 /* === Imports === */
 

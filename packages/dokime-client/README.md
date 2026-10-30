@@ -48,18 +48,24 @@ OS configuration location. The Rust CLI manages these profiles through
 CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
 Python does not read the native keyring. For an authenticated backend, create a
-pairing file on its host and import that file instead:
+remote access file on its host and import that file instead:
 
 ```python
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     backend = await client.connect()
 ```
 
 The constructor reads and validates that explicit file before connecting. It
-retains the endpoint, expected backend identity, CA and independent access key
-for the connection. Protect the pairing file as a credential; revoking its
+retains all endpoints, expected backend identity, persistent CA and independent access key
+for the connection. Protect the remote file as a credential; revoking its
 paired client on the host prevents further use. See the
-[pairing walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
+[remote access walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
+
+Candidates connect in parallel with the configured short stagger (250 ms by
+default). The first connection that verifies the pinned CA and backend identity
+wins; losing attempts are closed. Reconnects try that endpoint first. A client
+loaded with `from_profile` also saves its successful endpoint for later clients.
+The listener reissues leaves under the same persistent CA when addresses change.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
@@ -75,9 +81,9 @@ async with DokimeClient("http://127.0.0.1:8765") as client:
 ## Client Configuration
 
 Each connection uses the generated application defaults for
-`connect_timeout_ms` and `request_timeout_ms`. Direct construction and
+`connect_timeout_ms`, `request_timeout_ms` and `endpoint_stagger_ms`. Direct construction, `from_pairing` and
 `from_profile` also accept `preferences=`, a generated client-preferences message
-with those two fields, and an explicit `rpc_timeout` override. Streaming
+with those fields, and an explicit `rpc_timeout` override. Streaming
 operation deadlines come from their declared contracts.
 
 Python does not load or create a local application-settings file. Application
@@ -86,114 +92,125 @@ in their separate `backends.json` document. Legacy TOML files are left untouched
 
 ## Creating Cycles
 
-A template materializes immutable cases through the server's domain planner.
-Construct each execution locally, then append those exact attempts to a cycle:
+Use an owned cycle context to start a template and retain its sealed evidence:
 
 ```python
-from dokime_client import DokimeClient, Execution
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
 
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
-    template = await client.template("obc.checks.pulse")
-    cases = await template.materialize(parameters={"sample_count": 8})
-    executions = [Execution(test_case) for test_case in cases]
 
-    cycle = await client.create_cycle(label="Campaign 1", description="Bench A")
-    await cycle.append(executions)
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+
+raise SystemExit(asyncio.run(main()))
 ```
 
-`create_cycle` returns its bound handle directly. Materialization captures the
-definition and provider revision; append refuses a stale case if either changes.
-Each `Execution(test_case)` gets a fresh stable UUID without network or device
-work. `cycle.append` registers the supplied attempts atomically in order and
-binds those same Python objects after confirmation. Repeating an append with the
-same identities and bindings cannot duplicate them; conflicting reuse is refused.
-Keep the execution objects and IDs when recovering an uncertain append response.
+This template requires the corresponding installed plugin. For the OBC fixture,
+use `await cycle.start("obc.checks.pulse", sample_count=8)`.
+`new_cycle(label, description=None, identifier=None, continue_automatically=False)`
+creates the cycle on entry. Every exit, including exceptions and Ctrl+C, seals
+it through the server's durable boundary: admission closes, owned work stops,
+unstarted members cancel, and final outcomes drain. Other cycles continue.
+Cleanup is shielded against cancellation. An ordinary body failure and cleanup
+failure raise `ExceptionGroup`; cancellation or KeyboardInterrupt requires its
+`BaseExceptionGroup` subclass so the original failure can remain intact.
+A lost creation response leaves the identity unknown; inspect the backend before
+creating another cycle. Cleanup requires a reachable backend and reports failures.
 
-Creating a cycle is not idempotent. After an uncertain creation response, inspect
-the backend before creating another container. Constructing or appending an
-execution never starts it; start execution explicitly after planning is complete.
-
-Several cycles can remain Active, with one execution running server-wide.
-Start each attempt with `await execution.start()`, or use `execution.run()`
-to Start and wait for its saved outcome and requested listener drain. Start is
-idempotent by execution identity and mode, including queued admission. A sealed
-execution never restarts; construct a new `Execution(test_case)` to repeat it.
-
-`create_cycle(..., continue_automatically=False)` defaults to explicit Starts.
-Setting it to `True` lets the server continue with the next unstarted member
-after natural completion and durable sealing, whatever the previous verdict.
-Explicit `execution.stop()` durably sets the cycle's
-`continue_automatically=False`. Later explicit Start runs only the selected
-attempt until the user explicitly re-enables that policy.
-Appending to an idle cycle starts no hardware. Executions seal independently;
-their cycle remains Active until explicitly sealed. Cycles have no Run or Stop.
-
-Close the container explicitly when the campaign is finished:
+`cycle.start(template, **parameters)` resolves the template, materializes cases,
+constructs fresh executions, appends them and admits their Starts. One case
+returns one `Execution`. Expansion returns a tuple of **all** handles in case
+order; Starts enter the existing server queue in that order:
 
 ```python
-await cycle.seal()
+runs = await cycle.start("lab.sweep", voltage=230)
+# For a template that expands to multiple cases:
+for run in runs:
+    outcome = await run
+    print(run.id, outcome.status, outcome.exit_code)
 ```
 
-This closes admission, stops this cycle's running work, cancels its unrun
-executions and waits for all evidence and the cycle report to be durably saved.
-Other cycles continue. Repeating `seal()` safely resolves a lost response;
-it never runs device operations again. Shutdown seals Active cycles, and startup
-finishes old cycles before admitting new work.
+Each handle exposes `.id`, is awaitable, and retains `.outcome` after awaiting it
+or fully consuming either evidence iterator. Accessing `.outcome` before then
+raises `RuntimeError`. `outcome.status` and `outcome.result` retain the backend
+verdict. `outcome.exit_code` is 0 for passed, 1 for failed/errored or any other
+nonpassing verdict, and 130 for interrupted/cancelled.
+`await run.wait(timeout=60)` remains available for an explicit local deadline.
 
-Export an execution after it seals, then close and export its cycle:
+`run.records(*types)` and `run.samples(*streams)` replay from the beginning and
+follow through the execution's saved seal, then terminate. Empty filters select
+all; filters are case-sensitive identifier globs with `*` and `?` wildcards.
+Concurrent readers are independent. Each record and sample has `.to_json()`,
+including nested datetime values as RFC 3339 text; no custom encoder is needed.
+Use an `asyncio.TaskGroup` for concurrent record and sample consumption. Close an
+early-abandoned iterator with `contextlib.aclosing`.
 
-```python
-await execution.wait()
-saved = await execution.export("execution.zip")
-await cycle.seal()
-await cycle.export("cycle.zip", overwrite=True)
-print(saved.path, saved.size_bytes, saved.sha256)
+`await cycle.save(directory, report=None)` creates the directory and writes
+`execution-<id>.zip` for every known member, `cycle.zip`, optional `report.html`,
+and `manifest.json`. It waits for pending execution reports, and exposes publication
+failures. `await execution.snapshot()` includes the report state and failure cause.
+It returns the same JSON-serializable manifest:
+
+```json
+{"cycle_id": "...", "files": [{"path": "cycle.zip", "size": 123, "sha256": "..."}]}
 ```
 
-The execution export works while its cycle is Active; a cycle export requires
-a durable seal. Both use the runtime's saved revisions and include a manifest,
-SQLite evidence, captured files and saved HTML reports. Inspect `streams` and
-`stream_columns` in `evidence.sqlite` for typed table/column mappings and units.
-The server enforces its configured export concurrency and archive byte allowance;
-the client uses the backend's declared byte bound.
-Missing required evidence fails explicitly. Downloads verify size, SHA-256 and
-successful terminal transport status before atomic publication. Existing files
-require `overwrite=True`; failure preserves the old destination and removes the
-partial file. Cancelling export never cancels execution. A download retry starts
-from the beginning and never reruns device operations.
+Manifest paths are relative to the directory; each listed file has its byte
+size and SHA-256. The manifest does not hash itself. Existing outputs are refused;
+select a fresh destination. A failed save leaves completed files for inspection
+and publishes no success manifest. Evidence ZIPs already include records and
+telemetry; there is no separate local JSONL capture option. Reports require the
+specified installed report definition, such as `cycle.summary`.
+
+For explicit planning, interactive control and uncertain-admission recovery,
+`client.template().materialize()`, `Execution(case)`, `client.create_cycle()`,
+`cycle.append()`, `execution.start()`, `execution.wait()`, `execution.stop()` and
+`cycle.seal()` remain available. Materialization snapshots the definition and
+provider revision; append registers exact UUIDs atomically without starting work.
+Starts are idempotent by identity and mode; mutations are never blindly retried.
+`execution.export(path)` and `cycle.export(path)` retain explicit `overwrite=True`.
+A sealed execution can export while its cycle remains Active; cycle exports
+require a durable seal. Downloads verify size, SHA-256 and final transport status
+before publication. Bind the cycle again to refresh externally added membership.
 
 ## Confirmation Prompts
 
-The default `obc.checks.pulse` has no prompt. Materialize its confirmation case,
-append an attempt, then Start without blocking so the script can answer:
+The default `obc.checks.pulse` has no prompt. Start its confirmation case
+without waiting for completion so the script can answer:
 
 ```python
 import asyncio
 from contextlib import aclosing
 
-template = await client.template("obc.checks.pulse")
-(test_case,) = await template.materialize(parameters={"require_confirmation": True})
-execution = Execution(test_case)
-await cycle.append([execution])
-await execution.start()
-async with asyncio.timeout(60):
-    while True:
-        async with aclosing(execution.pending_prompts()) as reader:
-            pending = [item async for item in reader]
-        if pending:
-            break
-        if await execution.checkpoint() is not None:
-            raise ValueError("execution sealed without its confirmation")
-        await asyncio.sleep(0.2)
-if len(pending) != 1:
-    raise ValueError("expected one confirmation")
-prompt = pending[0]
-print(prompt.title, prompt.message, prompt.actions)
-await execution.respond(prompt.id, action="yes")
-outcome = await execution.wait(timeout=60)
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    async with client.new_cycle("Confirmation") as cycle:
+        execution = await cycle.start("obc.checks.pulse", require_confirmation=True)
+        async with asyncio.timeout(60):
+            while True:
+                async with aclosing(execution.pending_prompts()) as reader:
+                    pending = [item async for item in reader]
+                if pending:
+                    break
+                if await execution.checkpoint() is not None:
+                    raise ValueError("execution sealed without its confirmation")
+                await asyncio.sleep(0.2)
+        if len(pending) != 1:
+            raise ValueError("expected one confirmation")
+        prompt = pending[0]
+        print(prompt.title, prompt.message, prompt.actions)
+        await execution.respond(prompt.id, action="yes")
+        outcome = await execution
 ```
 
-Use the client and cycle created above. `execution.prompt(prompt_id)` inspects the admitted
+`execution.prompt(prompt_id)` inspects the admitted
 question and any committed response. Reads and responses require this execution's
 identity; a prompt from a sibling execution is refused. After an ambiguous error,
 inspect the question before deciding whether to submit again. Duplicate or stale
@@ -206,13 +223,13 @@ Use the backend's HTTPS origin, its access key and the public certificate
 downloaded from the host. Keep the key outside source files. The scripts in
 [`examples/remote/python`](../../docs/remote/python.md) demonstrate manual device
 power, two executions in one cycle, and an execution confirmation. The test
-script follows filtered records and samples concurrently, drains both readers
+script iterates filtered records and samples concurrently, drains both readers
 after the durable outcome, then exports each execution and the sealed cycle.
 Each script has editable globals in the same order as the
 [native shell examples](../../docs/remote/cli.md): connection parameters,
 case and execution parameters, observation filters where applicable, and file
-parameters. Set `ENDPOINT`, `CA_CERTIFICATE`, `KEY_FILE` and `ENV_FILE` to the
-explicit connection sources, then run without arguments:
+parameters. Set `PAIRING_FILE` to the explicitly transferred pairing file, then run
+without arguments:
 
 ```sh
 python control-device.py
@@ -237,9 +254,9 @@ uncertain reply. Scripts never manage Start keys or retry mutations automaticall
 All Python examples use direct client APIs and editable globals, with no
 argument parser or Dokime CLI subprocess. The standalone
 [`remote_control.py`](examples/remote_control.py) attaches to `EXECUTION_ID`,
-drains its callbacks and saves `execution.json`.
-[`client/poll_run.py`](examples/client/poll_run.py) materializes `TEMPLATE`,
-runs one attempt and writes `cycle.json` and `summary.json`. Edit their globals,
+drains its iterators and saves `execution.json`.
+[`client/poll_run.py`](examples/client/poll_run.py) starts `TEMPLATE` in an owned
+cycle and writes `cycle.json` and `summary.json`. Edit their globals,
 then run the file without arguments.
 
 Repository Python Build produces client distributions under
@@ -249,27 +266,21 @@ Repository Python Build produces client distributions under
 releases; follow their setup instructions to prepare a matching local wheel.
 
 ```python
-from dokime_client.client import DokimeClient
+from dokime_client import DokimeClient
 
-
-async def record(item):
-    print(item)
-
-
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     execution = await client.execution(execution_id)
-    outcome = await execution.run(on_record=record, record_types=("obc.run.*",), timeout=60)
+    await execution.start()
+    async for record in execution.records("obc.run.*"):
+        print(record.to_json())
+    print(execution.outcome.exit_code)
 ```
 
-Retain execution identity and mode before Start. If admission
-is uncertain, resolve it using the same identity and mode. Creating a new
-cycle is a separate non-idempotent mutation. The client never retries mutations
-automatically. Closing the client, cancelling a callback, or reaching a local
-timeout leaves admitted backend work running; `execution.stop()` explicitly
-requests cooperative stop. Start admission and a saved execution outcome are
-separate facts. `execution.run()` returns after the saved outcome and final
-drain of every supplied callback; an empty filter sequence selects all types
-or streams for that callback.
+Retain execution identity and mode before Start. Resolve uncertain admission
+using the same identity and mode. Closing the client, abandoning an iterator,
+or reaching a local timeout leaves backend work running when using these
+lower-level primitives. Use `new_cycle` for owned cleanup on every exit.
+The callback-based `execution.run()` API has been removed.
 
 Live cursors belong to one backend epoch. Replacing or restarting the backend
 fails live readers; recover immutable evidence through the original checkpoint.
@@ -291,7 +302,7 @@ The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
 ```python
-async with DokimeClient.from_pairing("lab.dokime-pair") as client:
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     providers = await client.operations()
     provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
     request = provider.operation.request()

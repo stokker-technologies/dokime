@@ -25,8 +25,10 @@ import {
   commitListener,
   type ListenerSettings,
   type ListenerStatus,
+  listenerError,
   listenerRunning,
 } from "@/features/settings/sections/remote-listener";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -35,12 +37,29 @@ import {
 const notice = vi.hoisted(() => vi.fn());
 const fixture = vi.hoisted(() => ({
   session: null as { identity: { generation: string }; snapshot: { connection: { backend: { methods: string[] } } } } | null,
-  query: { isPending: true, error: null as Error | null, data: undefined, refetch: vi.fn() },
+  query: { isPending: true, error: null as Error | null, data: undefined as ListenerStatus | undefined, refetch: vi.fn() },
+  states: [] as unknown[],
+  updates: [] as unknown[],
+  invoke: vi.fn(),
 }));
+vi.mock("react", async (original) => ({
+  ...(await original<typeof import("react")>()),
+  useState: (initial: unknown) => [
+    fixture.states.length ? fixture.states.shift() : initial,
+    (value: unknown) => fixture.updates.push(value),
+  ],
+  useId: () => "fixture-field",
+}));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => fixture.invoke(...args) }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/features/settings/ApplicationPreferences", () => ({ ApplicationPreferences: () => null }));
 vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => fixture.query }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => fixture.query,
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+vi.mock("@/lib/rpc/generated/client", () => ({}));
+vi.mock("@/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/components/NotificationMessage", () => ({
   NotificationMessage: (props: unknown) => {
     notice(props);
@@ -69,6 +88,9 @@ beforeEach(() => {
   fixture.session = null;
   fixture.query.isPending = true;
   fixture.query.error = null;
+  fixture.query.data = undefined;
+  fixture.states = [];
+  fixture.updates = [];
 });
 
 test("Repeated Remote Settings Loads Stay Inline And Failures Still Notify", () => {
@@ -138,4 +160,16 @@ test("TLS Certificate Guard", () => {
   const html = renderToStaticMarkup(createElement(SettingsRow, { label: "Public Certificate", error: issue }, "Generate Certificate"));
   assert.equal(notice.mock.calls.length, 1);
   assert.doesNotMatch(html, /role="alert"/);
+});
+
+test("Export Has No WebView Credential Or Endpoint Arguments", async () => {
+  fixture.invoke.mockResolvedValueOnce(null);
+  await commands.desktopPairingCreate();
+  assert.deepEqual(fixture.invoke.mock.calls[0], ["desktop_pairing_create", undefined]);
+});
+
+test("Export Failure Retains The Native Reason", async () => {
+  const reason = "fixture-export-rejection";
+  fixture.invoke.mockRejectedValueOnce({ kind: "grpc", detail: { code: 3, message: reason, details: [] } });
+  await assert.rejects(commands.desktopPairingCreate(), (error: unknown) => listenerError(error) === reason);
 });

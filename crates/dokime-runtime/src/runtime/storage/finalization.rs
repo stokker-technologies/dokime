@@ -16,11 +16,10 @@
 // Standard Library Imports
 
 // Third Party Imports
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use futures_util::{FutureExt, StreamExt, stream::FuturesUnordered};
 
 // Local Imports
 use crate::RuntimeHandle;
-use crate::operations::reports::MaterializeReport;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use dokime_domain::model::execution::result::CycleView;
@@ -145,6 +144,7 @@ impl RuntimeHandle {
                 .commit(crate::transactions::RequestReportFinalization {
                     executions: unbounded,
                     intent: crate::transactions::ReportFinalization {
+                        failure: None,
                         evidence_at,
                         requested_at: crate::model::time::now_utc(),
                         lifecycle: None,
@@ -167,7 +167,7 @@ impl RuntimeHandle {
     ) -> Result<Vec<(TestExecutionId, Error)>> {
         let mut remaining = executions.iter().copied();
         let mut active = FuturesUnordered::new();
-        let active_members = usize::try_from(8_u64).expect("validated report member concurrency");
+        let active_members = self.execution_storage.report_concurrency.get();
         for execution in remaining.by_ref().take(active_members) {
             active.push(self.finish_saved_execution_attributed(cycle, execution));
         }
@@ -183,13 +183,116 @@ impl RuntimeHandle {
         Ok(failures)
     }
 
+    pub(crate) async fn queue_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
+        let id = &execution.test_execution_id;
+        if execution.saved.is_some() {
+            return Ok(());
+        }
+        // Serialize Scheduling Only; Rendering Never Holds This Registry Lock.
+        let mut jobs = self.execution_storage.report_jobs.lock().await;
+        if jobs.contains_key(id) {
+            return Ok(());
+        }
+        if self.execution_storage.acquisition(id).await.is_none() {
+            self.execution_storage.acquire(cycle, execution).await?;
+        }
+        self.execution_storage.finish_outputs(id).await?;
+        let evidence_at = self.storage().flush().await?;
+        if !self.state_read().report_finalizations.contains_key(id) {
+            self.commit(crate::transactions::RequestReportFinalization {
+                executions: vec![id.clone()],
+                intent: crate::transactions::ReportFinalization {
+                    failure: None,
+                    evidence_at: evidence_at.clone(),
+                    requested_at: crate::model::time::now_utc(),
+                    lifecycle: None,
+                },
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+        }
+        self.capture_report_lifecycle(execution).await?;
+        let at = self.state_read().report_finalizations[id].evidence_at.clone();
+        // Freeze And Drain Native Evidence Before Returning; HTML Is Independent.
+        self.execution_storage.prepare_capture(cycle, execution, &at, true).await?;
+        self.storage().flush_recovery().await?;
+        let runtime = self.clone();
+        let cycle = self.execution_storage.report_member_source(id).await?;
+        let execution = execution.clone();
+        let workers = self.execution_storage.report_workers.clone();
+        let job = tokio::spawn(async move {
+            let _worker = workers.acquire_owned().await.expect("report workers remain open");
+            let rendered = std::panic::AssertUnwindSafe(runtime.materialize_saved_execution(&cycle, &execution)).catch_unwind().await;
+            let rendered = rendered.unwrap_or_else(|_| Err(Error::Operation("report worker panicked".into())));
+            if let Err(error) = rendered {
+                if matches!(error, Error::ShuttingDown) {
+                    return;
+                }
+                tracing::error!(execution_id = %execution.test_execution_id, %error, "background report failed");
+                if let Err(failure) = runtime
+                    .commit(crate::transactions::FailReport {
+                        execution: execution.test_execution_id.clone(),
+                        cause: error.to_string(),
+                    })
+                    .await
+                {
+                    tracing::error!(%failure, "report failure state could not be saved");
+                }
+            }
+        });
+        jobs.insert(id.clone(), job);
+        Ok(())
+    }
+
+    pub(crate) async fn stop_report_jobs(&self) {
+        let jobs = std::mem::take(&mut *self.execution_storage.report_jobs.lock().await);
+        // Presentation Observes Shutdown; A Started Publication Settles Its Durable Writes.
+        for (_, job) in jobs {
+            let _ = job.await;
+        }
+    }
+
+    pub async fn wait_execution_report(&self, id: &TestExecutionId) -> Result<()> {
+        let mut watch = self.watch_state();
+        let mut shutdown = self.shutdown_requested.subscribe();
+        loop {
+            let snapshot = watch.latest();
+            let execution = snapshot.state().executions.get(id).ok_or_else(|| invalid("report execution is missing"))?;
+            if execution.saved.is_some() {
+                return Ok(());
+            }
+            if let Some(cause) = snapshot.state().report_finalizations.get(id).and_then(|intent| intent.failure.as_ref()) {
+                return Err(Error::InvalidReportInputs(cause.clone()));
+            }
+            drop(snapshot);
+            if *shutdown.borrow() {
+                return Err(Error::ShuttingDown);
+            }
+            tokio::select! {
+                changed = watch.next() => { changed.ok_or_else(|| invalid("runtime stopped before report publication"))?; }
+                _ = shutdown.changed() => return Err(Error::ShuttingDown),
+            }
+        }
+    }
+
     async fn finish_saved_execution_attributed<'a>(
         &self, cycle: &CycleView, execution: &'a TestExecution,
     ) -> (&'a TestExecution, Result<()>) {
         (execution, self.finish_saved_execution(cycle, execution).await)
     }
 
+    #[tracing::instrument(name = "execution.finalize", skip_all)]
     pub(crate) async fn finish_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
+        let queued = self.execution_storage.report_jobs.lock().await.contains_key(&execution.test_execution_id);
+        let failed =
+            self.state_read().report_finalizations.get(&execution.test_execution_id).is_some_and(|intent| intent.failure.is_some());
+        if queued && !failed {
+            return self.wait_execution_report(&execution.test_execution_id).await;
+        }
+        self.materialize_saved_execution(cycle, execution).await
+    }
+
+    async fn materialize_saved_execution(&self, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
         let id = &execution.test_execution_id;
         if execution.saved.is_some() {
             return Ok(());
@@ -208,6 +311,7 @@ impl RuntimeHandle {
                 .commit(crate::transactions::RequestReportFinalization {
                     executions: vec![id.clone()],
                     intent: crate::transactions::ReportFinalization {
+                        failure: None,
                         evidence_at: evidence_at.clone(),
                         requested_at: crate::model::time::now_utc(),
                         lifecycle: None,
@@ -237,16 +341,17 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
-        self.operations
-            .call::<MaterializeReport>(MaterializeReport {
+        crate::runtime::operations::reports::Resources::from_runtime(self)
+            .materialize(crate::operations::reports::MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
                 at: at.clone(),
             })
             .await?;
-        let _guard = gate.lock().await;
-        // Only Finalization Seals The Subject, After The Full Publication Is Durable.
+        Ok(())
+    }
+
+    pub(crate) async fn complete_report_publication(&self, id: &TestExecutionId) -> Result<()> {
         self.execution_storage.seal_final_report(id).await?;
         let seal = self.execution_storage.durable_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
         self.commit_admitted_seal(seal).await?;

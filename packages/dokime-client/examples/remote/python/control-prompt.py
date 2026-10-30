@@ -31,7 +31,7 @@ from dokime_client.client import Cycle, DokimeClient, DokimeError, Execution
 # === Constants === #
 
 # Connection Parameters
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 
 # Case And Execution Parameters
 TEMPLATE = "obc.checks.pulse"

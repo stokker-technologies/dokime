@@ -13,10 +13,13 @@
 
 /* === Modules === */
 mod capture;
+mod finalization;
 mod plots;
-#[path = "../../tests/support/services/smoke.rs"]
-pub mod smoke;
 mod telemetry;
+
+#[path = "../../tests/support/services/mod.rs"]
+#[allow(dead_code)]
+pub mod service_support;
 
 /* === Re-Exports === */
 
@@ -31,7 +34,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, capture::benchmark, plots::benchmark, telemetry::benchmark);
+criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

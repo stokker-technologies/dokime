@@ -388,7 +388,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
                 error: None,
                 active: false,
                 restart_required: false,
-                boot_error: None,
+                boot_failed: false,
             })))
         })
     }
@@ -557,12 +557,15 @@ impl Drop for UploadInput {
 
 impl Listener {
     pub async fn start(service: Service, tls: bool, ip: Ipv4Addr) -> Self {
+        Self::start_with_identity(service, tls.then(|| IDENTITY.clone()), ip).await
+    }
+    pub async fn start_with_identity(service: Service, tls: Option<(String, String)>, ip: Ipv4Addr) -> Self {
         let listener = tokio::net::TcpListener::bind(SocketAddr::from((ip, 0))).await.unwrap();
-        let endpoint = format!("{}://{}/", if tls { "https" } else { "http" }, listener.local_addr().unwrap());
+        let endpoint = format!("{}://{}/", if tls.is_some() { "https" } else { "http" }, listener.local_addr().unwrap());
         let mut server = Server::builder();
-        if tls {
+        if let Some((certificate, key)) = tls {
             let _ = rustls::crypto::ring::default_provider().install_default();
-            server = server.tls_config(ServerTlsConfig::new().identity(Identity::from_pem(&IDENTITY.0, &IDENTITY.1))).unwrap();
+            server = server.tls_config(ServerTlsConfig::new().identity(Identity::from_pem(certificate, key))).unwrap();
         }
         let task = tokio::spawn(async move {
             let server = server
@@ -585,6 +588,7 @@ impl Listener {
     pub fn remote(&self, trust: bool, token: Option<&str>) -> ConnectRequest {
         ConnectRequest {
             target: ConnectionTarget::Remote {
+                endpoints: Vec::new(),
                 endpoint: self.endpoint.clone(),
                 ca_certificate_pem: trust.then(|| IDENTITY.0.clone()),
             },

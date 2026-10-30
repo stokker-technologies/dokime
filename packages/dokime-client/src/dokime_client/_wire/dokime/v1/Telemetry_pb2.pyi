@@ -7,6 +7,26 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class TelemetryListSamplesCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class TelemetryListSamplesRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2.Row1
+    cancel: TelemetryListSamplesCancellation
+    finish: TelemetryListSamplesCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2.Row1, _Mapping]] = ..., cancel: _Optional[_Union[TelemetryListSamplesCancellation, _Mapping]] = ..., finish: _Optional[_Union[TelemetryListSamplesCancellation, _Mapping]] = ...) -> None: ...
+
+class TelemetryListSamplesRunOutput(_message.Message):
+    __slots__ = ("response",)
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2.Row2, _Mapping]] = ...) -> None: ...
+
 class TelemetryWatchSamplesOutput(_message.Message):
     __slots__ = ("item", "response")
     ITEM_FIELD_NUMBER: _ClassVar[int]
@@ -14,3 +34,25 @@ class TelemetryWatchSamplesOutput(_message.Message):
     item: _messages_pb2_1.Row3
     response: _messages_pb2_1.Row2
     def __init__(self, item: _Optional[_Union[_messages_pb2_1.Row3, _Mapping]] = ..., response: _Optional[_Union[_messages_pb2_1.Row2, _Mapping]] = ...) -> None: ...
+
+class TelemetryWatchSamplesCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class TelemetryWatchSamplesRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2_1.Row1
+    cancel: TelemetryWatchSamplesCancellation
+    finish: TelemetryWatchSamplesCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[TelemetryWatchSamplesCancellation, _Mapping]] = ..., finish: _Optional[_Union[TelemetryWatchSamplesCancellation, _Mapping]] = ...) -> None: ...
+
+class TelemetryWatchSamplesRunOutput(_message.Message):
+    __slots__ = ("response", "item")
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    ITEM_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2_1.Row2
+    item: _messages_pb2_1.Row3
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1.Row2, _Mapping]] = ..., item: _Optional[_Union[_messages_pb2_1.Row3, _Mapping]] = ...) -> None: ...

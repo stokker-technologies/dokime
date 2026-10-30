@@ -18,8 +18,10 @@
 // Third Party Imports
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
 import { NotificationMessage } from "@/components/NotificationMessage";
+import { FailureConsequences } from "@/components/FailureConsequences";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import {
@@ -131,6 +133,21 @@ export function NotificationsSurface() {
                 {record.source.trim() && record.source.trim() !== "/" && (
                   <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{record.source}</span>
                 )}
+                <FailureConsequences items={record.consequences ?? []} />
+                {record.missingSecret ? (
+                  <Link
+                    className="text-sm underline"
+                    to="/settings/$section"
+                    params={{ section: "secrets" }}
+                    hash={`add-secret=${record.missingSecret}`}
+                  >
+                    Set Secret
+                  </Link>
+                ) : record.pluginSettings ? (
+                  <Link className="text-sm underline" to="/settings/plugins/$pluginId" params={{ pluginId: record.pluginSettings }}>
+                    Open Plugin Settings
+                  </Link>
+                ) : null}
               </div>
             </li>
           );

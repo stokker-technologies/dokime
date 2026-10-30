@@ -118,7 +118,7 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
-    let pairing = directory.join("lab.dokime-pair");
+    let pairing = directory.join("lab.dokime-remote");
     let profiles = directory.join("profiles.json");
     import_profile(&binary, endpoint, &pairing, &profiles);
     let mut values = vec![
@@ -155,7 +155,7 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
     let document = serde_json::json!({
         "version": 1,
-        "endpoint": endpoint,
+        "endpoints": [endpoint],
         "backend_identifier": backend,
         "label": "Lab",
         "ca_certificate_pem": null,
@@ -164,7 +164,7 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
     let _ = std::fs::remove_file(profiles);
     let output = dokime::domain::process::command(binary)
-        .args(["backend", "add", "--pairing"])
+        .args(["backend", "add", "--remote"])
         .arg(pairing)
         .args(["--identifier", PROFILE_IDENTIFIER])
         .env("DOKIME_PROFILES_FILE", profiles)

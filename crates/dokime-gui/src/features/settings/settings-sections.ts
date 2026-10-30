@@ -18,7 +18,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "remote",
     label: "Remote Access",
-    description: "Listener, pairing files and paired clients",
+    description: "Listener, remote access files and paired clients",
     icon: Network,
     group: "primary",
   },
@@ -39,7 +39,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     id: "secrets",
-    label: "Secrets",
+    label: "Secret Storage",
     description: "Shared named secrets on the connected host",
     icon: CircleUser,
     group: "primary",

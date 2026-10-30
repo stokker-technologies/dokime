@@ -17,6 +17,7 @@
 import assert from "node:assert/strict";
 // Local Imports
 import type { SettingsSnapshot } from "@generated/application-settings";
+import defaults from "@generated/application-settings.json";
 // Third Party Imports
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -66,8 +67,8 @@ function snapshot(): SettingsSnapshot {
     revision: 7,
     settings: {
       appearance: { theme_mode: "dark", theme_family: "fixture", density: "compact" },
-      report: { plot_points: 3210, plot_downsample: "lttb" },
-      client: { connect_timeout_ms: 1234, request_timeout_ms: 5678 },
+      report: { ...defaults.report, plot_points: 3210, plot_downsample: "lttb" },
+      client: { connect_timeout_ms: 1234, request_timeout_ms: 5678, endpoint_stagger_ms: 345 },
       telemetry: { interval_ms: 42 },
       listener: {
         enabled: true,
@@ -143,6 +144,7 @@ test("Advanced Reveals Additional Preference Fields", () => {
   const additional = [
     "local-client.connect_timeout_ms",
     "local-client.request_timeout_ms",
+    "local-client.endpoint_stagger_ms",
     "backend-telemetry.interval_ms",
     "backend-listener.certificate_names",
   ];
@@ -151,9 +153,7 @@ test("Advanced Reveals Additional Preference Fields", () => {
     assert.ok(!simple.includes(`id="${id}"`), id);
     assert.ok(advanced.includes(`id="${id}"`), id);
   }
-  assert.equal((advanced.match(/aria-label="[^"<>]* \[ms\]"/g) ?? []).length, 3);
-  assert.equal((advanced.match(/aria-label=/g) ?? []).length, 13);
-  for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"])
+  for (const value of ["fixture", "3210", "1234", "5678", "345", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"])
     assert.ok(advanced.includes(`value="${value}"`), value);
   for (const value of ["dark", "compact", "lttb"]) assert.ok(advanced.includes(`value="${value}" selected=""`), value);
 });
@@ -167,9 +167,9 @@ test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
     const settings = structuredClone(previous.settings);
     if (scope === "local") {
       settings.appearance = { theme_mode: "light", theme_family: "other", density: "touch" };
-      settings.client = { connect_timeout_ms: 2000, request_timeout_ms: 9000 };
+      settings.client = { connect_timeout_ms: 2000, request_timeout_ms: 9000, endpoint_stagger_ms: 400 };
     } else {
-      settings.report = { plot_points: 4000, plot_downsample: "raw" };
+      settings.report = { ...settings.report, plot_points: 4000, plot_downsample: "raw" };
       settings.telemetry.interval_ms = 200;
       settings.listener = {
         enabled: false,

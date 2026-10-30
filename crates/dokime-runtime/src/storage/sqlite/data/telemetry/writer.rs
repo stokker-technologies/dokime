@@ -97,6 +97,7 @@ impl Store {
         let rows = batch.as_slice();
         let mut head = saved(connection)?;
         let mut groups: BTreeMap<String, Vec<(u64, Admitted)>> = BTreeMap::new();
+        let mut admitted = Vec::new();
         for row in rows {
             head.history.check(&row.record.position.history)?;
             if row.record.position.sequence <= head.sequence {
@@ -123,6 +124,7 @@ impl Store {
             let mut entry = stream.codec.decode_admission(row)?;
             ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
             groups.entry(id).or_default().push((row.record.position.sequence, entry));
+            admitted.push(row);
             head.sequence = row.record.position.sequence;
         }
         let checkpoints = groups.keys().map(|id| (id.clone(), self.open[id].writer.checkpoint())).collect::<Vec<_>>();
@@ -229,6 +231,14 @@ impl Store {
                     params![id, catalog::integer(checkpoint.end)?, stream.writer.digest().as_slice()],
                 )?;
             }
+            // Report Aggregates And Preview Envelopes Share The Catalog Commit That Publishes Their Batches.
+            let mut aggregates = super::aggregates::Batch::default();
+            let mut previews = super::previews::Batch::new(self.settings.previews);
+            for row in &admitted {
+                aggregates.push(&transaction, row, &mut previews)?;
+            }
+            aggregates.save(&transaction)?;
+            previews.save(&transaction)?;
             transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
             super::super::super::commit(transaction)?;
             Ok(head)

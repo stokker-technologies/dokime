@@ -19,11 +19,11 @@
 
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
 import { Badge } from "@/components/ui/badge";
+import { FailureConsequences } from "@/components/FailureConsequences";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
@@ -74,7 +74,14 @@ export function PluginList({
     const switchable = entry.state === "installed" || entry.state === "disabled";
 
     return {
-      alert: status.reason ? <NotificationMessage>{status.reason}</NotificationMessage> : null,
+      alert: status.reason ? (
+        <div>
+          <p role="alert" className="text-sm text-destructive">
+            {status.reason}
+          </p>
+          {entry.last_boot?.state === "failed" ? <FailureConsequences items={entry.last_boot.failure.consequences} /> : null}
+        </div>
+      ) : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {
@@ -117,7 +124,11 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   if (entry.state === "removal_pending") {
     return {
       label: "Removal Pending",
-      reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
+      reason: entry.active
+        ? `Active until ${brandLabel} restarts.`
+        : entry.last_boot?.state === "failed"
+          ? entry.last_boot.failure.message
+          : null,
       variant: "warning",
     };
   }
@@ -129,7 +140,12 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
     };
   }
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_error) return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
+  if (entry.boot_failed)
+    return {
+      label: "Failed",
+      reason: entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : null,
+      variant: "destructive",
+    };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

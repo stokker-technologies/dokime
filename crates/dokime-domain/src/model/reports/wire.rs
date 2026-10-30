@@ -22,7 +22,6 @@ use serde::Serialize;
 // Local Imports
 use crate::model::identity::wire::Metadata;
 
-#[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
 /* === Constants === */
@@ -77,7 +76,22 @@ pub struct ReportHtmlCompletion {
     pub sha256: String,
 }
 
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReportProgress {
+    pub state: ReportState,
+    pub failure: Option<String>,
+}
+
 /* === Enums === */
+
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReportState {
+    Pending,
+    Ready,
+    Failed,
+}
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

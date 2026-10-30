@@ -71,6 +71,14 @@ generated_python = "packages/dokime-client/src/dokime_client/_wire packages/doki
 description = "Prepare Tools And Inputs"
 run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
 
+[tasks."prepare:bindings"]
+description = "Regenerate Python And Desktop Contracts From One Cargo Build"
+usage = 'arg "<messages>"'
+run = [
+  '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
+  '{{vars.tools}} dokime_tools.prepare.generated --build-json "{{usage.messages}}" --stage',
+]
+
 [tasks."prepare:desktop"]
 description = "Prepare Native Desktop Automation"
 depends = ["prepare"]
@@ -80,14 +88,6 @@ run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 description = "Generate Default Organization And Desktop Icons"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.build.organization --icons"
-
-[tasks."prepare:bindings"]
-description = "Regenerate Python And Desktop Contracts From One Cargo Build"
-usage = 'arg "<messages>"'
-run = [
-  '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
-  '{{vars.tools}} dokime_tools.prepare.generated --build-json "{{usage.messages}}" --stage',
-]
 
 [tasks."prepare:report"]
 description = "Refresh Embedded Runtime Resources"
@@ -224,10 +224,6 @@ depends = ["prepare:report"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust --profile {{usage.profile}}"
 
-[tasks."build:rust:focused"]
-description = "Compile An Explicit Local Rust Selection"
-run = "{{vars.tools}} dokime_tools.build.cargo focused"
-
 [tasks."build:rust:bench"]
 description = "Build Benchmarks And Their Matching Native Fixtures"
 depends = ["prepare:report"]
@@ -251,6 +247,10 @@ env.CARGO_INCREMENTAL = "0"
 description = "Build The Desktop With Its Compiled Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust.desktop --profile {{usage.profile}}"
+
+[tasks."build:rust:focused"]
+description = "Compile An Explicit Local Rust Selection"
+run = "{{vars.tools}} dokime_tools.build.cargo focused"
 
 [tasks."build:rust:tests"]
 description = "Build Independent Test Archive And Compile Contracts"
@@ -317,7 +317,11 @@ run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --cat
 [tasks."test:python:integration"]
 description = "Test Integration Python"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.test.python --category integration"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}'
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:acceptance"]
@@ -347,11 +351,6 @@ depends = [
 ]
 env.CARGO_INCREMENTAL = "0"
 
-[tasks."test:rust:coverage"]
-description = "Measure Rust Coverage Over Instrumented Lanes"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}"
-
 [tasks."test:rust:unit"]
 description = "Test Unit Rust"
 usage = 'flag "--profile <profile>" default="dev"'
@@ -375,6 +374,21 @@ run = [
 ]
 env.CARGO_INCREMENTAL = "0"
 
+[tasks."test:rust:system"]
+description = "Test System Rust"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
+]
+env.CARGO_INCREMENTAL = "0"
+
+[tasks."test:rust:coverage"]
+description = "Measure Rust Coverage Over Instrumented Lanes"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}"
+
 [tasks."test:rust:extended"]
 description = "Run Optional Local Compatibility And Fault-Injection Stories"
 usage = 'flag "--profile <profile>" default="dev"'
@@ -391,16 +405,6 @@ env.CARGO_INCREMENTAL = "0"
 description = "Prove The Standalone Starter In Nightly Validation"
 usage = 'flag "--profile <profile>" default="release"'
 run = "{{vars.tools}} dokime_tools.test.rust.starter --profile {{usage.profile}}"
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."test:rust:system"]
-description = "Test System Rust"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
-]
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:typescript"]
@@ -554,6 +558,8 @@ run = "{{vars.tools}} dokime_tools.release.run tag"
 [tasks."release:verify"]
 description = "Verify Published Release Assets And Installers"
 run = "{{vars.tools}} dokime_tools.release.run verify"
+
+# === Clean === #
 
 # === Housekeeping === #
 

@@ -87,8 +87,17 @@ impl Fixture {
 impl ExportFixture {
     async fn new() -> Self {
         let mut fixture = Fixture::new().await;
-        fixture.owner.register(Arc::new(super::smoke::Smoke::new(super::smoke::Behaviour::new(EXPORT_ROWS, 0, false)))).await.unwrap();
-        let registration = fixture.runtime.test_suites().await.into_iter().find(|suite| suite.source == super::smoke::SOURCE).unwrap();
+        fixture
+            .owner
+            .register(Arc::new(crate::service_support::smoke::Smoke::new(crate::service_support::smoke::Behaviour::new(
+                EXPORT_ROWS,
+                0,
+                false,
+            ))))
+            .await
+            .unwrap();
+        let registration =
+            fixture.runtime.test_suites().await.into_iter().find(|suite| suite.source == crate::service_support::smoke::SOURCE).unwrap();
         let options = dokime_runtime::definition::CaseMaterializationOptions {
             force: true,
             max_cases: 1_000,

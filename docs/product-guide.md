@@ -83,7 +83,7 @@ starts hardware; an execution is the Start/Stop unit.
 Several cycles can stay **Active** at once, with one execution running across
 the server. Start admits an execution once by its durable identity. Optional
 server-owned ordered continuation can start the next unstarted member after
-natural completion and sealing; it defaults to false. Stop durably disables that
+natural completion and evidence drain; it defaults to false. Stop durably disables that
 continuation policy. Each execution saves and seals its evidence while its cycle stays
 Active. Select the destination cycle in the Library before adding attempts.
 
@@ -127,29 +127,43 @@ Each history entry shows a severity icon beside its primary title, with secondar
 
 ## Native Remote Access
 
-Settings → Remote Access owns the saved listener settings and explicit restart.
-Management is available only through the native local listener. TLS and
-access-key authentication are independent; disable either only in an isolated lab.
-Use a concrete reachable endpoint whose hostname or IP matches the certificate.
+Choose **Export Remote Access** in Settings → Remote Access. The native save
+picker suggests a readable label and `.dokime-remote` filename. If the listener
+is off, one confirmation enables it on the saved port (8765 by default) and
+continues the export. The same confirmation warns that the file is secret.
+Rename its client later by selecting its label in **Paired Clients**.
 
-Choose **Create Pairing File**, enter a client label and advertised endpoint,
-and select a destination. Cancellation creates no key. Dokime saves one private
-`<label>.dokime-pair` file containing the endpoint, expected backend identifier,
-label, CA certificate and a new access key. Treat it as a secret: it grants full
-remote control. The raw key stays outside the WebView and is returned only once.
-The host persists its verifier, never the recoverable key. Failed file saves
-revoke the newly created client.
+Each file has an independent revocable key. Anyone holding it has full control;
+transfer it privately and revoke its client if it is lost. Raw keys never enter
+the WebView, logs or saved backend profiles. The host retains only verifiers.
 
-Each file has an independent key. **Paired Clients** lists labels, creation
-and last-seen times; **Revoke** rejects further calls and ends that client's
-active streams without affecting other clients. Create a new file to replace a
-lost one. An authentication-off lab pairing has no client record or revocation
-guarantee. Listener reconfiguration does not replay or stop admitted executions.
+Endpoints are automatic: a specific bound address, or the hostname followed by
+real interface addresses in the listener address family, with private networks first. Virtual/VPN adapters are
+excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
+for a specific loopback bind carry **Same PC** in their generated label.
+The backend signs its listener leaf with a persistent CA, which the file pins.
+New interface addresses trigger a leaf reissue under that same CA, so existing
+files keep their trust. An old file still needs at least one reachable candidate,
+such as the hostname; export a new file if all its addresses become obsolete.
 
-Pairing files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
-`endpoint`, `backend_identifier`, `label`, `ca_certificate_pem` and `access_key`.
-Absent CA/key values are null. Unknown fields, invalid identities or PEM,
-wildcard endpoints and inconsistent TLS/CA combinations are rejected.
+Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
+`endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
+`ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
+unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
+origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
+and the old single `endpoint` format are unsupported. The remote security store
+also keeps format v1; old stores require a fresh application root and are never
+silently reset.
+
+Management remains available only through the native local listener. TLS and
+access-key authentication are independent advanced settings; disable either
+only in an isolated lab. Changing interface names or explicitly reissuing the
+leaf preserves its CA and existing access keys.
+
+Windows NSIS installation adds an inbound application firewall rule scoped to
+**Private** networks, with administrator confirmation for that rule. Uninstall
+removes the installation's rule. Tauri installation defaults otherwise remain.
+On other platforms, permit the saved listener port through the host firewall.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -172,9 +186,9 @@ invocation use the current provider contract; rediscover after provider changes.
 The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
-machine **Identifier** and a human **Label**. Import a pairing file as the primary
-setup path. The native importer saves its key in the OS keyring and its CA and
-expected identity in the profile. Validation precedes mutation; a failed profile
+machine **Identifier** and a human **Label**. Choose **Import Remote**, or drop
+one `.dokime-remote` file onto the desktop window, as the primary setup path. The native importer saves its key in the OS keyring and its CA and
+expected identity and ordered endpoints in the profile, then connects. Validation precedes mutation; a failed profile
 save rolls back the newly created keyring entry. Duplicate identifiers are refused.
 
 The desktop tries its saved default once. An unavailable or mismatched backend
@@ -183,14 +197,15 @@ remove a profile; deleting the active profile disconnects it and clears its defa
 Profile editing and local appearance preferences remain available offline.
 
 ```sh
-dokime backend add --pairing lab.dokime-pair --identifier lab
+dokime backend add --remote lab.dokime-remote --identifier lab
 dokime backend use lab
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
 ```
 
-Omit `--identifier` to use the pairing's backend identifier. Manual entry is
+Omit `--identifier` to use the file's backend identifier. CLI remote import verifies
+the connection immediately; manual lab additions only save the profile. Manual entry is
 reserved for unsecured labs:
 
 ```sh
@@ -201,11 +216,40 @@ Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
 
 ```python
-client = DokimeClient.from_pairing("lab.dokime-pair")
-async with client:
-    async for suite in client.suites():
-        print(suite)
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
+
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+raise SystemExit(asyncio.run(main()))
 ```
+
+The example requires the corresponding installed template. With the OBC fixture,
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
+on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
+are grouped with the original failure. Await a run directly for its saved outcome.
+Terminal record/sample iterators accept positional filters and provide `.to_json()`.
+The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
+cancelled. A template expansion returns an ordered tuple of all execution handles.
+`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
+manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
+are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
+
+All clients try endpoint candidates in parallel with a short stagger configured
+by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
+against the pinned CA and expected backend identity can win. The profile remembers
+the last successful endpoint and tries it first next time. Other candidates keep
+their original order. A failed connection leaves the imported profile available
+for retry. Python `from_pairing` retains its successful endpoint for that client;
+`from_profile` also saves successful endpoint selection in the shared profile.
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -276,7 +320,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
-client provides the same durable boundary with `await cycle.seal()`.
+client provides the same durable boundary with `await cycle.seal()`, and
+`async with client.new_cycle(label)` applies it automatically on every exit.
 
 Download saved evidence without running any work again:
 
@@ -336,12 +381,17 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
     "identifier": "lab",
     "label": "Lab PC",
     "endpoint": "https://dokime.example:8765",
+    "endpoints": ["https://dokime.example:8765", "https://192.168.1.50:8765"],
     "expected_backend_id": "BACKEND_ID",
     "ca_certificate_pem": null,
     "secret": "keyring"
   }]
 }
 ```
+
+`endpoints` preserves imported candidate order; `endpoint` is the last verified
+success, initially the first candidate. Manual profiles use an empty candidate
+list. The OS keyring association stays stable when the winning endpoint changes.
 
 Identifiers contain 1–128 ASCII letters, digits, dots, underscores or hyphens;
 `.` and `..` are refused. Labels are nonblank, control-free and at most 256 bytes.
@@ -358,14 +408,22 @@ automatic root resets; existing files and evidence are never silently deleted.
 Each backend owns a catalog of secrets keyed by identifier. Plugins use the shared
 `dokime.secrets.lookup` operation with an identifier; a missing or deleted identifier returns
 an error. Replacing a value affects future lookups. A value already fetched by
-a running plugin remains its responsibility. Required secret settings are
-checked before execution starts.
+a running plugin remains its responsibility.
+
+A declared secret's identifier is its Secret Storage identifier. At plugin start,
+Dokime reads each declaration directly from the store. A missing required secret
+fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+(the identifier varies). Optional secrets are absent when missing. Add the exact
+identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
+to read the store again. There are no per-plugin bindings, environment-variable
+sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
 Existing values are never fetched for display. Leave the replacement field
-empty to retain a value. Known references list saved plugin settings; plugins
-can also look up identifiers dynamically, so this list is not exhaustive. Switching
+empty to retain a value. References lists plugins that declare each identifier,
+including installed plugins that failed to start. Plugins can also look up
+identifiers dynamically, so this list is not exhaustive. Switching
 backends opens that backend's catalog and discards the previous edit form.
 
 Values are stored in the host's OS keyring, separately from backend login
@@ -399,6 +457,22 @@ before retrying.
 Secrets use a shared table with Identifier and Label columns. **Add Secret**
 opens a dialog; the monospace Identifier is the machine key, while Label is the
 human display text. No `name` alias is accepted in secret contracts.
+
+### Plugin Settings
+
+**Settings → Plugins** keeps ordinary plugin settings editable after startup
+fails. Its read-only **Required Secrets** list shows each declared identifier,
+whether it is required or optional, and whether it exists in Secret Storage.
+**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+Secret values are entered only in Secret Storage; the plugin settings form has no
+secret fields. Existing saved references are ignored on load without migrating
+values or changing storage v1. A stored identifier such as `hcl.api_token` does
+not satisfy a declaration named `api_token`.
+
+Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
+`api_token: Option<dokime::plugin::Secret>` for an optional one. The field name is
+the store identifier; secret declarations have no default or `from_environment`
+argument. Rebuild external plugins against the matching SDK after this clean break.
 
 ## Planning And Creating Cycles
 
@@ -724,6 +798,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
@@ -817,7 +894,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--backend` |
-| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--pairing`, `--identifier`, `--label`, `--profiles-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage profiles; remote import also verifies the connection. | `--remote`, `--identifier`, `--label`, `--profiles-file` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 
@@ -883,24 +960,6 @@ cargo dokime sidecar inspect dist/my-plugin.dokime
 The advanced collection path and `sidecar package` do not invoke the compiler.
 The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
-
-### Plugin Schema Budgets
-
-`dokime::config::schema_defaults()` in `crates/dokime-runtime/src/config/schema.rs`
-owns plugin metadata preparation allowances. Packaging, installer verification,
-bundle inspection, plugin store installation and native admission use these
-defaults, including GUI uploads through the backend plugin store.
-The finite memory allowance is 64 times `INSTALL_ARCHIVE_MAX_BYTES`; the work
-allowance is 16 times that limit. They cover encoded metadata decoding, fragment
-overhead and shared contract schema resolution. These are accounting ceilings,
-not memory allocations made up front. Bundle and individual fragment size limits
-still apply independently.
-
-Embedding applications can set `Config.schema` or `RuntimeConfig.schema` to
-stricter allowances; the same settings reach inspection, installation and
-executable admission. Refusals identify the plugin and the exhausted memory or
-work allowance, with attempted usage and the allowed amount. Reduce the plugin's
-metadata or increase the embedding application's schema allowance to admit it.
 
 ### Native Installers
 
@@ -1293,10 +1352,13 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Desktop single-instance and startup locks, including the
-focus channel, use the resolved application root. Protocol/deep-link identity,
-updater verification trust and code-signing identity remain compiled. Reusing
-binaries with different distribution identities does not isolate those mechanisms.
+deleted automatically. Each desktop launch opens its own window. A local backend
+exclusively owns its data folder; if another backend already owns it, the desktop
+shows the folder and offers connection controls. Connect to another or remote
+backend, or close the other instance and retry Start Local Backend.
+Protocol/deep-link identity, updater verification trust and code-signing identity
+remain compiled. Reusing binaries with different distribution identities does not
+isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
@@ -1377,6 +1439,27 @@ and installs only the explicitly selected member. Restart the host to activate i
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
 
+## Plugin Start Failures
+
+Plugin startup failures show readable root causes in notifications, Settings →
+Plugins, CLI errors and Python error text. Unavailable operations from a failed
+startup/prepare pass are summarized separately. When the pass has a construction failure, all missing-resource
+errors in that pass are consequences, regardless of reporting order. Other errors
+remain roots; without a construction failure, missing resources remain roots.
+This is a prepare-pass rule, not a resource dependency graph. Expand the consequence
+summary in the desktop to inspect each unavailable operation without mixing it into the root message.
+
+A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
+**Add Secret** dialog with that identifier prefilled, including after a failed start.
+Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+All owners in an inactive bundle keep their ordinary settings editable; secret
+declarations show their identifiers read-only.
+
+The recorded failure carrier preserves the full structured startup report,
+including each original refusal code, detail and diagnostic chain. The application
+log also retains structured startup diagnostics; the root message is a presentation
+of that data, without Rust Debug formatting.
+
 ## Generated Clients
 
 Export the operation catalog's language-neutral protobuf contract without a running backend:
@@ -1430,6 +1513,61 @@ This experimental storage layout keeps the v1 baseline and requires a fresh
 root for incompatible development data. Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
 restores saved frontiers without replaying device actions.
+
+Retiring superseded metadata seeks its matching evidence references. It does not
+scan the accumulated telemetry signals or captured records.
+
+Numeric execution outputs update in the same SQLite transaction as each saved
+telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
+counts, extrema, means, medians, standard deviations, RMS values, sums and
+percentiles. Completion reads these indexes instead of replaying each field's
+whole stream. Pending index work is bounded by the admitted write batch; raw
+evidence remains unchanged. Development roots with older evidence indexes need
+a fresh storage root and are never reset automatically.
+
+Report presentation is built during ingestion. Each numeric field has adaptive
+time buckets containing first, last, minimum, maximum and count, committed with
+its raw samples. Plots render the resulting extrema envelope within their display
+budget; extending a run coarsens time resolution while retaining peaks and dips.
+Tables show bounded first/last rows. Each report identifies its execution and
+saved evidence frontier; evidence paging and exported bundles retain the full data.
+Exact numeric summaries, including percentiles and the built-in mean analysis,
+read the incremental numeric indexes.
+
+SQLite construction settings `RuntimeConfig.local_storage.previews` own
+`bucket_count`, `bucket_interval` and `report_concurrency`; application report
+settings own `table_rows`, `plot_points`, `source_bytes` and `value_depth`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
+end, four background renders and 2,000 display points. Each bucket contributes at most four points, and
+report plots merge buckets further when their authored display budget is smaller.
+Report envelopes replace the live plot's chosen downsampling technique; the viewer
+fits their extrema to its measured pixel width.
+Document input/materialization defaults to 64 MiB and report value encoding to
+128 levels. These are presentation bounds, independent of raw evidence retention.
+Lifecycle definitions, annotations and file inventories retain complete captured
+metadata; capture cost still scales with their cardinality, rather than sample history.
+
+Analyses without an exact incremental index are visibly unavailable in reports:
+FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
+sections and non-time plots. Full evidence remains available for external analysis.
+A historical cut whose preview has advanced is refused instead of replaying raw
+history. Current reports use the saved frontier; final reports use the frozen cut.
+Development roots without report previews require a fresh root; storage remains
+v1 and existing data is never migrated or reset automatically.
+
+Stop and Cancel close and drain evidence, then return while HTML publication runs
+in the background. Execution detail exposes report **Pending**, **Ready** or
+**Failed**, including the failure cause. The GUI shows it beside report actions;
+CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
+and Python `await execution.snapshot()` expose the same `report` field. A report failure never fails Stop or changes the execution result.
+Execution-scoped sample follows drain the closed evidence frontier independently
+of HTML. Report download and evidence export wait for readiness and return publication
+failures. `cycle.save(...)` uses those same waits. Shutdown preserves pending
+publication for startup recovery without waiting for HTML or replaying providers.
+
+Capture close callers join the same in-flight sealing work. Cancelling a waiter
+does not cancel sealing; later Stop or shutdown calls await that work. Closing
+capture admission refuses new capture producers, and successful provider cleanup
+stages remain complete across retries.
 
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
