@@ -79,7 +79,7 @@ impl Release {
             .build()
             .map_err(|error| Error::Invalid(error.to_string()))?;
         let url = reqwest::Url::parse(&format!("{RELEASE_API}/{tag}")).map_err(|error| Error::Invalid(error.to_string()))?;
-        let bytes = fetch(&client, &url, METADATA_MAX_BYTES).await?;
+        let bytes = fetch(&client, &url, METADATA_MAX_BYTES, "release metadata").await?;
         let metadata: Metadata = serde_json::from_slice(&bytes)?;
         let mut assets = BTreeMap::new();
         for asset in metadata.assets {
@@ -97,7 +97,7 @@ impl Release {
 
     pub async fn open(client: reqwest::Client, assets: BTreeMap<String, reqwest::Url>, cache: PathBuf) -> Result<Self, Error> {
         let sums_url = assets.get("SHA256SUMS").ok_or_else(|| Error::Invalid("release has no SHA256SUMS".into()))?;
-        let bytes = fetch(&client, sums_url, METADATA_MAX_BYTES).await?;
+        let bytes = fetch(&client, sums_url, METADATA_MAX_BYTES, "SHA256SUMS").await?;
         let sums = distribution::checksums(&bytes).map_err(Error::Invalid)?;
         std::fs::create_dir_all(&cache)?;
         Ok(Self { client, assets, sums, cache })
@@ -164,6 +164,7 @@ impl Release {
     }
 
     async fn download(&self, name: &str, maximum: usize) -> Result<Vec<u8>, Error> {
+        let terminal = dokime::terminal::Terminal::default();
         let expected = self.sums.get(name).ok_or_else(|| Error::Invalid(format!("SHA256SUMS has no {name} entry")))?;
         let cached = self.cache.join(expected.to_ascii_lowercase());
         match std::fs::symlink_metadata(&cached) {
@@ -173,6 +174,7 @@ impl Release {
                 }
                 let bytes = std::fs::read(&cached)?;
                 if distribution::verify(&bytes, expected).is_ok() {
+                    terminal.status(format!("Verified {name} ({}, cached)", dokime::terminal::size_label(bytes.len() as u64)));
                     return Ok(bytes);
                 }
                 std::fs::remove_file(&cached)?;
@@ -182,7 +184,8 @@ impl Release {
         }
 
         let url = self.assets.get(name).ok_or_else(|| Error::Invalid(format!("release has no {name} asset")))?;
-        let bytes = fetch(&self.client, url, maximum).await?;
+        let bytes = fetch(&self.client, url, maximum, name).await?;
+        terminal.status(format!("Verifying {name} ({})", dokime::terminal::size_label(bytes.len() as u64)));
         distribution::verify(&bytes, expected).map_err(Error::Invalid)?;
         let mut staged = tempfile::NamedTempFile::new_in(&self.cache)?;
         std::io::Write::write_all(&mut staged, &bytes)?;
@@ -205,12 +208,15 @@ impl Release {
 
 /* === Private Functions === */
 
-async fn fetch(client: &reqwest::Client, url: &reqwest::Url, maximum: usize) -> Result<Vec<u8>, Error> {
+async fn fetch(client: &reqwest::Client, url: &reqwest::Url, maximum: usize, name: &str) -> Result<Vec<u8>, Error> {
+    let terminal = dokime::terminal::Terminal::default();
     let response = client.get(url.clone()).send().await.map_err(|error| Error::Invalid(error.to_string()))?;
     let mut response = response.error_for_status().map_err(|error| Error::Invalid(error.to_string()))?;
     if response.content_length().is_some_and(|length| length > maximum as u64) {
         return Err(Error::Invalid("release response exceeds its byte limit".into()));
     }
+    let size = response.content_length().map(dokime::terminal::size_label).unwrap_or_else(|| "size unknown".into());
+    terminal.status(format!("Downloading {name} ({size})"));
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|error| Error::Invalid(error.to_string()))? {
         if chunk.len() > maximum.saturating_sub(bytes.len()) {
