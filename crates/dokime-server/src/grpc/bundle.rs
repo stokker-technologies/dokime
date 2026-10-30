@@ -42,6 +42,8 @@ const MANIFEST_PATH: &str = "manifest.json";
 pub(super) struct Bundle {
     pub(super) metadata: ReadBatch<Metadata>,
     pub(super) reader: FileReader,
+    // Keep The Name Until Streaming Ends: Windows Filters Can Deny Reopening Unlinked Files.
+    _file: tempfile::NamedTempFile,
 }
 
 pub(super) struct Parts {
@@ -66,7 +68,7 @@ struct Manifest<'a> {
 }
 
 struct CappedFile {
-    file: std::fs::File,
+    file: tempfile::NamedTempFile,
     maximum: u64,
 }
 
@@ -92,7 +94,7 @@ pub(super) enum Part {
 }
 
 enum Input {
-    Opened { file: std::fs::File, range: ByteRange },
+    Opened { file: tempfile::NamedTempFile, range: ByteRange },
     Frozen { file: FrozenFile, range: ByteRange },
 }
 
@@ -128,7 +130,7 @@ impl Parts {
 
 impl Write for CappedFile {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        let position = self.file.stream_position()?;
+        let position = self.file.as_file_mut().stream_position()?;
         let end = position.checked_add(bytes.len() as u64);
         if end.is_none_or(|end| end > self.maximum) {
             return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
@@ -189,7 +191,9 @@ impl Input {
         match self {
             Self::Frozen { file, range } => file.read(*range).await.map_err(native_failure),
             Self::Opened { file, range } => {
-                let handle = file.try_clone().map_err(|_| Status::internal("diagnostics source could not be cloned"))?;
+                let handle = file.as_file().try_clone().map_err(|error| {
+                    Status::internal(format!("The diagnostics source could not be opened: {}", redaction::text(&error.to_string())))
+                })?;
                 session.read_opened_file(handle, *range).await.map_err(native_failure)
             }
         }
@@ -206,7 +210,7 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
     let Parts { session, prepared } = parts;
     let (file, mut metadata) = assemble(&session, prepared, context, generated_at, maximum).await?;
 
-    let handle = file.try_clone().map_err(|_| Status::internal("diagnostics archive could not be cloned"))?;
+    let handle = file.as_file().try_clone().map_err(|error| archive_failure(error, maximum))?;
     let mut reader = session.read_opened_file(handle, ByteRange { offset: 0, limit: None }).await.map_err(native_failure)?;
     let mut digest = Sha256::new();
     let mut size_bytes = 0u64;
@@ -219,7 +223,7 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
     }
     reader.completion().map_err(native_failure)?;
     drop(reader);
-    if file.metadata().map_err(|_| Status::internal("diagnostics archive could not be inspected"))?.len() != size_bytes {
+    if file.as_file().metadata().map_err(|error| archive_failure(error, maximum))?.len() != size_bytes {
         return Err(Status::data_loss("diagnostics archive length changed"));
     }
     metadata = metadata
@@ -232,8 +236,9 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
             Ok(metadata)
         })
         .map_err(native_failure)?;
-    let reader = session.read_opened_file(file, ByteRange { offset: 0, limit: Some(size_bytes) }).await.map_err(native_failure)?;
-    Ok(Bundle { metadata, reader })
+    let handle = file.as_file().try_clone().map_err(|error| archive_failure(error, maximum))?;
+    let reader = session.read_opened_file(handle, ByteRange { offset: 0, limit: Some(size_bytes) }).await.map_err(native_failure)?;
+    Ok(Bundle { metadata, reader, _file: file })
 }
 
 /* === Private Functions === */
@@ -241,7 +246,7 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
 async fn assemble(
     session: &dokime::storage::Manager, parts: ReadBatch<Vec<ReadBatch<Prepared>>>, mut context: Value, generated_at: Timestamp,
     maximum: usize,
-) -> Result<(std::fs::File, ReadBatch<Metadata>), Status> {
+) -> Result<(tempfile::NamedTempFile, ReadBatch<Metadata>), Status> {
     let metadata = dokime::harmos::storage::ReadBatch::new(())
         .try_map(|_| {
             let mut entries = Vec::new();
@@ -269,7 +274,7 @@ async fn assemble(
     redaction::scrub(&mut context);
     let held = metadata.clone();
     let mut writer = tokio::task::spawn_blocking(move || {
-        let file = tempfile::NamedTempFile::new()?.into_file();
+        let file = tempfile::NamedTempFile::new()?;
         let archive = CappedFile { file, maximum: maximum as u64 };
         let mut writer = ZipWriter::new(archive);
         writer.start_file(MANIFEST_PATH, file_options()).map_err(zip_failure)?;
@@ -337,9 +342,9 @@ async fn prepare_json(path: String, mut value: Value) -> Result<ReadBatch<Prepar
         prepared.try_map(|mut prepared| {
             redaction::scrub(&mut value);
             let source = (|| {
-                let mut file = tempfile::NamedTempFile::new().map_err(|error| redaction::text(&error.to_string()))?.into_file();
+                let mut file = tempfile::NamedTempFile::new().map_err(|error| redaction::text(&error.to_string()))?;
                 serde_json::to_writer_pretty(&mut file, &value).map_err(|error| redaction::text(&error.to_string()))?;
-                let length = file.metadata().map_err(|error| redaction::text(&error.to_string()))?.len();
+                let length = file.as_file().metadata().map_err(|error| redaction::text(&error.to_string()))?.len();
                 Ok::<_, String>(Input::Opened {
                     file,
                     range: ByteRange { offset: 0, limit: Some(length) },
@@ -424,7 +429,10 @@ fn archive_failure(error: std::io::Error, maximum: usize) -> Status {
     if error.kind() == std::io::ErrorKind::FileTooLarge {
         too_large(maximum)
     } else {
-        Status::internal("diagnostics archive could not be assembled")
+        Status::internal(format!(
+            "The diagnostics bundle could not be created: {}. Check free disk space and access to the backend's temporary folder, then retry.",
+            redaction::text(&error.to_string())
+        ))
     }
 }
 
@@ -481,7 +489,16 @@ fn allocation() -> dokime::harmos::storage::Error {
 pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
     match error {
         dokime::harmos::storage::Error::ResourceExhausted { .. } => Status::resource_exhausted("diagnostics archive memory exhausted"),
-        _ => Status::internal("diagnostics archive native read failed"),
+        error => {
+            let mut cause: &dyn std::error::Error = &error;
+            while let Some(source) = cause.source() {
+                cause = source;
+            }
+            Status::internal(format!(
+                "The diagnostics bundle could not be read: {}. Check access to the backend's temporary folder and retry.",
+                redaction::text(&cause.to_string())
+            ))
+        }
     }
 }
 
@@ -493,14 +510,25 @@ fn too_large(maximum: usize) -> Status {
 
 #[cfg(test)]
 mod tests {
-    use super::{CappedFile, file_options, zip_failure};
+    use super::{CappedFile, file_options, native_failure, zip_failure};
     use std::io::Write as _;
+
+    #[test]
+    fn read_error_cause() {
+        let cause = std::io::Error::from_raw_os_error(5);
+        let expected = cause.to_string();
+        let error = dokime::harmos::storage::Error::backend("local filesystem", dokime::harmos::storage::BackendFailure::Permanent, cause);
+        let status = native_failure(error);
+
+        assert_eq!(status.code(), tonic::Code::Internal);
+        assert!(status.message().contains(&expected));
+    }
 
     #[test]
     fn zip_writes_preserve_total_ceiling() {
         for (maximum, payload) in [(128, 256), (96, 1)] {
-            let file = tempfile::NamedTempFile::new().unwrap().into_file();
-            let observed = file.try_clone().unwrap();
+            let file = tempfile::NamedTempFile::new().unwrap();
+            let observed = file.as_file().try_clone().unwrap();
             let output = CappedFile { file, maximum };
             let mut writer = zip::ZipWriter::new(output);
             let result = (|| {
