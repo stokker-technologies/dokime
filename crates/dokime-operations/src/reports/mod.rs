@@ -29,8 +29,6 @@ pub use materialize_report::MaterializeReport;
 use super::Endpoint;
 use super::TRANSFER;
 
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::reports::wire::*;
 
 /* === Constants === */
