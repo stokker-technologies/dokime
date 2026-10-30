@@ -23,7 +23,6 @@ use tonic::{
 
 // Local Imports
 use super::{Backend, Error, Limits, Result, transport};
-use dokime_operations::Endpoint;
 use dokime_operations::backend;
 use dokime_operations::runtime;
 
@@ -46,15 +45,7 @@ use dokime_operations::runtime;
 pub(super) async fn discover(
     channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>, bytes: usize,
 ) -> Result<Backend> {
-    let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
-        channel.clone(),
-        authorization,
-        backend::GetIdentity::PATH,
-        backend::GetIdentity {},
-        bytes,
-        bytes,
-    )
-    .await?;
+    let identity = transport::unary::<backend::GetIdentity>(channel.clone(), authorization, backend::GetIdentity {}, bytes, bytes).await?;
     let identity = transport::value(identity)?;
     let api = identity.api.as_ref().ok_or(Error::IncompatibleApi)?;
     if !dokime_domain::model::backend::wire::compatible_api(&api.package, &api.version) || api.descriptor_sha256.len() != 32 {
@@ -63,25 +54,10 @@ pub(super) async fn discover(
     if identity.backend_id.is_empty() || identity.epoch.is_empty() || expected_id.is_some_and(|expected| expected != identity.backend_id) {
         return Err(Error::IdentityChanged);
     }
-    let health = transport::unary::<dokime_domain::model::backend::wire::BackendHealth, _>(
-        channel.clone(),
-        authorization,
-        backend::GetHealth::PATH,
-        backend::GetHealth {},
-        bytes,
-        bytes,
-    )
-    .await?;
+    let health = transport::unary::<backend::GetHealth>(channel.clone(), authorization, backend::GetHealth {}, bytes, bytes).await?;
     let health = transport::value(health)?;
-    let availability = transport::unary::<dokime_domain::model::backend::wire::BackendAvailability, _>(
-        channel,
-        authorization,
-        backend::GetAvailability::PATH,
-        backend::GetAvailability {},
-        bytes,
-        bytes,
-    )
-    .await?;
+    let availability =
+        transport::unary::<backend::GetAvailability>(channel, authorization, backend::GetAvailability {}, bytes, bytes).await?;
     let availability = transport::value(availability)?;
     if health.backend_id != identity.backend_id
         || health.epoch != identity.epoch
@@ -97,11 +73,11 @@ pub(super) async fn discover(
         return Err(Error::BackendUnavailable);
     }
     let required = [
-        backend::GetIdentity::PATH,
-        backend::GetHealth::PATH,
-        backend::GetAvailability::PATH,
-        runtime::GetIdentity::PATH,
-        runtime::GetHealth::PATH,
+        dokime_operations::path::<backend::GetIdentity>(),
+        dokime_operations::path::<backend::GetHealth>(),
+        dokime_operations::path::<backend::GetAvailability>(),
+        dokime_operations::path::<runtime::GetIdentity>(),
+        dokime_operations::path::<runtime::GetHealth>(),
     ];
     if required.iter().any(|required| !availability.methods.iter().any(|method| method == required)) {
         return Err(Error::IncompatibleApi);

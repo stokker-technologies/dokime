@@ -32,7 +32,6 @@ pub use watch_trace::WatchTrace;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
@@ -62,30 +61,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for GetIdentity {
-    const PATH: &'static str = "/dokime.v1.Backend/GetIdentity";
-}
-
-impl Endpoint for GetHealth {
-    const PATH: &'static str = "/dokime.v1.Backend/GetHealth";
-}
-
-impl Endpoint for GetAvailability {
-    const PATH: &'static str = "/dokime.v1.Backend/GetAvailability";
-}
-
-impl Endpoint for CollectDiagnostics {
-    const PATH: &'static str = "/dokime.v1.Backend/CollectDiagnostics";
-}
-
-impl Endpoint for WatchLogs {
-    const PATH: &'static str = "/dokime.v1.Backend/WatchLogs";
-}
-
-impl Endpoint for WatchTrace {
-    const PATH: &'static str = "/dokime.v1.Backend/WatchTrace";
-}
 
 /* === Public Functions === */
 

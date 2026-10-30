@@ -36,7 +36,6 @@ pub use update_plugin_settings::UpdatePluginSettings;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 use dokime_domain::model::settings::wire::*;
 use dokime_domain::model::values::wire::Value;
@@ -66,38 +65,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for GetSettings {
-    const PATH: &'static str = "/dokime.v1.Settings/GetSettings";
-}
-
-impl Endpoint for ListStorageSources {
-    const PATH: &'static str = "/dokime.v1.Settings/ListStorageSources";
-}
-
-impl Endpoint for ReorderStorageSources {
-    const PATH: &'static str = "/dokime.v1.Settings/ReorderStorageSources";
-}
-
-impl Endpoint for SetStorageSourceEnabled {
-    const PATH: &'static str = "/dokime.v1.Settings/SetStorageSourceEnabled";
-}
-
-impl Endpoint for GetPluginSettings {
-    const PATH: &'static str = "/dokime.v1.Settings/GetPluginSettings";
-}
-
-impl Endpoint for UpdatePluginSettings {
-    const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginSettings";
-}
-
-impl Endpoint for ReadApplicationSettings {
-    const PATH: &'static str = "/dokime.v1.Settings/ReadApplicationSettings";
-}
-
-impl Endpoint for UpdateApplicationSettings {
-    const PATH: &'static str = "/dokime.v1.Settings/UpdateApplicationSettings";
-}
 
 /* === Public Functions === */
 

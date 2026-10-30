@@ -61,22 +61,6 @@ pub struct GetIdentity {}
 
 /* === Implementations === */
 
-impl GetHealth {
-    pub const PATH: &str = "/dokime.v1.Runtime/GetHealth";
-}
-
-impl GetIdentity {
-    pub const PATH: &str = "/dokime.v1.Runtime/GetIdentity";
-}
-
-impl super::Endpoint for GetHealth {
-    const PATH: &'static str = GetHealth::PATH;
-}
-
-impl super::Endpoint for GetIdentity {
-    const PATH: &'static str = GetIdentity::PATH;
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

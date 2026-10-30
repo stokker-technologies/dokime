@@ -38,7 +38,7 @@ pub use update_listener::UpdateListener;
 // Third Party Imports
 
 // Local Imports
-use super::{Endpoint, ORDINARY, TRANSFER};
+use super::{ORDINARY, TRANSFER};
 use dokime_domain::model::remote::{CreatedPairing, PairedClientPage, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 
 /* === Constants === */
@@ -66,46 +66,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ReadListener {
-    const PATH: &'static str = "/dokime.v1.Remote/ReadListener";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for UpdateListener {
-    const PATH: &'static str = "/dokime.v1.Remote/UpdateListener";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for CreatePairing {
-    const PATH: &'static str = "/dokime.v1.Remote/CreatePairing";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for ListPairedClients {
-    const PATH: &'static str = "/dokime.v1.Remote/ListPairedClients";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for RevokePairedClient {
-    const PATH: &'static str = "/dokime.v1.Remote/RevokePairedClient";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for ListSessions {
-    const PATH: &'static str = "/dokime.v1.Remote/ListSessions";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for RegenerateCertificate {
-    const PATH: &'static str = "/dokime.v1.Remote/RegenerateCertificate";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for RenamePairedClient {
-    const PATH: &'static str = "/dokime.v1.Remote/RenamePairedClient";
-    const LOCAL_ONLY: bool = true;
-}
 
 /* === Public Functions === */
 

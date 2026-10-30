@@ -19,7 +19,6 @@ use std::{net::Ipv4Addr, sync::Arc};
 use tonic::Status;
 // Local Imports
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
-use dokime::client::contracts::runtime;
 use dokime::domain::model;
 use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSecrets, ConnectionSession, ConnectionTarget};
 
@@ -123,8 +122,8 @@ async fn api_negotiation_availability() {
         "/dokime.v1.Backend/GetIdentity",
         "/dokime.v1.Backend/GetHealth",
         "/dokime.v1.Backend/GetAvailability",
-        runtime::GetIdentity::PATH,
-        runtime::GetHealth::PATH,
+        "/dokime.v1.Runtime/GetIdentity",
+        "/dokime.v1.Runtime/GetHealth",
     ] {
         let mut service = Service::new("backend");
         service.methods.retain(|method| method != missing);

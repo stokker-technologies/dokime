@@ -61,7 +61,7 @@ pub use server::{Server, Service};
 use dokime::harmos::catalog::{Catalog, Projection};
 
 // Local Imports
-use dokime::operations::Endpoints;
+use dokime::harmos::operations::Contracts;
 use dokime::operations::Operations;
 
 /* === Constants === */
@@ -82,10 +82,11 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "
 
 /* === Public Functions === */
 
-pub fn methods() -> impl Iterator<Item = (&'static str, bool)> {
+pub fn methods() -> impl Iterator<Item = (String, bool)> {
     let mut methods = Vec::new();
-    let result = <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
-        methods.push((entry.path, entry.local_only));
+    let result = <Operations as Catalog<Contracts>>::ENTRIES.try_for_each(|entry| {
+        let grpc = entry.grpc.as_ref().expect("product operations declare their gRPC binding");
+        methods.push((grpc.path(), dokime::operations::local_only(entry.operation.id)));
         Ok::<_, std::convert::Infallible>(())
     });
     match result {

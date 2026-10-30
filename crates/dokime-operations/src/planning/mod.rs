@@ -26,7 +26,6 @@ pub use register_selection::RegisterSelection;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 
 use dokime_domain::model::planning::wire::*;
@@ -55,18 +54,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for MaterializeTemplate {
-    const PATH: &'static str = "/dokime.v1.Planning/MaterializeTemplate";
-}
-
-impl Endpoint for RegisterSelection {
-    const PATH: &'static str = "/dokime.v1.Planning/RegisterSelection";
-}
-
-impl Endpoint for PreviewSelection {
-    const PATH: &'static str = "/dokime.v1.Planning/PreviewSelection";
-}
 
 /* === Public Functions === */
 

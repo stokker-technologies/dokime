@@ -32,7 +32,6 @@ pub use set_enabled::SetEnabled;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::INSTALLATION;
 use super::{MUTATION, ORDINARY};
 
@@ -61,30 +60,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListInstallations {
-    const PATH: &'static str = "/dokime.v1.Plugins/ListInstallations";
-}
-
-impl Endpoint for GetInstallation {
-    const PATH: &'static str = "/dokime.v1.Plugins/GetInstallation";
-}
-
-impl Endpoint for Install {
-    const PATH: &'static str = "/dokime.v1.Plugins/Install";
-}
-
-impl Endpoint for SetEnabled {
-    const PATH: &'static str = "/dokime.v1.Plugins/SetEnabled";
-}
-
-impl Endpoint for Remove {
-    const PATH: &'static str = "/dokime.v1.Plugins/Remove";
-}
-
-impl Endpoint for ListAdmittedPlugins {
-    const PATH: &'static str = "/dokime.v1.Plugins/ListAdmittedPlugins";
-}
 
 /* === Public Functions === */
 

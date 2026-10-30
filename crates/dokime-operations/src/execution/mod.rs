@@ -80,7 +80,6 @@ pub use update_cycle_policy::UpdateCyclePolicy;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 
 use dokime_domain::model::execution::wire_cursor::Cursor;
@@ -139,118 +138,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListExecutionSteps {
-    const PATH: &'static str = "/dokime.v1.Execution/ListExecutionSteps";
-}
-
-impl Endpoint for CopyCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/CopyCycle";
-}
-
-impl Endpoint for CreateCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/CreateCycle";
-}
-
-impl Endpoint for GetCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/GetCycle";
-}
-
-impl Endpoint for GetCase {
-    const PATH: &'static str = "/dokime.v1.Execution/GetCase";
-}
-
-impl Endpoint for GetExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/GetExecution";
-}
-
-impl Endpoint for ListCaseParameters {
-    const PATH: &'static str = "/dokime.v1.Execution/ListCaseParameters";
-}
-
-impl Endpoint for ListExecutionParameters {
-    const PATH: &'static str = "/dokime.v1.Execution/ListExecutionParameters";
-}
-
-impl Endpoint for ListCycles {
-    const PATH: &'static str = "/dokime.v1.Execution/ListCycles";
-}
-
-impl Endpoint for ListCases {
-    const PATH: &'static str = "/dokime.v1.Execution/ListCases";
-}
-
-impl Endpoint for ListExecutions {
-    const PATH: &'static str = "/dokime.v1.Execution/ListExecutions";
-}
-
-impl Endpoint for AppendExecutions {
-    const PATH: &'static str = "/dokime.v1.Execution/AppendExecutions";
-}
-
-impl Endpoint for StartExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/StartExecution";
-}
-
-impl Endpoint for PauseExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/PauseExecution";
-}
-
-impl Endpoint for ResumeExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/ResumeExecution";
-}
-
-impl Endpoint for StopExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/StopExecution";
-}
-
-impl Endpoint for CancelExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/CancelExecution";
-}
-
-impl Endpoint for SubmitExecutionCommand {
-    const PATH: &'static str = "/dokime.v1.Execution/SubmitExecutionCommand";
-}
-
-impl Endpoint for GetExecutionCommand {
-    const PATH: &'static str = "/dokime.v1.Execution/GetExecutionCommand";
-}
-
-impl Endpoint for PauseCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/PauseCycle";
-}
-
-impl Endpoint for ResumeCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/ResumeCycle";
-}
-
-impl Endpoint for DeleteCase {
-    const PATH: &'static str = "/dokime.v1.Execution/DeleteCase";
-}
-
-impl Endpoint for SetCycleArchived {
-    const PATH: &'static str = "/dokime.v1.Execution/SetCycleArchived";
-}
-
-impl Endpoint for SetExecutionArchived {
-    const PATH: &'static str = "/dokime.v1.Execution/SetExecutionArchived";
-}
-
-impl Endpoint for RenameCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/RenameCycle";
-}
-
-impl Endpoint for RenameExecution {
-    const PATH: &'static str = "/dokime.v1.Execution/RenameExecution";
-}
-
-impl Endpoint for SealCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/SealCycle";
-}
-
-impl Endpoint for UpdateCyclePolicy {
-    const PATH: &'static str = "/dokime.v1.Execution/UpdateCyclePolicy";
-}
 
 /* === Public Functions === */
 
