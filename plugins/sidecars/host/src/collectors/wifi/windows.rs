@@ -74,25 +74,24 @@ impl WifiLinkCollector {
 impl WifiScanCollector {
     // WlanScan Only When An Active Scan Is Due; Otherwise The Driver's Cached BSS List.
     pub(super) fn scan(options: &HostOptions, active: bool) -> std::result::Result<ScanReport, String> {
-        let window = active.then(scan_window);
+        let window = active.then(|| Duration::from_millis(options.timing.wifi_scan_window_ms));
         let networks = crate::platform::windows::wifi::scan_networks(options, window).map_err(|error| error.to_string())?;
         Ok(ScanReport { networks, active, error: None })
     }
 }
 
 impl WifiLatencyCollector {
-    pub(super) fn round_trip_ms(host: &str, timeout: Duration) -> std::result::Result<Option<f64>, String> {
-        crate::platform::windows::echo::round_trip_ms(host, timeout)
+    pub(super) fn round_trip_ms(host: &str, options: &HostOptions) -> std::result::Result<Option<f64>, String> {
+        crate::platform::windows::echo::round_trip_ms(
+            host,
+            Duration::from_millis(options.timing.wifi_echo_timeout_ms),
+            options.sampling.echo_payload_bytes,
+        )
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-// The Scan Completes Within The Collection Bound, Leaving Room To Read The List.
-fn scan_window() -> Duration {
-    crate::host::wifi_scan::POLICY.attempt_timeout / 2
-}
 
 /* === Tests === */

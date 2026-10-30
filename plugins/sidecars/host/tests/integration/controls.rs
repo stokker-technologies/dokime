@@ -49,7 +49,8 @@ fn active_socket_guard() {
     if !administrator().unwrap() {
         assert!(require_administrator().is_err());
     }
-    let inventory = snapshot().unwrap();
+    let timing = plugin_host::HostOptions::default().timing;
+    let inventory = snapshot(std::time::Duration::from_millis(timing.network_probe_timeout_ms)).unwrap();
     let (id, address) = inventory
         .adapters
         .iter()
@@ -64,8 +65,8 @@ fn active_socket_guard() {
     let _client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
     let (_server, _) = listener.accept().unwrap();
     let pid = std::process::id();
-    assert!(connected_adapters(pid).unwrap().contains(&id));
-    assert!(guard_connection(pid, None, Some(&id), false, false).is_err());
-    assert!(guard_connection(pid, None, Some(&id), true, false).is_err());
-    assert!(guard_connection(pid, None, Some(&id), true, true).is_ok());
+    assert!(connected_adapters(pid, &timing).unwrap().contains(&id));
+    assert!(guard_connection(pid, None, Some(&id), false, false, &timing).is_err());
+    assert!(guard_connection(pid, None, Some(&id), true, false, &timing).is_err());
+    assert!(guard_connection(pid, None, Some(&id), true, true, &timing).is_ok());
 }

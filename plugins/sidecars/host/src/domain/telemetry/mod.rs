@@ -70,13 +70,15 @@ pub enum HostTelemetryStream {
 /* === Implementations === */
 
 impl HostTelemetryStream {
-    // The One Source Of Each Host Stream's Default Cadence.
+    // Default Cadence For The SDK's Compile-Time Observer Declarations.
     pub const fn interval(self) -> dokime_domain::model::time::DurationMillis {
         dokime_domain::model::time::DurationMillis(match self {
-            Self::System | Self::Network | Self::WifiLink => 1_000,
-            Self::Bluetooth => 5_000,
-            Self::WifiLatency => 10_000,
-            Self::WifiScan => 60_000,
+            Self::System => crate::settings::SYSTEM_INTERVAL_MS,
+            Self::Network => crate::settings::NETWORK_INTERVAL_MS,
+            Self::WifiLink => crate::settings::WIFI_LINK_INTERVAL_MS,
+            Self::Bluetooth => crate::settings::BLUETOOTH_INTERVAL_MS,
+            Self::WifiLatency => crate::settings::WIFI_LATENCY_INTERVAL_MS,
+            Self::WifiScan => crate::settings::WIFI_SCAN_INTERVAL_MS,
         })
     }
 

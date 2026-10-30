@@ -431,6 +431,63 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
+#### Host Settings
+
+The host plugin declares its 20 settings in
+[`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
+Edit the host plugin form in **Settings → Plugins**, then use the existing
+Retry workflow or restart Dokime. Each startup resolves one settings snapshot.
+Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
+`1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
+the native default.
+
+| Probe Timing | Default | Allowed [ms] |
+| --- | ---: | ---: |
+| Network Inventory/Connectivity Timeout | 2,000 ms | 1–2,000 |
+| System Git Identity Timeout | 2,000 ms | 1–2,000 |
+| Existing CPU Calibration Window | 1,000 ms | 1–1,000 |
+| Unix Wi-Fi Link Command Timeout | 2,000 ms | 1–2,000 |
+| Unix Wi-Fi Scan Command Timeout | 12,000 ms | 1–12,000 |
+| Windows Active Wi-Fi Scan Window | 6,000 ms | 1–6,000 |
+| Unix Latency Process Timeout | 4,000 ms | 1–4,000 |
+| Echo Reply Timeout | 2,000 ms | 1–2,000 |
+| Unix Bluetooth D-Bus Method Timeout | 6,000 ms | 1–6,000 |
+| Bluetooth Deep Refresh Interval | 300,000 ms | 1–86,400,000 |
+| Unix Control D-Bus Method Timeout | 30,000 ms | 1–30,000 |
+| Windows Radio Settle Timeout | 15,000 ms | 1–15,000 |
+
+Sampling settings select the minimum throughput denominator (1 ms, allowed
+1–60,000 ms), congestion contribution (10 % per fully overlapping network,
+allowed 0.01–100), echo payload (32 bytes on Windows, 56 on Unix, allowed
+1–65,000 bytes), and existing calibration batch (4,096 iterations, allowed
+1–65,536). The active-scan minimum permits 1–3,600 s. Unix ping rounds the echo
+wait up to whole seconds; its independent process timeout still bounds it.
+Native Windows inventory calls remain synchronous and have no cancellable
+timeout API. Per-command and per-method waits do not replace the operation's
+overall deadline. Radio writes and inverse restoration use the same resolved
+native timing settings.
+
+The pinned Harmos SDK requires compile-time `Observer::INTERVAL`, observer
+inventory intervals, operation policies and `StreamSpec::WINDOW`. Those values
+are centralized in `settings.rs`, but cannot be edited at runtime with this SDK.
+System, network and Wi-Fi link cadence remain 1 s; Bluetooth 5 s; latency 10 s;
+Wi-Fi scan 60 s. Operation bounds remain 2/2/2/12/4/6 s respectively for system,
+network, link, scan, latency and Bluetooth; controls allow 30 s and restoration
+60 s. Policies have no retries or cancellation grace; the stream window remains
+4,096 rows. No unused form fields or alternate observer scheduler are supplied.
+Runtime collection intervals, operation deadlines/retries and stream windows
+require an SDK change before the complete owner decision can be fulfilled.
+
+Unit conversions, percent scales, native ABI layouts and enum discriminants,
+Wi-Fi channel/frequency mappings, congestion model identifiers, schema v1 and
+stream/operation identifiers retain their fixed meanings. CPU kernel arithmetic
+and accumulator layout define the existing calibration workload; its time
+window and batch size are settings. Windows ICMP reply storage follows the
+native API's required trailer layout. These are measurement or protocol
+definitions rather than deployment tunables.
+
+#### Ordinary Settings And Shared Secrets
+
 **Settings → Plugins** keeps ordinary plugin settings editable after startup
 fails. Its read-only **Required Secrets** list shows each declared identifier,
 whether it is required or optional, and whether it exists in Secret Storage.

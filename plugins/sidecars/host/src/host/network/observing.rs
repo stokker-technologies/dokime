@@ -50,9 +50,9 @@ pub struct State {
 /* === Implementations === */
 
 impl NetworkObserver {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(timeout: Duration) -> Result<Self, Error> {
         Ok(Self {
-            notifications: super::notifications::Notifications::new()?,
+            notifications: super::notifications::Notifications::new(timeout)?,
             refresh_primary: true,
         })
     }
@@ -65,8 +65,9 @@ impl<P: plugin::Declared> Observer<Publisher<P>> for NetworkObserver {
     const ACTIVATION: Activation = <Self as Declared>::ENTRY.activation;
     const INTERVAL: Duration = <Self as Declared>::ENTRY.interval;
 
-    async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
-        Self::new()
+    async fn initialize(resources: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
+        let options = resources.resource::<crate::HostOptions>().map_err(|error| Error::Probe(error.to_string()))?;
+        Self::new(Duration::from_millis(options.timing.network_probe_timeout_ms))
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<P>>) -> Result<(), Error> {

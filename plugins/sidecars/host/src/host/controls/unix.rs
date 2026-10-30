@@ -60,8 +60,8 @@ pub fn administrator() -> Result<bool> {
     Ok(capabilities & (1 << 12) != 0)
 }
 
-pub fn read_radio(kind: Radio) -> Result<ControlState> {
-    let connection = connection()?;
+pub fn read_radio(kind: Radio, timing: &crate::settings::Timing) -> Result<ControlState> {
+    let connection = connection(timing)?;
     let mut radios = Vec::new();
     if kind == Radio::Wifi || kind == Radio::Cellular {
         let proxy =
@@ -107,9 +107,9 @@ pub fn read_adapter(id: &str) -> Result<ControlState> {
     })
 }
 
-pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
+pub fn apply(state: &ControlState, restoring: bool, timing: &crate::settings::Timing) -> Result<()> {
     for radio in &state.radios {
-        let current = read_radio(radio.kind)?;
+        let current = read_radio(radio.kind, timing)?;
         let current = current
             .radios
             .iter()
@@ -118,7 +118,7 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
         if current.on == radio.on && !restoring {
             continue;
         }
-        let connection = connection()?;
+        let connection = connection(timing)?;
         if radio.kind == Radio::Bluetooth {
             let proxy = Proxy::new(&connection, "org.bluez", radio.id.as_str(), "org.bluez.Adapter1").map_err(probe)?;
             proxy.set_property("Powered", radio.on).map_err(probe)?;
@@ -158,7 +158,8 @@ pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
         fs::write("/sys/firmware/acpi/platform_profile", format!("{plan}\n")).map_err(probe)?;
     }
     for radio in &state.radios {
-        if read_radio(radio.kind)?.radios.iter().find(|current| current.id == radio.id).is_none_or(|current| current.on != radio.on) {
+        if read_radio(radio.kind, timing)?.radios.iter().find(|current| current.id == radio.id).is_none_or(|current| current.on != radio.on)
+        {
             return Err(Error::Probe("radio did not reach the requested state".into()));
         }
     }
@@ -189,7 +190,7 @@ pub fn radio_affects(kind: Radio, adapter: &crate::host::adapters::Adapter) -> R
         || subsystem.ok().and_then(|path| path.file_name().map(|name| name == "bluetooth")).unwrap_or(false))
 }
 
-pub fn connected_adapters(pid: u32) -> Result<Vec<String>> {
+pub fn connected_adapters(pid: u32, timing: &crate::settings::Timing) -> Result<Vec<String>> {
     let mut owned = BTreeSet::new();
     for entry in fs::read_dir(format!("/proc/{pid}/fd")).map_err(probe)? {
         let entry = entry.map_err(probe)?;
@@ -217,7 +218,7 @@ pub fn connected_adapters(pid: u32) -> Result<Vec<String>> {
             locals.insert(socket_ip(fields[1])?.to_string());
         }
     }
-    let inventory = crate::host::adapters::snapshot()?;
+    let inventory = crate::host::adapters::snapshot(std::time::Duration::from_millis(timing.network_probe_timeout_ms))?;
     Ok(inventory
         .adapters
         .into_iter()
@@ -234,8 +235,12 @@ fn probe(error: impl std::fmt::Display) -> Error {
 fn native_error() -> Error {
     probe(std::io::Error::last_os_error())
 }
-fn connection() -> Result<Connection> {
-    Builder::system().map_err(probe)?.method_timeout(super::POLICY.attempt_timeout).build().map_err(probe)
+fn connection(timing: &crate::settings::Timing) -> Result<Connection> {
+    Builder::system()
+        .map_err(probe)?
+        .method_timeout(std::time::Duration::from_millis(timing.control_probe_timeout_ms))
+        .build()
+        .map_err(probe)
 }
 fn interface(id: &str) -> Result<(OwnedFd, libc::ifreq)> {
     if id.is_empty() || id.len() >= libc::IFNAMSIZ || id.as_bytes().contains(&0) {
