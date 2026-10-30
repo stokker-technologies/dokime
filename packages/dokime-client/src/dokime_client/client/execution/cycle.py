@@ -209,9 +209,6 @@ class Cycle:
             async for prompt in pending:
                 yield prompt
 
-    async def _prompt(self, prompt_id: str):
-        return await prompts.Scope(self._transport, self._backend, self.id).read(prompt_id)
-
     async def respond(
         self,
         prompt_id: str,

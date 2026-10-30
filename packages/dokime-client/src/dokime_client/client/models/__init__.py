@@ -98,8 +98,6 @@ class DatetimeValue(datetime):
 class UnsignedValue(int):
     """An unsigned 64-bit value, retaining its wire kind even below 2**63."""
 
-    __dokime_unsigned__ = True
-
     def __new__(cls, value: int) -> Self:
         if not 0 <= value < 2**64:
             raise ValueError("unsigned values must fit the 64-bit range")
