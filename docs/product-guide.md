@@ -1286,7 +1286,8 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
+deleted automatically. Desktop single-instance and startup locks, including the
+focus channel, use the resolved application root. Protocol/deep-link identity,
 updater verification trust and code-signing identity remain compiled. Reusing
 binaries with different distribution identities does not isolate those mechanisms.
 
