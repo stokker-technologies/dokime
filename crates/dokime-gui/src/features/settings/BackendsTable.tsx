@@ -109,7 +109,7 @@ export function BackendsTable({
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage>
+          <NotificationMessage source="Backends" title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}>
             {connectionFailure || preferencesError(error)}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
@@ -135,7 +135,11 @@ export function BackendsTable({
           </Button>
         </div>
       )}
-      {!document && !error && <NotificationMessage tone="info">Loading backends…</NotificationMessage>}
+      {!document && !error && !connectionFailure && (
+        <p role="status" className="p-4 text-sm text-muted-foreground">
+          Loading backends…
+        </p>
+      )}
       <DataTable
         aria-label="Saved Backends"
         data={document?.profiles ?? []}
@@ -206,7 +210,11 @@ export function BackendsTable({
               Confirm Delete
             </Button>
           </div>
-          {Boolean(error) && <NotificationMessage>{preferencesError(error)}</NotificationMessage>}
+          {Boolean(error) && (
+            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted">
+              {preferencesError(error)}
+            </NotificationMessage>
+          )}
         </DialogContent>
       </Dialog>
       {adding && (
@@ -354,7 +362,11 @@ function AddBackend({
               <Button type="submit">{busy ? "Saving…" : "Add Backend"}</Button>
             </div>
           </fieldset>
-          {Boolean(error) && <NotificationMessage>{preferencesError(error)}</NotificationMessage>}
+          {Boolean(error) && (
+            <NotificationMessage source="Backends" title="Backend Could Not Be Added">
+              {preferencesError(error)}
+            </NotificationMessage>
+          )}
         </form>
       </DialogContent>
     </Dialog>

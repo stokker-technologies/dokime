@@ -119,7 +119,11 @@ mean three separate cases. Expansion is declared explicitly.
 
 Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
 
+Routine background loading, page navigation and connection progress stay in the inline status indicators without toasts or history entries. Notifications record user-relevant outcomes and failures; backend failures identify the failed operation in their title.
+
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
+
+Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
 
 ## Native Remote Access
 

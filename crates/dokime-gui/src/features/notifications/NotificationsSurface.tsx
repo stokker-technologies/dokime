@@ -17,6 +17,7 @@
 
 // Third Party Imports
 import { useEffect, useState } from "react";
+import { relativeTime } from "@/components/document/document-overview-model";
 import { NotificationMessage } from "@/components/NotificationMessage";
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,11 @@ export function NotificationsSurface() {
   const [page, setPage] = useState<NotificationPage>({ records: [], older: false, newer: false });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!summary.revision || !summary.unread) return;
     void markNotificationsRead().catch((failure: unknown) => setError(String(failure)));
@@ -94,14 +100,22 @@ export function NotificationsSurface() {
       <ol className="divide-y rounded-lg border bg-card" aria-busy={loading}>
         {page.records.map((record) => (
           <li key={record.id} className="grid gap-1 px-4 py-3" data-tone={record.tone}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <strong className="text-sm">{record.title}</strong>
-              <time className="text-xs text-muted-foreground" dateTime={new Date(record.at).toISOString()}>
-                {new Date(record.at).toLocaleString()}
+            <div className="flex min-w-0 items-baseline gap-2">
+              <strong className="min-w-0 break-words text-sm">{record.title}</strong>
+              {record.source.trim() && record.source.trim() !== "/" && (
+                <span className="min-w-0 truncate text-xs text-muted-foreground" title={record.source}>
+                  {record.source}
+                </span>
+              )}
+              <time
+                className="ml-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground"
+                dateTime={new Date(record.at).toISOString()}
+                title={new Date(record.at).toLocaleString()}
+              >
+                {relativeTime(new Date(record.at).toISOString(), now)}
               </time>
             </div>
-            <span className="text-xs text-muted-foreground">{record.source}</span>
-            {record.description && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
+            {record.description?.trim() && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
           </li>
         ))}
         {!page.records.length && (

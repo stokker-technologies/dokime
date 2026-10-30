@@ -156,6 +156,17 @@ test("Updated Toasts Stay Recorded", async () => {
   assert.deepEqual(page.records.map((value) => value.title).sort(), ["fixture-one", "fixture-two"]);
 });
 
+test("Notification Sources Never Use Empty Or Root Route Labels", async () => {
+  const history = await import("@/lib/notifications");
+  vi.stubGlobal("location", { pathname: "/" });
+  for (const source of [undefined, "", " ", "/", " / "]) {
+    history.toast.info("fixture", { source });
+  }
+  const page = await history.notificationPage();
+  assert.equal(page.records.length, 5);
+  assert.ok(page.records.every((value) => value.source.trim().length > 0 && value.source !== "/"));
+});
+
 test("Feedback Is Recorded", async () => {
   const { NotificationMessage } = await import("@/components/NotificationMessage");
   const history = await import("@/lib/notifications");
@@ -167,6 +178,16 @@ test("Feedback Is Recorded", async () => {
   assert.equal(page.records.length, 1);
   assert.equal(page.records[0].description, "fixture-one fixture-two");
   assert.equal(page.records[0].source, "fixture-source");
+});
+
+test("Quiet Page Notices Do Not Publish Feedback", async () => {
+  const { PageNotice } = await import("@/shell/PageShell");
+  const history = await import("@/lib/notifications");
+  const status = PageNotice({ children: "fixture" });
+  assert.equal(status.type, "p");
+  assert.equal(status.props.role, "status");
+  assert.equal((await history.notificationPage()).records.length, 0);
+  assert.equal(shown.info.mock.calls.length, 0);
 });
 
 test("Closed Connections Recover", async () => {

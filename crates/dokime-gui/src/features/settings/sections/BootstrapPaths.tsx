@@ -28,8 +28,12 @@ export function BootstrapPaths() {
   const paths = query.data?.bootstrap_paths;
   return (
     <SettingsCard title="Bootstrap Paths" description="Paths are selected at startup.">
-      {!session && <NotificationMessage tone="info">Connect to view backend paths.</NotificationMessage>}
-      {session && query.isPending && <NotificationMessage tone="info">Loading Paths…</NotificationMessage>}
+      {!session && <p className="text-sm text-muted-foreground">Connect to view backend paths.</p>}
+      {session && query.isPending && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Loading Paths…
+        </p>
+      )}
       {Boolean(query.error) && <NotificationMessage>{String(query.error)}</NotificationMessage>}
       {paths &&
         Object.entries(paths).map(([key, path]) => (
