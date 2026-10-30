@@ -76,6 +76,12 @@ pub(crate) fn normalize_values(field: &arrow_schema::Field, values: &mut BTreeMa
                     return Err(Error::Invalid("telemetry JSON field is not an object"));
                 }
             }
+            DataType::Utf8 => {
+                // Native Timestamp Projections Can Be Datetimes Even When The Contract Declares String.
+                if let Value::Datetime(time) = value {
+                    *value = Value::Text(Timestamp::from_datetime(*time).to_string());
+                }
+            }
             DataType::Struct(fields) => {
                 if let Value::Object(values) = value {
                     for field in fields {
@@ -129,7 +135,11 @@ pub(crate) fn batch(schema: SchemaRef, rows: &[(u64, crate::storage::telemetry::
             (
                 "original_strings".into(),
                 Value::Text(serde_json::to_string(
-                    &entry.strings.iter().filter(|(path, _)| changes_text(schema.field(1).data_type(), path)).collect::<Vec<_>>(),
+                    &entry
+                        .strings
+                        .iter()
+                        .filter(|(path, _)| path.as_slice() == ["timestamp"] || changes_text(schema.field(1).data_type(), path))
+                        .collect::<Vec<_>>(),
                 )?),
             ),
         ])));

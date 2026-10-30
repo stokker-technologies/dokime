@@ -244,6 +244,7 @@ mod tests {
         )
         .typed(&row);
         sample.values.extend(codec.decode_payload(&row.encode()).unwrap());
+        sample.values.insert("timestamp".into(), Value::Datetime(sample.timestamp.to_datetime().unwrap()));
         sample.summary.insert("unsigned".into(), Value::Unsigned(u64::MAX));
         let original = crate::storage::telemetry::TelemetryEntry {
             epoch: SessionId::from_seed("roundtrip.session"),
@@ -251,8 +252,9 @@ mod tests {
             sample,
         };
         let encoded = codec.encode(&original, usize::MAX).unwrap();
-        let admitted = codec.decode_arrow(&encoded, usize::MAX).unwrap();
+        let mut admitted = codec.decode_arrow(&encoded, usize::MAX).unwrap();
         let schema = schema(&contract, Some("execution")).unwrap();
+        crate::storage::ipc::normalize_values(schema.field(1), &mut admitted.entry.sample.values).unwrap();
         fn metadata(field: &Field) {
             for key in ["unit", "description", "stream_id"] {
                 assert!(field.metadata().contains_key(key));
