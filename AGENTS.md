@@ -1,5 +1,3 @@
-<!-- Rendered by stkr project update from .agents/GUIDANCE.md; sha256:5b299debed8b55527dd398069d274c5d8930693d97839aaf5608ec9dd049eba5 -->
-
 # Project Guidance
 
 ## Development Storage Policy

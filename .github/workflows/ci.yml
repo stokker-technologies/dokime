@@ -1,10 +1,19 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:4682b46e8924aa182072472523066cdbb63b08c1e76a5036fe6f8766722eb404
 name: CI
+run-name: >-
+  ${{ github.event_name == 'pull_request' && github.event.action == 'closed' &&
+  'CI / Closed Review' || github.event_name == 'pull_request' &&
+  github.event.pull_request.draft && 'CI / Draft Review' || 'CI / Validation' }}
 "on":
   push:
     branches:
     - dev
-  pull_request: {}
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
+    - closed
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -103,12 +112,14 @@ jobs:
     needs:
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:repository')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:repository')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-source-${{ (github.event_name == 'pull_request' ||
-        github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-source-shared-${{ github.event_name == 'pull_request'
+        && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   check_python:
     name: Check / Python
@@ -179,12 +190,14 @@ jobs:
     needs:
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:python')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:python')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_python-${{ (github.event_name == 'pull_request'
-        || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-check_python-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   check_typescript:
     name: Check / TypeScript
@@ -255,12 +268,14 @@ jobs:
     needs:
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_typescript-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-check_typescript-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   impact:
     name: Plan / Impact
@@ -280,13 +295,16 @@ jobs:
         plan: "{\"rules\":[{\"include\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"exclude\":[],\"jobs\":[]},{\"include\":[\"^docs(?:/|/.*/).*\\\\.md$\"],\"exclude\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"jobs\":[\"check:repository\"]}],\"dependencies\":{\"bench:rust:integration\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:system\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:unit\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"build\":[\"build:python\"],\"build:python\":[],\"build:rust:bench\":[],\"build:rust:tests\":[],\"check:python\":[],\"check:python:generated\":[\"build:python\"],\"check:repository\":[],\"check:rust\":[],\"check:typescript\":[],\"check:typescript:generated\":[\"build\"],\"package:python\":[\"build:python\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"package:rust\":[\"build\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"release:prepare\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish:dry\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:rehearse\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:tag\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:verify\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"test:python:acceptance\":[\"build\",\"build:python\"],\"test:python:coverage\":[\"build\",\"build:python\"],\"test:python:integration\":[\"build:python\"],\"test:python:unit\":[\"build:python\"],\"test:rust:acceptance\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:coverage\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:integration\":[\"build:rust:tests\"],\"test:rust:starter\":[\"build\"],\"test:rust:system\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:unit\":[\"build:rust:tests\"],\"test:typescript:integration\":[\"build\"],\"test:typescript:system\":[\"build\"],\"test:typescript:unit\":[\"build\"]}}"
         target: >-
           ${{ github.event_name == 'pull_request' && github.base_ref != '' &&
-          !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) ||
-          github.event_name == 'push' && github.ref == 'refs/heads/dev' && github.event.before ||
-          '' }}
+          !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) || false
+          && github.event.before || '' }}
+    if: >-
+      (true) && (github.event_name != 'pull_request' || (github.event.action !=
+      'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-impact-${{ (github.event_name == 'pull_request' ||
-        github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-impact-shared-${{ github.event_name == 'pull_request'
+        && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   build_python_any:
     name: Build / Product / Python (any)
@@ -368,12 +386,14 @@ jobs:
     needs:
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'build:python')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'build:python')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_python_any-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-build_python_any-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   release_dry:
     name: Release / Dry
@@ -494,11 +514,12 @@ jobs:
         (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
         endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     if: >-
-      (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      ((always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (github.event_name == 'pull_request' || github.event_name ==
       'workflow_dispatch' || github.event_name == 'push' && github.ref ==
       'refs/heads/dev')) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'release:publish:dry')
+      contains(fromJSON(needs.impact.outputs.jobs), 'release:publish:dry')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     permissions:
       actions: read
       contents: read
@@ -527,8 +548,9 @@ jobs:
     - validate_test_typescript_unit
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-release_dry-${{ (github.event_name == 'pull_request'
-        || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-release_dry-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   release_rehearsal:
     name: Release / Rehearsal
@@ -624,16 +646,19 @@ jobs:
       MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
       MISE_TASK_SKIP: package:python,package:rust
     if: >-
-      (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      ((always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (github.event_name == 'pull_request' && github.base_ref == 'dev'
-      && startsWith(github.head_ref, 'release/v'))) && needs.impact.result == 'success'
-      && contains(fromJSON(needs.impact.outputs.jobs), 'release:rehearse')
+      && startsWith(github.head_ref, 'release/v'))) && needs.impact.result ==
+      'success' && contains(fromJSON(needs.impact.outputs.jobs), 'release:rehearse')) &&
+      (github.event_name != 'pull_request' || (github.event.action != 'closed' &&
+      !github.event.pull_request.draft))
     permissions:
       contents: read
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-release_rehearsal-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-release_rehearsal-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref
+        || github.run_id }}
       cancel-in-progress: true
     needs:
     - build_product
@@ -740,12 +765,14 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:python:generated')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:python:generated')) && (github.event_name != 'pull_request'
+      || (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_generated_python-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-check_generated_python-shared-${{ github.event_name
+        == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   check_generated_typescript:
     name: Check / TypeScript / Generated
@@ -829,12 +856,14 @@ jobs:
     - build_product
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript:generated')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:typescript:generated')) && (github.event_name !=
+      'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_generated_typescript-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-check_generated_typescript-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_python_unit:
     name: Test / Python / Unit
@@ -925,12 +954,14 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:unit')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:unit')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_unit-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-validate_test_python_unit-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_python_acceptance:
     name: Test / Python / Acceptance
@@ -1038,13 +1069,14 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:acceptance')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:acceptance')) && (github.event_name != 'pull_request'
+      || (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_acceptance-${{
-        (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
-        github.run_id }}
+        ci-${{ github.workflow }}-validate_test_python_acceptance-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+        && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_typescript_unit:
     name: Test / TypeScript / Unit
@@ -1135,13 +1167,14 @@ jobs:
     - build_product
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:unit')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:unit')) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_typescript_unit-${{ (github.event_name
-        == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
-        }}
+        ci-${{ github.workflow }}-validate_test_typescript_unit-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_python_integration:
     name: Test / Python / Integration
@@ -1232,13 +1265,14 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:integration')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:python:integration')) && (github.event_name != 'pull_request'
+      || (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_integration-${{
-        (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
-        github.run_id }}
+        ci-${{ github.workflow }}-validate_test_python_integration-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+        && github.ref || github.run_id }}
       cancel-in-progress: true
   package_python:
     name: Package / Python
@@ -1332,19 +1366,21 @@ jobs:
       with:
         summary-module: ""
     if: >-
-      ((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/dev'))) &&
+      (((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
+      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'push' && github.ref == 'refs/heads/dev'))) &&
       needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs),
-      'package:python')
+      'package:python')) && (github.event_name != 'pull_request' || (github.event.action !=
+      'closed' && !github.event.pull_request.draft))
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build:python
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-package_python-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-package_python-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
   validate_test_typescript_integration:
     name: Test / TypeScript / Integration
@@ -1435,13 +1471,14 @@ jobs:
     - build_product
     - impact
     if: >-
-      (true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:integration')
+      ((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:integration')) && (github.event_name !=
+      'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft))
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_typescript_integration-${{
-        (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
-        github.run_id }}
+        ci-${{ github.workflow }}-validate_test_typescript_integration-shared-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name ==
+        'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   build_product:
     name: Build / Product (${{ matrix.platform }})
@@ -1495,7 +1532,8 @@ jobs:
         dokime_tools.ci.build --profile release --output product --task build
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev')
+        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev' &&
+        github.event_name != 'pull_request')
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
@@ -1704,7 +1742,8 @@ jobs:
         dokime_tools.ci.build --profile release --output product --task build
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev')
+        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev'
+        && github.event_name != 'pull_request')
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
@@ -1886,8 +1925,9 @@ jobs:
     - build_python_any
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'build'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'build'))) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -1905,8 +1945,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   build_tests:
     name: Build / Tests (${{ matrix.platform }})
@@ -2138,8 +2179,9 @@ jobs:
     needs:
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests'))) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -2157,8 +2199,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
-        || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   check_rust:
     name: Check / Rust (${{ matrix.platform }})
@@ -2357,8 +2400,9 @@ jobs:
     needs:
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'check:rust'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'check:rust'))) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -2376,8 +2420,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
-        || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   package_rust:
     name: Package / Rust (${{ matrix.platform }})
@@ -2937,7 +2982,7 @@ jobs:
       with:
         summary-module: ""
     if: >-
-      (((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
+      ((((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
       startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) &&
       (!startsWith(github.ref, 'refs/tags/') || needs.source.outputs.stable_release == 'true' ||
@@ -2951,7 +2996,9 @@ jobs:
       needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
       !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'windows')
       && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'package:rust'))
+      contains(fromJSON(needs.impact.outputs.jobs), 'package:rust'))) &&
+      (github.event_name != 'pull_request' || (github.event.action != 'closed' &&
+      !github.event.pull_request.draft))
     env:
       MISE_ENABLE_TOOLS: >-
         aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
@@ -2973,8 +3020,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
-        || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+        github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_acceptance:
     name: Test / Rust / Acceptance (${{ matrix.platform }})
@@ -3328,8 +3376,9 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))) && (github.event_name != 'pull_request'
+      || (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -3347,9 +3396,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ matrix.platform }}-${{ (github.event_name
-        == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
-        }}
+        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ matrix.platform
+        }}-${{ github.event_name == 'pull_request' && github.event.number ||
+        github.event_name == 'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_integration:
     name: Test / Rust / Integration (${{ matrix.platform }})
@@ -3561,8 +3610,9 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration'))) && (github.event_name != 'pull_request'
+      || (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -3580,9 +3630,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform }}-${{ (github.event_name
-        == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
-        }}
+        ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform
+        }}-${{ github.event_name == 'pull_request' && github.event.number ||
+        github.event_name == 'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_system:
     name: Test / Rust / System (${{ matrix.platform }})
@@ -3877,8 +3927,9 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -3896,8 +3947,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_system-${{ matrix.platform }}-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-validate_test_rust_system-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name
+        == 'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_unit:
     name: Test / Rust / Unit (${{ matrix.platform }})
@@ -4106,8 +4158,9 @@ jobs:
     - build_tests
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit'))) && (github.event_name != 'pull_request' ||
+      (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -4125,8 +4178,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{ (github.event_name ==
-        'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{
+        github.event_name == 'pull_request' && github.event.number || github.event_name ==
+        'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_typescript_system:
     name: Test / TypeScript / System (${{ matrix.platform }})
@@ -4424,8 +4478,9 @@ jobs:
     - build_product
     - impact
     if: >-
-      ((true) && needs.impact.result == 'success' &&
-      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system'))
+      (((true) && needs.impact.result == 'success' &&
+      contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system'))) && (github.event_name !=
+      'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft))
     strategy:
       fail-fast: false
       matrix:
@@ -4443,9 +4498,9 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform }}-${{
-        (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
-        github.run_id }}
+        ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform
+        }}-${{ github.event_name == 'pull_request' && github.event.number ||
+        github.event_name == 'push' && github.ref || github.run_id }}
       cancel-in-progress: true
   required:
     name: CI / Required
@@ -4476,7 +4531,9 @@ jobs:
     - validate_test_rust_system
     - validate_test_rust_unit
     - validate_test_typescript_system
-    if: always()
+    if: >-
+      (always()) && (github.event_name != 'pull_request' || (github.event.action !=
+      'closed' && !github.event.pull_request.draft))
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -4489,6 +4546,158 @@ jobs:
         RESULTS: ${{ toJSON(needs) }}
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-required-${{ (github.event_name == 'pull_request' ||
-        github.event_name == 'push') && github.ref || github.run_id }}
+        ci-${{ github.workflow }}-required-shared-${{ github.event_name ==
+        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+        github.run_id }}
       cancel-in-progress: true
+  cancel_closed:
+    name: Cancel / Closed Review
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - group: >-
+            ci-${{ github.workflow }}-source-shared-${{ github.event_name == 'pull_request'
+            && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_python-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_typescript-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-impact-shared-${{ github.event_name == 'pull_request'
+            && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-build_python_any-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-release_dry-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-release_rehearsal-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref
+            || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_generated_python-shared-${{ github.event_name
+            == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_generated_typescript-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_python_unit-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_python_acceptance-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+            && github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_typescript_unit-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_python_integration-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+            && github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-package_python-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_typescript_integration-shared-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name ==
+            'push' && github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-build_product-unix-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-build_product-windows-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-build_tests-unix-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-build_tests-windows-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_rust-unix-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-check_rust-windows-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-package_rust-unix-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-package_rust-windows-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_acceptance-unix-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_acceptance-windows-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_integration-unix-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_integration-windows-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+            && github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_system-unix-${{ github.event_name
+            == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_system-windows-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_unit-unix-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_rust_unit-windows-${{ github.event_name
+            == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_typescript_system-unix-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
+            github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-validate_test_typescript_system-windows-${{
+            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+            && github.ref || github.run_id }}
+        - group: >-
+            ci-${{ github.workflow }}-required-shared-${{ github.event_name ==
+            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
+            github.run_id }}
+    concurrency:
+      group: ${{ matrix.group }}
+      cancel-in-progress: true
+    steps:
+    - shell: python
+      run: pass

@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/test/nextest.py; sha256:f0a40972c9efddb0ed6aec86a32c074437e090dae55103d70effcdd45c8bed98
 # ***
 #
 # Dokime
@@ -33,7 +32,7 @@ from . import policy
 
 # === Constants === #
 
-PROFILE = "stkr"
+PROFILE = "project"
 UNIT = "kind(lib) | kind(bin) | kind(proc-macro)"
 PACKAGE_FLAGS = ("-p", "--package")
 FILTER_FLAGS = ("-E", "--filterset", "--filter-expr")

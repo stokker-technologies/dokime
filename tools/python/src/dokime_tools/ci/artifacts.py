@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:69425e065096ed4faa70dfff3c271813b4f6f4207ad56d42c125ee90d874ec1d
 # ***
 #
 # Dokime
