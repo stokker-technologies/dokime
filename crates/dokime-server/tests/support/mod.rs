@@ -15,6 +15,9 @@ pub mod artifacts;
 pub mod budgets;
 pub mod host;
 pub mod plots;
+pub mod story_reports;
+#[path = "../../../dokime-runtime/tests/support/system_reports.rs"]
+pub mod system_reports;
 pub mod wire;
 
 /* === Re-Exports === */

@@ -19,7 +19,7 @@ adapter id. Timestamped `link_up`, `link_down`, `address_added`, `address_remove
 and `default_route_changed` rows come from Windows IP Helper callbacks or Linux
 route netlink notifications, held only for the observer's lease. A receive
 overrun fails observation visibly; inventory is never polled to infer events.
-The Public `dokime_host::host::adapters::Adapters` query (`host.network.adapters`)
+The Public `plugin_host::host::adapters::Adapters` query (`host.network.adapters`)
 returns adapter identity, kind, MAC, status, MTU, speed, IPv4/IPv6 prefixes and
 scope, gateways, DNS servers, DHCP state and default-route ownership. Linux
 uses `getifaddrs`, kernel routes and NetworkManager's per-device DNS/DHCP data;
@@ -28,10 +28,10 @@ The installed host contributes a synchronous `RunStart` capture: every execution
 records its adapter inventory before the first step.
 
 The Public `host.network.radio.set` request uses the shared
-`dokime_host::domain::controls::{Radio, RadioPower}` enums:
+`plugin_host::domain::controls::{Radio, RadioPower}` enums:
 
 ```rust
-use dokime_host::{domain::controls::{Radio, RadioPower}, host::controls::RadioSet};
+use plugin_host::{domain::controls::{Radio, RadioPower}, host::controls::RadioSet};
 
 let request = RadioSet {
     radio: Radio::Wifi, // Wifi, Bluetooth Or Cellular
@@ -44,7 +44,7 @@ let request = RadioSet {
 `host::adapters::{AdapterKind, AdapterStatus}` for kind and status; identities,
 addresses and native power-plan IDs remain strings. Requests and inverse
 snapshots encode enum variants, with no legacy string aliases. Unknown native
-Wi-Fi or radio values return `dokime_host::Error::UnknownValue`; telemetry
+Wi-Fi or radio values return `plugin_host::Error::UnknownValue`; telemetry
 renders known Wi-Fi and Bluetooth states as text.
 It uses Windows.Devices.Radios or NetworkManager/BlueZ native switches.
 `host.network.adapter.set` takes `{ adapter_id, enabled, allow_disconnect: false }`;
@@ -81,7 +81,7 @@ canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`
 preserves the full instant, while `Number` carries seconds since the Unix epoch.
 Explicitly supplied timestamp values remain subject to contract validation.
-`dokime-host` is one crate: with no features it is the light definitions crate
+`plugin-host` is one crate: with no features it is the light definitions crate
 (operation requests and responses, ids, policies and stream rows); the `runtime`
 feature adds the operation implementations, platform dependencies and the
 sidecar executable, which the product build enables. The concrete plugin and
@@ -89,19 +89,20 @@ its native declaration live in the binary's `src/app.rs`; the library owns
 contracts, native resources and observers parameterized by the serving plugin.
 Even when workspace feature unification enables `runtime`, linking the library
 cannot introduce a host sidecar declaration into another plugin's executable.
-It is never published to crates.io; the host ships as the `host.dokime` plugin
+It is never published to crates.io; the host ships as the `plugin-host.dokime` plugin
 artifact. A plugin outside this repository calls host operations through the
 definitions from a Dokime release tag, matching the tag used for its `dokime`
 SDK dependency:
 
 ```toml
-dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
+plugin-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
 ```
 
-Host stream rows and contracts live in `dokime_host::domain::telemetry` (the rows are also exported at the crate root). Host document defaults and `wifi_channel_occupancy` live in `dokime_host::domain::document`. Dokime itself owns no host stream definitions; its `dokime::host` module contains only application lifecycle records. Install the host bundle before admitting templates that subscribe to `host.*`: absent publishers receive the ordinary per-stream refusal, and valid leases remain independent. Application-registered catalogs retain `PluginOwner::Host` and appear as Built-in.
+Host stream rows and contracts live in `plugin_host::domain::telemetry` (the rows are also exported at the crate root). Host document defaults and `wifi_channel_occupancy` live in `plugin_host::domain::document`. Dokime itself owns no host stream definitions; its `dokime::host` module contains only application lifecycle records. Install the host bundle before admitting templates that subscribe to `host.*`: absent publishers receive the ordinary per-stream refusal, and valid leases remain independent. Application-registered catalogs retain `PluginOwner::Host` and appear as Built-in.
 
-Its sidecar owner is `host_telemetry`; `host` names application-owned operations
-in Harmos. The bundle remains `host.dokime`, with `host.*` stream and operation IDs.
+Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
+`plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations
+in Harmos. The bundle is `plugin-host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
 until an explicit reload or the next startup.
 
@@ -109,8 +110,9 @@ Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
 observer while the plugin process can remain idle.
 
-`plugins/sidecars/obc/` is the test-only [onboard charger plugin](obc-plugin.md). Its `runtime/` crate owns
-the simulated testbench. It is built explicitly for tests and is never included
+`plugins/sidecars/obc/` is the test-only [onboard charger plugin](plugin-obc.md). Its `runtime/` crate owns
+the simulated testbench. Its bundle is `plugin-obc.dokime` and stored owner is
+`plugin_obc`. It is built explicitly for tests and is never included
 in the product's default bundles or installer.
 
 A plugin declares its identity, requirements and contributions on
@@ -138,9 +140,9 @@ frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,
 while runtime execution identities remain fresh.
 
-`mise run build:rust` produces the shipping `plugins/host.dokime` bundle.
+`mise run build:rust` produces the shipping `plugins/plugin-host.dokime` bundle.
 `mise run build:rust:tests` prepares the explicit OBC test fixture under
-`fixtures/plugins/obc-plugin.dokime`.
+`fixtures/plugins/plugin-obc.dokime`.
 Operators select or install bundles; the product does not seed these fixtures. A card's probe
 and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read

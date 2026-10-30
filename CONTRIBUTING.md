@@ -92,6 +92,18 @@ Report missing local executors and local failures; repair every failed required
 job. Hosted required checks and reviews gate integration. Create or update the
 authorized ready PR and enable auto-merge without waiting for local completion.
 
+### System Story Reports
+
+Report-producing system stories automatically save and reopen their final sealed
+execution reports during shared fixture teardown or desktop journey finalization.
+The finalizer verifies execution identity, the durable seal/checkpoint and artifact
+inventory/content. No separate report-saving story or command is needed. Stories
+which do not produce execution reports have explicit reasons in
+`crates/dokime-runtime/tests/support/system_reports.json`.
+Native shutdown stories exercise their stop boundary first; finalization runs on
+their recovered session's ordinary teardown. Filtered desktop runs name their
+selected journeys in JUnit; full walkthrough validation remains a separate obligation.
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite
@@ -133,25 +145,24 @@ before and after results; these timings are not correctness-test deadlines.
 
 ### Large-Cycle Report Saves
 
-Build the benchmark and its matching plugin fixture, then run the save harness:
+Report-save timing belongs to the ordinary Criterion `system-runtime` target.
+Build the matching benchmark, host and OBC fixtures, then select its large-cycle saves.
+The standard producer builds OBC separately so the host's runtime feature cannot
+link another sidecar declaration into its executable:
 
 ```sh
 mise run build:rust:bench
-mise run measure:report-save --copies 32
+mise run bench:rust:system -- report_saves_large_cycle
 ```
 
-Copies must be between 1 and 128. The harness expands the same plugin cases, freezes at the
-inspection prompt, saves the current cycle, seals it, and saves the sealed cycle.
-Use identical copies, plugin revision, build profile and native hardware for
-baseline and candidate runs. Preserve a baseline checkout before source edits;
-a later measurement cannot reconstruct a missing baseline.
-
-Each save emits JSON with total/open/first-byte timing, delivery batch and
-writer retention, bytes and delivery passes. Materialization retention, scan
-counts, materialization passes and concurrent ingest latency remain null until
-source-owned instrumentation supplies them. Null is unavailable proof. The
-harness does not assert timing or claim a speedup, and its delivery memory
-measurement excludes report construction.
+The fixed workload expands each plugin case 32 times. Each state uses a fresh
+matching workload at its inspection prompt. The sealed case seals during fixture
+setup; current iterations share one saved evidence frontier. The Criterion cases
+measure materialization, verified streaming, file writes and durable sync. Use the
+same plugin revision, build profile and native hardware for comparisons. Delivery
+timing does not prove materialization memory, scan work or ingest latency; those
+require source-owned counters. Preserve a baseline before source edits; a later
+measurement cannot recreate it.
 
 ## Pull Requests
 

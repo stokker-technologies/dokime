@@ -21,11 +21,11 @@ The owner-approved Hub design at `generic-ci-and-release-layout/design.md` gover
 
 ## Dependencies And Proof
 
-The owner-selected next-release branch supplies the shipped dokime-host package, staged as plugins/host.dokime. Its release declaration uses the workspace version and the compatible 0.1 host series. Native package and release proof requires matching Product Build outputs. The owner requests local-platform dry or rehearsal proof. All-target release rehearsal requires both release-profile native packages and remains with combined integration; Windows-only proof cannot establish Unix execution.
+The owner-selected next-release branch supplies the shipped plugin-host package, staged as plugins/plugin-host.dokime. Its release declaration uses the workspace version and the compatible 0.1 host series. Native package and release proof requires matching Product Build outputs. The owner requests local-platform dry or rehearsal proof. All-target release rehearsal requires both release-profile native packages and remains with combined integration; Windows-only proof cannot establish Unix execution.
 
 The Python integration task delegates argument parsing to its existing module so focused pytest selections reach the runner.
 
-The Hub skeleton formatter rejects the existing `measure:report-save` task, which the parked streamline contract owns. Its owner must resolve that task-category conflict; this adoption preserves it.
+The streamline owner decision of 2026-10-29 removes the custom report-save task; useful timing uses the standard system benchmark category. There is no report-save task-category exception to preserve.
 
 Targeted proof includes changed installer tests, package/release dry or rehearsal tasks, strict OpenSpec validation, and project render diagnostics (the intentional CI hold digest is expected). No full lane, push, release or Hub checkout mutation is authorized.
 

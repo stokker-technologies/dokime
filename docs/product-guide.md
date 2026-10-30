@@ -244,7 +244,7 @@ contract discovery and shared Harmos codec:
 ```rust
 let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
 let stream = client
-    .call_operation("obc.bench.get_status", Some("obc"), b"{}", Vec::new())
+    .call_operation("obc.bench.get_status", Some("plugin_obc"), b"{}", Vec::new())
     .await?;
 while let Some(event) = stream.message().await? {
     println!("{event:?}");
@@ -890,7 +890,7 @@ version = "0.1.3"
 target = "x86_64-pc-windows-msvc"
 
 [[plugin]]
-name = "dokime-host"
+name = "plugin-host"
 
 [[plugin]]
 path = "plugins/acme-bench.dokime"
@@ -1112,7 +1112,7 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
-Host telemetry is supplied by `host.dokime` through plugin ingest. The runtime
+Host telemetry is supplied by `plugin-host.dokime` through plugin ingest. The runtime
 has no built-in host collector or implicit plugin seed. OBC is an explicit
 test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
 
@@ -1160,7 +1160,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 ## Documentation
 
 - [Remote OBC Walkthrough](remote/overview.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
-- [OBC Plugin](obc-plugin.md) — the charger simulation and complete test templates.
+- [OBC Plugin](plugin-obc.md) — the charger simulation and complete test templates.
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.

@@ -99,7 +99,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
 }
 
 #[dokime::plugin(
-    id = "obc",
+    id = "plugin_obc",
     requires(),
     contributions(
         dokime::Suites<suites::Suites>,

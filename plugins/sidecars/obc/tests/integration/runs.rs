@@ -26,10 +26,10 @@ use dokime::execution::{Caller, SidecarTemplate, Workflow};
 use dokime::prompts::{PromptRequest, PromptResponse};
 use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use dokime::{PromptId, Timestamp};
-use obc_plugin::domain::model::connections::Connections as ListedConnections;
-use obc_plugin::domain::model::readiness::Readiness;
-use obc_plugin::domain::operations::AskReadiness;
-use obc_plugin::domain::operations::ListConnections;
+use plugin_obc::domain::model::connections::Connections as ListedConnections;
+use plugin_obc::domain::model::readiness::Readiness;
+use plugin_obc::domain::operations::AskReadiness;
+use plugin_obc::domain::operations::ListConnections;
 
 /* === Constants === */
 
@@ -52,7 +52,7 @@ type Connections = Arc<Mutex<Vec<String>>>;
 /* === Private Functions === */
 
 fn assert_record_contract(request: model::records::publication::RecordPublishRequest) {
-    let contract = dokime::catalog::entries::<obc_plugin::suites::Suites, dokime::catalog::Suites>()
+    let contract = dokime::catalog::entries::<plugin_obc::suites::Suites, dokime::catalog::Suites>()
         .into_iter()
         .flat_map(|definition| definition().record_contracts)
         .find(|contract| contract.record_type == request.record_type)
@@ -61,7 +61,7 @@ fn assert_record_contract(request: model::records::publication::RecordPublishReq
         dokime::model::identity::new_id::<dokime::RecordId>(),
         contract.schema_version,
         Timestamp::new("2026-01-01T00:00:00Z"),
-        obc_plugin::SOURCE,
+        plugin_obc::SOURCE,
     );
     dokime::records::validate_record(Some(&contract), &record, dokime::ValidationMode::Strict)
         .expect("authored evidence matches its declared contract");
@@ -78,7 +78,7 @@ fn road(resources: &Connections) -> Caller {
 }
 
 fn workflow<T: SidecarTemplate>(suite: &str) -> Workflow<T> {
-    Workflow::new(suite, obc_plugin::SOURCE)
+    Workflow::new(suite, plugin_obc::SOURCE)
 }
 
 fn start<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, request: RunExecution) -> Result<(), dokime::Refusal> {
@@ -88,7 +88,7 @@ fn start<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, re
 #[tokio::test(start_paused = true)]
 async fn declining_prompt_failure() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
     start(&workflow, &resources, runtime_request("declined", false)).unwrap();
 
     let outcome = drain_runtime(&workflow, "declined", Some(false), false).await;
@@ -103,7 +103,7 @@ async fn declining_prompt_failure() {
 #[tokio::test(start_paused = true)]
 async fn stopping_continuous_evidence() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
     start(&workflow, &resources, runtime_request("continuous", true)).unwrap();
 
     let outcome = drain_runtime(&workflow, "continuous", None, true).await;
@@ -117,7 +117,7 @@ async fn stopping_continuous_evidence() {
 #[tokio::test(start_paused = true)]
 async fn cancelling_steady_device() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::steady::Steady>(obc_plugin::suites::steady::STEADY_SUITE);
+    let workflow = workflow::<plugin_obc::suites::steady::Steady>(plugin_obc::suites::steady::STEADY_SUITE);
     let mut request = steady_request("cancel-steady");
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
     parameters["duration_s"] = serde_json::to_value(dokime::Value::from(10.0)).unwrap();
@@ -131,7 +131,7 @@ async fn cancelling_steady_device() {
 #[tokio::test(start_paused = true)]
 async fn image_failure_device() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
     let mut request = runtime_request("missing-image", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
     parameters["attach_reference"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
@@ -152,10 +152,10 @@ async fn image_failure_device() {
 #[tokio::test(start_paused = true)]
 async fn protection_refuses_baseline() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::protection::Overcurrent>(obc_plugin::suites::protection::SUITE);
+    let workflow = workflow::<plugin_obc::suites::protection::Overcurrent>(plugin_obc::suites::protection::SUITE);
     let mut request = runtime_request("initial-overload", false);
-    request.workflow = obc_plugin::suites::protection::SUITE.into();
-    request.template_identifier = obc_plugin::suites::protection::TEMPLATE.into();
+    request.workflow = plugin_obc::suites::protection::SUITE.into();
+    request.template_identifier = plugin_obc::suites::protection::TEMPLATE.into();
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
     parameters["load_ohm"] = serde_json::to_value(dokime::Value::from(20.0)).unwrap();
     request.parameters_json = parameters.to_string();
@@ -169,7 +169,7 @@ async fn protection_refuses_baseline() {
 #[tokio::test(start_paused = true)]
 async fn one_token_inputs() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
     start(&workflow, &resources, runtime_request("shared", false)).unwrap();
 
     let refusal =
@@ -184,11 +184,11 @@ async fn one_token_inputs() {
 #[tokio::test(start_paused = true)]
 async fn faults_contained_ready() {
     let resources = Connections::default();
-    let protection = workflow::<obc_plugin::suites::protection::Overcurrent>(obc_plugin::suites::protection::SUITE);
-    let recovery = workflow::<obc_plugin::suites::recovery::PowerLoss>(obc_plugin::suites::recovery::SUITE);
+    let protection = workflow::<plugin_obc::suites::protection::Overcurrent>(plugin_obc::suites::protection::SUITE);
+    let recovery = workflow::<plugin_obc::suites::recovery::PowerLoss>(plugin_obc::suites::recovery::SUITE);
     for (token, suite, template, fault_record) in [
-        ("overload", obc_plugin::suites::protection::SUITE, obc_plugin::suites::protection::TEMPLATE, "obc.charger.protection.faulted"),
-        ("power-loss", obc_plugin::suites::recovery::SUITE, obc_plugin::suites::recovery::TEMPLATE, "obc.charger.recovery.cleared"),
+        ("overload", plugin_obc::suites::protection::SUITE, plugin_obc::suites::protection::TEMPLATE, "obc.charger.protection.faulted"),
+        ("power-loss", plugin_obc::suites::recovery::SUITE, plugin_obc::suites::recovery::TEMPLATE, "obc.charger.recovery.cleared"),
     ] {
         let mut request = runtime_request(token, false);
         request.workflow = suite.into();
@@ -280,7 +280,7 @@ async fn awaited_line<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, c
 #[tokio::test(start_paused = true)]
 async fn step_waits_connections() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
 
     // The first run waits for a unit that nobody has reported yet, and says
     // the bench has been told about none.
@@ -321,7 +321,7 @@ async fn step_waits_connections() {
 #[tokio::test(start_paused = true)]
 async fn unit_refuses_waited() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
+    let workflow = workflow::<plugin_obc::suites::startup::Startup>(plugin_obc::suites::startup::STARTUP_SUITE);
     let mut request = runtime_request("silent", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
     parameters["await_connection"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
@@ -351,8 +351,8 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecution {
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),
         test_execution_id: execution_id(token),
-        template_identifier: obc_plugin::suites::startup::STARTUP_TEMPLATE.to_owned(),
-        workflow: obc_plugin::suites::startup::STARTUP_SUITE.to_owned(),
+        template_identifier: plugin_obc::suites::startup::STARTUP_TEMPLATE.to_owned(),
+        workflow: plugin_obc::suites::startup::STARTUP_SUITE.to_owned(),
 
         secrets_json: "{}".to_owned(),
         parameters_json: serde_json::json!({
@@ -391,8 +391,8 @@ fn steady_request(token: &str) -> RunExecution {
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),
         test_execution_id: execution_id(token),
-        template_identifier: obc_plugin::suites::steady::STEADY_TEMPLATE.to_owned(),
-        workflow: obc_plugin::suites::steady::STEADY_SUITE.to_owned(),
+        template_identifier: plugin_obc::suites::steady::STEADY_TEMPLATE.to_owned(),
+        workflow: plugin_obc::suites::steady::STEADY_SUITE.to_owned(),
 
         secrets_json: "{}".to_owned(),
         parameters_json: serde_json::json!({

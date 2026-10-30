@@ -64,7 +64,7 @@ struct BlockingStop {
 struct Gated {
     root: tempfile::TempDir,
     gate: Arc<Gate>,
-    owner: Runtime,
+    owner: crate::support::system_reports::Runtime,
     service: dokime_server::grpc::Service,
     server: Server,
     execution: WireClient,

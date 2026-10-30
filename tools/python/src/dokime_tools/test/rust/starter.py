@@ -105,14 +105,14 @@ def test(profile: str) -> None:
         authored = manifest.read_text(encoding="utf-8")
         dependencies = tomllib.loads(authored)["dependencies"]
         release = "v" + tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
-        for name in ("dokime", "dokime-host"):
+        for name in ("dokime", "plugin-host"):
             dependency = dependencies[name]
             if dependency.get("git") != "https://github.com/stokker-technologies/dokime" or dependency.get("tag") != release:
                 raise ValueError("the starter must declare SDK and host definitions from the same release")
         lines = authored.splitlines(keepends=True)
         for name, local, features in (
             ("dokime", root / "crates/dokime", ', features = ["plugin-sidecar"]'),
-            ("dokime-host", root / "plugins/sidecars/host", ", default-features = false"),
+            ("plugin-host", root / "plugins/sidecars/host", ", default-features = false"),
         ):
             selected = [index for index, line in enumerate(lines) if line.startswith(f"{name} = ")]
             if len(selected) != 1:

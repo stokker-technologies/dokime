@@ -445,7 +445,9 @@ pub(crate) async fn interruption_settles_prompts() {
     owner.shutdown().await.unwrap();
 }
 
-async fn inspection_runtime(root: &std::path::Path, executor: Arc<dyn ExecutionFixture>) -> (dokime_runtime::Runtime, RuntimeHandle) {
+async fn inspection_runtime(
+    root: &std::path::Path, executor: Arc<dyn ExecutionFixture>,
+) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
     let config = config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
     started_with_fixture(config, executor).await
 }

@@ -22,7 +22,7 @@ use dokime::harmos::{
     Message,
     operations::{OperationDeclaration, Visibility},
 };
-use dokime_host::{
+use plugin_host::{
     collectors::system::SystemCollector,
     host::{
         cpu::{CpuLoad, Load},
@@ -68,7 +68,7 @@ fn calibrated_cpu() {
 #[cfg(target_os = "windows")]
 #[test]
 fn active_power_plan() {
-    use dokime_host::host::power::{GetPlan, Plan, active_plan};
+    use plugin_host::host::power::{GetPlan, Plan, active_plan};
     let plan = active_plan().unwrap();
     assert_eq!(GetPlan::VISIBILITY, Visibility::Public);
     assert!(!plan.id.is_empty());

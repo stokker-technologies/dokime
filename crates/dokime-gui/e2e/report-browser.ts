@@ -34,7 +34,7 @@ import { pathToFileURL } from "node:url";
 
 /* === Types === */
 
-type Target = { id: string; url: string; type: string };
+type Target = { id: string; url: string; type: string; webSocketDebuggerUrl: string };
 
 /* === Classes === */
 
@@ -72,8 +72,12 @@ export class ReportBrowser {
         `--remote-debugging-port=${port}`,
         "about:blank",
       ],
-      { windowsHide: true, stdio: "ignore" },
+      { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] },
     );
+    let diagnostics = "";
+    child.stderr?.on("data", (chunk) => {
+      diagnostics = (diagnostics + chunk.toString()).slice(-16 * 1024);
+    });
     let startup: Error | undefined;
     child.on("error", (error) => {
       startup = error;
@@ -96,10 +100,12 @@ export class ReportBrowser {
         assert.ok(inside && inside !== ".." && !inside.startsWith(`..${sep}`) && !isAbsolute(inside));
         assert.ok(path.endsWith(".html"), "the report opener accepts owned HTML reports");
         const url = pathToFileURL(path).href;
-        const created = await fetch(`${debug}/json/new?${encodeURIComponent(url)}`, { method: "PUT", signal: AbortSignal.timeout(120000) });
+        const signal = AbortSignal.timeout(120000);
+        const created = await fetch(`${debug}/json/new?${encodeURIComponent(url)}`, { method: "PUT", signal });
         assert.ok(created.ok);
         const target = (await created.json()) as Target;
         browser.tabs.add(target.id);
+        await browser.mounted(target, url, signal);
         response.writeHead(204).end();
       } catch {
         response.writeHead(400).end("Owned report browser refused the request");
@@ -109,7 +115,8 @@ export class ReportBrowser {
       const deadline = Date.now() + 120000;
       while (true) {
         if (startup) throw startup;
-        if (child.exitCode !== null) throw new Error("Owned report browser exited during startup");
+        if (child.exitCode !== null)
+          throw new Error(`Owned report browser exited during startup (${child.exitCode}, ${child.signalCode}): ${diagnostics}`);
         if (
           await fetch(`${debug}/json/version`, { signal: AbortSignal.timeout(120000) })
             .then((r) => r.ok)
@@ -128,6 +135,57 @@ export class ReportBrowser {
       child.kill();
       server.close();
       throw error;
+    }
+  }
+
+  private async mounted(target: Target, url: string, signal: AbortSignal): Promise<void> {
+    const socket = new WebSocket(target.webSocketDebuggerUrl);
+    try {
+      await once(socket, "open", { signal });
+      const messages = on(socket, "message", { signal });
+      let sequence = 1;
+      socket.send(JSON.stringify({ id: sequence, method: "Page.enable" }));
+      const evaluate = () => {
+        socket.send(
+          JSON.stringify({
+            id: ++sequence,
+            method: "Runtime.evaluate",
+            params: {
+              awaitPromise: true,
+              returnByValue: true,
+              expression: `(() => {
+            if (location.href !== ${JSON.stringify(url)}) return false;
+            return new Promise(resolve => {
+              const ready = () => {
+                const root = document.getElementById('root');
+                const data = document.getElementById('hub-report-data');
+                if (!root?.childElementCount || !data) return false;
+                const report = JSON.parse(data.textContent);
+                if (report.test_executions.length && !document.querySelector('[data-level="case"]')) return false;
+                resolve(true);
+                return true;
+              };
+              if (ready()) return;
+              const observer = new MutationObserver(() => {if (ready()) observer.disconnect();});
+              observer.observe(document, {childList: true, subtree: true});
+            });
+          })()`,
+            },
+          }),
+        );
+      };
+      evaluate();
+      for await (const [event] of messages) {
+        const message = JSON.parse(event.data);
+        if (message.method === "Page.loadEventFired") evaluate();
+        if (message.id !== sequence) continue;
+        if (message.error?.message?.includes("context was destroyed")) continue;
+        assert.ok(!message.error && !message.result?.exceptionDetails, JSON.stringify(message.error ?? message.result?.exceptionDetails));
+        if (message.result?.result?.value === true) return;
+      }
+      throw new Error("The owned report browser closed before rendering");
+    } finally {
+      socket.close();
     }
   }
 

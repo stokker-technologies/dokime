@@ -19,7 +19,7 @@
 **Run repeatable engineering tests. Keep the evidence.**
 
 Dokime turns hardware and software test procedures into operator workflows,
-live measurements and self-contained reports. Define a procedure, run it across
+live measurements and HTML reports. Define a procedure, run it across
 operating conditions, and review the evidence behind each result.
 
 ![A charger test running in Dokime with live measurements and execution progress](screenshots/cycle.png)
@@ -29,7 +29,7 @@ operating conditions, and review the evidence behind each result.
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
 - **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements And Reports:** Capture live data and retain plots, records and attachments in self-contained HTML reports.
+- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
 - **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
@@ -92,7 +92,7 @@ for contracts and managed plugin lifecycles.
 
 #### Examples
 
-The test-only [OBC plugin](docs/obc-plugin.md) simulates a charger without physical
+The test-only [OBC plugin](docs/plugin-obc.md) simulates a charger without physical
 hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
 to see the public authoring API in context.
 
@@ -129,8 +129,8 @@ for packaging options.
 ## Quick Start
 
 1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases) or successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
-2. **Inspect Host Telemetry.** The installer includes `host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
-3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/obc-plugin.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
+2. **Inspect Host Telemetry.** The installer includes `plugin-host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
+3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/plugin-obc.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
@@ -160,7 +160,7 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing the older JSON stream-row format require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
+Development roots containing the older JSON stream-row format or earlier plugin identities require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients

@@ -37,7 +37,7 @@ use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
     PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
 };
-use obc_plugin::ObcPlugin;
+use plugin_obc::ObcPlugin;
 
 /* === Constants === */
 
@@ -133,7 +133,7 @@ impl Hosting {
         for (publication, scope) in published {
             use dokime::telemetry::TelemetryRow;
             use harmos::Message;
-            let row = obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
+            let row = plugin_obc::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
             let instant = std::time::UNIX_EPOCH.checked_add(Duration::from_micros(micros)).unwrap();
             let mut sample = dokime::telemetry::TelemetrySample::new(
@@ -163,7 +163,7 @@ impl Hosting {
             };
             operations
                 .call_encoded(
-                    &owned(<dokime::execution::Signal<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID),
+                    &owned(<dokime::execution::Signal<plugin_obc::Pulse> as harmos::operations::OperationDeclaration>::ID),
                     signal.encode(),
                 )
                 .await?;
@@ -255,7 +255,7 @@ impl PluginLifecycle for Host {
                 if publication.stream() != "obc.pulse" {
                     return;
                 }
-                assert_eq!(publication.owner(), "obc");
+                assert_eq!(publication.owner(), "plugin_obc");
                 assert_eq!(publication.schema(), 1);
                 assert_eq!(publication.missed(), 0);
                 let token = publication.context().unwrap();
@@ -380,7 +380,7 @@ impl Bench {
         let path = std::path::PathBuf::from(executable());
         let bytes = std::fs::read(&path).unwrap();
         let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
-        let configuration = serde_json::to_vec(&dokime::plugin::Configuration::declared::<obc_plugin::BenchSettings>()).unwrap();
+        let configuration = serde_json::to_vec(&dokime::plugin::Configuration::declared::<plugin_obc::BenchSettings>()).unwrap();
         let mut registrar = harmos::plugin::Registrar::new();
         <ObcPlugin as harmos::Plugin>::register(&mut registrar).unwrap();
         let definition = PluginDefinition {
@@ -455,7 +455,7 @@ impl Bench {
         tokio::spawn(async move {
             let bytes = operations
                 .call_encoded(
-                    &owned(<dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID),
+                    &owned(<dokime::execution::Run<plugin_obc::Pulse> as harmos::operations::OperationDeclaration>::ID),
                     request.encode(),
                 )
                 .await
@@ -536,7 +536,7 @@ fn refused(error: harmos::Error) -> std::io::Error {
 
 // The Runtime Serves Every Sidecar Operation Under The Plugin That Owns It.
 fn owned(operation: &str) -> String {
-    format!("{}.{operation}", obc_plugin::SOURCE)
+    format!("{}.{operation}", plugin_obc::SOURCE)
 }
 
 async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, method: &str, request: Vec<u8>) {
@@ -564,7 +564,7 @@ async fn inventory_matches_dispatch() {
     let mut served = Vec::new();
 
     // Every template of every suite serves its run and its signal.
-    for template in dokime::catalog::entries::<obc_plugin::suites::Suites, dokime::catalog::Suites>()
+    for template in dokime::catalog::entries::<plugin_obc::suites::Suites, dokime::catalog::Suites>()
         .into_iter()
         .flat_map(|definition| definition().suite.test_case_templates)
         .map(|template| template.metadata.identifier.to_string())
@@ -576,8 +576,8 @@ async fn inventory_matches_dispatch() {
         served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
-    use obc_plugin::domain::operations::device::{ReadDevice, SetPower};
-    use obc_plugin::domain::operations::{AskReadiness, GetStatus, ListConnections};
+    use plugin_obc::domain::operations::device::{ReadDevice, SetPower};
+    use plugin_obc::domain::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
         (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
         (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
@@ -631,9 +631,9 @@ async fn inventory_matches_dispatch() {
     let observe = <harmos::operations::observers::Control as harmos::operations::OperationDeclaration>::ID;
     dispatch(&runtime.operations, &owned(observe), harmos::operations::observers::ControlRequest::default().encode()).await;
     // The ripple analysis is reached too; an empty request is refused all the same.
-    let ripple = <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::ID;
+    let ripple = <plugin_obc::analyses::ripple::Ripple as dokime::analysis::Analysis>::ID;
     dispatch(&runtime.operations, &owned(ripple), Vec::new()).await;
-    served.push((ripple.to_owned(), <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::TIMEOUT.as_millis() as u64));
+    served.push((ripple.to_owned(), <plugin_obc::analyses::ripple::Ripple as dokime::analysis::Analysis>::TIMEOUT.as_millis() as u64));
     served.sort();
     let mut inspected = declared
         .operations
@@ -653,7 +653,7 @@ async fn samples_keep_context() {
     let mut bench = Bench::new().await;
     let parameters = BTreeMap::from([
         ("sample_count", Value::Integer(3)),
-        ("tolerance", Value::from(obc_plugin::DEFAULT_TOLERANCE)),
+        ("tolerance", Value::from(plugin_obc::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
         ("require_confirmation", Value::from(false)),
     ]);
@@ -690,7 +690,7 @@ async fn samples_keep_context() {
     assert_eq!(
         stream.definition().schema().unwrap(),
         &harmos::schema::graph::Schema::from_declaration(
-            <obc_plugin::suites::checks::pulse::PulseRow as harmos::schema::Described>::DEFINITION,
+            <plugin_obc::suites::checks::pulse::PulseRow as harmos::schema::Described>::DEFINITION,
             &harmos::config::SchemaSettings::default(),
         )
         .unwrap()
@@ -698,7 +698,7 @@ async fn samples_keep_context() {
     let mut samples: BTreeMap<String, Vec<i64>> = BTreeMap::new();
     for row in stream.query(..).await.unwrap() {
         assert!(row.value.published_unix_micros.is_some());
-        let decoded = obc_plugin::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
+        let decoded = plugin_obc::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
         let index = decoded.sample_index;
         samples.entry(row.value.context.clone().expect("native template rows carry context")).or_default().push(index);
     }
@@ -713,8 +713,8 @@ async fn samples_keep_context() {
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_obc-plugin")
+    std::env::var("NEXTEST_BIN_EXE_plugin-obc")
         .ok()
-        .or_else(|| option_env!("CARGO_BIN_EXE_obc-plugin").map(str::to_owned))
+        .or_else(|| option_env!("CARGO_BIN_EXE_plugin-obc").map(str::to_owned))
         .expect("workspace executable")
 }

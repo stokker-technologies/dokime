@@ -40,11 +40,11 @@ pub fn host_binary() -> PathBuf {
 }
 
 pub fn host_plugin_bundle() -> PathBuf {
-    artifact("plugins/host.dokime")
+    artifact("plugins/plugin-host.dokime")
 }
 
-pub fn obc_plugin_bundle() -> PathBuf {
-    artifact("fixtures/plugins/obc-plugin.dokime")
+pub fn plugin_obc_bundle() -> PathBuf {
+    artifact("fixtures/plugins/plugin-obc.dokime")
 }
 
 pub fn workspace_root() -> PathBuf {

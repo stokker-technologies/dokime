@@ -32,7 +32,7 @@
 //   f'. remote-access  listener and TLS setup, one pairing file per client exported from the
 //                      backend's Remote Access settings and imported in the desktop Backends
 //                      table, restart, independent revocation and lab modes
-//   g. report       Download Report, then the saved file rendered in headless Chrome
+//   Report-producing journeys finalize by saving and reopening their sealed execution reports.
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
 // Windows Requires An Interactive Account, WebView2 And A Version-
@@ -50,9 +50,9 @@
 //     fixture cleanup. `xdg-open` is a no-op for unrelated file-manager opens.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
 //     session can reach, which would hang the gate on Download Report. The gate
-//     taps inline document saves at the Tauri IPC boundary. Report saves instead
-//     use the real native verified pull into its private cache, then copy that
-//     file into `<evidence>/downloads` in place of choosing a picker destination.
+//     taps inline document saves at the Tauri IPC boundary. Shared report
+//     finalization drives the real native save picker and verified pull, then
+//     retains the reopened report and its linked artifacts in `<evidence>/downloads`.
 //     Every domain RPC still
 //     crosses the real transport, and so does `desktop_save_diagnostics_bundle`,
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
@@ -70,9 +70,7 @@ import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
 
-import { appendFile, copyFile, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-
-import http from "node:http";
+import { appendFile, copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -111,9 +109,9 @@ const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
-const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "fixtures/plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "fixtures/plugins/plugin-obc.dokime");
 
-const hostBundle = join(built, "plugins/host.dokime");
+const hostBundle = join(built, "plugins/plugin-host.dokime");
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -167,16 +165,6 @@ const selectedJourneys = new Set(
     .map((name) => name.trim())
     .filter(Boolean),
 );
-
-/**
- * Write Public Documents Into Evidence And Access Keys Into Private Temporary Storage.
- *
- * The payload crosses in slices. A written report is megabytes of base64, and
- * one `execute` carrying all of it does not come back -- the document was
- * already taken off the page's list by then, so it was lost rather than late,
- * and the gate reported a report that had in fact been written.
- */
-const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
@@ -361,24 +349,31 @@ function assertPromptHovers(labels) {
 }
 
 function histogramPresentation() {
-  const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"]');
+  const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] section');
   if (!plot) return null;
-  const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
-  return bins.length ? { bins, text: plot.innerText } : null;
+  const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) =>
+    (button.getAttribute("aria-label").match(/[-+]?\d+(?:\.\d+)?/g) ?? []).map(Number),
+  );
+  const samples = Number.parseInt(plot.querySelector("strong + span")?.textContent ?? "", 10);
+  return bins.length ? { bins, samples } : null;
 }
 
 function assertHistogram(presentation) {
   assert.ok(presentation, "The voltage distribution must render bins");
-  assert.match(presentation.text, /Count/);
-  assert.match(presentation.text, /[1-9]\d* samples/);
+  assert.ok(Number.isInteger(presentation.samples) && presentation.samples > 0);
   assert.ok(
-    presentation.bins.every((label) => /V.* to .*V.*: \d+$/.test(label)),
-    "Histogram bins must name voltage ranges and counts",
+    presentation.bins.every(
+      (bin) => bin.length === 3 && bin.every(Number.isFinite) && bin[0] <= bin[1] && Number.isInteger(bin[2]) && bin[2] >= 0,
+    ),
+    "Histogram bins expose numeric ranges and nonnegative counts",
   );
-  assert.ok(
-    presentation.bins.some((label) => /: [1-9]\d*$/.test(label)),
-    "At least one histogram bin must contain samples",
+  assert.equal(
+    presentation.bins.reduce((sum, bin) => sum + bin[2], 0),
+    presentation.samples,
   );
+  for (let index = 1; index < presentation.bins.length; index += 1) {
+    assert.equal(presentation.bins[index - 1][1], presentation.bins[index][0]);
+  }
 }
 
 async function checkStatusBounds(session) {
@@ -1162,15 +1157,6 @@ async function installSaveTap(session) {
           entry.size = payload.length;
         }
         ledger.push(entry);
-        let reportSave = null;
-        if (command === 'desktop_artifact_deliver') {
-          const payload = JSON.parse(String(init && init.body));
-          if (payload.request.kind === 'html_report' && payload.request.action === 'save') {
-            reportSave = { filename: payload.request.filename, kind: payload.request.kind };
-            payload.request.action = 'open';
-            init = { ...init, body: JSON.stringify(payload) };
-          }
-        }
         if (command === 'desktop_save_document') {
           let document = null;
           try {
@@ -1224,13 +1210,6 @@ async function installSaveTap(session) {
                 error => { entry.error = 'Native error capture failed: ' + String(error); return value; },
               );
             }
-            if (reportSave && value.headers.get('Tauri-Response') === 'ok') {
-              return value.clone().json().then((delivered) => {
-                if (!delivered?.path) throw new Error('native report pull returned no verified path');
-                saved.push({ ...reportSave, path: delivered.path });
-                return value;
-              });
-            }
             if (command === 'desktop_save_diagnostics_bundle' && value.headers.get('Tauri-Response') === 'ok') {
               return value.clone().json().then((path) => {
                 globalThis.__dokimeDiagnosticsPath = path;
@@ -1256,45 +1235,6 @@ async function installSaveTap(session) {
     };
   `);
   assert.ok(state?.installed, `The save tap did not take on window.fetch (${JSON.stringify(state)})`);
-}
-
-async function drainSavedDocuments(session) {
-  const documents = await session.execute(`
-    return (globalThis.__dokimeSavedDocuments ?? []).map((document) => ({
-      filename: document.filename,
-      kind: document.kind,
-      path: document.path ?? null,
-      length: document.bytesBase64?.length ?? 0,
-    }));
-  `);
-  const written = [];
-  for (const [index, document] of documents.entries()) {
-    assert.equal(basename(document.filename), document.filename, "saved documents have a plain filename");
-    if (document.path) {
-      const target = join(session.downloads, document.filename);
-      await copyFile(document.path, target);
-      written.push({ kind: document.kind, path: target });
-      continue;
-    }
-    let base64 = "";
-    for (let offset = 0; offset < document.length; offset += DOCUMENT_SLICE_CHARS) {
-      base64 += await session.execute(
-        "return globalThis.__dokimeSavedDocuments[arguments[0]].bytesBase64.slice(arguments[1], arguments[2]);",
-        [index, offset, offset + DOCUMENT_SLICE_CHARS],
-      );
-    }
-    if (base64.length !== document.length) {
-      throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
-    }
-    const bytes = Buffer.from(base64, "base64");
-    const target = join(session.downloads, document.filename);
-    await writeFile(target, bytes, { mode: 0o600 });
-    written.push({ kind: document.kind, path: target });
-  }
-  /* Cleared only once every document is on disk, so a transfer that fails
-     leaves the document on the page to try again rather than losing it. */
-  if (documents.length) await session.execute("globalThis.__dokimeSavedDocuments.splice(0, arguments[0]);", [documents.length]);
-  return written;
 }
 
 /**
@@ -1971,15 +1911,17 @@ async function libraryJourney(session) {
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     120000,
   );
-  const added = await until("second add announced", async () => {
-    const text = await toastText(session);
-    return /Added 1 case to /.test(text) ? text : null;
-  });
-  assert.ok(hasText(added, title.trim()), `The second add must join the same active cycle (got ${normalize(added)})`);
   assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   await session.clickNamed("button", "Open Cycle");
   await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 120000);
+  await until("the appended startup execution", () =>
+    session.execute(
+      `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+        .find(row => row.innerText.includes(arguments[0]))?.dataset.executionId ?? null;`,
+      [STARTUP_TEMPLATE],
+    ),
+  );
   const measuringExecutionId = await until(
     "the materialized measuring execution identity",
     () =>
@@ -2455,7 +2397,7 @@ async function cycleJourney(session, cycleId) {
     viewport.scrollTop = 0;
     viewport.dispatchEvent(new Event('scroll', {bubbles: true}));
   `);
-  await session.clickNamed("button", "Jump to Latest");
+  await session.clickNamed("button", "Jump To Latest");
   await until("console follows newest row again", () =>
     session.execute(`
     const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
@@ -3435,229 +3377,143 @@ async function settingsJourney(session, notes) {
   if (resolve(bundle) !== resolve(retained)) await copyFile(bundle, retained);
 }
 
-/**
- * The frozen report: saved by the application's Download Report, then read back.
- *
- * The same component set renders it with `live={false}`, so the assertions are
- * about what a file can honour: identity, provenance, the outline and the
- * records -- and the absence of every control that would lie.
- */
-async function reportJourney(session, cycleId) {
-  await session.goto(`/cycles/${cycleId}?view=cycle`);
-  await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 120000);
-  /* The report lists every planned member, run or not, as the live tree does. */
-  const liveMembers = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
-  await installSaveTap(session);
-  await openMenu(session, "Cycle Actions");
-  await session.clickNamed("menuitem", "Download Report");
-  /* The toast carries the backend's own words when the report fails, and a
-     report that is never saved is otherwise five silent minutes. */
-  let announcement = "";
-  const written = await until(
-    "report saved",
-    async () => {
-      announcement = (await toastText(session)) || announcement;
-      const saved = await drainSavedDocuments(session);
-      return saved.find((entry) => entry.path.endsWith(".html")) ?? null;
-    },
-    300000,
-  ).catch((failure) => {
-    throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
-  });
-
-  /* wry unwraps `http::Uri::from_str(webview.uri())` for every IPC message,
-     and Tauri's own init scripts post one on each document load, so a report
-     opened inside the shell's WebView aborts the process whenever the current
-     URI is not an http URI (wry 0.55.1 webkitgtk/mod.rs:648). Operators open
-     reports in a browser, so the gate reads the written file the same way:
-     served over loopback and rendered by headless Chrome. */
-  const html = await readFile(written.path, "utf8");
-  // Select An Execution Through The Frozen Outline Before Inspecting Its Evidence.
-  const selectExecution = `<script>
-    const selection = setInterval(() => {
-      const row = [...document.querySelectorAll('[data-level="case"]')].find(row => row.innerText.includes(${JSON.stringify(STARTUP_TEMPLATE)}));
-      const button = row?.querySelector('button');
-      if (button) { clearInterval(selection); button.click(); }
-    }, 50);
-    const markers = setInterval(async () => {
-      if (!document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"] .u-over')) return;
-      clearInterval(markers);
-      const labels = await (${promptHoverLabels.toString()})();
-      const result = document.createElement('pre');
-      result.id = 'prompt-hover-proof';
-      result.hidden = true;
-      result.textContent = JSON.stringify(labels);
-      document.body.append(result);
-    }, 50);
-    const geometry = setInterval(() => {
-      const rows = (${parameterGeometry.toString()})();
-      if (rows.length < 2) return;
-      clearInterval(geometry);
-      const result = document.createElement('pre');
-      result.id = 'parameter-geometry-proof';
-      result.hidden = true;
-      result.textContent = JSON.stringify(rows);
-      document.body.append(result);
-    }, 50);
-    const histogram = setInterval(() => {
-      const presentation = (${histogramPresentation.toString()})();
-      if (!presentation) return;
-      clearInterval(histogram);
-      const result = document.createElement('pre');
-      result.id = 'histogram-proof';
-      result.hidden = true;
-      result.textContent = JSON.stringify(presentation);
-      document.body.append(result);
-    }, 50);
-  </script>`;
-  const diagnostic = `Voltage channel unavailable: ${"sensor/".repeat(70)}timeout`;
-  const marker = '<script id="hub-report-data" type="application/json">';
-  const payloadText = html.split(marker)[1].split("</script>")[0];
-  const faultPayload = JSON.parse(payloadText);
-  let injected = 0;
-  for (const run of faultPayload.case_runs) {
-    const plot = run.plots["obc.charger.startup.sequence.voltage_distribution"];
-    if (!plot) continue;
-    plot.analysis = { kind: "error", message: diagnostic };
-    injected += 1;
+/** Shared Journey Finalizer: Native Sealed Pull, Saved File Reopen And Artifact Delivery. */
+async function finalizeStoryReports(name) {
+  const exemptions = JSON.parse(await readFile(join(workspace, "crates/dokime-runtime/tests/support/system_reports.json"), "utf8"));
+  if (Object.hasOwn(exemptions.desktop, name)) {
+    process.stdout.write(`   execution report exempt: ${exemptions.desktop[name]}\n`);
+    return;
   }
-  assert.ok(injected > 0, "The fault fixture must replace a captured voltage distribution");
-  const faultHtml = html.replace(payloadText, JSON.stringify(faultPayload));
-  const server = http.createServer((request, response) => {
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    const page = request.url === "/plot-error.html" ? faultHtml : html;
-    response.end(page.replace("</body>", `${selectExecution}</body>`));
-  });
-  await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
-  const served = `http://127.0.0.1:${server.address().port}/report.html`;
-  let dom = "";
-  let reportButtons = [];
-  let chromeProcess;
-  let socket;
+  const reopenedSession = !session || session.closed;
+  if (reopenedSession) {
+    session = await startSession(work, backend?.endpoint, evidence);
+    await session.connected();
+  }
+  const original = await session.location();
+  let saved = 0;
+  const inventory = [];
+  const deliver = async (request, destination) => {
+    let settled = false;
+    const pending = session.executeAsync(
+      `
+      const request = arguments[0];
+      const done = arguments[arguments.length - 1];
+      const invoke = globalThis.__TAURI_INTERNALS__.invoke;
+      invoke('desktop_session_status').then(status =>
+        invoke('desktop_artifact_deliver', {generation: status.connection.generation, request})
+      ).then(value => done({value}), error => done({failure: String(error)}));
+    `,
+      [request],
+    );
+    const picker = { window: null };
+    const [delivery, selection] = await Promise.allSettled([
+      pending.finally(() => {
+        settled = true;
+      }),
+      until("native artifact save", () => settled || chooseNativeFile(picker, destination, "Save")),
+    ]);
+    if (delivery.status === "rejected") throw delivery.reason;
+    if (selection.status === "rejected") throw selection.reason;
+    const response = delivery.value;
+    assert.equal(response.failure, undefined, response.failure);
+    assert.ok(response.value?.path);
+    return response.value;
+  };
   try {
-    const chrome =
-      process.env.DOKIME_E2E_CHROME ??
-      (windows
-        ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
-        : "google-chrome");
-    const port = await unusedPort();
-    chromeProcess = spawn(
-      chrome,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--window-size=1600,1000",
-        `--user-data-dir=${join(work, "chrome")}`,
-        `--remote-debugging-port=${port}`,
-        served,
-      ],
-      { stdio: "ignore", detached: !windows, windowsHide: true },
+    await session.goto("/history");
+    const count = await until("report history", () =>
+      session.execute(`
+      return document.querySelectorAll('[aria-busy="false"] tbody button[aria-label="Open"]').length || null;
+    `),
     );
-    const page = await until(
-      "frozen report browser",
-      async () => {
-        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
-        return (await response.json()).find((page) => page.type === "page");
-      },
-      120000,
-    );
-    socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-      socket.addEventListener("open", resolve, { once: true });
-      socket.addEventListener("error", reject, { once: true });
-    });
-    let sequence = 0;
-    const evaluate = (expression) =>
-      new Promise((resolve, reject) => {
-        const id = ++sequence;
-        const timer = setTimeout(() => finish(new Error("Frozen report evaluation timed out")), 120000);
-        const receive = (event) => {
-          const response = JSON.parse(event.data);
-          if (response.id !== id) return;
-          if (response.error || response.result.exceptionDetails) finish(new Error(JSON.stringify(response)));
-          else finish(null, response.result.result.value);
-        };
-        const finish = (error, value) => {
-          clearTimeout(timer);
-          socket.removeEventListener("message", receive);
-          if (error) reject(error);
-          else resolve(value);
-        };
-        socket.addEventListener("message", receive);
-        socket.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
-      });
-    await until(
-      "frozen report mounted evidence",
-      () => evaluate("['prompt-hover-proof', 'parameter-geometry-proof', 'histogram-proof'].every(id => document.getElementById(id))"),
-      120000,
-    ).catch(async (error) => {
-      await writeFile(join(evidence, "failure-report-rendered.html"), await evaluate("document.documentElement.outerHTML"));
-      throw error;
-    });
-    dom = await evaluate("document.documentElement.outerHTML");
-    reportButtons = await evaluate(`
-      [...document.querySelectorAll('button')].map(button => ({
-        label: button.innerText.trim(),
-        trace: Boolean(button.closest('table[aria-label="Trace Statistics"]')),
-      }))
-    `);
-    // A Controlled Analysis Failure Uses The Packaged Report's Actual Renderer And Styles.
-    await evaluate(`location.assign(${JSON.stringify(served.replace("report.html", "plot-error.html"))}); true`);
-    const errorLayout = await until("report plot diagnostic", () =>
-      evaluate(`(() => {
-      const overlay = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] [role=alert]');
-      if (!overlay) return null;
-      overlay.scrollIntoView({block: 'center'});
-      const bounds = overlay.getBoundingClientRect();
-      const detail = overlay.lastElementChild;
-      const text = detail.getBoundingClientRect();
-      const children = [...overlay.children].map(node => node.getBoundingClientRect());
-      const top = Math.min(...children.map(rect => rect.top));
-      const bottom = Math.max(...children.map(rect => rect.bottom));
-      return { text: detail.textContent, height: bounds.height,
-        centered: Math.abs((top + bottom) / 2 - (bounds.top + bounds.bottom) / 2) < 3,
-        contained: text.left >= bounds.left && text.right <= bounds.right && text.bottom <= bounds.bottom,
-        tint: getComputedStyle(overlay).backgroundColor,
-        overflow: overlay.scrollWidth > overlay.clientWidth };
-    })()`),
-    );
-    assert.equal(errorLayout.text, diagnostic);
-    assert.ok(errorLayout.height >= 230 && errorLayout.centered, "The diagnostic must occupy a centered full-height plot overlay");
-    assert.ok(errorLayout.contained && !errorLayout.overflow, "Long diagnostics must wrap inside the plot");
-    assert.notEqual(errorLayout.tint, "rgba(0, 0, 0, 0)");
-    await writeFile(join(evidence, "plot-error-overlay.json"), JSON.stringify(errorLayout, null, 2));
+    for (let index = 0; index < count; index += 1) {
+      await session.goto("/history");
+      const opener = await until("report history entry", () =>
+        session.execute(
+          `
+        return document.querySelectorAll('[aria-busy="false"] tbody button[aria-label="Open"]')[arguments[0]] ?? null;
+      `,
+          [index],
+        ),
+      );
+      await session.click(opener);
+      await until("report history detail", async () => (await session.location()).pathname !== "/history");
+      const ids = await until("sealed execution inventory", () =>
+        session.execute(`
+        const table = document.querySelector('[aria-busy="false"] table[aria-label="History Executions"]');
+        if (!table) return null;
+        const ids = [...table.querySelectorAll('[data-execution-id]')].filter(node =>
+          node.closest('tr').querySelector('button[aria-label="Inspect"]:not(:disabled)')
+        ).map(node => node.dataset.executionId);
+        return ids;
+      `),
+      );
+      inventory.push({ path: (await session.location()).pathname, executions: ids });
+      for (const id of ids) {
+        const path = join(work, "story-reports", name, id, "report.html");
+        await mkdir(dirname(path), { recursive: true });
+        const delivered = await deliver(
+          {
+            source: { kind: "execution_report", executionId: id },
+            kind: "html_report",
+            filename: "report.html",
+            action: "save",
+          },
+          path,
+        );
+        assert.equal(delivered.origin, "sealed");
+        assert.equal(await realpath(delivered.path), await realpath(path));
+        const html = await readFile(path, "utf8");
+        const marker = '<script id="hub-report-data" type="application/json">';
+        const report = JSON.parse(html.split(marker)[1].split("</script>")[0]);
+        assert.deepEqual(
+          report.test_executions.map((execution) => execution.test_execution_id),
+          [id],
+        );
+        const artifacts = report.snapshot.artifacts;
+        assert.ok(Array.isArray(artifacts));
+        assert.equal(new Set(artifacts.map((artifact) => artifact.artifact_id)).size, artifacts.length);
+        for (const artifact of artifacts) {
+          assert.equal(artifact.href, `outputs/${artifact.path}`);
+          assert.equal(artifact.downloadHref, artifact.href);
+          assert.ok(artifact.path.split("/").every((part) => part && part !== "." && part !== ".." && !/[\\:]/.test(part)));
+          const destination = join(dirname(path), artifact.href);
+          await mkdir(dirname(destination), { recursive: true });
+          const content = await deliver(
+            {
+              source: { kind: "artifact", artifactId: artifact.artifact_id },
+              kind: "artifact",
+              filename: artifact.path.split("/").at(-1),
+              action: "save",
+            },
+            destination,
+          );
+          assert.equal(await realpath(content.path), await realpath(destination));
+          const file = await open(destination, "r");
+          try {
+            assert.equal((await file.stat()).size, artifact.size_bytes);
+          } finally {
+            await file.close();
+          }
+        }
+        // Open The Saved Copy After Its Relative Artifact Links Have Been Published.
+        const reopened = await fetch(reportBrowser.endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+        assert.ok(reopened.ok);
+        await cp(dirname(path), join(session.downloads, name, id), { recursive: true });
+        saved += 1;
+      }
+    }
+    await session.dump(`report-inventory-${name}`, inventory);
+    assert.ok(saved > 0, "Report-producing story needs a sealed execution; exempt no-report stories centrally");
+    process.stdout.write(`   reopened ${saved} sealed execution reports with their artifacts\n`);
   } finally {
-    socket?.close();
-    await terminate(chromeProcess);
-    await new Promise((closed) => server.close(closed));
+    if (reopenedSession) await closeSession();
+    else await session.goto(`${original.pathname}${original.search}`);
   }
-  const report = dom.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
-  const geometry = dom.match(/<pre id="parameter-geometry-proof"[^>]*>([^<]+)<\/pre>/);
-  assert.ok(geometry, "The frozen report must mount its parameter grid");
-  assertParameterGeometry(JSON.parse(geometry[1]));
-  const hovers = dom.match(/<pre id="prompt-hover-proof"[^>]*>([^<]+)<\/pre>/);
-  assert.ok(hovers, "The frozen report must mount its prompt markers");
-  assertPromptHovers(JSON.parse(hovers[1]));
-  const histogram = dom.match(/<pre id="histogram-proof"[^>]*>([^<]+)<\/pre>/);
-  assert.ok(histogram, "The frozen report must mount its histogram");
-  assertHistogram(JSON.parse(histogram[1]));
-  assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
-  assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
-  /* Step names may say "Start", so the controls are read off the buttons; the
-     member tree's buttons name cases such as "Start-Up Sequence #1". */
-  // Trace visibility buttons retain authored names, including a trace called "start".
-  const controls = reportButtons.filter((button) => !button.trace).map((button) => normalize(button.label));
-  const runControls = controls.filter((label) =>
-    /^(?:(?:Start|Stop|Pause|Resume|Restart|Cancel)(?: (?:Execution|Cycle))?|Run Again(?: .+)?|Re-run)$/i.test(label),
-  );
-  assert.deepEqual(runControls, [], "A frozen report renders no run controls");
-  assert.ok(hasText(report, "Records"), "The report renders its records section");
-  assert.equal(
-    (dom.match(/<li\b[^>]*\bdata-level="case"/g) ?? []).length,
-    liveMembers,
-    "The frozen report must list every planned execution the live cycle lists, pending ones included",
-  );
 }
 
 /**
@@ -3747,6 +3603,7 @@ async function journey(name, run) {
   }
   try {
     const value = await run();
+    await finalizeStoryReports(name);
     passedJourneys.push(name);
     results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");
@@ -3944,6 +3801,7 @@ async function ownedStartupJourney() {
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
   await installSaveTap(session);
+  await installPluginThroughPicker(session, hostBundle);
   await installPluginThroughPicker(session);
   await closeSession();
   session = await startSession(work, undefined, evidence);
@@ -4343,7 +4201,7 @@ async function pluginInstallJourney() {
       () =>
         session.execute(`
       const row = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
-        .find(row => row.innerText.includes('obc'));
+        .find(row => row.innerText.includes('plugin-obc'));
       return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
     `),
       120000,
@@ -4361,13 +4219,13 @@ async function pluginInstallJourney() {
   }
 }
 
-async function installPluginThroughPicker(session) {
+async function installPluginThroughPicker(session, bundle = pluginBundle) {
   await session.goto("/settings/plugins");
   await session.clickNamed("button", "Install Plugin");
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.clickNamed("button", "Choose File");
   const picker = { window: null };
-  await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 120000);
+  await until("native plugin file picker", () => chooseNativeFile(picker, bundle), 120000);
   const installed = await until(
     "native plugin installation completes",
     () =>
@@ -4834,7 +4692,13 @@ async function writeJunit() {
     else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
   }
   const failed = cases.filter((result) => result.failure);
-  const skipped = failed.length === 0 && (cases.length === 0 || cases.some((result) => result.skipped));
+  const requested = selectedJourneys.size ? cases.filter((result) => selectedJourneys.has(result.name)) : cases;
+  const skipped =
+    failed.length === 0 &&
+    (requested.length === 0 ||
+      (selectedJourneys.size && requested.length !== selectedJourneys.size) ||
+      requested.some((result) => result.skipped));
+  const name = selectedJourneys.size ? `Selected Desktop Journeys: ${[...selectedJourneys].join(", ")}` : "Desktop Backend Walkthrough";
   const seconds = cases.reduce((total, result) => total + result.seconds, 0);
   const detail = cases
     .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)
@@ -4844,7 +4708,7 @@ async function writeJunit() {
     : skipped
       ? "<skipped/>"
       : "";
-  const story = `<testcase classname="dokime.native.${process.platform}" name="Desktop Backend Walkthrough" time="${seconds}">${outcome}<system-out>${escapeXml(detail)}</system-out></testcase>`;
+  const story = `<testcase classname="dokime.native.${process.platform}" name="${escapeXml(name)}" time="${seconds}">${outcome}<system-out>${escapeXml(detail)}</system-out></testcase>`;
   await mkdir(dirname(resolve(options.junit)), { recursive: true });
   await writeFile(
     options.junit,
@@ -4962,16 +4826,13 @@ async function main() {
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));
-    /* Report and touch read the original cycle; the copy owns an independent
-       container and keeps the original executions unchanged. */
-    await journey("report", () => reportJourney(session, cycleId));
     await journey("touch", () => touchJourney(session, cycleId));
     await journey("execution-stop", () => executionStopJourney(session, cycleId));
     await journey("containers", () => containersJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
     await journey("history", () => historyJourney(session, cycleId, library.value.title, library.value.measuringExecutionId));
   } else {
-    for (const name of ["cycle", "report", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
+    for (const name of ["cycle", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
         name,

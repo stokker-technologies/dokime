@@ -41,7 +41,7 @@
 
 #[test]
 fn active_socket_guard() {
-    use dokime_host::host::{
+    use plugin_host::host::{
         adapters::snapshot,
         controls::{administrator, connected_adapters, guard_connection, require_administrator},
     };
