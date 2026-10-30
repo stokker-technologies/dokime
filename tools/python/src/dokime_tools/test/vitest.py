@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/test/vitest.py; sha256:b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8
 # ***
 #
 # Dokime

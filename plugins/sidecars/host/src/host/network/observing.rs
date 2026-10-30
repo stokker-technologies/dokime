@@ -20,8 +20,10 @@ use std::time::Duration;
 
 // Local Imports
 use super::Network;
-use crate::{Error, HostPlugin, HostTelemetryStream};
+use crate::{Error, HostTelemetryStream};
 use dokime::harmos::operations::Host;
+use dokime::harmos::plugin;
+use dokime::harmos::sidecar::inventory::observers::Declared;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
 
 /* === Constants === */
@@ -47,22 +49,27 @@ pub struct State {
 
 /* === Implementations === */
 
-impl Observer<Publisher<HostPlugin>> for NetworkObserver {
-    type Error = Error;
-    const ID: &'static str = "host.network";
-    const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] =
-        &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Network>()];
-    const ACTIVATION: Activation = Activation::Demand;
-    const INTERVAL: Duration = Duration::from_millis(HostTelemetryStream::Network.interval().0);
-
-    async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
+impl NetworkObserver {
+    pub fn new() -> Result<Self, Error> {
         Ok(Self {
             notifications: super::notifications::Notifications::new()?,
             refresh_primary: true,
         })
     }
+}
 
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<HostPlugin>>) -> Result<(), Error> {
+impl<P: plugin::Declared> Observer<Publisher<P>> for NetworkObserver {
+    type Error = Error;
+    const ID: &'static str = <Self as Declared>::ENTRY.id;
+    const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] = <Self as Declared>::ENTRY.streams;
+    const ACTIVATION: Activation = <Self as Declared>::ENTRY.activation;
+    const INTERVAL: Duration = <Self as Declared>::ENTRY.interval;
+
+    async fn initialize(_: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
+        Self::new()
+    }
+
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<P>>) -> Result<(), Error> {
         let changes = self.notifications.drain()?;
         if self.refresh_primary || changes.iter().any(|change| change.kind == "default_route_changed") {
             let state = ctx.resource::<tokio::sync::Mutex<State>>().map_err(|error| Error::Probe(error.to_string()))?;
@@ -82,14 +89,14 @@ impl Observer<Publisher<HostPlugin>> for NetworkObserver {
     }
 }
 
-impl dokime::harmos::sidecar::inventory::observers::Declared for NetworkObserver {
+impl Declared for NetworkObserver {
     const ENTRY: dokime::harmos::sidecar::inventory::observers::Entry = dokime::harmos::sidecar::inventory::observers::Entry {
-        id: <Self as Observer<Publisher<HostPlugin>>>::ID,
-        description: <Self as Observer<Publisher<HostPlugin>>>::DESCRIPTION,
-        interval: <Self as Observer<Publisher<HostPlugin>>>::INTERVAL,
-        activation: <Self as Observer<Publisher<HostPlugin>>>::ACTIVATION,
-        streams: <Self as Observer<Publisher<HostPlugin>>>::STREAMS,
-        demand_keys: <Self as Observer<Publisher<HostPlugin>>>::DEMAND_KEYS,
+        id: "host.network",
+        description: "",
+        interval: Duration::from_millis(HostTelemetryStream::Network.interval().0),
+        activation: Activation::Demand,
+        streams: &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Network>()],
+        demand_keys: &[],
     };
 }
 

@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/ci/runs.py; sha256:49a0e3b744558cdeba16e4a1025d2c2a8606ddf2469fe391efc180cd02a00985
 # ***
 #
 # Dokime
@@ -32,7 +31,7 @@ from . import containers
 
 # === Constants === #
 
-MARKER = ".stkr-ci-run.json"
+MARKER = ".project-ci-run.json"
 
 # === Types === #
 

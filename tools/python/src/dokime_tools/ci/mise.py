@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/ci/mise.py; sha256:95321d2d5f1c10691447437f0504150001026ac6c21f60f5f01ad46c3b6640d1
 # ***
 #
 # Dokime

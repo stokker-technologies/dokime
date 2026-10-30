@@ -114,3 +114,23 @@ fn collected_battery_columns() {
         dokime_host::System::from_row(&sample.values).unwrap();
     }
 }
+
+#[test]
+fn executable_declares_host() {
+    let executable = std::env::var("NEXTEST_BIN_EXE_dokime-host")
+        .ok()
+        .or_else(|| option_env!("CARGO_BIN_EXE_dokime-host").map(str::to_owned))
+        .expect("workspace host executable");
+    let executable = dokime::__harmos::sidecar::Executable::at(executable).expect("the host executable declares itself");
+    let declared = executable.declaration();
+    assert_eq!(declared.id, "host_telemetry");
+    assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
+    let streams = declared.streams.iter().map(|stream| stream.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    let expected = dokime_host::host_stream_identifiers();
+    let expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(streams, expected);
+    let operations = declared.operations.iter().map(|operation| operation.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    assert!(operations.contains("host.network.radio.set"));
+    assert!(operations.contains("host.network.adapter.set"));
+    assert!(operations.contains("host.power.plan.set"));
+}

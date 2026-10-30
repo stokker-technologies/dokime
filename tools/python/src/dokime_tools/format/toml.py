@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/format/toml.py; sha256:7950eece5df5aaa4304d9d23c8b80d7a62dfa6b451cd3aabae02479fae858b45
 # ***
 #
 # Dokime

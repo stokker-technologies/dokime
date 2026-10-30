@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/test/__init__.py; sha256:13f3823360092d38206cf4c3d3524d537ddc102b1889faf172ad2ccebb87f72b
 # ***
 #
 # Dokime
@@ -7,7 +6,7 @@
 #
 # ***
 
-"""Hub-Rendered Test Evidence Runner: Lanes, Archives, Reports And Benchmarks"""
+"""Test Evidence Runner: Lanes, Archives, Reports And Benchmarks"""
 
 # === Imports === #
 
