@@ -338,32 +338,6 @@ impl RecordRow {
         })
     }
 
-    pub fn projection_memory(&self) -> Result<usize> {
-        let strings = [&self.record_id, &self.timestamp, &self.received_at, &self.record_type, &self.source];
-        let mut bytes = strings.into_iter().fold(std::mem::size_of::<RecordEntry>(), |bytes, value| bytes.saturating_add(value.capacity()));
-        for value in [&self.message, &self.related_sample_id, &self.related_stream_id, &self.related_artifact_id] {
-            bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
-        }
-        let details = values::owned_memory(&self.details)?;
-        if details == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        bytes = bytes.saturating_add(
-            details.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
-        );
-        if let Some(error) = &self.error {
-            bytes = bytes.saturating_add(
-                error.projection_memory().saturating_sub(std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()),
-            );
-        }
-        if let Some(scope) = &self.scope {
-            bytes = bytes.saturating_add(
-                scope.projection_memory().saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
-            );
-        }
-        Ok(bytes)
-    }
-
     pub fn into_entry(self) -> Result<RecordEntry> {
         use crate::records::RecordSeverity;
         use dokime_domain::model::identity::ArtifactId;
@@ -457,22 +431,6 @@ impl ErrorRow {
             trace_id: detail.trace_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
             correlation_id: detail.correlation_id.as_ref().map(|id| copy_text(id.as_str())).transpose()?,
         })
-    }
-
-    fn projection_memory(&self) -> usize {
-        let mut bytes = std::mem::size_of::<dokime_domain::model::records::error::RecordErrorDetail>()
-            .saturating_add(self.message.capacity())
-            .saturating_add(self.cause_chain.len().saturating_mul(std::mem::size_of::<dokime_domain::model::diagnostics::ErrorCause>()));
-        for value in [&self.code, &self.source, &self.stacktrace_attachment, &self.trace_id, &self.correlation_id] {
-            bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
-        }
-        for cause in &self.cause_chain {
-            bytes = bytes.saturating_add(cause.message.capacity());
-            for value in [&cause.code, &cause.source] {
-                bytes = bytes.saturating_add(value.as_ref().map_or(0, String::capacity));
-            }
-        }
-        bytes
     }
 }
 

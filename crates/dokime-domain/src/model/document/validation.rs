@@ -92,18 +92,6 @@ pub fn validate_normalized_parts(
     if issues.is_empty() { Ok(()) } else { Err(issues) }
 }
 
-/// Peak Native Storage Of Validation Indexes And Every Possible Diagnostic.
-pub fn normalized_validation_memory(
-    cards: &[DocumentCardDefinition], layout: &DocumentLayout, maximum_depth: usize, maximum_plot_points: usize,
-) -> usize {
-    let memory = validation_memory(cards, layout, maximum_depth, maximum_plot_points);
-    memory
-        .bytes
-        .saturating_add(memory.temporary)
-        .saturating_add(memory.issues.saturating_mul(std::mem::size_of::<String>()))
-        .saturating_add(cards.len().saturating_add(memory.sections).saturating_mul(std::mem::size_of::<(&Identifier, usize)>()))
-}
-
 /* === Private Functions === */
 
 fn first(index: &[(&Identifier, usize)], id: &Identifier) -> Option<usize> {
@@ -258,13 +246,10 @@ mod tests {
         let layout = DocumentLayout {
             nodes: vec![DocumentNode::Section(Box::new(section)), DocumentNode::Section(Box::new(duplicate))],
         };
-        let estimate = normalized_validation_memory(&cards, &layout, 8, 100);
         let issues = validate_normalized_parts(&cards, &layout, 8, 100).unwrap_err();
         assert_eq!(issues.len(), 3);
         for (issue, identifier) in issues.iter().zip(["duplicate.card", "missing.card", "duplicate.section"]) {
             assert!(issue.contains(identifier));
         }
-        let retained = issues.capacity() * std::mem::size_of::<String>() + issues.iter().map(String::capacity).sum::<usize>();
-        assert!(estimate >= retained);
     }
 }

@@ -27,7 +27,6 @@ use crate::{
     queries::RuntimeStateSnapshot,
     runtime::handle::RuntimeHandle,
 };
-use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
@@ -313,10 +312,6 @@ impl RuntimeHandle {
 
     pub async fn artifacts(&self) -> crate::runtime::Result<Vec<ArtifactRecord>> {
         self.execution_storage.artifact_records().await
-    }
-
-    pub async fn health_items(&self) -> Vec<HealthItem> {
-        self.state_read().health_items()
     }
 
     pub async fn traceability_snapshots_page_at(

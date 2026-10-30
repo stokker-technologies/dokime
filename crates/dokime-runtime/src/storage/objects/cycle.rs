@@ -31,7 +31,6 @@ use dokime_domain::model::execution::result::ResultStatus;
 use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::TestCycle;
 use dokime_domain::model::execution::saved::CycleSeal;
-use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
@@ -186,10 +185,6 @@ impl Cycle {
             return Err(Error::Invalid("report header membership differs from sources"));
         }
         Ok(())
-    }
-
-    pub fn encoding_memory(source: &TestCycle) -> Result<usize> {
-        Self::encoding_input(&Input::from(source))
     }
 
     pub fn from_view(source: &CycleView, ids: &[TestExecutionId]) -> Result<Self> {
@@ -443,60 +438,9 @@ impl TryFrom<Seal> for CycleSeal {
     }
 }
 
-impl Seal {
-    fn projection_memory(&self) -> Result<usize> {
-        let evidence = self.evidence_through.as_ref().ok_or(Error::Invalid("cycle seal evidence frontier is missing"))?;
-        let report = self.report.as_ref().ok_or(Error::Invalid("cycle seal report is missing"))?;
-        let saved = self.dependencies_saved.as_ref().ok_or(Error::Invalid("cycle seal saved frontier is missing"))?;
-        if [evidence.memory_size(), report.memory_size(), saved.memory_size()].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.owner_node_id.capacity(),
-            self.sealed_at.capacity(),
-            evidence.memory_size().saturating_sub(std::mem::size_of_val(evidence)),
-            report.memory_size().saturating_sub(std::mem::size_of_val(report)),
-            saved.memory_size().saturating_sub(std::mem::size_of_val(saved)),
-            self.executions.len().saturating_mul(std::mem::size_of::<ExecutionRevision>()),
-        ];
-        let mut bytes = fields.into_iter().fold(std::mem::size_of::<CycleSeal>(), usize::saturating_add);
-        for execution in &self.executions {
-            let memory = execution.projection_memory()?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<ExecutionRevision>()));
-        }
-        Ok(bytes)
-    }
-}
-
 impl Cycle {
     pub fn restore(&self) -> Result<TestCycle> {
         self.clone().try_into()
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("cycle metadata is missing"))?.projection_memory()?;
-        let records = self.records.as_ref().ok_or(Error::Invalid("cycle record ownership is missing"))?.projection_memory();
-        let seal = self.saved.as_ref().map(Seal::projection_memory).transpose()?.unwrap_or(0);
-        if [metadata, records, seal].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.cycle_id.capacity(),
-            self.session_id.as_ref().map_or(0, String::capacity),
-            self.created_at.capacity(),
-            self.updated_at.capacity(),
-            self.started_at.as_ref().map_or(0, String::capacity),
-            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-            records.saturating_sub(std::mem::size_of::<dokime_domain::state::records::set::TestRecordSet>()),
-            seal.saturating_sub(std::mem::size_of::<CycleSeal>()),
-            self.execution_ids.len().saturating_mul(std::mem::size_of::<TestExecutionId>()),
-            self.execution_ids.len().saturating_mul(std::mem::size_of::<&str>()),
-        ];
-        let bytes = fields.into_iter().fold(std::mem::size_of::<TestCycle>(), usize::saturating_add);
-        Ok(self.execution_ids.iter().fold(bytes, |bytes, id| bytes.saturating_add(id.capacity())))
     }
 }
 
