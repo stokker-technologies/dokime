@@ -130,6 +130,7 @@ async fn boot_failure_persists_plugin_and_carrier() {
         message: String::new(),
         code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
         missing_secret: Some("api_token".into()),
+        consequences: vec!["workflow is unavailable".into()],
         carrier: carrier.clone(),
     };
     store.record_boot(id, Some(failure.clone())).await.unwrap();

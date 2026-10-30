@@ -90,6 +90,9 @@ and filter controls remain usable. Preserve the case of unit symbols.
   after startup fails. Their declared schema comes from the verified bundle
   inventory; the page shows the recorded failure and offers an application
   restart to retry with saved changes. Every owner in an inactive bundle is editable.
+  Startup notifications and plugin views keep root prose separate from collapsed
+  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
+  the identifier prefilled; notification history retains the same destination.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated

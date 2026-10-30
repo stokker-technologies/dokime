@@ -355,6 +355,7 @@ impl PluginStore {
                                 message: error,
                                 code: None,
                                 missing_secret: None,
+                                consequences: Vec::new(),
                                 carrier: Vec::new(),
                             },
                             at: crate::model::time::now_utc(),

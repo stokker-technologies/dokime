@@ -170,7 +170,9 @@ from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
 Settings → Plugins keeps installed plugin settings and secrets editable after
-startup fails. Save corrections and restart Dokime from the plugin page to retry.
+startup fails. A missing-secret failure offers Set Secret in Secret Storage with its identifier prefilled.
+Save corrections and restart Dokime from the plugin page to retry; see
+[Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the
 [application settings model](crates/dokime-domain/src/model/settings/application.rs)

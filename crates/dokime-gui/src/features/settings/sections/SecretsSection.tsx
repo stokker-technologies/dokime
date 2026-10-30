@@ -16,8 +16,9 @@
 // Standard Library Imports
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
@@ -46,7 +47,7 @@ const SECRETS_SECRET_BYTES = 65_536;
 
 /* === Types === */
 
-type Editor = ({ kind: "new" } | { kind: "edit"; entry: SecretEntry }) & { generation: bigint };
+type Editor = ({ kind: "new"; identifier?: string } | { kind: "edit"; entry: SecretEntry }) & { generation: bigint };
 
 /* === Components === */
 
@@ -64,14 +65,24 @@ export function SecretsSection() {
 }
 
 function ConnectedSecrets({ session }: { session: ConnectedSession }) {
+  const hash = useLocation({ select: (location) => location.hash });
+  const navigate = useNavigate();
+  const identifier = hash.startsWith("add-secret=") ? hash.slice("add-secret=".length) : undefined;
   const client = useQueryClient();
   const queryKey = ["settings", "secrets", session.identity.generation];
   const query = useQuery({ queryKey, queryFn: () => readSecrets(session.identity) });
-  const [editor, setEditor] = useState<Editor | null>(null);
+  const snapshot = query.data;
+  const [editor, setEditor] = useState<Editor | null>(() =>
+    identifier && snapshot ? { kind: "new", identifier, generation: snapshot.generation } : null,
+  );
   const [deleting, setDeleting] = useState<{ identifier: string; generation: bigint } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const snapshot = query.data;
+  useEffect(() => {
+    if (!identifier || !snapshot) return;
+    setEditor({ kind: "new", identifier, generation: snapshot.generation });
+    void navigate({ hash: "", replace: true });
+  }, [identifier, snapshot, navigate]);
 
   async function change(work: () => Promise<SecretCatalog>) {
     setBusy(true);
@@ -208,7 +219,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         )}
         {editor && snapshot && (
           <SecretEditor
-            key={editor.kind === "edit" ? editor.entry.metadata.identifier : editor.kind}
+            key={editor.kind === "edit" ? editor.entry.metadata.identifier : `new-${editor.identifier ?? ""}`}
             editor={editor}
             busy={busy}
             cancel={() => setEditor(null)}
@@ -233,7 +244,7 @@ function SecretEditor({
 }) {
   const id = useId();
   const original = editor.kind === "edit" ? editor.entry.metadata : undefined;
-  const [identifier, setIdentifier] = useState(original?.identifier ?? "");
+  const [identifier, setIdentifier] = useState(original?.identifier ?? (editor.kind === "new" ? editor.identifier : undefined) ?? "");
   const [label, setLabel] = useState(original?.label ?? "");
   const [description, setDescription] = useState(original?.description ?? "");
   const [value, setValue] = useState("");
