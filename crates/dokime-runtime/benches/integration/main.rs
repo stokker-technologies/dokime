@@ -12,6 +12,9 @@
 /* === Modules === */
 mod capture;
 mod plots;
+#[path = "../../tests/support/services/smoke.rs"]
+pub mod smoke;
+mod telemetry;
 
 /* === Re-Exports === */
 
@@ -26,7 +29,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, capture::benchmark, plots::benchmark);
+criterion_group!(benches, capture::benchmark, plots::benchmark, telemetry::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */
