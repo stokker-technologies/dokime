@@ -218,6 +218,7 @@ mod tests {
         assert!(!scratch.path().join("plugins").exists());
         let staged = selected(std::slice::from_ref(&host), scratch.path()).unwrap();
         assert_eq!(staged.len(), 1);
+        assert_eq!(staged["plugin-host.dokime"], scratch.path().join("plugins/plugin-host.dokime"));
         assert_eq!(std::fs::read(&staged["plugin-host.dokime"]).unwrap(), std::fs::read(&host).unwrap());
         assert!(!scratch.path().join("plugins/bench.dokime").exists());
 
@@ -235,6 +236,7 @@ mod tests {
         std::fs::write(&path, bytes).unwrap();
         let scratch = tempfile::tempdir().unwrap();
         let staged = selected(&[path], scratch.path()).unwrap();
+        assert_eq!(staged["plugin-host.dokime"], scratch.path().join("plugins/plugin-host.dokime"));
         assert_eq!(std::fs::read(&staged["plugin-host.dokime"]).unwrap(), std::fs::read(&host).unwrap());
     }
 

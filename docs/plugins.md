@@ -192,8 +192,13 @@ See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then
 atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at
-`<application root>/plugins/<UUID>.dokime`. Files copied there manually are not
-admitted and the boot sweep deletes them. `DOKIME_PLUGINS_DIR` (or
+`<application root>/data/plugins/<UUID>.dokime`. The boot sweep deletes
+unreferenced files only inside this store-owned directory. Installer bundles
+remain read-only inputs under `<install directory>/plugins`, separate from the
+store even when the install directory equals the application root. Files copied
+into the store manually are not admitted. Earlier development layouts require
+a fresh application root; existing files are never moved or reset automatically.
+`DOKIME_PLUGINS_DIR` (or
 `--plugins-root`) names a development directory whose bundles load for one
 process; it is never a store. A corrupt `settings.json` fails explicitly; missing
 or changed bundle bytes remain visible by UUID and error, without displaying
