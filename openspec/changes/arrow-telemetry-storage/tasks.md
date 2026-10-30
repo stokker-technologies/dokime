@@ -34,13 +34,13 @@
 
 ## 6. Benchmark Source And Closure
 
-- [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
+- [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, give the existing storage query fixture paired increasing time bounds, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
 - [x] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
 
 ## 7. Final Validation And Local Handback
 
 - [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers.
-- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures.
+- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures. Retain the original 1M query backend timeout as its baseline outcome; do not extend deadlines or repeat completed measurement cases. Verify the repaired storage fixture in Criterion test mode.
 - [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes in small Conventional Commits and hand back status, added/deleted lines, benchmark results, tests and open issues in at most ten lines; do not push or merge.
 
 ## Workflow Follow-Up
