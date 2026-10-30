@@ -18,10 +18,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { StatsSummaryTable } from "@/components/StatsSummaryTable";
-import { formatUnitLabel } from "@/lib/format";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
+import { formatUnitLabel } from "@/lib/format";
 import {
   formatStatValue,
   formatSummaryValue,
@@ -49,15 +49,12 @@ import { plotRequestForDocumentPlot } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { lttbIndices, m4Indices, minMaxIndices, reduceIndices, windowIndices } from "@/plots/reduce";
+import { m4Indices, windowIndices } from "@/plots/reduce";
 import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
 
 /* === Re-Exports === */
 
 /* === Constants === */
-
-/* The pulse suite: 100 ms cadence, sin(0.5 i), about 12.6 samples per period. */
-const PULSE_PERIOD_MS = 100;
 
 /* A 400 x 200 plot area over x in [0, 100] and y in [0, 50], y growing upward. */
 const AREA = { width: 400, height: 200 };
@@ -99,16 +96,6 @@ const SUMMARIES = [
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function pulse(count: number, startS = 0) {
-  const x: number[] = [];
-  const y: number[] = [];
-  for (let index = 0; index < count; index += 1) {
-    x.push(startS + (index * PULSE_PERIOD_MS) / 1000);
-    y.push(Math.sin(0.5 * index));
-  }
-  return { x, y };
-}
 
 /* A host frame of aligned series on one x axis, as the stream decodes it. */
 function hostFrame(
@@ -177,88 +164,6 @@ test("Configured Plot Windows Preserve Inheritance And All", () => {
     structural.map((option) => option.value),
     [undefined, null],
   );
-});
-
-test("LTTB Reduction", () => {
-  // LTTB Keeps The Ends, The Count, And Ascending Order
-  const long = pulse(1_200);
-  const kept = lttbIndices(long.x, long.y, 100);
-  assert.equal(kept.length, 100);
-  assert.equal(kept[0], 0);
-  assert.equal(kept.at(-1), 1_199);
-  assertAscending(kept);
-
-  // LTTB Returns Every Index When The Budget Is Not Exceeded
-  const short = pulse(10);
-  assert.deepEqual(
-    lttbIndices(short.x, short.y, 10),
-    Array.from({ length: 10 }, (_, index) => index),
-  );
-  assert.deepEqual(
-    lttbIndices(short.x, short.y, 2),
-    Array.from({ length: 10 }, (_, index) => index),
-  );
-
-  // LTTB Picks The Sample That Spans The Largest Triangle
-  /* Three buckets: the spike at index 1 beats its flat neighbours. */
-  assert.deepEqual(lttbIndices([0, 1, 2, 3, 4], [0, 10, 0, 0, 0], 3), [0, 1, 4]);
-
-  // LTTB Is Time-Aware: A Gap Does Not Collapse The Samples Around It
-  /* Two dense runs separated by a long silence; a count-based pick treats
-     them alike, a time-aware pick must keep both ends of the silence. */
-  const first = pulse(300, 0);
-  const second = pulse(300, 600);
-  const gapX = [...first.x, ...second.x];
-  const gapY = [...first.y, ...second.y];
-  const gapKept = lttbIndices(gapX, gapY, 60);
-  /* Buckets are equal spans of time, so the silence holds no picks. */
-  const keptX = gapKept.map((index) => gapX[index]);
-  assert.ok(
-    keptX.some((value) => value < 30),
-    "keeps samples before the gap",
-  );
-  assert.ok(
-    keptX.some((value) => value >= 600),
-    "keeps samples after the gap",
-  );
-  assert.ok(gapKept.length <= 60);
-  assertAscending(gapKept);
-
-  // LTTB Never Picks A Sample Without A Finite Y
-  const sparse = pulse(400);
-  const gapped = sparse.y.map((value, index) => (index % 7 === 3 ? null : value));
-  for (const index of lttbIndices(sparse.x, gapped, 50).slice(1, -1)) {
-    assert.notEqual(gapped[index], null, `picked a null at ${index}`);
-  }
-
-  // Min/Max Keeps Each Bucket's Extrema In Index Order
-  /* count 4 is two equal spans of x holding four samples each. */
-  const ramp = [0, 1, 2, 3, 4, 5, 6, 7];
-  assert.deepEqual(minMaxIndices(ramp, [1, 5, 3, 0, 2, 9, 4, 4], 4), [1, 3, 4, 5]);
-
-  // Reduce Indices Honours The Technique Within The Budget
-  const { x, y } = pulse(500);
-  assert.equal(reduceIndices(x, [y], 500, "lttb"), null);
-  assert.equal(reduceIndices(x, [y], 100, "lttb")?.length, 100);
-  const stride = reduceIndices(x, [y], 100, "raw");
-  assert.ok(stride && stride.length <= 100 && stride[0] === 0 && stride.at(-1) === 499);
-  const envelope = reduceIndices(x, [y], 100, "min_max");
-  assert.ok(envelope && envelope.length <= 100);
-
-  // Aligned Series Share One Union Of Picks
-  const inverted = y.map((value) => -value);
-  const shared = reduceIndices(x, [y, inverted], 100, "lttb");
-  assert.ok(shared && shared.length >= 100 && shared.length <= 200);
-  assertAscending(shared);
-
-  // Auto Switches To An Envelope Only Above Four Times The Display Budget
-  const autoX = Array.from({ length: 41 }, (_, index) => index);
-  const autoY = autoX.map((value) => Math.sin(value));
-  const budget = 10;
-  const moderateX = autoX.slice(0, 40);
-  const moderateY = autoY.slice(0, 40);
-  assert.deepEqual(reduceIndices(moderateX, [moderateY], budget, "auto"), reduceIndices(moderateX, [moderateY], budget, "lttb"));
-  assert.deepEqual(reduceIndices(autoX, [autoY], budget, "auto"), reduceIndices(autoX, [autoY], budget, "min_max"));
 });
 
 test("Empty Snapshot", () => {

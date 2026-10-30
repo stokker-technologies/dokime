@@ -31,14 +31,6 @@ use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 
-#[allow(unused_imports)]
-use dokime_domain::model::catalog::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::definition::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::plots::wire::*;
 
 /* === Constants === */

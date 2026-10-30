@@ -198,7 +198,7 @@ fn plot_envelope(
 fn optional_format(
     value: Option<&dokime::domain::model::values::ValueFormat>,
 ) -> Option<dokime::domain::model::definition::wire::ValueFormat> {
-    value.map(canonical::format)
+    value.map(canonical::value_format)
 }
 
 fn fit_message<T: Portable>(
