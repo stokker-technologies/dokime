@@ -14,13 +14,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, path::Path, process::Stdio};
+use std::{
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
 
 // Local Imports
-use super::{distribution::Distribution, inspect, manifest::Manifest};
+use super::{distribution::Distribution, manifest::Manifest};
 use crate::Error;
 
 /* === Constants === */
@@ -106,7 +110,7 @@ pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path,
             .decode(distribution.identity.updater_public_key.trim())
             .map_err(|_| Error::Invalid("compiled updater public key is invalid".into()))?,
     )?;
-    inspect::run(
+    run(
         dokime::domain::process::command("minisign")
             .args(["-V", "-q", "-m"])
             .arg(package)
@@ -139,23 +143,31 @@ pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path,
     Ok(())
 }
 
-pub fn verify_updater(package: &Path, compiled_key: &str) -> Result<(), Error> {
-    let scratch = tempfile::tempdir()?;
-    let key = scratch.path().join("updater.pub");
-    let signature = scratch.path().join("installer.minisig");
-    std::fs::write(
-        &key,
-        STANDARD.decode(compiled_key.trim()).map_err(|_| Error::Invalid("compiled updater public key is invalid".into()))?,
-    )?;
-    let encoded = std::fs::read_to_string(package.with_extension("exe.sig"))?;
-    std::fs::write(
-        &signature,
-        STANDARD.decode(encoded.trim()).map_err(|_| Error::Invalid("updater signature is not valid base64".into()))?,
-    )?;
-    inspect::run(
-        dokime::domain::process::command("minisign").args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(key).arg("-x").arg(signature),
-        "updater signature does not match finished package bytes and compiled trust",
-    )
+pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error> {
+    let status = command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|_| Error::Invalid(requirement.into()))?;
+    if !status.success() {
+        return Err(Error::Invalid(format!("{requirement}; tool failed with {status}")));
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
+    let result = dokime::domain::process::command("rpmkeys")
+        .arg("--checksig")
+        .arg(package)
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|_| Error::Invalid("RPM signature verification requires rpmkeys".into()))?;
+    let output = String::from_utf8_lossy(&result.stdout).to_ascii_lowercase();
+    if !result.status.success() || !output.contains("signatures ok") {
+        return Err(Error::Invalid("RPM has no trusted valid signature".into()));
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

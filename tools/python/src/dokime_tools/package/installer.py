@@ -57,7 +57,7 @@ def check(root: Path = ROOT) -> None:
 
 
 def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
-    """Package And Inspect The Matching Product Bytes Without Compiling."""
+    """Package The Matching Product Bytes Without Compiling."""
     check(root)
     signed = profile == "release" and sys.platform == "win32" and _signing_available()
     required = profile == "release" and sys.platform == "win32" and _release_requested()
@@ -95,7 +95,6 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         clear_output(installers)
         for artifact in (scratch / "installers").iterdir():
             stage_file(artifact, installers / artifact.name)
-        _inspect(tool, installers, root)
 
     # Preserve The Portable Release Distribution And Explicit Shipping Plugin
     distribution.archive(source, destination)
@@ -215,16 +214,6 @@ def _manifest(root: Path, metadata: dict, signed: bool) -> str:
         f"artifact_base_url = {json.dumps(base)}",
     ]
     return "\n".join(lines) + "\n"
-
-
-def _inspect(tool: Path, directory: Path, root: Path) -> None:
-    packages = [path for path in directory.iterdir() if path.suffix in {".exe", ".deb", ".rpm"}]
-    if not packages:
-        raise ValueError("installer package produced no native packages")
-    for package in packages:
-        command = [str(tool), "installer", "inspect", str(package), "--json"]
-        result = package.with_suffix(package.suffix + ".inspection.json")
-        _record(command, result, root)
 
 
 def _record(command: list[str], path: Path, root: Path) -> None:

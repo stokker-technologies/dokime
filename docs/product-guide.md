@@ -876,7 +876,6 @@ replaced by the `sidecar` group.
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `cargo dokime installer package` | Assemble unchanged local or versioned release distributions. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
-| `cargo dokime installer inspect` | Extract a finished package and verify its embedded inventory against actual files. | `--json` |
 
 Packaging reports each phase, release download sizes and verified cache hits to
 stderr, then summarizes the output paths and elapsed time. Stdout contains only
@@ -915,7 +914,7 @@ values; `--target` overrides the manifest target.
 It fixes the distribution's storage and install identity; omitting it uses the
 distribution's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
 "com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
-in `installer.json`, the inventory used for inspection and bundled-plugin startup
+in `installer.json`, the inventory used for bundled-plugin startup
 reconciliation. A malformed or unreadable identity file fails startup; only an absent file falls back to the compiled identifier.
 
 Explicit identifiers derive a filename/package slug by replacing dots with
@@ -944,7 +943,6 @@ Using that directory requires no application compilation:
 
 ```sh
 cargo dokime installer package --manifest company/installer.toml --artifacts target/build/dev/windows-x86_64/product/installer-distribution --output dist
-cargo dokime installer inspect dist/com-hilti-dokime-0.1.0-x86_64-pc-windows-msvc-setup.exe --json
 ```
 
 Use top-level `[[plugin]]` entries to select installer plugins. Each entry sets
@@ -982,7 +980,7 @@ Without bundled plugins, the runtime starts
 without host telemetry.
 
 Product `mise run package:rust --profile dev` invokes the matching built
-`cargo-dokime`, packages and inspects those outputs, and publishes a portable
+`cargo-dokime`, packages those outputs, and publishes a portable
 `dokime-distribution-<version>-<Rust-target>.zip` beside the installers. The ZIP
 preserves the distribution bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
@@ -1014,26 +1012,11 @@ Native assembly uses Tauri's bundler. The NSIS template at
 `crates/dokime-packaging/src/installer/installer.nsi` is adapted from
 `tauri-bundler` 2.10.4: `PRODUCTNAME` is the display label, while install folders
 and registry keys use `BUNDLEID`. Keep that separation when updating the upstream
-template. NSIS uses per-file LZMA compression so its header and file streams can
-be decoded independently during inspection. Windows NSIS tooling is provisioned by that
-backend. Inspection needs no external archive tool on any platform: the
-authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
-RPM packages with a gzip payload in-process, which are the formats packaging
-produces. Each regular file is extracted to its installed path: `$INSTDIR`
-for NSIS, the package root for DEB and RPM. Inspection then requires exactly one
-embedded `installer.json` inventory, compares every listed file's SHA-256 with the
-extracted bytes, rejects any organization file the manifest does not list, and
-checks launcher and icon artwork. Links, special files, duplicate or escaping
-paths, NSIS files extracted anywhere except the installation directory or the
-installer's own `$PLUGINSDIR` and `$TEMP` helpers, and RPMs whose header or
-payload digest mismatches fail inspection. Nothing is installed or executed. An
-NSIS installer is a script: its destinations come from replaying the script's
-output directories in order, as 7-Zip lists them, so branches and runtime
-values are not evaluated. Signature checks with `--sign` still use `signtool`,
-`debsig-verify` or `rpmkeys`.
-Generated icons, configuration, organization staging and extraction files live
-in temporary directories; completed installers and requested inspection output
-persist.
+template. NSIS uses Tauri's default solid LZMA compression, and Windows NSIS
+tooling is provisioned by that backend. Packaging does not inspect completed
+installers. Signature checks with `--sign` still use `signtool`, `debsig-verify`
+or `rpmkeys`. Generated icons, configuration and organization staging live in
+temporary directories; completed installers persist.
 
 The public command replaces only the exact versioned package filenames it
 produces. Signed output replaces its `.exe.sig` and `latest.json`. Repacking
