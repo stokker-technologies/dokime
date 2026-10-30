@@ -18,6 +18,7 @@
 // Third Party Imports
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
 import { NotificationMessage } from "@/components/NotificationMessage";
 // Local Imports
@@ -130,6 +131,11 @@ export function NotificationsSurface() {
                 )}
                 {record.source.trim() && record.source.trim() !== "/" && (
                   <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{record.source}</span>
+                )}
+                {record.pluginSettings && (
+                  <Link className="text-sm underline" to="/settings/plugins/$pluginId" params={{ pluginId: record.pluginSettings }}>
+                    Open Plugin Settings
+                  </Link>
                 )}
               </div>
             </li>

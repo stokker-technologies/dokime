@@ -33,6 +33,8 @@ use crate::model::time::Timestamp;
 
 /* === Constants === */
 
+pub const MISSING_SECRET_BINDING_CODE: i64 = 10_001;
+
 /* === Macros === */
 
 /* === Type Aliases === */

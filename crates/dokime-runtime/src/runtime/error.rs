@@ -125,6 +125,14 @@ pub enum Error {
     #[error("Plugin {plugin} could not initialize\n  Cause: {reason}")]
     PluginInitialization { plugin: String, reason: String },
 
+    #[error("Plugin {plugin} could not start: {}", harmos::domain::failure::Report(source.as_ref()))]
+    PluginStart {
+        plugin: String,
+
+        #[source]
+        source: Box<harmos::Error>,
+    },
+
     #[error("{0}")]
     Operation(String),
 }
@@ -213,7 +221,11 @@ fn harmos_message(error: &harmos::Error) -> String {
     }
     if let harmos::Error::PluginLifecycle { source } = error {
         let failures = match source.as_ref() {
-            harmos::plugin::PluginFailure::Cleanup(failures) | harmos::plugin::PluginFailure::Start { cleanup: failures, .. } => failures,
+            harmos::plugin::PluginFailure::Cleanup(failures) => failures,
+            harmos::plugin::PluginFailure::Start { artifact, source, cleanup } => {
+                let _ = write!(message, "; plugin `{artifact}`: {}", harmos::domain::failure::Report(source));
+                cleanup
+            }
             _ => return message,
         };
         for failure in failures {

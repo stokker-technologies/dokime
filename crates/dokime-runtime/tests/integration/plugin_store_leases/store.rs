@@ -116,6 +116,37 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 /* === Tests === */
 
 #[tokio::test]
+async fn boot_failure_persists_plugin_and_carrier() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let id = store.install(&bundle("fixture", "fixture", "1.0.0"), &[], &BTreeSet::new()).await.unwrap().installation.install_id;
+    let carrier = dokime_runtime::harmos::domain::Failure::new(dokime_runtime::harmos::operations::FailureKind::Permanent, "api_token")
+        .with_detail("dokime.secret", "api_token")
+        .encode();
+    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: "fixture".into(),
+        plugin_name: "Fixture".into(),
+        message: String::new(),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
+        missing_secret: Some("api_token".into()),
+        carrier: carrier.clone(),
+    };
+    store.record_boot(id, Some(failure.clone())).await.unwrap();
+    database.close().await.unwrap();
+    let (reopened, database) = self::store(root.path()).await;
+    let row = reopened.get(id).await.unwrap();
+    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
+    assert_eq!(retained, failure);
+    assert_eq!(retained.plugin_id, "fixture");
+    assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
+    assert_eq!(
+        dokime_runtime::harmos::domain::Failure::decode(&retained.carrier).unwrap().code(),
+        dokime_runtime::harmos::operations::FailureKind::Permanent
+    );
+    database.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn schema_budget_installation() {
     use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
     use std::num::NonZeroUsize;
