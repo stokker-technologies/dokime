@@ -8,7 +8,7 @@ The owner-approved Hub design at `generic-ci-and-release-layout/design.md` gover
 
 ## Ownership And Inventory
 
-- `stkr.toml`: explicit native installers, payload kind and host-plugin release declaration; remove retired download declarations and bundle release flag.
+- `.stkr/project.toml`: explicit native installers, payload kind and host-plugin release declaration; remove retired download declarations and bundle release flag.
 - `mise.toml`: native task references, package target arguments and credential-free rehearsal description.
 - `crates/dokime-packaging/src/installer/native.rs`: Windows output name includes its Rust target so generated latest.json URLs match staged release names.
 - `crates/cargo-dokime/Cargo.toml`: tgz metadata and Windows ZIP override, root binary path.
