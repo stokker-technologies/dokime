@@ -23,10 +23,9 @@ use std::time::Duration;
 
 // Local Imports
 use crate::definition::TestCaseTemplate;
-use crate::execution::{CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext, TraceabilityContext};
+use crate::execution::{CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext};
 use crate::parameters::FromParameters;
 use crate::plugin::Diagnostic;
-use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
@@ -45,7 +44,6 @@ pub type SamplePublisher = for<'a> fn(
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + 'a>>;
 pub type InitializationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
-pub type TraceabilityFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<TraceabilitySection>, Diagnostic>> + Send + 'a>>;
 pub type EvaluationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<Option<T>, Diagnostic>> + Send + 'a>>;
 
 /* === Structs === */
@@ -102,10 +100,6 @@ pub trait SidecarTemplate: Send + Sized + 'static {
     fn initialize<'a>(
         ctx: &'a mut InitializationContext<'_, Self, Self::Own, Self::Parameters>,
     ) -> InitializationFuture<'a, (Self, Self::Own)>;
-
-    fn traceability<'a>(&'a self, _ctx: &'a TraceabilityContext<'_, Self, Self::Own, Self::Parameters>) -> TraceabilityFuture<'a> {
-        Box::pin(async { Ok(Vec::new()) })
-    }
 
     fn declared_observers() -> Vec<DeclaredObserver> {
         Vec::new()

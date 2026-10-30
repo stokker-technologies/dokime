@@ -230,7 +230,12 @@ impl Steady {
         Ok((template, shared))
     }
 
-    async fn traceability(&self, ctx: &TraceabilityContext<'_>) -> Result<Vec<TraceabilitySection>, Error> {
+    fn document() -> Document {
+        steady_document()
+    }
+
+    #[dokime::step(label = "Initialize and Energize Charger")]
+    async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let supply = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.supply;
 
         // Device Under Test
@@ -246,15 +251,9 @@ impl Steady {
         bench.row(TraceabilityRow::text("application", "Application", "ObcPlugin testbench"));
         bench.row(TraceabilityRow::number("sample_interval_s", "Sample Interval", ctx.resources().interval_s).unit("s"));
 
-        Ok(vec![dut, bench])
-    }
+        ctx.traceability().section(dut);
+        ctx.traceability().section(bench);
 
-    fn document() -> Document {
-        steady_document()
-    }
-
-    #[dokime::step(label = "Initialize and Energize Charger")]
-    async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.start().map_err(Error::Device)?;
         ctx.info("record=sidecar_started");

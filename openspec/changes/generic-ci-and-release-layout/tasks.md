@@ -3,7 +3,7 @@
 ## Implementation
 
 - [x] 1.1 Triage existing runtime: archive assembly is already implemented at tools/python/src/dokime_tools/package/run.py:102; feed/upload producers at release/layout.py:109 and :133; credential-free rehearsal at release/run.py:454 and :560. Preserve them.
-- [x] 1.2 Adapt product policy and package task interfaces, tool metadata and payload names; remove superseded release declarations (stkr.toml:599, mise.toml:476, crates/cargo-dokime/Cargo.toml:13, package/payload.py:90).
+- [x] 1.2 Adapt product policy and package task interfaces, tool metadata and payload names; remove superseded release declarations (.stkr/project.toml:599, mise.toml:476, crates/cargo-dokime/Cargo.toml:13, package/payload.py:90).
 - [x] 1.3 Verify signed release downloads from latest.json without publishing the signature sidecar; align Windows installer/feed names and update deterministic installer tests (package/installer.py:252; installer/native.rs:395).
 - [x] 1.4 Update README, product guide, example walkthrough and testing guidance with archive patterns and test-only OBC ownership (docs/product-guide.md:5; .agents/skills/dokime-testing/SKILL.md:10).
 - [x] 1.5 Declare the shipped host-plugin package and native bundle inputs once its producer owner supplies their exact identity and output filename. The owner-selected next-release branch supplies plugin-host and plugin-host.dokime; integrate its producer before declaring the matching release input.

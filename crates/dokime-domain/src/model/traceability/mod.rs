@@ -236,6 +236,28 @@ impl DerivedTraceabilityGroup {
 
 /* === Public Functions === */
 
+/// Validate A Step-Authored Section Without Claiming A Host-Derived Group.
+pub fn validate_section(section: &TraceabilitySection) -> Result<(), String> {
+    if let Some(derived) = derived_traceability_group_named(section.identifier.as_str()) {
+        return Err(format!("section \"{}\" claims the host-derived \"{}\" group", section.identifier, derived.label));
+    }
+    let mut rows = std::collections::BTreeSet::new();
+    for row in &section.rows {
+        if !rows.insert(&row.identifier) {
+            return Err(format!("row \"{}\" occurs twice in section \"{}\"", row.identifier, section.identifier));
+        }
+    }
+    Ok(())
+}
+
+/// Replace A Section In Place Or Append It On First Contribution.
+pub fn upsert_section(sections: &mut Vec<TraceabilitySection>, section: TraceabilitySection) {
+    match sections.iter_mut().find(|existing| existing.identifier == section.identifier) {
+        Some(existing) => *existing = section,
+        None => sections.push(section),
+    }
+}
+
 pub fn derived_traceability_group(source: &str) -> Option<DerivedTraceabilityGroup> {
     let name = source.strip_prefix(TRACEABILITY_SOURCE_PREFIX)?;
     let name = name.split('.').next()?;

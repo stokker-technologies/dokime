@@ -402,6 +402,17 @@ pub(crate) fn evidence_admission_requires_existing_owners() {
         status: "running".into(),
         occurred_at,
     };
+    let mut initial = model::traceability::TraceabilitySection::new("dut", "Device Under Test");
+    initial.row(model::traceability::TraceabilityRow::text("serial", "Serial", "SN-7"));
+    let mut revised = initial.clone();
+    revised.rows[0].value = Value::from("SN-8");
+    let edits = RecordExecutionTraceability {
+        sections: vec![initial, revised.clone()],
+        ..traceability.clone()
+    };
+    edits.check(&state).unwrap();
+    edits.apply(&mut state);
+    assert_eq!(state.executions[&execution_id].traceability, vec![revised]);
     let before = state.executions[&execution_id].clone();
     traceability.check(&state).unwrap();
     phase.check(&state).unwrap();

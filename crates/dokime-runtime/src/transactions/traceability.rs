@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::state::Transaction;
@@ -35,7 +34,6 @@ use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySection;
-use dokime_domain::model::traceability::derived_traceability_group_named;
 
 /* === Constants === */
 
@@ -384,10 +382,7 @@ fn record_execution_traceability(state: &mut RuntimeState, update: RecordExecuti
     let execution = state.executions.get_mut(test_execution_id).expect("checked execution owner");
 
     for section in update.sections {
-        match execution.traceability.iter_mut().find(|stated| stated.identifier == section.identifier) {
-            Some(stated) => *stated = section,
-            None => execution.traceability.push(section),
-        }
+        dokime_domain::model::traceability::upsert_section(&mut execution.traceability, section);
     }
     state.cycles.get_mut(test_cycle_id).expect("checked cycle owner").touch_at(update.occurred_at);
     Ok(())
@@ -404,22 +399,8 @@ fn check_traceability(state: &RuntimeState, update: &RecordExecutionTraceability
 }
 
 fn admissible_sections(sections: &[TraceabilitySection]) -> Result<(), Error> {
-    let mut stated = BTreeSet::new();
     for section in sections {
-        let identifier = section.identifier.as_str();
-        if let Some(derived) = derived_traceability_group_named(identifier) {
-            return Err(validation(format!(
-                "traceability section \"{identifier}\" claims the \"{}\" group the host derives \
-                 for every execution; rename the section",
-                derived.label
-            )));
-        }
-        if !stated.insert(identifier) {
-            return Err(validation(format!(
-                "traceability section \"{identifier}\" was stated twice in one delivery; state \
-                 each section once"
-            )));
-        }
+        dokime_domain::model::traceability::validate_section(section).map_err(validation)?;
     }
     Ok(())
 }

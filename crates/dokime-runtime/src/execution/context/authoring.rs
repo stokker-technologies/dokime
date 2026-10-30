@@ -53,7 +53,7 @@ macro_rules! own_resources {
     };
 }
 
-own_resources!(Traceability, Step, Cleanup);
+own_resources!(Step, Cleanup);
 
 #[cfg(feature = "native")]
 own_resources!(Observing);
@@ -68,7 +68,7 @@ macro_rules! own_document {
     };
 }
 
-own_document!(Initialize, Traceability, Step, Cleanup);
+own_document!(Initialize, Step, Cleanup);
 
 #[cfg(feature = "native")]
 own_document!(Observing);
@@ -76,7 +76,6 @@ own_document!(Observing);
 /* === Type Aliases === */
 
 pub type InitializationContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Initialize>;
-pub type TraceabilityContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Traceability>;
 pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
 
 #[cfg(feature = "native")]
@@ -93,8 +92,6 @@ pub struct Context<'a, C, O, I, Stage> {
 }
 
 pub struct Initialize;
-
-pub struct Traceability;
 
 pub struct Step;
 
@@ -233,6 +230,10 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
 }
 
 impl<'a, C, O, I> Context<'a, C, O, I, Step> {
+    pub fn traceability(&self) -> crate::execution::traceability::TraceabilityHandle<'_> {
+        crate::execution::traceability::TraceabilityHandle::new(self.environment.traceability_index(), self.transport)
+    }
+
     pub fn progress<T>(&self, phase: impl Into<String>, items: T) -> crate::execution::Progress<T::IntoIter>
     where
         T: IntoIterator,

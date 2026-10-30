@@ -116,6 +116,6 @@ and `mise run test:rust:integration` consume it.
 `target/package/<profile>/<target>/rust/plugins/`, without compiling. Profiles
 default to `dev`; use `--profile release` for release outputs. The CI workflows
 run these same tasks. Before publishing, configure this plugin repository's
-native `[release]` and `[version]` policy in `stkr.toml`, including its provider,
+native `[release]` and `[version]` policy in `.stkr/project.toml`, including its provider,
 targets and bundle assets, and enable the required protected checks. Publication
 uses that policy and refuses an unconfigured release.

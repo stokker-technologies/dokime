@@ -60,6 +60,8 @@ All charger streams and records use the `obc.charger` namespace. `obc.pulse`
 is the OBC Checks pulse, and `obc.system` is process monitoring.
 `images_directory` optionally supplies a startup reference image. Operator and
 host identity are captured as traceability, not configured as template inputs.
+The steady-state start step records device and bench sections through
+`ctx.traceability()`, so identity discovery belongs to the procedure steps.
 
 ## Build And Validate
 
