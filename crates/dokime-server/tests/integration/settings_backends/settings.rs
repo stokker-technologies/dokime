@@ -230,6 +230,58 @@ pub(crate) async fn plugin_settings() {
     server.shutdown().await.unwrap();
 }
 
+#[tokio::test]
+async fn non_admitted_settings() {
+    let (environment, server, client) = fixture().await;
+    let bytes = support::bundles::bundle_with_settings("failed-settings", "failed_settings", fixture_module().settings);
+    let installed = environment.runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
+    environment.runtime.plugin_store().record_boot(installed.installation.install_id, Some("startup-refused".into())).await.unwrap();
+    let initial = client
+        .unary::<contracts::settings::GetPluginSettings>(auth(
+            contracts::settings::GetPluginSettings { plugin_id: "failed_settings".into() },
+            TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(initial.secret_bindings.unwrap().missing_required, vec!["fixture.token"]);
+    let updated = client
+        .unary::<contracts::settings::UpdatePluginSettings>(auth(
+            contracts::settings::UpdatePluginSettings {
+                plugin_id: "failed_settings".into(),
+                values: Some(
+                    model::values::wire::Value::try_from(&Value::Object(BTreeMap::from([(
+                        "workspace".into(),
+                        Value::Text("Corrected".into()),
+                    )])))
+                    .unwrap(),
+                ),
+            },
+            TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(
+        matches!(updated.values.unwrap().to_core().unwrap(), Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Corrected".into())))
+    );
+    let updated = client
+        .unary::<contracts::settings::UpdatePluginSecret>(auth(
+            contracts::settings::UpdatePluginSecret {
+                plugin_id: "failed_settings".into(),
+                secret_id: "fixture.token".into(),
+                secret: "replacement".into(),
+            },
+            TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(updated.secret_bindings.as_ref().unwrap().missing_required.is_empty());
+    assert!(!format!("{updated:?}").contains("replacement"));
+    server.shutdown().await.unwrap();
+}
+
 fn fixture_module() -> InstalledPlugin {
     InstalledPlugin {
         source: "fixture_settings".to_owned(),

@@ -160,6 +160,18 @@ listeners and observers read prepared resources from their execution contexts;
 mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
 `Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
 and the plugin's declared streams.
+
+On restart, Harmos prepares and starts plugin generations sequentially in
+dependency order, matching declared required contracts to provided contracts
+exactly, including embedded providers and host operations. Providers become
+ready before consumers; independent plugins have a deterministic order based
+on plugin names. Bundle inspection and extraction happen before activation
+and do not run plugin lifecycle hooks.
+Installed packages with unavailable or circular contracts are refused while
+unrelated plugins start normally. Settings → Plugins retains the boot reason,
+including the affected contract and the `plugin_contract_unavailable` or
+`plugin_contract_cycle` admission code.
+
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
