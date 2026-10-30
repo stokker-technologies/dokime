@@ -148,7 +148,13 @@ def test_sidecars_archive(tmp_path: Path, target: str) -> None:
 def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: bool) -> None:
     output = tmp_path / ("fixtures/plugins" if fixture else "plugins")
     native = plugins.paths.target()
-    policy = f'[[release.plugins]]\npackage = "plugin-host"\npath = "rust/plugins/plugin-host.dokime"\ntargets = {{ {native} = "native-abi" }}\n'
+    policy = (
+        f'[[release.plugins]]
+package = "plugin-host"
+path = "rust/plugins/plugin-host.dokime"
+targets = {{ {native} = "native-abi" }}
+'
+    )
     (tmp_path / ".stkr").mkdir()
     (tmp_path / ".stkr/project.toml").write_text(policy, encoding="utf-8")
     selected = []
