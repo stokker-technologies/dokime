@@ -62,11 +62,12 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
+    // Workspace Feature Unification May Enable Host Implementations, But Only The Host Binary Declares That Sidecar.
     let declared =
         dokime::__harmos::sidecar::Executable::at(executable()).expect("the obc-plugin executable declares itself").declaration().clone();
 
     assert_eq!(declared.id, "obc");
-    assert_eq!(declared.version.to_string(), "0.1.0");
+    assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
     let operations =
         declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(

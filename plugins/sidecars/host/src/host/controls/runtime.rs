@@ -67,6 +67,7 @@ implementation!(Restore, Restore);
 /* === Structs === */
 
 pub struct State {
+    owner: &'static str,
     gate: tokio::sync::Mutex<()>,
     host: std::sync::OnceLock<Supervisor>,
 }
@@ -86,8 +87,9 @@ enum Change {
 /* === Implementations === */
 
 impl State {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(owner: &'static str) -> Self {
         Self {
+            owner,
             gate: tokio::sync::Mutex::new(()),
             host: std::sync::OnceLock::new(),
         }
@@ -178,11 +180,7 @@ impl State {
         let ticket = host
             .call::<PrepareEffect>(PrepareEffect {
                 resource,
-                inverse_operation: format!(
-                    "{}.{}",
-                    <crate::HostPlugin as dokime::harmos::plugin::Declared>::ID,
-                    <Restore as dokime::harmos::operations::OperationDeclaration>::ID
-                ),
+                inverse_operation: format!("{}.{}", self.owner, <Restore as dokime::harmos::operations::OperationDeclaration>::ID),
                 inverse: inverse.encode(),
                 description,
             })

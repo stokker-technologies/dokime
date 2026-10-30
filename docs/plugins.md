@@ -67,10 +67,15 @@ Explicitly supplied timestamp values remain subject to contract validation.
 `dokime-host` is one crate: with no features it is the light definitions crate
 (operation requests and responses, ids, policies and stream rows); the `runtime`
 feature adds the operation implementations, platform dependencies and the
-sidecar executable, which the product build enables. It is never published to
-crates.io; the host ships as the `host.dokime` plugin artifact. A plugin outside
-this repository calls host operations through the definitions from a Dokime
-release tag, matching the tag used for its `dokime` SDK dependency:
+sidecar executable, which the product build enables. The concrete plugin and
+its native declaration live in the binary's `src/app.rs`; the library owns
+contracts, native resources and observers parameterized by the serving plugin.
+Even when workspace feature unification enables `runtime`, linking the library
+cannot introduce a host sidecar declaration into another plugin's executable.
+It is never published to crates.io; the host ships as the `host.dokime` plugin
+artifact. A plugin outside this repository calls host operations through the
+definitions from a Dokime release tag, matching the tag used for its `dokime`
+SDK dependency:
 
 ```toml
 dokime-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
