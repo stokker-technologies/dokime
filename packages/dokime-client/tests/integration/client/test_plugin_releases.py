@@ -44,8 +44,8 @@ def test_collect_declared_plugins_once(tmp_path: Path, monkeypatch: pytest.Monke
     native = plugins.paths.target()
     declarations = [f'[[release.plugins]]\npackage = "{package}"\ntargets = {{ {native} = "native-abi" }}\n' for package in shipped]
     declarations.append('[[release.plugins]]\npackage = "foreign-plugin"\ntargets = { foreign = "foreign-abi" }\n')
-    (tmp_path / ".stkr").mkdir()
-    (tmp_path / ".stkr/project.toml").write_text("\n".join(declarations), encoding="utf-8")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/project.toml").write_text("\n".join(declarations), encoding="utf-8")
     tool = tmp_path / "cargo-dokime"
     messages = tmp_path / "compiler.json"
     calls = []
@@ -75,8 +75,8 @@ def test_collect_declared_plugins_once(tmp_path: Path, monkeypatch: pytest.Monke
 
 @pytest.mark.parametrize("returncode", [0, 23])
 def test_child_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], returncode: int) -> None:
-    (tmp_path / ".stkr").mkdir()
-    (tmp_path / ".stkr/project.toml").write_text("", encoding="utf-8")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/project.toml").write_text("", encoding="utf-8")
     tool = tmp_path / "cargo-dokime"
     bundle = tmp_path / "plugin.dokime"
     bundle.write_bytes(b"bundle")
@@ -118,8 +118,8 @@ def test_child_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caps
 
 @pytest.mark.parametrize("target", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
 def test_sidecars_archive(tmp_path: Path, target: str) -> None:
-    (tmp_path / ".stkr").mkdir()
-    (tmp_path / ".stkr/project.toml").write_text(
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/project.toml").write_text(
         '[[release.plugins]]\npackage="plugin-host"\nkind="sidecar"\npath="rust/plugins/plugin-host.dokime"\n'
         f'[release.plugins.targets]\nnative="{target}"\n',
         encoding="utf-8",
@@ -151,8 +151,8 @@ def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monk
     policy = (
         f'[[release.plugins]]\npackage = "plugin-host"\npath = "rust/plugins/plugin-host.dokime"\ntargets = {{ {native} = "native-abi" }}\n'
     )
-    (tmp_path / ".stkr").mkdir()
-    (tmp_path / ".stkr/project.toml").write_text(policy, encoding="utf-8")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/project.toml").write_text(policy, encoding="utf-8")
     selected = []
 
     def run(command: list[str], **kwargs: object) -> SimpleNamespace:

@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(super) mod aggregates;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS storage_telemetry_signals (
     source_time BLOB NOT NULL, scope TEXT NOT NULL, source TEXT NOT NULL,
     PRIMARY KEY(schema_key,signal,position)
 ) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS storage_telemetry_position ON storage_telemetry_signals(position);
 CREATE INDEX IF NOT EXISTS storage_telemetry_signal_time ON storage_telemetry_signals(schema_key,signal,source_time DESC,position DESC);
 CREATE INDEX IF NOT EXISTS storage_telemetry_signal_execution_time ON storage_telemetry_signals(
     schema_key,signal,json_extract(scope,'$.test_execution_id'),source_time DESC,position DESC);

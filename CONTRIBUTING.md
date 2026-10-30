@@ -164,6 +164,24 @@ timing does not prove materialization memory, scan work or ingest latency; those
 require source-owned counters. Preserve a baseline before source edits; a later
 measurement cannot recreate it.
 
+### Long Execution Finalization
+
+The opt-in `long_execution` integration benchmark uses the real runtime and
+SQLite with deterministic typed host rows at their default cadences, a 10 Hz
+device-like stream, minute records, traceability, five document plots and logs.
+One-hour and four-hour volumes share the same batch bound. Setup persists the
+historical evidence before measuring Stop to seal, Cancel of an unstarted sibling,
+and report materialization plus verified, synced HTML save separately.
+
+After the benchmark producer, set `DOKIME_FINALIZE_MEASURE=criterion` and select
+`mise run bench:rust:integration -- long_execution` for separate native Criterion
+results. Set the variable to `profile` for a single pair of workloads with JSON
+timings and runtime/report tracing on stderr. Fresh fixture construction is outside
+the measured intervals. The long workloads do not run without this explicit opt-in.
+Run measurements without concurrent validation and preserve the original executable
+before changing production source. A running execution uses Stop; Cancel skips an
+execution that has not started and retains its own report/evidence boundary.
+
 ## Pull Requests
 
 Target `dev`. Describe the user-visible change and its verification, and keep

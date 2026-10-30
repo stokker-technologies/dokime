@@ -12,6 +12,24 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Desktop Launches And Storage Ownership
+
+Every launch opens its own desktop window. Launch arguments and deep links belong
+to that instance; there is no desktop lock, focus channel or forwarding to another
+window. Startup resolves the distribution identifier before configuring Tauri's
+application directories, logs, settings, organization pack and WebView profile;
+a distribution does not create a second root under the compiled default identifier.
+
+The local backend keeps an exclusive `local.lock` lease on its data folder.
+An occupied folder fails immediately as `storage::Error::Owned`, becomes the
+server's `host::Error::BackendRunning { root }`, and reaches the connection screen
+as `DesktopSessionError::BackendRunning { root, message }`. The message identifies
+the folder and the other instance's backend. The window retains Start Local
+Backend, saved-backend connection controls and Settings: connect to another or
+remote backend, or close the other instance and retry. An attached connection uses
+its existing client preferences when the occupied Local backend cannot supply them.
+Storage reset and backup still refuse an occupied folder with `BackendRunning`.
+
 ## Units In Labels
 
 Labels and titles show units in square brackets on the same line, for example

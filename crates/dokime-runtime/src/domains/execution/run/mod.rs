@@ -18,6 +18,9 @@ mod replay;
 mod session;
 mod supervision;
 
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
+
 /* === Re-Exports === */
 
 pub(crate) use host::Sessions;
@@ -112,6 +115,7 @@ struct ExecutionCleanup {
     settled: bool,
     stop_deadline: Option<tokio::time::Instant>,
     capture: HostCapture,
+    stage: CleanupStage,
 }
 
 #[derive(Clone, Default)]
@@ -135,6 +139,18 @@ struct ProgressCleanup {
 }
 
 /* === Enums === */
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CleanupStage {
+    Settle,
+    Effects,
+    Publications,
+    Records,
+    Prompts,
+    Steps,
+    Capture,
+    Complete,
+}
 
 /* === Traits === */
 
@@ -457,6 +473,7 @@ async fn execute_case(
     context
         .finalization
         .register(ExecutionCleanup {
+            stage: CleanupStage::Settle,
             capture,
             _publication_admission: publication_admission,
             _record_demand: record_demand,

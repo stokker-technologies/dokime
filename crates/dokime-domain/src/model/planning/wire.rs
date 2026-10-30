@@ -23,8 +23,6 @@ use serde::Serialize;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Constants === */

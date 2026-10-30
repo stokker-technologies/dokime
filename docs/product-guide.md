@@ -899,24 +899,6 @@ The advanced collection path and `sidecar package` do not invoke the compiler.
 The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
 
-### Plugin Schema Budgets
-
-`dokime::config::schema_defaults()` in `crates/dokime-runtime/src/config/schema.rs`
-owns plugin metadata preparation allowances. Packaging, installer verification,
-bundle inspection, plugin store installation and native admission use these
-defaults, including GUI uploads through the backend plugin store.
-The finite memory allowance is 64 times `INSTALL_ARCHIVE_MAX_BYTES`; the work
-allowance is 16 times that limit. They cover encoded metadata decoding, fragment
-overhead and shared contract schema resolution. These are accounting ceilings,
-not memory allocations made up front. Bundle and individual fragment size limits
-still apply independently.
-
-Embedding applications can set `Config.schema` or `RuntimeConfig.schema` to
-stricter allowances; the same settings reach inspection, installation and
-executable admission. Refusals identify the plugin and the exhausted memory or
-work allowance, with attempted usage and the allowed amount. Reduce the plugin's
-metadata or increase the embedding application's schema allowance to admit it.
-
 ### Native Installers
 
 | Command | Purpose | Key Flags |
@@ -1308,10 +1290,13 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Desktop single-instance and startup locks, including the
-focus channel, use the resolved application root. Protocol/deep-link identity,
-updater verification trust and code-signing identity remain compiled. Reusing
-binaries with different distribution identities does not isolate those mechanisms.
+deleted automatically. Each desktop launch opens its own window. A local backend
+exclusively owns its data folder; if another backend already owns it, the desktop
+shows the folder and offers connection controls. Connect to another or remote
+backend, or close the other instance and retry Start Local Backend.
+Protocol/deep-link identity, updater verification trust and code-signing identity
+remain compiled. Reusing binaries with different distribution identities does not
+isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
@@ -1429,6 +1414,22 @@ Telemetry and captured records persist as they arrive with bounded pending
 queues and durable acknowledgement. Plots query saved evidence in bounded pages;
 changing a display window never deletes raw evidence. Recovery restores saved
 frontiers without replaying device actions.
+
+Retiring superseded metadata seeks its matching evidence references. It does not
+scan the accumulated telemetry signals or captured records.
+
+Numeric execution outputs update in the same SQLite transaction as each saved
+telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
+counts, extrema, means, medians, standard deviations, RMS values, sums and
+percentiles. Completion reads these indexes instead of replaying each field's
+whole stream. Pending index work is bounded by the admitted write batch; raw
+evidence remains unchanged. Development roots with older evidence indexes need
+a fresh storage root and are never reset automatically.
+
+Capture close callers join the same in-flight sealing work. Cancelling a waiter
+does not cancel sealing; later Stop or shutdown calls await that work. Closing
+capture admission refuses new capture producers, and successful provider cleanup
+stages remain complete across retries.
 
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture

@@ -15,7 +15,6 @@
 
 pub use crate::app::content::{DeliveryError, DeliveryFailure, DeliveryStage};
 pub use crate::app::desktop::{ArtifactSource, Delivered, move_verified_file, save_verified};
-pub use crate::app::instance::Instance;
 pub use crate::app::plugins::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
 
 /* === Imports === */
