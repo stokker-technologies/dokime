@@ -3,8 +3,8 @@
 ## 1. Contract And Activation
 
 - [x] 1.1 Record all nine owner-locked decisions, the source inventory and the impossibility evidence in proposal/design/spec artifacts; verify OpenSpec structure with strict validation.
-- [ ] 1.2 Obtain owner resolution of decision 3's O(1) footer conflict; verify the approved wording against the Arrow IPC footer schema before any implementation.
-- [ ] 1.3 Activate `arrow-telemetry-storage` through the Hub and create/resume the native persistent goal after contract resolution; verify the marker names this branch and change.
+- [x] 1.2 Record the owner's 2026-10-30 amendment approving metadata-only O(batch count) footer emission without payload scans, decoding or rewriting; verify against the Arrow IPC footer schema.
+- [x] 1.3 Activate `arrow-telemetry-storage` through the Hub and create/resume the native persistent goal after contract resolution; verify the marker names this branch and change.
 
 ## 2. Configuration, Schema And Catalog
 
@@ -43,6 +43,6 @@
 
 ## Workflow Follow-Up
 
-- Implementation has not started: task 1.2 blocks subsequent implementation under the owner's explicit impossibility rule.
+- The owner resolved the footer blocker; implementation proceeds under the metadata-only footer amendment.
 - Preserve this tracked change until the feature is complete; archive through the Hub only when all required tasks are actually closed.
 - Experimental integration requires the owner's go; no remote delivery is authorized.

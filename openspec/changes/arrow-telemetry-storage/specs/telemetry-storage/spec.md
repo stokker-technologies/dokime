@@ -20,12 +20,12 @@ The backend SHALL append ZSTD batches after a header and flush when either confi
 - **WHEN** either threshold is reached, or fsync/catalog commit fails
 - **THEN** the batch flush is attempted and saved progress includes it only after both durability steps succeed
 
-### Requirement: Constant-Time Finalize And Recovery
-The backend SHALL write the IPC footer at finalize in O(1). A footerless crashed file SHALL remain readable as a stream and recovery SHALL scan its batches to rebuild the footer. This locked requirement is currently blocked by the normative format conflict recorded in design.md.
+### Requirement: Metadata-Only Finalize And Recovery
+The backend SHALL write the IPC footer from its in-memory/catalog block list at finalize, with work proportional only to batch count and no telemetry payload scan, decode or rewrite. A footerless crashed file SHALL remain readable as an embedded stream and recovery SHALL scan batch headers, skipping payload bodies, to rebuild the footer.
 
 #### Scenario: Finalize And Interrupted Run
 - **WHEN** a run finalizes or restarts after a crash before footer completion
-- **THEN** finalize is O(1), or recovery preserves readable flushed batches and rebuilds their valid IPC footer respectively
+- **THEN** finalize emits only footer metadata, or recovery preserves readable flushed batches and rebuilds their valid IPC footer from headers respectively
 
 ### Requirement: Typed Contracts And Metadata
 Telemetry SHALL map integer/unsigned/number/bool/string to Int64/UInt64/Float64/Boolean/Utf8, arrays to List, declared objects to Struct, undeclared objects to JSON Utf8 and timestamps to Timestamp(µs, UTC). Fields SHALL retain unit, description and stream id; files SHALL retain execution id, Dokime version and contract hash.

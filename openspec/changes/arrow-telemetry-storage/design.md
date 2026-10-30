@@ -12,7 +12,7 @@ Retain durable evidence and live queries while eliminating per-signal writes and
 
 1. Dokime owns Arrow inside `crates/dokime-runtime/src/storage`, implemented by `sqlite::Backend` under Harmos `StorageManager`; Harmos is unchanged. Arrow IPC files (Feather v2) are the only telemetry format.
 2. One file per execution and stream: `<data root>/telemetry/<sha256(execution_id | stream)>.arrow`. Telemetry outside executions has a session-scoped file. Runtime names are hashes; export names are readable.
-3. Write the header at start and append ZSTD record batches per flush. Both N-row and T-time thresholds come from configuration; either triggers a flush. Write the footer at finalize in O(1). Footerless crashes remain readable as a stream and recovery scans batches to rebuild the footer. A saved cursor advances only after batch fsync and committed catalog metadata; only flushed batches are durable.
+3. Write the header at start and append ZSTD record batches per flush. Both N-row and T-time thresholds come from configuration; either triggers a flush. Finalize writes only footer metadata from the block list, proportional to batch count, without scanning, decoding or rewriting payloads. Footerless crashes retain an embedded readable stream; recovery scans batch headers and skips bodies to rebuild the footer. A saved cursor advances only after batch fsync and committed catalog metadata; only flushed batches are durable.
 4. Contract mapping: integer → Int64; unsigned → UInt64; number → Float64; bool → Boolean; string → Utf8; arrays → List of their mapped element; declared objects → Struct; undeclared objects → JSON Utf8; timestamps → Timestamp(µs, UTC). Field metadata includes unit, description and stream id. File metadata includes execution id, Dokime version and contract hash.
 5. SQLite is the catalog. Rename the stored-files table to `files(id, kind, path, size_bytes, sha256, media_type)`, with kinds `artifact`, `telemetry`, `report`. `artifacts` references `files` for user/test files; telemetry is never an artifact. `streams` records execution, stream, file FK, rows, first/last times and batch offsets with row/time ranges. Retain incremental numeric summaries. Delete telemetry per-signal tables/indexes and telemetry payload-decoding reads.
 6. GUI charts, queries and outputs combine only overlapping indexed flushed batches with the in-memory unflushed tail. Preserve the target of approximately 1 s per 1M samples or better.
@@ -20,19 +20,19 @@ Retain durable evidence and live queries while eliminating per-signal writes and
 8. Storage remains v1 with a clean break. Incompatible existing data requires a fresh root; never silently delete or reset it.
 9. On Windows keep files open during runs; copies for export are allowed, but rename/delete only after close.
 
-## Blocking Format Constraint
+## Approved Footer Amendment (2026-10-30)
 
 [Arrow IPC File Format](https://arrow.apache.org/docs/format/Columnar.html#ipc-file-format) requires a footer containing schema plus offsets and sizes for every batch. The [normative footer schema](https://github.com/apache/arrow/blob/main/format/File.fbs) declares `recordBatches: [Block]`; each block stores its offset and metadata/body lengths.
 
-For B appended batches, that vector has B entries. Therefore emitting the required footer at finalize takes Ω(B) bytes and work, even when descriptors were collected incrementally and no payload is reread. A catalog index does not replace the footer required by standard Feather v2 readers. This contradicts decision 3 as written; no implementation can claim its requested O(1) proof under that layout.
+For B appended batches, that vector has B entries. The owner approved O(B) metadata-only footer emission from the in-memory/catalog block list. Decision 3's O(1) means finalize never scans, decodes or rewrites telemetry payloads. Each block is approximately 24 bytes; a week at five-second flushing produces approximately 3 MB of footer metadata.
 
-Recommended owner amendment, **not approved**: finalize in O(B) metadata work, with no telemetry payload scan, decode or rewrite. Keep the existing locks on IPC, durability, byte-for-byte exports and recovery. Do not substitute a stream-only file or move unbounded footer rewriting into flushes without owner direction.
+Keep the block list in memory and in the SQLite batch index. Finalize reads no payload; crash recovery scans batch headers and skips bodies to rebuild the footer. IPC, durability, byte-for-byte exports and all other locked decisions stand.
 
-The IPC file starts with eight bytes of magic/padding before its embedded stream. A recovery stream reader must skip that header; the full footerless file is not directly an IPC stream starting at byte zero. Preserve readable flushed batches and rebuild the footer, subject to the owner resolving decision 3.
+The IPC file starts with eight bytes of magic/padding before its embedded stream. A recovery stream reader skips that header. Preserve readable flushed batches and rebuild the footer without decoding their payloads.
 
 ## Ownership And Dependency Order
 
-The single writer is the current chat in `feat/arrow-telemetry`; the initial tree was clean and tracked `origin/dev`. Tasks lock the source inventory. After owner resolution, activate this change through `stkr specification start arrow-telemetry-storage` and create/resume its native goal before implementation.
+The single writer is the current chat in `feat/arrow-telemetry`; the initial tree was clean and tracked `origin/dev`. Tasks lock the source inventory. The change is activated through `stkr specification start arrow-telemetry-storage` with a native persistent goal.
 
 Implement schema/configuration and catalog first, then writer/recovery, reader/durable cursor consumers, exports, documentation and benchmarks. Retire superseded code in the same feature. Keep existing managed Harmos lifecycle contracts and public operation declarations as the boundary.
 
@@ -42,4 +42,4 @@ Use discovered mise tasks with standard compiler preflight and `UV_PROJECT_ENVIR
 
 ## Risks And Rollout
 
-The blocking footer complexity requires an owner decision before code changes. Cross-resource durability needs fault tests proving fsync → catalog commit → saved-cursor publication. Recovery must preserve existing storage and Windows handle ownership. New incompatible roots remain explicit operator choices; existing roots are never reset.
+Cross-resource durability needs fault tests proving fsync → catalog commit → saved-cursor publication. Recovery must preserve existing storage and Windows handle ownership. New incompatible roots remain explicit operator choices; existing roots are never reset.

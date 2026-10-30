@@ -27,6 +27,6 @@ None. Existing `host-telemetry` requirements describe producers and remain uncha
 
 Runtime storage, configuration, saved cursors, telemetry readers, file ownership, execution/session shutdown and evidence exports; runtime tests/benchmarks, Python export tests and maintained documentation. GUI source changes are conditional on actual consumer needs.
 
-## Blocking Contract Conflict
+## Approved Footer Amendment
 
-Decision 3 requires the footer to be written at finalize in O(1). The Arrow IPC footer contains a block descriptor for every record batch: writing it is O(batch count). Implementation is stopped under the owner's impossibility rule. The design records evidence and an unapproved resolution; none of the locked decisions has been relaxed.
+The owner's 2026-10-30 amendment defines decision 3's O(1) as no telemetry payload scan, decode or rewrite at finalize. Metadata-only footer emission proportional to batch count is approved, using the in-memory/catalog block list. Recovery scans batch headers and skips payload bodies. All remaining locked decisions stand.
