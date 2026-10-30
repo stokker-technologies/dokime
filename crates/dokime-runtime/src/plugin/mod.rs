@@ -70,7 +70,10 @@ where
     install_panic_hook();
     install_subscriber();
     let capacity = std::num::NonZeroUsize::new(128).expect("native invocation capacity is positive");
-    crate::process::block_on(harmos::sidecar::run_plugin::<P>(capacity))?
+    crate::process::block_on(async move {
+        let settings = crate::config::schema_defaults();
+        harmos::sidecar::run_plugin_with_settings::<P>(capacity, &settings).await
+    })?
 }
 
 #[cfg(feature = "native")]

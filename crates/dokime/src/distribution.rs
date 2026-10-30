@@ -74,8 +74,12 @@ pub fn checksums(bytes: &[u8]) -> Result<BTreeMap<String, String>, String> {
 pub fn plugin(bytes: &[u8], member: &Member, selected: &Plugin) -> Result<Vec<u8>, String> {
     let bytes = member_bytes(bytes, &member.archive, &member.member)?;
     verify(&bytes, &member.sha256)?;
-    let bundle = harmos_packaging::bundle::Bundle::inspect(&bytes, harmos_packaging::bundle::Limits::default())
-        .map_err(|error| error.to_string())?;
+    let bundle = harmos_packaging::bundle::Bundle::inspect_with_settings(
+        &bytes,
+        harmos_packaging::bundle::Limits::default(),
+        &crate::config::schema_defaults(),
+    )
+    .map_err(|error| error.to_string())?;
     let identity = &bundle.manifest().identity;
     if identity.name != selected.name || identity.version.to_string() != selected.version {
         return Err("Plugin bundle identity does not match the selected release".into());
