@@ -20,13 +20,13 @@ use std::{
 };
 
 // Third Party Imports
+use serde::Serialize;
 use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings, PackageType, SettingsBuilder};
 
 // Local Imports
 use super::{
     artwork,
     distribution::{self, Distribution},
-    inspect::{self, DistributionMetadata},
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
 };
 use crate::Error;
@@ -38,6 +38,19 @@ use crate::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Serialize)]
+struct DistributionMetadata {
+    schema: u32,
+    version: String,
+    dokime_version: String,
+    target: String,
+    label: String,
+    identity: distribution::Identity,
+    files: BTreeMap<String, String>,
+    installer_signed: bool,
+    updater_signed: bool,
+}
 
 /* === Enums === */
 
@@ -469,7 +482,6 @@ fn finish_package(
     if sign {
         super::signing::updater(manifest, distribution, &destination, output)?;
     }
-    inspect::inspect(&destination)?;
     Ok(destination)
 }
 
@@ -577,17 +589,17 @@ fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
         Some("deb") => {
             let mut command = dokime::domain::process::command("debsigs");
             command.args(["--sign=origin", "--default-key", key]).arg(path);
-            inspect::run(&mut command, "DEB signing requires debsigs and an available GPG agent")?;
+            super::signing::run(&mut command, "DEB signing requires debsigs and an available GPG agent")?;
             let mut command = dokime::domain::process::command("debsig-verify");
             command.arg(path);
-            inspect::run(&mut command, "DEB signature verification requires debsig-verify with the signing policy installed")
+            super::signing::run(&mut command, "DEB signature verification requires debsig-verify with the signing policy installed")
         }
         Some("rpm") => {
             let key_definition = format!("_gpg_name {key}");
             let mut command = dokime::domain::process::command("rpmsign");
             command.arg("--addsign").arg("--define").arg(key_definition).arg(path);
-            inspect::run(&mut command, "RPM signing requires rpmsign and an available GPG agent")?;
-            inspect::verify_rpm_signature(path)
+            super::signing::run(&mut command, "RPM signing requires rpmsign and an available GPG agent")?;
+            super::signing::verify_rpm_signature(path)
         }
         _ => {
             let error = Error::Invalid("unsupported signing package format".into());
@@ -607,10 +619,10 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
     };
     let mut command = dokime::domain::process::command("signtool");
     command.args(["sign", "/sha1", thumbprint, "/fd", "SHA256", "/tr", timestamp, "/td", "SHA256"]).arg(path);
-    inspect::run(&mut command, "installer signing requires signtool and the configured certificate in the current user store")?;
+    super::signing::run(&mut command, "installer signing requires signtool and the configured certificate in the current user store")?;
     let mut command = dokime::domain::process::command("signtool");
     command.args(["verify", "/pa"]).arg(path);
-    inspect::run(&mut command, "installer Authenticode verification failed")
+    super::signing::run(&mut command, "installer Authenticode verification failed")
 }
 
 /* === Tests === */

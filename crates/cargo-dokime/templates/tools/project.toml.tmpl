@@ -1,0 +1,20 @@
+[ci.impact]
+default = "full"
+
+[conventions.testing.deadlines]
+acceptance = 900
+integration = 120
+system = 900
+unit = 120
+
+[languages.python]
+roots = ["tools/python"]
+
+[languages.rust]
+roots = ["src", "tests"]
+
+[project]
+name = "{{package}}"
+platforms = ["unix", "windows"]
+profile = "plugin"
+visibility = "public"

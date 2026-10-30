@@ -300,15 +300,12 @@ def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch:
 
     def record(command: list[str], output: Path, _root: Path) -> None:
         calls.append(command)
-        if "package" in command:
-            directory = Path(command[command.index("--output") + 1])
-            directory.mkdir()
-            package = directory / "dokime-setup.exe"
-            package.write_bytes(b"installer")
-            paths = [str(package)]
-            output.write_text(json.dumps(paths), encoding="utf-8")
-        else:
-            output.write_text("{}", encoding="utf-8")
+        directory = Path(command[command.index("--output") + 1])
+        directory.mkdir()
+        package = directory / "dokime-setup.exe"
+        package.write_bytes(b"installer")
+        paths = [str(package)]
+        output.write_text(json.dumps(paths), encoding="utf-8")
 
     monkeypatch.setattr(installer, "_record", record)
     installer.bundle(tmp_path, profile="dev")

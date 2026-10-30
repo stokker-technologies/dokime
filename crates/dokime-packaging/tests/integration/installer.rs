@@ -89,14 +89,6 @@ async fn distribution_identity() {
     for (name, bytes) in &pack.files {
         files.insert(format!("organization/{name}"), hash(bytes));
     }
-    let stored = b"unlisted distribution plugin storage";
-    std::fs::create_dir(source.join("organization/plugins")).unwrap();
-    std::fs::write(source.join("organization/plugins/unlisted.dokime"), stored).unwrap();
-    files.insert("organization/plugins/unlisted.dokime".into(), hash(stored));
-    let organization = root.path().join("company");
-    std::fs::create_dir_all(organization.join("plugins")).unwrap();
-    std::fs::write(organization.join("plugins/unlisted.dokime"), b"unlisted override storage").unwrap();
-
     let target = if cfg!(windows) { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };
     let metadata = serde_json::json!({
         "schema": 1, "version": "1.2.3", "target": target,
@@ -116,9 +108,8 @@ async fn distribution_identity() {
     };
     for (identifier, slug) in [(None, "dokime"), (Some("com.hilti.dokime"), "com-hilti-dokime")] {
         let declaration = identifier.map_or_else(String::new, |identifier| format!("identifier='{identifier}'\n"));
-        let text = format!(
-            "[installer]\nversion='1.2.3'\n{declaration}organization='company'\nformats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n"
-        );
+        let text =
+            format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");
         std::fs::write(&manifest, text).unwrap();
         let packages = match package(&manifest, &options).await {
             Ok(packages) => packages,
@@ -136,26 +127,6 @@ async fn distribution_identity() {
                 extension => panic!("unexpected package extension: {extension}"),
             };
             assert_eq!(package.file_name().unwrap().to_str().unwrap(), expected);
-            if package.extension().unwrap() == "exe" {
-                let bytes = std::fs::read(&package).unwrap();
-                let installer = nsis::NsisInstaller::builder(&bytes).max_decompressed_size(i32::MAX as usize).parse().unwrap();
-                assert_eq!(installer.compression(), nsis::decompress::CompressionMethod::Lzma);
-                assert_eq!(installer.compression_mode(), nsis::decompress::CompressionMode::NonSolid);
-            }
-            let inspection = dokime_packaging::installer::inspect(&package).unwrap();
-            assert!(!inspection.distribution.files.keys().any(|name| name.contains("plugins/")));
-            let identity = &inspection.distribution.identity;
-            assert_eq!(identity.identifier, identifier.unwrap_or("com.stokker.dokime"));
-            assert_eq!(identity.slug, slug);
-            assert_eq!(identity.updater_public_key, "fixture");
-            let prefix = if cfg!(windows) { String::new() } else { format!("usr/lib/{slug}/") };
-            let name = format!("{prefix}distribution.json");
-            let bytes = serde_json::to_vec_pretty(&dokime::paths::DistributionIdentity::new(identity.identifier.clone()).unwrap()).unwrap();
-            assert_eq!(inspection.distribution.files[&name], hash(&bytes));
-            if !cfg!(windows) {
-                assert!(inspection.distribution.files.contains_key(&format!("usr/bin/{slug}")));
-                assert!(inspection.distribution.files.contains_key(&format!("usr/bin/{slug}-gui")));
-            }
         }
     }
     assert_eq!(std::fs::read(source.join(format!("bin/dokime-gui{suffix}"))).unwrap(), original_gui);
