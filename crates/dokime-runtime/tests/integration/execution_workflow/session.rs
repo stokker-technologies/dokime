@@ -55,6 +55,7 @@ struct Probe {
     arrivals: Mutex<Vec<(String, String)>>,
     settling: std::sync::atomic::AtomicBool,
     settlement_signals: std::sync::atomic::AtomicUsize,
+    record_ordinal: std::sync::atomic::AtomicU64,
     // The Live Replay Story Reads Host Rows Through Its Runtime And Clears It Before Shutdown.
     runtime: Mutex<Option<RuntimeHandle>>,
 }
@@ -90,6 +91,7 @@ impl Probe {
             arrivals: Mutex::new(Vec::new()),
             settling: std::sync::atomic::AtomicBool::new(false),
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
+            record_ordinal: std::sync::atomic::AtomicU64::new(0),
             runtime: Mutex::new(None),
         }
     }
@@ -280,6 +282,10 @@ impl Runnable for Probe {
 
     fn signal(&self, signal: ExecutionSignal) -> TransportFuture<'_, Result<SignalReply, Refusal>> {
         Box::pin(async move {
+            if let Some(record) = &signal.record {
+                self.record_ordinal.fetch_max(record.ordinal, std::sync::atomic::Ordering::SeqCst);
+            }
+            let record_ordinal = self.record_ordinal.load(std::sync::atomic::Ordering::SeqCst);
             if self.mode == Settlement::LiveReplay {
                 let settling = self.settling.load(std::sync::atomic::Ordering::SeqCst);
                 match &signal.samples {
@@ -294,6 +300,7 @@ impl Runnable for Probe {
                 }
                 return Ok(SignalReply {
                     samples: self.receipts(),
+                    record_ordinal,
                     ..Default::default()
                 });
             }
@@ -307,7 +314,7 @@ impl Runnable for Probe {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
                 }
             }
-            Ok(SignalReply::default())
+            Ok(SignalReply { record_ordinal, ..Default::default() })
         })
     }
 

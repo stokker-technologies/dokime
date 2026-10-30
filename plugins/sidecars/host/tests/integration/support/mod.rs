@@ -52,9 +52,9 @@ pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBa
     use plugin_host::collectors::{network::NetworkCollector, system::SystemCollector};
     let options = HostOptions::default();
     let rows = match stream {
-        HostTelemetryStream::System => vec![SystemCollector::new().collect().unwrap()],
-        HostTelemetryStream::Network => vec![NetworkCollector::new().collect().unwrap()],
-        HostTelemetryStream::WifiLink => vec![WifiLinkCollector::new(options).collect().unwrap()],
+        HostTelemetryStream::System => vec![SystemCollector::new().unwrap().collect().unwrap()],
+        HostTelemetryStream::Network => vec![NetworkCollector::new().unwrap().collect().unwrap()],
+        HostTelemetryStream::WifiLink => vec![WifiLinkCollector::new(options).unwrap().collect().unwrap()],
         HostTelemetryStream::WifiScan => WifiScanCollector::new(options).collect().unwrap(),
         HostTelemetryStream::WifiLatency => vec![WifiLatencyCollector::new(options).collect().unwrap()],
         HostTelemetryStream::Bluetooth => vec![BluetoothCollector::new(options).collect().unwrap()],

@@ -40,6 +40,41 @@ use sha2::{Digest, Sha256};
 /* === Private Functions === */
 
 #[cfg(windows)]
+fn executable_fixture() -> Vec<u8> {
+    // A PE32+ Console Program That Returns Zero, With Room For Native Resource Updates.
+    let mut bytes = vec![0; 0x400];
+    bytes[..2].copy_from_slice(b"MZ");
+    bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
+    for (offset, value) in [(0x84, 0x8664u16), (0x86, 1), (0x94, 0xf0), (0x96, 0x22), (0x98, 0x20b), (0xc0, 6), (0xc8, 6), (0xdc, 3)] {
+        bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+    }
+    for (offset, value) in [
+        (0x3c, 0x80u32),
+        (0x9c, 0x200),
+        (0xa8, 0x1000),
+        (0xac, 0x1000),
+        (0xb8, 0x1000),
+        (0xbc, 0x200),
+        (0xd0, 0x2000),
+        (0xd4, 0x200),
+        (0x104, 16),
+        (0x190, 3),
+        (0x194, 0x1000),
+        (0x198, 0x200),
+        (0x19c, 0x200),
+        (0x1ac, 0x60000020),
+    ] {
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    for (offset, value) in [(0xb0, 0x140000000u64), (0xe0, 0x100000), (0xe8, 0x1000), (0xf0, 0x100000), (0xf8, 0x1000)] {
+        bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+    }
+    bytes[0x188..0x18d].copy_from_slice(b".text");
+    bytes[0x200..0x203].copy_from_slice(&[0x31, 0xc0, 0xc3]);
+    bytes
+}
+
+#[cfg(windows)]
 fn gui_resources(path: &std::path::Path) {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::System::LibraryLoader::{BeginUpdateResourceW, EndUpdateResourceW, UpdateResourceW};
@@ -72,11 +107,17 @@ async fn distribution_identity() {
     pack.write_to(&source.join("organization")).unwrap();
     std::fs::write(source.join("LICENSE"), b"fixture license").unwrap();
     let suffix = if cfg!(windows) { ".exe" } else { "" };
+    #[cfg(windows)]
+    let executable = executable_fixture();
+    #[cfg(not(windows))]
     let executable = std::env::current_exe().unwrap();
     let mut files = std::collections::BTreeMap::new();
     for program in ["dokime", "dokime-gui"] {
         let name = format!("bin/{program}{suffix}");
         let destination = source.join(&name);
+        #[cfg(windows)]
+        std::fs::write(&destination, &executable).unwrap();
+        #[cfg(not(windows))]
         std::fs::copy(&executable, &destination).unwrap();
         #[cfg(windows)]
         if program == "dokime-gui" {

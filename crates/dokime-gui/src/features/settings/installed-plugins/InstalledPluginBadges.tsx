@@ -27,6 +27,8 @@ const STATUS_DISPLAY: Record<string, { className: string; label: string }> = {
     label: "Registered",
   },
   disabled: { className: "text-muted-foreground", label: "Disabled" },
+  failed: { className: "text-destructive", label: "Failed" },
+  pending: { className: "text-muted-foreground", label: "Pending Restart" },
 };
 
 /* === Components === */

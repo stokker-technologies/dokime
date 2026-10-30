@@ -1204,7 +1204,7 @@ pub(crate) async fn lifecycle_logs_failure() {
     for (flag, stage) in [
         ("initialize_error", "initialization"),
         ("resources_error", "initialization"),
-        ("traceability_error", "traceability"),
+        ("traceability_error", "step `start`"),
         ("cleanup_error", "cleanup"),
     ] {
         let workflow = workflow();

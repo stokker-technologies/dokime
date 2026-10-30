@@ -32,6 +32,10 @@ and `src/report`.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
+- Settings › Plugins keeps installed programs' settings and secrets editable
+  after startup fails. Their declared schema comes from the verified bundle
+  inventory; the page shows the recorded failure and offers an application
+  restart to retry with saved changes. Every owner in an inactive bundle is editable.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
