@@ -12,6 +12,9 @@
 #[cfg(feature = "runtime")]
 mod observing;
 
+#[cfg(feature = "runtime")]
+mod notifications;
+
 #[cfg(all(feature = "runtime", unix))]
 mod unix;
 
@@ -21,7 +24,7 @@ mod windows;
 /* === Re-Exports === */
 
 #[cfg(feature = "runtime")]
-pub use observing::State;
+pub use observing::{NetworkObserver, State};
 
 /* === Imports === */
 

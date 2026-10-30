@@ -62,7 +62,7 @@ struct Inner {
     generation: u64,
     error: Option<String>,
     last: Option<UpdateCheck>,
-    plugin: Option<plugins::Candidate>,
+    plugin: Vec<plugins::Candidate>,
     #[cfg(feature = "updater")]
     candidate: Option<Candidate>,
 }
@@ -142,7 +142,7 @@ impl UpdateState {
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
-        inner.plugin = None;
+        inner.plugin.clear();
         inner.error = None;
         #[cfg(feature = "updater")]
         {
@@ -266,7 +266,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             generation: 0,
             error,
             last: None,
-            plugin: None,
+            plugin: Vec::new(),
             #[cfg(feature = "updater")]
             candidate: None,
         }),
@@ -413,7 +413,7 @@ mod tests {
                 generation: 0,
                 error: None,
                 last: None,
-                plugin: None,
+                plugin: Vec::new(),
                 #[cfg(feature = "updater")]
                 candidate: None,
             }),

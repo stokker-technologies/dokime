@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 // Third Party Imports
 use serde::Deserialize;
@@ -34,6 +34,11 @@ const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub(super) struct ReleaseSource {
+    pub feed: Url,
+    assets: Option<BTreeMap<String, Url>>,
+}
 
 #[derive(Deserialize)]
 struct GithubRelease {
@@ -68,6 +73,19 @@ struct GitlabAsset {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl ReleaseSource {
+    pub fn asset(&self, name: &str) -> Result<Url, String> {
+        if !dokime::domain::model::plugins::release::filename(name) {
+            return Err("Invalid release asset name".into());
+        }
+        if let Some(assets) = &self.assets {
+            return assets.get(name).cloned().ok_or_else(|| format!("The release has no {name} asset"));
+        }
+        let url = self.feed.join(name).map_err(|error| error.to_string())?;
+        https_url(url.as_str())
+    }
+}
 
 /* === Public Functions === */
 
@@ -105,24 +123,30 @@ pub(super) async fn fetch(url: &Url, maximum: usize) -> Result<Vec<u8>, String> 
 }
 
 pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str) -> Result<Url, String> {
+    Ok(release_source(policy, asset).await?.feed)
+}
+
+pub(super) async fn release_source(policy: &UpdatePolicy, feed_name: &str) -> Result<ReleaseSource, String> {
     policy.validate()?;
     if policy.mode == Mode::Disabled {
         return Err("Updates are disabled".into());
     }
     let selected = policy.source.as_ref().ok_or("No release source is selected")?;
     let source = policy.sources.get(selected).ok_or("The selected release source is unavailable")?;
-    match source {
+    let entries: Vec<(String, String)> = match source {
         Source::Direct { manifest, plugins, .. } => {
-            let location =
-                if asset == "latest.json" { manifest } else { plugins.as_ref().ok_or("This source has no plugin release feed")? };
-            https_url(location)
+            let location = if feed_name == "latest.json" {
+                manifest.as_str()
+            } else {
+                plugins.as_deref().ok_or("This source has no plugin release feed")?
+            };
+            return Ok(ReleaseSource { feed: https_url(location)?, assets: None });
         }
         Source::Github { repository } => {
             let url = https_url(&format!("https://api.github.com/repos/{repository}/releases/latest"))?;
             let bytes = fetch(&url, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GithubRelease = serde_json::from_slice(&bytes).map_err(|_| "GitHub release metadata is invalid")?;
-            let assets = release.assets.into_iter().map(|entry| (entry.name, entry.browser_download_url));
-            named_asset(assets, asset)
+            release.assets.into_iter().map(|entry| (entry.name, entry.browser_download_url)).collect()
         }
         Source::Gitlab { connection, project } => {
             let connection = policy.connections.get(connection).ok_or("The release connection is unavailable")?;
@@ -138,21 +162,24 @@ pub(super) async fn resolve(policy: &UpdatePolicy, asset: &str) -> Result<Url, S
             ]);
             let bytes = fetch(&url, DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
             let release: GitlabRelease = serde_json::from_slice(&bytes).map_err(|_| "GitLab release metadata is invalid")?;
-            let assets = release.assets.links.into_iter().map(|entry| (entry.name, entry.direct_asset_url.unwrap_or(entry.url)));
-            named_asset(assets, asset)
+            release.assets.links.into_iter().map(|entry| (entry.name, entry.direct_asset_url.unwrap_or(entry.url))).collect()
         }
-    }
+    };
+    let assets = named_assets(entries)?;
+    let feed = assets.get(feed_name).cloned().ok_or_else(|| format!("The release has no {feed_name} asset"))?;
+    Ok(ReleaseSource { feed, assets: Some(assets) })
 }
 
 /* === Private Functions === */
 
-fn named_asset(assets: impl Iterator<Item = (String, String)>, wanted: &str) -> Result<Url, String> {
-    let mut matching = assets.filter(|(name, _)| name == wanted);
-    let (_, location) = matching.next().ok_or_else(|| format!("The release has no {wanted} asset"))?;
-    if matching.next().is_some() {
-        return Err(format!("The release has more than one {wanted} asset"));
+fn named_assets(entries: impl IntoIterator<Item = (String, String)>) -> Result<BTreeMap<String, Url>, String> {
+    let mut assets = BTreeMap::new();
+    for (name, location) in entries {
+        if assets.insert(name, https_url(&location)?).is_some() {
+            return Err("Release asset names must be unique".into());
+        }
     }
-    https_url(&location)
+    Ok(assets)
 }
 
 /* === Tests === */
@@ -167,6 +194,6 @@ mod tests {
         assert_eq!(resolve(&disabled, "latest.json").await.unwrap_err(), "Updates are disabled");
         let target = https_url("https://example.test/latest.json").unwrap();
         let duplicate = vec![("latest.json".into(), target.to_string()), ("latest.json".into(), target.to_string())];
-        assert!(named_asset(duplicate.into_iter(), "latest.json").is_err());
+        assert!(named_assets(duplicate).is_err());
     }
 }

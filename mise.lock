@@ -389,12 +389,6 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-darwin-x64.tar.gz"
 checksum = "sha256:97f36a8a9684ff0d3e35758b4610fef5b628a5880e96f2ccc11240e5daf9934e"
 url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 
-[[tools."npm:@fission-ai/openspec"]]
-version = "1.14.3"
-aube = { path = ".mise/locks/npm-fission-ai-openspec/1.14.3", digest = "sha256:e877158e4e4bd1105a452e6526b15fa443da69a83cae71525fd514d7568c5a49" }
-backend = "npm:@fission-ai/openspec"
-specifiers = ["1.14.3"]
-
 [[tools.pnpm]]
 version = "12.11.2"
 backend = "aqua:pnpm/pnpm"

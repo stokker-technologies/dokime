@@ -25,9 +25,9 @@ use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings,
 // Local Imports
 use super::{
     artwork,
+    distribution::{self, Distribution},
     inspect::{self, DistributionMetadata},
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
-    payload::{self, Payload},
 };
 use crate::Error;
 
@@ -48,9 +48,10 @@ use crate::Error;
 /* === Public Functions === */
 
 pub fn assemble(
-    manifest: &Manifest, payload: &Payload, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path, sign: bool,
+    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
+    sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
-    let identity = manifest.identity(&payload.identity)?;
+    let identity = manifest.identity(&distribution.identity)?;
     let mut pack = resolve_organization(manifest, source)?;
     // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
     pack.files.retain(|name, _| !name.starts_with("plugins/"));
@@ -64,17 +65,17 @@ pub fn assemble(
     pack.write_to(&pack_dir).map_err(Error::Invalid)?;
     let label = pack.label().to_owned();
     validate_label(&label)?;
-    let windows = payload.target.contains("windows");
+    let windows = distribution.target.contains("windows");
     let suffix = if windows { ".exe" } else { "" };
     let installed_resource_prefix = if windows { String::new() } else { format!("usr/lib/{}/", identity.slug) };
     let mut linux_files = HashMap::new();
     let bin_dir = scratch.join("build");
-    std::fs::create_dir_all(bin_dir.join("payload"))?;
+    std::fs::create_dir_all(bin_dir.join("distribution"))?;
     let mut files = BTreeMap::new();
     for name in ["dokime", "dokime-gui"] {
         let file = format!("{name}{suffix}");
         let bytes = std::fs::read(source.join("bin").join(&file))?;
-        let destination = if windows { bin_dir.join(&file) } else { bin_dir.join("payload").join(&file) };
+        let destination = if windows { bin_dir.join(&file) } else { bin_dir.join("distribution").join(&file) };
         std::fs::write(&destination, &bytes)?;
         #[cfg(unix)]
         {
@@ -101,10 +102,10 @@ pub fn assemble(
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
             }
             let installed = format!("usr/bin/{}", path.file_name().unwrap().to_string_lossy());
-            files.insert(installed, payload::digest(script.as_bytes()));
+            files.insert(installed, distribution::digest(script.as_bytes()));
         }
         let final_bytes = std::fs::read(&destination)?;
-        let digest = payload::digest(&final_bytes);
+        let digest = distribution::digest(&final_bytes);
         files.insert(installed, digest);
     }
     let mut resources = HashMap::new();
@@ -115,18 +116,18 @@ pub fn assemble(
         linux_files.insert(linux_path, staged.clone());
         let bytes = std::fs::read(staged)?;
         let installed = format!("{installed_resource_prefix}{relative}");
-        files.insert(installed, payload::digest(&bytes));
+        files.insert(installed, distribution::digest(&bytes));
     }
     for name in pack.files.keys() {
         let relative = format!("organization/{name}");
-        let pack_path = payload::relative(name)?;
+        let pack_path = distribution::relative(name)?;
         let staged = pack_dir.join(pack_path);
         let resource = staged.to_string_lossy().into_owned();
         resources.insert(resource, relative.clone());
         let installed = format!("/{installed_resource_prefix}{relative}");
         linux_files.insert(PathBuf::from(installed), staged.clone());
         let bytes = std::fs::read(staged)?;
-        let digest = payload::digest(&bytes);
+        let digest = distribution::digest(&bytes);
         let installed = format!("{installed_resource_prefix}{relative}");
         files.insert(installed, digest);
     }
@@ -140,19 +141,19 @@ pub fn assemble(
     resources.insert(license.to_string_lossy().into_owned(), "LICENSE".into());
     linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}LICENSE")), license.clone());
     let license_bytes = std::fs::read(&license)?;
-    let license_digest = payload::digest(&license_bytes);
+    let license_digest = distribution::digest(&license_bytes);
     let installed_license = format!("{installed_resource_prefix}LICENSE");
     files.insert(installed_license, license_digest);
 
     // Stage Startup Identity In The Verified Inventory
-    let distribution =
+    let installed_identity =
         dokime::paths::DistributionIdentity::new(identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
-    let identity_bytes = serde_json::to_vec_pretty(&distribution)?;
+    let identity_bytes = serde_json::to_vec_pretty(&installed_identity)?;
     let identity_path = scratch.join("distribution.json");
     std::fs::write(&identity_path, &identity_bytes)?;
     resources.insert(identity_path.to_string_lossy().into_owned(), "distribution.json".into());
     linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}distribution.json")), identity_path);
-    files.insert(format!("{installed_resource_prefix}distribution.json"), payload::digest(&identity_bytes));
+    files.insert(format!("{installed_resource_prefix}distribution.json"), distribution::digest(&identity_bytes));
 
     // Describe Distribution
     let (installer_signed, updater_signed) = match &manifest.signing {
@@ -162,8 +163,8 @@ pub fn assemble(
     let metadata = DistributionMetadata {
         schema: 1,
         version: manifest.installer.version.clone(),
-        dokime_version: payload.version.clone(),
-        target: payload.target.clone(),
+        dokime_version: distribution.version.clone(),
+        target: distribution.target.clone(),
         label: label.clone(),
         identity: identity.clone(),
         files,
@@ -198,6 +199,8 @@ pub fn assemble(
         include_str!("hooks.nsh").to_owned()
     };
     std::fs::write(&hooks, hook_source)?;
+    let template = scratch.join("installer.nsi");
+    std::fs::write(&template, include_str!("installer.nsi"))?;
     let png_icon = image_path.to_string_lossy().into_owned();
     let ico_icon = ico_path.to_string_lossy().into_owned();
     let icons = vec![png_icon, ico_icon];
@@ -214,6 +217,7 @@ pub fn assemble(
         ..BundleSettings::default()
     };
     bundle.windows.nsis = Some(NsisSettings {
+        template: Some(template),
         installer_hooks: Some(hooks),
         installer_icon: Some(ico_path),
         sidebar_image: windows.then_some(sidebar),
@@ -221,10 +225,7 @@ pub fn assemble(
     });
     if !windows {
         let template = scratch.join("application.desktop");
-        let contents = format!(
-            "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
-            identity.slug, identity.slug
-        );
+        let contents = desktop_entry(&identity, &label);
         std::fs::write(&template, contents)?;
         bundle.deb.desktop_template = Some(template.clone());
         bundle.rpm.desktop_template = Some(template);
@@ -273,15 +274,7 @@ pub fn assemble(
             Format::Rpm => PackageType::Rpm,
         })
         .collect();
-    let authors = vec!["Stokker Technologies".into()];
-    let package = PackageSettings {
-        product_name: if windows { identity.identifier.clone() } else { identity.slug.clone() },
-        version: manifest.installer.version.clone(),
-        description: "Dokime Test Hub".into(),
-        homepage: None,
-        authors: Some(authors),
-        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
-    };
+    let package = package_settings(manifest, &identity, &label, windows);
     let application_name = if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) };
     let command_name = if windows { "dokime".into() } else { identity.slug.clone() };
     let application = BundleBinary::new(application_name, true);
@@ -289,7 +282,7 @@ pub fn assemble(
     let binaries = vec![application, command];
     let settings = SettingsBuilder::new()
         .project_out_directory(&bin_dir)
-        .target(payload.target.clone())
+        .target(distribution.target.clone())
         .package_settings(package)
         .bundle_settings(bundle)
         .binaries(binaries)
@@ -312,7 +305,7 @@ pub fn assemble(
     });
     let mut outputs = Vec::new();
     for (kind, source) in paths {
-        let destination = finish_package(manifest, payload, kind, &source, output, sign)?;
+        let destination = finish_package(manifest, distribution, kind, &source, output, sign)?;
         outputs.push(destination);
     }
     Ok(outputs)
@@ -379,6 +372,26 @@ pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
 
 /* === Private Functions === */
 
+fn package_settings(manifest: &Manifest, identity: &distribution::Identity, label: &str, windows: bool) -> PackageSettings {
+    // Tauri Uses The Linux Product Name As The Native Package Name.
+    // The Description Supplies DEB's Display Description And RPM's Summary.
+    PackageSettings {
+        product_name: if windows { label.to_owned() } else { identity.slug.clone() },
+        version: manifest.installer.version.clone(),
+        description: label.to_owned(),
+        homepage: None,
+        authors: Some(vec!["Stokker Technologies".into()]),
+        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
+    }
+}
+
+fn desktop_entry(identity: &distribution::Identity, label: &str) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
+        identity.slug, identity.slug
+    )
+}
+
 fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<dokime::config::organization::ResolvedPack, Error> {
     let base = source.join("organization");
     let overrides = manifest.installer.organization.as_deref();
@@ -432,9 +445,9 @@ fn explicit_update_mode(folder: &Path) -> Result<bool, Error> {
 }
 
 fn finish_package(
-    manifest: &Manifest, payload: &Payload, kind: PackageType, source: &Path, output: &Path, sign: bool,
+    manifest: &Manifest, distribution: &Distribution, kind: PackageType, source: &Path, output: &Path, sign: bool,
 ) -> Result<PathBuf, Error> {
-    let identity = manifest.identity(&payload.identity)?;
+    let identity = manifest.identity(&distribution.identity)?;
     let slug = &identity.slug;
     let name = match kind {
         PackageType::Nsis => format!("{slug}-{}-{}-setup.exe", manifest.installer.version, manifest.dokime.target),
@@ -451,7 +464,7 @@ fn finish_package(
     let destination = output.join(name);
     std::fs::copy(source, &destination)?;
     if sign {
-        super::signing::updater(manifest, payload, &destination, output)?;
+        super::signing::updater(manifest, distribution, &destination, output)?;
     }
     inspect::inspect(&destination)?;
     Ok(destination)
@@ -492,7 +505,7 @@ fn validate_windows_signing(settings: &InstallerSigning) -> Result<(), Error> {
 }
 
 fn validate_updater_signing(manifest: &Manifest, settings: &UpdaterSigning) -> Result<(), Error> {
-    if manifest.installer.version != manifest.dokime.version {
+    if manifest.installer.version != manifest.dokime.version() {
         let error = Error::Invalid(
             "updater signing requires matching installer and Dokime versions; distinct company versions require manual deployment".into(),
         );
@@ -602,6 +615,54 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn distribution_names() {
+        let label = "Hilti Test Hub";
+        let compiled = distribution::Identity {
+            identifier: "com.stokker.dokime".into(),
+            slug: "dokime".into(),
+            updater_public_key: "fixture".into(),
+        };
+        let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        let renderer = handlebars::Handlebars::new();
+
+        for identifier in [None, Some("com.hilti.dokime")] {
+            manifest.installer.identifier = identifier.map(str::to_owned);
+            let identity = manifest.identity(&compiled).unwrap();
+            let windows = package_settings(&manifest, &identity, label, true);
+            assert_eq!(windows.product_name, label);
+            let data = serde_json::json!({ "product_name": windows.product_name, "bundle_id": identity.identifier });
+            let template = renderer.render_template(include_str!("installer.nsi"), &data).unwrap();
+            assert!(template.contains(&format!("!define PRODUCTNAME \"{label}\"")));
+            assert!(template.contains(&format!("!define BUNDLEID \"{}\"", identity.identifier)));
+
+            // Expand The Identity Defines To Verify Their Native Uses.
+            let script = template.replace("${BUNDLEID}", &identity.identifier).replace("${PRODUCTNAME}", label);
+            assert!(script.contains(&format!("Name \"{label}\"")));
+            assert!(script.contains(&format!("\"DisplayName\" \"{label}\"")));
+            assert!(script.contains(&format!("$DESKTOP\\{label}.lnk")));
+            assert!(script.contains(&format!("$SMPROGRAMS\\{label}.lnk")));
+            assert!(script.contains(&format!("placeholder\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$LOCALAPPDATA\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$PROGRAMFILES\\{}", identity.identifier)));
+            assert!(script.contains(&format!("$PROGRAMFILES64\\{}", identity.identifier)));
+            assert!(script.contains(&format!("MULTIUSER_INSTALLMODE_INSTDIR \"{}\"", identity.identifier)));
+            assert!(script.contains(&format!("CurrentVersion\\Uninstall\\{}", identity.identifier)));
+            assert!(script.contains(&format!("${{MANUKEY}}\\{}", identity.identifier)));
+            assert!(!script.contains(&format!("$LOCALAPPDATA\\{label}")));
+            assert!(!script.contains(&format!("$PROGRAMFILES\\{label}")));
+            assert!(!script.contains(&format!("$PROGRAMFILES64\\{label}")));
+
+            let linux = package_settings(&manifest, &identity, label, false);
+            assert_eq!(linux.product_name, identity.slug);
+            assert_eq!(linux.description, label);
+            let desktop = desktop_entry(&identity, label);
+            assert!(desktop.contains(&format!("\nName={label}\n")));
+            assert!(desktop.contains(&format!("\nExec={}-gui\n", identity.slug)));
+        }
+    }
 
     #[cfg(windows)]
     #[test]

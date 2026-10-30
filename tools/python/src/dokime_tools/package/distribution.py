@@ -76,24 +76,24 @@ def export(root: Path, profile: str) -> Path:
         "slug": "dokime",
         "updater_public_key": config["plugins"]["updater"]["pubkey"],
     }
-    destination = build / "product/installer-payload"
+    destination = build / "product/installer-distribution"
     clear_output(destination)
     hashes = {}
     for name, path in sorted(source.items()):
         stage_file(path, destination / name)
         hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
     manifest = {"schema": 1, "version": config["version"], "target": native, "identity": identity, "files": hashes}
-    (destination / "payload.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (destination / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return destination
 
 
 def archive(source: Path, output: Path) -> Path:
-    """Publish A Portable Payload Without Recompiling Or Rewriting Build Bytes."""
-    manifest = json.loads((source / "payload.json").read_text(encoding="utf-8"))
+    """Publish A Portable Distribution Without Recompiling Or Rewriting Build Bytes."""
+    manifest = json.loads((source / "distribution.json").read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=True)
-    destination = output / f"dokime-payload-{manifest['version']}-{manifest['target']}.zip"
+    destination = output / f"dokime-distribution-{manifest['version']}-{manifest['target']}.zip"
     checksums = manifest["files"]
-    names = ["payload.json", *sorted(checksums)]
+    names = ["distribution.json", *sorted(checksums)]
     entries = [_entry(source, name, checksums.get(name)) for name in names]
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         _write_entries(bundle, entries)
@@ -107,13 +107,13 @@ def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipIn
     relative = Path(name)
     unsafe = relative.is_absolute() or ".." in relative.parts
     if unsafe or "\\" in name or ":" in name:
-        raise ValueError("unsafe installer payload path")
+        raise ValueError("unsafe installer distribution path")
     path = source / relative
     if path.is_symlink() or not stat.S_ISREG(path.lstat().st_mode):
-        raise ValueError("installer payload must contain regular files")
+        raise ValueError("installer distribution must contain regular files")
     data = path.read_bytes()
     if checksum is not None and hashlib.sha256(data).hexdigest() != checksum:
-        raise ValueError(f"installer payload changed after Build: {name}")
+        raise ValueError(f"installer distribution changed after Build: {name}")
 
     entry = zipfile.ZipInfo(name)
     entry.create_system = 3

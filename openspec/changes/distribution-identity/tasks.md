@@ -19,6 +19,7 @@ Triage: `ApplicationPaths` already owns basic root/data/plugins paths (`crates/d
 - [x] 1.3 One path resolver (desktop, CLI, server) reading `distribution.json` with the compiled identifier as fallback; replace `app_data_dir()` and `app_log_dir(identifier)` uses; set the WebView data directory.
 - [x] 1.4 Product guide: Native Installers and Organization sections; README claims.
 - [ ] 1.5 Tests: resolver unit tests, packaging tests for the written file and names, a native lifecycle check that a branded and a plain installation keep separate directories.
+- [x] 1.6 Installer display-name repair: organization labels in native display fields; identifier-based install paths and registry keys. Evidence: `crates/dokime-packaging/src/installer/native.rs:623` (`distribution_names`) and `installer.nsi`; all 22 targeted installer unit tests pass.
 
 ## 2. Validation
 

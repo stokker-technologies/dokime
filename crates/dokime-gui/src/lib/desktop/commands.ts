@@ -100,7 +100,7 @@ export const commands = {
   desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
   desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
-  desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease>("desktop_plugin_release_check", { generation }),
+  desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease[]>("desktop_plugin_release_check", { generation }),
   desktopPluginReleaseInstall: (generation: string, candidate: string, progress: Channel<InstallPluginProgress>) =>
     invoke<string>("desktop_plugin_release_install", { generation, candidate, progress }),
 };

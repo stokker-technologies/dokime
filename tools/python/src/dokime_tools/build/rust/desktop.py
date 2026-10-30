@@ -18,7 +18,7 @@ import sys
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import cargo, configuration, frontend, outputs, paths
-from dokime_tools.package import payload
+from dokime_tools.package import distribution
 from dokime_tools.package.staging import stage_file, sync_output
 
 # Type Checking Imports
@@ -69,7 +69,7 @@ def build(profile: str) -> list[str]:
     destination = output / "bin" / source.name
     stage_file(source, destination)
     cargo.record_target(ROOT, messages, profile)
-    payload.export(ROOT, profile)
+    distribution.export(ROOT, profile)
     return configuration.relative([destination])
 
 

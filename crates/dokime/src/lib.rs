@@ -9,6 +9,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "native")]
+pub mod distribution;
+
 #[cfg(feature = "client")]
 #[path = "error.rs"]
 pub mod client_error;

@@ -4,8 +4,8 @@
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
 per nearby network), `host.wifi.latency` (round trip and loss to the latency host)
-and `host.bluetooth`. Its single catalog contains the collection operations,
-stream declarations and demand-driven observers; each stream has its own observer,
+and `host.bluetooth`. Separate operation, stream and observer catalogs share
+the same declarations; each stream has its own demand-driven observer,
 which runs only while a lease holds that stream. Operation definitions own the
 policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
 and Unix implementations are selected at module declarations. Windows probes use
@@ -14,6 +14,27 @@ Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
 between active Wi-Fi scans; a scan due sooner reports the cached network list.
 Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
+`host.network` carries aggregate counters, `internet`, and the default-route
+adapter id. Timestamped `link_up`, `link_down`, `address_added`, `address_removed`
+and `default_route_changed` rows come from Windows IP Helper callbacks or Linux
+route netlink notifications, held only for the observer's lease. A receive
+overrun fails observation visibly; inventory is never polled to infer events.
+The Public `dokime_host::host::adapters::Adapters` query (`host.network.adapters`)
+returns adapter identity, kind, MAC, status, MTU, speed, IPv4/IPv6 prefixes and
+scope, gateways, DNS servers, DHCP state and default-route ownership. Linux
+uses `getifaddrs`, kernel routes and NetworkManager's per-device DNS/DHCP data;
+DHCP is unknown when NetworkManager does not manage an interface.
+The Public `host.power.plan.get` query reads the active Windows power scheme
+or Linux ACPI platform profile; unavailable native reads return a refusal.
+The Public `host.cpu.load` query and `host.system` rows expose calibrated
+capacity and estimated load in GFLOP/s. At plugin start, a bounded kernel runs
+eight independent f64 fused multiply-add accumulators on each available logical
+CPU. Each FMA counts two operations; completed work divided by total wall time
+gives kernel-equivalent capacity. The kernel budget is half the CPU operation's
+attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
+it is a workload-equivalent estimate, rather than a measured instruction count
+or the processor's theoretical peak. Calibration reflects the compiled kernel,
+current machine and power state at startup. The method is beside `CpuLoad`.
 The runtime decodes these rows through the same codec as other plugins.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime
@@ -79,6 +100,24 @@ Operators select or install bundles; the product does not seed these fixtures. A
 and dropdown sources come off the authored settings aggregate —
 `PluginSettings::status_operation()`, `PluginSettings::option_providers()` — read
 from the admitted catalog; the host has no compiled plugin adapters.
+
+Release staging groups shipping sidecars into one native archive per target:
+`dokime-sidecars-<version>-<target>.zip` on Windows and `.tar.gz` on Unix.
+Members keep their declared unversioned `.dokime` filenames. `plugins.json`
+format 2 lists plugin names, kinds, versions, Dokime requirements and target
+archive/member/hash mappings. The desktop lists every compatible plugin from the
+selected update source, verifies the archive against SHA256SUMS and the requested
+member against the feed, then installs only that member. There is no v1 reader
+or individual-plugin release-asset fallback. See the
+[release feed example](product-guide.md#organization).
+
+Custom installers use top-level `[[plugin]]` entries with exactly one of `name`
+(a release feed name) or `path` (a local bundle relative to the organization
+pack). The pack's `plugins/` folder is storage only; unlisted files never ship
+and plugin files are not overlaid. Repeat `--plugin <path>` for equivalent
+external bundle or sidecars archive inputs relative to the invocation directory.
+Names come from feed and product declarations; they do not depend on crate naming.
+See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then

@@ -171,7 +171,6 @@ mod tests {
                 assert_eq!(dokime::storage::telemetry::decode_values(&validator, &bytes).unwrap(), decoded);
             }
         }
-        round_trip::<Network>(HostTelemetryStream::Network, "local_addresses");
         round_trip::<Bluetooth>(HostTelemetryStream::Bluetooth, "bluetooth_device_names");
     }
 }

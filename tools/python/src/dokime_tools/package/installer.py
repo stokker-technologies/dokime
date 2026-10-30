@@ -26,7 +26,7 @@ from pathlib import Path
 from dokime_tools import temporary
 from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
-from dokime_tools.package import payload
+from dokime_tools.package import distribution, plugins
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -65,23 +65,24 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         raise ValueError("final Windows releases require the configured updater signing key and password")
 
     build = paths.output(root, "build", profile)
-    source = build / "product/installer-payload"
-    metadata = json.loads((source / "payload.json").read_text(encoding="utf-8"))
+    source = build / "product/installer-distribution"
+    metadata = json.loads((source / "distribution.json").read_text(encoding="utf-8"))
     version = _release_version(root)
     if metadata["version"] != version:
-        raise ValueError("installer payload version differs from the configured release")
+        raise ValueError("installer distribution version differs from the configured release")
     tool = build / "bin" / ("cargo-dokime.exe" if sys.platform == "win32" else "cargo-dokime")
     if not tool.is_file():
         raise ValueError("packaging requires the matching built cargo-dokime executable")
 
     destination = paths.output(root, "package", profile) / "rust"
     installers = destination / "installers"
-    host_plugin = build / "plugins/host.dokime"
+    shipping = plugins.shipping(root, build, metadata["target"])
     with temporary.directory() as scratch:
         manifest = scratch / "installer.toml"
         manifest.write_text(_manifest(root, metadata, signed), encoding="utf-8")
         command = [str(tool), "installer", "package", "--manifest", str(manifest), "--artifacts", str(source)]
-        command += ["--plugin", str(host_plugin)]
+        for path in shipping.values():
+            command += ["--plugin", str(path)]
         command += ["--output", str(scratch / "installers"), "--json", *(["--sign"] if signed else [])]
         result = scratch / "packages.json"
         _record(command, result, root)
@@ -96,10 +97,12 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
             stage_file(artifact, installers / artifact.name)
         _inspect(tool, installers, root)
 
-    # Preserve The Portable Release Payload And Explicit Shipping Plugin
-    payload.archive(source, destination)
+    # Preserve The Portable Release Distribution And Explicit Shipping Plugin
+    distribution.archive(source, destination)
+    plugins.archive(root, build, destination, metadata["version"], metadata["target"])
     clear_output(destination / "plugins")
-    stage_file(host_plugin, destination / "plugins" / host_plugin.name)
+    for name, path in shipping.items():
+        stage_file(path, destination / "plugins" / name)
 
 
 def check_package(

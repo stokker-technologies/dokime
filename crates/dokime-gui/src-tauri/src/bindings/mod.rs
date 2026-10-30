@@ -247,7 +247,7 @@ native_commands! {
 
     async desktop_plugin_release_check
         [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
-        (generation: String) -> Result<crate::app::updates::plugins::Release, String>
+        (generation: String) -> Result<Vec<crate::app::updates::plugins::Release>, String>
         => crate::app::updates::plugins::desktop_plugin_release_check;
 
     async desktop_plugin_release_install

@@ -1,6 +1,6 @@
 # Dokime
 
-[![Release](https://img.shields.io/badge/release-unreleased-lightgrey)](https://github.com/stokker-technologies/dokime/releases)
+[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
 [![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=CI%20%2F%20Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/badge/crates.io-unpublished-lightgrey)](#quick-start)
@@ -118,15 +118,16 @@ The same plugin uses `#[dokime::observer]` for its
 
 Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
 keep their installation and storage separate from plain Dokime. They include
-verified bundles from an organization pack's `plugins/` folder or repeatable
-`cargo dokime installer package --plugin <bundle>` arguments. Bundled plugins
+plugins selected by version and feed name, plus external bundles from an
+organization pack or repeatable `cargo dokime installer package --plugin <path>`
+arguments. Release distributions and plugin archives are verified and cached. Bundled plugins
 install on startup without replacing newer installed versions. See the
 [installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
 ## Quick Start
 
-1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
+1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases) or successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
 2. **Inspect Host Telemetry.** The installer includes `host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
 3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/obc-plugin.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
@@ -137,7 +138,14 @@ public APIs and development storage formats may change. See the
 
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
-for archive selection and the release download inventory.
+for archive selection and the release download inventory. Distributors use
+`dokime-distribution-<version>-<target>.zip`; shipping plugins share native
+`dokime-sidecars` archives described by `plugins.json` format 2.
+Custom installers select plugins through top-level `[[plugin]]` entries: set
+either `name` for a release plugin or `path` for a bundle relative to the
+organization pack. Its `plugins/` folder is storage only; files ship only when
+selected explicitly. See [Native Installers](docs/product-guide.md#native-installers)
+for the manifest and equivalent repeatable `--plugin` arguments.
 
 ### Configuration
 

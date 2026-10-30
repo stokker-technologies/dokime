@@ -60,7 +60,6 @@ tracing-subscriber = { workspace = true }
 harmos-packaging = { workspace = true }
 harmos-sdk = { workspace = true, features = ["grpc"] }
 rand = { workspace = true }
-semver = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 zeroize = { workspace = true }
