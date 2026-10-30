@@ -147,6 +147,41 @@ async fn boot_failure_persists_plugin_and_carrier() {
 }
 
 #[tokio::test]
+async fn schema_budget_installation() {
+    use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
+    use std::num::NonZeroUsize;
+    let root = tempfile::tempdir().unwrap();
+    let database = dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap();
+    let saved = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
+    let defaults = schema_defaults();
+    assert_eq!(Config::local(root.path()).schema.preparation_bytes, defaults.preparation_bytes);
+    let config = RuntimeConfig::new(
+        root.path(),
+        dokime_domain::model::identity::Metadata::new(dokime_domain::model::identity::Identifier::new("fixture").unwrap(), "Fixture", None),
+    );
+    assert_eq!(config.schema.preparation_work, defaults.preparation_work);
+    let bytes = bundle("budget-fixture", "fixture", "1.0.0");
+    for budget in ["memory bytes", "work"] {
+        let mut schema = defaults;
+        if budget == "work" {
+            schema.preparation_work = NonZeroUsize::new(1).unwrap();
+        } else {
+            schema.preparation_bytes = NonZeroUsize::new(1).unwrap();
+        }
+        let store = PluginStore::new(saved.clone(), schema);
+        let error = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap_err().to_string();
+        assert!(error.contains("budget-fixture") && error.contains(budget) && error.contains("allowed 1"), "{error}");
+        assert!(store.list().await.unwrap().is_empty());
+        assert!(!store.root().exists());
+    }
+    let store = PluginStore::new(saved, defaults);
+    let installed = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(installed.metadata.unwrap().identity.name, "budget-fixture");
+    drop(store);
+    database.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn bundled_upgrades() {
     let root = tempfile::tempdir().unwrap();
     let (store, database) = store(root.path()).await;

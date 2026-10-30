@@ -87,7 +87,7 @@ backend profiles and execution APIs; the [runnable examples](docs/remote/python.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `be695e9902433884e77a198fb31b2c9cf58b2126`)
+(currently pinned to revision `a3fbb927f85b815449e4b4c43085fd254cde06a3`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -173,6 +173,8 @@ startup fails. Save corrections and restart Dokime from the plugin page to retry
 Implementation limits use domain and subsystem constants. See the
 [application settings model](crates/dokime-domain/src/model/settings/application.rs)
 and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
+Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
+for packaging, inspection and installation.
 
 Live plots display saved telemetry. The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower

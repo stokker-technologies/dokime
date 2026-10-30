@@ -53,7 +53,8 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     args.connection = args.connection.with_settings(*settings);
     let limits = Limits::default();
     let bytes = dokime::harmos::filesystem::input::read(&args.bundle, limits.archive_bytes)?;
-    Bundle::inspect(&bytes, limits).map_err(|error| Error::Input(format!("invalid plugin bundle: {error}")))?;
+    Bundle::inspect_with_settings(&bytes, limits, &dokime::config::schema_defaults())
+        .map_err(|error| Error::Input(format!("invalid plugin bundle: {error}")))?;
     let digest = dokime::client::plugin_bundle_digest(&bytes);
     let endpoint = args.connection.resolve()?.selection.target.endpoint().to_owned();
     let client = args.connection.connect().await?;

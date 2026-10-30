@@ -12,13 +12,13 @@
  *
  * A histogram declares the value it bins on x; the host counts that value into
  * bins, so y is always the count. The x title, unit and format come from the
- * declaration and the column it names. This module has no application imports
- * so a node test can load it directly.
+ * declaration and the column it names.
  */
 
 /* === Local Imports === */
 
 import type { DocumentViewPlot, TelemetryColumnSpec, ValueFormat } from "@/lib/types";
+import { formatUnitLabel } from "@/lib/format";
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ export function histogramAxes(plot: HistogramDeclaration, column?: HistogramColu
   };
 }
 
-/** An axis title with its unit, `Voltage (V)`, or the bare label without one. */
+/** An axis title with its unit, or the bare label without one. */
 export function histogramAxisTitle(axis: { label: string; unit?: string | null }): string {
-  return axis.unit ? `${axis.label} (${axis.unit})` : axis.label;
+  return formatUnitLabel(axis.label, axis.unit);
 }

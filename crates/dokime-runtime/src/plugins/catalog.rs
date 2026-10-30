@@ -74,7 +74,7 @@ pub fn inspect_with_archive_limit(
     bytes: &[u8], settings: &harmos::config::SchemaSettings, archive_bytes: usize,
 ) -> Result<(Bundle, PluginMetadata), PluginError> {
     let limits = Limits { archive_bytes, ..Limits::default() };
-    let bundle = Bundle::inspect(bytes, limits).map_err(|error| PluginError::Invalid(error.to_string()))?;
+    let bundle = Bundle::inspect_with_settings(bytes, limits, settings).map_err(|error| PluginError::Invalid(error.to_string()))?;
     let mut owners = BTreeSet::new();
     // Validate each platform's catalog independently; selected platforms are
     // validated together against the complete host state during admission.

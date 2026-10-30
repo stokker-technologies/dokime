@@ -123,7 +123,7 @@ Routine background loading, page navigation and connection progress stay in the 
 
 The desktop's WebView stores notification history locally and reads it in bounded pages. Retry controls retain their operation context when a message moves to notifications. Execution evidence and reports retain their own authoritative records.
 
-Each history entry shows its title, muted source path and relative time on one row, with the message below. Relative times refresh while the page is open; hover over a time to see its full local date and time.
+Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
 ## Native Remote Access
 
@@ -762,6 +762,12 @@ let mut document = Document::new("default", "Charger Qualification");
 document.section(charging);
 ```
 
+Declare a bare label and a structured unit, such as `"Battery Voltage"` and
+`.unit("V")`. The GUI and report HTML render these as `Battery Voltage [V]` on
+one line. All unit-bearing labels use square brackets directly after the label;
+table headers truncate with a full-text tooltip instead of wrapping the unit
+below the title. Preserve unit symbols and case.
+
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct
@@ -870,6 +876,24 @@ cargo dokime sidecar inspect dist/my-plugin.dokime
 The advanced collection path and `sidecar package` do not invoke the compiler.
 The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
+
+### Plugin Schema Budgets
+
+`dokime::config::schema_defaults()` in `crates/dokime-runtime/src/config/schema.rs`
+owns plugin metadata preparation allowances. Packaging, installer verification,
+bundle inspection, plugin store installation and native admission use these
+defaults, including GUI uploads through the backend plugin store.
+The finite memory allowance is 64 times `INSTALL_ARCHIVE_MAX_BYTES`; the work
+allowance is 16 times that limit. They cover encoded metadata decoding, fragment
+overhead and shared contract schema resolution. These are accounting ceilings,
+not memory allocations made up front. Bundle and individual fragment size limits
+still apply independently.
+
+Embedding applications can set `Config.schema` or `RuntimeConfig.schema` to
+stricter allowances; the same settings reach inspection, installation and
+executable admission. Refusals identify the plugin and the exhausted memory or
+work allowance, with attempted usage and the allowed amount. Reduce the plugin's
+metadata or increase the embedding application's schema allowance to admit it.
 
 ### Native Installers
 
@@ -1245,6 +1269,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
+Desktop and report browser tabs use the brand's logos, preferring contained artwork
+for the viewer's color scheme and keeping the default favicon when no logos apply.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
@@ -1260,7 +1286,8 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
+deleted automatically. Desktop single-instance and startup locks, including the
+focus channel, use the resolved application root. Protocol/deep-link identity,
 updater verification trust and code-signing identity remain compiled. Reusing
 binaries with different distribution identities does not isolate those mechanisms.
 

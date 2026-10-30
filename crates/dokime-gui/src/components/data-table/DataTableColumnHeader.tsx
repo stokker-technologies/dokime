@@ -37,9 +37,12 @@ export function DataTableColumnHeader<TData extends RowData>({ header }: DataTab
   const filterable = Boolean(meta?.filter) && column.getCanFilter();
   const SortGlyph = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
 
-  // Header Names Wrap Within The Available Column Width.
+  // Keep The Label And Unit Together; Hover Reveals Clipped Text.
   const name = (
-    <span className="min-w-0 break-words whitespace-normal">
+    <span
+      className="min-w-0 truncate"
+      title={meta?.label ?? (typeof column.columnDef.header === "string" ? column.columnDef.header : undefined)}
+    >
       <FlexRender header={header} />
     </span>
   );
@@ -47,7 +50,7 @@ export function DataTableColumnHeader<TData extends RowData>({ header }: DataTab
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-wrap items-center gap-1",
+        "flex min-w-0 items-center gap-1",
         meta?.align === "end" && "flex-row-reverse",
         meta?.align === "center" && "justify-center",
       )}

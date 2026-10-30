@@ -888,7 +888,8 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             .map_err(operation)?;
         let bindings = crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
-        let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path)).map_err(operation)?;
+        let mut executable = harmos::sidecar::Executable::at_with_settings(directory.path().join(&file.path), handle.schema_settings())
+            .map_err(operation)?;
         if executable.declaration() != declaration {
             return Err(operation(format!("extracted executable `{id}` has a different declaration than its verified bundle")));
         }
