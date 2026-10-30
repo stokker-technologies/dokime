@@ -10,7 +10,8 @@
   },
   "client": {
     "connect_timeout_ms": 10000,
-    "request_timeout_ms": 30000
+    "request_timeout_ms": 30000,
+    "endpoint_stagger_ms": 250
   },
   "telemetry": {
     "interval_ms": 1000

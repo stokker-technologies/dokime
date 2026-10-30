@@ -16,6 +16,7 @@ import os
 import re
 import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +108,50 @@ def decode(data: bytes) -> Document:
     return document
 
 
+def remember_endpoint(profile: Profile, path: Path, endpoint: str) -> None:
+    """Save A Verified Candidate Without Changing Another Profile's Association"""
+    if endpoint not in (profile.endpoint, *profile.endpoints):
+        raise ValueError("verified endpoint was not selected")
+    if endpoint == profile.endpoint:
+        return
+    with Path(str(path) + ".lock").open("a+b") as lock:
+        if sys.platform == "win32":
+            import msvcrt
+
+            lock.seek(0)
+            if not lock.read(1):
+                lock.write(b"\0")
+                lock.flush()
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with path.open("rb") as stream:
+            data = stream.read(PROFILE_BYTES + 1)
+        current = _get(decode(data), profile.identifier)
+        if current != profile:
+            raise ValueError("profile changed during connection")
+        document = json.loads(data)
+        for item in document["profiles"]:
+            if item["identifier"] == profile.identifier:
+                item["endpoint"] = endpoint
+        encoded = json.dumps(document, ensure_ascii=False).encode("utf-8")
+        decode(encoded)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+
 # === Private Functions === #
 
 
@@ -121,7 +166,7 @@ def _get(document: Document, identifier: str) -> Profile:
 def _profile(value: object) -> Profile:
     value = _fields(
         value,
-        {"identifier", "label", "endpoint", "expected_backend_id", "ca_certificate_pem", "secret"},
+        {"identifier", "label", "endpoint", "endpoints", "expected_backend_id", "ca_certificate_pem", "secret"},
         {"identifier", "label", "endpoint", "secret"},
     )
     identifier = _identifier(value["identifier"])
@@ -137,6 +182,13 @@ def _profile(value: object) -> Profile:
     if not isinstance(endpoint, str):
         raise TypeError("invalid backend endpoint")
     _, tls = _target(endpoint)
+    endpoints = value.get("endpoints", [])
+    if (
+        not isinstance(endpoints, list)
+        or len(endpoints) > 32
+        or any(not isinstance(item, str) or _target(item)[1] != tls for item in endpoints)
+    ):
+        raise ValueError("invalid backend endpoints")
     identity = value.get("expected_backend_id")
     if identity is not None and (
         not isinstance(identity, str)
@@ -162,6 +214,7 @@ def _profile(value: object) -> Profile:
         identifier=identifier,
         label=label,
         endpoint=endpoint,
+        endpoints=tuple(endpoints),
         expected_backend_id=identity,
         ca_certificate_pem=ca,
         secret=secret,

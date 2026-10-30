@@ -181,10 +181,10 @@ def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (server, _):
-            path = tmp_path / "lab.dokime-pair"
+            path = tmp_path / "lab.dokime-remote"
             document = {
                 "version": 1,
-                "endpoint": server.endpoint,
+                "endpoints": [server.endpoint],
                 "backend_identifier": server.backend_id,
                 "label": "Lab",
                 "ca_certificate_pem": None,
@@ -213,6 +213,51 @@ def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path
                 assert server.created == 0
             finally:
                 await mismatched.close()
+
+    asyncio.run(scenario())
+
+
+def test_remote_candidates_choose_verified_identity_and_remember(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with serve() as (stalled, _), serve() as (wrong, _), serve() as (good, _):
+            stalled.identity_gate.clear()
+            wrong.backend_id = "wrong-backend"
+            good.backend_id = "expected-backend"
+            document = {
+                "version": 1,
+                "endpoints": [stalled.endpoint, wrong.endpoint, good.endpoint],
+                "backend_identifier": good.backend_id,
+                "label": "Remote Test",
+                "ca_certificate_pem": None,
+                "access_key": None,
+            }
+            path = tmp_path / "remote.dokime-remote"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            client = DokimeClient.from_pairing(path)
+            try:
+                assert (await client.connect()).id == good.backend_id
+                assert client._transport._endpoint == good.endpoint
+                assert wrong.created == good.created == 0
+                await client._transport._channel.close()
+                client._transport._channel = None
+                client._transport.backend = None
+                # A remembered success stays first even if another endpoint becomes valid.
+                wrong.backend_id = good.backend_id
+                assert (await client.connect()).id == good.backend_id
+                assert client._transport._endpoint == good.endpoint
+            finally:
+                await client.close()
+            stalled.identity_gate.set()
+            document["endpoints"] = [wrong.endpoint, good.endpoint]
+            document["backend_identifier"] = "missing-backend"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            refused = DokimeClient.from_pairing(path)
+            try:
+                with pytest.raises(BackendChanged):
+                    await refused.connect()
+                assert refused._transport._channel is None
+            finally:
+                await refused.close()
 
     asyncio.run(scenario())
 
