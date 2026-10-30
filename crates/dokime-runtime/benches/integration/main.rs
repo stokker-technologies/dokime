@@ -9,6 +9,8 @@
 
 // Integration Benchmarks: Runtime Capture And Durable Plot Visibility
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
 mod capture;
 mod plots;
