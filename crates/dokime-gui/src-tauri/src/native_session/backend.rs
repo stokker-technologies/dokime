@@ -97,6 +97,13 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
     };
     let started = tokio::time::timeout(Duration::from_millis(DESKTOP_READINESS_TIMEOUT_MS), launch).await;
     let result = match started {
+        Ok(Err(host::Error::BackendRunning { root })) => {
+            let message = format!(
+                "The data folder {} is in use by another instance's backend. Connect to another or remote backend below, or close the other instance and retry Start Local Backend.",
+                root.display()
+            );
+            return Err(Error::BackendRunning { root, message });
+        }
         Ok(result) => result.map_err(|error| {
             let message = error.to_string();
             redact(&message[..message.floor_char_boundary(DESKTOP_STARTUP_DIAGNOSTIC_BYTES as usize)])

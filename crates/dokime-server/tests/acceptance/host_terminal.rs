@@ -233,8 +233,8 @@ async fn incompatible_storage_refused() {
     let mut config = dokime::config::Config::local(&fresh);
     config.application = Some(dokime::paths::ApplicationPaths::new(application));
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
-    let error = dokime_server::host::Error::launch(error, fresh);
-    assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");
+    let error = dokime_server::host::Error::launch(error, fresh.clone());
+    assert!(matches!(&error, dokime_server::host::Error::BackendRunning { root } if root == &fresh), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
     owner.close().await.unwrap();
 }
