@@ -120,9 +120,13 @@ async fn execution_seal_report_threaded() {
 #[tokio::test]
 async fn execution_seal_report_smoke() {
     stage(contention::contended_reads_interactive()).await;
+    stage(artifacts::chunked_artifact_rewrite()).await;
+}
+
+#[tokio::test]
+async fn execution_arrow_evidence_export() {
     stage(artifacts::saved_evidence_export()).await;
     stage(artifacts::required_evidence_files()).await;
-    stage(artifacts::chunked_artifact_rewrite()).await;
 }
 
 // Each Of These Stages Boots Its Own Embedded Runtime And Owns Process-Wide Fixture State.

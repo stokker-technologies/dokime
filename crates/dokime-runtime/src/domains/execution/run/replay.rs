@@ -7,7 +7,7 @@
  * ***
  */
 
-//! Replays Saved Execution Samples With Retained Decode And Signal Staging.
+//! Replays Typed Arrow Samples With Retained Signal Staging.
 
 /* === Modules === */
 
@@ -19,7 +19,7 @@
 use std::num::NonZeroU32;
 
 // Third Party Imports
-use harmos::storage::query::{StreamRead, StreamSelection};
+use harmos::storage::query::StreamSelection;
 
 // Local Imports
 use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
@@ -118,46 +118,35 @@ async fn replay_stream(
     if selected.next().is_some() {
         return Err(failed("saved replay schema is absent or ambiguous"));
     }
-    // Read Saved Envelopes Without An Arrow Projection And A Second Decode.
-    // The Reader Owns The Snapshot Pin And Configured Page Memory Admission.
-    let mut reader = context
-        .runtime
-        .storage()
-        .read_stream(StreamRead {
-            at: at.clone(),
-            selection: StreamSelection {
-                schema: codec.schema().clone(),
-                scope: Some(harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(failed)?),
-                item: None,
-                stream: Some(contract.stream.clone()),
-                source_start: None,
-                source_end: None,
-                after: *replayed,
-            },
-        })
-        .await
-        .map_err(failed)?;
+    let mut source = StreamSelection {
+        schema: codec.schema().clone(),
+        scope: Some(harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(failed)?),
+        item: None,
+        stream: Some(contract.stream.clone()),
+        source_start: None,
+        source_end: None,
+        after: *replayed,
+    };
     let mut scanned = *replayed;
-    while let Some(rows) = reader.next().await.map_err(failed)? {
-        let entries = rows
-            .try_map(|rows| {
-                let mut entries = Vec::new();
-                entries.try_reserve_exact(rows.len()).map_err(std::io::Error::other)?;
-                for row in rows {
-                    at.history.check(&row.record.position.history)?;
-                    let position = row.record.position.sequence;
-                    if position <= scanned || position > at.sequence {
-                        return Err(crate::storage::Error::Invalid("replay page differs from the saved cursor"));
-                    }
-                    scanned = position;
-                    let mut entry = codec.decode_stored(&row)?;
-                    // The Receiver Orders Each Stream By Its Saved Capture Ordinal.
-                    entry.sample.sequence = entry.ordinal;
-                    entries.push((position, entry));
-                }
-                Ok::<_, crate::storage::Error>(entries)
-            })
-            .map_err(failed)?;
+    loop {
+        let storage = context.runtime.storage();
+        let page = harmos::storage::ScanPage {
+            after: source.after,
+            rows: storage.settings().response.batch_rows,
+            bytes: storage.settings().response.batch_bytes,
+        };
+        let mut entries = context.runtime.local_storage.telemetry_read(at.clone(), source.clone(), page).await.map_err(failed)?;
+        if entries.is_empty() {
+            break;
+        }
+        for (position, entry) in &mut entries {
+            if *position <= scanned || *position > at.sequence {
+                return Err(failed("replay page differs from the saved cursor"));
+            }
+            scanned = *position;
+            source.after = scanned;
+            entry.sample.sequence = entry.ordinal;
+        }
         let mut offset = 0;
         while offset < entries.len() {
             let mut end = offset;

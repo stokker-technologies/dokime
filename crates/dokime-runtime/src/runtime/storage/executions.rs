@@ -66,6 +66,7 @@ pub(crate) struct TailStopPreparation {
 pub(crate) struct ExecutionStorage {
     pub(crate) schema_settings: harmos::config::SchemaSettings,
     pub(crate) storage: Manager,
+    pub(crate) local: crate::storage::sqlite::State,
     pub(super) state_manager: StateManager,
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
@@ -232,7 +233,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn new(
-        storage: Manager, state_manager: StateManager, context_epoch: SessionId,
+        storage: Manager, local: crate::storage::sqlite::State, state_manager: StateManager, context_epoch: SessionId,
         brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>, schema_settings: harmos::config::SchemaSettings,
         report_concurrency: std::num::NonZeroUsize,
     ) -> Result<Self> {
@@ -240,6 +241,7 @@ impl ExecutionStorage {
         Ok(Self {
             schema_settings,
             storage,
+            local,
             state_manager,
             context_epoch,
             brand,
@@ -459,7 +461,11 @@ impl ExecutionStorage {
                 through: report_boundary,
             })
         };
-        tokio::spawn(operation).await.map_err(|source| Error::Join { source })?
+        let captured = tokio::spawn(operation).await.map_err(|source| Error::Join { source })??;
+        if final_report {
+            self.local.finalize_telemetry(captured.execution.test_execution_id.to_string()).await?;
+        }
+        Ok(captured)
     }
 
     pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {

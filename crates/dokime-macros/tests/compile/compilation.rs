@@ -314,18 +314,6 @@ async fn prepare(_: sdk::plugin::Configuration, setup: &mut sdk::harmos::Setup<S
         )?);
         Ok(owner)
     }
-
-async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
 }
 
 impl Shared {
