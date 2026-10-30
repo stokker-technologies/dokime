@@ -281,3 +281,43 @@ async fn remote_candidates_require_identity_and_pinned_ca() {
     assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::IdentityChanged);
     assert!(session.connect(untrusted.remote(true, None)).await.is_err());
 }
+
+#[tokio::test]
+async fn remote_file_import_uses_the_saved_keyring_entry() {
+    let token = "synthetic-remote-import-key-01234567890123456789";
+    let mut service = Service::new("imported-backend");
+    service.token = Some(token.into());
+    let server = Listener::start(service, true, Ipv4Addr::LOCALHOST).await;
+    let mut request = server.remote(true, None);
+    let ca = match &request.target {
+        ConnectionTarget::Remote { ca_certificate_pem, .. } => ca_certificate_pem.clone(),
+        _ => unreachable!(),
+    };
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("client.dokime-remote");
+    let pairing = model::remote::PairingFile {
+        version: 1,
+        endpoints: vec![server.endpoint.trim_end_matches('/').to_owned()],
+        backend_identifier: "imported-backend".into(),
+        label: "Imported Client".into(),
+        ca_certificate_pem: ca,
+        access_key: Some(token.into()),
+    };
+    std::fs::write(&file, serde_json::to_vec(&pairing).unwrap()).unwrap();
+    let pairing = dokime::client::pairing::read(&file).unwrap();
+    let secrets = MemorySecrets::default();
+    let entries = secrets.0.clone();
+    let store = dokime::client::profiles::Store::new(root.path().join("backends.json"));
+    let profile = store.import_pairing(&pairing, "imported", &secrets).unwrap();
+    let selected = dokime::client::profiles::selection(&profile).unwrap();
+    assert!(entries.lock().unwrap().contains_key(&selected.credential_key()));
+    assert!(!std::fs::read_to_string(store.path()).unwrap().contains(token));
+    request.secrets = ConnectionSecrets::Profile { credential: selected.credential_key() };
+    request.expected_backend_id = Some(pairing.backend_identifier);
+    let session = ConnectionSession::with_secrets(Arc::new(secrets));
+    let connected = session.connect(request).await.unwrap();
+    assert_eq!(connected.backend.as_ref().unwrap().backend_id, "imported-backend");
+    assert!(!serde_json::to_string(&connected).unwrap().contains(token));
+    store.remember_endpoint(&selected, connected.endpoint.as_deref().unwrap()).unwrap();
+    session.disconnect().unwrap();
+}
