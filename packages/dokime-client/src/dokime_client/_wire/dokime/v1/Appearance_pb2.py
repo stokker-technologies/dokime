@@ -46,15 +46,21 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n.dokime_client/_wire/dokime/v1/Appearance.proto\x12\tdokime.v1\x1aMdokime_client/_wire/dokime/v1/AppearanceMessages/GetAppearance/messages.proto2\x81\x01\n\nAppearance\x12s\n\rGetAppearance\x12\x30.dokime.v1.AppearanceMessages.GetAppearance.Row1\x1a\x30.dokime.v1.AppearanceMessages.GetAppearance.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n.dokime_client/_wire/dokime/v1/Appearance.proto\x12\tdokime.v1\x1aMdokime_client/_wire/dokime/v1/AppearanceMessages/GetAppearance/messages.proto\"%\n#AppearanceGetAppearanceCancellation\"\x8c\x02\n\x1f\x41ppearanceGetAppearanceRunInput\x12L\n\x07request\x18\x01 \x01(\x0b\x32\x30.dokime.v1.AppearanceMessages.GetAppearance.Row1H\x00R\x07request\x12H\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32..dokime.v1.AppearanceGetAppearanceCancellationH\x00R\x06\x63\x61ncel\x12H\n\x06\x66inish\x18\x04 \x01(\x0b\x32..dokime.v1.AppearanceGetAppearanceCancellationH\x00R\x06\x66inishB\x07\n\x05value\"{\n AppearanceGetAppearanceRunOutput\x12N\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.AppearanceMessages.GetAppearance.Row2H\x00R\x08responseB\x07\n\x05value2\xf2\x01\n\nAppearance\x12s\n\rGetAppearance\x12\x30.dokime.v1.AppearanceMessages.GetAppearance.Row1\x1a\x30.dokime.v1.AppearanceMessages.GetAppearance.Row2\x12o\n\x10RunGetAppearance\x12*.dokime.v1.AppearanceGetAppearanceRunInput\x1a+.dokime.v1.AppearanceGetAppearanceRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Appearance_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_APPEARANCE']._serialized_start=141
-  _globals['_APPEARANCE']._serialized_end=270
+  _globals['_APPEARANCEGETAPPEARANCECANCELLATION']._serialized_start=140
+  _globals['_APPEARANCEGETAPPEARANCECANCELLATION']._serialized_end=177
+  _globals['_APPEARANCEGETAPPEARANCERUNINPUT']._serialized_start=180
+  _globals['_APPEARANCEGETAPPEARANCERUNINPUT']._serialized_end=448
+  _globals['_APPEARANCEGETAPPEARANCERUNOUTPUT']._serialized_start=450
+  _globals['_APPEARANCEGETAPPEARANCERUNOUTPUT']._serialized_end=573
+  _globals['_APPEARANCE']._serialized_start=576
+  _globals['_APPEARANCE']._serialized_end=818
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

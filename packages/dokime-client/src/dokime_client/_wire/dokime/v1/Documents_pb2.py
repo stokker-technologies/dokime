@@ -47,7 +47,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Documents.proto\x12\tdokime.v1\x1aUdokime_client/_wire/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages.proto\x1aQdokime_client/_wire/dokime/v1/DocumentsMessages/UpdatePlotSettings/messages.proto\"\xd8\x01\n%DocumentsCaptureCurrentDocumentOutput\x12N\n\x04item\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row3H\x00R\x04item\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row2H\x00R\x08responseB\x07\n\x05value2\x97\x02\n\tDocuments\x12\x86\x01\n\x16\x43\x61ptureCurrentDocument\x12\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row1\x1a\x30.dokime.v1.DocumentsCaptureCurrentDocumentOutput0\x01\x12\x80\x01\n\x12UpdatePlotSettings\x12\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row1\x1a\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Documents.proto\x12\tdokime.v1\x1aUdokime_client/_wire/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages.proto\x1aQdokime_client/_wire/dokime/v1/DocumentsMessages/UpdatePlotSettings/messages.proto\"\xd8\x01\n%DocumentsCaptureCurrentDocumentOutput\x12N\n\x04item\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row3H\x00R\x04item\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row2H\x00R\x08responseB\x07\n\x05value\"-\n+DocumentsCaptureCurrentDocumentCancellation\"\xac\x02\n\'DocumentsCaptureCurrentDocumentRunInput\x12T\n\x07request\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row1H\x00R\x07request\x12P\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x36.dokime.v1.DocumentsCaptureCurrentDocumentCancellationH\x00R\x06\x63\x61ncel\x12P\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x36.dokime.v1.DocumentsCaptureCurrentDocumentCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xdb\x01\n(DocumentsCaptureCurrentDocumentRunOutput\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row2H\x00R\x08response\x12N\n\x04item\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row3H\x00R\x04itemB\x07\n\x05value\")\n\'DocumentsUpdatePlotSettingsCancellation\"\x9c\x02\n#DocumentsUpdatePlotSettingsRunInput\x12P\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row1H\x00R\x07request\x12L\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x32.dokime.v1.DocumentsUpdatePlotSettingsCancellationH\x00R\x06\x63\x61ncel\x12L\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x32.dokime.v1.DocumentsUpdatePlotSettingsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x83\x01\n$DocumentsUpdatePlotSettingsRunOutput\x12R\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row2H\x00R\x08responseB\x07\n\x05value2\xa0\x04\n\tDocuments\x12\x86\x01\n\x16\x43\x61ptureCurrentDocument\x12\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row1\x1a\x30.dokime.v1.DocumentsCaptureCurrentDocumentOutput0\x01\x12\x88\x01\n\x19RunCaptureCurrentDocument\x12\x32.dokime.v1.DocumentsCaptureCurrentDocumentRunInput\x1a\x33.dokime.v1.DocumentsCaptureCurrentDocumentRunOutput(\x01\x30\x01\x12\x80\x01\n\x12UpdatePlotSettings\x12\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row1\x1a\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row2\x12|\n\x15RunUpdatePlotSettings\x12..dokime.v1.DocumentsUpdatePlotSettingsRunInput\x1a/.dokime.v1.DocumentsUpdatePlotSettingsRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -56,8 +56,20 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_start=231
   _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_end=447
-  _globals['_DOCUMENTS']._serialized_start=450
-  _globals['_DOCUMENTS']._serialized_end=729
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTCANCELLATION']._serialized_start=449
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTCANCELLATION']._serialized_end=494
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTRUNINPUT']._serialized_start=497
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTRUNINPUT']._serialized_end=797
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTRUNOUTPUT']._serialized_start=800
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTRUNOUTPUT']._serialized_end=1019
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSCANCELLATION']._serialized_start=1021
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSCANCELLATION']._serialized_end=1062
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSRUNINPUT']._serialized_start=1065
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSRUNINPUT']._serialized_end=1349
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSRUNOUTPUT']._serialized_start=1352
+  _globals['_DOCUMENTSUPDATEPLOTSETTINGSRUNOUTPUT']._serialized_end=1483
+  _globals['_DOCUMENTS']._serialized_start=1486
+  _globals['_DOCUMENTS']._serialized_end=2030
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -582,7 +582,7 @@ async fn listener_publishes_asked() {
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     tokio::time::advance(Duration::from_millis(100)).await;
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
-    invocation.cancel();
+    invocation.request_cancel();
     let cancelled = invocation.await;
     assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
     super::native::call_wire::<Noted>(&runtime.operations, "owned_stream", connected("SN-7")).await.unwrap();

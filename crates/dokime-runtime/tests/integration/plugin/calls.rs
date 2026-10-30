@@ -35,6 +35,7 @@ const TEMPLATE: &str = "calls.checks.probe";
 const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
     timeout: Duration::from_millis(20),
     attempt_timeout: Duration::from_millis(20),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
 };
 

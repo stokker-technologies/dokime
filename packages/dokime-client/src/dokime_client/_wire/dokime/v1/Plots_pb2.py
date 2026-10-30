@@ -48,17 +48,35 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Plots.proto\x12\tdokime.v1\x1aGdokime_client/_wire/dokime/v1/PlotsMessages/ListAnalyses/messages.proto\x1aIdokime_client/_wire/dokime/v1/PlotsMessages/QuerySnapshots/messages.proto\x1a@dokime_client/_wire/dokime/v1/PlotsMessages/Watch/messages.proto\"\x99\x01\n\x10PlotsWatchOutput\x12\x39\n\x04item\x18\x01 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row3H\x00R\x04item\x12\x41\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row2H\x00R\x08responseB\x07\n\x05value2\xaa\x02\n\x05Plots\x12\x66\n\x0cListAnalyses\x12*.dokime.v1.PlotsMessages.ListAnalyses.Row1\x1a*.dokime.v1.PlotsMessages.ListAnalyses.Row2\x12l\n\x0eQuerySnapshots\x12,.dokime.v1.PlotsMessages.QuerySnapshots.Row1\x1a,.dokime.v1.PlotsMessages.QuerySnapshots.Row2\x12K\n\x05Watch\x12#.dokime.v1.PlotsMessages.Watch.Row1\x1a\x1b.dokime.v1.PlotsWatchOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Plots.proto\x12\tdokime.v1\x1aGdokime_client/_wire/dokime/v1/PlotsMessages/ListAnalyses/messages.proto\x1aIdokime_client/_wire/dokime/v1/PlotsMessages/QuerySnapshots/messages.proto\x1a@dokime_client/_wire/dokime/v1/PlotsMessages/Watch/messages.proto\"\x1f\n\x1dPlotsListAnalysesCancellation\"\xf4\x01\n\x19PlotsListAnalysesRunInput\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32*.dokime.v1.PlotsMessages.ListAnalyses.Row1H\x00R\x07request\x12\x42\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32(.dokime.v1.PlotsListAnalysesCancellationH\x00R\x06\x63\x61ncel\x12\x42\n\x06\x66inish\x18\x04 \x01(\x0b\x32(.dokime.v1.PlotsListAnalysesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"o\n\x1aPlotsListAnalysesRunOutput\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.PlotsMessages.ListAnalyses.Row2H\x00R\x08responseB\x07\n\x05value\"!\n\x1fPlotsQuerySnapshotsCancellation\"\xfc\x01\n\x1bPlotsQuerySnapshotsRunInput\x12H\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.PlotsMessages.QuerySnapshots.Row1H\x00R\x07request\x12\x44\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32*.dokime.v1.PlotsQuerySnapshotsCancellationH\x00R\x06\x63\x61ncel\x12\x44\n\x06\x66inish\x18\x04 \x01(\x0b\x32*.dokime.v1.PlotsQuerySnapshotsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"s\n\x1cPlotsQuerySnapshotsRunOutput\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.PlotsMessages.QuerySnapshots.Row2H\x00R\x08responseB\x07\n\x05value\"\x99\x01\n\x10PlotsWatchOutput\x12\x39\n\x04item\x18\x01 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row3H\x00R\x04item\x12\x41\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row2H\x00R\x08responseB\x07\n\x05value\"\x18\n\x16PlotsWatchCancellation\"\xd8\x01\n\x12PlotsWatchRunInput\x12?\n\x07request\x18\x01 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row1H\x00R\x07request\x12;\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32!.dokime.v1.PlotsWatchCancellationH\x00R\x06\x63\x61ncel\x12;\n\x06\x66inish\x18\x04 \x01(\x0b\x32!.dokime.v1.PlotsWatchCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x9c\x01\n\x13PlotsWatchRunOutput\x12\x41\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row2H\x00R\x08response\x12\x39\n\x04item\x18\x01 \x01(\x0b\x32#.dokime.v1.PlotsMessages.Watch.Row3H\x00R\x04itemB\x07\n\x05value2\xc7\x04\n\x05Plots\x12\x66\n\x0cListAnalyses\x12*.dokime.v1.PlotsMessages.ListAnalyses.Row1\x1a*.dokime.v1.PlotsMessages.ListAnalyses.Row2\x12\x62\n\x0fRunListAnalyses\x12$.dokime.v1.PlotsListAnalysesRunInput\x1a%.dokime.v1.PlotsListAnalysesRunOutput(\x01\x30\x01\x12l\n\x0eQuerySnapshots\x12,.dokime.v1.PlotsMessages.QuerySnapshots.Row1\x1a,.dokime.v1.PlotsMessages.QuerySnapshots.Row2\x12h\n\x11RunQuerySnapshots\x12&.dokime.v1.PlotsQuerySnapshotsRunInput\x1a\'.dokime.v1.PlotsQuerySnapshotsRunOutput(\x01\x30\x01\x12K\n\x05Watch\x12#.dokime.v1.PlotsMessages.Watch.Row1\x1a\x1b.dokime.v1.PlotsWatchOutput0\x01\x12M\n\x08RunWatch\x12\x1d.dokime.v1.PlotsWatchRunInput\x1a\x1e.dokime.v1.PlotsWatchRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Plots_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PLOTSWATCHOUTPUT']._serialized_start=271
-  _globals['_PLOTSWATCHOUTPUT']._serialized_end=424
-  _globals['_PLOTS']._serialized_start=427
-  _globals['_PLOTS']._serialized_end=725
+  _globals['_PLOTSLISTANALYSESCANCELLATION']._serialized_start=270
+  _globals['_PLOTSLISTANALYSESCANCELLATION']._serialized_end=301
+  _globals['_PLOTSLISTANALYSESRUNINPUT']._serialized_start=304
+  _globals['_PLOTSLISTANALYSESRUNINPUT']._serialized_end=548
+  _globals['_PLOTSLISTANALYSESRUNOUTPUT']._serialized_start=550
+  _globals['_PLOTSLISTANALYSESRUNOUTPUT']._serialized_end=661
+  _globals['_PLOTSQUERYSNAPSHOTSCANCELLATION']._serialized_start=663
+  _globals['_PLOTSQUERYSNAPSHOTSCANCELLATION']._serialized_end=696
+  _globals['_PLOTSQUERYSNAPSHOTSRUNINPUT']._serialized_start=699
+  _globals['_PLOTSQUERYSNAPSHOTSRUNINPUT']._serialized_end=951
+  _globals['_PLOTSQUERYSNAPSHOTSRUNOUTPUT']._serialized_start=953
+  _globals['_PLOTSQUERYSNAPSHOTSRUNOUTPUT']._serialized_end=1068
+  _globals['_PLOTSWATCHOUTPUT']._serialized_start=1071
+  _globals['_PLOTSWATCHOUTPUT']._serialized_end=1224
+  _globals['_PLOTSWATCHCANCELLATION']._serialized_start=1226
+  _globals['_PLOTSWATCHCANCELLATION']._serialized_end=1250
+  _globals['_PLOTSWATCHRUNINPUT']._serialized_start=1253
+  _globals['_PLOTSWATCHRUNINPUT']._serialized_end=1469
+  _globals['_PLOTSWATCHRUNOUTPUT']._serialized_start=1472
+  _globals['_PLOTSWATCHRUNOUTPUT']._serialized_end=1628
+  _globals['_PLOTS']._serialized_start=1631
+  _globals['_PLOTS']._serialized_end=2214
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

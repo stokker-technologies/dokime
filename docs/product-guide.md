@@ -131,6 +131,12 @@ Settings → Remote Access owns the saved listener settings and explicit restart
 Management is available only through the native local listener. TLS and
 access-key authentication are independent; disable either only in an isolated lab.
 Use a concrete reachable endpoint whose hostname or IP matches the certificate.
+Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
+port and specific address, or its certificate names for a wildcard listener.
+Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
+The listener's port appears beside the field, including for local Python clients.
+Review that the suggested address is reachable from the client. Rejected pairing
+requests show the host's concrete reason beside the endpoint and in Notifications.
 
 Choose **Create Pairing File**, enter a client label and advertised endpoint,
 and select a destination. Cancellation creates no key. Dokime saves one private
@@ -739,6 +745,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 

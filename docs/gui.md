@@ -30,6 +30,26 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+## Keyboard Focus And Theme Colors
+
+Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
+`--destructive` and the organization palette's required `--ring` token. Tailwind's
+`ring-ring`, `border-ring` and `outline-ring` utilities all use `--focus-ring`.
+Invalid controls continue to use `--destructive`.
+
+Organization packs may set `--focus-ring` in `theme/light.css` and `theme/dark.css`;
+theme families may supply `focus-ring` in their shared or mode-specific variable
+maps, with the mode taking precedence. Organization materialization retains these
+custom properties. Without an explicit focus color, both the desktop and report
+renderer use deep blue `#00205b` in light mode and pale blue `#93c5fd` in dark mode,
+even when the brand primary, palette ring and destructive colors are red.
+
+Custom focus colors must remain visually distinct from destructive/error colors
+and red brand primaries. Verify WCAG non-text contrast of at least 3:1 against the
+adjacent surfaces in both modes, including the 50% opacity used by focus rings.
+The defaults meet this threshold on the bundled background, card and popover
+surfaces; packs that change those surfaces must verify their focus contrast.
+
 ## Units In Labels
 
 Labels and titles show units in square brackets on the same line, for example
@@ -47,6 +67,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
   select the build's `cargo-dokime` executable, export `bindings proto` and feed
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
+  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
+  Harmos's additional managed `Run…` RPCs remain transport projections.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a

@@ -234,8 +234,8 @@ def from_contract(
             service_file,
             f"{service}{method}Input",
             [
-                ("request", direction_types["request"]),
-                ("item", direction_types["input"]),
+                ("request", 1, direction_types["request"]),
+                ("item", 2, direction_types["input"]),
             ],
         )
     if "output" in direction_types:
@@ -243,16 +243,39 @@ def from_contract(
             service_file,
             f"{service}{method}Output",
             [
-                ("item", direction_types["output"]),
-                ("response", direction_types["response"]),
+                ("item", 1, direction_types["output"]),
+                ("response", 2, direction_types["response"]),
             ],
         )
-    service_file.service.add(name=service).method.add(
+    definition = service_file.service.add(name=service)
+    definition.method.add(
         name=method,
         input_type=f".{rpc_request}",
         output_type=f".{rpc_response}",
         client_streaming="input" in direction_types,
         server_streaming="output" in direction_types,
+    )
+    cancellation = f"{service}{method}Cancellation"
+    service_file.message_type.add(name=cancellation)
+    cancellation = f"{package}.{cancellation}"
+    incoming = [
+        ("request", 1, direction_types["request"]),
+        ("cancel", 3, cancellation),
+        ("finish", 4, cancellation),
+    ]
+    if "input" in direction_types:
+        incoming.append(("item", 2, direction_types["input"]))
+    outgoing = [("response", 2, direction_types["response"])]
+    if "output" in direction_types:
+        outgoing.append(("item", 1, direction_types["output"]))
+    run_request = _envelope(service_file, f"{service}{method}RunInput", incoming)
+    run_response = _envelope(service_file, f"{service}{method}RunOutput", outgoing)
+    definition.method.add(
+        name=f"Run{method}",
+        input_type=f".{run_request}",
+        output_type=f".{run_response}",
+        client_streaming=True,
+        server_streaming=True,
     )
     serialized = file.SerializeToString()
     if len(serialized) > max_bytes:
@@ -296,6 +319,8 @@ def from_contract(
         grpc_path=f"/{package}.{service}/{method}",
         rpc_request=GetMessageClass(pool.FindMessageTypeByName(rpc_request)),
         rpc_response=GetMessageClass(pool.FindMessageTypeByName(rpc_response)),
+        run_request=GetMessageClass(pool.FindMessageTypeByName(run_request)),
+        run_response=GetMessageClass(pool.FindMessageTypeByName(run_response)),
         contract=encoded,
         fingerprint=fingerprint,
     )
@@ -314,10 +339,10 @@ def _available(name: str, names: set[str]) -> str:
     return name
 
 
-def _envelope(file: pb.FileDescriptorProto, name: str, alternatives: list[tuple[str, str]]) -> str:
+def _envelope(file: pb.FileDescriptorProto, name: str, alternatives: list[tuple[str, int, str]]) -> str:
     row = file.message_type.add(name=name)
     row.oneof_decl.add(name="value")
-    for index, (field, message) in enumerate(alternatives, 1):
+    for field, index, message in alternatives:
         row.field.add(
             name=field,
             number=index,
