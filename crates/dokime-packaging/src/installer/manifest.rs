@@ -146,8 +146,7 @@ impl Manifest {
 
     pub fn read(path: &Path) -> Result<Self, Error> {
         let text = std::fs::read_to_string(path)?;
-        let mut manifest: Self =
-            toml::from_str(&text).map_err(|_| Error::Invalid("invalid installer manifest; check TOML syntax and supported keys".into()))?;
+        let mut manifest: Self = toml::from_str(&text).map_err(|error| parse_error(path, &error))?;
         let base = path.parent().unwrap_or(Path::new("."));
         manifest.validate_plugins()?;
         if let Some(folder) = &mut manifest.installer.organization {
@@ -221,6 +220,17 @@ impl Manifest {
 
 /* === Private Functions === */
 
+fn parse_error(path: &Path, error: &toml::de::Error) -> Error {
+    let key = error.message().strip_prefix("unknown field `").and_then(|message| message.split('`').next());
+    let hint = match key {
+        Some("release_url" | "sha256") => "\nhint: select the release with [dokime] version instead of release_url and sha256.",
+        Some("external_plugins") => "\nhint: use top-level [[plugin]] entries with path instead of [[dokime.external_plugins]].",
+        Some("plugins") => "\nhint: use top-level [[plugin]] entries with name or path instead of [dokime] plugins.",
+        _ => "",
+    };
+    Error::Invalid(format!("invalid installer manifest {}: {error}{hint}", path.display()))
+}
+
 fn native_target() -> String {
     dokime::plugins::NATIVE_TARGET.into()
 }
@@ -232,6 +242,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn manifest_parse_diagnostics() {
+        let path = Path::new("company/installer.toml");
+        for (entry, key, replacements) in [
+            ("release_url='https://example.test/archive.zip'", "release_url", &["[dokime]", "version"][..]),
+            ("sha256='digest'", "sha256", &["[dokime]", "version"][..]),
+            ("plugins=['opaque-name']", "plugins", &["[[plugin]]", "name", "path"][..]),
+            ("[[dokime.external_plugins]]\npath='plugin.dokime'", "external_plugins", &["[[plugin]]", "path"][..]),
+            ("unexpected=true", "unexpected", &[][..]),
+            ("target=42", "target", &[][..]),
+            ("target=[", "target", &[][..]),
+        ] {
+            let text = format!("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n{entry}");
+            let source = toml::from_str::<Manifest>(&text).unwrap_err();
+            assert!(source.span().is_some());
+            let error = parse_error(path, &source).to_string();
+            assert!(error.contains(&path.display().to_string()), "{error}");
+            assert!(error.contains(key), "{error}");
+            assert!(error.contains("line 5, column"), "{error}");
+            assert!(error.contains(&source.to_string()), "{error}");
+            for replacement in replacements {
+                assert!(error.contains(replacement), "{error}");
+            }
+        }
+    }
+
+    #[test]
     fn release_manifest() {
         let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n[[plugin]]\nname='opaque-name'\n[[plugin]]\npath='plugins/plugin.dokime'";
         let manifest: Manifest = toml::from_str(text).unwrap();
@@ -239,16 +275,6 @@ mod tests {
         assert_eq!(manifest.dokime.version(), env!("CARGO_PKG_VERSION"));
         assert_eq!(manifest.plugin[0].name.as_deref(), Some("opaque-name"));
         assert_eq!(manifest.plugin[1].path.as_deref(), Some(Path::new("plugins/plugin.dokime")));
-
-        for retired in [
-            "release_url='https://example.test/archive.zip'",
-            "sha256='digest'",
-            "plugins=['opaque-name']",
-            "[[dokime.external_plugins]]\npath='plugin.dokime'",
-        ] {
-            let text = format!("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n{retired}");
-            assert!(toml::from_str::<Manifest>(&text).is_err());
-        }
     }
 
     #[test]
