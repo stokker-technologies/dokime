@@ -151,7 +151,7 @@ fn foreign_stream() -> Identifier {
     Identifier::new("gateway.rssi").expect("a fixture stream is addressable")
 }
 
-// Published By Its Owner Without A Cadence: Nothing Samples It, So Nothing Leases It.
+// Published Without A Sampling Declaration Or Observer: Nothing Leases It.
 fn published_stream() -> Identifier {
     Identifier::new("gateway.status").expect("a fixture stream is addressable")
 }
@@ -288,6 +288,8 @@ pub(crate) async fn declared_streams_independent() {
     let missing_host = Identifier::new("host.system").unwrap();
     let declared = [published_stream(), foreign_stream(), unknown.clone(), missing_host.clone()];
 
+    let published = handle.lease_streams(scope_of(&execution), &[published_stream()], "bench").await;
+    assert!(published.is_err(), "a publisher with neither sampling nor an observer does not acquire a lease");
     let leased = handle.lease_declared_streams(scope_of(&execution), &declared, "bench").await.unwrap();
     assert_eq!(leased.leases.len(), 1);
     assert_eq!(leased.published, [published_stream()]);
@@ -374,6 +376,7 @@ pub(crate) async fn two_holds_reading() {
     let root = tempdir().expect("a temporary root");
     let mut runtime = runtime(root.path()).await;
     let handle = runtime.handle();
+    assert!(handle.watch_state().latest().state().telemetry_definitions[&stream()].interval.is_none());
     let unscoped = || SamplingScope {
         test_cycle_id: None,
         test_case_id: None,

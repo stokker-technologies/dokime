@@ -70,16 +70,6 @@ pub enum HostTelemetryStream {
 /* === Implementations === */
 
 impl HostTelemetryStream {
-    // The One Source Of Each Host Stream's Default Cadence.
-    pub const fn interval(self) -> dokime_domain::model::time::DurationMillis {
-        dokime_domain::model::time::DurationMillis(match self {
-            Self::System | Self::Network | Self::WifiLink => 1_000,
-            Self::Bluetooth => 5_000,
-            Self::WifiLatency => 10_000,
-            Self::WifiScan => 60_000,
-        })
-    }
-
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::System => "host.system",

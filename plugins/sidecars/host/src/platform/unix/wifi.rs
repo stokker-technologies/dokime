@@ -135,8 +135,8 @@ pub(crate) fn nmcli_wifi_rows(rescan: bool, timeout: Duration) -> Result<Vec<Nmc
     Ok(stdout.lines().filter_map(NmcliWifiRow::parse).collect())
 }
 
-pub(crate) fn wireless_link(interface: &str) -> Option<WifiLinkReport> {
-    match iw_links(crate::host::wifi_link::POLICY.attempt_timeout) {
+pub(crate) fn wireless_link(interface: &str, timeout: Duration) -> Option<WifiLinkReport> {
+    match iw_links(timeout) {
         Ok(mut links) => links.remove(interface),
         Err(_) => {
             let wireless = fs::read_to_string(PROC_NET_WIRELESS).ok()?;

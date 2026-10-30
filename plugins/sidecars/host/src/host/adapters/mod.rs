@@ -41,7 +41,7 @@ pub use windows::snapshot;
 /* === Structs === */
 
 #[dokime::operation(id = "host.network.adapters", response = Snapshot, policy = super::network::POLICY, visibility = Public,
-    resources = [crate::Workers])]
+    resources = [crate::HostOptions, crate::Workers])]
 #[derive(Clone, Default, PartialEq)]
 pub struct Adapters {}
 
@@ -79,7 +79,7 @@ pub struct Address {
 }
 
 #[dokime::operation(id = "host.network.adapters.capture", response = dokime::operations::effects::StartEvidence, policy = super::network::POLICY, visibility = Host,
-    resources = [crate::Workers])]
+    resources = [crate::HostOptions, crate::Workers])]
 #[derive(Clone, Default, PartialEq)]
 pub struct CaptureAdapters {}
 

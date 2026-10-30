@@ -53,8 +53,8 @@ pub struct Notifications {
 /* === Implementations === */
 
 impl Notifications {
-    pub fn new() -> crate::Result<Self> {
-        let links = crate::host::adapters::snapshot()?
+    pub fn new(timeout: std::time::Duration) -> crate::Result<Self> {
+        let links = crate::host::adapters::snapshot(timeout)?
             .adapters
             .into_iter()
             .map(|adapter| (adapter.id, adapter.status == crate::host::adapters::AdapterStatus::Up))

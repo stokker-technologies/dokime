@@ -53,9 +53,11 @@ impl Resources {
     {
         let settings = config.settings::<crate::Settings>();
         let settings = dokime::plugin::refusal(settings)?;
-        let options = HostOptions::from(settings.probes);
+        let options = HostOptions::from(settings);
 
-        let controls = Arc::new(host::controls::State::new(P::ID));
+        setup.resource::<HostOptions>(Arc::new(options.clone()));
+
+        let controls = Arc::new(host::controls::State::new(P::ID, options.timing.clone()));
         setup.resource::<host::controls::State>(controls.clone());
 
         let tracker = TaskTracker::new();
@@ -63,9 +65,10 @@ impl Resources {
         setup.resource::<Workers>(workers.clone());
 
         // Calibrate Once At Plugin Start, Away From The Async Runtime Thread.
-        let task = workers.0.spawn_blocking(|| {
-            let mut collector = collectors::system::SystemCollector::new()?;
-            collector.calibrate_cpu(host::system::POLICY.attempt_timeout / 2)?;
+        let system_options = options.clone();
+        let task = workers.0.spawn_blocking(move || {
+            let mut collector = collectors::system::SystemCollector::new(system_options.clone())?;
+            collector.calibrate_cpu(std::time::Duration::from_millis(system_options.timing.cpu_calibration_ms))?;
             Ok::<_, crate::Error>(collector)
         });
         let collector = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
@@ -73,7 +76,7 @@ impl Resources {
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::system::State>>(state);
 
-        let collector = dokime::plugin::refusal(collectors::network::NetworkCollector::new())?;
+        let collector = dokime::plugin::refusal(collectors::network::NetworkCollector::new(options.clone()))?;
         let state = host::network::State { collector };
         let state = Arc::new(Mutex::new(state));
         setup.resource::<Mutex<host::network::State>>(state);

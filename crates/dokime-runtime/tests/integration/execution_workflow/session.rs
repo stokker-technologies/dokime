@@ -626,6 +626,21 @@ pub(crate) async fn live_replay_settles() {
     assert!(!log.contains("did not acknowledge its final row"), "{log}");
     assert_eq!(execution.status, ExecutionStatus::Passed, "{log}");
     assert!(host_rows(&handle).await > 0, "host collection ran while the run held its lease");
+    let captured = handle
+        .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![identifier("host.system").into()],
+            scope: dokime_runtime::domains::evidence::ScopeSelection {
+                test_execution_id: Some(execution.test_execution_id.clone()),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(!captured.is_empty(), "the observer stream is retained under the execution's lease without a nominal cadence");
+    let leases = handle.stream_leases_for(&execution.scope).await;
+    assert_eq!(leases.len(), 1);
+    assert!(leases[0].closed_at.is_some());
     handle.release_stream_leases(viewing).await.unwrap();
     probe.runtime.lock().unwrap().take();
     drop(handle);
