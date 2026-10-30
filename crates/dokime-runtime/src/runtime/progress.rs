@@ -77,7 +77,6 @@ struct Owner {
     registry: Weak<OperationRegistry>,
     operation_id: String,
     report_work: Arc<tokio::sync::Semaphore>,
-    report_groups: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Default)]
@@ -147,7 +146,6 @@ impl OperationRegistry {
                 registry: Arc::downgrade(self),
                 operation_id,
                 report_work: Arc::new(tokio::sync::Semaphore::new(8)),
-                report_groups: Arc::new(tokio::sync::Semaphore::new(4)),
             }),
         }
     }
@@ -245,10 +243,6 @@ impl OperationWatch {
 }
 
 impl Operation {
-    pub(crate) async fn report_group(&self) -> tokio::sync::OwnedSemaphorePermit {
-        self.owner.report_groups.clone().acquire_owned().await.expect("report group gate remains open")
-    }
-
     pub(crate) async fn report_work(&self) -> tokio::sync::OwnedSemaphorePermit {
         self.owner.report_work.clone().acquire_owned().await.expect("report work gate remains open")
     }

@@ -195,10 +195,6 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<crate::evidence_runtime::TelemetryStreamSummary>>> {
         let session = self.storage();
         let at = session.cursor_saved();
-        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |id, _| {
-            crate::storage::telemetry::selected_schema(id, &[])
-        })
-        .await?;
         let mut summaries = EvidenceSummaries::default();
         let mut after = 0;
         loop {
@@ -206,13 +202,9 @@ impl RuntimeHandle {
             if page.is_empty() {
                 break;
             }
-            for row in page {
-                after = row.record.position.sequence;
-                let codec = codecs
-                    .iter()
-                    .find(|codec| codec.schema() == &row.record.schema)
-                    .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
-                let mut sample = codec.decode_stored(&row)?.sample;
+            for (position, entry) in page {
+                after = position;
+                let mut sample = entry.sample;
                 sample.sequence = after;
                 summaries.record_telemetry_sample(&sample);
             }
@@ -268,6 +260,11 @@ impl RuntimeHandle {
         use harmos::storage::{ObjectRead, query::ObjectVersions};
         let mut sealed = false;
         if let Some(id) = &selection.scope.test_execution_id {
+            let intent = self.state_read().report_finalizations.get(id).filter(|intent| intent.lifecycle.is_some()).cloned();
+            if let Some(intent) = intent {
+                sealed = at.covers(&intent.evidence_at)?;
+            }
+
             let mut rows = session
                 .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
                     at: at.clone(),

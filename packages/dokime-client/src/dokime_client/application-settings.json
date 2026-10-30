@@ -5,12 +5,16 @@
     "density": "comfortable"
   },
   "report": {
+    "source_bytes": 67108864,
+    "value_depth": 128,
+    "table_rows": 32,
     "plot_points": 2000,
     "plot_downsample": "auto"
   },
   "client": {
     "connect_timeout_ms": 10000,
-    "request_timeout_ms": 30000
+    "request_timeout_ms": 30000,
+    "endpoint_stagger_ms": 250
   },
   "telemetry": {
     "interval_ms": 1000

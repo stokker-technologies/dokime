@@ -16,6 +16,7 @@ mod list_paired_clients;
 mod list_sessions;
 mod read_listener;
 mod regenerate_certificate;
+mod rename_paired_client;
 mod revoke_paired_client;
 mod update_listener;
 
@@ -26,6 +27,7 @@ pub use list_paired_clients::ListPairedClients;
 pub use list_sessions::ListSessions;
 pub use read_listener::ReadListener;
 pub use regenerate_certificate::RegenerateCertificate;
+pub use rename_paired_client::RenamePairedClient;
 pub use revoke_paired_client::RevokePairedClient;
 pub use update_listener::UpdateListener;
 
@@ -58,6 +60,7 @@ pub enum Operations {
     RevokePairedClient(RevokePairedClient),
     RegenerateCertificate(RegenerateCertificate),
     ListSessions(ListSessions),
+    RenamePairedClient(RenamePairedClient),
 }
 
 /* === Traits === */
@@ -96,6 +99,11 @@ impl Endpoint for ListSessions {
 
 impl Endpoint for RegenerateCertificate {
     const PATH: &'static str = "/dokime.v1.Remote/RegenerateCertificate";
+    const LOCAL_ONLY: bool = true;
+}
+
+impl Endpoint for RenamePairedClient {
+    const PATH: &'static str = "/dokime.v1.Remote/RenamePairedClient";
     const LOCAL_ONLY: bool = true;
 }
 

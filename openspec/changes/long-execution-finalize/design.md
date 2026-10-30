@@ -17,19 +17,46 @@ data deletion.
   plugins; the counted integration story verifies this existing ordering.
 - `domains/telemetry/output.rs` originally scanned and decoded each stream for
   every numeric field at completion, calculating ten aggregates independently.
-- `report/materialize.rs` still reads all records and telemetry, then replays spilled
-  input per plot. `report/query/plots.rs` explicitly disables point reduction.
+- `report/materialize.rs` formerly scanned raw history and replayed spilled plot
+  inputs. Durable envelopes and indexed first/last reads replace that pipeline.
 - Telemetry signal and record capture foreign keys reference evidence positions,
   but their original primary keys start with other columns. Metadata retirement
   therefore scans accumulated evidence children. Dedicated position indexes make
   each check and cascade visit only matching children.
 
-## Decision Pending
+## Bounded Report Inputs
 
-Existing reports embed all records/full-resolution plot points. Keeping that
-output exactly conflicts with bounded report size. The recommended rule bounds
-rendered data, keeps exact summaries and retains complete raw evidence separately;
-existing document tables and transformed/analysis plots need the same policy.
+Owner decisions locked on 2026-10-30 replace full-history report presentation.
+`storage/sqlite/data/telemetry/previews.rs` maintains a configured maximum number
+of adaptive time buckets per execution/stream/numeric field. Doubling bucket
+intervals merges first/last/min/max/count without losing extrema. Updates share
+the raw sample and exact-aggregate transaction; exact retries update none twice.
+Report plots fit those envelopes to their configured display-point budget. Raw
+stream and record tables seek indexed first/last rows with configured limits.
+Reports identify the execution and evidence frontier for retrieving complete data.
+
+Unfiltered numeric summaries and built-in mean analysis read exact moments/ranks,
+including arbitrary requested percentiles. History-dependent transformations,
+filters, grouping, correlations, repeated sections and non-time plots without an
+incremental index are explicitly unavailable, with the retained evidence identified.
+Old evidence cuts whose mutable preview has advanced are refused; no raw replay
+is a fallback. Presentation settings are construction snapshots owned by SQLite
+and report defaults, including byte/depth budgets. Lifecycle metadata and file
+inventories retain complete captured ownership and scale with their own cardinality.
+Fresh v1 roots are required; no migration or reset occurs.
+
+## Background Publication
+
+Provider completion and Stop/Cancel close and drain capture, freeze the terminal
+execution revision and durably record its report intent. A retained background job
+publishes and seals HTML afterwards. The existing durable intent owns pending or
+failed publication; a durable execution seal means ready. Execution detail exposes
+that state and failure cause through the shared generated contract. GUI displays
+it; CLI and Python snapshots expose it. Downloads and evidence saves join readiness.
+Publication failure cannot change the provider outcome or fail a repeated Stop.
+Shutdown cancels presentation after evidence settlement, joins any already-started
+durable publication, and preserves unfinished intents; startup resumes without
+rerunning providers.
 
 ## Incremental Numeric Index
 
@@ -62,5 +89,6 @@ the same acknowledged byte frontier makes subsequent cleanup idempotent.
 Deterministic default-cadence host streams plus OBC-like data, records, logs,
 traceability and documents at one hour and four times that volume. Compare actual
 Stop-to-seal, Cancel-to-settled and report/save measurements separately. Physical
-drain counts prove concurrency, re-entry and cancelled-waiter behavior. Full check
-and format follow source closure, with focused tests throughout. Commit only.
+drain counts prove concurrency, re-entry and cancelled-waiter behavior. Requested
+workspace checks and format follow source closure, with focused tests throughout.
+Commit only.

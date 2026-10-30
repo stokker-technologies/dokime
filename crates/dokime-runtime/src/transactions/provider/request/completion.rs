@@ -78,9 +78,13 @@ impl Transaction<RuntimeState> for CompleteRun {
             if unsealed.execution_ids.iter().any(|id| !members.contains(id)) {
                 return Err("unsealed executions differ from cycle membership".into());
             }
-        } else if request.selected_execution_ids.iter().any(|id| state.executions.get(id).is_none_or(|execution| execution.saved.is_none()))
-        {
-            return Err("completed request requires every selected execution seal".into());
+        } else if request.selected_execution_ids.iter().any(|id| {
+            state.executions.get(id).is_none_or(|execution| {
+                execution.finished_at.is_none()
+                    || (execution.saved.is_none() && !state.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some()))
+            })
+        }) {
+            return Err("completed request requires drained execution evidence and a durable report intent".into());
         }
         Ok(())
     }

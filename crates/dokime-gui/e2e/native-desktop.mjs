@@ -2913,11 +2913,9 @@ async function remoteAccessJourney() {
     assert.ok(![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)));
   };
   const createPairing = async (identifier, address) => {
-    await session.type(await input("Label"), identifier);
-    await session.type(await input("Reachable Endpoint"), address);
-    const path = join(await realpath(work), `${identifier}.dokime-pair`);
-    const saved = await notice("Pairing File Saved", async () => {
-      await session.clickNamed("button", "Create Pairing File");
+    const path = join(await realpath(work), `${identifier}.dokime-remote`);
+    const saved = await notice("Remote Access File Saved", async () => {
+      await session.clickNamed("button", "Export Remote Access");
       const picker = { window: null };
       await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), 120000);
     });
@@ -2925,9 +2923,12 @@ async function remoteAccessJourney() {
     assert.ok(hasText(saved, path), `The pairing file is saved where the operator chose: ${normalize(saved)}`);
     const pairing = JSON.parse(await readFile(path, "utf8"));
     assert.equal(pairing.version, 1);
-    assert.equal(pairing.endpoint, address);
+    assert.deepEqual(pairing.endpoints, [address]);
+    await session.clickNamed("button", pairing.label);
+    await session.type(await session.find("css selector", '[aria-label="Client Label"]'), identifier);
+    await session.clickNamed("button", "Rename");
     if (pairing.access_key) secrets.add(pairing.access_key);
-    await cli(["backend", "add", "--pairing", path, "--identifier", identifier, "--profiles-file", profiles]);
+    await cli(["backend", "add", "--remote", path, "--identifier", identifier, "--profiles-file", profiles]);
     return path;
   };
 
@@ -2965,10 +2966,14 @@ async function remoteAccessJourney() {
   await session.clickNamed("button", "Add Backend");
   const identifier = await until("backend identifier", () => session.find("css selector", '[aria-label="Backend Identifier"]'));
   await session.type(identifier, "desktop-pairing");
-  await session.clickNamed("button", "Import Pairing File");
+  await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
   const importPicker = { window: null };
   await until("native pairing import", () => chooseNativeFile(importPicker, first), 120000);
   await until("imported backend", async () => hasText(await session.text(), "desktop-pairing"));
+
+  await closeSession();
+  session = await startSession(work, backend.endpoint, evidence);
+  await session.connected();
 
   // A Failed Bind Preserves The Existing Listener.
   await session.goto("/settings/remote");
@@ -3045,11 +3050,11 @@ async function remoteAccessJourney() {
   assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
   await until("revocation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
-  // Regenerating The Certificate Requires A New Pairing Trust Anchor.
+  // Reissuing The Leaf Preserves The Existing CA Trust Anchor.
   await session.goto("/settings/remote");
   await showAdvanced();
   await regenerate();
-  await connect("desktop-second", false);
+  await connect("desktop-second", true);
   await createPairing("desktop-regenerated", address);
   await connect("desktop-regenerated", true);
 
@@ -3269,21 +3274,26 @@ async function settingsJourney(session, notes) {
     await session.clickNamed("button", "Add Backend");
     await session.type(await field("Backend Identifier"), name);
     if (identity) {
-      const pairing = join(work, `${name}-pairing.json`);
+      const pairing = join(work, `${name}.dokime-remote`);
       await writeFile(
         pairing,
         JSON.stringify({
           version: 1,
-          endpoint: new URL(endpoint).origin,
+          endpoints: [new URL(endpoint).origin],
           backend_identifier: identity,
           label: name,
           ca_certificate_pem: null,
           access_key: null,
         }),
       );
-      await session.clickNamed("button", "Import Pairing File");
+      await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
       const picker = { window: null };
       await until("native identity pairing import", () => chooseNativeFile(picker, pairing), 120000);
+      await until("identity mismatch refuses the imported connection", async () => {
+        const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+        return status.connection.phase === "failed";
+      });
+      await session.goto("/settings/backends");
     } else {
       await session.type(await session.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"), name);
       await session.type(await field("Backend Endpoint"), endpoint);

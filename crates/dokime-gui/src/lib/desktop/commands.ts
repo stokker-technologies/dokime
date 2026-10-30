@@ -48,7 +48,7 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
 /* === Public Constants === */
 
 export const commands = {
-  desktopPairingCreate: (label: string, endpoint: string) => invoke<string | null>("desktop_pairing_create", { label, endpoint }),
+  desktopPairingCreate: () => invoke<string | null>("desktop_pairing_create"),
   /** Secret-free native launch preferences. */
   desktopSessionLaunch: () => invoke<DesktopLaunch>("desktop_session_launch"),
   /** Select the native desktop backend. */

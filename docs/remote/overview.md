@@ -127,15 +127,14 @@ its Active cycles.
 Use the host's connected local desktop session, then open
 **Settings → Remote Access**.
 
-1. Find the host's LAN IP address in its operating system's network settings.
-   The examples below use `192.168.1.50`; replace it with that actual address.
-   `127.0.0.1` on the remote PC would refer to the remote PC itself.
-2. Enable remote access, TLS and authentication. Set the bind address to
-   `0.0.0.0:8766` and certificate identities to the host's actual IP or DNS name.
-   Apply the settings and wait for a successful listening state.
-3. Allow that TCP port through the host firewall for the intended lab network.
-4. Choose **Create Pairing File**, enter a client label and the reachable
-   advertised endpoint, such as `https://192.168.1.50:8766`. Save `lab.dokime-pair`.
+1. Choose **Export Remote Access** and confirm enablement if the listener is off.
+   It uses the saved port, or 8765 by default, and detects the hostname and real
+   interface addresses automatically. Save `lab.dokime-remote`.
+2. Treat this file as a secret. Transfer it privately to the other PC. Loopback
+   addresses work on the same PC only.
+3. The Windows installer configures a Private-network inbound application rule
+   (administrator confirmation required). On Linux, allow the listener port
+   through the host firewall. Advanced listener settings can change that port.
 
 Transfer that pairing file privately to `remote-demo/` on the remote computer.
 It contains a one-time access key and public CA certificate; keep the file private.
@@ -147,7 +146,7 @@ revoke a lost client's entry in **Paired Clients**. Revocation leaves other clie
 Import the pairing once into the native registry; its credential goes to the OS keyring:
 
 ```sh
-dokime backend add --pairing lab.dokime-pair --identifier lab
+dokime backend add --remote lab.dokime-remote --identifier lab
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime catalog list --backend lab --json
@@ -157,7 +156,9 @@ Status must report `ready`. Discovery must include `obc.device.read`,
 `obc.device.set_power` and the `obc.checks.pulse` template. The client checks both
 the TLS certificate and expected backend identity before calling application operations.
 Python scripts use `DokimeClient.from_pairing` and keep the credential only in
-that client's transport. Importing a pairing does not connect or change the default backend.
+that client's transport. CLI remote import verifies the connection; GUI import also connects and selects
+the new backend. Python constructs a client first, connecting on `async with` or
+`await client.connect()`.
 
 ## Run The Three Workflows
 
@@ -171,7 +172,7 @@ Choose one family:
 
 Edit the globals at the top of each selected script. Native CLI scripts use
 `BACKEND_IDENTIFIER = lab` after the import above. Python scripts use
-`PAIRING_FILE = Path("../lab.dokime-pair")` when run inside `python/`.
+`PAIRING_FILE = Path("../lab.dokime-remote")` when run inside `python/`.
 Paths resolve relative to the terminal's working directory. Run scripts without arguments.
 
 `control-device` reads the manual device, powers it on, verifies its 230 V RMS
@@ -228,7 +229,9 @@ after restarting or reconnecting to the same server without rerunning hardware.
 
 Extract one evidence ZIP into its own new directory, for example
 `unpacked-test/`. It contains `manifest.json`, `evidence.sqlite`,
-`files/` when the execution captured files, and saved HTML under `reports/`.
+`artifacts/` for captured files, `telemetry/` for Arrow IPC files, and saved HTML
+under `reports/`. Cycle bundles group artifacts and telemetry under
+`executions/<execution-id>/`.
 Open a report in a browser to inspect the saved document.
 
 The CLI/Python download already checks the archive's size and SHA-256 before
@@ -257,12 +260,13 @@ SELECT execution_id, direction, identifier, source_kind, value, unit_json
 FROM inputs ORDER BY execution_id, direction, identifier;
 SELECT execution_id, record_type, count(*) AS records
 FROM records GROUP BY execution_id, record_type;
-SELECT execution_id, stream_id, schema_version, sample_count, table_name
-FROM streams ORDER BY execution_id, stream_id;
-SELECT s.execution_id, s.stream_id, c.field_id, c.table_name,
-       c.column_name, c.value_type, c.unit_json
-FROM streams AS s JOIN stream_columns AS c ON c.base_table = s.table_name
-ORDER BY s.execution_id, c.table_name, c.column_name;
+SELECT s.execution_id, s.stream_id, s.rows, f.path, f.size_bytes, f.sha256
+FROM streams AS s JOIN files AS f ON f.id = s.file_id
+ORDER BY s.execution_id, s.stream_id;
+SELECT s.stream_id, n.signal, n.count, n.minimum, n.maximum, n.sum
+FROM stream_summaries AS n JOIN streams AS s ON n.file_id = s.file_id;
+SELECT a.execution_id, a.relative_path, f.path, f.size_bytes, f.sha256
+FROM artifacts AS a JOIN files AS f ON a.file_id = f.id;
 SELECT execution_id, relative_path, archive_path, size_bytes, sha256
 FROM outputs ORDER BY execution_id, ordinal;
 ```
@@ -273,22 +277,23 @@ retain their truthful outcome and whatever rows were saved. An execution bundle
 taken before cycle sealing can show an Active cycle; the final cycle bundle
 shows its sealed phase and all members.
 
-Sample table names and field column names are generated. Do not assume a fixed
-name. This query prints a sample-reading statement for each actual pulse table;
-copy the returned statement back into SQLite:
+Read the original typed telemetry file with an Arrow-compatible reader. For
+example, in a Python environment with Polars installed:
 
-```sql
-SELECT 'SELECT m_sequence, sample_json FROM "' ||
-       replace(table_name, '"', '""') || '" ORDER BY m_row LIMIT 8;'
-       AS query_to_copy
-FROM streams WHERE stream_id = 'obc.pulse';
+```python
+from pathlib import Path
+import polars as pl
+
+for path in Path("unpacked-test").rglob("telemetry/*.arrow"):
+    frame = pl.read_ipc(path)
+    print(path, frame.select(pl.col("values").struct.unnest()).head(8))
 ```
 
-The mapping above identifies each typed field and unit; `sample_json` retains
-the complete saved sample. Wide streams use several tables joined by `m_row`.
-Rows in `outputs` identify captured files by their archive paths and digests.
-A pulse need not capture a separate file. Keep the manifest, database, reports
-and captured files together. Use `.quit` to leave the SQLite CLI.
+The Arrow schema carries field units, descriptions and stream identity. SQLite
+`files` rows identify each archive member and digest; `streams` links telemetry
+to its execution and lists batch offsets and row/time ranges in `batches_json`.
+Keep the manifest, database, reports, artifacts and Arrow files together. Use
+`.quit` to leave the SQLite CLI.
 
 ## Troubleshooting
 
@@ -299,7 +304,7 @@ and captured files together. Use `.quit` to leave the SQLite CLI.
 | Linux package dependencies cannot resolve | Use the package manager for the matching DEB/RPM and architecture. Retain its error; the candidate does not establish compatibility with every distribution release. |
 | PowerShell rejects a script or JSON argument | Run PowerShell 7.3+ (`pwsh --version`), not Windows PowerShell 5.1. Follow your organization's script-execution policy. Batch is available without PowerShell 7. |
 | Status is unreachable | Keep the host running; check **Listening On**, the host IP, selected port, firewall and network route. A remote client must not use the bind address `0.0.0.0` or its own loopback address. |
-| Certificate verification fails | Match the endpoint's IP/DNS name to **Certificate DNS Names And IP Addresses**. After certificate replacement, create and import a new pairing. Do not disable verification to hide a mismatch. |
+| Certificate verification fails | Export a current remote file if every saved address is obsolete. Leaf reissue preserves the pinned CA; use a fresh root only when deliberately replacing CA trust. Do not disable verification. |
 | Authentication fails | Check that the paired client has not been revoked. Create and import a new pairing for that client if needed. |
 | OBC operations/template are missing | Install the host-OS plugin from the same candidate, restart the host and check Plugins for loading errors. |
 | Existing evidence destination | Select a new evidence directory or explicitly choose overwrite. Preserve previous results you need to retain. |

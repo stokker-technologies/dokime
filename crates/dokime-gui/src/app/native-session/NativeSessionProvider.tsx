@@ -5,6 +5,7 @@ import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore 
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
+import { watchRemoteImports } from "@/lib/desktop/remote-import";
 import { watchStopping } from "@/lib/desktop/stopping";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
@@ -24,6 +25,7 @@ export function NativeSessionProvider({
   const [owner] = useState(() => supplied ?? new NativeSession());
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
   useEffect(() => watchStopping(), []);
+  useEffect(() => watchRemoteImports(owner), [owner]);
   useEffect(
     () => () => {
       void owner.disconnect();

@@ -131,7 +131,7 @@ class Execution:
         return await export_evidence(self._transport, self._backend, "Execution", self.id, destination, overwrite=overwrite)
 
     async def snapshot(self) -> dict[str, Any]:
-        """An owned current-runtime snapshot, verified against the original epoch."""
+        """An owned snapshot, including pending/ready/failed report state and failure cause."""
         detail = await self._snapshot()
         return MessageToDict(detail, preserving_proto_field_name=True)
 

@@ -32,13 +32,13 @@ runtime = ["harmos/runtime", "dep:tonic"]
 dokime-domain = { workspace = true }
 
 # Git
+harmos = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos = { workspace = true }
 
 # Serialization
 serde = { workspace = true }

@@ -113,3 +113,17 @@ events. These process-local traces are separate from saved execution evidence;
 restarting the desktop or standalone server process starts a new journal. Reconnects resume the scope cursor,
 replaying retained history if its epoch or cursor expires. Stream failures show
 the backend or transport cause beside the reconnect status.
+
+## Remote Access Files
+
+Settings → Remote Access exports `.dokime-remote` through the native save adapter
+in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
+the secret warning when stopped; running listeners export directly. Labels and
+all candidate endpoints come from native owners. Paired Clients permits rename.
+The file bytes and raw key stay native; the WebView receives only a saved path.
+
+Picker imports and window drops share `src-tauri/src/connection/registry.rs`:
+validate, save the profile/keyring association, then connect. Native import events
+refresh the frontend session generation so the opaque bridge follows the new
+backend. The Rust client races candidates only after TLS and identity verification;
+profiles remember the winning endpoint without changing their keyring association.

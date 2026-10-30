@@ -41,6 +41,7 @@ const STREAM_WINDOW_BYTES: u64 = 4_194_304;
 #[derive(Clone, PartialEq, Eq)]
 pub struct Target {
     endpoint: String,
+    candidates: Vec<String>,
     remote: bool,
     ca: Option<String>,
     settings: ClientPreferences,
@@ -63,6 +64,39 @@ impl Target {
 
     pub fn remote(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
         Self::parse(endpoint.into(), Some(true), ca_certificate_pem)
+    }
+
+    pub fn with_endpoints(mut self, endpoints: &[String]) -> Result<Self> {
+        if endpoints.len() > 32 {
+            return Err(invalid_target("Too many backend endpoints."));
+        }
+        for endpoint in endpoints {
+            let candidate = Self::parse(endpoint.clone(), None, self.ca.clone())?;
+            if candidate.endpoint.starts_with("https:") != self.endpoint.starts_with("https:") {
+                return Err(invalid_target("Backend endpoints must share a TLS policy."));
+            }
+            self.remote |= candidate.remote;
+            if !self.candidates.contains(&candidate.endpoint) {
+                if self.candidates.len() == 32 {
+                    return Err(invalid_target("Too many backend endpoints."));
+                }
+                self.candidates.push(candidate.endpoint);
+            }
+        }
+        Ok(self)
+    }
+
+    pub(super) fn candidates(&self) -> Vec<Self> {
+        self.candidates
+            .iter()
+            .map(|endpoint| Self {
+                endpoint: endpoint.clone(),
+                candidates: vec![endpoint.clone()],
+                remote: self.remote,
+                ca: self.ca.clone(),
+                settings: self.settings,
+            })
+            .collect()
     }
 
     pub fn endpoint(&self) -> &str {
@@ -114,6 +148,7 @@ impl Target {
         }
         Ok(Self {
             endpoint: url.to_string(),
+            candidates: vec![url.to_string()],
             remote,
             ca,
             settings: ClientPreferences::default(),
@@ -134,7 +169,7 @@ impl Target {
             // Select Ring when the host has not
             // already selected a process provider, as the native server does.
             let _ = rustls::crypto::ring::default_provider().install_default();
-            let mut tls = ClientTlsConfig::new().with_native_roots();
+            let mut tls = if self.ca.is_some() { ClientTlsConfig::new() } else { ClientTlsConfig::new().with_native_roots() };
             if let Some(ca) = &self.ca {
                 tls = tls.ca_certificate(Certificate::from_pem(ca));
             }
@@ -180,5 +215,13 @@ mod tests {
         {
             assert!(Target::new(endpoint, None).is_err(), "{endpoint}");
         }
+    }
+    #[test]
+    fn remembered_endpoint_leads_original_candidate_order() {
+        let endpoints = ["http://first:8765", "http://second:8765", "http://third:8765"].map(str::to_owned);
+        let target = Target::remote(&endpoints[1], None).unwrap().with_endpoints(&endpoints).unwrap();
+        let ordered: Vec<_> = target.candidates().into_iter().map(|candidate| candidate.endpoint().to_owned()).collect();
+        assert_eq!(ordered, ["http://second:8765/", "http://first:8765/", "http://third:8765/"]);
+        assert!(target.with_endpoints(&["https://other:8765".into()]).is_err());
     }
 }

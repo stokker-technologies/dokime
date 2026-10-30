@@ -163,7 +163,7 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
         crate::runtime::storage::telemetry::collect_saved(
             self.storage(),
-            &self.storage().cursor_saved(),
+            &self.storage().cursor_accepted(),
             selection,
             self.schema_settings(),
             crate::runtime::storage::telemetry::ReadOptions {

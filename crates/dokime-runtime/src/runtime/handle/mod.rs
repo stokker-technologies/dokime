@@ -231,7 +231,7 @@ impl RuntimeHandle {
             live: live.clone(),
             boot,
             #[cfg(feature = "fault-injection")]
-            decorate,
+            decorate: decorate.map(|decorate| Arc::new(std::sync::Mutex::new(Some(decorate)))),
         };
         let outcome = HarmosRuntime::launch(state, Some(launch)).await;
         let harmos = match outcome {
@@ -265,7 +265,16 @@ impl RuntimeHandle {
         let config = launch.config;
         let providers = launch.providers;
         #[cfg(feature = "fault-injection")]
-        let decorate = launch.decorate;
+        let decorate = launch
+            .decorate
+            .map(|owner| {
+                owner
+                    .lock()
+                    .expect("launch decorator owner is healthy")
+                    .take()
+                    .ok_or_else(|| Error::Operation("launch decorator was already consumed".into()))
+            })
+            .transpose()?;
         let boot_started = std::time::Instant::now();
         let installed_plugins = check_boot_config(&config)?;
         config.storage.validate()?;
@@ -378,10 +387,12 @@ impl RuntimeHandle {
         let execution_storage = Arc::new(
             crate::runtime::storage::executions::ExecutionStorage::new(
                 storage.clone(),
+                local_state.clone(),
                 harmos_runtime.state.clone(),
                 process_id,
                 brand.clone(),
                 config.schema,
+                config.local_storage.previews.report_concurrency,
             )
             .await?,
         );

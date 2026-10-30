@@ -17,7 +17,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
@@ -37,7 +37,6 @@ import {
   type ListenerStatus,
   listenerError,
   listenerRunning,
-  pairingEndpoint,
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -131,16 +130,11 @@ function ListenerControls({
   const client = useQueryClient();
   const queryKey = ["settings", "remote-listener", session.identity.generation];
   const [busy, setBusy] = useState(false);
-  const [label, setLabel] = useState("");
-  const fieldId = useId();
-  const [endpointDraft, setEndpointDraft] = useState<string | null>(null);
   const [clientsRevision, setClientsRevision] = useState(0);
   const [pairingError, setPairingError] = useState<string | null>(null);
   const settings = status.settings;
   if (!settings) throw new Error("Backend omitted listener settings.");
   const running = listenerRunning(status);
-  const suggested = pairingEndpoint(settings);
-  const endpoint = endpointDraft ?? suggested.endpoint;
 
   const publish = (updated: ListenerStatus) => {
     if (!session.identity.isCurrent()) stale();
@@ -175,16 +169,17 @@ function ListenerControls({
     setPairingError(null);
     await run(async () => {
       try {
-        const path = await commands.desktopPairingCreate(label, endpoint);
+        const path = await commands.desktopPairingCreate();
         if (!session.identity.isCurrent()) stale();
         if (path !== null) {
-          toast.success("Pairing File Saved", { description: path });
+          toast.success("Remote Access File Saved", { description: path });
+          void client.invalidateQueries({ queryKey });
           setClientsRevision((revision) => revision + 1);
         }
       } catch (error) {
         const reason = listenerError(error);
         setPairingError(reason);
-        fail("Pairing File Not Saved", reason);
+        fail("Remote Access File Not Saved", reason);
         setClientsRevision((revision) => revision + 1);
       }
     });
@@ -208,7 +203,7 @@ function ListenerControls({
         <SettingsCard title="Certificate">
           <SettingsRow
             label="Certificate Identity"
-            description="Changing certificate names disconnects remote clients. Create new pairing files afterward."
+            description="Certificate names refresh automatically. Reissuing preserves the CA trusted by existing remote files."
           >
             <Button
               variant="outline"
@@ -228,56 +223,24 @@ function ListenerControls({
           </SettingsRow>
         </SettingsCard>
       )}
-      <SettingsCard title="Pairing Files" description="Create a separate file for each client. Transfer it privately to that PC.">
-        <form
-          noValidate
-          className="grid gap-3 p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void createPairing();
-          }}
-        >
-          <label htmlFor={`${fieldId}-label`} className="grid gap-2 text-sm">
-            Label
-            <Input
-              id={`${fieldId}-label`}
-              required
-              maxLength={256}
-              value={label}
-              disabled={busy}
-              onChange={(event) => setLabel(event.target.value)}
-            />
-          </label>
-          <label htmlFor={`${fieldId}-endpoint`} className="grid gap-2 text-sm">
-            Reachable Endpoint
-            <Input
-              id={`${fieldId}-endpoint`}
-              type="url"
-              required
-              value={endpoint}
-              aria-invalid={Boolean(pairingError)}
-              aria-describedby={`${fieldId}-endpoint-hint${pairingError ? ` ${fieldId}-endpoint-error` : ""}`}
-              disabled={busy}
-              placeholder={suggested.endpoint || `${settings.tlsEnabled ? "https" : "http"}://host:${suggested.port}`}
-              onChange={(event) => {
-                setEndpointDraft(event.target.value);
-                setPairingError(null);
-              }}
-            />
-          </label>
-          <p id={`${fieldId}-endpoint-hint`} className="text-xs text-muted-foreground">
-            Listener Port: {suggested.port || "Unavailable"}. Use an address reachable from the client. Local Python scripts use the same
-            port.
+      <SettingsCard
+        title="Remote Access Files"
+        description="Export a separate secret file for each client. Anyone with the file has full control; transfer it privately."
+      >
+        <div className="grid gap-3 p-4">
+          <p className="text-sm text-muted-foreground">
+            Endpoints are detected automatically. Loopback addresses (127.0.0.1, ::1) work on the same PC only. Rename client labels later
+            in Paired Clients.
           </p>
           {pairingError && (
-            <p id={`${fieldId}-endpoint-error`} role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {pairingError}
             </p>
           )}
-          <Button type="submit" disabled={busy || preferencesPending}>
-            Create Pairing File
+          <Button disabled={busy || preferencesPending} onClick={() => void createPairing()}>
+            Export Remote Access
           </Button>
-        </form>
+        </div>
       </SettingsCard>
       <PairedClients key={clientsRevision} session={session} />
       {session.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ListSessions") ? (
@@ -294,6 +257,8 @@ function PairedClients({ session }: { session: ConnectedSession }) {
   const [request, setRequest] = useState<{ cursor?: string }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<Client | null>(null);
+  const [name, setName] = useState("");
   useEffect(() => {
     let active = true;
     setBusy(true);
@@ -337,7 +302,21 @@ function PairedClients({ session }: { session: ConnectedSession }) {
         getRowId={(client) => client.identifier}
         emptyText={busy ? "Loading Paired Clients…" : "No Paired Clients"}
         columns={columns.columns([
-          columns.accessor("label", { header: "Label" }),
+          columns.accessor("label", {
+            header: "Label",
+            cell: ({ row }) => (
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => {
+                  setRenaming(row.original);
+                  setName(row.original.label);
+                }}
+              >
+                {row.original.label}
+              </Button>
+            ),
+          }),
           columns.accessor((client) => new Date(Number(client.createdAt)).toLocaleString(), { id: "created", header: "Created" }),
           columns.accessor((client) => (client.lastSeenAt == null ? "—" : new Date(Number(client.lastSeenAt)).toLocaleString()), {
             id: "lastSeen",
@@ -360,6 +339,39 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           </Button>
         }
       />
+      {renaming && (
+        <form
+          className="flex gap-2 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setBusy(true);
+            setError(null);
+            void rpc
+              .remoteRenamePairedClient(session.identity, { identifier: renaming.identifier, label: name })
+              .then(() => {
+                setRenaming(null);
+                setRequest((value) => ({ ...value }));
+              })
+              .catch((failure: unknown) => setError(listenerError(failure)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <Input
+            aria-label="Client Label"
+            required
+            maxLength={256}
+            value={name}
+            disabled={busy}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <Button type="submit" disabled={busy}>
+            Rename
+          </Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setRenaming(null)}>
+            Cancel
+          </Button>
+        </form>
+      )}
       {error && <NotificationMessage>{error}</NotificationMessage>}
       <div className="flex gap-2 p-4">
         <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>

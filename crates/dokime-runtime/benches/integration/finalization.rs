@@ -205,13 +205,15 @@ impl Fixture {
     }
 
     async fn measure(mut self, hours: u64) -> (Duration, Duration, Duration) {
-        let report = self.report().await;
-        eprintln!("hours={hours} report_save_ms={}", report.as_secs_f64() * 1000.0);
         let started = Instant::now();
         let stopped = self.runtime.stop_execution(self.execution.clone(), CommandContext::default()).await;
         let stop = started.elapsed();
         eprintln!("hours={hours} stop_ms={} result={stopped:?}", stop.as_secs_f64() * 1000.0);
         stopped.unwrap();
+        self.runtime.wait_execution_report(&self.execution).await.unwrap();
+        let report_ready = started.elapsed();
+        let report = self.report().await;
+        eprintln!("hours={hours} report_save_ms={}", report.as_secs_f64() * 1000.0);
         let started = Instant::now();
         let cancelled = self.runtime.cancel_execution(self.pending.clone(), CommandContext::default()).await;
         let cancel = started.elapsed();
@@ -220,7 +222,7 @@ impl Fixture {
         println!(
             "{}",
             serde_json::json!({"measurement":"long_execution", "hours":hours, "rows":self.rows,
-            "stop_ms":stop.as_secs_f64()*1000.0, "cancel_ms":cancel.as_secs_f64()*1000.0, "report_save_ms":report.as_secs_f64()*1000.0})
+            "stop_ms":stop.as_secs_f64()*1000.0, "cancel_ms":cancel.as_secs_f64()*1000.0, "report_ready_ms":report_ready.as_secs_f64()*1000.0, "report_save_ms":report.as_secs_f64()*1000.0})
         );
         drop(self.runtime);
         self.owner.shutdown().await.unwrap();
