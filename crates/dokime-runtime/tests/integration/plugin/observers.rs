@@ -341,16 +341,24 @@ impl Owner {
     }
 }
 
-#[dokime_runtime::observer(interval_ms = 5)]
+#[dokime_runtime::observer]
 impl StatelessWatch {
+    fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<std::time::Duration, WatchError> {
+        Ok(std::time::Duration::from_millis(5))
+    }
+
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
         let _ = (ctx.resource::<Shared>().expect("prepared observer resource"), ctx.tick());
         Ok(())
     }
 }
 
-#[dokime_runtime::observer(interval_ms = 5, streams(ObservationRow))]
+#[dokime_runtime::observer(streams(ObservationRow))]
 impl Watch {
+    fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<std::time::Duration, WatchError> {
+        Ok(std::time::Duration::from_millis(5))
+    }
+
     async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, WatchError> {
         let shared = context.resource::<Shared>().expect("plugin prepares its observer resources");
         shared.probe.starts.fetch_add(1, Ordering::SeqCst);

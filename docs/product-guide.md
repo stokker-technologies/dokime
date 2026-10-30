@@ -467,16 +467,30 @@ timeout API. Per-command and per-method waits do not replace the operation's
 overall deadline. Radio writes and inverse restoration use the same resolved
 native timing settings.
 
-The pinned Harmos SDK requires compile-time `Observer::INTERVAL`, observer
-inventory intervals, operation policies and `StreamSpec::WINDOW`. Those values
-are centralized in `settings.rs`, but cannot be edited at runtime with this SDK.
-System, network and Wi-Fi link cadence remain 1 s; Bluetooth 5 s; latency 10 s;
-Wi-Fi scan 60 s. Operation bounds remain 2/2/2/12/4/6 s respectively for system,
-network, link, scan, latency and Bluetooth; controls allow 30 s and restoration
-60 s. Policies have no retries or cancellation grace; the stream window remains
-4,096 rows. No unused form fields or alternate observer scheduler are supplied.
-Runtime collection intervals, operation deadlines/retries and stream windows
-require an SDK change before the complete owner decision can be fulfilled.
+Every stream's collection cadence is editable in **Collection Intervals**:
+
+| Stream | Default [ms] | Allowed [ms] |
+| --- | ---: | ---: |
+| System | 1,000 | 1–86,400,000 |
+| Network | 1,000 | 1–86,400,000 |
+| Wi-Fi Link | 1,000 | 1–86,400,000 |
+| Wi-Fi Scan | 60,000 | 1–86,400,000 |
+| Wi-Fi Latency | 10,000 | 1–86,400,000 |
+| Bluetooth | 5,000 | 1–86,400,000 |
+
+The producing observer resolves its cadence from the startup settings snapshot.
+Consumers lease the stream without selecting its interval. Static schemas omit a
+nominal interval; demand comes from the owner's observer inventory. Minimum Scan
+Interval and Bluetooth Deep Refresh Interval independently protect native probes.
+An interval shorter than collection work does not overlap that observer's calls;
+missed ticks are skipped.
+
+Operation policies remain Harmos declarations: collection bounds are 2/2/2/12/4/6 s
+for system, network, link, scan, latency and Bluetooth; controls allow 30 s and
+restoration 60 s. These policies use no retries or cancellation grace. Making their
+timeout, attempt timeout, cancellation grace or retry/backoff policy configurable
+requires a separate Harmos operation-policy change. The 4,096-row publication
+window remains a static replay and notification-batch contract.
 
 Unit conversions, percent scales, native ABI layouts and enum discriminants,
 Wi-Fi channel/frequency mappings, congestion model identifiers, schema v1 and

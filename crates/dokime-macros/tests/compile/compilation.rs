@@ -336,8 +336,12 @@ fn resources(&self) -> Arc<()> {
 
 #[derive(Default)]
 struct First;
-#[sdk::observer(interval_ms = 10, streams(Sample), activation = "demand")]
+#[sdk::observer(streams(Sample), activation = "demand")]
 impl First {
+    fn interval(_: &sdk::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
+        Ok(std::time::Duration::from_millis(10))
+    }
+
     async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
     }
@@ -345,8 +349,12 @@ impl First {
 
 #[derive(Default)]
 struct Second;
-#[sdk::observer(interval_ms = PEER_INTERVAL, streams(PEER_STREAM), activation = "demand")]
+#[sdk::observer(streams(PEER_STREAM), activation = "demand")]
 impl Second {
+    fn interval(_: &sdk::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
+        Ok(std::time::Duration::from_millis(PEER_INTERVAL))
+    }
+
     async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
     }

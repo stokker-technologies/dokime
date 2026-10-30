@@ -39,8 +39,12 @@ pub struct Temperature;
 
 /* === Implementations === */
 
-#[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
+#[dokime::observer(streams(TemperatureRow), activation = "demand")]
 impl Temperature {
+    fn interval(_: &dokime::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
+        Ok(std::time::Duration::from_millis(1_000))
+    }
+
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<Plugin>>) -> Result<(), PublishError> {
         // A sensor that cannot be read publishes nothing this tick; the next
         // tick reads it again.

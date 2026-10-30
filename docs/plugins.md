@@ -22,14 +22,14 @@ per nearby network), `host.wifi.latency` (round trip and loss to the latency hos
 and `host.bluetooth`. Separate operation, stream and observer catalogs share
 the same declarations; each stream has its own demand-driven observer,
 which runs only while a lease holds that stream. Operation definitions own the
-policies and `settings.rs` owns their defaults and the default cadences; Windows
+policies and `settings.rs` owns the configurable collection intervals and native probe settings; Windows
 and Unix implementations are selected at module declarations. Windows radio and
 network probes use native APIs; the system collector reads Git identity through
 a bounded Git subprocess. Its Collection settings retain the
 Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
 between active Wi-Fi scans; a scan due sooner reports the cached network list.
 The [Host Settings](product-guide.md#host-settings) section lists native probe
-timings, refresh and sampling settings, plus the pinned SDK's compile-time limits.
+timings, collection intervals, refresh and sampling settings, plus static operation policies and replay windows.
 Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 `host.network` carries aggregate counters, `internet`, and the default-route

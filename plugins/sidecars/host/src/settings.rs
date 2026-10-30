@@ -28,13 +28,7 @@ use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 
 pub(crate) const LATENCY_HOST: &str = "1.1.1.1";
 
-// The Pinned SDK Requires These Declarations At Compile Time.
-pub(crate) const SYSTEM_INTERVAL_MS: u64 = 1_000;
-pub(crate) const NETWORK_INTERVAL_MS: u64 = 1_000;
-pub(crate) const WIFI_LINK_INTERVAL_MS: u64 = 1_000;
-pub(crate) const WIFI_SCAN_INTERVAL_MS: u64 = 60_000;
-pub(crate) const WIFI_LATENCY_INTERVAL_MS: u64 = 10_000;
-pub(crate) const BLUETOOTH_INTERVAL_MS: u64 = 5_000;
+// Operation Policies Remain Static Harmos Contracts.
 pub(crate) const SYSTEM_BUDGET_MS: u64 = 2_000;
 pub(crate) const NETWORK_BUDGET_MS: u64 = 2_000;
 pub(crate) const WIFI_LINK_BUDGET_MS: u64 = 2_000;
@@ -43,6 +37,7 @@ pub(crate) const WIFI_LATENCY_BUDGET_MS: u64 = 4_000;
 pub(crate) const BLUETOOTH_BUDGET_MS: u64 = 6_000;
 pub(crate) const CONTROL_BUDGET_MS: u64 = 30_000;
 pub(crate) const RESTORE_BUDGET_MS: u64 = CONTROL_BUDGET_MS * 2;
+// The Publication Window Bounds Replay And Native Notification Batches.
 pub(crate) const STREAM_WINDOW: usize = 4_096;
 
 #[cfg(target_os = "windows")]
@@ -60,9 +55,71 @@ const ECHO_PAYLOAD_BYTES: u32 = 56;
 #[dokime::settings]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Settings {
+    pub cadence: Cadence,
     pub probes: Probes,
     pub timing: Timing,
     pub sampling: Sampling,
+}
+
+#[dokime::section(
+    label = "Collection Intervals",
+    description = "Sampling cadence for each host stream. Changes apply on plugin restart or Retry."
+)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Cadence {
+    #[setting(
+        label = "System Interval [ms]",
+        default = 1_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between system CPU, memory, battery and identity collections while requested."
+    )]
+    pub system_interval_ms: u64,
+
+    #[setting(
+        label = "Network Interval [ms]",
+        default = 1_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between adapter throughput and network notification collections while requested."
+    )]
+    pub network_interval_ms: u64,
+
+    #[setting(
+        label = "Wi-Fi Link Interval [ms]",
+        default = 1_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between Wi-Fi link and throughput collections while requested."
+    )]
+    pub wifi_link_interval_ms: u64,
+
+    #[setting(
+        label = "Wi-Fi Scan Interval [ms]",
+        default = 60_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between Wi-Fi scan collections; active scans also honor Minimum Scan Interval."
+    )]
+    pub wifi_scan_interval_ms: u64,
+
+    #[setting(
+        label = "Wi-Fi Latency Interval [ms]",
+        default = 10_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between ICMP latency collections while requested."
+    )]
+    pub wifi_latency_interval_ms: u64,
+
+    #[setting(
+        label = "Bluetooth Interval [ms]",
+        default = 5_000,
+        min = 1,
+        max = 86_400_000,
+        description = "Time between Bluetooth collections; native inventories also honor Deep Refresh Interval."
+    )]
+    pub bluetooth_interval_ms: u64,
 }
 
 #[dokime::section(
@@ -188,6 +245,7 @@ pub struct Sampling {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HostOptions {
+    pub cadence: Cadence,
     pub wifi_adapter_name: Option<String>,
     pub bluetooth_adapter_name: Option<String>,
     pub latency_host: Option<String>,
@@ -211,6 +269,7 @@ impl Default for Settings {
 impl From<Settings> for HostOptions {
     fn from(settings: Settings) -> Self {
         Self {
+            cadence: settings.cadence,
             wifi_adapter_name: settings.probes.wifi_adapter_name.and_then(selected),
             bluetooth_adapter_name: settings.probes.bluetooth_adapter_name.and_then(selected),
             latency_host: selected(settings.probes.latency_host),
@@ -313,6 +372,12 @@ mod tests {
     #[test]
     fn out_of_bounds_probe_settings_are_refused() {
         for (field, maximum) in [
+            ("system_interval_ms", 86_400_000),
+            ("network_interval_ms", 86_400_000),
+            ("wifi_link_interval_ms", 86_400_000),
+            ("wifi_scan_interval_ms", 86_400_000),
+            ("wifi_latency_interval_ms", 86_400_000),
+            ("bluetooth_interval_ms", 86_400_000),
             ("minimum_scan_interval_s", 3_600_u64),
             ("system_probe_timeout_ms", 2_000),
             ("network_probe_timeout_ms", 2_000),

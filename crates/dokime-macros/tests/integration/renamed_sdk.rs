@@ -180,8 +180,12 @@ impl sdk::Operation for GetSpareEcho {
     }
 }
 
-#[sdk::observer(interval_ms = 10, streams(ObservationStream), activation = "demand")]
+#[sdk::observer(streams(ObservationStream), activation = "demand")]
 impl Observations {
+    fn interval(_: &sdk::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
+        Ok(std::time::Duration::from_millis(10))
+    }
+
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<Renamed>>) -> Result<(), PublishError> {
         let text = self::dokime::reply(self::dokime::Payload { text: "one".to_owned() });
 

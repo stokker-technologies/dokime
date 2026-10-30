@@ -20,7 +20,7 @@ use std::time::Duration;
 
 // Local Imports
 use super::Network;
-use crate::{Error, HostTelemetryStream};
+use crate::Error;
 use dokime::harmos::operations::Host;
 use dokime::harmos::plugin;
 use dokime::harmos::sidecar::inventory::observers::Declared;
@@ -63,7 +63,10 @@ impl<P: plugin::Declared> Observer<Publisher<P>> for NetworkObserver {
     const ID: &'static str = <Self as Declared>::ENTRY.id;
     const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] = <Self as Declared>::ENTRY.streams;
     const ACTIVATION: Activation = <Self as Declared>::ENTRY.activation;
-    const INTERVAL: Duration = <Self as Declared>::ENTRY.interval;
+    fn interval(resources: &dokime::harmos::ExecutionContext) -> Result<Duration, Error> {
+        let options = resources.resource::<crate::HostOptions>().map_err(|error| Error::Probe(error.to_string()))?;
+        Ok(Duration::from_millis(options.cadence.network_interval_ms))
+    }
 
     async fn initialize(resources: &dokime::harmos::ExecutionContext) -> Result<Self, Error> {
         let options = resources.resource::<crate::HostOptions>().map_err(|error| Error::Probe(error.to_string()))?;
@@ -94,7 +97,6 @@ impl Declared for NetworkObserver {
     const ENTRY: dokime::harmos::sidecar::inventory::observers::Entry = dokime::harmos::sidecar::inventory::observers::Entry {
         id: "host.network",
         description: "",
-        interval: Duration::from_millis(HostTelemetryStream::Network.interval().0),
         activation: Activation::Demand,
         streams: &[dokime::harmos::sidecar::inventory::publications::Entry::of::<Network>()],
         demand_keys: &[],
