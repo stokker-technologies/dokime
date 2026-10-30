@@ -7,7 +7,7 @@
 - [ ] 1.3 Centralize configuration and extract the counted calibration kernel for duty workers.
 - [ ] 1.4 Implement shared fixed-cadence CPU sampling; migrate both existing readers and prove concurrent reads preserve samples.
 - [ ] 1.5 Implement PI control, anti-windup, duty workers, weighted summaries and prompt worker shutdown with focused tests.
-- [ ] 1.6 Resolve the pinned Harmos cancellation limitation without silently changing the locked response contract; wire Public dispatch and lifecycle settlement.
+- [ ] 1.6 Resolve the pinned Harmos cancellation and u16 limitations without silently changing the locked response contract; wire Public dispatch and lifecycle settlement.
 - [ ] 1.7 Add an OBC start/hold/cancel usage template and affected suite tests; update docs/plugins.md, docs/plugin-obc.md and Dokime authoring guidance; review README impact.
 - [ ] 1.8 Integrate all source on feat/host-cpu-load and declare SOURCE COMPLETE after focused proof; no other writers are assigned.
 

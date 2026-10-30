@@ -98,6 +98,65 @@ attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
 it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
+
+
+### Closed-Loop CPU Load
+
+The `host-cpu-load` change adds the Public request
+`plugin_host::host::cpu::load::LoadHold` (`host.cpu.load.hold`):
+
+```rust
+LoadHold { target: LoadTarget::Percent(60.0), threads: None }
+LoadHold { target: LoadTarget::Flops(1_000_000_000.0), threads: Some(2) }
+```
+
+Finite percent targets lie in `(0,100]`; finite FLOP/s targets are positive.
+Zero workers is refused; `None` selects the available logical cores. Percent
+control includes other processes and only adds missing host load. FLOP/s control
+counts this generator's work; the OS exposes no system-wide floating-point counter.
+Unreachable targets saturate at zero or full duty rather than claiming success.
+Existing `host.cpu.load.capacity_gflops` remains the sole startup capacity estimate;
+`LoadTarget::approximate_flops` and `approximate_percent` convert targets using it.
+The calibration and generator execute the same counted eight-accumulator FMA kernel.
+
+CPU sampling has one fixed-cadence owner. `host.system.collect`, `host.cpu.load`
+and control read its latest completed window, so consumer cadence cannot shorten
+CPU delta windows. Memory and other system probes remain collected on demand.
+
+`CpuLoadSettings` in `plugins/sidecars/host/src/host/cpu/load/config.rs` owns all
+control timing and tuning. Plugin settings expose the CPU Load Control section:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `period_ms` | 250 | Controller period |
+| `sample_ms` | 250 | Shared CPU sampling period; at least the native sampler minimum |
+| `slice_ms` | 10 | Busy/sleep slice per worker |
+| `proportional_gain` | 0.5 | Proportional gain on normalized error |
+| `integral_gain` | 0.5 | Integral gain per second |
+| `integral_min`, `integral_max` | -1, 1 | Clamped integrator bounds |
+| `settlement_ms` | 2000 | Worker settlement budget |
+
+Sampling and slices must fit a controller period; settlement must cover a slice.
+The operation policy has no practical deadline and never retries. Actual elapsed
+wall time determines counted FLOP/s and the duration-weighted mean and RMS error.
+The PI controller clamps duty to `[0,1]` and back-calculates integration on saturation.
+
+The distinct `host.cpu.load.control` stream carries the selected mode, nullable
+percent or FLOP/s target/measurement columns, duty and generator FLOP/s. Columns
+have structured units and bracketed labels such as `Target [%]` and
+`Generator [FLOP/s]`; existing estimated load uses `Estimated CPU Load [GFLOP/s]`.
+
+The locked lifecycle is `.start()`, hold, then `cancel_and_join()` returning
+`LoadSummary { target, mean, error_rms, duration_s }`. Dokime's step/run handle
+sweep cancels forgotten handles; native drop cleanup also stops and joins workers.
+No effect-journal inverse is needed: stopping restores CPU use and process death
+cannot leave generation running or persistent native state changed.
+
+The pinned Harmos revision currently lacks cooperative cancellation with a response
+and portable `u16` support. Public dispatch and the cancellation-summary promise
+remain pending those upstream capabilities; the control core alone does not prove them.
+The OBC Checks template `obc.checks.cpu_load` records the intended consumer sequence.
+
 The runtime decodes these rows through the same codec as other plugins.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime

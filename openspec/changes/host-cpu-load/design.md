@@ -51,6 +51,8 @@ and process death cannot leave CPU generation running or durable native state al
 At pinned Harmos `9287b860842b1e33b7e6421a00780b8a33f3fe20`, `Context` has no cancellation signal.
 The sidecar reply loop drops the attempt future on cancellation and sends Finished without a payload.
 A local drop guard can restore CPU use but cannot return the locked summary to the caller.
+The pinned portable traits also omit `u16`: PostcardValue, MemorySize and Described are absent,
+so the exact locked `Option<u16>` request needs primitive support upstream as well.
 Upstream cooperative cancellation or an explicitly approved summary-evidence contract is required.
 Implementation must not claim drop cleanup proves cancellation returns a summary.
 

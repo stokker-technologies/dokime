@@ -62,3 +62,24 @@ operation policies own collection deadlines and configuration owns probe paramet
 An operation that changes external state requires `ReadEnvironment`, `PrepareEffect` and `ConfirmEffect` from `dokime::operations::effects`. Read and validate the native prior state, prepare an owner-qualified encoded inverse durably before changing it, then confirm with the actual native completion timestamp. Empty tickets mean a standalone change outside an execution. The backend restores execution effects in reverse order after pass, failure or cancellation and restores persisted pending inverses before startup returns. Failed inverses remain pending and refuse startup; never reset storage to discard them. Native embedding owners use `RuntimeHandle::begin_external_change` and `complete_external_change` with the same journal.
 
 Cancellation must retain native work and its serialization gate until it settles. A plugin retains its generation `Supervisor` during initialization and copies the serving execution scope for journal callbacks, so cancellation of the parent operation cannot strand its completion timestamp. Backend cleanup closes write admission before restoring; it keeps execution capture open through restoration. An inverse is a Host operation callable by the backend, not another plugin. Internal storage remains v1; an incompatible development store requires a fresh root without deleting the old one.
+
+
+## Host CPU Load Control
+
+`plugin_host::host::cpu::load` owns `LoadHold`, `LoadTarget`, `LoadSummary`,
+`LoadControl` and `CpuLoadSettings`. The locked Public operation is
+`host.cpu.load.hold`; preserve existing `host.cpu.load` as the capacity/load query.
+Use finite `LoadTarget::Percent(value)` in `(0,100]` or positive finite
+`LoadTarget::Flops(value)`; `threads: None` selects logical cores and zero is refused.
+One shared CPU sampling owner serves telemetry and control; consumers never refresh
+CPU deltas. Reuse the calibrated kernel/capacity rather than adding another peak probe.
+Controller evidence uses distinct `host.cpu.load.control`, structured units and
+`Label [unit]` labels. Percent feedback counts the whole host; FLOP/s counts only
+this generator. Timing and gains belong to the CPU Load Control settings section.
+
+The intended suite sequence is `.start()`, hold, `cancel_and_join()` returning a
+summary. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
+so no durable effect inverse is needed. The pinned Harmos revision lacks cooperative
+cancellation responses and portable `u16`; do not claim the locked dispatch contract
+is usable until those capabilities land and focused dispatch tests pass. See
+`docs/plugins.md` and the tracked `host-cpu-load` change for this dependency decision.
