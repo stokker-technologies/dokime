@@ -448,9 +448,9 @@ fn explicit_update_mode(folder: &Path) -> Result<bool, Error> {
     if !path.exists() {
         return Ok(false);
     }
-    let text = std::fs::read_to_string(path)?;
+    let text = std::fs::read_to_string(&path)?;
     let value: toml::Value = toml::from_str(&text).map_err(|error| {
-        let message = error.to_string();
+        let message = format!("invalid organization manifest {}: {error}", path.display());
         Error::Invalid(message)
     })?;
     let Some(updates) = value.get("updates") else {
