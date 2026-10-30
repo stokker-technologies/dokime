@@ -559,7 +559,7 @@ run = "{{vars.tools}} dokime_tools.release.run verify"
 
 [tasks.housekeeping]
 description = "Clean Owned Build Outputs And State"
-run = "{{vars.tools}} dokime_tools.stkr project housekeeping"
+run = "stkr project housekeeping"
 
 [tasks."housekeeping:stats"]
 description = "Count Source Lines"

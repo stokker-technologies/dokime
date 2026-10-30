@@ -26,7 +26,6 @@ Check / Repository:
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Check / Python:
   cache:
@@ -56,7 +55,6 @@ Check / Python:
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Check / Rust (unix):
   cache:
@@ -86,7 +84,6 @@ Check / Rust (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Build / Product (unix):
   cache:
@@ -116,7 +113,6 @@ Build / Product (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Build / Tests (unix):
   cache:
@@ -146,7 +142,6 @@ Build / Tests (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Test / Rust / Unit (unix):
   cache:
@@ -176,7 +171,6 @@ Test / Rust / Unit (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Test / Rust / Integration (unix):
   cache:
@@ -206,7 +200,6 @@ Test / Rust / Integration (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Package / Rust (unix):
   cache:
@@ -236,7 +229,6 @@ Package / Rust (unix):
   variables:
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Check / Rust (windows):
   cache:
@@ -266,7 +258,6 @@ Check / Rust (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Build / Product (windows):
   cache:
@@ -296,7 +287,6 @@ Build / Product (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Build / Tests (windows):
   cache:
@@ -326,7 +316,6 @@ Build / Tests (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Test / Rust / Unit (windows):
   cache:
@@ -356,7 +345,6 @@ Test / Rust / Unit (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Test / Rust / Integration (windows):
   cache:
@@ -386,7 +374,6 @@ Test / Rust / Integration (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Package / Rust (windows):
   cache:
@@ -416,7 +403,6 @@ Package / Rust (windows):
   variables:
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Test / Rust / Coverage:
   cache:
@@ -446,7 +432,6 @@ Test / Rust / Coverage:
   variables:
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Release / Publish:
   cache:
@@ -477,7 +462,6 @@ Release / Publish:
     MISE_ENABLE_TOOLS: go,python,rust,uv,git-cliff,glab
     REVIEW_RESTORE: "true"
     REVIEW_PACKAGES: "[]"
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
 Review / Release:
   cache:
@@ -508,5 +492,4 @@ Review / Release:
     REVIEW_BUILDS: "[]"
     REVIEW_RELEASE: "true"
     REVIEW_PACKAGES: "[]"
-    CACHE_POLICY: pull-push
     CACHE_RESTORES: "{\"Mise\":\"Unavailable\",\"Cargo\":\"Unavailable\",\"UV\":\"Unavailable\"}"
