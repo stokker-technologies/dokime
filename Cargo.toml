@@ -51,9 +51,9 @@ dokime-server = { version = "0.1.2", path = "crates/dokime-server" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "a3fbb927f85b815449e4b4c43085fd254cde06a3" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "4e2669fa03cf5a123aa62de1aad0f042fb5cb381" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }

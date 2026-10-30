@@ -286,7 +286,6 @@ matrix! {
     "/dokime.v1.Settings/UpdateApplicationSettings", unary, contracts::settings::UpdateApplicationSettings = contracts::settings::UpdateApplicationSettings {
         update: model::settings::application::UpdateSettings { expected_revision: 0, settings: Default::default() },
     };
-    "/dokime.v1.Settings/UpdatePluginSecret", unary, contracts::settings::UpdatePluginSecret;
     "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
     "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;
     "/dokime.v1.Telemetry/WatchSamples", download, contracts::telemetry::WatchSamples;

@@ -39,7 +39,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     id: "secrets",
-    label: "Secrets",
+    label: "Secret Storage",
     description: "Shared named secrets on the connected host",
     icon: CircleUser,
     group: "primary",

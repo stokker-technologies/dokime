@@ -1,18 +1,18 @@
 # Dokime Plugins
 
 Startup failures appear in a desktop notification and in Settings › Plugins,
-with the bundle's display name and the underlying cause. Missing secret bindings
-identify the secret and offer **Open Plugin Settings**. The verified settings
-remain editable even when the plugin could not start; configure the binding,
-then restart Dokime from that page to retry. The reason appears once beside the
-editable forms; missing-secret links target the same form. Notification history
-retains the settings link.
+with the bundle's display name and the underlying cause. The verified ordinary
+settings remain editable even when the plugin could not start. Secret declarations
+show their shared Secret Storage identifiers and availability read-only. Use
+**Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
+then restart Dokime or use the existing plugin Retry. There are no secret bindings
+or environment-variable sources. Notification history retains the settings link.
 
 A failed boot has one typed reason with the plugin identity, message and refusal
 code. Initialization failures also retain the encoded Harmos failure, including its kind,
 application refusal code, named context and source diagnostics. Plugin authors
 should return errors through `dokime::plugin::refusal` to preserve this context;
-missing secret access is classified by `MISSING_SECRET_BINDING_CODE` and the
+missing secret access is classified by `MISSING_SECRET_CODE` and the
 `dokime.secret` field, without parsing diagnostic messages.
 
 `plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
@@ -184,12 +184,18 @@ on plugin names. Bundle inspection and extraction happen before activation
 and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
-including the affected contract and the `plugin_contract_unavailable` or
-`plugin_contract_cycle` admission code.
+and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+Unavailable-contract reasons identify the owner and required contract; cycle
+reasons identify every involved plugin.
 
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
+
+Template runners stop cooperatively through `Signal<T>` with
+`ExecutionSignal.cancel = true`, retaining the run's final response and evidence.
+Cancelling the owning Harmos invocation aborts its child calls, including evidence
+delivery, so run policies retain immediate abort for that control path.
 
 `cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,

@@ -30,7 +30,6 @@ pub use multiple_choice::Choice;
 pub use multiple_choice::MultipleChoice;
 pub use number::Number;
 pub use path::Path;
-pub use secret::SecretReference;
 pub use secret::SecretSetting;
 pub use text_area::TextArea;
 
@@ -87,7 +86,7 @@ pub enum SettingsEntry {
     Path(Path),
     Number(Number),
     MultipleChoice(MultipleChoice),
-    SecretReference(SecretSetting),
+    Secret(SecretSetting),
 }
 
 /* === Traits === */
@@ -145,7 +144,7 @@ impl Settings {
 
     pub fn secrets(&self) -> impl Iterator<Item = &SecretSetting> {
         self.contributions.iter().filter_map(|entry| match entry {
-            SettingsEntry::SecretReference(secret) => Some(secret),
+            SettingsEntry::Secret(secret) => Some(secret),
             _ => None,
         })
     }
@@ -159,7 +158,7 @@ impl SettingsEntry {
             Self::Path(d) => &d.id,
             Self::Number(d) => &d.id,
             Self::MultipleChoice(d) => &d.id,
-            Self::SecretReference(d) => &d.id,
+            Self::Secret(d) => &d.id,
         }
     }
     pub fn title(&self) -> &str {
@@ -169,7 +168,7 @@ impl SettingsEntry {
             Self::Path(d) => &d.title,
             Self::Number(d) => &d.title,
             Self::MultipleChoice(d) => &d.title,
-            Self::SecretReference(d) => &d.title,
+            Self::Secret(d) => &d.title,
         }
     }
     pub fn validate(&self) -> crate::Result<()> {
@@ -179,7 +178,9 @@ impl SettingsEntry {
             Self::Path(d) => d.validate(),
             Self::Number(d) => d.validate(),
             Self::MultipleChoice(d) => d.validate(),
-            Self::SecretReference(d) => d.validate(),
+            Self::Secret(d) => crate::model::secrets::catalog::validate_identifier(&d.id)
+                .and_then(|_| crate::model::secrets::catalog::check_identifier_limit(&d.id))
+                .map_err(|message| SettingsError::invalid(&d.id, message).into()),
         }
     }
     pub fn default_value(&self) -> Option<Value> {
@@ -189,7 +190,7 @@ impl SettingsEntry {
             Self::Path(d) => Some(d.default_value()),
             Self::Number(d) => Some(d.default_value()),
             Self::MultipleChoice(d) => Some(d.default_value()),
-            Self::SecretReference(d) => d.default_value(),
+            Self::Secret(_) => None,
         }
     }
     pub fn validate_value(&self, value: &Value) -> crate::Result<()> {
@@ -199,7 +200,7 @@ impl SettingsEntry {
             Self::Path(d) => d.validate_value(value),
             Self::Number(d) => d.validate_value(value),
             Self::MultipleChoice(d) => d.validate_value(value),
-            Self::SecretReference(d) => d.validate_value(value),
+            Self::Secret(d) => Err(SettingsError::invalid(&d.id, "secrets are read directly from Secret Storage").into()),
         }
     }
 }

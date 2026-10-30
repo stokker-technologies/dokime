@@ -38,10 +38,6 @@ type HostCardTone = NonNullable<
 >["tone"];
 type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>>;
 type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["contributions"][number];
-type NativeSecretReference = NonNullable<
-  Extract<NonNullable<SettingContribution["kind"]>["HarmosVariant"], { case: "SecretReference" }>["value"]["field0"]
->["default"];
-type SecretBackendKind = NonNullable<NonNullable<PluginRuntimeSettings["secretBindings"]>["bindings"][number]["value"]>["backend"];
 type SettingValues = LegacyPluginRuntimeSettings["values"];
 
 /* === Settings frame === */
@@ -67,22 +63,7 @@ export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSett
     },
     values: nativeValueObjectToJson(settings.values) as SettingValues,
     discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
-    secret_bindings: {
-      bindings: Object.fromEntries(
-        (settings.secretBindings?.bindings ?? []).map(({ key, value }) => {
-          if (!value) throw new Error(`Native settings omitted secret binding ${key}.`);
-          return [
-            key,
-            {
-              secret_id: value.secretId,
-              backend: mapSecretBackend(value.backend),
-              configured: value.configured,
-            },
-          ];
-        }),
-      ),
-      missing_required: settings.secretBindings?.missingRequired ?? [],
-    },
+    secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
   };
 }
 
@@ -97,10 +78,6 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
       values: jsonToNativeValue(values),
     }),
   );
-}
-
-export async function updateNativePluginSecret(session: SessionIdentity, pluginId: string, secretId: string, secret: string) {
-  return mapNativePluginRuntimeSettings(await rpc.settingsUpdatePluginSecret(session, { pluginId, secretId, secret }));
 }
 
 /* === Mapping === */
@@ -248,35 +225,20 @@ function mapSettingContribution(contribution: SettingContribution): SettingsEntr
         provider: entry.provider ?? null,
       };
     }
-    case "SecretReference": {
+    case "Secret": {
       const entry = variant.value.field0;
-      if (!entry) throw new Error("Native settings omitted its secret reference payload.");
+      if (!entry) throw new Error("Native settings omitted its secret declaration payload.");
       return {
-        kind: "secret_reference",
+        kind: "secret",
         id: entry.id,
         title: entry.title,
         description: entry.description ?? null,
-        default: mapSecretReference(entry.default),
         required: entry.required,
       };
     }
     default:
       throw new Error("Native settings returned a contribution without a kind.");
   }
-}
-
-function mapSecretReference(
-  reference?: NativeSecretReference,
-): { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string } | null {
-  if (!reference) return null;
-  if (reference.kind?.HarmosVariant.case === "Environment")
-    return { kind: "environment", variable: reference.kind.HarmosVariant.value.field0 ?? "" };
-  if (reference.kind?.HarmosVariant.case === "StoredSecret")
-    return {
-      kind: "stored_secret",
-      secret_id: reference.kind.HarmosVariant.value.field0 ?? "",
-    };
-  throw new Error("Native settings returned a secret reference without a kind.");
 }
 
 function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): RuntimeSettingsCard["refresh"] {
@@ -332,14 +294,5 @@ function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["st
       return "permission_denied";
     default:
       throw new Error("Native settings returned an unknown card state.");
-  }
-}
-
-function mapSecretBackend(backend: SecretBackendKind): "os_keyring" {
-  switch (backend?.HarmosVariant.case) {
-    case "OsKeyring":
-      return "os_keyring";
-    default:
-      throw new Error("Native settings returned an unknown secret backend.");
   }
 }

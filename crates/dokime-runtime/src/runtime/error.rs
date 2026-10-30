@@ -125,7 +125,7 @@ pub enum Error {
     #[error("Plugin {plugin} could not initialize\n  Cause: {reason}")]
     PluginInitialization { plugin: String, reason: String },
 
-    #[error("Plugin {plugin} could not start: {}", harmos::domain::failure::Report(source.as_ref()))]
+    #[error("{}", super::plugins::start_error(plugin, plugin, source))]
     PluginStart {
         plugin: String,
 

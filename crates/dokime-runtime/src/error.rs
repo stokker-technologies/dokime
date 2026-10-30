@@ -56,7 +56,7 @@ pub enum Error {
     #[error("secret {0:?} is not declared in this context")]
     UnknownSecret(String),
 
-    #[error("secret {0:?} has no available binding")]
+    #[error("secret `{0}` is not in Secret Storage; add it and restart")]
     UnavailableSecret(String),
 
     #[error("parameter {name:?}: {reason}")]

@@ -42,6 +42,7 @@ const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: BOUND,
     attempt_timeout: BOUND,
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: harmos::operations::RetryPolicy::Never,
 };
 

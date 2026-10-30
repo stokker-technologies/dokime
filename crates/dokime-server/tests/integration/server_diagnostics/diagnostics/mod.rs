@@ -21,9 +21,8 @@ use sha2::Digest as _;
 use super::*;
 use dokime::domain::model;
 use {
-    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::domains::installed_plugins::PluginSecretUpdate,
-    dokime::settings::SecretSetting, dokime::settings::SettingValues, dokime::settings::Settings, dokime::settings::SettingsEntry,
-    dokime::settings::TextArea,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::settings::SecretSetting, dokime::settings::SettingValues,
+    dokime::settings::Settings, dokime::settings::SettingsEntry, dokime::settings::TextArea,
 };
 
 /* === Constants === */
@@ -54,7 +53,16 @@ pub(super) async fn fixture(journal: std::sync::Arc<dokime_server::trace::Journa
     let artifact_id = Identifier::new("fixture_diagnostics").unwrap();
     environment
         .runtime
-        .save_plugin_secret(&artifact_id, "fixture.token", PluginSecretUpdate { secret: SECRET.to_owned() })
+        .operations()
+        .call::<dokime::operations::secrets::Put>(dokime::operations::secrets::Put {
+            metadata: model::secrets::catalog::Metadata {
+                identifier: "fixture.token".into(),
+                label: "Token".into(),
+                description: None,
+            },
+            value: Some(SECRET.to_owned()),
+            generation: 0,
+        })
         .await
         .expect("the fixture secret is declared and storable");
     environment
@@ -94,11 +102,10 @@ fn secret_module() -> InstalledPlugin {
                     default: String::new(),
                     required: false,
                 }),
-                SettingsEntry::SecretReference(SecretSetting {
+                SettingsEntry::Secret(SecretSetting {
                     id: "fixture.token".to_owned(),
                     title: "Fixture token".to_owned(),
                     description: None,
-                    default: None,
                     required: true,
                 }),
             ],
@@ -201,7 +208,7 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
         let mut entry = zip.by_name("settings/artifacts/fixture_diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
-    assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
+    assert_eq!(settings["secrets"][0]["available"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
 }

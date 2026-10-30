@@ -204,7 +204,7 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
   fixture.listInstallations.mockResolvedValue({ installations: [failed] });
   fixture.getSettings.mockResolvedValue({
     settings: { contributions: [] },
-    secret_bindings: { missing_required: ["api_token"], bindings: {} },
+    secrets: [{ identifier: "api_token", available: false }],
     values: {},
     discovered: {},
   });
@@ -220,6 +220,6 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
   assert.equal(detail?.status, "failed");
   assert.equal(detail?.plugin_id, "hcl");
   assert.equal(detail?.owner?.kind, "bundle");
-  assert.deepEqual(detail?.secret_bindings.missing_required, ["api_token"]);
+  assert.deepEqual(detail?.secrets, [{ identifier: "api_token", available: false }]);
   assert.deepEqual(fixture.getSettings.mock.calls, [[session, "hcl"]]);
 });

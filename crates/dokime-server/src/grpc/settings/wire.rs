@@ -46,7 +46,6 @@ use dokime::settings::Choice;
 use dokime::settings::MultipleChoice;
 use dokime::settings::Number;
 use dokime::settings::Path;
-use dokime::settings::SecretReference;
 use dokime::settings::SecretSetting;
 use dokime::settings::Settings;
 use dokime::settings::SettingsEntry;
@@ -97,7 +96,14 @@ pub(super) fn encode_plugin_settings(
         settings: Some(encode_settings(settings.settings)?),
         values: Some(values),
         discovered: Some(discovered),
-        secret_bindings: Some(encode_secrets(settings.secret_bindings, &mut budget)?),
+        secrets: settings
+            .secrets
+            .into_iter()
+            .map(|secret| dokime::domain::model::settings::wire::SecretAvailability {
+                identifier: secret.identifier,
+                available: secret.available,
+            })
+            .collect(),
     };
     ensure_size(&response, max_message_bytes, "plugin settings response")?;
     Ok(response)
@@ -244,7 +250,7 @@ fn encode_contribution(contribution: SettingsEntry) -> Result<dokime::domain::mo
         SettingsEntry::Path(value) => Kind::Path(encode_path(value)?),
         SettingsEntry::Number(value) => Kind::Number(encode_number(value)?),
         SettingsEntry::MultipleChoice(value) => Kind::MultipleChoice(encode_multiple_choice(value)?),
-        SettingsEntry::SecretReference(value) => Kind::SecretReference(encode_secret(value)?),
+        SettingsEntry::Secret(value) => Kind::Secret(encode_secret(value)?),
     };
     Ok(dokime::domain::model::settings::wire::SettingContribution { kind: Some(kind) })
 }
@@ -331,49 +337,8 @@ fn encode_secret(value: SecretSetting) -> Result<dokime::domain::model::settings
         id,
         title,
         description,
-        default: value.default.map(encode_secret_reference).transpose()?,
         required: value.required,
     })
-}
-
-fn encode_secret_reference(reference: SecretReference) -> Result<dokime::domain::model::settings::wire::SecretReference, TonicStatus> {
-    use dokime::domain::model::settings::wire::SecretReferenceKind as Kind;
-    let kind = match reference {
-        SecretReference::Environment { variable } => Kind::Environment(variable),
-        SecretReference::StoredSecret { secret_id } => Kind::StoredSecret(secret_id),
-    };
-    Ok(dokime::domain::model::settings::wire::SecretReference { kind: Some(kind) })
-}
-
-fn encode_secrets(
-    secrets: dokime::domains::installed_plugins::PluginRuntimeSecretBindings, _budget: &mut Budget,
-) -> Result<dokime::domain::model::settings::wire::PluginRuntimeSecretBindings, TonicStatus> {
-    let bindings = secrets
-        .bindings
-        .into_iter()
-        .map(|(key, binding)| {
-            Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindingsBindingsEntry {
-                key,
-                value: Some(dokime::domain::model::settings::wire::RedactedSecretBinding {
-                    secret_id: binding.secret_id,
-                    backend: encode_secret_backend(binding.backend),
-                    configured: binding.configured,
-                }),
-            })
-        })
-        .collect::<Result<Vec<_>, TonicStatus>>()?;
-    Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindings {
-        bindings,
-        missing_required: secrets.missing_required.into_iter().collect(),
-    })
-}
-
-fn encode_secret_backend(
-    backend: dokime::domain::model::secrets::SecretBackendKind,
-) -> dokime::domain::model::settings::wire::SecretBackendKind {
-    match backend {
-        dokime::domain::model::secrets::SecretBackendKind::OsKeyring => dokime::domain::model::settings::wire::SecretBackendKind::OsKeyring,
-    }
 }
 
 fn checked_identifier(value: &Identifier, _field: &str) -> Result<String, TonicStatus> {

@@ -97,9 +97,8 @@ impl Collector<'_> {
         }
         for artifact_id in self.artifact_ids() {
             // `plugin_settings` is the settings surface's own read: its
-            // secret bindings arrive already reduced to an identifier, a
-            // backend kind and whether it is configured. Nothing here consults
-            // the secret store, so no secret exists to leak.
+            // secret declarations carry only identifiers and availability.
+            // The read checks catalog metadata without fetching protected values.
             let settings = self.runtime.plugin_settings(&artifact_id).await.map_err(|error| Status::internal(error.to_string()))?;
             parts = parts.push(bundle::Part::json(format!("settings/artifacts/{artifact_id}.json"), encoded(&settings)?)).await?;
         }

@@ -36,6 +36,7 @@ const PROMPT: &str = "fixture.declaring.confirm";
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(120),
     attempt_timeout: Duration::from_secs(120),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 

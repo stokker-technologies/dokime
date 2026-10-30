@@ -52,15 +52,57 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Secrets.proto\x12\tdokime.v1\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Export/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Import/messages.proto\x1a\x41\x64okime_client/_wire/dokime/v1/SecretsMessages/List/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/SecretsMessages/Preview/messages.proto\x1a@dokime_client/_wire/dokime/v1/SecretsMessages/Put/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Remove/messages.proto2\xf3\x04\n\x07Secrets\x12X\n\x06\x45xport\x12&.dokime.v1.SecretsMessages.Export.Row1\x1a&.dokime.v1.SecretsMessages.Export.Row2\x12X\n\x06Import\x12&.dokime.v1.SecretsMessages.Import.Row1\x1a&.dokime.v1.SecretsMessages.Import.Row2\x12R\n\x04List\x12$.dokime.v1.SecretsMessages.List.Row1\x1a$.dokime.v1.SecretsMessages.List.Row2\x12X\n\x06Lookup\x12&.dokime.v1.SecretsMessages.Lookup.Row1\x1a&.dokime.v1.SecretsMessages.Lookup.Row2\x12[\n\x07Preview\x12\'.dokime.v1.SecretsMessages.Preview.Row1\x1a\'.dokime.v1.SecretsMessages.Preview.Row2\x12O\n\x03Put\x12#.dokime.v1.SecretsMessages.Put.Row1\x1a#.dokime.v1.SecretsMessages.Put.Row2\x12X\n\x06Remove\x12&.dokime.v1.SecretsMessages.Remove.Row1\x1a&.dokime.v1.SecretsMessages.Remove.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Secrets.proto\x12\tdokime.v1\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Export/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Import/messages.proto\x1a\x41\x64okime_client/_wire/dokime/v1/SecretsMessages/List/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/SecretsMessages/Preview/messages.proto\x1a@dokime_client/_wire/dokime/v1/SecretsMessages/Put/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Remove/messages.proto\"\x1b\n\x19SecretsExportCancellation\"\xe4\x01\n\x15SecretsExportRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.SecretsExportCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.SecretsExportCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16SecretsExportRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19SecretsImportCancellation\"\xe4\x01\n\x15SecretsImportRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.SecretsImportCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.SecretsImportCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16SecretsImportRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row2H\x00R\x08responseB\x07\n\x05value\"\x19\n\x17SecretsListCancellation\"\xdc\x01\n\x13SecretsListRunInput\x12@\n\x07request\x18\x01 \x01(\x0b\x32$.dokime.v1.SecretsMessages.List.Row1H\x00R\x07request\x12<\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\".dokime.v1.SecretsListCancellationH\x00R\x06\x63\x61ncel\x12<\n\x06\x66inish\x18\x04 \x01(\x0b\x32\".dokime.v1.SecretsListCancellationH\x00R\x06\x66inishB\x07\n\x05value\"c\n\x14SecretsListRunOutput\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32$.dokime.v1.SecretsMessages.List.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19SecretsLookupCancellation\"\xe4\x01\n\x15SecretsLookupRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.SecretsLookupCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.SecretsLookupCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16SecretsLookupRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row2H\x00R\x08responseB\x07\n\x05value\"\x1c\n\x1aSecretsPreviewCancellation\"\xe8\x01\n\x16SecretsPreviewRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.SecretsMessages.Preview.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.SecretsPreviewCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.SecretsPreviewCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17SecretsPreviewRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.SecretsMessages.Preview.Row2H\x00R\x08responseB\x07\n\x05value\"\x18\n\x16SecretsPutCancellation\"\xd8\x01\n\x12SecretsPutRunInput\x12?\n\x07request\x18\x01 \x01(\x0b\x32#.dokime.v1.SecretsMessages.Put.Row1H\x00R\x07request\x12;\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32!.dokime.v1.SecretsPutCancellationH\x00R\x06\x63\x61ncel\x12;\n\x06\x66inish\x18\x04 \x01(\x0b\x32!.dokime.v1.SecretsPutCancellationH\x00R\x06\x66inishB\x07\n\x05value\"a\n\x13SecretsPutRunOutput\x12\x41\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.SecretsMessages.Put.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19SecretsRemoveCancellation\"\xe4\x01\n\x15SecretsRemoveRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Remove.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.SecretsRemoveCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.SecretsRemoveCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16SecretsRemoveRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Remove.Row2H\x00R\x08responseB\x07\n\x05value2\xc1\t\n\x07Secrets\x12X\n\x06\x45xport\x12&.dokime.v1.SecretsMessages.Export.Row1\x1a&.dokime.v1.SecretsMessages.Export.Row2\x12T\n\tRunExport\x12 .dokime.v1.SecretsExportRunInput\x1a!.dokime.v1.SecretsExportRunOutput(\x01\x30\x01\x12X\n\x06Import\x12&.dokime.v1.SecretsMessages.Import.Row1\x1a&.dokime.v1.SecretsMessages.Import.Row2\x12T\n\tRunImport\x12 .dokime.v1.SecretsImportRunInput\x1a!.dokime.v1.SecretsImportRunOutput(\x01\x30\x01\x12R\n\x04List\x12$.dokime.v1.SecretsMessages.List.Row1\x1a$.dokime.v1.SecretsMessages.List.Row2\x12N\n\x07RunList\x12\x1e.dokime.v1.SecretsListRunInput\x1a\x1f.dokime.v1.SecretsListRunOutput(\x01\x30\x01\x12X\n\x06Lookup\x12&.dokime.v1.SecretsMessages.Lookup.Row1\x1a&.dokime.v1.SecretsMessages.Lookup.Row2\x12T\n\tRunLookup\x12 .dokime.v1.SecretsLookupRunInput\x1a!.dokime.v1.SecretsLookupRunOutput(\x01\x30\x01\x12[\n\x07Preview\x12\'.dokime.v1.SecretsMessages.Preview.Row1\x1a\'.dokime.v1.SecretsMessages.Preview.Row2\x12W\n\nRunPreview\x12!.dokime.v1.SecretsPreviewRunInput\x1a\".dokime.v1.SecretsPreviewRunOutput(\x01\x30\x01\x12O\n\x03Put\x12#.dokime.v1.SecretsMessages.Put.Row1\x1a#.dokime.v1.SecretsMessages.Put.Row2\x12K\n\x06RunPut\x12\x1d.dokime.v1.SecretsPutRunInput\x1a\x1e.dokime.v1.SecretsPutRunOutput(\x01\x30\x01\x12X\n\x06Remove\x12&.dokime.v1.SecretsMessages.Remove.Row1\x1a&.dokime.v1.SecretsMessages.Remove.Row2\x12T\n\tRunRemove\x12 .dokime.v1.SecretsRemoveRunInput\x1a!.dokime.v1.SecretsRemoveRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Secrets_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_SECRETS']._serialized_start=538
-  _globals['_SECRETS']._serialized_end=1165
+  _globals['_SECRETSEXPORTCANCELLATION']._serialized_start=537
+  _globals['_SECRETSEXPORTCANCELLATION']._serialized_end=564
+  _globals['_SECRETSEXPORTRUNINPUT']._serialized_start=567
+  _globals['_SECRETSEXPORTRUNINPUT']._serialized_end=795
+  _globals['_SECRETSEXPORTRUNOUTPUT']._serialized_start=797
+  _globals['_SECRETSEXPORTRUNOUTPUT']._serialized_end=900
+  _globals['_SECRETSIMPORTCANCELLATION']._serialized_start=902
+  _globals['_SECRETSIMPORTCANCELLATION']._serialized_end=929
+  _globals['_SECRETSIMPORTRUNINPUT']._serialized_start=932
+  _globals['_SECRETSIMPORTRUNINPUT']._serialized_end=1160
+  _globals['_SECRETSIMPORTRUNOUTPUT']._serialized_start=1162
+  _globals['_SECRETSIMPORTRUNOUTPUT']._serialized_end=1265
+  _globals['_SECRETSLISTCANCELLATION']._serialized_start=1267
+  _globals['_SECRETSLISTCANCELLATION']._serialized_end=1292
+  _globals['_SECRETSLISTRUNINPUT']._serialized_start=1295
+  _globals['_SECRETSLISTRUNINPUT']._serialized_end=1515
+  _globals['_SECRETSLISTRUNOUTPUT']._serialized_start=1517
+  _globals['_SECRETSLISTRUNOUTPUT']._serialized_end=1616
+  _globals['_SECRETSLOOKUPCANCELLATION']._serialized_start=1618
+  _globals['_SECRETSLOOKUPCANCELLATION']._serialized_end=1645
+  _globals['_SECRETSLOOKUPRUNINPUT']._serialized_start=1648
+  _globals['_SECRETSLOOKUPRUNINPUT']._serialized_end=1876
+  _globals['_SECRETSLOOKUPRUNOUTPUT']._serialized_start=1878
+  _globals['_SECRETSLOOKUPRUNOUTPUT']._serialized_end=1981
+  _globals['_SECRETSPREVIEWCANCELLATION']._serialized_start=1983
+  _globals['_SECRETSPREVIEWCANCELLATION']._serialized_end=2011
+  _globals['_SECRETSPREVIEWRUNINPUT']._serialized_start=2014
+  _globals['_SECRETSPREVIEWRUNINPUT']._serialized_end=2246
+  _globals['_SECRETSPREVIEWRUNOUTPUT']._serialized_start=2248
+  _globals['_SECRETSPREVIEWRUNOUTPUT']._serialized_end=2353
+  _globals['_SECRETSPUTCANCELLATION']._serialized_start=2355
+  _globals['_SECRETSPUTCANCELLATION']._serialized_end=2379
+  _globals['_SECRETSPUTRUNINPUT']._serialized_start=2382
+  _globals['_SECRETSPUTRUNINPUT']._serialized_end=2598
+  _globals['_SECRETSPUTRUNOUTPUT']._serialized_start=2600
+  _globals['_SECRETSPUTRUNOUTPUT']._serialized_end=2697
+  _globals['_SECRETSREMOVECANCELLATION']._serialized_start=2699
+  _globals['_SECRETSREMOVECANCELLATION']._serialized_end=2726
+  _globals['_SECRETSREMOVERUNINPUT']._serialized_start=2729
+  _globals['_SECRETSREMOVERUNINPUT']._serialized_end=2957
+  _globals['_SECRETSREMOVERUNOUTPUT']._serialized_start=2959
+  _globals['_SECRETSREMOVERUNOUTPUT']._serialized_end=3062
+  _globals['_SECRETS']._serialized_start=3065
+  _globals['_SECRETS']._serialized_end=4282
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

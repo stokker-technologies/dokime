@@ -51,7 +51,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Backend.proto\x12\tdokime.v1\x1aOdokime_client/_wire/dokime/v1/BackendMessages/CollectDiagnostics/messages.proto\x1aLdokime_client/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/BackendMessages/GetIdentity/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/WatchLogs/messages.proto\x1aGdokime_client/_wire/dokime/v1/BackendMessages/WatchTrace/messages.proto\"\xc6\x01\n\x1f\x42\x61\x63kendCollectDiagnosticsOutput\x12H\n\x04item\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row3H\x00R\x04item\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row2H\x00R\x08responseB\x07\n\x05value\"\xab\x01\n\x16\x42\x61\x63kendWatchLogsOutput\x12?\n\x04item\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row3H\x00R\x04item\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row2H\x00R\x08responseB\x07\n\x05value\"\xae\x01\n\x17\x42\x61\x63kendWatchTraceOutput\x12@\n\x04item\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row3H\x00R\x04item\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row2H\x00R\x08responseB\x07\n\x05value2\xff\x04\n\x07\x42\x61\x63kend\x12v\n\x12\x43ollectDiagnostics\x12\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row1\x1a*.dokime.v1.BackendCollectDiagnosticsOutput0\x01\x12s\n\x0fGetAvailability\x12/.dokime.v1.BackendMessages.GetAvailability.Row1\x1a/.dokime.v1.BackendMessages.GetAvailability.Row2\x12\x61\n\tGetHealth\x12).dokime.v1.BackendMessages.GetHealth.Row1\x1a).dokime.v1.BackendMessages.GetHealth.Row2\x12g\n\x0bGetIdentity\x12+.dokime.v1.BackendMessages.GetIdentity.Row1\x1a+.dokime.v1.BackendMessages.GetIdentity.Row2\x12[\n\tWatchLogs\x12).dokime.v1.BackendMessages.WatchLogs.Row1\x1a!.dokime.v1.BackendWatchLogsOutput0\x01\x12^\n\nWatchTrace\x12*.dokime.v1.BackendMessages.WatchTrace.Row1\x1a\".dokime.v1.BackendWatchTraceOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Backend.proto\x12\tdokime.v1\x1aOdokime_client/_wire/dokime/v1/BackendMessages/CollectDiagnostics/messages.proto\x1aLdokime_client/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/BackendMessages/GetIdentity/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/WatchLogs/messages.proto\x1aGdokime_client/_wire/dokime/v1/BackendMessages/WatchTrace/messages.proto\"\xc6\x01\n\x1f\x42\x61\x63kendCollectDiagnosticsOutput\x12H\n\x04item\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row3H\x00R\x04item\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row2H\x00R\x08responseB\x07\n\x05value\"\'\n%BackendCollectDiagnosticsCancellation\"\x94\x02\n!BackendCollectDiagnosticsRunInput\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row1H\x00R\x07request\x12J\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x30.dokime.v1.BackendCollectDiagnosticsCancellationH\x00R\x06\x63\x61ncel\x12J\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x30.dokime.v1.BackendCollectDiagnosticsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xc9\x01\n\"BackendCollectDiagnosticsRunOutput\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row2H\x00R\x08response\x12H\n\x04item\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row3H\x00R\x04itemB\x07\n\x05value\"$\n\"BackendGetAvailabilityCancellation\"\x88\x02\n\x1e\x42\x61\x63kendGetAvailabilityRunInput\x12K\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row1H\x00R\x07request\x12G\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32-.dokime.v1.BackendGetAvailabilityCancellationH\x00R\x06\x63\x61ncel\x12G\n\x06\x66inish\x18\x04 \x01(\x0b\x32-.dokime.v1.BackendGetAvailabilityCancellationH\x00R\x06\x66inishB\x07\n\x05value\"y\n\x1f\x42\x61\x63kendGetAvailabilityRunOutput\x12M\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.BackendMessages.GetAvailability.Row2H\x00R\x08responseB\x07\n\x05value\"\x1e\n\x1c\x42\x61\x63kendGetHealthCancellation\"\xf0\x01\n\x18\x42\x61\x63kendGetHealthRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.GetHealth.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.BackendGetHealthCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.BackendGetHealthCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19\x42\x61\x63kendGetHealthRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.GetHealth.Row2H\x00R\x08responseB\x07\n\x05value\" \n\x1e\x42\x61\x63kendGetIdentityCancellation\"\xf8\x01\n\x1a\x42\x61\x63kendGetIdentityRunInput\x12G\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.BackendMessages.GetIdentity.Row1H\x00R\x07request\x12\x43\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32).dokime.v1.BackendGetIdentityCancellationH\x00R\x06\x63\x61ncel\x12\x43\n\x06\x66inish\x18\x04 \x01(\x0b\x32).dokime.v1.BackendGetIdentityCancellationH\x00R\x06\x66inishB\x07\n\x05value\"q\n\x1b\x42\x61\x63kendGetIdentityRunOutput\x12I\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.BackendMessages.GetIdentity.Row2H\x00R\x08responseB\x07\n\x05value\"\xab\x01\n\x16\x42\x61\x63kendWatchLogsOutput\x12?\n\x04item\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row3H\x00R\x04item\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row2H\x00R\x08responseB\x07\n\x05value\"\x1e\n\x1c\x42\x61\x63kendWatchLogsCancellation\"\xf0\x01\n\x18\x42\x61\x63kendWatchLogsRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.BackendWatchLogsCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.BackendWatchLogsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xae\x01\n\x19\x42\x61\x63kendWatchLogsRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row2H\x00R\x08response\x12?\n\x04item\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row3H\x00R\x04itemB\x07\n\x05value\"\xae\x01\n\x17\x42\x61\x63kendWatchTraceOutput\x12@\n\x04item\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row3H\x00R\x04item\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row2H\x00R\x08responseB\x07\n\x05value\"\x1f\n\x1d\x42\x61\x63kendWatchTraceCancellation\"\xf4\x01\n\x19\x42\x61\x63kendWatchTraceRunInput\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row1H\x00R\x07request\x12\x42\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32(.dokime.v1.BackendWatchTraceCancellationH\x00R\x06\x63\x61ncel\x12\x42\n\x06\x66inish\x18\x04 \x01(\x0b\x32(.dokime.v1.BackendWatchTraceCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xb1\x01\n\x1a\x42\x61\x63kendWatchTraceRunOutput\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row2H\x00R\x08response\x12@\n\x04item\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row3H\x00R\x04itemB\x07\n\x05value2\xef\t\n\x07\x42\x61\x63kend\x12v\n\x12\x43ollectDiagnostics\x12\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row1\x1a*.dokime.v1.BackendCollectDiagnosticsOutput0\x01\x12x\n\x15RunCollectDiagnostics\x12,.dokime.v1.BackendCollectDiagnosticsRunInput\x1a-.dokime.v1.BackendCollectDiagnosticsRunOutput(\x01\x30\x01\x12s\n\x0fGetAvailability\x12/.dokime.v1.BackendMessages.GetAvailability.Row1\x1a/.dokime.v1.BackendMessages.GetAvailability.Row2\x12o\n\x12RunGetAvailability\x12).dokime.v1.BackendGetAvailabilityRunInput\x1a*.dokime.v1.BackendGetAvailabilityRunOutput(\x01\x30\x01\x12\x61\n\tGetHealth\x12).dokime.v1.BackendMessages.GetHealth.Row1\x1a).dokime.v1.BackendMessages.GetHealth.Row2\x12]\n\x0cRunGetHealth\x12#.dokime.v1.BackendGetHealthRunInput\x1a$.dokime.v1.BackendGetHealthRunOutput(\x01\x30\x01\x12g\n\x0bGetIdentity\x12+.dokime.v1.BackendMessages.GetIdentity.Row1\x1a+.dokime.v1.BackendMessages.GetIdentity.Row2\x12\x63\n\x0eRunGetIdentity\x12%.dokime.v1.BackendGetIdentityRunInput\x1a&.dokime.v1.BackendGetIdentityRunOutput(\x01\x30\x01\x12[\n\tWatchLogs\x12).dokime.v1.BackendMessages.WatchLogs.Row1\x1a!.dokime.v1.BackendWatchLogsOutput0\x01\x12]\n\x0cRunWatchLogs\x12#.dokime.v1.BackendWatchLogsRunInput\x1a$.dokime.v1.BackendWatchLogsRunOutput(\x01\x30\x01\x12^\n\nWatchTrace\x12*.dokime.v1.BackendMessages.WatchTrace.Row1\x1a\".dokime.v1.BackendWatchTraceOutput0\x01\x12`\n\rRunWatchTrace\x12$.dokime.v1.BackendWatchTraceRunInput\x1a%.dokime.v1.BackendWatchTraceRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -60,12 +60,48 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_start=509
   _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_end=707
-  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_start=710
-  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_end=881
-  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_start=884
-  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_end=1058
-  _globals['_BACKEND']._serialized_start=1061
-  _globals['_BACKEND']._serialized_end=1700
+  _globals['_BACKENDCOLLECTDIAGNOSTICSCANCELLATION']._serialized_start=709
+  _globals['_BACKENDCOLLECTDIAGNOSTICSCANCELLATION']._serialized_end=748
+  _globals['_BACKENDCOLLECTDIAGNOSTICSRUNINPUT']._serialized_start=751
+  _globals['_BACKENDCOLLECTDIAGNOSTICSRUNINPUT']._serialized_end=1027
+  _globals['_BACKENDCOLLECTDIAGNOSTICSRUNOUTPUT']._serialized_start=1030
+  _globals['_BACKENDCOLLECTDIAGNOSTICSRUNOUTPUT']._serialized_end=1231
+  _globals['_BACKENDGETAVAILABILITYCANCELLATION']._serialized_start=1233
+  _globals['_BACKENDGETAVAILABILITYCANCELLATION']._serialized_end=1269
+  _globals['_BACKENDGETAVAILABILITYRUNINPUT']._serialized_start=1272
+  _globals['_BACKENDGETAVAILABILITYRUNINPUT']._serialized_end=1536
+  _globals['_BACKENDGETAVAILABILITYRUNOUTPUT']._serialized_start=1538
+  _globals['_BACKENDGETAVAILABILITYRUNOUTPUT']._serialized_end=1659
+  _globals['_BACKENDGETHEALTHCANCELLATION']._serialized_start=1661
+  _globals['_BACKENDGETHEALTHCANCELLATION']._serialized_end=1691
+  _globals['_BACKENDGETHEALTHRUNINPUT']._serialized_start=1694
+  _globals['_BACKENDGETHEALTHRUNINPUT']._serialized_end=1934
+  _globals['_BACKENDGETHEALTHRUNOUTPUT']._serialized_start=1936
+  _globals['_BACKENDGETHEALTHRUNOUTPUT']._serialized_end=2045
+  _globals['_BACKENDGETIDENTITYCANCELLATION']._serialized_start=2047
+  _globals['_BACKENDGETIDENTITYCANCELLATION']._serialized_end=2079
+  _globals['_BACKENDGETIDENTITYRUNINPUT']._serialized_start=2082
+  _globals['_BACKENDGETIDENTITYRUNINPUT']._serialized_end=2330
+  _globals['_BACKENDGETIDENTITYRUNOUTPUT']._serialized_start=2332
+  _globals['_BACKENDGETIDENTITYRUNOUTPUT']._serialized_end=2445
+  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_start=2448
+  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_end=2619
+  _globals['_BACKENDWATCHLOGSCANCELLATION']._serialized_start=2621
+  _globals['_BACKENDWATCHLOGSCANCELLATION']._serialized_end=2651
+  _globals['_BACKENDWATCHLOGSRUNINPUT']._serialized_start=2654
+  _globals['_BACKENDWATCHLOGSRUNINPUT']._serialized_end=2894
+  _globals['_BACKENDWATCHLOGSRUNOUTPUT']._serialized_start=2897
+  _globals['_BACKENDWATCHLOGSRUNOUTPUT']._serialized_end=3071
+  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_start=3074
+  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_end=3248
+  _globals['_BACKENDWATCHTRACECANCELLATION']._serialized_start=3250
+  _globals['_BACKENDWATCHTRACECANCELLATION']._serialized_end=3281
+  _globals['_BACKENDWATCHTRACERUNINPUT']._serialized_start=3284
+  _globals['_BACKENDWATCHTRACERUNINPUT']._serialized_end=3528
+  _globals['_BACKENDWATCHTRACERUNOUTPUT']._serialized_start=3531
+  _globals['_BACKENDWATCHTRACERUNOUTPUT']._serialized_end=3708
+  _globals['_BACKEND']._serialized_start=3711
+  _globals['_BACKEND']._serialized_end=4974
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

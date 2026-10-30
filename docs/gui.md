@@ -67,6 +67,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
   select the build's `cargo-dokime` executable, export `bindings proto` and feed
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
+  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
+  Harmos's additional managed `Run…` RPCs remain transport projections.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
@@ -84,10 +86,16 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bodies so nested runtime futures stay off that thread's stack. Native and RPC
   command futures have a 16 KiB
   regression budget; the plugin install guard also constructs the mock-runtime future.
-- Settings › Plugins keeps installed programs' settings and secrets editable
-  after startup fails. Their declared schema comes from the verified bundle
-  inventory; the page shows the recorded failure and offers an application
-  restart to retry with saved changes. Every owner in an inactive bundle is editable.
+- Settings › Plugins keeps installed programs' ordinary settings editable after
+  startup fails. Their declared schema comes from the verified bundle inventory.
+  Secret declarations show identifiers and availability read-only; Add In Secret
+  Storage opens the shared Add Secret dialog prefilled with the identifier.
+  Every owner in an inactive bundle remains visible. Add missing identifiers and
+  restart Dokime, or use the existing plugin Retry to read the store again.
+  Startup notifications and plugin views keep root prose separate from collapsed
+  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
+  the identifier prefilled; notification history retains the same destination.
+  Secret Storage References lists declaring plugins, including inactive programs.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
