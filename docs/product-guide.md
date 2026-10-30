@@ -1014,7 +1014,8 @@ Native assembly uses Tauri's bundler. The NSIS template at
 `crates/dokime-packaging/src/installer/installer.nsi` is adapted from
 `tauri-bundler` 2.10.4: `PRODUCTNAME` is the display label, while install folders
 and registry keys use `BUNDLEID`. Keep that separation when updating the upstream
-template. Windows NSIS tooling is provisioned by that
+template. NSIS uses per-file LZMA compression so its header and file streams can
+be decoded independently during inspection. Windows NSIS tooling is provisioned by that
 backend. Inspection needs no external archive tool on any platform: the
 authoring tool reads NSIS installers, DEB packages with a gzip `data.tar.gz` and
 RPM packages with a gzip payload in-process, which are the formats packaging

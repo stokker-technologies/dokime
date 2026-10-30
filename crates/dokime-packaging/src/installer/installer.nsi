@@ -14,8 +14,8 @@ ManifestDPIAwareness PerMonitorV2
 !if "{{compression}}" == "none"
   SetCompress off
 !else
-  ; Set the compression algorithm. We default to LZMA.
-  SetCompressor /SOLID "{{compression}}"
+  ; Compress Files Independently: The Inspector Cannot Decode Solid LZMA Headers Reliably.
+  SetCompressor "{{compression}}"
 !endif
 
 ; Keep above !include to stay ahead of any plugin command
