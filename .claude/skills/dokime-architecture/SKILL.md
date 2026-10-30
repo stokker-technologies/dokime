@@ -5,26 +5,7 @@ description: Define Dokime domain, runtime, shell and packaging ownership and li
 
 # Dokime Architecture
 
-Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model.
-
-| Crate | Ownership And Dependencies |
-| --- | --- |
-| `dokime` | Consumer entry library; depends on domain and runtime, with optional client support. |
-| `dokime-domain` | Portable models, records, streams, prompts and settings contracts; no runtime dependency. |
-| `dokime-operations` | Operation declarations, policies and catalogs over domain; its optional `runtime` feature dispatches through host-provided resources without depending on the runtime crate. |
-| `dokime-runtime` | Host resources, execution, evidence and storage; depends on domain and operations, with optional macros. |
-| `dokime-cli` | Command interface and the `dokime` executable, including `dokime server`; depends on the entry library and server library. |
-| `dokime-gui` | Desktop interface; depends on the entry library. |
-| `dokime-server` | Server library owning session boot, listeners and bounded drain; shared by CLI and desktop composition, depends on the entry library. |
-| `dokime-client` | Remote client implementation; depends on domain and operations, exposed through the entry library's `client` feature. |
-| `dokime-packaging` | Packaging implementation; depends on the entry library. |
-| `dokime-macros` | Authoring declarations; no production runtime dependency. |
-
-The locked extraction in `prototype-streamline` assigns portable contracts to domain, behavior per operation file to operations, resources to runtime, third-party authoring to SDK, and host assembly to the facade. SDK and further engine/resource extraction remain the work of 9.0.5 and 9.2; the table above describes the landed crates consumed today.
-
-The entry library and library/SDK crates permit Cargo publication; registry availability is a release result. CLI, desktop shell, server executable and Cargo subcommand owners declare `publish = false` and ship through installers and target-specific tool archives.
-
-Declare data contracts once in `dokime-domain` and operations, their policies and catalogs once in `dokime-operations`; its optional `runtime` feature dispatches through host-provided resources without depending on the runtime crate, which owns resources, execution, evidence and storage. Interfaces consume the `dokime` entry library and expose those declarations without redeclaration or forwarding implementations. Data-only consumers depend on `dokime-domain`; contract-only operation consumers use `dokime-operations` with `runtime` disabled.
+Declare product contracts once in `dokime-domain` and implement handlers in `dokime-runtime`. Interfaces consume the `dokime` entry library and expose the same operation contracts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
 Host plugin rows, contracts, cadences and document defaults belong to the definitions-only default of `dokime-host`, consumed explicitly without runtime re-exports. Application lifecycle records remain in `dokime::host`. `PluginOwner::Host` identifies embedding application catalogs, presented as Built-in.
 
