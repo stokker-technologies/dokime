@@ -140,26 +140,7 @@ pub(super) fn capture(
     Ok(Captured { context, logos })
 }
 
-// Annotation context also retains session/global observations. Export selection
-// separately decides whether these belong to an explicitly cycle-scoped bundle.
-pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> bool {
-    if (scope.step_id.is_some() || scope.criterion_id.is_some()) && scope.test_execution_id.is_none() {
-        return false;
-    }
-    (scope.test_cycle_id.is_none() && scope.test_case_id.is_none() && scope.test_execution_id.is_none())
-        || owns_projection(scope, execution)
-}
-
 /* === Private Functions === */
-
-// Each execution owns its own projections and copies only its cycle/case ancestors.
-// Global items are deliberately outside the cycle export selection.
-fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {
-    (scope.test_cycle_id.is_some() || scope.test_execution_id.is_some())
-        && scope.test_cycle_id.as_ref().is_none_or(|id| Some(id) == execution.test_cycle_id.as_ref())
-        && scope.test_case_id.as_ref().is_none_or(|id| Some(id) == execution.test_case_id.as_ref())
-        && scope.test_execution_id.as_ref().is_none_or(|id| Some(id) == execution.test_execution_id.as_ref())
-}
 
 fn error(value: impl ToString) -> Error {
     Error::Operation(value.to_string())

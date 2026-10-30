@@ -20,16 +20,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 
-#[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-#[allow(unused_imports)]
-use crate::model::planning::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Constants === */

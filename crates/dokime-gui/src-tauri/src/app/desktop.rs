@@ -146,7 +146,7 @@ pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), S
 
 pub async fn desktop_pairing_create(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, label: String, endpoint: String,
-) -> Result<Option<PathBuf>, crate::connection::ConnectionError> {
+) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
     use dokime::operations::remote::{CreatePairing, RevokePairedClient};
     let local = |message: String| ConnectionError::Registry { message };
@@ -194,7 +194,7 @@ pub async fn desktop_pairing_create(
     let Some((path, overwrite)) = selected else { return Ok(None) };
     state.with_current(&status.generation, || ())?;
     let client = lease.client();
-    let mut created = client.call(CreatePairing { label, endpoint }).await.map_err(ConnectionError::from)?;
+    let mut created = client.call(CreatePairing { label, endpoint }).await?;
     let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
     if let Some(key) = created.pairing.access_key.as_mut() {
         zeroize::Zeroize::zeroize(key);
@@ -233,7 +233,7 @@ pub async fn desktop_pairing_create(
                 .await
                 .map_err(|_| local(format!("{message}; the new paired client could not be revoked. Revoke it in Paired Clients.")))?;
         }
-        return Err(local(message));
+        return Err(local(message).into());
     }
     Ok(Some(path))
 }
@@ -742,6 +742,17 @@ pub async fn move_verified_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pairing_validation_error_retains_native_rpc_reason() {
+        let status = tonic::Status::invalid_argument("fixture-endpoint-rejection");
+        let expected = status.message().to_owned();
+        let error = crate::Error::from(dokime::client::Error::Rpc(status));
+        let encoded = serde_json::to_value(error).unwrap();
+        assert_eq!(encoded["kind"], "grpc");
+        assert_eq!(encoded["detail"]["code"], 3);
+        assert_eq!(encoded["detail"]["message"], expected);
+    }
 
     #[test]
     fn reports_require_verified_native_delivery() {

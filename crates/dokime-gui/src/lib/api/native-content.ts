@@ -42,7 +42,6 @@ type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
 type ArtifactFrame = Wire<ArtifactDownloadFrame>;
 type ExecutionFileFollowFrame = Wire<FileFollowFrame>;
 type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["artifacts"][number];
-type ArtifactCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListArtifacts>>>["cursor"]>;
 type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["files"][number];
 type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentListExecutionFiles>>>["cursor"]>;
 type ExecutionFileKind = ExecutionFileMetadata["kind"];
@@ -292,31 +291,6 @@ export async function uploadNativeArtifact(session: NativeContentSession, option
     await cancel().catch(() => undefined);
     release?.();
   }
-}
-
-export async function fetchNativeArtifacts(session: SessionIdentity): Promise<ArtifactRecord[]> {
-  const artifacts: ArtifactMetadata[] = [];
-  let afterArtifactId = "";
-  let cursor: ArtifactCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page += 1) {
-    const response = await rpc.contentListArtifacts(session, {
-      limit: GUI_SMALL_PAGE_ITEMS,
-      afterArtifactId,
-      cursor,
-    });
-    artifacts.push(...response.artifacts);
-    const next = response.nextAfterArtifactId;
-    if (!next) return artifacts.map((artifact) => mapArtifactMetadata(artifact));
-    if (next === afterArtifactId) {
-      throw new NativeApiLimitError("Content.ListArtifacts", "cursor did not advance");
-    }
-    if (!response.cursor) {
-      throw new Error("Content.ListArtifacts returned a continuation without a cursor.");
-    }
-    afterArtifactId = next;
-    cursor = response.cursor;
-  }
-  throw new NativeApiLimitError("Content.ListArtifacts", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 /** Shared with `ArtifactUploader.tsx`'s native recording sink, which builds an
