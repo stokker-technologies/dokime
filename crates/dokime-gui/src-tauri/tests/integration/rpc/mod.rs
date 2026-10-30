@@ -95,7 +95,7 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
         .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
     let contracts =
-        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
     let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
     let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
     let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
@@ -413,4 +413,77 @@ async fn client_close_drops() {
     released.await.unwrap();
 
     fixture.close().await;
+}
+
+#[cfg(feature = "testing")]
+mod native {
+    use super::*;
+    use dokime_gui::testing::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
+    use tauri::Manager;
+
+    fn app_and_window(session: &dokime_gui::connection::ConnectionSession) -> (tauri::App<tauri::test::MockRuntime>, bridge::Window) {
+        let app = tauri::test::mock_builder()
+            .manage(session.clone())
+            .manage(DroppedFiles::default())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        (app, window)
+    }
+
+    async fn install_file(
+        app: &tauri::App<tauri::test::MockRuntime>, window: &bridge::Window, drop: bool,
+    ) -> Result<Option<String>, String> {
+        let session = app.state::<dokime_gui::connection::ConnectionSession>();
+        let generation = session.status().generation;
+        desktop_plugin_install_file(
+            window.clone(),
+            session,
+            app.state::<DroppedFiles>(),
+            app.handle().clone(),
+            generation,
+            drop,
+            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn invalid_bundle_returns_error_then_valid_file_installs() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("plugin.dokime");
+        std::fs::write(&path, b"not a plugin bundle").unwrap();
+        app.state::<DroppedFiles>().record("main", std::slice::from_ref(&path));
+
+        let error = install_file(&app, &window, true).await.expect_err("invalid archive returns a normal command failure");
+        assert!(!error.is_empty());
+
+        std::fs::write(&path, large_bundle(1024)).unwrap();
+        app.state::<DroppedFiles>().record("main", &[path]);
+        let installed = install_file(&app, &window, true).await.expect("a failed installation leaves the command usable");
+        assert!(installed.is_some());
+        fixture.close().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn unreadable_file_returns_error() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+        let root = tempfile::tempdir().unwrap();
+        app.state::<DroppedFiles>().record("main", &[root.path().join("missing.dokime")]);
+
+        install_file(&app, &window, true).await.expect_err("file read failure returns to the frontend");
+        fixture.close().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn missing_picker_returns_error() {
+        let fixture = Fixture::new().await;
+        let (app, window) = app_and_window(&fixture.session);
+
+        install_file(&app, &window, false).await.expect_err("unmanaged dialog state must not panic");
+        fixture.close().await;
+    }
 }

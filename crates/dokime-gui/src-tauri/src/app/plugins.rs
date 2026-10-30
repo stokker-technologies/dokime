@@ -21,8 +21,7 @@ use std::time::{Duration, Instant};
 
 // Third Party Imports
 use tauri::ipc::Channel;
-use tauri::{AppHandle, State, WebviewWindow};
-use tauri_plugin_dialog::DialogExt;
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
@@ -75,11 +74,11 @@ impl DroppedFiles {
             paths: paths.to_vec(),
             at: Instant::now(),
         };
-        *self.0.lock().expect("dropped files poisoned") = Some(drop);
+        *self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(drop);
     }
 
     fn take(&self, window: &str) -> Result<PathBuf, String> {
-        let drop = self.0.lock().expect("dropped files poisoned").take();
+        let drop = self.0.lock().map_err(|_| "The dropped plugin file is unavailable")?.take();
         let Some(drop) = drop.filter(|drop| drop.window == window && drop.at.elapsed() < DROP_VALIDITY) else {
             return Err("No plugin bundle was dropped on this window".into());
         };
@@ -93,16 +92,15 @@ impl DroppedFiles {
 /* === Public Functions === */
 
 // Install the bundle just dropped on the window, or pick one natively; `None` when the operator cancels the picker.
-pub async fn desktop_plugin_install_file(
-    window: WebviewWindow, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle, generation: String,
+pub async fn desktop_plugin_install_file<R: tauri::Runtime>(
+    window: WebviewWindow<R>, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle<R>, generation: String,
     drop: bool, progress: Channel<InstallProgress>,
 ) -> Result<Option<String>, String> {
     let lease = admit(&window, &state, &generation)?;
     let path = if drop {
         dropped.take(window.label())?
     } else {
-        let picking = move || pick_bundle(app);
-        let Some(path) = tauri::async_runtime::spawn_blocking(picking).await.map_err(text)?? else {
+        let Some(path) = lease.guard(pick_bundle(&app)).await.map_err(|error| format!("{error:?}"))?? else {
             return Ok(None);
         };
         path
@@ -117,15 +115,22 @@ pub async fn desktop_plugin_install_file(
 
 /* === Private Functions === */
 
-pub(super) fn admit(window: &WebviewWindow, state: &ConnectionSession, generation: &str) -> Result<SessionLease, String> {
+pub(super) fn admit<R: tauri::Runtime>(
+    window: &WebviewWindow<R>, state: &ConnectionSession, generation: &str,
+) -> Result<SessionLease, String> {
     ensure_main_window(window)?;
     ensure_generation_token(generation)?;
     state.lease(generation).map_err(|error| format!("Native plugin installation lost its owning connection: {error:?}"))
 }
 
-fn pick_bundle(app: AppHandle) -> Result<Option<PathBuf>, String> {
-    let dialog = app.dialog().file().add_filter("Plugin Bundle", &["dokime"]);
-    let Some(path) = dialog.blocking_pick_file() else {
+async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, String> {
+    let dialog = app.try_state::<tauri_plugin_dialog::Dialog<R>>().ok_or("The plugin file picker is unavailable")?;
+    let (selected, selection) = tokio::sync::oneshot::channel();
+    dialog.file().add_filter("Plugin Bundle", &["dokime"]).pick_file(move |path| {
+        // The Owning Command May Have Been Cancelled While The Picker Was Open.
+        let _ = selected.send(path);
+    });
+    let Some(path) = selection.await.map_err(|_| "The plugin file picker closed without a result")? else {
         return Ok(None);
     };
     path.into_path().map(Some).map_err(text)
@@ -147,7 +152,7 @@ pub(super) async fn install(
     }
 
     // Stream The Advertised Chunk Size Over The Shared Client
-    let frame_limit = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).expect("desktop frame limit");
+    let frame_limit = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).ok_or("The desktop upload frame limit is invalid")?;
     let client = lease.client().with_frame_limit(frame_limit).with_timeout(INSTALL_DEADLINE);
     let mut reported: Option<Instant> = None;
     let report = move |sent: u64, total: u64| {
