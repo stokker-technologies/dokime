@@ -59,6 +59,11 @@ and filter controls remain usable. Preserve the case of unit symbols.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
+- Tauri constructs its async response future, including command state, on the
+  event-loop thread before spawning it. Native async adapters box their handler
+  bodies so nested runtime futures stay off that thread's stack. Native and RPC
+  command futures have a 16 KiB
+  regression budget; the plugin install guard also constructs the mock-runtime future.
 - Settings › Plugins keeps installed programs' settings and secrets editable
   after startup fails. Their declared schema comes from the verified bundle
   inventory; the page shows the recorded failure and offers an application
