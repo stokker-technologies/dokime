@@ -388,7 +388,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
                 error: None,
                 active: false,
                 restart_required: false,
-                boot_error: None,
+                boot_failed: false,
             })))
         })
     }

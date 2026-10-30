@@ -11,6 +11,7 @@
 
 import type { RuntimeAppearanceFrame } from "@/lib/appearance";
 import { type Brand, brandFromLogos, defaultBrand } from "@/lib/brand";
+import { applyBrandFavicon } from "@/lib/favicon";
 import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 
@@ -29,7 +30,7 @@ let reportThemeFamily: ReturnType<typeof resolveThemeFamily> = null;
 
 /**
  * Apply the report payload's appearance frame: theme variables for the
- * viewer's color scheme, the document title, and the brand for the shell.
+ * viewer's color scheme, the document title and favicon, and the brand for the shell.
  * Falls back to the default brand when no frame was embedded.
  */
 export function applyReportAppearance(appearance: unknown): Brand {
@@ -48,7 +49,9 @@ export function applyReportAppearance(appearance: unknown): Brand {
     document.title = `${frame.app_name} Report`;
   }
 
-  return brandFromFrame(frame);
+  const brand = brandFromFrame(frame);
+  applyBrandFavicon(brand);
+  return brand;
 }
 
 /* === Private Functions === */

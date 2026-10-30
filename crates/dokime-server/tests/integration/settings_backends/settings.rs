@@ -235,7 +235,27 @@ async fn non_admitted_settings() {
     let (environment, server, client) = fixture().await;
     let bytes = support::bundles::bundle_with_settings("failed-settings", "failed_settings", fixture_module().settings);
     let installed = environment.runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
-    environment.runtime.plugin_store().record_boot(installed.installation.install_id, Some("startup-refused".into())).await.unwrap();
+    let failure = model::plugins::wire::PluginStartFailure {
+        plugin_id: "failed_settings".into(),
+        plugin_name: "Fixture".into(),
+        message: "startup-refused".into(),
+        code: Some(dokime::domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()),
+        missing_secret: Some("fixture.token".into()),
+        carrier: dokime::harmos::domain::Failure::new(dokime::harmos::operations::FailureKind::Permanent, "fixture.token").encode(),
+    };
+    environment.runtime.plugin_store().record_boot(installed.installation.install_id, Some(failure.clone())).await.unwrap();
+    let installation = client
+        .unary::<contracts::plugins::GetInstallation>(auth(
+            contracts::plugins::GetInstallation {
+                install_id: installed.installation.install_id.to_string(),
+            },
+            TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    let Some(model::plugins::wire::PluginLastBootResult::Error(retained)) = installation.last_boot.unwrap().result else { panic!() };
+    assert_eq!(retained, failure);
     let initial = client
         .unary::<contracts::settings::GetPluginSettings>(auth(
             contracts::settings::GetPluginSettings { plugin_id: "failed_settings".into() },

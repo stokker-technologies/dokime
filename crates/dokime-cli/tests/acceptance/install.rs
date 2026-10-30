@@ -351,7 +351,7 @@ async fn install() {
             error: None,
             active: false,
             restart_required: false,
-            boot_error: None,
+            boot_failed: false,
         },
         bytes: bundle.bytes().to_vec(),
         calls: calls.clone(),

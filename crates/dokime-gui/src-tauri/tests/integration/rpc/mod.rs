@@ -467,6 +467,23 @@ mod native {
         fixture.close().await;
     }
 
+    #[test]
+    fn install_future_size() {
+        let (app, window) = app_and_window(&dokime_gui::connection::ConnectionSession::default());
+        let future = desktop_plugin_install_file(
+            window,
+            app.state::<dokime_gui::connection::ConnectionSession>(),
+            app.state::<DroppedFiles>(),
+            app.handle().clone(),
+            "0".into(),
+            false,
+            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
+        );
+        let bytes = std::mem::size_of_val(&future);
+        eprintln!("desktop_plugin_install_file (mock): {bytes} bytes");
+        assert!(bytes <= 16 * 1024, "plugin install command future uses {bytes} bytes");
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn unreadable_file_returns_error() {
         let fixture = Fixture::new().await;

@@ -13,6 +13,7 @@
 # Standard Library Imports
 import json
 from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
 from types import TracebackType
@@ -284,11 +285,30 @@ class DokimeClient:
             _identity(created.cycle_id)
         except ValueError as error:
             raise ProtocolError("created cycle identity is invalid") from error
-        return Cycle(created.cycle_id, self._transport, backend, ())
+        return Cycle(created.cycle_id, self._transport, backend, (), client=self)
+
+    @asynccontextmanager
+    async def new_cycle(
+        self,
+        label: str,
+        *,
+        description: str | None = None,
+        identifier: str | None = None,
+        continue_automatically: bool = False,
+    ) -> AsyncIterator[Cycle]:
+        """Create An Owned Cycle That Seals And Drains On Every Context Exit."""
+        cycle = await self.create_cycle(
+            label=label,
+            description=description,
+            identifier=identifier,
+            continue_automatically=continue_automatically,
+        )
+        async with cycle:
+            yield cycle
 
     async def cycle(self, cycle_id: str) -> Cycle:
         """Resolve a live cycle on the current backend."""
-        return await Cycle._bind(self._transport, cycle_id, await self.connect())
+        return await Cycle._bind(self._transport, cycle_id, await self.connect(), client=self)
 
     async def execution(self, execution_id: str) -> Execution:
         """Bind an existing native identity without lookup or device work."""

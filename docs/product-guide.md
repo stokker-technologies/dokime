@@ -201,11 +201,32 @@ Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
 
 ```python
-client = DokimeClient.from_pairing("lab.dokime-pair")
-async with client:
-    async for suite in client.suites():
-        print(suite)
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
+
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+raise SystemExit(asyncio.run(main()))
 ```
+
+The example requires the corresponding installed template. With the OBC fixture,
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
+on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
+are grouped with the original failure. Await a run directly for its saved outcome.
+Terminal record/sample iterators accept positional filters and provide `.to_json()`.
+The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
+cancelled. A template expansion returns an ordered tuple of all execution handles.
+`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
+manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
+are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -276,7 +297,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
-client provides the same durable boundary with `await cycle.seal()`.
+client provides the same durable boundary with `await cycle.seal()`, and
+`async with client.new_cycle(label)` applies it automatically on every exit.
 
 Download saved evidence without running any work again:
 
@@ -877,6 +899,24 @@ The advanced collection path and `sidecar package` do not invoke the compiler.
 The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
 
+### Plugin Schema Budgets
+
+`dokime::config::schema_defaults()` in `crates/dokime-runtime/src/config/schema.rs`
+owns plugin metadata preparation allowances. Packaging, installer verification,
+bundle inspection, plugin store installation and native admission use these
+defaults, including GUI uploads through the backend plugin store.
+The finite memory allowance is 64 times `INSTALL_ARCHIVE_MAX_BYTES`; the work
+allowance is 16 times that limit. They cover encoded metadata decoding, fragment
+overhead and shared contract schema resolution. These are accounting ceilings,
+not memory allocations made up front. Bundle and individual fragment size limits
+still apply independently.
+
+Embedding applications can set `Config.schema` or `RuntimeConfig.schema` to
+stricter allowances; the same settings reach inspection, installation and
+executable admission. Refusals identify the plugin and the exhausted memory or
+work allowance, with attempted usage and the allowed amount. Reduce the plugin's
+metadata or increase the embedding application's schema allowance to admit it.
+
 ### Native Installers
 
 | Command | Purpose | Key Flags |
@@ -1251,6 +1291,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
+Desktop and report browser tabs use the brand's logos, preferring contained artwork
+for the viewer's color scheme and keeping the default favicon when no logos apply.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
@@ -1266,7 +1308,8 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
+deleted automatically. Desktop single-instance and startup locks, including the
+focus channel, use the resolved application root. Protocol/deep-link identity,
 updater verification trust and code-signing identity remain compiled. Reusing
 binaries with different distribution identities does not isolate those mechanisms.
 
