@@ -527,8 +527,8 @@ pub(crate) async fn startup_reclaims_extraction() {
     let root = tempfile::tempdir().unwrap();
     let config = crate::service_support::config(root.path());
     let extraction = config.application.root.join("cache/plugins");
-    let orphan = extraction.join(uuid::Uuid::from_u128(2).to_string());
-    let staging = extraction.join("harmos-plugin-not-a-uuid");
+    let orphan = extraction.join("0".repeat(64));
+    let staging = extraction.join("harmos-plugin-not-a-digest");
     fs::create_dir_all(&orphan).unwrap();
     fs::create_dir_all(&staging).unwrap();
     fs::write(orphan.join("stale"), b"orphaned bytes").unwrap();
