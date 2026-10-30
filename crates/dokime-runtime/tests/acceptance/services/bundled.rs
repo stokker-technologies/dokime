@@ -41,7 +41,7 @@ use dokime_runtime::plugins::PluginStore;
 /* === Private Functions === */
 
 fn fixture_bytes() -> Vec<u8> {
-    std::fs::read(crate::service_support::bundles::obc_plugin_bundle()).unwrap()
+    std::fs::read(crate::service_support::bundles::plugin_obc_bundle()).unwrap()
 }
 
 /* === Tests === */
@@ -49,7 +49,7 @@ fn fixture_bytes() -> Vec<u8> {
 #[tokio::test]
 async fn external_analysis_reload() {
     let root = tempfile::tempdir().unwrap();
-    let bundle = crate::service_support::bundles::obc_plugin_bundle();
+    let bundle = crate::service_support::bundles::plugin_obc_bundle();
     let config = crate::service_support::config(root.path()).with_plugins([dokime_runtime::plugins::PluginBundle::new(bundle)]);
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
@@ -64,7 +64,7 @@ async fn external_analysis_reload() {
     });
     for reload in [false, true] {
         if reload {
-            owner.reinitialize_plugin("obc").await.unwrap();
+            owner.reinitialize_plugin("plugin_obc").await.unwrap();
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
         assert_eq!(definitions.iter().filter(|definition| definition.id == "obc.analysis.ripple").count(), 1);

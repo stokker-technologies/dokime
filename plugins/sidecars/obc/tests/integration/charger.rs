@@ -20,7 +20,7 @@
 // Local Imports
 use dokime::execution::Workflow;
 use dokime::transport::{RunExecution, StepAdmission};
-use obc_plugin::{SOURCE, suites::steady};
+use plugin_obc::{SOURCE, suites::steady};
 
 /* === Constants === */
 

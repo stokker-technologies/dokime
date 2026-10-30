@@ -156,9 +156,10 @@ mod tests {
         let Command::Package(args) = parsed.args.command else { panic!("package command") };
         assert!(args.plugins.is_empty());
 
-        let parsed = Installer::try_parse_from(["installer", "package", "--plugin", "host.dokime", "--plugin", "bench.dokime"]).unwrap();
+        let parsed =
+            Installer::try_parse_from(["installer", "package", "--plugin", "plugin-host.dokime", "--plugin", "bench.dokime"]).unwrap();
         let Command::Package(args) = parsed.args.command else { panic!("package command") };
-        assert_eq!(args.plugins, [PathBuf::from("host.dokime"), PathBuf::from("bench.dokime")]);
+        assert_eq!(args.plugins, [PathBuf::from("plugin-host.dokime"), PathBuf::from("bench.dokime")]);
         assert!(Installer::try_parse_from(["installer", "package", "--plugin"]).is_err());
     }
 }

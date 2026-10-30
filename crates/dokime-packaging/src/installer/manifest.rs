@@ -260,12 +260,12 @@ mod tests {
 
         for entry in [
             "",
-            "name='host'\npath='plugins/host.dokime'",
+            "name='plugin-host'\npath='plugins/plugin-host.dokime'",
             "name=''",
             "path='../outside.dokime'",
-            "path='/host.dokime'",
-            "path='C:/host.dokime'",
-            "path='plugins\\host.dokime'",
+            "path='/plugin-host.dokime'",
+            "path='C:/plugin-host.dokime'",
+            "path='plugins\\plugin-host.dokime'",
         ] {
             let text = format!("{base}[[plugin]]\nname='valid'\n[[plugin]]\n{entry}");
             let manifest: Manifest = toml::from_str(&text).unwrap();

@@ -48,7 +48,7 @@ pub fn plugin_bundle() -> PathBuf {
         .expect("the workspace root holds Cargo.lock")
         .join("target/build/bench")
         .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
-        .join("fixtures/plugins/obc-plugin.dokime");
+        .join("fixtures/plugins/plugin-obc.dokime");
     assert!(path.is_file(), "missing built artifact {}; run `mise run build:rust:bench`", path.display());
     path
 }

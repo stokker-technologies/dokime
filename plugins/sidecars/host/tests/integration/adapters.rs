@@ -23,7 +23,7 @@ use dokime::harmos::{
     operations::{OperationDeclaration, Visibility},
     sidecar::{Observer, Publisher},
 };
-use dokime_host::{
+use plugin_host::{
     HostPlugin,
     host::{
         adapters::{Adapters, Snapshot, snapshot},

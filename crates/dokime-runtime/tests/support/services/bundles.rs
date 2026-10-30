@@ -79,12 +79,12 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
     .to_vec()
 }
 
-pub fn obc_plugin_bundle() -> std::path::PathBuf {
-    built_bundle("fixtures/plugins/obc-plugin.dokime")
+pub fn plugin_obc_bundle() -> std::path::PathBuf {
+    built_bundle("fixtures/plugins/plugin-obc.dokime")
 }
 
 pub fn host_plugin_bundle() -> std::path::PathBuf {
-    built_bundle("plugins/host.dokime")
+    built_bundle("plugins/plugin-host.dokime")
 }
 
 fn built_bundle(relative: &str) -> std::path::PathBuf {

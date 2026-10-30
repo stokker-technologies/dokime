@@ -38,7 +38,7 @@
 /* === Private Functions === */
 
 fn main() -> std::io::Result<()> {
-    dokime::plugin::run::<dokime_host::HostPlugin>()
+    dokime::plugin::run::<plugin_host::HostPlugin>()
 }
 
 /* === Tests === */

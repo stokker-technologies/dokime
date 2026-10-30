@@ -15,7 +15,7 @@ runtime = []
 [dependencies]
 tracing = "0.1"
 dokime = { git = "{{repository}}", tag = "v{{sdk_version}}", features = ["plugin-sidecar"] }
-dokime-host = { git = "{{repository}}", tag = "v{{sdk_version}}", default-features = false }
+plugin-host = { git = "{{repository}}", tag = "v{{sdk_version}}", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

@@ -50,7 +50,7 @@ def main() -> int:
         raise policy.TestError("missing benchmark compiler metadata; run build:rust:bench first")
 
     binary = report_binary(messages)
-    plugin = output / "fixtures/plugins/obc-plugin.dokime"
+    plugin = output / "fixtures/plugins/plugin-obc.dokime"
     required = [messages.relative_to(root).as_posix(), binary.as_posix(), plugin.relative_to(root).as_posix()]
     archive.fixtures(root, "bench", required)
     environment = dict(os.environ, DOKIME_REPORT_MEASURE_COPIES=str(options.copies))

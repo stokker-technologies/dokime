@@ -21,7 +21,7 @@
 // Third Party Imports
 
 // Local Imports
-use obc_plugin::ObcPlugin;
+use plugin_obc::ObcPlugin;
 
 /* === Constants === */
 
@@ -46,10 +46,10 @@ use obc_plugin::ObcPlugin;
 #[tokio::test]
 async fn resources_share_allocation() {
     use dokime::harmos::Lifecycle;
-    let mut setup = dokime::harmos::Setup::<ObcPlugin>::new(harmos_sdk::__private::WireTable::new("obc").unwrap());
+    let mut setup = dokime::harmos::Setup::<ObcPlugin>::new(harmos_sdk::__private::WireTable::new("plugin_obc").unwrap());
     let mut plugin = <ObcPlugin as Lifecycle>::prepare(Default::default(), &mut setup).await.unwrap();
-    let first = setup.settings().context().resource::<obc_plugin::Resources>().unwrap();
-    let second = setup.settings().context().resource::<obc_plugin::Resources>().unwrap();
+    let first = setup.settings().context().resource::<plugin_obc::Resources>().unwrap();
+    let second = setup.settings().context().resource::<plugin_obc::Resources>().unwrap();
     assert!(std::sync::Arc::ptr_eq(&first, &second));
 
     let weak = std::sync::Arc::downgrade(&first);
@@ -63,9 +63,9 @@ async fn resources_share_allocation() {
 #[test]
 fn executable_declares_routes() {
     let declared =
-        dokime::__harmos::sidecar::Executable::at(executable()).expect("the obc-plugin executable declares itself").declaration().clone();
+        dokime::__harmos::sidecar::Executable::at(executable()).expect("the plugin-obc executable declares itself").declaration().clone();
 
-    assert_eq!(declared.id, "obc");
+    assert_eq!(declared.id, "plugin_obc");
     assert_eq!(declared.version.to_string(), "0.1.0");
     let operations =
         declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
@@ -111,13 +111,13 @@ fn executable_declares_routes() {
             "obc.system",
         ]
     );
-    assert_eq!("obc", declared.id);
+    assert_eq!("plugin_obc", declared.id);
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_obc-plugin")
+    std::env::var("NEXTEST_BIN_EXE_plugin-obc")
         .ok()
-        .or_else(|| option_env!("CARGO_BIN_EXE_obc-plugin").map(str::to_owned))
+        .or_else(|| option_env!("CARGO_BIN_EXE_plugin-obc").map(str::to_owned))
         .expect("workspace executable")
 }

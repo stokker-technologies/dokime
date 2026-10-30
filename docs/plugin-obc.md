@@ -68,14 +68,14 @@ mise run build:rust
 mise run build:rust:tests
 ```
 
-OBC is a test-only fixture and is never shipped by default. The bundle is `target/build/dev/<target>/fixtures/plugins/obc-plugin.dokime`. Install it through
+OBC is a test-only fixture and is never shipped by default. The bundle is `target/build/dev/<target>/fixtures/plugins/plugin-obc.dokime`. Install it through
 **Settings → Plugins** and restart to admit its frozen catalog. The screenshot
 and native desktop scenarios consume this same built bundle.
 
 For a focused plugin check:
 
 ```sh
-mise run build:rust:focused -- check --locked -p obc-plugin --all-targets
+mise run build:rust:focused -- check --locked -p plugin-obc --all-targets
 ```
 
 The plugin stops execution observers before cleanup, settles its embedded

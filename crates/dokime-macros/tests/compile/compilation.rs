@@ -108,7 +108,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
                 }
             }
 
-            if value["reason"] == "compiler-artifact" && value["target"]["name"] == "dokime_host" {
+            if value["reason"] == "compiler-artifact" && value["target"]["name"] == "plugin_host" {
                 let features = value["features"].as_array().unwrap().len();
                 let libraries = value["filenames"].as_array().unwrap().iter().filter_map(|name| name.as_str());
                 let libraries = libraries.filter(|name| name.ends_with(".rlib"));
@@ -225,7 +225,7 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
         .arg("--extern")
         .arg(format!("serde={}", sdk.serde.display()))
         .arg("--extern")
-        .arg(format!("dokime_host={}", sdk.host.display()))
+        .arg(format!("plugin_host={}", sdk.host.display()))
         .arg("-L")
         .arg(format!("dependency={}", dependencies.display()))
         .args(sdk.native_paths.iter().flat_map(|path| ["-L".to_owned(), format!("native={}", path.display())]))
@@ -524,8 +524,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime_host::System: Publishable` is not satisfied",
-        "the trait bound `dokime_host::System: OwnedStream` is not satisfied",
+        "the trait bound `plugin_host::System: Publishable` is not satisfied",
+        "the trait bound `plugin_host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }

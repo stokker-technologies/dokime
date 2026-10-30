@@ -253,7 +253,7 @@ async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecution
 }
 
 async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
-    let bundle = root.join("obc-plugin.dokime");
+    let bundle = root.join("plugin-obc.dokime");
     std::fs::copy(super::plugin_bundle(), &bundle).unwrap();
     let mut config = dokime_runtime::RuntimeConfig::new(
         root,
