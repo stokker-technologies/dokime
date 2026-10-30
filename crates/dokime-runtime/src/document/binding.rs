@@ -173,34 +173,6 @@ impl Row<'_> {
 
 /* === Public Functions === */
 
-pub(crate) fn selected_sources(definition: &DocumentDefinition, context: Context<'_>) -> (Vec<String>, Vec<String>, bool) {
-    let records = std::cell::RefCell::new(Vec::new());
-    let streams = std::cell::RefCell::new(Vec::new());
-    let all_telemetry = std::cell::Cell::new(false);
-    bindings_need(definition, |expression| {
-        match &expression.source {
-            DataSource::Record { record_type } => records.borrow_mut().push(record_type.clone()),
-            DataSource::Telemetry { stream, .. } => streams.borrow_mut().push(stream.clone()),
-            _ if expression_needs_telemetry(expression, context) => all_telemetry.set(true),
-            _ => {}
-        }
-        // Correlated Telemetry May Name A Stream Independently Of The Primary Source.
-        for transform in &expression.transforms {
-            if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
-                streams.borrow_mut().push(stream.clone());
-            }
-        }
-        false
-    });
-    let mut records = records.into_inner();
-    records.sort();
-    records.dedup();
-    let mut streams = streams.into_inner();
-    streams.sort();
-    streams.dedup();
-    (records, streams, all_telemetry.get())
-}
-
 pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context<'_>) -> bool {
     bindings_need(definition, |expression| expression_needs_telemetry(expression, context))
 }
@@ -450,7 +422,7 @@ fn validate_pair(expression: &DataExpression, other: &DataExpression) -> Result<
     Ok(())
 }
 
-fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
+pub(crate) fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. })
         || expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
         || (matches!(expression.source, DataSource::Dimension { .. }) && !context.supplies(&expression.source))

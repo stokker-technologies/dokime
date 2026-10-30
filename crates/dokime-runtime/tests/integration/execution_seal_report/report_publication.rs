@@ -53,7 +53,8 @@ pub(crate) async fn dependency_publication_retry() {
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    let cycle = super::published_cycle(&runtime, &cycle_id).await;
     let source_seal = cycle.test_executions[0].saved.as_ref().unwrap();
     let inspection = runtime.execution_snapshot(&cycle.test_executions[0].test_execution_id).await.unwrap();
     let context = inspection.context().unwrap().clone();

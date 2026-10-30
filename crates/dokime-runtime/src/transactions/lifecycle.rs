@@ -68,6 +68,7 @@ pub struct RecoverInterruptedCycles {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportFinalization {
+    pub failure: Option<String>,
     pub evidence_at: harmos::storage::StorageCursor,
     pub requested_at: Timestamp,
     pub lifecycle: Option<ReportLifecycle>,
@@ -128,6 +129,13 @@ pub struct BeginCycleSeal {
 pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
+}
+
+#[harmos::transaction(id = "dokime.report.failed")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FailReport {
+    pub execution: TestExecutionId,
+    pub cause: String,
 }
 
 /* === Enums === */
@@ -230,6 +238,17 @@ impl Transaction<RuntimeState> for StageQueuedStop {
         request.summary.stop_requested = true;
         request.summary.paused = false;
         request.completion_at = Some(self.at.clone());
+    }
+}
+
+impl Transaction<RuntimeState> for FailReport {
+    type Error = String;
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        state.report_finalizations.get(&self.execution).ok_or("report intent is missing")?;
+        Ok(())
+    }
+    fn apply(&self, state: &mut RuntimeState) {
+        state.report_finalizations.get_mut(&self.execution).expect("checked report intent").failure = Some(self.cause.clone());
     }
 }
 

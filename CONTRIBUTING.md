@@ -77,7 +77,7 @@ policy changes retain full selection.
 The Tests producer alone enables
 `dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
 window, log and report zoom owners, with no extra Harmos visibility. Integration
-exercises small histories; system uses seven days, 100,101 original report points
+exercises small histories; system uses seven days of complete raw evidence, bounded report envelopes,
 and real segment-sized log volume.
 The GUI Tests feature `dokime-gui/testing` exposes the native Save workflow with
 a controlled picker result; its integration story uses real verified streams and
@@ -170,13 +170,20 @@ The opt-in `long_execution` integration benchmark uses the real runtime and
 SQLite with deterministic typed host rows at their default cadences, a 10 Hz
 device-like stream, minute records, traceability, five document plots and logs.
 One-hour and four-hour volumes share the same batch bound. Setup persists the
-historical evidence before measuring Stop to seal, Cancel of an unstarted sibling,
-and report materialization plus verified, synced HTML save separately.
+historical evidence before measuring Stop to drained closure, Cancel of an unstarted
+sibling, report readiness from Stop admission, and verified, synced HTML save
+separately. Reports read durable time envelopes and bounded first/last rows.
 
-After the benchmark producer, set `DOKIME_FINALIZE_MEASURE=criterion` and select
-`mise run bench:rust:integration -- long_execution` for separate native Criterion
-results. Set the variable to `profile` for a single pair of workloads with JSON
-timings and runtime/report tracing on stderr. Fresh fixture construction is outside
+Set `DOKIME_FINALIZE_MEASURE=profile` in the shell for one pair of workloads with
+JSON timings and runtime/report tracing on stderr, then run:
+
+```sh
+mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing,fault-injection --bench integration-runtime -- long_execution
+```
+
+The focused task retains the standard compiler preflight and Clippy. Use
+`DOKIME_FINALIZE_MEASURE=criterion` with the same selection for repeated native
+Criterion measurements. Fresh fixture construction is outside
 the measured intervals. The long workloads do not run without this explicit opt-in.
 Run measurements without concurrent validation and preserve the original executable
 before changing production source. A running execution uses Stop; Cancel skips an

@@ -89,7 +89,7 @@ pub async fn paged_evidence_settles(size: Sampling) {
     runtime.shutdown().await.unwrap();
 }
 
-// one case far larger than the display budget seals its whole series up to the cap.
+// A Large Case Seals A Bounded Envelope While Retaining Its Exact Summary.
 pub async fn large_case_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
@@ -101,15 +101,15 @@ pub async fn large_case_seals(size: Sampling) {
     let series = &payload["case_runs"][0]["plots"][PULSE_PLOT]["series"][0];
     let points = series["points"].as_array().expect("the sealed plot carries its points");
     assert!(size.rows > PULSE_DISPLAY_POINTS, "the series exceeds its declared display points");
-    assert_eq!(points.len(), size.rows as usize, "the sealed plot keeps every captured row for zooming");
+    assert!(points.len() <= PULSE_DISPLAY_POINTS as usize);
     assert_eq!(series["raw_points"], serde_json::json!(size.rows));
-    assert_eq!(series["downsampled"], serde_json::json!(false));
+    assert_eq!(series["downsampled"], serde_json::json!(true));
     assert_eq!(payload["case_runs"][0]["plots"][PULSE_PLOT]["max_points"], serde_json::json!(PULSE_DISPLAY_POINTS));
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
 
-// Whole-Capture Transforms Preserve Both Streams Across Small Storage Pages.
+// Whole-History Analyses Are Explicitly Unavailable In Bounded Reports.
 pub async fn whole_capture_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
@@ -125,11 +125,9 @@ pub async fn whole_capture_seals(size: Sampling) {
         serde_json::json!(size.rows),
         "the streamed plot was reduced from every pulse row"
     );
-    assert_eq!(
-        plots["fixture.checks.smoke.spectrum"]["series"][0]["raw_points"],
-        serde_json::json!(size.spectrum_rows),
-        "the whole-capture plot read every spectrum row across its pages"
-    );
+    let spectrum = &plots["fixture.checks.smoke.spectrum"];
+    assert!(spectrum["series"].as_array().unwrap().is_empty());
+    assert_eq!(spectrum["analysis"]["kind"], "error");
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
@@ -480,10 +478,10 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize, row
     );
     let series = &plot["series"][0];
     assert_eq!(series["raw_points"], serde_json::json!(rows));
-    // The Report Keeps Every Captured Row; The Viewer Reduces To The Stated Budget.
+    // The Report Reads Durable Envelopes Within The Stated Display Budget.
     let points = series["points"].as_array().unwrap().len();
-    assert_eq!(points, rows as usize, "render {attempt} keeps the whole series under the cap");
-    assert_eq!(series["downsampled"], serde_json::json!(false));
+    assert!(points <= LIVE_DISPLAY_POINTS as usize, "render {attempt} exceeds its display budget");
+    assert_eq!(series["downsampled"], serde_json::json!(true));
     // The frozen summary covers every pulse row, 0 to n - 1, not the drawn
     // points: the numbers the live table shows over the same window.
     let summaries = plot["summaries"].as_array().unwrap();

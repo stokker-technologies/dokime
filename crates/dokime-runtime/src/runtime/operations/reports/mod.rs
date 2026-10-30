@@ -19,6 +19,7 @@ mod cycle;
 use std::sync::Arc;
 
 // Third Party Imports
+use futures_util::future::BoxFuture;
 use harmos::Context;
 use tonic::Status;
 
@@ -40,7 +41,8 @@ use dokime_domain::model::reports::wire::ReportSubject;
 
 /* === Structs === */
 
-pub(super) struct Resources {
+pub(crate) struct Resources {
+    runtime: RuntimeHandle,
     pub(super) execution_storage: Arc<ExecutionStorage>,
     pub(super) settings: crate::storage::sqlite::State,
     pub(super) providers: Arc<crate::domains::execution::provider::ProviderExecutorRegistry>,
@@ -72,24 +74,27 @@ impl Serve<MaterializeReport> for Runtime {
 }
 
 impl Resources {
-    async fn materialize(&self, request: MaterializeReport) -> Result<MaterializedReport> {
-        let scope = &self.scope;
-        if !self.execution_storage.storage.cursor_saved().covers(&request.at)? {
-            return Err(invalid("requested report cursor is not durable"));
-        }
-        // Materializing A Report Is One Operation; Its Callers Add None Around It.
-        match &request.subject {
-            ReportSubject::Execution(id) => {
-                let id = TestExecutionId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-                let progress = self.progress.begin("Materializing Execution Report");
-                progress.track(execution(scope, self, &id, &request.at, &progress).await)
+    // Keep Nested Report Frames Off Native Control And Listener Stacks.
+    pub(crate) fn materialize(&self, request: MaterializeReport) -> BoxFuture<'_, Result<MaterializedReport>> {
+        Box::pin(async move {
+            let scope = &self.scope;
+            if !self.execution_storage.storage.cursor_saved().covers(&request.at)? {
+                return Err(invalid("requested report cursor is not durable"));
             }
-            ReportSubject::Cycle(id) => {
-                let id = TestCycleId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-                let progress = self.progress.begin("Materializing Cycle Report");
-                progress.track(cycle::materialize(scope, self, &id, &request.at, &progress).await)
+            // Materializing A Report Is One Operation; Its Callers Add None Around It.
+            match &request.subject {
+                ReportSubject::Execution(id) => {
+                    let id = TestExecutionId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    let progress = self.progress.begin("Materializing Execution Report");
+                    progress.track(execution(scope, self, &id, &request.at, &progress).await)
+                }
+                ReportSubject::Cycle(id) => {
+                    let id = TestCycleId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    let progress = self.progress.begin("Materializing Cycle Report");
+                    progress.track(cycle::materialize(scope, self, &id, &request.at, &progress).await)
+                }
             }
-        }
+        })
     }
 }
 
@@ -101,8 +106,9 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, live: &crat
 }
 
 impl Resources {
-    fn from_runtime(runtime: &RuntimeHandle) -> Self {
+    pub(crate) fn from_runtime(runtime: &RuntimeHandle) -> Self {
         Self {
+            runtime: runtime.clone(),
             execution_storage: runtime.execution_storage.clone(),
             settings: runtime.local_storage.clone(),
             providers: runtime.providers.clone(),
@@ -114,6 +120,7 @@ impl Resources {
                     analysis: crate::report::analysis::Resources::from_runtime(runtime),
                     renderer: crate::report::Renderer,
                 },
+                runtime.local_storage.clone(),
             ),
         }
     }
@@ -125,6 +132,10 @@ async fn execution(
     ctx: &Scope, resources: &Resources, id: &TestExecutionId, at: &harmos::storage::StorageCursor,
     progress: &crate::runtime::progress::Operation,
 ) -> Result<MaterializedReport> {
+    let mut shutdown = resources.runtime.shutdown_requested.subscribe();
+    if *shutdown.borrow() {
+        return Err(Error::ShuttingDown);
+    }
     progress.phase("Capturing Evidence");
     let app = ctx.resources();
     if resources.execution_storage.acquisition(id).await.is_none() {
@@ -150,9 +161,12 @@ async fn execution(
         return Ok(MaterializedReport { report: seal.report.clone() });
     }
     if let Some(seal) = resources.execution_storage.final_seal(id).await? {
-        return Ok(MaterializedReport { report: seal.report.clone() });
+        let report = seal.report.clone();
+        resources.runtime.complete_report_publication(id).await?;
+        return Ok(MaterializedReport { report });
     }
     if let Some(report) = resources.execution_storage.published_final_report(id, at).await? {
+        resources.runtime.complete_report_publication(id).await?;
         return Ok(report);
     }
     let has_lifecycle = resources.execution_storage.has_report_lifecycle(id).await?;
@@ -178,15 +192,24 @@ async fn execution(
         return Err(invalid("capture changed requested report boundary"));
     }
     let storage = &resources.execution_storage.storage;
-    let captured = crate::report::materialize::execution(ctx, &inspection, final_report, progress).await?;
+    let captured = tokio::select! {
+        result = crate::report::materialize::execution(ctx, &inspection, final_report, progress) => result?,
+        _ = shutdown.wait_for(|requested| *requested) => return Err(Error::ShuttingDown),
+    };
     progress.phase("Rendering");
     let outputs = inputs.outputs.clone();
     let renderer = app.renderer;
     let saved = storage.cursor_saved();
-    let mut prepared = tokio::task::spawn_blocking(move || renderer.execution_with_outputs(captured, outputs, &saved)).await??;
+    let rendering = tokio::task::spawn_blocking(move || renderer.execution_with_outputs(captured, outputs, &saved));
+    let mut prepared = tokio::select! {
+        result = rendering => result??,
+        _ = shutdown.wait_for(|requested| *requested) => return Err(Error::ShuttingDown),
+    };
     progress.phase("Publishing Report");
     if final_report {
-        resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await
+        let report = resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await?;
+        resources.runtime.complete_report_publication(id).await?;
+        Ok(report)
     } else {
         let revision = resources.execution_storage.publication_revision(inspection.execution()).await?;
         prepared.publish_current(storage, &revision, &ctx.resources().schema_settings).await
