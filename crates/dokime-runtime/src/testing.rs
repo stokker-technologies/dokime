@@ -12,9 +12,12 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub use crate::domains::execution::outputs::tail::testing::early_log_stop;
 pub use crate::domains::execution::run::logs::testing::logs;
+pub use crate::domains::execution::run::testing::drain_counts;
 pub use crate::execution::evidence_rows::testing::capture;
 pub use crate::report::query::plots::testing::report_points;
+pub use crate::runtime::storage::captures::testing::joined_drains;
 pub use crate::runtime::storage::telemetry::testing::telemetry;
 pub use crate::transport::buffer::testing::{records, stream};
 

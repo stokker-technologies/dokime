@@ -1384,6 +1384,11 @@ frontiers without replaying device actions.
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.
 
+Capture close callers join the same in-flight sealing work. Cancelling a waiter
+does not cancel sealing; later Stop or shutdown calls await that work. Closing
+capture admission refuses new capture producers, and successful provider cleanup
+stages remain complete across retries.
+
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
