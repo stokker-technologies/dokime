@@ -61,7 +61,6 @@ pub struct Member {
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     Sidecar,
-    Guest,
 }
 
 /* === Traits === */
@@ -103,10 +102,7 @@ impl Plugin {
             if !names_valid || !member.member.ends_with(".dokime") {
                 return Err("Plugin release archive, member or target is invalid".into());
             }
-            let archive_valid = match self.kind {
-                Kind::Sidecar => member.archive.ends_with(".zip") || member.archive.ends_with(".tar.gz"),
-                Kind::Guest => member.archive.ends_with(".zip"),
-            };
+            let archive_valid = member.archive.ends_with(".zip") || member.archive.ends_with(".tar.gz");
             if !archive_valid || !sha256(&member.sha256) {
                 return Err("Plugin release archive format or member SHA-256 is invalid".into());
             }
@@ -121,11 +117,6 @@ impl Plugin {
             return Err(format!("Plugin {} requires Dokime {}", self.name, self.requires_dokime));
         }
         if let Some(member) = self.targets.get(target) {
-            return Ok(member);
-        }
-        if self.kind == Kind::Guest
-            && let Some(member) = self.targets.get("any")
-        {
             return Ok(member);
         }
         Err(format!("Plugin {} has no member for target {target}", self.name))
@@ -183,7 +174,6 @@ mod tests {
         value["plugins"][0]["kind"] = "guest".into();
         let member = serde_json::json!({"archive":"guests.zip","member":"guest.dokime","sha256":"a".repeat(64)});
         value["plugins"][0]["targets"] = serde_json::json!({"any": member});
-        let feed = Feed::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
-        assert_eq!(feed.plugins[0].select("0.1.3", "native").unwrap().archive, "guests.zip");
+        assert!(Feed::parse(&serde_json::to_vec(&value).unwrap()).is_err());
     }
 }

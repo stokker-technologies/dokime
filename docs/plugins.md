@@ -250,7 +250,7 @@ installations, while executable IDs identify dependencies. Boot selects native
 files for the current platform, verifies frozen and live registrations before
 initialization, and admits catalogs only after every surviving package initializes.
 A failed package loses all its executable siblings and dependent packages.
-A bundle that declares a Harmos guest is refused at admission.
+Bundle manifests admit native sidecar executable declarations only.
 
 Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and

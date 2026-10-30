@@ -41,7 +41,7 @@ const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harm
 
 /* === Type Aliases === */
 
-type DynamicBackend = PluginBackend<DynamicResources, DynamicResources, DynamicResources>;
+type DynamicBackend = PluginBackend<DynamicResources, DynamicResources>;
 
 /* === Structs === */
 
@@ -198,7 +198,6 @@ impl contracts::Endpoint for DynamicUnary {
 }
 
 impl PluginLifecycle for DynamicHost {
-    type Guest = DynamicResources;
     type Sidecar = DynamicResources;
     type Embedded = DynamicResources;
 

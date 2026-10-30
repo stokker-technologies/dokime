@@ -17,7 +17,6 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::plugin::inventory::{CarrierSection, Declaration};
 use harmos_packaging::bundle::{Bundle, Identity, Limits};
 use serde::{Deserialize, Serialize};
 
@@ -83,10 +82,9 @@ pub fn inspect_with_archive_limit(
             continue;
         };
         let (id, version, description, operations, contracts) = match bundle.declaration(&file.path) {
-            Some(declaration) if native(declaration) => {
+            Some(declaration) => {
                 (&declaration.id, &declaration.version, &declaration.description, &declaration.operations, &declaration.contracts.provides)
             }
-            Some(_) => return Err(guest_refused(&file.path)),
             None => {
                 return Err(PluginError::Invalid("executable declaration missing".into()));
             }
@@ -117,14 +115,13 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos_packaging::b
             continue;
         };
         let owner = match bundle.declaration(&file.path) {
-            Some(value) if native(value) => value.id.as_str(),
-            Some(_) => return Err(guest_refused(&file.path)),
+            Some(value) => value.id.as_str(),
             None => {
                 return Err(PluginError::Invalid("missing executable declaration".into()));
             }
         };
         let native = owners.entry(owner).or_default();
-        if executable.facility == harmos_packaging::bundle::Facility::Sidecar && executable.target == env!("DOKIME_NATIVE_TARGET") {
+        if executable.target == env!("DOKIME_NATIVE_TARGET") {
             native.push(file);
         }
     }
@@ -136,14 +133,6 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos_packaging::b
             _ => Err(PluginError::Invalid(format!("owner `{owner}` has ambiguous executable variants for this host"))),
         })
         .collect()
-}
-
-pub(crate) fn guest_refused(path: &str) -> PluginError {
-    PluginError::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
-}
-
-pub(crate) fn native(declaration: &Declaration) -> bool {
-    matches!(declaration.carrier, CarrierSection::Sidecar { .. })
 }
 
 /* === Private Functions === */

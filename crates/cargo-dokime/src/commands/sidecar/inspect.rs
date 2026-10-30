@@ -17,7 +17,6 @@
 use std::path::PathBuf;
 
 // Third Party Imports
-use dokime::harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
 
 // Local Imports
@@ -53,9 +52,6 @@ pub fn run(args: Args) -> Result<(), Error> {
         let Some(declaration) = bundle.declaration(&file.path) else {
             continue;
         };
-        if !matches!(declaration.carrier, CarrierSection::Sidecar { .. }) {
-            return Err(crate::error::guest_refused(&file.path));
-        }
         let value = declaration;
         declarations.insert(
             file.path.clone(),

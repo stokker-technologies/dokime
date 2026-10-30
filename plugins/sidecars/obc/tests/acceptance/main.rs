@@ -81,7 +81,7 @@ struct Host {
 
 struct Bench {
     runtime: harmos::Runtime<Fixture>,
-    plugins: PluginManager<(), Backend, ()>,
+    plugins: PluginManager<Backend, ()>,
     host: Host,
     declaration: harmos::plugin::inventory::Declaration,
 }
@@ -241,7 +241,6 @@ impl Serve<dokime::operations::files::AwaitFileWatchArmed> for Hosting {
 }
 
 impl PluginLifecycle for Host {
-    type Guest = ();
     type Sidecar = Backend;
     type Embedded = ();
 
@@ -271,7 +270,7 @@ impl PluginLifecycle for Host {
         self.operations.validate_requirements(candidate)
     }
 
-    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<(), Backend, ()>> {
+    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<Backend, ()>> {
         Ok(PluginBackend::Sidecar(Backend {
             services: self.operations.clone(),
             lease: None,
@@ -288,7 +287,7 @@ impl PluginLifecycle for Host {
 
     async fn start(
         &mut self, definition: &PluginDefinition, router: &Router, authority: &PluginLifecycleAuthority<'_>,
-        backend: &mut PluginBackend<(), Backend, ()>,
+        backend: &mut PluginBackend<Backend, ()>,
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         let PluginArtifact::Sidecar { path, sha256, .. } = &definition.artifact else { unreachable!() };
@@ -345,7 +344,7 @@ impl PluginLifecycle for Host {
     }
 
     async fn stop(
-        definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Backend, ()>,
+        definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<Backend, ()>,
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         if let Some(scope) = &backend.scope {

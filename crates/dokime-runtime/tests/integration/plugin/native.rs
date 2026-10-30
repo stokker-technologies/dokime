@@ -59,7 +59,7 @@ pub(super) struct Native<A: Attach> {
     pub(super) runtime: harmos::Runtime<Fixture>,
     pub(super) demands: harmos::sidecar::DemandSource,
     pub(super) host: Arc<HostLog>,
-    plugins: PluginManager<(), Backend, ()>,
+    plugins: PluginManager<Backend, ()>,
     lifecycle: Host<A>,
     retired: bool,
 }
@@ -225,7 +225,6 @@ impl<A: Attach> Native<A> {
 }
 
 impl<A: Attach> PluginLifecycle for Host<A> {
-    type Guest = ();
     type Sidecar = Backend;
     type Embedded = ();
 
@@ -233,7 +232,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         self.operations.validate_requirements(candidate)
     }
 
-    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<(), Backend, ()>> {
+    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<Backend, ()>> {
         Ok(PluginBackend::Sidecar(Backend::default()))
     }
 
@@ -243,7 +242,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
 
     async fn start(
         &mut self, definition: &PluginDefinition, router: &Router, authority: &PluginLifecycleAuthority<'_>,
-        backend: &mut PluginBackend<(), Backend, ()>,
+        backend: &mut PluginBackend<Backend, ()>,
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         let notices = Arc::clone(&self.notices);
@@ -283,7 +282,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
     }
 
     async fn stop(
-        definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Backend, ()>,
+        definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<Backend, ()>,
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         if let Some(sdk) = &backend.sdk {

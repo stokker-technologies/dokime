@@ -15,7 +15,6 @@
 
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
-use std::convert::Infallible;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -36,8 +35,8 @@ const NATIVE_INVOCATION_ITEMS: usize = 128;
 
 /* === Type Aliases === */
 
-pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
-type Backend = harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+pub(in crate::runtime) type Manager = harmos::plugin::PluginManager<Sidecar, crate::runtime::embedded::Instance>;
+type Backend = harmos::plugin::PluginBackend<Sidecar, crate::runtime::embedded::Instance>;
 
 /* === Structs === */
 
@@ -74,7 +73,6 @@ pub(in crate::runtime) struct Sidecar {
 /* === Implementations === */
 
 impl harmos::plugin::PluginLifecycle for Adapter<'_> {
-    type Guest = Infallible;
     type Sidecar = Sidecar;
     type Embedded = crate::runtime::embedded::Instance;
 
@@ -111,7 +109,6 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
             return Err(lifecycle_error(operation("plugin shutdown generation differs")));
         }
         let publications = match backend {
-            Backend::Guest(guest) => match *guest {},
             Backend::Embedded(provider) => {
                 provider.stop(authority).await.map_err(lifecycle_error)?;
                 &provider.publications
@@ -275,7 +272,6 @@ impl Adapter<'_> {
         authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> Result<()> {
         let sidecar = match backend {
-            Backend::Guest(guest) => match *guest {},
             Backend::Embedded(provider) => {
                 return provider.start(self.handle, router, authority).await;
             }

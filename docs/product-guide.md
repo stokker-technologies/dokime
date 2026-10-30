@@ -28,8 +28,8 @@ Release downloads include native installers, CLI and authoring-tool archives,
 `dokime-sidecars-<version>-<Rust-target>.zip` (Windows) or `.tar.gz` (Unix).
 Each sidecars archive contains every shipping native plugin as an unversioned
 `.dokime` member. `plugins.json` format 2 maps plugin names and targets to archives,
-members and member SHA-256 hashes. Future target-independent guests use
-`dokime-guests-<version>.zip`; guest execution is not currently admitted.
+members and member SHA-256 hashes. Installable plugins use native sidecars
+for the selected host target.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
 downloads. The dev-channel uses the same asset names and workspace version,

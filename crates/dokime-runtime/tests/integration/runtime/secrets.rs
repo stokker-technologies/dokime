@@ -72,7 +72,6 @@ impl harmos::Operation for ReadSecret {
 }
 
 impl PluginLifecycle for Owners {
-    type Guest = ();
     type Sidecar = ();
     type Embedded = Staged;
 
@@ -80,7 +79,7 @@ impl PluginLifecycle for Owners {
         self.0.validate_requirements(candidate)
     }
 
-    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<(), (), Staged>> {
+    fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<(), Staged>> {
         Ok(PluginBackend::Embedded(Staged::default()))
     }
 
@@ -90,7 +89,7 @@ impl PluginLifecycle for Owners {
 
     async fn start(
         &mut self, definition: &PluginDefinition, router: &Router, _: &PluginLifecycleAuthority<'_>,
-        backend: &mut PluginBackend<(), (), Staged>,
+        backend: &mut PluginBackend<(), Staged>,
     ) -> harmos::Result<()> {
         let PluginBackend::Embedded(staged) = backend else { unreachable!() };
         let endpoint = router.enter(&definition.id).map_err(|source| harmos::Error::TaskFailed {
@@ -103,9 +102,7 @@ impl PluginLifecycle for Owners {
         Ok(())
     }
 
-    async fn stop(
-        _: &PluginDefinition, _: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), (), Staged>,
-    ) -> harmos::Result<()> {
+    async fn stop(_: &PluginDefinition, _: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Staged>) -> harmos::Result<()> {
         let PluginBackend::Embedded(staged) = backend else { unreachable!() };
         if let Some(registration) = staged.registration.as_mut() {
             registration.shutdown().await?;

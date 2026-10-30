@@ -472,6 +472,6 @@ fn consumer_requires_public() {
         [],
     )
     .expect("another plugin resolves the public operation it requires");
-    let plugins = dokime_runtime::harmos::plugin::PluginManager::<(), (), ()>::new(definitions).unwrap();
+    let plugins = dokime_runtime::harmos::plugin::PluginManager::<(), ()>::new(definitions).unwrap();
     assert_eq!(plugins.dependencies(CONSUMER).unwrap(), [OWNER]);
 }

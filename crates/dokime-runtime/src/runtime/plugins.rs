@@ -874,9 +874,6 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
     let mut programs = Vec::new();
     for file in selected {
         let declaration = bundle.declaration(&file.path).expect("selected executable declaration");
-        if !crate::plugins::catalog::native(declaration) {
-            return Err(operation(crate::plugins::catalog::guest_refused(&file.path)));
-        }
         let (id, version, description, operations) =
             (&declaration.id, &declaration.version, &declaration.description, &declaration.operations);
         dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
@@ -1321,7 +1318,6 @@ mod tests {
     }
 
     impl PluginLifecycle for Lifecycle {
-        type Guest = ();
         type Sidecar = ();
         type Embedded = Staged;
 
@@ -1329,7 +1325,7 @@ mod tests {
             self.operations.validate_requirements(candidate)
         }
 
-        fn prepare(&mut self, definition: &PluginDefinition) -> harmos::Result<PluginBackend<(), (), Staged>> {
+        fn prepare(&mut self, definition: &PluginDefinition) -> harmos::Result<PluginBackend<(), Staged>> {
             self.events.push(format!("prepare:{}", definition.id));
             Ok(PluginBackend::Embedded(Staged::default()))
         }
@@ -1340,7 +1336,7 @@ mod tests {
 
         async fn start(
             &mut self, definition: &PluginDefinition, router: &Router, _: &PluginLifecycleAuthority<'_>,
-            backend: &mut PluginBackend<(), (), Staged>,
+            backend: &mut PluginBackend<(), Staged>,
         ) -> harmos::Result<()> {
             let PluginBackend::Embedded(staged) = backend else { unreachable!() };
             staged.endpoint = Some(router.enter(&definition.id).unwrap());
@@ -1355,7 +1351,7 @@ mod tests {
         }
 
         async fn stop(
-            _: &PluginDefinition, _: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), (), Staged>,
+            _: &PluginDefinition, _: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Staged>,
         ) -> harmos::Result<()> {
             let PluginBackend::Embedded(staged) = backend else { unreachable!() };
             if let Some(operations) = &mut staged.operations {
