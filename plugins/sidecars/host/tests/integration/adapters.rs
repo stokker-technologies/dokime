@@ -19,16 +19,12 @@
 
 // Local Imports
 use dokime::harmos::{
-    ExecutionContext, Message,
+    Message,
     operations::{OperationDeclaration, Visibility},
-    sidecar::{Observer, Publisher},
 };
-use dokime_host::{
-    HostPlugin,
-    host::{
-        adapters::{Adapters, Snapshot, snapshot},
-        network::NetworkObserver,
-    },
+use dokime_host::host::{
+    adapters::{Adapters, Snapshot, snapshot},
+    network::NetworkObserver,
 };
 
 /* === Constants === */
@@ -76,12 +72,11 @@ fn adapter_inventory() {
     }
 }
 
-#[tokio::test]
-async fn notification_lifetime() {
-    let context = ExecutionContext::default();
+#[test]
+fn notification_lifetime() {
     // Releasing The Observer Cancels Native Registrations And Joins Its Callbacks.
-    let observer = <NetworkObserver as Observer<Publisher<HostPlugin>>>::initialize(&context).await.unwrap();
+    let observer = NetworkObserver::new().unwrap();
     drop(observer);
-    let observer = <NetworkObserver as Observer<Publisher<HostPlugin>>>::initialize(&context).await.unwrap();
+    let observer = NetworkObserver::new().unwrap();
     drop(observer);
 }
