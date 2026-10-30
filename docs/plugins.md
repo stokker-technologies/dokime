@@ -99,6 +99,13 @@ it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
 The runtime decodes these rows through the same codec as other plugins.
+`host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
+`memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.
+Each value divides the existing byte reading by 1024³. On Linux and Windows,
+both readings share the snapshot used for `memory_pressure_percent`, which is
+100 × used / total; pressure is absent when total memory is zero. The original
+byte columns remain available. Host document defaults plot used and total GiB;
+OBC system sections plot used GiB beside memory pressure.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`
@@ -153,6 +160,18 @@ listeners and observers read prepared resources from their execution contexts;
 mutable resources register as `Arc<tokio::sync::Mutex<T>>` or
 `Arc<tokio::sync::RwLock<T>>`. Observer attachments are prepared from their catalog
 and the plugin's declared streams.
+
+On restart, Harmos prepares and starts plugin generations sequentially in
+dependency order, matching declared required contracts to provided contracts
+exactly, including embedded providers and host operations. Providers become
+ready before consumers; independent plugins have a deterministic order based
+on plugin names. Bundle inspection and extraction happen before activation
+and do not run plugin lifecycle hooks.
+Installed packages with unavailable or circular contracts are refused while
+unrelated plugins start normally. Settings → Plugins retains the boot reason,
+including the affected contract and the `plugin_contract_unavailable` or
+`plugin_contract_cycle` admission code.
+
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.

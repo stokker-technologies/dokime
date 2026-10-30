@@ -95,13 +95,13 @@ struct Congestion {
 /* === Implementations === */
 
 impl WifiLinkCollector {
-    pub fn new(options: HostOptions) -> Self {
-        Self {
+    pub fn new(options: HostOptions) -> Result<Self> {
+        Ok(Self {
             sample_index: 0,
-            networks: Networks::new_with_refreshed_list(),
+            networks: Networks::new_with_refreshed_list()?,
             last_network_refresh: Instant::now(),
             options,
-        }
+        })
     }
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {
@@ -128,7 +128,7 @@ impl WifiLinkCollector {
         let exact = self
             .networks
             .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(adapter))
+            .find(|(name, _)| name.to_string_lossy().eq_ignore_ascii_case(adapter))
             .map(|(_, network)| (network.received(), network.transmitted()));
         if let Some((received, transmitted)) = exact {
             return Some((received as f64 / elapsed_s, transmitted as f64 / elapsed_s));
@@ -139,7 +139,7 @@ impl WifiLinkCollector {
         let mut transmitted = 0;
         let mut matched = false;
         for (name, network) in &self.networks {
-            let name = name.to_lowercase();
+            let name = name.to_string_lossy().to_lowercase();
             if name.contains(&adapter) || adapter.contains(&name) {
                 matched = true;
                 received += network.received();

@@ -56,21 +56,15 @@ pub struct NetworkCollector {
 
 /* === Implementations === */
 
-impl Default for NetworkCollector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl NetworkCollector {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self> {
+        Ok(Self {
             sample_index: 0,
-            networks: Networks::new_with_refreshed_list(),
+            networks: Networks::new_with_refreshed_list()?,
             last_refresh: Instant::now(),
             primary_interface: None,
             refresh_primary: true,
-        }
+        })
     }
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {

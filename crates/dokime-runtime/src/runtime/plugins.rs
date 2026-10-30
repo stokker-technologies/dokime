@@ -266,7 +266,7 @@ impl Runtime {
         );
         let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
         let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
-        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins).await {
+        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins, &self.handle.operations).await {
             Ok(plan) => plan,
             Err(error) => {
                 self.pending_plugins.extend(packages);
@@ -302,7 +302,17 @@ impl Runtime {
             let Some((index, reason)) = refused else {
                 break;
             };
-            if let Err(error) = prune(&store, &packages.iter().collect::<Vec<_>>(), &mut removed, index, &reason).await {
+            if let Err(error) = prune(
+                &store,
+                &packages.iter().collect::<Vec<_>>(),
+                &mut removed,
+                index,
+                &reason,
+                &embedded_plugins,
+                &self.handle.operations,
+            )
+            .await
+            {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
@@ -368,7 +378,16 @@ impl Runtime {
                         .enumerate()
                         .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string()).await?;
+                    prune(
+                        &self.handle.plugin_store(),
+                        &packages,
+                        &mut removed,
+                        initial,
+                        &source.to_string(),
+                        &embedded_plugins,
+                        &self.handle.operations,
+                    )
+                    .await?;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
@@ -1023,12 +1042,23 @@ fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginD
     packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
 
-async fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition]) -> Result<BTreeSet<usize>> {
+async fn plan(
+    store: &PluginStore, packages: &[&Package], embedded: &[harmos::plugin::PluginDefinition], operations: &crate::app::OperationManager,
+) -> Result<BTreeSet<usize>> {
     let mut refusals = Vec::new();
-    let result = plan_graph(&package_definitions(packages), embedded, |index, reason| {
-        refusals.push((index, reason.to_owned()));
-        Ok(())
-    });
+    let result = plan_graph(
+        &package_definitions(packages),
+        embedded,
+        |candidate| operations.validate_requirements(candidate),
+        |index, reason| {
+            let message = match reason.code() {
+                Some(code) => format!("{code}: {reason}"),
+                None => reason.to_string(),
+            };
+            refusals.push((index, message));
+            Ok(())
+        },
+    );
     for (index, reason) in refusals {
         failed(store, &packages[index].input, &reason).await?;
     }
@@ -1037,7 +1067,8 @@ async fn plan(store: &PluginStore, packages: &[&Package], embedded: &[harmos::pl
 
 fn plan_graph(
     packages: &[Vec<harmos::plugin::PluginDefinition>], embedded: &[harmos::plugin::PluginDefinition],
-    mut refuse: impl FnMut(usize, &str) -> Result<()>,
+    mut validate_host: impl FnMut(&harmos::plugin::PluginDefinitions) -> harmos::Result<()>,
+    mut refuse: impl FnMut(usize, &Error) -> Result<()>,
 ) -> Result<BTreeSet<usize>> {
     let mut removed = BTreeSet::new();
     loop {
@@ -1050,9 +1081,61 @@ fn plan_graph(
             }
         }
         plugins.extend_from_slice(embedded);
-        match harmos::plugin::PluginGraph::resolve(plugins) {
-            Ok(_) => return Ok(removed),
+        match harmos::plugin::PluginGraph::resolve(plugins.clone()) {
+            Ok(_) => {
+                let candidate = harmos::plugin::PluginDefinitions::new(plugins, [])?;
+                let Err(failure) = validate_host(&candidate) else {
+                    return Ok(removed);
+                };
+                let mut unavailable = None;
+                for (definition, required) in candidate.host_requirements() {
+                    // Harmos Leaves Unprovided Contracts For Host Admission. Check
+                    // Each Such Requirement Before Starting Any Plugin Generation.
+                    let mut isolated = definition.clone();
+                    isolated.requires.clear();
+                    isolated.contributions.required_contracts = Some(vec![required.clone()]);
+                    let isolated = harmos::plugin::PluginDefinitions::new([isolated], [])?;
+                    if let Err(source) = validate_host(&isolated) {
+                        let reason = Error::unavailable(
+                            "plugin_contract_unavailable",
+                            format!(
+                                "plugin `{}` requires unavailable contract `{}`: {source}",
+                                definition.id,
+                                required.contract.operation().id,
+                            ),
+                        );
+                        let Some(&package) = locations.get(&definition.id) else {
+                            return Err(reason);
+                        };
+                        unavailable = Some((package, reason));
+                        break;
+                    }
+                }
+                let Some((package, reason)) = unavailable else {
+                    return Err(failure.into());
+                };
+                for index in prune_graph(packages, &mut removed, package) {
+                    refuse(index, &reason)?;
+                }
+            }
             Err(error) => {
+                if let harmos::plugin::Error::Cycle { artifact } = &error {
+                    let (members, contracts) = circular_contracts(&plugins, artifact);
+                    let reason = Error::conflict(
+                        "plugin_contract_cycle",
+                        format!("circular plugin requirements among {members:?} through contracts {contracts:?}"),
+                    );
+                    let affected: BTreeSet<_> = members.iter().filter_map(|member| locations.get(member).copied()).collect();
+                    if affected.is_empty() {
+                        return Err(reason);
+                    }
+                    for package in affected {
+                        for index in prune_graph(packages, &mut removed, package) {
+                            refuse(index, &reason)?;
+                        }
+                    }
+                    continue;
+                }
                 let owner = match &error {
                     harmos::plugin::Error::Unknown { .. } => {
                         return Err(operation(error));
@@ -1070,18 +1153,74 @@ fn plan_graph(
                 let Some(&package) = locations.get(owner) else {
                     return Err(operation(error));
                 };
+                let reason = match error {
+                    error @ (harmos::plugin::Error::IncompatibleOperation { .. }
+                    | harmos::plugin::Error::AmbiguousOperation { .. }
+                    | harmos::plugin::Error::ProviderSelection { .. }) => {
+                        Error::unavailable("plugin_contract_unavailable", error.to_string())
+                    }
+                    error => operation(error),
+                };
                 for index in prune_graph(packages, &mut removed, package) {
-                    refuse(index, &error.to_string())?;
+                    refuse(index, &reason)?;
                 }
             }
         }
     }
 }
 
-async fn prune(store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str) -> Result<()> {
+fn circular_contracts(plugins: &[harmos::plugin::PluginDefinition], owner: &str) -> (BTreeSet<String>, BTreeSet<String>) {
+    let mut edges = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for plugin in plugins {
+        let dependencies = edges.entry(&plugin.id).or_default();
+        dependencies.extend(plugin.requires.iter().map(|required| required.id.as_str()));
+        for required in plugin.contributions.required_contracts.iter().flatten() {
+            dependencies.extend(
+                plugins
+                    .iter()
+                    .filter(|provider| provider.id != plugin.id && provider.contributions.wire_contracts.contains(&required.contract))
+                    .map(|provider| provider.id.as_str()),
+            );
+        }
+    }
+    let reachable = |start| {
+        let mut visited = BTreeSet::new();
+        let mut pending = vec![start];
+        while let Some(next) = pending.pop() {
+            if visited.insert(next) {
+                pending.extend(edges.get(next).into_iter().flatten().copied());
+            }
+        }
+        visited
+    };
+    let members: BTreeSet<String> =
+        reachable(owner).into_iter().filter(|member| reachable(member).contains(owner)).map(str::to_owned).collect();
+    let contracts = plugins
+        .iter()
+        .filter(|plugin| members.contains(&plugin.id))
+        .flat_map(|plugin| plugin.contributions.required_contracts.iter().flatten())
+        .filter(|required| {
+            plugins
+                .iter()
+                .any(|provider| members.contains(&provider.id) && provider.contributions.wire_contracts.contains(&required.contract))
+        })
+        .map(|required| required.contract.operation().id.to_string())
+        .collect();
+    (members, contracts)
+}
+
+async fn prune(
+    store: &PluginStore, packages: &[&Package], removed: &mut BTreeSet<usize>, initial: usize, reason: &str,
+    embedded: &[harmos::plugin::PluginDefinition], operations: &crate::app::OperationManager,
+) -> Result<()> {
     for index in prune_graph(&package_definitions(packages), removed, initial) {
         failed(store, &packages[index].input, reason).await?;
     }
+    // Removing A Provider Can Turn A Previously Routed Contract Into A Host
+    // Requirement. Replan Before Activation, Including Startup Failure Retries.
+    let remaining: Vec<_> = packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)).collect();
+    let further = plan(store, &remaining.iter().map(|(_, package)| **package).collect::<Vec<_>>(), embedded, operations).await?;
+    removed.extend(further.into_iter().map(|index| remaining[index].0));
     Ok(())
 }
 
@@ -1141,3 +1280,282 @@ fn operation(error: impl std::fmt::Display) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harmos::domain::inventory::contracts::Required;
+    use harmos::operations::{Contract, PluginRegistration, Registration, WireDeclaration};
+    use harmos::plugin::{
+        PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginEndpoint, PluginLifecycle,
+        PluginLifecycleAuthority, PluginManager, PluginTransition, Router,
+    };
+
+    #[harmos::operation(id = "order.probe", response = (), visibility = Public, policy = dokime_operations::ORDINARY)]
+    struct Probe;
+
+    struct Host;
+
+    struct Lifecycle {
+        events: Vec<String>,
+        operations: crate::app::OperationManager,
+    }
+
+    #[derive(Default)]
+    struct Staged {
+        endpoint: Option<PluginEndpoint>,
+        operations: Option<PluginRegistration>,
+    }
+
+    impl harmos::Lifecycle for Host {
+        type Config = ();
+        type Error = std::convert::Infallible;
+        type Context = harmos::Startup<Self>;
+
+        async fn prepare(_: (), _: &mut harmos::Setup<Self>) -> std::result::Result<Self, Self::Error> {
+            Ok(Self)
+        }
+    }
+
+    impl harmos::Application for Host {
+        type Lanes = crate::app::Lanes;
+        type State = ();
+        type Transaction = harmos::state::Never;
+        type Record = ();
+        type Streams = ();
+    }
+
+    impl harmos::Operation for Probe {
+        type Error = harmos::Error;
+
+        async fn run(self, _: harmos::Context<'_, Self>) -> harmos::Result<harmos::Response<()>> {
+            Ok(().into())
+        }
+    }
+
+    impl PluginLifecycle for Lifecycle {
+        type Guest = ();
+        type Sidecar = ();
+        type Embedded = Staged;
+
+        fn preflight(&mut self, candidate: &PluginDefinitions) -> harmos::Result<()> {
+            self.operations.validate_requirements(candidate)
+        }
+
+        fn prepare(&mut self, definition: &PluginDefinition) -> harmos::Result<PluginBackend<(), (), Staged>> {
+            self.events.push(format!("prepare:{}", definition.id));
+            Ok(PluginBackend::Embedded(Staged::default()))
+        }
+
+        async fn fence(&mut self, _: PluginTransition, _: &[PluginDefinition]) -> harmos::Result<()> {
+            Ok(())
+        }
+
+        async fn start(
+            &mut self, definition: &PluginDefinition, router: &Router, _: &PluginLifecycleAuthority<'_>,
+            backend: &mut PluginBackend<(), (), Staged>,
+        ) -> harmos::Result<()> {
+            let PluginBackend::Embedded(staged) = backend else { unreachable!() };
+            staged.endpoint = Some(router.enter(&definition.id).unwrap());
+            let scope = staged.endpoint.as_ref().unwrap().scope().unwrap();
+            let mut registration = Registration::new(crate::app::Lanes::Open);
+            for operation in &definition.contributions.operations {
+                registration = registration.operation::<Probe>(operation.id.as_str())?;
+            }
+            staged.operations = Some(self.operations.stage_plugin(scope, |bindings| bindings.register(registration))?);
+            self.events.push(format!("start:{}", definition.id));
+            Ok(())
+        }
+
+        async fn stop(
+            _: &PluginDefinition, _: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), (), Staged>,
+        ) -> harmos::Result<()> {
+            let PluginBackend::Embedded(staged) = backend else { unreachable!() };
+            if let Some(operations) = &mut staged.operations {
+                operations.shutdown().await?;
+            }
+            staged.operations.take();
+            staged.endpoint.take();
+            Ok(())
+        }
+    }
+
+    fn contract(id: &str) -> Contract {
+        WireDeclaration::of::<Probe>().contract().unwrap().with_id(id).unwrap()
+    }
+
+    fn definition(id: &str, provides: &[&str], requires: &[&str]) -> PluginDefinition {
+        let wire_contracts: Vec<_> = provides.iter().map(|id| contract(id)).collect();
+        PluginDefinition {
+            id: id.into(),
+            version: "0.1.0".parse().unwrap(),
+            artifact: PluginArtifact::Embedded { revision: "fixture".into() },
+            requires: Vec::new(),
+            configuration: b"null".to_vec(),
+            contributions: PluginContributions {
+                operations: wire_contracts.iter().map(|contract| contract.operation().clone()).collect(),
+                wire_contracts,
+                required_contracts: Some(
+                    requires
+                        .iter()
+                        .map(|id| Required {
+                            contract: contract(id),
+                            grants: Vec::new(),
+                        })
+                        .collect(),
+                ),
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn peer_order() {
+        let plugins = [definition("alpha", &[], &[]), definition("beta", &[], &[]), definition("gamma", &[], &[])];
+        let forward = PluginDefinitions::new(plugins.clone(), []).unwrap();
+        let reversed = PluginDefinitions::new(plugins.into_iter().rev(), []).unwrap();
+        let names: Vec<_> = forward.definitions().map(|definition| definition.id.as_str()).collect();
+        assert_eq!(names, ["gamma", "beta", "alpha"]);
+        assert_eq!(names, reversed.definitions().map(|definition| definition.id.as_str()).collect::<Vec<_>>());
+    }
+
+    #[tokio::test]
+    async fn consumer_before_provider() {
+        let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
+        let packages =
+            vec![vec![definition("z_consumer", &[], &["order.provider"])], vec![definition("a_provider", &["order.provider"], &[])]];
+        let removed = plan_graph(
+            &packages,
+            &[],
+            |candidate| host.operations.validate_requirements(candidate),
+            |_, reason| panic!("unexpected refusal: {reason}"),
+        )
+        .unwrap();
+        assert!(removed.is_empty());
+        let definitions = PluginDefinitions::new(packages.into_iter().flatten(), []).unwrap();
+        let mut manager = PluginManager::new(definitions).unwrap();
+        let mut lifecycle = Lifecycle {
+            events: Vec::new(),
+            operations: host.operations.clone(),
+        };
+        manager.initialize(&mut lifecycle).await.unwrap();
+        assert_eq!(lifecycle.events, ["prepare:a_provider", "start:a_provider", "prepare:z_consumer", "start:z_consumer"]);
+        manager.shutdown(&mut lifecycle).await.unwrap();
+        host.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn circular_contracts() {
+        let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
+        let packages = vec![
+            vec![definition("left", &["order.left"], &["order.right"])],
+            vec![definition("right", &["order.right"], &["order.left"])],
+            vec![definition("unrelated", &[], &[])],
+        ];
+        let mut refusals = BTreeMap::new();
+        let removed = plan_graph(
+            &packages,
+            &[],
+            |candidate| host.operations.validate_requirements(candidate),
+            |index, reason| {
+                assert_eq!(reason.code(), Some("plugin_contract_cycle"));
+                refusals.insert(index, reason.to_string());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(removed, BTreeSet::from([0, 1]));
+        assert_eq!(refusals.len(), 2);
+        for reason in refusals.values() {
+            assert!(reason.contains("order.left") && reason.contains("order.right"));
+        }
+        let definitions = PluginDefinitions::new(
+            packages.into_iter().enumerate().filter(|(index, _)| !removed.contains(index)).flat_map(|(_, package)| package),
+            [],
+        )
+        .unwrap();
+        let mut manager = PluginManager::new(definitions).unwrap();
+        let mut lifecycle = Lifecycle {
+            events: Vec::new(),
+            operations: host.operations.clone(),
+        };
+        manager.initialize(&mut lifecycle).await.unwrap();
+        assert_eq!(lifecycle.events, ["prepare:unrelated", "start:unrelated"]);
+        manager.shutdown(&mut lifecycle).await.unwrap();
+        host.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn missing_contract() {
+        let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
+        let packages = vec![
+            vec![definition("consumer", &[], &["order.provider"])],
+            vec![definition("provider", &["order.provider"], &["order.missing"])],
+            vec![definition("unrelated", &[], &[])],
+        ];
+        let mut refusals = BTreeMap::new();
+        let removed = plan_graph(
+            &packages,
+            &[],
+            |candidate| host.operations.validate_requirements(candidate),
+            |index, reason| {
+                assert_eq!(reason.code(), Some("plugin_contract_unavailable"));
+                refusals.insert(index, reason.to_string());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(removed, BTreeSet::from([0, 1]));
+        assert!(refusals[&0].contains("order.provider"));
+        assert!(refusals[&1].contains("order.missing"));
+        let definitions = PluginDefinitions::new(
+            packages.into_iter().enumerate().filter(|(index, _)| !removed.contains(index)).flat_map(|(_, package)| package),
+            [],
+        )
+        .unwrap();
+        let mut manager = PluginManager::new(definitions).unwrap();
+        let mut lifecycle = Lifecycle {
+            events: Vec::new(),
+            operations: host.operations.clone(),
+        };
+        manager.initialize(&mut lifecycle).await.unwrap();
+        assert_eq!(lifecycle.events, ["prepare:unrelated", "start:unrelated"]);
+        manager.shutdown(&mut lifecycle).await.unwrap();
+        host.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn embedded_provider_order() {
+        let host = harmos::Runtime::<Host>::launch((), ()).await.unwrap();
+        let registration = Registration::new(crate::app::Lanes::Open).operation::<Probe>("order.host").unwrap();
+        host.operations.register_batch(registration).await.unwrap();
+        let packages = vec![vec![definition("z_consumer", &[], &["order.embedded", "order.host"])]];
+        let embedded = [definition("a_embedded", &["order.embedded"], &[])];
+        let mut checked = Vec::new();
+        let removed = plan_graph(
+            &packages,
+            &embedded,
+            |candidate| {
+                let requirements: Vec<_> =
+                    candidate.host_requirements().map(|(_, required)| required.contract.operation().id.to_string()).collect();
+                assert_eq!(requirements, ["order.host"]);
+                checked.extend(requirements);
+                host.operations.validate_requirements(candidate)
+            },
+            |_, reason| panic!("unexpected refusal: {reason}"),
+        )
+        .unwrap();
+        assert!(removed.is_empty());
+        assert_eq!(checked, ["order.host"]);
+        let definitions = PluginDefinitions::new(packages.into_iter().flatten().chain(embedded), []).unwrap();
+        let mut manager = PluginManager::new(definitions).unwrap();
+        let mut lifecycle = Lifecycle {
+            events: Vec::new(),
+            operations: host.operations.clone(),
+        };
+        manager.initialize(&mut lifecycle).await.unwrap();
+        assert_eq!(lifecycle.events, ["prepare:a_embedded", "start:a_embedded", "prepare:z_consumer", "start:z_consumer"]);
+        manager.shutdown(&mut lifecycle).await.unwrap();
+        host.shutdown().await.unwrap();
+    }
+}

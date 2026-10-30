@@ -13,20 +13,23 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { test } from "vitest";
+import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import type { HubRecord } from "@/lib/types";
+import type { TracePage } from "@/lib/api/native-logs";
 import {
   type ConsoleBuffer,
   type ConsolePage,
   consoleBufferKey,
+  consoleRecordsStore,
   createConsoleRecordsStore,
   mergeConsoleRecords,
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
 } from "@/shell/console-buffer";
 import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, consoleWindow, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+import { useConsoleRecords } from "@/shell/console-records";
 
 /* === Re-Exports === */
 
@@ -40,6 +43,13 @@ const EXECUTION_PAGE = consoleBufferKey({ cycleId: null, executionId: null, leve
 
 /* A 200 px viewport over 100 rows of 22 px scrolls to 2,000 px at its bottom. */
 const BOTTOM = 2_000;
+
+const fixture = vi.hoisted(() => ({
+  effects: [] as (() => (() => void) | undefined)[],
+  open: vi.fn(),
+  current: true,
+  session: { identity: { generation: "1", isCurrent: (): boolean => fixture.current } },
+}));
 
 /* === Types === */
 
@@ -90,7 +100,145 @@ function buffer(store: ReturnType<typeof sessionStore>, key: string): ConsoleBuf
   return held;
 }
 
+function stream() {
+  const queued: ({ page: TracePage } | { failure: unknown } | { end: true })[] = [];
+  let wake: (() => void) | undefined;
+  const push = (item: (typeof queued)[number]) => {
+    queued.push(item);
+    wake?.();
+  };
+  const cancel = vi.fn(async () => push({ end: true }));
+  return {
+    push,
+    cancel,
+    async *[Symbol.asyncIterator]() {
+      while (true) {
+        if (!queued.length)
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+        const item = queued.shift();
+        if (!item || "end" in item) return;
+        if ("failure" in item) throw item.failure;
+        yield item.page;
+      }
+    },
+  };
+}
+
+function ConsoleFixture(selection = { cycleId: "cycle-1", executionId: null as string | null, enabled: true, level: "info" as const }) {
+  useConsoleRecords(selection);
+  const cleanups = fixture.effects.splice(0).map((effect) => effect());
+  return () => {
+    for (const cleanup of cleanups) cleanup?.();
+  };
+}
+
 /* === Entry Point === */
+
+vi.mock("react", () => ({
+  useCallback: (callback: unknown) => callback,
+  useEffect: (effect: () => (() => void) | undefined) => fixture.effects.push(effect),
+}));
+vi.mock("zustand", () => ({
+  useStore: (store: typeof consoleRecordsStore, select: (state: ReturnType<typeof consoleRecordsStore.getState>) => unknown) =>
+    select(store.getState()),
+}));
+vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
+vi.mock("@/lib/api/native-logs", () => ({ openTraceStream: fixture.open }));
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.stubGlobal("window", globalThis);
+  fixture.effects.length = 0;
+  fixture.current = true;
+  fixture.open.mockReset();
+  consoleRecordsStore.getState().bindSession(null);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+test("Stream Reconnect", async () => {
+  const first = stream();
+  const next = stream();
+  fixture.open
+    .mockResolvedValueOnce(first)
+    .mockRejectedValueOnce({ kind: "grpc", detail: { code: 14, message: "connection reset", details: [] } })
+    .mockResolvedValueOnce(next);
+  const unmount = ConsoleFixture();
+  first.push({ page: page(1, 2) });
+  first.push({ failure: { kind: "grpc", detail: { code: 4, message: "operation deadline", details: [] } } });
+  await vi.advanceTimersByTimeAsync(0);
+  const failed = buffer(consoleRecordsStore, CYCLE_PAGE);
+  assert.deepEqual(ids(failed), ["trace-1", "trace-2"]);
+  assert.ok(failed.error?.includes("operation deadline"));
+  await vi.advanceTimersToNextTimerAsync();
+  assert.equal(fixture.open.mock.calls.length, 2);
+  assert.equal(fixture.open.mock.calls[1][1].afterSequence, 2n);
+  assert.equal(fixture.open.mock.calls[1][1].epoch, "epoch-1");
+  assert.equal(vi.getTimerCount(), 1);
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.equal(fixture.open.mock.calls.length, 2);
+  await vi.advanceTimersToNextTimerAsync();
+  next.push({ page: { dropped: 0n, epoch: "epoch-1", nextSequence: 2n, records: [] } });
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).error, null);
+  next.push({ page: page(2, 3) });
+  await vi.advanceTimersByTimeAsync(0);
+  assert.deepEqual(ids(buffer(consoleRecordsStore, CYCLE_PAGE)), ["trace-1", "trace-2", "trace-3"]);
+  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).error, null);
+  unmount();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.ok(next.cancel.mock.calls.length > 0);
+  assert.equal(vi.getTimerCount(), 0);
+});
+
+test("Cursor Recovery", async () => {
+  consoleRecordsStore.getState().bindSession("1");
+  consoleRecordsStore.getState().receive(CYCLE_PAGE, page(1, 2), 4n);
+  const replay = stream();
+  fixture.open
+    .mockRejectedValueOnce({ kind: "grpc", detail: { code: 11, message: "expired cursor", details: [] } })
+    .mockResolvedValueOnce(replay);
+  const unmount = ConsoleFixture();
+  await vi.advanceTimersToNextTimerAsync();
+  assert.equal(fixture.open.mock.calls[1][1].afterSequence, 0n);
+  assert.equal(fixture.open.mock.calls[1][1].epoch, undefined);
+  replay.push({ page: page(1, 1, "epoch-2") });
+  await vi.advanceTimersByTimeAsync(0);
+  assert.deepEqual(ids(buffer(consoleRecordsStore, CYCLE_PAGE)), ["trace-1"]);
+  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).dropped, 0n);
+  unmount();
+  await vi.advanceTimersByTimeAsync(0);
+});
+
+test("Scope Cancellation", async () => {
+  let resolve: ((value: ReturnType<typeof stream>) => void) | undefined;
+  fixture.open.mockReturnValueOnce(
+    new Promise((opened) => {
+      resolve = opened;
+    }),
+  );
+  const unmount = ConsoleFixture();
+  unmount();
+  const late = stream();
+  resolve?.(late);
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(late.cancel.mock.calls.length, 1);
+  assert.equal(vi.getTimerCount(), 0);
+  assert.equal(consoleRecordsStore.getState().buffers.size, 0);
+
+  fixture.open.mockRejectedValueOnce({ kind: "grpc", detail: { code: 7, message: "trace permission", details: [] } });
+  const close = ConsoleFixture({ cycleId: "cycle-1", executionId: "execution-1", enabled: true, level: "info" });
+  await vi.advanceTimersByTimeAsync(0);
+  const key = consoleBufferKey({ cycleId: "cycle-1", executionId: "execution-1", level: "info" });
+  assert.ok(buffer(consoleRecordsStore, key).error?.includes("trace permission"));
+  assert.equal(vi.getTimerCount(), 0);
+  close();
+});
 
 test("Tail Follow", () => {
   // The List Is Pinned At The Bottom And Within One Row Of It

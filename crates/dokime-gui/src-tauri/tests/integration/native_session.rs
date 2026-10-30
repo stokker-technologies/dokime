@@ -91,3 +91,60 @@ async fn invalid_local_attachment() {
     desktop.shutdown().await.unwrap();
     backend.shutdown().await;
 }
+
+#[tokio::test]
+async fn owned_trace_tail() {
+    use dokime::domain::model::backend::wire::{LogLevel, TraceScope};
+    use dokime::operations::backend::WatchTrace;
+    use dokime_gui::native_session::backend::Backend;
+    use dokime_server::host::{Args, NetworkArgs};
+    use tracing_subscriber::prelude::*;
+
+    let root = tempfile::tempdir().unwrap();
+    let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());
+    let capture = tracing::Dispatch::new(tracing_subscriber::registry().with(dokime_server::trace::layer(journal.clone())));
+    let execution_id = "00000000-0000-0000-0000-000000000001";
+    tracing::dispatcher::with_default(&capture, || tracing::info!(execution_id, "history"));
+    let args = Args {
+        shutdown_stdin: false,
+        dev_control: false,
+        network: NetworkArgs {
+            host: std::net::Ipv4Addr::LOCALHOST.into(),
+            port: Some(0),
+            message_limit_mib: None,
+        },
+        title: None,
+        label: None,
+        output_root: Some(root.path().join("store")),
+        application_root: Some(root.path().join("application")),
+        env_file: None,
+        plugins: Vec::new(),
+        plugins_root: None,
+    };
+    let backend = Backend::new(args).with_trace_journal(journal);
+    let owner = DesktopSession::with_local_backend(ConnectionSession::default(), backend);
+    owner.select(BackendSelection::OwnedLocal).await.unwrap();
+    let client = owner.local_client().await.unwrap();
+    let stream = client
+        .stream(WatchTrace {
+            epoch: None,
+            scope: Some(TraceScope::Execution(execution_id.to_owned())),
+            min_level: LogLevel::Info,
+            after_sequence: 0,
+            max_events: 256,
+            max_bytes: 262_144,
+            follow: true,
+        })
+        .await
+        .unwrap();
+    let history = stream.message().await.unwrap().unwrap();
+    assert_eq!(history.events.len(), 1);
+    assert_eq!(history.events[0].execution_id.as_deref(), Some(execution_id));
+    tracing::dispatcher::with_default(&capture, || tracing::warn!(execution_id, "live"));
+    let live = stream.message().await.unwrap().unwrap();
+    assert_eq!(live.events.len(), 1);
+    assert_eq!(live.events[0].level, LogLevel::Warn);
+    assert!(live.next_sequence > history.next_sequence);
+    stream.close().await;
+    owner.shutdown().await.unwrap();
+}
