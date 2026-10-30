@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use obc_plugin::ObcPlugin;
+use plugin_obc::ObcPlugin;
 
 /* === Constants === */
 

@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_host::collectors::wifi::WifiLink;
+use plugin_host::collectors::wifi::WifiLink;
 
 /* === Constants === */
 

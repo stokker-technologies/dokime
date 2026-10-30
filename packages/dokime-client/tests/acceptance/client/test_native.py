@@ -65,11 +65,11 @@ def native(
     artifact: Callable[[str], Path],
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[Host]:
-    bundle = artifact("fixtures/plugins/obc-plugin.dokime")
+    bundle = artifact("fixtures/plugins/plugin-obc.dokime")
     root = tmp_path_factory.mktemp("native")
     plugins = root / "plugins"
     plugins.mkdir()
-    shutil.copyfile(artifact("plugins/host.dokime"), plugins / "host.dokime")
+    shutil.copyfile(artifact("plugins/plugin-host.dokime"), plugins / "plugin-host.dokime")
     env_file = root / "empty.env"
     env_file.touch()
     log = root / "backend.log"

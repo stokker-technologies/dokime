@@ -2524,30 +2524,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "dokime-host"
-version = "0.1.2"
-dependencies = [
- "dokime",
- "dokime-domain",
- "libc",
- "serde",
- "serde_json",
- "starship-battery",
- "sysinfo",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "windows",
- "zbus",
-]
-
-[[package]]
 name = "dokime-macros"
 version = "0.1.2"
 dependencies = [
  "dokime",
- "dokime-host",
+ "plugin-host",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
@@ -2616,7 +2597,6 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime-domain",
- "dokime-host",
  "dokime-macros",
  "dokime-operations",
  "file-id",
@@ -2632,6 +2612,7 @@ dependencies = [
  "libc",
  "libunftp",
  "nokhwa",
+ "plugin-host",
  "prost",
  "regex",
  "rusqlite",
@@ -2671,13 +2652,13 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-cli",
- "dokime-host",
  "dokime-packaging",
  "dokime-runtime",
  "futures-util",
  "harmos-packaging",
  "harmos-sdk",
  "keyring-core",
+ "plugin-host",
  "portable-pty",
  "prost",
  "prost-types",
@@ -6014,24 +5995,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "obc-plugin"
-version = "0.1.2"
-dependencies = [
- "dokime",
- "dokime-host",
- "futures-util",
- "harmos-sdk",
- "obc-runtime",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "sysinfo",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "obc-runtime"
 version = "0.1.2"
 dependencies = [
@@ -7068,6 +7031,43 @@ dependencies = [
  "quick-xml 0.42.0",
  "serde",
  "time",
+]
+
+[[package]]
+name = "plugin-host"
+version = "0.1.2"
+dependencies = [
+ "dokime",
+ "dokime-domain",
+ "libc",
+ "serde",
+ "serde_json",
+ "starship-battery",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "windows",
+ "zbus",
+]
+
+[[package]]
+name = "plugin-obc"
+version = "0.1.2"
+dependencies = [
+ "dokime",
+ "futures-util",
+ "harmos-sdk",
+ "obc-runtime",
+ "plugin-host",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sysinfo",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

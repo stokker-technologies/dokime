@@ -23,7 +23,7 @@ use dokime::harmos::operations::OperationPolicy;
 use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::{Configuration, Refusal, Supervisor};
-use dokime_host::{Resources, Result, host};
+use plugin_host::{Resources, Result, host};
 
 /* === Constants === */
 
@@ -52,11 +52,11 @@ impl dokime::harmos::builtins::lifecycle::Policy for HostPlugin {
 }
 
 #[dokime::plugin(
-    id = "host_telemetry",
+    id = "plugin_host",
     description = "Native host telemetry collected through the supervised plugin boundary.",
     restart = "never",
     requires(dokime::harmos::builtins::streams::Publish, dokime::operations::effects::ReadEnvironment, dokime::operations::effects::PrepareEffect, dokime::operations::effects::ConfirmEffect),
-    contributions(dokime::RunStart<host::adapters::CaptureAdapters>, dokime::Evidence<host::Catalog>, dokime::Settings<dokime_host::Settings>),
+    contributions(dokime::RunStart<host::adapters::CaptureAdapters>, dokime::Evidence<host::Catalog>, dokime::Settings<plugin_host::Settings>),
     observers = host::observers::Observers
 )]
 impl dokime::Plugin for HostPlugin {

@@ -57,7 +57,7 @@ PYTHONDONTWRITEBYTECODE = "1"
 [vars]
 rust_desktop_features = "tauri/custom-protocol"
 # The Host Plugin Builds Its Sidecar Only With Its Runtime; Its Definitions Need No Features.
-rust_plugin_features = "dokime-host/runtime"
+rust_plugin_features = "plugin-host/runtime"
 rust_release_features = "dokime/media-native"
 rust_extended_features = "dokime/fault-injection,dokime-server/fault-injection"
 python = "uv run --locked --project tools/python"
@@ -276,10 +276,10 @@ depends = ["prepare:report"]
 env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
-  "cargo build --locked -p dokime-cli -p cargo-dokime -p dokime-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
+  "cargo build --locked -p dokime-cli -p cargo-dokime -p plugin-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
   "{{vars.tools}} dokime_tools.prepare.generated --build-json target/contracts/dev.jsonl",
-  "cargo run --locked -p cargo-dokime -- sidecar build --package dokime-host --output target/debug/plugins/host.dokime",
-  "cargo run --locked -p cargo-dokime -- sidecar build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
+  "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-host --output target/debug/plugins/plugin-host.dokime",
+  "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-obc --output target/debug/plugins/plugin-obc.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
 ]
 

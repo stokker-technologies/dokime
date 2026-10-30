@@ -54,7 +54,7 @@ fn saved_metadata(root: &Path) -> serde_json::Value {
 fn installer_metadata(path: &Path, version: &str, bytes: &[u8]) {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let files = serde_json::json!({"plugins/host.dokime": digest});
+    let files = serde_json::json!({"plugins/plugin-host.dokime": digest});
     let metadata = serde_json::json!({"schema":1,"version":version,"files":files});
     fs::write(path, serde_json::to_vec(&metadata).unwrap()).unwrap();
 }
@@ -183,7 +183,7 @@ async fn bundled_distribution() {
     fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.hilti.dokime"}"#).unwrap();
     let bytes = bundle("organization-host", "host", "1.0.0");
     installer_metadata(&distribution, "1.0.0", &bytes);
-    fs::write(plugins.join("host.dokime"), &bytes).unwrap();
+    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
     fs::write(plugins.join("leftover.dokime"), b"unindexed older installer resource").unwrap();
     let sources = BTreeSet::new();
     let (store, database) = self::store(root.path()).await;
@@ -209,11 +209,11 @@ async fn bundled_distribution() {
 
     let before = saved_metadata(root.path())["bundled_distribution"].clone();
     installer_metadata(&distribution, "4.0.0", &bytes);
-    fs::write(plugins.join("host.dokime"), b"modified archive").unwrap();
+    fs::write(plugins.join("plugin-host.dokime"), b"modified archive").unwrap();
     let refused = store.install_distribution(&plugins, &[], &sources).await.unwrap_err();
-    assert!(refused.to_string().contains("host.dokime"));
+    assert!(refused.to_string().contains("plugin-host.dokime"));
     assert_eq!(saved_metadata(root.path())["bundled_distribution"], before);
-    fs::write(plugins.join("host.dokime"), &bytes).unwrap();
+    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
     store.install_distribution(&plugins, &[], &sources).await.unwrap();
     assert_ne!(saved_metadata(root.path())["bundled_distribution"], before);
     database.close().await.unwrap();

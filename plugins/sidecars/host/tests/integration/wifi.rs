@@ -21,7 +21,7 @@ use model::values::Value;
 // Local Imports
 use crate::support::*;
 use dokime_domain::model;
-use dokime_host::HostTelemetryStream;
+use plugin_host::HostTelemetryStream;
 
 /* === Constants === */
 

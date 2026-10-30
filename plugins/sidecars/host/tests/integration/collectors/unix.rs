@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_host::collectors::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
+use plugin_host::collectors::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
 
 /* === Constants === */
 

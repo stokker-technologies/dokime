@@ -30,9 +30,9 @@ use dokime::definition::{SuiteSet, materialize_template_cases};
 use dokime::execution::{Answering, Caller};
 use dokime::harmos::operations::OperationDeclaration;
 use dokime::{ValidationMode, ValueType};
-use obc_plugin::domain::model::readiness::Readiness;
-use obc_plugin::domain::operations::AskReadiness;
-use obc_plugin::{ObcChecks, Pulse};
+use plugin_obc::domain::model::readiness::Readiness;
+use plugin_obc::domain::operations::AskReadiness;
+use plugin_obc::{ObcChecks, Pulse};
 
 /* === Constants === */
 
@@ -196,16 +196,16 @@ async fn pulse_leases_unmeasured() {
     let report = measured::<SystemRow>([row])
         .parameter("capture_system", true)
         .parameter("sample_count", 2)
-        .run::<obc_plugin::suites::Suites>()
+        .run::<plugin_obc::suites::Suites>()
         .await
         .unwrap();
     assert!(report.passed(), "{}", report.diagnostics());
-    assert!(!report.samples::<obc_plugin::PulseRow>().is_empty());
+    assert!(!report.samples::<plugin_obc::PulseRow>().is_empty());
 
     let refused = dokime::plugin::testing::Harness::template("obc.checks.pulse")
         .parameter("capture_system", true)
         .parameter("sample_count", 2)
-        .run::<obc_plugin::suites::Suites>()
+        .run::<plugin_obc::suites::Suites>()
         .await
         .unwrap();
     assert!(!refused.passed(), "an unmeasured global stream is refused");
@@ -223,9 +223,9 @@ async fn pulse_confirmation() {
                 std::iter::empty::<(&str, dokime::Value)>(),
             );
         }
-        let report = harness.run::<obc_plugin::suites::Suites>().await.unwrap();
+        let report = harness.run::<plugin_obc::suites::Suites>().await.unwrap();
         assert_eq!(report.passed(), passed, "action {action:?}: {}", report.diagnostics());
-        let samples = report.samples::<obc_plugin::PulseRow>();
+        let samples = report.samples::<plugin_obc::PulseRow>();
         if passed {
             assert!(samples.len() >= 2);
         } else {

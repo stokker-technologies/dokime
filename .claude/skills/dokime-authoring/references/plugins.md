@@ -4,9 +4,9 @@ A Dokime plugin is a native process launched and supervised by the host over pip
 
 Embed the product runtime through the product entry library by default. Declare its handler catalog in the plugin's `const CATALOGS`; the plugin owns suites, templates, observers, listeners and its own records and streams.
 
-When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and depends only on that product's domain crate, beside its Dokime authoring dependency.
+When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
 
-Declare operation requests and replies, records, streams, prompts and settings once in their domain owner. Runtime handlers implement those contracts. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
+Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
 
@@ -38,11 +38,11 @@ The host sidecar keeps request definitions in `host/<domain>/mod.rs`:
 request structs, ids, policies, responses and contract tests. `host/controls`
 shares native state capture, inverse transactions and backend journal callbacks
 for radio, adapter and power writes. Construct `RadioSet` with
-`dokime_host::domain::controls::{Radio, RadioPower}` (`Radio::Wifi`,
+`plugin_host::domain::controls::{Radio, RadioPower}` (`Radio::Wifi`,
 `Radio::Bluetooth`, `Radio::Cellular`; `RadioPower::On`, `RadioPower::Off`).
 `RadioState.kind` shares `Radio`; inventory uses
 `host::adapters::{AdapterKind, AdapterStatus}`. Native boundary parsers reject
-unknown closed-set values with `dokime_host::Error::UnknownValue`; do not add
+unknown closed-set values with `plugin_host::Error::UnknownValue`; do not add
 string request aliases. Runtime implementations
 live in parallel `windows.rs` and `unix.rs` modules selected only by
 `#[cfg(all(feature = "runtime", target_os = "windows"))] mod windows;` and

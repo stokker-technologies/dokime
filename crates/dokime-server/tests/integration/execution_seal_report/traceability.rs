@@ -69,7 +69,7 @@ fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
         TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 0, dokime::model::time::now_utc(), "fixture.host");
     sample.scope = scope;
 
-    let row = dokime_host::System {
+    let row = plugin_host::System {
         host_name: Some(host_name.into()),
         cpu_load_percent: Some(12.5),
         ..Default::default()
@@ -93,7 +93,7 @@ pub(crate) async fn get_traceability_cursor() {
         parameter("operator.email", "traceability.operator", 1.0),
     ]);
     let mut registration = support::fixture_registration(suite.clone());
-    registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
+    registration.telemetry_contracts = plugin_host::host_telemetry_contracts();
     handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
     let cycle_id = support::cycle_with_cases(
         &handle,
@@ -274,7 +274,7 @@ pub(crate) async fn traceability_bounds_clone() {
     let handle = owner.handle();
     let suite = support::fixture_suite(&["passed"]);
     let mut registration = support::fixture_registration(suite);
-    registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
+    registration.telemetry_contracts = plugin_host::host_telemetry_contracts();
     handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
 
     let receipt = handle.publish_telemetry_batch(host_batch(None, "budget-host")).await.unwrap();

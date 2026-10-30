@@ -40,13 +40,13 @@ Find these files after extraction:
 
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
-| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-x86_64-pc-windows-msvc-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/host.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/host.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/host.dokime` |
+| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-x86_64-pc-windows-msvc-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/plugin-host.dokime` |
+| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
+| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
 
 The installer includes the host telemetry bundle. OBC is a source-built test
 fixture, not a candidate download; build it with `mise run build:rust:tests`
-and transfer `target/build/dev/<target>/fixtures/plugins/obc-plugin.dokime`
+and transfer `target/build/dev/<target>/fixtures/plugins/plugin-obc.dokime`
 when running the OBC walkthrough below.
 
 Tutorials and Python distributions are not release downloads. Check out the
@@ -111,7 +111,7 @@ launching another local server there is unnecessary.
 ## Install The Host Plugin
 
 On the host, open **Settings → Plugins**. Under **Install A Plugin**, choose
-**Choose File**, then select the host-platform `obc-plugin.dokime` from the
+**Choose File**, then select the host-platform `plugin-obc.dokime` from the
 candidate's `plugins/` directory. Selecting the bundle installs it directly.
 
 Choose **Restart Now** in the restart dialog. The installed plugin activates

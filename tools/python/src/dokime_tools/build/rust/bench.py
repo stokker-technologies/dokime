@@ -38,14 +38,14 @@ ROOT = frontend.ROOT
 
 def build() -> None:
     """Use The Shared Bench Producer And Stage The Host And OBC Fixtures Its System Stories Measure."""
-    extra = ("--exclude", "dokime-gui", "--features", "obc-plugin/benchmarks,dokime-host/runtime")
+    extra = ("--exclude", "dokime-gui", "--features", "plugin-obc/benchmarks,plugin-host/runtime")
     messages = bench.build(ROOT, extra=extra)
     output = paths.output(ROOT, "build", "bench")
     directory = output / "bench"
     binaries = output / "bin"
     tool = binaries / f"cargo-dokime{'.exe' if sys.platform == 'win32' else ''}"
 
-    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=("dokime-host", *plugins.FIXTURES))
+    staged = plugins.prepare(ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=("plugin-host", *plugins.FIXTURES))
 
     staged += [path for path in directory.rglob("*") if path.is_file()]
     staged += [path for path in binaries.iterdir() if path.is_file()]

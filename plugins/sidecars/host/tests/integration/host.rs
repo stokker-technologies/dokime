@@ -20,16 +20,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime_host::host_telemetry_contract;
 use model::telemetry::ValidationMode;
 use model::telemetry::{TelemetryBatch, TelemetrySample};
+use plugin_host::host_telemetry_contract;
 
 // Local Imports
 use crate::support::*;
 use dokime::telemetry::TelemetryRow;
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
-use dokime_host::HostTelemetryStream;
+use plugin_host::HostTelemetryStream;
 
 /* === Constants === */
 
@@ -111,22 +111,22 @@ fn collected_battery_columns() {
             assert!(declared.contains(&key.as_str()), "{key} is not declared");
         }
         validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict).unwrap();
-        dokime_host::System::from_row(&sample.values).unwrap();
+        plugin_host::System::from_row(&sample.values).unwrap();
     }
 }
 
 #[test]
 fn executable_declares_host() {
-    let executable = std::env::var("NEXTEST_BIN_EXE_dokime-host")
+    let executable = std::env::var("NEXTEST_BIN_EXE_plugin-host")
         .ok()
-        .or_else(|| option_env!("CARGO_BIN_EXE_dokime-host").map(str::to_owned))
+        .or_else(|| option_env!("CARGO_BIN_EXE_plugin-host").map(str::to_owned))
         .expect("workspace host executable");
     let executable = dokime::__harmos::sidecar::Executable::at(executable).expect("the host executable declares itself");
     let declared = executable.declaration();
-    assert_eq!(declared.id, "host_telemetry");
+    assert_eq!(declared.id, "plugin_host");
     assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
     let streams = declared.streams.iter().map(|stream| stream.id.as_str()).collect::<std::collections::BTreeSet<_>>();
-    let expected = dokime_host::host_stream_identifiers();
+    let expected = plugin_host::host_stream_identifiers();
     let expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(streams, expected);
     let operations = declared.operations.iter().map(|operation| operation.id.as_str()).collect::<std::collections::BTreeSet<_>>();

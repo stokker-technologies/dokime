@@ -22,7 +22,7 @@ use model::values::Value;
 // Local Imports
 use dokime::telemetry::validate_telemetry_sample;
 use dokime_domain::model;
-use dokime_host::{HostOptions, HostTelemetryStream, host_telemetry_contracts};
+use plugin_host::{HostOptions, HostTelemetryStream, host_telemetry_contracts};
 
 /* === Constants === */
 
@@ -47,9 +47,9 @@ pub enum Field {
 /* === Public Functions === */
 
 pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBatch {
-    use dokime_host::collectors::bluetooth::BluetoothCollector;
-    use dokime_host::collectors::wifi::{WifiLatencyCollector, WifiLinkCollector, WifiScanCollector};
-    use dokime_host::collectors::{network::NetworkCollector, system::SystemCollector};
+    use plugin_host::collectors::bluetooth::BluetoothCollector;
+    use plugin_host::collectors::wifi::{WifiLatencyCollector, WifiLinkCollector, WifiScanCollector};
+    use plugin_host::collectors::{network::NetworkCollector, system::SystemCollector};
     let options = HostOptions::default();
     let rows = match stream {
         HostTelemetryStream::System => vec![SystemCollector::new().collect().unwrap()],

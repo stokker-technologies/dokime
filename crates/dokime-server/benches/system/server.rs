@@ -135,7 +135,7 @@ impl Drop for Server {
 
 /* === Public Functions === */
 pub fn plugin_bundle() -> Option<PathBuf> {
-    let path = build_root().join("fixtures/plugins/obc-plugin.dokime");
+    let path = build_root().join("fixtures/plugins/plugin-obc.dokime");
     path.is_file().then_some(path)
 }
 

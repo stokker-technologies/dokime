@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-extern crate dokime_host;
+extern crate plugin_host;
 // Standard Library Imports
 
 // Third Party Imports
@@ -51,8 +51,8 @@ fn main() {
     published::<GatewayRssi>();
     pushed::<GatewayRssi>();
     // Only The Host Plugin Publishes Its Rows.
-    published::<dokime_host::System>();
-    pushed::<dokime_host::System>();
+    published::<plugin_host::System>();
+    pushed::<plugin_host::System>();
 }
 
 /* === Tests === */
