@@ -870,7 +870,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     assert!(log.contains("record=sidecar_prompt_answered action=continue accepted=true"));
     assert!(log.contains("Charger resources released"));
 
-    // What the template stated about the DUT before its first step, read back
+    // What the first step captured about the DUT, read back
     // through the typed query an operator's Traceability card reads.
     let observation = client.clone();
     let traceability = observation

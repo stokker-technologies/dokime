@@ -477,7 +477,7 @@ impl Pages {
         }
         for encoded in reply.traceability {
             if let Ok(section) = serde_json::from_str::<TraceabilitySection>(&encoded) {
-                self.traceability.push(section);
+                dokime_domain::model::traceability::upsert_section(&mut self.traceability, section);
             }
         }
         for encoded in reply.documents {

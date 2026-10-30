@@ -44,7 +44,6 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 const INITIALIZATION: &str = "initialization";
-const TRACEABILITY: &str = "traceability";
 const PARAMETERS: &str = "resolving parameters";
 
 /* === Macros === */
@@ -220,44 +219,36 @@ async fn execute<T: SidecarTemplate>(
     let own = Arc::new(own);
     let mut environment = environment.holding(Arc::clone(&own));
 
-    // From here on the attempt holds handles, so every ending runs cleanup —
-    // including a traceability failure, which ends the attempt before its first
-    // step after initialization constructed the handles cleanup has to close.
-    let stated = state::<T>(&mut template, &environment, &mut transport, &mut cancel).await;
-    let mut ended = match stated {
-        Err(ended) => ended,
-        Ok(()) => {
-            let observers = super::observing::start::<T>(
-                super::observing::Scope {
-                    executions: Arc::clone(&executions),
-                    token: token.clone(),
-                    source: source.clone(),
-                    caller: caller.clone(),
-                    binding: binding.clone(),
-                    own: Arc::clone(&own),
-                    parameters: Arc::clone(&typed),
-                    raw: Arc::clone(&parameters),
-                    bindings: Arc::clone(&bindings),
-                    artifacts: artifacts.clone(),
-                    streams: streams.clone(),
-                    deliveries: deliveries.clone(),
-                    document: Arc::clone(&document),
-                },
-                declared_observers,
-                &records,
-                &observer_tasks,
-            );
-            let ended = walk::<T>(&mut template, &declaration, &environment, &mut transport, &mut evidence, &mut cancel, &controls).await;
-            controls.stop_accepting();
-            // Observing stops before the evidence is read, so a criterion
-            // decides over a set of facts that is not still growing underneath
-            // it — and before cleanup, so no observer outlives the handle it
-            // reads.
-            super::observing::settle(observers).await;
-            environment.streams().flush().await;
-            ended
-        }
-    };
+    // Every Ending After Initialization Runs Cleanup.
+    let observers = super::observing::start::<T>(
+        super::observing::Scope {
+            executions: Arc::clone(&executions),
+            token: token.clone(),
+            source: source.clone(),
+            caller: caller.clone(),
+            binding: binding.clone(),
+            own: Arc::clone(&own),
+            parameters: Arc::clone(&typed),
+            raw: Arc::clone(&parameters),
+            bindings: Arc::clone(&bindings),
+            artifacts: artifacts.clone(),
+            streams: streams.clone(),
+            deliveries: deliveries.clone(),
+            document: Arc::clone(&document),
+        },
+        declared_observers,
+        &records,
+        &observer_tasks,
+    );
+    let ended = walk::<T>(&mut template, &declaration, &environment, &mut transport, &mut evidence, &mut cancel, &controls).await;
+    controls.stop_accepting();
+    // Observing stops before the evidence is read, so a criterion
+    // decides over a set of facts that is not still growing underneath
+    // it — and before cleanup, so no observer outlives the handle it
+    // reads.
+    super::observing::settle(observers).await;
+    environment.streams().flush().await;
+    let mut ended = ended;
 
     if let Some(diagnostic) = settle_callbacks(&environment, &transport).await
         && matches!(ended, Ended::Completed)
@@ -373,29 +364,6 @@ async fn initialize<T: SidecarTemplate>(
     ctx.info("execution initialization completed");
 
     Ok(initialized)
-}
-
-async fn state<T: SidecarTemplate>(
-    template: &mut T, environment: &Environment<'_, T, T::Own, T::Parameters>, transport: &mut dyn ExecutionTransport,
-    cancel: &mut watch::Receiver<bool>,
-) -> Result<(), Ended> {
-    let sections = {
-        let ctx = environment.traceability(transport);
-        tokio::select! {
-            biased;
-            _ = cancel.wait_for(|cancelled| *cancelled) => Err(Ended::Cancelled {
-                step: TRACEABILITY.into(),
-            }),
-            result = caught(template.traceability(&ctx)) => result.map_err(|diagnostic| Ended::Failed {
-                step: TRACEABILITY.into(), diagnostic: Box::new(diagnostic),
-            }),
-        }?
-    };
-    if !sections.is_empty() {
-        transport.traceability(sections);
-    }
-
-    Ok(())
 }
 
 async fn walk<T: SidecarTemplate>(
@@ -689,7 +657,7 @@ async fn settle_callbacks<P, O, I>(environment: &Environment<'_, P, O, I>, trans
 
 fn staged(step: &str) -> String {
     match step {
-        PARAMETERS | INITIALIZATION | TRACEABILITY => step.to_owned(),
+        PARAMETERS | INITIALIZATION => step.to_owned(),
         step => format!("step `{step}`"),
     }
 }

@@ -20,6 +20,7 @@ pub mod lease;
 pub mod log;
 pub mod progress;
 pub mod slot;
+pub mod traceability;
 
 #[cfg(feature = "native")]
 pub mod listen;
@@ -70,7 +71,6 @@ mod workflow;
 pub use callbacks::{CallbackTask, Callbacks};
 pub use context::{
     Called, Cleanup, CleanupContext, Context, CriterionContext, InitializationContext, Initialize, Required, Step, StepContext,
-    Traceability, TraceabilityContext,
 };
 
 #[cfg(feature = "native")]
@@ -81,6 +81,7 @@ pub use evidence::ExecutionEvidence;
 pub use lease::{Lease, LeaseHold, LeaseRelease};
 pub use progress::{ExecutionProgress, Progress, ProgressSink};
 pub use slot::Slot;
+pub use traceability::TraceabilityHandle;
 
 #[cfg(feature = "native")]
 pub use listen::{Deadlined, Listenable, ListeningRecords, ListeningRows};
@@ -107,7 +108,6 @@ pub use tick::Tick;
 #[cfg(feature = "native")]
 pub use template::{
     DeclaredObserver, EvaluationFuture, InitializationFuture, SamplePublisher, SidecarTemplate, StampedRow, StepFuture, TemplateDefinition,
-    TraceabilityFuture,
 };
 
 #[cfg(feature = "native")]

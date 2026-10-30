@@ -43,9 +43,9 @@ const ARGUMENTS: &[&str] = &[
 ];
 const DOCUMENT: &str = "document";
 const CRITERIA: &str = "criteria";
-const LIFECYCLE: &[&str] = &["initialize", "traceability", "cleanup"];
+const LIFECYCLE: &[&str] = &["initialize", "cleanup"];
 const RUNNABLE_CONTEXT: &str = "StepContext";
-const CONTEXTS: &[&str] = &["InitializationContext", "TraceabilityContext", "StepContext", "ObserverContext", "CleanupContext"];
+const CONTEXTS: &[&str] = &["InitializationContext", "StepContext", "ObserverContext", "CleanupContext"];
 const CRITERION_CONTEXT: &str = "CriterionContext";
 
 /* === Macros === */
@@ -232,10 +232,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     refuse_unrecognized_members(&block)?;
     let steps = steps(&block)?;
     if let Some(step) = steps.iter().find(|step| LIFECYCLE.iter().any(|hook| step.method == hook)) {
-        return Err(Error::new_spanned(
-            &step.method,
-            "initialize, traceability and cleanup are execution lifecycle hooks, not declared steps",
-        ));
+        return Err(Error::new_spanned(&step.method, "initialize and cleanup are execution lifecycle hooks, not declared steps"));
     }
     let criteria = criteria(&block)?;
     let runnable = runnable(&block, &steps)?;
@@ -698,18 +695,6 @@ fn validate_lifecycle(block: &ItemImpl) -> Result<(), Error> {
              (or without `parameters` when the template declares none): initialize must be async and take the declared parameters and &mut InitializationContext",
         ));
     }
-    if let Some(traceability) = declared(block, "traceability")
-        && (traceability.sig.asyncness.is_none()
-            || traceability.sig.receiver().is_none()
-            || traceability.sig.inputs.len() != 2
-            || matches!(traceability.sig.output, ReturnType::Default))
-    {
-        return Err(Error::new_spanned(
-            &traceability.sig,
-            "`traceability` must be `async fn traceability(&self, ctx: &TraceabilityContext<'_>) -> Result<Vec<TraceabilitySection>, Error>`: \
-             traceability must be async and take &self and &TraceabilityContext",
-        ));
-    }
     if let Some(cleanup) = declared(block, "cleanup")
         && (cleanup.sig.asyncness.is_none()
             || cleanup.sig.receiver().is_none()
@@ -750,7 +735,7 @@ fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
                 return Err(Error::new(
                     other.span(),
                     "this item is not read by `#[dokime::template]`. A template impl holds \
-                     initialize, traceability, document and cleanup, plus methods \
+                     initialize, document and cleanup, plus methods \
                      marked #[dokime::step], #[dokime::criterion] or #[dokime::observer]; \
                      put helpers in a separate impl block.",
                 ));
@@ -784,7 +769,7 @@ fn unclaimed(name: &syn::Ident, kind: &str) -> Error {
         name,
         format!(
             "`{name}` is not a template {kind}. A template impl holds initialize, \
-             traceability, document and cleanup, plus methods marked #[dokime::step], \
+             document and cleanup, plus methods marked #[dokime::step], \
              #[dokime::criterion] or #[dokime::observer]; put helpers in a separate impl block."
         ),
     )
@@ -939,20 +924,6 @@ fn engine(
             }
         }
     });
-    let stated = declared(block, "traceability").map(|method| {
-        let captured = quote_spanned!(method.sig.ident.span()=>
-            #sdk::plugin::captured(<Self>::traceability(self, ctx).await)
-        );
-
-        quote! {
-            fn traceability<'__dokime>(
-                &'__dokime self,
-                ctx: &'__dokime #sdk::execution::TraceabilityContext<'_, Self, Self::Own, Self::Parameters>,
-            ) -> #sdk::execution::TraceabilityFuture<'__dokime> {
-                ::std::boxed::Box::pin(async move { #captured })
-            }
-        }
-    });
     // A template that declared its inputs is handed them; one that named none
     // has nothing to be handed, so its `initialize` takes only the grant.
     let initialize = declared(block, "initialize");
@@ -1031,7 +1002,6 @@ fn engine(
             }
 
             #cancellation
-            #stated
             #cleanup
 
             fn run_step<'__dokime>(

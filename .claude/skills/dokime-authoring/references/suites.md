@@ -22,13 +22,12 @@ A template declares operation requirements without naming a plugin. Its serving 
 
 ## Lifecycle
 
-Use the vocabulary in this order: initialize, traceability, steps, criteria, observers, cleanup, document. Observers run concurrently with steps; this vocabulary order does not serialize them after criteria.
+Use the vocabulary in this order: initialize, steps, criteria, observers, cleanup, document. Observers run concurrently with steps; this vocabulary order does not serialize them after criteria.
 
 | Stage | Capabilities |
 | --- | --- |
 | initialize | Log, artifact grant, document additions; yields template state and shared handles. |
-| traceability | Log, artifact grant, document additions; captures traceability using shared handles. |
-| steps | Log, prompt, listen, publish, stream, artifact grant, document additions. |
+| steps | Log, prompt, listen, publish, stream, artifact grant, document additions and traceability edits. |
 | criteria | Log and captured evidence for decisions; no prompt, listen, publish, artifact grant or document mutation. |
 | observers | Log, publish, stream, artifact grant, document additions; read shared handles only, never template state. |
 | cleanup | Log, artifact grant, document additions; termination reason and shared handles for restoration. |
@@ -45,3 +44,16 @@ Selection is independent of capture policy: `All` follows baseline files and arr
 ## Layout
 
 Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
+
+## Step Traceability
+
+Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
+
+```rust
+ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
+ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", identity.serial));
+```
+
+A section identifier replaces the complete section; a row identifier replaces a row within an existing section. Replacing preserves order and unrelated sections/rows. Add a section before its rows. Missing sections, duplicate row identifiers and host-derived section names are refused and logged without changing captured content. Repeated edits in one delivery apply in order, with the last edit winning. The execution index, buffered evidence delivery, durable transactions and report projections follow the document path; do not introduce an alternate publisher or storage mechanism.
+
+Only steps mutate traceability. Criteria read captured evidence; initialize, observers and cleanup have no mutation handle. Live GUI and newly captured reports show current saved values; sealed reports and Python checkpoint reads preserve captured values. Storage remains v1 and existing roots are never silently deleted or reset.

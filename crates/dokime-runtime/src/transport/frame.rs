@@ -442,7 +442,7 @@ impl ExecutionTransport for FrameTransport {
         })
     }
 
-    fn traceability(&mut self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>) {
+    fn traceability(&self, sections: Vec<dokime_domain::model::traceability::TraceabilitySection>) {
         for section in sections {
             match serde_json::to_string(&section) {
                 Ok(encoded) => self.push(BufferedFrame::traceability(encoded)),

@@ -52,7 +52,7 @@ pub struct RecordingTransport {
     progress: Arc<Mutex<Vec<ExecutionProgress>>>,
     steps: Vec<Identifier>,
     step_attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt>,
-    traceability: Vec<TraceabilitySection>,
+    traceability: Mutex<Vec<TraceabilitySection>>,
     documents: Mutex<Vec<crate::document::DocumentAddition>>,
     leasable: Vec<Identifier>,
     leases: Vec<Identifier>,
@@ -126,8 +126,8 @@ impl RecordingTransport {
         &self.steps
     }
 
-    pub fn traceability(&self) -> &[TraceabilitySection] {
-        &self.traceability
+    pub fn traceability(&self) -> Vec<TraceabilitySection> {
+        self.traceability.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
     pub fn leasing(streams: impl IntoIterator<Item = Identifier>) -> Self {
@@ -216,8 +216,11 @@ impl ExecutionTransport for RecordingTransport {
         Box::pin(async { Ok(()) })
     }
 
-    fn traceability(&mut self, sections: Vec<TraceabilitySection>) {
-        self.traceability.extend(sections);
+    fn traceability(&self, sections: Vec<TraceabilitySection>) {
+        let mut captured = self.traceability.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for section in sections {
+            dokime_domain::model::traceability::upsert_section(&mut captured, section);
+        }
     }
 
     fn document(&self, addition: crate::document::DocumentAddition) {
