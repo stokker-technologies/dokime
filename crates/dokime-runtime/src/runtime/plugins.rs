@@ -250,6 +250,12 @@ impl Runtime {
         progress.progress(total, total);
         progress.phase("Validating Catalogs");
         progress.indeterminate();
+        // Verified Definitions Remain Editable After Activation Is Refused.
+        self.handle.plugin_settings_catalogs.write().expect("plugin settings catalog lock poisoned").extend(
+            packages
+                .iter()
+                .flat_map(|package| package.programs.iter().map(|program| (program.plugin.source.clone(), program.plugin.clone()))),
+        );
         // Program values live under their bundle's install ID; bind the
         // sources before any program is activated with them.
         self.handle.plugin_preferences().bind_installs(
@@ -355,7 +361,7 @@ impl Runtime {
                     let Some((plugin, source, cleanup)) = start_failure(&error) else {
                         return Err(error.into());
                     };
-                    if self.embedded.contains_key(plugin) || !cleanup.is_empty() {
+                    if self.embedded.contains_key(plugin) {
                         return Err(error.into());
                     }
                     let packages: Vec<_> = self.plugins.values().map(|active| &active.package).collect();
@@ -368,7 +374,21 @@ impl Runtime {
                         .enumerate()
                         .filter_map(|(index, package)| excluded.contains(&package.catalog.package).then_some(index))
                         .collect();
-                    prune(&self.handle.plugin_store(), &packages, &mut removed, initial, &source.to_string()).await?;
+                    let package = packages[initial];
+                    if matches!(package.input.provenance, PluginProvenance::Configured) || !cleanup.is_empty() {
+                        return Err(Error::PluginStart {
+                            plugin: package.catalog.package.clone(),
+                            source: Box::new(error),
+                        });
+                    }
+                    let failure = start_error(plugin, &package.catalog.package, source);
+                    for index in prune_graph(&package_definitions(&packages), &mut removed, initial) {
+                        if index != initial {
+                            failed(&store, &packages[index].input, &failure.message).await?;
+                        }
+                    }
+                    tracing::warn!(plugin_id = %failure.plugin_id, plugin_name = %failure.plugin_name, reason = %failure.message, "plugin was not admitted");
+                    record(&store, &package.input, Some(failure)).await;
                     excluded.extend(removed.iter().map(|index| packages[*index].catalog.package.clone()));
                     next = Some(graph(
                         self.plugins.iter().filter(|(name, _)| !excluded.contains(*name)).flat_map(|(_, active)| &active.package.programs),
@@ -1118,21 +1138,52 @@ async fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Resu
     let PluginProvenance::Installed { install_id, .. } = &input.provenance else {
         return Err(operation(format!("configured plugin `{}` failed: {reason}", input.path.display())));
     };
+    let name = store
+        .get(*install_id)
+        .await
+        .ok()
+        .and_then(|entry| entry.metadata)
+        .map(|metadata| metadata.identity.name)
+        .unwrap_or_else(|| input.path.display().to_string());
+    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: String::new(),
+        plugin_name: name.clone(),
+        message: format!("Plugin {name} could not start: {reason}"),
+        missing_secret: None,
+        carrier: Vec::new(),
+    };
     tracing::warn!(
+        plugin_name = %name,
         plugin = %input.path.display(),
         install_id = %install_id,
         reason,
         "plugin was not admitted"
     );
-    record(store, input, Some(reason.to_owned())).await;
+    record(store, input, Some(failure)).await;
     Ok(())
 }
 
-async fn record(store: &PluginStore, input: &PluginBundle, error: Option<String>) {
+async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_domain::model::plugins::wire::PluginStartFailure>) {
     if let PluginProvenance::Installed { install_id, .. } = &input.provenance
         && let Err(error) = store.record_boot(*install_id, error).await
     {
         tracing::warn!(%install_id, %error, "could not record plugin boot outcome");
+    }
+}
+
+fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let cause = error.failure();
+    let missing_secret = cause
+        .filter(|failure| failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE))
+        .and_then(|failure| failure.detail("dokime.secret"))
+        .map(str::to_owned);
+    let message = cause.map(|failure| failure.cause().to_owned()).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string());
+    dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: plugin.to_owned(),
+        plugin_name: name.to_owned(),
+        message: format!("Plugin {name} could not start: {message}"),
+        missing_secret,
+        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
     }
 }
 
@@ -1141,3 +1192,53 @@ fn operation(error: impl std::fmt::Display) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::start_error;
+
+    #[test]
+    fn missing_secret_survives_initialize_admission() {
+        let refusal = crate::plugin::refusal::<(), _>(Err(crate::Error::UnavailableSecret("api_token".into()))).unwrap_err();
+        let failure = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Permanent,
+            &refusal,
+            harmos::domain::failure::Origin::Plugin,
+        )
+        .in_operation("harmos.initialize");
+        let received = harmos::domain::Failure::decode(&failure.encode()).unwrap();
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(received)),
+        };
+        let admission = start_error("hcl", "HCL", &error);
+        assert_eq!(admission.plugin_id, "hcl");
+        assert_eq!(admission.plugin_name, "HCL");
+        assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
+        let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
+        assert_eq!(retained, failure);
+        assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
+        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE));
+        assert!(!retained.diagnostics().unwrap().chain().is_empty());
+    }
+
+    #[test]
+    fn generic_initialize_retains_failure_structure() {
+        let source = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
+        let failure = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Transient,
+            &source,
+            harmos::domain::failure::Origin::Plugin,
+        )
+        .in_operation("harmos.initialize");
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
+        };
+        let admission = start_error("hcl", "HCL", &error);
+        assert_eq!(admission.plugin_id, "hcl");
+        assert_eq!(admission.plugin_name, "HCL");
+        assert!(admission.missing_secret.is_none());
+        assert_eq!(harmos::domain::Failure::decode(&admission.carrier).unwrap(), failure);
+    }
+}

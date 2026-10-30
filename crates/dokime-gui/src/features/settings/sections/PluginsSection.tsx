@@ -85,7 +85,8 @@ export function PluginsSection() {
       const section = (settings.frame?.sections ?? []).find(
         (candidate) => candidate.owner.kind === "installed_plugin" && artifacts.has(candidate.owner.plugin_id),
       );
-      return section?.section_id ?? null;
+      const failure = entry.boot_error && entry.last_boot?.state === "failed" ? entry.last_boot.failure : null;
+      return section?.section_id ?? (failure?.plugin_id || null);
     },
     [programs, settings.frame],
   );

@@ -283,13 +283,19 @@ impl PluginStore {
         Ok(())
     }
 
-    pub async fn record_boot(&self, id: Uuid, error: Option<String>) -> Result<(), PluginError> {
+    pub async fn record_boot(
+        &self, id: Uuid, failure: Option<dokime_domain::model::plugins::wire::PluginStartFailure>,
+    ) -> Result<(), PluginError> {
         self.settings
             .edit(move |document| {
                 let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
                 let at = crate::model::time::now_utc();
-                plugin.last_boot = Some(match error {
-                    Some(error) => PluginLastBoot::Failed { error, at },
+                plugin.last_boot = Some(match failure {
+                    Some(failure) => PluginLastBoot::Failed {
+                        error: failure.message.clone(),
+                        failure: Some(failure),
+                        at,
+                    },
                     None => PluginLastBoot::Loaded { at },
                 });
                 Ok(())
@@ -346,7 +352,11 @@ impl PluginStore {
                 }
                 for (id, error) in failures {
                     if let Some(plugin) = document.plugins.get_mut(&id) {
-                        plugin.last_boot = Some(PluginLastBoot::Failed { error, at: crate::model::time::now_utc() });
+                        plugin.last_boot = Some(PluginLastBoot::Failed {
+                            error,
+                            failure: None,
+                            at: crate::model::time::now_utc(),
+                        });
                     }
                 }
                 Ok(())

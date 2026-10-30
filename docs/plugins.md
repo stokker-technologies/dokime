@@ -1,5 +1,17 @@
 # Dokime Plugins
 
+Startup failures appear in a desktop notification and in Settings › Plugins,
+with the bundle's display name and the underlying cause. Missing secret bindings
+identify the secret and offer **Open Plugin Settings**. The verified settings
+remain editable even when the plugin could not start; configure the binding,
+then restart Dokime. Notification history retains the settings link.
+
+Plugin boot records retain the encoded Harmos failure, including its kind,
+application refusal code, named context and source diagnostics. Plugin authors
+should return errors through `dokime::plugin::refusal` to preserve this context;
+missing secret access is classified by `MISSING_SECRET_BINDING_CODE` and the
+`dokime.secret` field, without parsing diagnostic messages.
+
 `plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row

@@ -143,13 +143,14 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
   if (!installedAt) {
     throw new Error(`Native plugin ${installation.installId} has no valid installation timestamp.`);
   }
+  const lastBoot = mapPluginLastBoot(installation.lastBoot);
 
   return {
     install_id: installation.installId,
     sha256: installation.sha256,
     installed_at: installedAt,
     state: mapPluginState(installation.state),
-    last_boot: mapPluginLastBoot(installation.lastBoot),
+    last_boot: lastBoot,
     metadata: installation.metadata
       ? {
           identity: installation.metadata.identity
@@ -168,7 +169,7 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
     error: installation.error ?? null,
     active: installation.active,
     restart_required: installation.restartRequired,
-    boot_error: installation.bootError ?? null,
+    boot_error: installation.bootError != null && lastBoot?.state === "failed" ? lastBoot.error : (installation.bootError ?? null),
   };
 }
 
@@ -192,8 +193,25 @@ function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntr
   switch (lastBoot.result?.HarmosVariant.case) {
     case "Loaded":
       return { state: "loaded", at };
-    case "Error":
-      return { state: "failed", error: lastBoot.result.HarmosVariant.value.field0, at };
+    case "Error": {
+      const failure = lastBoot.failure;
+      const message = failure?.missingSecret
+        ? `Plugin ${failure.pluginName} could not start: secret \`${failure.missingSecret}\` is not configured — set it in Settings › Plugins › ${failure.pluginName}`
+        : (failure?.message ?? lastBoot.result.HarmosVariant.value.field0);
+      return {
+        state: "failed",
+        error: message,
+        at,
+        failure: lastBoot.failure
+          ? {
+              plugin_id: lastBoot.failure.pluginId,
+              plugin_name: lastBoot.failure.pluginName,
+              message,
+              missing_secret: lastBoot.failure.missingSecret ?? null,
+            }
+          : null,
+      };
+    }
     default:
       throw new Error("Native plugin returned a last-boot result without an outcome.");
   }

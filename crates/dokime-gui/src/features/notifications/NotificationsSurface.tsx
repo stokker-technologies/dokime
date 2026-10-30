@@ -17,6 +17,7 @@
 
 // Third Party Imports
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
 import { NotificationMessage } from "@/components/NotificationMessage";
 // Local Imports
@@ -116,6 +117,11 @@ export function NotificationsSurface() {
               </time>
             </div>
             {record.description?.trim() && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
+            {record.pluginSettings && (
+              <Link className="text-sm underline" to="/settings/plugins/$pluginId" params={{ pluginId: record.pluginSettings }}>
+                Open Plugin Settings
+              </Link>
+            )}
           </li>
         ))}
         {!page.records.length && (

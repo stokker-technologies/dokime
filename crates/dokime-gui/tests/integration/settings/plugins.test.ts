@@ -18,6 +18,7 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
+import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 
 /* === Re-Exports === */
 
@@ -26,6 +27,9 @@ import { commands } from "@/lib/desktop/commands";
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
   getInstallation: vi.fn(),
+  listInstallations: vi.fn(),
+  listAdmitted: vi.fn(),
+  getSettings: vi.fn(),
   channels: [] as { onmessage: (message: unknown) => void }[],
 }));
 
@@ -76,7 +80,11 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 vi.mock("@/lib/rpc/generated/client", () => ({
   pluginsGetInstallation: fixture.getInstallation,
+  pluginsListInstallations: fixture.listInstallations,
+  pluginsListAdmittedPlugins: fixture.listAdmitted,
 }));
+
+vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.getSettings }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -165,4 +173,30 @@ test("Dropped Bundle Installs From The Shell's Recorded Drop", async () => {
   assert.equal(command, "desktop_plugin_install_file");
   assert.equal(args.drop, true);
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
+});
+
+test("Failed Plugin Settings Retain Owner And Secret", async () => {
+  const failed = {
+    ...installation("install-1"),
+    restartRequired: false,
+    bootError: "fixture",
+    lastBoot: {
+      at: { seconds: 1_760_000_001n, nanos: 0 },
+      result: { HarmosVariant: { case: "Error", value: { field0: "fixture" } } },
+      failure: { pluginId: "hcl", pluginName: "HCL", message: "fixture", missingSecret: "api_token", carrier: new Uint8Array() },
+    },
+  };
+  fixture.listAdmitted.mockResolvedValue({ plugins: [] });
+  fixture.listInstallations.mockResolvedValue({ installations: [failed] });
+  fixture.getSettings.mockResolvedValue({
+    settings: { contributions: [] },
+    secret_bindings: { missing_required: ["api_token"], bindings: {} },
+    values: {},
+    discovered: {},
+  });
+  const detail = await getInstalledPluginDetail(session, "hcl");
+  assert.equal(detail?.plugin_id, "hcl");
+  assert.equal(detail?.owner?.kind, "bundle");
+  assert.deepEqual(detail?.secret_bindings.missing_required, ["api_token"]);
+  assert.deepEqual(fixture.getSettings.mock.calls, [[session, "hcl"]]);
 });

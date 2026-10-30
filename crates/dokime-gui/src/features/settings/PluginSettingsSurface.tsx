@@ -52,7 +52,7 @@ type PluginSettingsSurfaceProps = {
 export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
   const settings = useSettingsSections();
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
-  const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
+  const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : section ? null : sectionId;
 
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({ title: `Settings › Plugins › ${section?.label ?? sectionId}`, overflow: actions });

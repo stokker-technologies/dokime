@@ -55,13 +55,14 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
     let last_boot = installation
         .last_boot
         .map(|boot| {
-            let (at, result) = match boot {
-                PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true)),
-                PluginLastBoot::Failed { error, at } => (at, plugins_model::PluginLastBootResult::Error(error)),
+            let (at, result, failure) = match boot {
+                PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true), None),
+                PluginLastBoot::Failed { error, failure, at } => (at, plugins_model::PluginLastBootResult::Error(error), failure),
             };
             Ok::<_, Status>(plugins_model::PluginLastBoot {
                 at: Some(canonical::timestamp(&at)?),
                 result: Some(result),
+                failure,
             })
         })
         .transpose()?;

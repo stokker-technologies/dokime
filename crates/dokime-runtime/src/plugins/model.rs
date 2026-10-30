@@ -95,8 +95,17 @@ pub enum PluginState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "state")]
 pub enum PluginLastBoot {
-    Loaded { at: Timestamp },
-    Failed { error: String, at: Timestamp },
+    Loaded {
+        at: Timestamp,
+    },
+    Failed {
+        error: String,
+
+        #[serde(default)]
+        failure: Option<dokime_domain::model::plugins::wire::PluginStartFailure>,
+
+        at: Timestamp,
+    },
 }
 
 /* === Traits === */

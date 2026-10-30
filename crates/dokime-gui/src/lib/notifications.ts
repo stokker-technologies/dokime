@@ -54,6 +54,7 @@ export type NotificationRecord = {
   source: string;
   title: string;
   description?: string;
+  pluginSettings?: string;
   tone: NotificationTone;
   unread: 0 | 1;
 };
@@ -62,7 +63,7 @@ export type NotificationCursor = Pick<NotificationRecord, "at" | "id">;
 
 export type NotificationPage = { records: NotificationRecord[]; older: boolean; newer: boolean };
 
-type NotificationOptions = Omit<ExternalToast, "description"> & { description?: string | null; source?: string };
+type NotificationOptions = Omit<ExternalToast, "description"> & { description?: string | null; source?: string; pluginSettings?: string };
 
 type Summary = { count: number; unread: number; revision: number; error?: string };
 
@@ -248,7 +249,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 function publish(tone: NotificationTone, title: string, options: NotificationOptions = {}): string | number {
-  const { source, ...display } = options;
+  const { source, pluginSettings, ...display } = options;
   const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
   const id = displayToast[tone](title, { ...display, ...(tone === "error" ? { duration: Infinity } : {}) });
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
@@ -260,6 +261,7 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
     unread: 1,
     source: origin && origin !== "/" ? origin : "Desktop",
     description: options.description ?? undefined,
+    pluginSettings,
   }).catch(historyFailure);
   return id;
 }

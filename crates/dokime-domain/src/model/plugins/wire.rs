@@ -103,6 +103,17 @@ pub struct PluginMetadata {
 pub struct PluginLastBoot {
     pub at: Option<Timestamp>,
     pub result: Option<PluginLastBootResult>,
+    pub failure: Option<PluginStartFailure>,
+}
+
+#[harmos::message]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PluginStartFailure {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub message: String,
+    pub missing_secret: Option<String>,
+    pub carrier: Vec<u8>,
 }
 
 #[harmos::message]

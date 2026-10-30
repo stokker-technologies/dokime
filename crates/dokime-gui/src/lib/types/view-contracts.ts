@@ -319,7 +319,16 @@ export type PluginIdentity = {
   description: string;
 };
 
-export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; error: string; at: Timestamp };
+export type PluginStartFailure = {
+  plugin_id: string;
+  plugin_name: string;
+  message: string;
+  missing_secret: string | null;
+};
+
+export type PluginLastBoot =
+  | { state: "loaded"; at: Timestamp }
+  | { state: "failed"; error: string; failure?: PluginStartFailure | null; at: Timestamp };
 
 export type PluginMetadata = {
   identity: PluginIdentity;

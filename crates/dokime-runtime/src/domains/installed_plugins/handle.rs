@@ -41,6 +41,17 @@ use dokime_domain::model::identity::Identifier;
 /* === Implementations === */
 
 impl RuntimeHandle {
+    fn settings_plugin(&self, plugin_id: &Identifier) -> Result<InstalledPlugin, RuntimePluginManagementError> {
+        self.state_read()
+            .installed_plugins
+            .get(plugin_id.as_str())
+            .cloned()
+            .or_else(|| {
+                self.plugin_settings_catalogs.read().expect("plugin settings catalog lock poisoned").get(plugin_id.as_str()).cloned()
+            })
+            .ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))
+    }
+
     pub(crate) async fn action_dispatch_context(&self, plugin: &InstalledPlugin) -> Result<DispatchContext, RuntimePluginManagementError> {
         let resolved = self
             .plugin_preferences()
@@ -56,9 +67,7 @@ impl RuntimeHandle {
     }
 
     pub async fn plugin_settings(&self, plugin_id: &Identifier) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
-        let state = self.state_read();
-        let plugin =
-            state.installed_plugins.get(plugin_id.as_str()).ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))?;
+        let plugin = self.settings_plugin(plugin_id)?;
         let resolved = self.plugin_preferences().read(plugin_id, &plugin.settings, &self.secret_store()).await?;
         Ok(RuntimePluginSettings {
             settings: plugin.settings.clone(),
@@ -99,11 +108,8 @@ impl RuntimeHandle {
     pub async fn save_plugin_settings(
         &self, plugin_id: &Identifier, update: PluginSettingsUpdate,
     ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
-        let state = self.state_read();
-        let plugin =
-            state.installed_plugins.get(plugin_id.as_str()).ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))?;
+        let plugin = self.settings_plugin(plugin_id)?;
         self.plugin_preferences().write_values(plugin_id, &plugin.settings, update.values).await?;
-        drop(state);
         self.plugin_settings(plugin_id).await
     }
 
@@ -113,9 +119,7 @@ impl RuntimeHandle {
         if update.secret.is_empty() {
             return Err(RuntimePluginManagementError::InvalidInput("secret secret must not be empty".to_owned()));
         }
-        let state = self.state_read();
-        let plugin =
-            state.installed_plugins.get(plugin_id.as_str()).ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))?;
+        let plugin = self.settings_plugin(plugin_id)?;
         if !plugin.settings.secrets().any(|secret| secret.id == secret_id) {
             return Err(RuntimePluginManagementError::InvalidInput(format!(
                 "secret {secret_id} is not declared by plugin plugin {plugin_id}"
@@ -127,7 +131,6 @@ impl RuntimeHandle {
             .await
             .map_err(|error| RuntimePluginManagementError::Store(error.to_string()))?;
         self.plugin_preferences().bind_secret(plugin_id, secret_id, stored_id).await?;
-        drop(state);
         self.plugin_settings(plugin_id).await
     }
 }
@@ -137,3 +140,41 @@ impl RuntimeHandle {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn failed_plugin_settings_remain_editable() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Identifier::new("hcl").unwrap();
+        let metadata = dokime_domain::model::identity::Metadata::new(id.clone(), "Fixture", None);
+        let config =
+            crate::config::RuntimeConfig::new(root.path(), metadata).with_credential_store(keyring_core::mock::Store::new().unwrap());
+        let mut runtime = crate::Runtime::start(config).await.unwrap();
+        let handle = runtime.handle();
+        let plugin = InstalledPlugin {
+            source: id.to_string(),
+            settings: crate::settings::Settings {
+                contributions: vec![crate::settings::SettingsEntry::SecretReference(crate::settings::SecretSetting {
+                    id: "api_token".into(),
+                    title: "Token".into(),
+                    description: None,
+                    default: None,
+                    required: true,
+                })],
+            },
+            ..Default::default()
+        };
+        handle.plugin_settings_catalogs.write().unwrap().insert(id.to_string(), plugin);
+        assert!(!handle.state_read().installed_plugins.contains_key(id.as_str()));
+        let settings = handle.plugin_settings(&id).await.unwrap();
+        assert_eq!(settings.secret_bindings.missing_required, ["api_token"]);
+        let settings = handle.save_plugin_secret(&id, "api_token", PluginSecretUpdate { secret: "fixture".into() }).await.unwrap();
+        assert!(settings.secret_bindings.missing_required.is_empty());
+        assert!(settings.secret_bindings.bindings.contains_key("api_token"));
+        assert!(!handle.state_read().installed_plugins.contains_key(id.as_str()));
+        runtime.shutdown().await.unwrap();
+    }
+}
