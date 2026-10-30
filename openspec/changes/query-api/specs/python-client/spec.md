@@ -10,7 +10,7 @@ The client SHALL expose the synchronous lazy query factories in `design.md` as s
 - **AND** execution telemetry accepts stream/fields/where/between/versions/every/agg/at
 
 #### Scenario: Historical Selection Without Follow
-- **WHEN** a caller iterates `client.executions(template="hcl.demo.fraunhofer", since="2026-10-01", status="failed")`
+- **WHEN** a caller iterates `client.executions(template="example.demo.tracking", since="2026-10-01", status="failed")`
 - **THEN** it receives typed execution summaries across matching cycles and ends at the fixed snapshot
 - **AND** it does not await terminal execution completion or allocate the whole history
 

@@ -47,18 +47,18 @@ Query configuration composes canonical operation policies and existing storage/s
 ```python
 from dokime_client import Aggregate, Predicate
 
-runs = client.executions(template="hcl.demo.fraunhofer", since="2026-10-01", status="failed")
+runs = client.executions(template="example.demo.tracking", since="2026-10-01", status="failed")
 async for run in runs:  # summary with ID, status, frozen metadata and availability
     consume(run)
 ex = await client.execution(execution_id)
-recs = ex.query_records("hcl.measurement", where={"status": "failed"}, between=(t0, t1))
+recs = ex.query_records("example.measurement", where={"status": "failed"}, between=(t0, t1))
 async for record in recs:
     consume(record)
 df = await ex.telemetry("host.system", fields=["cpu.load", "memory.used"],
                         between=(t0, t1), every="1s", agg=Aggregate.mean()).to_polars(max_rows=100_000)
 stats = await ex.telemetry("host.system").aggregate("cpu.load", [Aggregate.mean(), Aggregate.percentile(95), Aggregate.max()])
 # Same evidence cut for another finite query after the first page was read:
-related = ex.query_records("hcl.measurement", at=recs.snapshot)
+related = ex.query_records("example.measurement", at=recs.snapshot)
 # Typed ordered predicates; maps above are equality-only shorthand:
 filtered = ex.telemetry("host.system", where=[Predicate("cpu.load", "gte", 0.5)])
 ```

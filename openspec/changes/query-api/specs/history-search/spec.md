@@ -9,7 +9,7 @@ History queries SHALL search the backend's local retained catalog across executi
 - **AND** failed means the declared status, not text inference; template/phase/status values are validated without SQL or glob matching
 
 #### Scenario: Failed Template Executions Across Cycles
-- **WHEN** a caller selects template `hcl.demo.fraunhofer`, failed status and since `2026-10-01`
+- **WHEN** a caller selects template `example.demo.tracking`, failed status and since `2026-10-01`
 - **THEN** matching executions from every local retained cycle are returned using captured template identity and a UTC inclusive lower start bound
 - **AND** an execution at until is excluded and an archived execution is excluded unless explicitly requested
 
