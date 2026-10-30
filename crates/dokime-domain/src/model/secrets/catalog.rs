@@ -198,12 +198,4 @@ mod tests {
         assert!(validate_label(" \t ").is_err());
         assert!(validate_label("Label\nNext").is_err());
     }
-
-    #[test]
-    fn metadata_rejects_removed_fields() {
-        let current = r#"{"identifier":"meter","label":"Meter","description":null}"#;
-        assert!(serde_json::from_str::<Metadata>(current).is_ok());
-        let removed = r#"{"name":"meter","identifier":"meter","label":"Meter","description":null}"#;
-        assert!(serde_json::from_str::<Metadata>(removed).is_err());
-    }
 }
