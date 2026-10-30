@@ -141,24 +141,26 @@ fn verify(path: &Path, target: &str, version: &str) -> Result<(Vec<u8>, String),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dokime::harmos::plugin::inventory::contracts;
     use harmos_packaging::bundle::{Executable, Identity, Source};
 
     fn bundle(package: &str, target: &str, requirement: &str) -> Vec<u8> {
-        let owner = package.replace('-', "_");
+        const OWNER: &str = "fixture";
+        const LIFECYCLE: [dokime::harmos::operations::OperationPolicy; 2] = [dokime::operations::STOP_SETTLEMENT; 2];
+        const SIZE: usize = contracts::encoded_fragments_len("sidecar", OWNER, &[], &[], &LIFECYCLE);
+        const CONTRACTS: [u8; SIZE] = contracts::encode_fragments("sidecar", OWNER, &[], &[], &LIFECYCLE);
+        let owner = OWNER;
         let prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap();
-        let policy = dokime::operations::STOP_SETTLEMENT;
-        let lifecycle = serde_json::json!([
-            {"action":"initialize", "identity":"harmos.operation.v1", "policy":policy},
-            {"action":"shutdown", "identity":"harmos.operation.v1", "policy":policy},
-        ]);
         let records = [
             serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Fixture","config":"()"}),
-            serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle}),
             serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}}),
             serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]}),
             serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]}),
         ];
-        let executable = records.iter().map(|record| format!("{prefix}{record}\0")).collect::<String>();
+        let mut executable = String::from_utf8(CONTRACTS.to_vec()).unwrap();
+        for record in records {
+            executable.push_str(&format!("{prefix}{record}\0"));
+        }
         let compatibility = Compatibility {
             schema: 1,
             requires_dokime: requirement.parse().unwrap(),
