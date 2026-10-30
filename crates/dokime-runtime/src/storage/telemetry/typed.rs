@@ -88,10 +88,17 @@ struct Metadata {
     timestamp_value: Vec<values::Cell>,
     received_at: String,
     source: String,
-    signals: Vec<String>,
+    signals: Vec<Signal>,
     scope: Option<ScopeRow>,
     summary: Vec<values::Cell>,
     metadata: Vec<values::Cell>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub(crate) struct Signal {
+    name: String,
+    numeric_bits: Option<u64>,
 }
 
 /* === Enums === */
@@ -161,8 +168,9 @@ impl TypedCodec {
     // Staged Rows Carry Payloads Their Admission Already Checked Or Decoded With This Codec.
     pub(crate) fn encode_staged(
         &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+        projected: &[Signal],
     ) -> Result<Vec<u8>> {
-        let metadata = self.metadata(epoch, ordinal, sample, scope)?;
+        let metadata = self.metadata(epoch, ordinal, sample, scope, projected.to_vec())?;
         let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
         let length = metadata.encoded_size().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
         let bytes = encode_metadata(metadata, payload, length)?;
@@ -172,8 +180,8 @@ impl TypedCodec {
     pub fn encode(&self, entry: &TelemetryEntry, maximum: usize) -> Result<Vec<u8>> {
         let payload =
             entry.sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
-        self.check_payload(payload)?;
-        let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample, entry.sample.scope.as_ref())?;
+        let projected = self.payload_signals(payload, &entry.sample.values)?;
+        let metadata = self.metadata(&entry.epoch, entry.ordinal, &entry.sample, entry.sample.scope.as_ref(), projected)?;
         let length = metadata
             .encoded_size()
             .checked_add(payload.len())
@@ -183,10 +191,12 @@ impl TypedCodec {
     }
 
     // The One Payload Pass For A Row Whose Values Arrived Beside Its Bytes.
-    pub(crate) fn check_payload(&self, payload: &[u8]) -> Result<()> {
-        payload_pass();
-        let validation = self.validator.validate(payload);
-        validation.map_err(|_| Error::Invalid("typed telemetry row does not match its declared graph"))
+    pub(crate) fn payload_signals(&self, payload: &[u8], values: &BTreeMap<String, Value>) -> Result<Vec<Signal>> {
+        let mut decoded = self.decode_payload(payload)?;
+        if let Some(timestamp) = values.get("timestamp") {
+            restore_timestamp(&mut decoded, BTreeMap::from([("timestamp".to_owned(), timestamp.clone())]))?;
+        }
+        Ok(signals(&decoded))
     }
 
     // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
@@ -197,6 +207,7 @@ impl TypedCodec {
 
     fn metadata(
         &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
+        projected: Vec<Signal>,
     ) -> Result<Metadata> {
         if sample.schema_version != self.schema.version.get()
             || self.schema.id.as_str().strip_prefix("dokime.telemetry.") != Some(sample.stream.as_str())
@@ -227,7 +238,7 @@ impl TypedCodec {
             timestamp_value,
             received_at: sample::copy_text(sample.received_at.as_str())?,
             source: sample::copy_text(sample.source.as_str())?,
-            signals: sample.values.iter().filter(|(_, value)| !matches!(value, Value::Null)).map(|(key, _)| key.clone()).collect(),
+            signals: projected,
             scope: scope.map(ScopeRow::from),
             summary: values::encode(&sample.summary)?,
             metadata: values::encode(&sample.metadata)?,
@@ -281,6 +292,9 @@ impl TypedCodec {
             return Err(Error::Invalid("stored telemetry timestamp projection is invalid"));
         }
         restore_timestamp(&mut decoded, timestamp)?;
+        if metadata.signals != signals(&decoded) {
+            return Err(Error::Invalid("stored telemetry signal projection differs from its payload"));
+        }
         if metadata.schema_version != self.schema.version.get()
             || self.schema.id.as_str() != format!("dokime.telemetry.{}", metadata.stream)
         {
@@ -503,10 +517,39 @@ pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, 
     if metadata.encode() != bytes[..length] {
         return Err(Error::Invalid("stored telemetry metadata is not canonical"));
     }
-    Ok((metadata.scope, metadata.source, metadata.signals))
+    Ok((metadata.scope, metadata.source, metadata.signals.into_iter().map(|signal| signal.name).collect()))
+}
+
+pub(crate) fn numeric_metadata(bytes: &[u8]) -> Result<Vec<(String, f64)>> {
+    let mut reader = Reader::new(bytes);
+    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
+    let length = bytes.len() - reader.remaining().len();
+    if metadata.encode() != bytes[..length] {
+        return Err(Error::Invalid("stored telemetry metadata is not canonical"));
+    }
+    Ok(metadata.signals.into_iter().filter_map(|signal| signal.numeric_bits.map(|bits| (signal.name, f64::from_bits(bits)))).collect())
 }
 
 /* === Private Functions === */
+
+pub(crate) fn signals(values: &BTreeMap<String, Value>) -> Vec<Signal> {
+    values
+        .iter()
+        .filter(|(_, value)| !matches!(value, Value::Null))
+        .map(|(name, value)| {
+            let numeric = match value {
+                Value::Integer(value) => Some(*value as f64),
+                Value::Unsigned(value) => Some(*value as f64),
+                Value::Number(value) => Some(*value),
+                _ => None,
+            };
+            Signal {
+                name: name.clone(),
+                numeric_bits: numeric.filter(|value| value.is_finite()).map(f64::to_bits),
+            }
+        })
+        .collect()
+}
 
 // Counts Admission Payload Passes On This Thread So Tests Can Prove Each Row Is Read Once.
 #[cfg(test)]
@@ -781,5 +824,38 @@ mod tests {
         // An Old Registration Completing After Redefinition Cannot Mark The New Graph Saved.
         cache.mark_registered(&contract, &first);
         assert!(cache.unregistered(&redefined, &settings).unwrap().is_some());
+    }
+
+    #[test]
+    fn numeric_projection_is_verified_against_payload() {
+        let contract = TelemetryContract::declared("fixture.numeric", "Numeric").typed::<Reading>();
+        let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
+        let payload = Reading { value: 7.0 }.encode();
+        let values = BTreeMap::from([("value".to_owned(), Value::Number(7.0))]);
+        assert!(codec.payload_signals(&payload, &values).unwrap() == signals(&values));
+        assert!(codec.payload_signals(&payload, &BTreeMap::from([("value".to_owned(), Value::Number(8.0))])).unwrap() == signals(&values));
+        let mut sample = crate::telemetry::TelemetrySample::new(
+            crate::model::identity::new_id(),
+            contract.stream,
+            1,
+            crate::model::time::now_utc(),
+            "fixture.numeric",
+        )
+        .typed(&Reading { value: 7.0 });
+        sample.values = values.clone();
+        let entry = TelemetryEntry {
+            epoch: SessionId::from_seed("numeric.epoch"),
+            ordinal: 1,
+            sample,
+        };
+        let bytes = codec.encode(&entry, usize::MAX).unwrap();
+        assert_eq!(numeric_metadata(&bytes).unwrap(), [("value".to_owned(), 7.0)]);
+        assert_eq!(codec.decode(&bytes, usize::MAX).unwrap().sample.values, values);
+        let mut reader = Reader::new(&bytes);
+        let mut metadata = <Metadata as PostcardValue>::read(&mut reader).unwrap();
+        metadata.signals[0].numeric_bits = Some(8.0_f64.to_bits());
+        let mut corrupted = metadata.encode();
+        corrupted.extend_from_slice(reader.remaining());
+        assert!(codec.decode(&corrupted, usize::MAX).is_err());
     }
 }

@@ -196,8 +196,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=4 FROM sqlite_master WHERE type='table' AND name IN
-                ('storage_telemetry_index','storage_telemetry_signals','storage_record_visibility','storage_record_captures')",
+            "SELECT count(*)=6 FROM sqlite_master WHERE type='table' AND name IN
+                ('storage_telemetry_index','storage_telemetry_signals','storage_record_visibility','storage_record_captures',
+                 'storage_numeric_summaries','storage_numeric_ranks')",
             [],
             |row| row.get(0),
         )?;
@@ -330,6 +331,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
     transaction.execute_batch(telemetry::SCHEMA)?;
+    transaction.execute_batch(telemetry::aggregates::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     initialize_head(&transaction, expected.as_ref())?;
@@ -363,6 +365,7 @@ where
     let transaction = connection.transaction()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
+    let mut summaries = telemetry::aggregates::Batch::default();
     for (value, entry) in values.iter().zip(encoded) {
         let value = Borrowed::from(value);
         // Exact Retries Of Saved Positions Must Repeat The Same Bytes.
@@ -402,12 +405,14 @@ where
         drop(insert);
         if let Borrowed::Stream(row) = value {
             telemetry::index(&transaction, row)?;
+            summaries.push(&transaction, row)?;
         }
         if let Borrowed::Record(row) = value {
             records::index(&transaction, row)?;
         }
         head.sequence = entry.position;
     }
+    summaries.save(&transaction)?;
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
     super::commit(transaction)?;
     super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

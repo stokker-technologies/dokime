@@ -160,7 +160,9 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing the older JSON stream-row format or earlier plugin identities require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
+Development roots containing older stream-row formats, earlier plugin identities,
+or evidence indexes without incremental numeric summaries require a fresh storage
+root. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients

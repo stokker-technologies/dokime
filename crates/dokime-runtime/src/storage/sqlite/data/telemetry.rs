@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(super) mod aggregates;
+
 /* === Re-Exports === */
 
 /* === Imports === */

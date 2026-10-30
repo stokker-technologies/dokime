@@ -1384,6 +1384,14 @@ frontiers without replaying device actions.
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.
 
+Numeric execution outputs update in the same SQLite transaction as each saved
+telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
+counts, extrema, means, medians, standard deviations, RMS values, sums and
+percentiles. Completion reads these indexes instead of replaying each field's
+whole stream. Pending index work is bounded by the admitted write batch; raw
+evidence remains unchanged. Development roots with older evidence indexes need
+a fresh storage root and are never reset automatically.
+
 Capture close callers join the same in-flight sealing work. Cancelling a waiter
 does not cancel sealing; later Stop or shutdown calls await that work. Closing
 capture admission refuses new capture producers, and successful provider cleanup
