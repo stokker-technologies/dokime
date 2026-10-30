@@ -30,7 +30,7 @@ use crate::error::Error;
 /* === Structs === */
 
 #[derive(clap::Args)]
-#[command(about = "Assemble Or Inspect Native Dokime Installers")]
+#[command(about = "Assemble Native Dokime Installers")]
 pub struct Args {
     #[command(subcommand)]
     command: Command,
@@ -63,20 +63,11 @@ pub struct PackageArgs {
     json: bool,
 }
 
-#[derive(clap::Args)]
-pub struct InspectArgs {
-    package: PathBuf,
-
-    #[arg(long)]
-    json: bool,
-}
-
 /* === Enums === */
 
 #[derive(clap::Subcommand)]
 enum Command {
     Package(PackageArgs),
-    Inspect(InspectArgs),
 }
 
 /* === Traits === */
@@ -114,23 +105,6 @@ pub async fn run(args: Args) -> Result<(), Error> {
                 }
             }
         }
-        Command::Inspect(args) => {
-            let result = dokime_packaging::installer::inspect(&args.package)?;
-            if args.json {
-                println!("{}", serde_json::to_string_pretty(&result)?);
-            } else {
-                println!(
-                    "{} {} ({}) — {} Files Verified\nSHA-256: {}\nInstaller Signature: {}\nUpdater Signature: {}",
-                    result.distribution.label,
-                    result.distribution.version,
-                    result.distribution.target,
-                    result.verified_files,
-                    result.sha256,
-                    result.installer_signature,
-                    result.updater_signature
-                );
-            }
-        }
     }
     Ok(())
 }
@@ -153,12 +127,12 @@ mod tests {
     #[test]
     fn plugin_flags_are_explicit_and_repeatable() {
         let parsed = Installer::try_parse_from(["installer", "package"]).unwrap();
-        let Command::Package(args) = parsed.args.command else { panic!("package command") };
+        let Command::Package(args) = parsed.args.command;
         assert!(args.plugins.is_empty());
 
         let parsed =
             Installer::try_parse_from(["installer", "package", "--plugin", "plugin-host.dokime", "--plugin", "bench.dokime"]).unwrap();
-        let Command::Package(args) = parsed.args.command else { panic!("package command") };
+        let Command::Package(args) = parsed.args.command;
         assert_eq!(args.plugins, [PathBuf::from("plugin-host.dokime"), PathBuf::from("bench.dokime")]);
         assert!(Installer::try_parse_from(["installer", "package", "--plugin"]).is_err());
     }
