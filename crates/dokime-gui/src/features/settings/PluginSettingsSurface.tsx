@@ -20,11 +20,13 @@
 /* === External Imports === */
 
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
+import { FailureConsequences } from "@/components/FailureConsequences";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
@@ -98,10 +100,16 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                     {installation.last_boot.failure.message}
                     {installation.last_boot.failure.code ? <code className="block">{installation.last_boot.failure.code}</code> : null}
                   </p>
+                  <FailureConsequences items={installation.last_boot.failure.consequences} />
                   {installation.last_boot.failure.missing_secret ? (
-                    <a className="text-sm underline" href={`#plugin-settings-${installation.last_boot.failure.plugin_id}`}>
-                      Configure {installation.last_boot.failure.missing_secret}
-                    </a>
+                    <Link
+                      className="text-sm underline"
+                      to="/settings/$section"
+                      params={{ section: "secrets" }}
+                      hash={`add-secret=${installation.last_boot.failure.missing_secret}`}
+                    >
+                      Set Secret
+                    </Link>
                   ) : null}
                 </SettingsRow>
               </SettingsCard>

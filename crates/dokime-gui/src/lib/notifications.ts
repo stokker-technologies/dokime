@@ -16,10 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { isValidElement, type ReactNode, useSyncExternalStore } from "react";
+import { createElement, isValidElement, type ReactNode, useSyncExternalStore } from "react";
 import { toast as displayToast, type ExternalToast } from "sonner";
 
 // Local Imports
+import { FailureConsequences } from "@/components/FailureConsequences";
 
 /* === Re-Exports === */
 
@@ -55,6 +56,8 @@ export type NotificationRecord = {
   title: string;
   description?: string;
   pluginSettings?: string;
+  missingSecret?: string;
+  consequences?: string[];
   tone: NotificationTone;
   unread: 0 | 1;
 };
@@ -63,7 +66,13 @@ export type NotificationCursor = Pick<NotificationRecord, "at" | "id">;
 
 export type NotificationPage = { records: NotificationRecord[]; older: boolean; newer: boolean };
 
-type NotificationOptions = Omit<ExternalToast, "description"> & { description?: string | null; source?: string; pluginSettings?: string };
+type NotificationOptions = Omit<ExternalToast, "description"> & {
+  description?: string | null;
+  source?: string;
+  pluginSettings?: string;
+  missingSecret?: string;
+  consequences?: string[];
+};
 
 type Summary = { count: number; unread: number; revision: number; error?: string };
 
@@ -249,9 +258,12 @@ function subscribe(listener: () => void): () => void {
 }
 
 function publish(tone: NotificationTone, title: string, options: NotificationOptions = {}): string | number {
-  const { source, pluginSettings, ...display } = options;
+  const { source, pluginSettings, missingSecret, consequences, ...display } = options;
   const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
-  const id = displayToast[tone](title, { ...display, ...(tone === "error" ? { duration: Infinity } : {}) });
+  const description = consequences?.length
+    ? createElement("div", null, display.description, createElement(FailureConsequences, { items: consequences }))
+    : display.description;
+  const id = displayToast[tone](title, { ...display, description, ...(tone === "error" ? { duration: Infinity } : {}) });
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
   void recordNotification({
     id: identity,
@@ -262,6 +274,8 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
     source: origin && origin !== "/" ? origin : "Desktop",
     description: options.description ?? undefined,
     pluginSettings,
+    missingSecret,
+    consequences,
   }).catch(historyFailure);
   return id;
 }

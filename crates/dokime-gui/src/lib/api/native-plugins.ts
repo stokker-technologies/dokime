@@ -205,6 +205,7 @@ function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntr
           message: failure.message,
           code: failure.code ?? null,
           missing_secret: failure.missingSecret ?? null,
+          consequences: failure.consequences,
         },
       };
     }

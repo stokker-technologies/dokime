@@ -184,12 +184,18 @@ on plugin names. Bundle inspection and extraction happen before activation
 and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
-including the affected contract and the `plugin_contract_unavailable` or
-`plugin_contract_cycle` admission code.
+and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+Unavailable-contract reasons identify the owner and required contract; cycle
+reasons identify every involved plugin.
 
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
+
+Template runners stop cooperatively through `Signal<T>` with
+`ExecutionSignal.cancel = true`, retaining the run's final response and evidence.
+Cancelling the owning Harmos invocation aborts its child calls, including evidence
+delivery, so run policies retain immediate abort for that control path.
 
 `cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,

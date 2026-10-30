@@ -46,15 +46,21 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Health.proto\x12\tdokime.v1\x1a\x46\x64okime_client/_wire/dokime/v1/HealthMessages/ListHealth/messages.proto2l\n\x06Health\x12\x62\n\nListHealth\x12).dokime.v1.HealthMessages.ListHealth.Row1\x1a).dokime.v1.HealthMessages.ListHealth.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Health.proto\x12\tdokime.v1\x1a\x46\x64okime_client/_wire/dokime/v1/HealthMessages/ListHealth/messages.proto\"\x1e\n\x1cHealthListHealthCancellation\"\xf0\x01\n\x18HealthListHealthRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.HealthMessages.ListHealth.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.HealthListHealthCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.HealthListHealthCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19HealthListHealthRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.HealthMessages.ListHealth.Row2H\x00R\x08responseB\x07\n\x05value2\xcc\x01\n\x06Health\x12\x62\n\nListHealth\x12).dokime.v1.HealthMessages.ListHealth.Row1\x1a).dokime.v1.HealthMessages.ListHealth.Row2\x12^\n\rRunListHealth\x12#.dokime.v1.HealthListHealthRunInput\x1a$.dokime.v1.HealthListHealthRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Health_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_HEALTH']._serialized_start=129
-  _globals['_HEALTH']._serialized_end=237
+  _globals['_HEALTHLISTHEALTHCANCELLATION']._serialized_start=129
+  _globals['_HEALTHLISTHEALTHCANCELLATION']._serialized_end=159
+  _globals['_HEALTHLISTHEALTHRUNINPUT']._serialized_start=162
+  _globals['_HEALTHLISTHEALTHRUNINPUT']._serialized_end=402
+  _globals['_HEALTHLISTHEALTHRUNOUTPUT']._serialized_start=404
+  _globals['_HEALTHLISTHEALTHRUNOUTPUT']._serialized_end=513
+  _globals['_HEALTH']._serialized_start=516
+  _globals['_HEALTH']._serialized_end=720
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

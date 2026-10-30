@@ -18,8 +18,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, test, vi } from "vitest";
-import { createElement, type ComponentProps } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ComponentProps, type ReactNode } from "react";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import type { InstalledPluginDetail as PluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -28,6 +27,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
 import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
+import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Re-Exports === */
@@ -44,6 +44,8 @@ const fixture = vi.hoisted(() => ({
   capturedAdding: false,
   adding: null as string | null,
   buttons: [] as (() => void)[],
+  hash: "",
+  navigate: vi.fn(),
 }));
 const session = { generation: "1", isCurrent: () => true };
 const entry: PluginEntry = {
@@ -60,6 +62,7 @@ const entry: PluginEntry = {
       message: "startup-refused",
       code: "10001",
       missing_secret: "token",
+      consequences: ["dependent workflow requires equipment"],
     },
   },
   metadata: {
@@ -108,19 +111,29 @@ vi.mock("@/components/ui/button", () => ({
     return createElement("button", { type: "button", ...props });
   },
 }));
-vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? children : null),
-  DialogContent: ({ children }: { children: React.ReactNode }) => createElement("section", {}, children),
-  DialogHeader: ({ children }: { children: React.ReactNode }) => createElement("header", {}, children),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => createElement("h2", {}, children),
-  DialogDescription: ({ children }: { children: React.ReactNode }) => createElement("p", {}, children),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => createElement("footer", {}, children),
-}));
+vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
+vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.settings }));
 vi.mock("@/lib/api/native-secrets", () => ({ readSecrets: vi.fn(), putSecret: vi.fn(), removeSecret: vi.fn() }));
 vi.mock("@/features/settings/sections/SecretTransfer", () => ({ SecretTransfer: () => null }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => ({ identity: session }) }));
-vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
-vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.settings }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { entries: [], generation: 1n, hostLabel: "Fixture", hostId: "fixture" }, isFetching: false }),
+  useQueryClient: () => ({}),
+}));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, hash, children }: { to: string; params: { section: string }; hash?: string; children: ReactNode }) =>
+    createElement("a", { href: `${to.replace("$section", params.section)}${hash ? `#${hash}` : ""}` }, children),
+  useLocation: () => fixture.hash,
+  useNavigate: () => fixture.navigate,
+}));
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? children : null),
+  DialogContent: ({ children }: { children: ReactNode }) => createElement("div", { role: "dialog" }, children),
+  DialogHeader: ({ children }: { children: ReactNode }) => children,
+  DialogTitle: ({ children }: { children: ReactNode }) => children,
+  DialogDescription: ({ children }: { children: ReactNode }) => children,
+  DialogFooter: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
   useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
@@ -142,6 +155,7 @@ beforeEach(() => {
   fixture.capturedAdding = false;
   fixture.adding = null;
   fixture.buttons.length = 0;
+  fixture.hash = "";
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
   fixture.settings.mockResolvedValue({
@@ -229,7 +243,10 @@ test("Failed Forms Editable", () => {
     entry.metadata?.owners,
   );
   assert.equal((html.match(/startup-refused/g) ?? []).length, 1);
-  assert.ok(html.includes('href="#plugin-settings-equipment.main"'));
+  assert.ok(html.includes('href="/settings/secrets#add-secret=token"'));
+  assert.ok(html.includes("<details"));
+  assert.equal(html.includes("<details open"), false);
+  assert.ok(html.includes("dependent workflow requires equipment"));
   assert.ok(html.includes('id="plugin-settings-equipment.main"'));
   assert.equal((html.match(/<textarea/g) ?? []).length, 2);
   assert.equal((html.match(/type="password"/g) ?? []).length, 0);
@@ -247,7 +264,7 @@ test("Failed Forms Editable", () => {
     assert.equal((refused.match(/startup-refused/g) ?? []).length, 1);
     assert.equal((refused.match(/type="password"/g) ?? []).length, 0);
     assert.ok(refused.includes(code));
-    assert.equal(refused.includes('href="#plugin-settings-'), false);
+    assert.equal(refused.includes('href="/settings/secrets#'), false);
   }
   fixture.installations.mockReturnValue({ data: [{ ...entry, state: "disabled", boot_failed: false }] });
   const disabled = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
@@ -255,14 +272,6 @@ test("Failed Forms Editable", () => {
 });
 
 test("Declared Secret Add", () => {
-  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
-  client.setQueryData(["settings", "secrets", session.generation], {
-    hostId: "host",
-    hostLabel: "Host",
-    generation: 3n,
-    entries: [],
-    cleanupPending: false,
-  });
   const detail: PluginDetail = {
     plugin_id: "equipment.main",
     owner: null,
@@ -287,16 +296,7 @@ test("Declared Secret Add", () => {
   };
   const render = () => {
     fixture.capturedAdding = false;
-    return renderToStaticMarkup(
-      createElement(
-        QueryClientProvider,
-        { client },
-        createElement(InstalledPluginDetail, {
-          detail,
-          onSaveSettings: async () => {},
-        }),
-      ),
-    );
+    return renderToStaticMarkup(createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {} }));
   };
   fixture.captureAdding = true;
   const initial = render();
@@ -311,5 +311,15 @@ test("Declared Secret Add", () => {
   assert.ok(opened.includes("Add Secret"));
   assert.ok(opened.includes('value="api_token"'));
   assert.ok(opened.includes('type="password"'));
-  client.clear();
+});
+
+test("Missing Secret Action", () => {
+  fixture.hash = "add-secret=api_token";
+  const html = renderToStaticMarkup(createElement(SecretsSection));
+  assert.ok(html.includes('role="dialog"'));
+  assert.ok(html.includes('value="api_token"'));
+  assert.ok(html.includes('type="password"'));
+  fixture.hash = "";
+  const ordinary = renderToStaticMarkup(createElement(SecretsSection));
+  assert.equal(ordinary.includes('role="dialog"'), false);
 });

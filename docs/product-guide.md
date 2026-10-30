@@ -131,6 +131,12 @@ Settings → Remote Access owns the saved listener settings and explicit restart
 Management is available only through the native local listener. TLS and
 access-key authentication are independent; disable either only in an isolated lab.
 Use a concrete reachable endpoint whose hostname or IP matches the certificate.
+Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
+port and specific address, or its certificate names for a wildcard listener.
+Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
+The listener's port appears beside the field, including for local Python clients.
+Review that the suggested address is reachable from the client. Rejected pairing
+requests show the host's concrete reason beside the endpoint and in Notifications.
 
 Choose **Create Pairing File**, enter a client label and advertised endpoint,
 and select a destination. Cancellation creates no key. Dokime saves one private
@@ -763,6 +769,9 @@ file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
 
+Use `instance.request_cancel().await?` to signal cancellation and retain the
+handle, or `instance.cancel().await?` to cancel and receive its final response.
+Processes return their exit status; file watches finish capturing before replying.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
@@ -1400,6 +1409,27 @@ compatible plugins, verifies archive and member hashes and inspected identity,
 and installs only the explicitly selected member. Restart the host to activate it.
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
+
+## Plugin Start Failures
+
+Plugin startup failures show readable root causes in notifications, Settings →
+Plugins, CLI errors and Python error text. Unavailable operations from a failed
+startup/prepare pass are summarized separately. When the pass has a construction failure, all missing-resource
+errors in that pass are consequences, regardless of reporting order. Other errors
+remain roots; without a construction failure, missing resources remain roots.
+This is a prepare-pass rule, not a resource dependency graph. Expand the consequence
+summary in the desktop to inspect each unavailable operation without mixing it into the root message.
+
+A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
+**Add Secret** dialog with that identifier prefilled, including after a failed start.
+Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+All owners in an inactive bundle keep their ordinary settings editable; secret
+declarations show their identifiers read-only.
+
+The recorded failure carrier preserves the full structured startup report,
+including each original refusal code, detail and diagnostic chain. The application
+log also retains structured startup diagnostics; the root message is a presentation
+of that data, without Rust Debug formatting.
 
 ## Generated Clients
 

@@ -250,6 +250,7 @@ async fn non_admitted_settings() {
         message: "startup-refused".into(),
         code: Some(dokime::domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
         missing_secret: Some("fixture.token".into()),
+        consequences: Vec::new(),
         carrier: dokime::harmos::domain::Failure::new(dokime::harmos::operations::FailureKind::Permanent, "fixture.token").encode(),
     };
     environment.runtime.plugin_store().record_boot(installed.installation.install_id, Some(failure.clone())).await.unwrap();

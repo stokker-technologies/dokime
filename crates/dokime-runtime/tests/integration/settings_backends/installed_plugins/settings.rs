@@ -252,6 +252,7 @@ async fn non_admitted_settings() {
                 message: "startup-refused".into(),
                 code: None,
                 missing_secret: None,
+                consequences: Vec::new(),
                 carrier: Vec::new(),
             }),
         )

@@ -318,6 +318,7 @@ export type PluginStartFailure = {
   message: string;
   code: string | null;
   missing_secret: string | null;
+  consequences: string[];
 };
 
 export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; failure: PluginStartFailure; at: Timestamp };

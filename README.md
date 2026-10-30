@@ -87,7 +87,7 @@ backend profiles and execution APIs; the [runnable examples](docs/remote/python.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `a3fbb927f85b815449e4b4c43085fd254cde06a3`)
+(currently pinned to revision `4e2669fa03cf5a123aa62de1aad0f042fb5cb381`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -170,8 +170,10 @@ from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
 Settings → Plugins keeps ordinary settings editable after startup fails and shows
-required secret identifiers. Add missing identifiers in Settings → Secret Storage,
-then restart Dokime or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets).
+required secret identifiers. A missing-secret failure offers Set Secret, which opens
+Secret Storage's Add Secret dialog with its identifier prefilled; then restart Dokime
+or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
+and [Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the
 [application settings model](crates/dokime-domain/src/model/settings/application.rs)
