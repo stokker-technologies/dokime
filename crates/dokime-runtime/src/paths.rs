@@ -82,7 +82,7 @@ impl ApplicationPaths {
     }
 
     pub fn plugins(&self) -> PathBuf {
-        self.root.join("plugins")
+        self.default_data().join("plugins")
     }
 
     pub fn cache(&self) -> PathBuf {
@@ -179,6 +179,7 @@ mod distribution_tests {
         let paths = ApplicationPaths::resolve_with(DEFAULT_APPLICATION_ID, Some(root.clone()), cfg!(windows), |_| None).unwrap();
         assert_eq!(paths.root, root);
         assert_eq!(paths.logs(), root.join("logs"));
+        assert_eq!(paths.plugins(), root.join("data/plugins"));
         assert!(ApplicationPaths::resolve_with(DEFAULT_APPLICATION_ID, None, cfg!(windows), |_| Some("relative".into())).is_err());
     }
 }
