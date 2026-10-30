@@ -76,9 +76,9 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         await progress_at(0)
         # Prompt admission does not certify that independent evidence readers
         # have reached the publisher. Follow each frontier to its first item.
-        async with aclosing(control.records(record_types=[contract["record"]], follow=True)) as events:
+        async with aclosing(control.records(contract["record"])) as events:
             await anext(events)
-        async with aclosing(control.samples(streams=[contract["stream"]], page_size=1, follow=True)) as samples:
+        async with aclosing(control.samples(contract["stream"], page_size=1)) as samples:
             await anext(samples)
 
         live_records = [item async for item in run_cycle.records()]

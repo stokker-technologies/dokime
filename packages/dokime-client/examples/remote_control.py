@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 # Third Party Imports
-from dokime_client.client import DokimeClient, Record, Sample
+from dokime_client.client import DokimeClient
 
 # Local Imports
 
@@ -49,17 +49,19 @@ async def run() -> int:
             flush=True,
         )
 
-        async def record(item: Record) -> None:
-            print(f"Record: {item.type} #{item.sequence} {item.message or ''}", flush=True)
+        async def records() -> None:
+            async for item in execution.records():
+                print(item.to_json(), flush=True)
 
-        async def sample(item: Sample) -> None:
-            print(f"Sample: {item.stream} #{item.sequence} {item.values!r}", flush=True)
+        async def samples() -> None:
+            async for item in execution.samples():
+                print(item.to_json(), flush=True)
 
-        outcome = await execution.run(
-            on_record=record,
-            on_sample=sample,
-            timeout=WAIT_SECONDS,
-        )
+        await execution.start()
+        async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+            tasks.create_task(records())
+            tasks.create_task(samples())
+            outcome = await execution
         print(
             f"Saved Outcome: {outcome.status} Execution: {outcome.checkpoint.execution_id}",
             flush=True,
@@ -67,7 +69,7 @@ async def run() -> int:
         Path("execution.json").write_text(
             json.dumps({"execution_id": execution.id, "status": outcome.status}, indent=2) + "\n", encoding="utf-8"
         )
-        return 0
+        return outcome.exit_code
 
 
 # === Private Functions === #

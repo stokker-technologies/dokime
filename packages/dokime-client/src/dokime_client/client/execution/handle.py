@@ -12,7 +12,7 @@
 
 # Standard Library Imports
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
@@ -65,18 +65,24 @@ class ExecutionOutcome:
     """The terminal status and result frozen in one persisted execution seal.
 
     Interrupted and cancelled outcomes remain distinct from successful execution.
-    Listener callback completion is separate from this durable outcome.
+    Evidence readers drain independently through this durable outcome.
     """
 
     checkpoint: Checkpoint
     status: str
     result: ResultSummary
 
+    @property
+    def exit_code(self) -> int:
+        if self.status in ("interrupted", "cancelled"):
+            return 130
+        return 0 if self.status == "passed" and self.result.status == "passed" else 1
+
 
 class Execution:
     """A Fresh Local Attempt; Append It To A Cycle Before Using Remote Controls."""
 
-    __slots__ = ("_backend", "_case", "_cycle_id", "_id", "_transport")
+    __slots__ = ("_backend", "_case", "_cycle_id", "_id", "_outcome", "_transport")
 
     def __init__(self, test_case: TestCase) -> None:
         if not isinstance(test_case, TestCase):
@@ -86,6 +92,7 @@ class Execution:
         self._transport = test_case._transport
         self._backend = test_case._backend
         self._cycle_id: str | None = None
+        self._outcome: ExecutionOutcome | None = None
 
     @classmethod
     def _bind(cls, execution_id: str, transport: Transport, backend: Backend) -> "Execution":
@@ -97,6 +104,7 @@ class Execution:
         result._backend = backend
         # Existing Identities Are Already Registered; Snapshot Resolves Their Cycle.
         result._cycle_id = ""
+        result._outcome = None
         return result
 
     def _require_bound(self) -> None:
@@ -106,6 +114,16 @@ class Execution:
     @property
     def id(self) -> str:
         return self._id
+
+    @property
+    def outcome(self) -> ExecutionOutcome:
+        """The Saved Outcome After Awaiting This Handle Or Draining An Iterator."""
+        if self._outcome is None:
+            raise RuntimeError("execution outcome is not available; await the execution first")
+        return self._outcome
+
+    def __await__(self) -> Generator[Any, None, ExecutionOutcome]:
+        return self.wait().__await__()
 
     async def export(self, destination: str | Path, *, overwrite: bool = False) -> Download:
         """Download This Execution's Sealed Evidence, Including From An Active Cycle."""
@@ -217,6 +235,8 @@ class Execution:
         _interval(interval)
         if timeout is not None:
             _interval(timeout)
+        if self._outcome is not None:
+            return self._outcome
         async with asyncio.timeout(timeout):
             while True:
                 point = await self.checkpoint()
@@ -226,11 +246,12 @@ class Execution:
                 await self._snapshot()
                 await asyncio.sleep(interval)
         saved = reply.document.execution
-        return ExecutionOutcome(
+        self._outcome = ExecutionOutcome(
             checkpoint=Checkpoint._from_wire(reply.checkpoint, CHECKPOINT_BYTES),
             status=_wire.enum_name(saved.status),
             result=_wire.result(saved.result),
         )
+        return self._outcome
 
     async def start(
         self,
@@ -284,28 +305,23 @@ class Execution:
 
     async def records(
         self,
-        *,
-        record_types: Sequence[str] = (),
+        *types: str,
         record_ids: Sequence[str] = (),
-        follow: bool = False,
         poll_interval: float | None = None,
     ) -> AsyncGenerator[Record]:
-        """Replay this execution's live journal, optionally following through sealing.
-
-        Replay starts at zero, so concurrent start and subscription cannot lose
-        early publications. Saved storage positions are separate from live cursors.
-        """
+        """Replay Matching Records From Zero And Follow Through The Saved Seal."""
+        validate_patterns(types)
         await self._snapshot()
         interval = REQUEST_POLL_MS / 1000 if poll_interval is None else poll_interval
         _interval(interval)
-        completion = self.wait(poll_interval=interval) if follow else None
+        completion = self.wait(poll_interval=interval)
         ids = frozenset(record_ids)
         async with aclosing(
             read_records(
                 self._transport,
                 self._backend,
                 _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
-                record_types,
+                types,
                 completion,
             )
         ) as reader:
@@ -314,75 +330,29 @@ class Execution:
                     if not ids or item.record_id in ids:
                         yield _wire.record(item, VALUE_DEPTH)
 
-    async def run(
-        self,
-        *,
-        mode: Literal["automatic", "interactive"] = "automatic",
-        on_record: Callable[[Record], Awaitable[None]] | None = None,
-        on_sample: Callable[[Sample], Awaitable[None]] | None = None,
-        record_types: Sequence[str] = (),
-        streams: Sequence[str] = (),
-        timeout: float | None = None,
-        poll_interval: float | None = None,
-    ) -> ExecutionOutcome:
-        """Start, wait for the saved outcome, and drain supplied async callbacks.
-
-        A callback failure or cancellation closes readers and leaves remote work
-        running. Resolve uncertain admission with the same execution and mode.
-        """
-
-        validate_patterns(record_types)
-        validate_patterns(streams)
-        if timeout is not None:
-            _interval(timeout)
-        if poll_interval is not None:
-            _interval(poll_interval)
-
-        async def records() -> None:
-            if on_record is not None:
-                async with aclosing(self.records(record_types=record_types, follow=True, poll_interval=poll_interval)) as reader:
-                    async for item in reader:
-                        await on_record(item)
-
-        async def samples() -> None:
-            if on_sample is not None:
-                async with aclosing(self.samples(streams=streams, follow=True)) as reader:
-                    async for item in reader:
-                        await on_sample(item)
-
-        await self.start(mode=mode)
-        async with asyncio.TaskGroup() as tasks:
-            if on_record is not None:
-                tasks.create_task(records())
-            if on_sample is not None:
-                tasks.create_task(samples())
-            outcome = await self.wait(timeout=timeout, poll_interval=poll_interval)
-        return outcome
-
     async def samples(
         self,
-        *,
-        streams: Sequence[str] = (),
-        follow: bool = False,
+        *streams: str,
         page_size: int | None = None,
     ) -> AsyncGenerator[Sample]:
-        """Replay Saved Samples And Follow Durable Changes Through The Saved Seal.
-
-        Without follow, read until caught up. Original-epoch validation rejects
-        backend replacement instead of resuming raw cursors in another process.
-        """
+        """Replay Matching Samples And Follow Durable Changes Through The Seal."""
+        validate_patterns(streams)
         await self._snapshot()
         page_size = SAMPLE_PAGE_ITEMS if page_size is None else page_size
-        async for page in read_samples(
-            self._transport,
-            self._backend,
-            _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
-            streams,
-            page_size,
-            follow,
-        ):
-            for item in page.samples:
-                yield _wire.sample(item, VALUE_DEPTH)
+        async with aclosing(
+            read_samples(
+                self._transport,
+                self._backend,
+                _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=self.id),
+                streams,
+                page_size,
+                True,
+            )
+        ) as reader:
+            async for page in reader:
+                for item in page.samples:
+                    yield _wire.sample(item, VALUE_DEPTH)
+        await self.wait()
 
     async def next(self, *, request_id: str, command_id: str) -> ExecutionCommandReceipt:
         return await self._command(request_id, command_id, CommandAction.NEXT)

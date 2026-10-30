@@ -39,7 +39,8 @@ def main() -> int:
     options, arguments = parser.parse_known_args()
     directory = paths.output(policy.root(), "build", options.profile, "any") / "python"
     wheels = list(directory.glob("dokime_client-*.whl"))
-    if len(wheels) != 1:
+    source_selected = "--category" in arguments and arguments[arguments.index("--category") + 1] in ("unit", "integration") and "-k" in arguments
+    if not source_selected and len(wheels) != 1:
         raise SystemExit(f"expected one staged client wheel in {directory}; run `mise run build:python`")
     # Each Invocation Owns Its Fixtures; Pytest Must Not Clean Another Run's Links.
     with TemporaryDirectory(prefix="dokime-pytest-") as scratch:

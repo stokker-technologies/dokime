@@ -2839,3 +2839,6 @@ HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Messag
 # === Private Functions === #
 
 # === Entry Point === #
+
+# Product Client Exports
+from .client import DokimeClient as DokimeClient
