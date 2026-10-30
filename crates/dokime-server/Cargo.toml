@@ -97,7 +97,6 @@ tonic-types = { workspace = true }
 [build-dependencies]
 # Local
 dokime = { workspace = true }
-dokime-packaging = { workspace = true }
 
 # Git
 
@@ -116,6 +115,7 @@ serde_json = { workspace = true }
 # Filesystem
 
 # Parsing
+syn = { workspace = true }
 
 # Concurrency
 
