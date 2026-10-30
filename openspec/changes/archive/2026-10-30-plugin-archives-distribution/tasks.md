@@ -16,4 +16,4 @@
 
 ## Integration Owner Follow-Up
 
-- [ ] 6.1 Combine product work with Hub-rendered layout and other release work, reconcile superseded implicit plugin-folder requirements in the host-plugin-features change, then perform authorized final all-platform validation and delivery outside this worktree assignment.
+- [x] 6.1 Combine product work with Hub-rendered layout and other release work, reconcile superseded implicit plugin-folder requirements in the host-plugin-features change, then perform authorized final all-platform validation and delivery outside this worktree assignment.
