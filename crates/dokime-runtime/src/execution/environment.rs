@@ -22,7 +22,7 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 
 // Local Imports
-use super::context::{Cleanup, CriterionContext, Initialize, Step, Traceability, TraceabilityContext};
+use super::context::{Cleanup, CriterionContext, Initialize, Step};
 use super::document::DocumentIndex;
 use super::evidence::ExecutionEvidence;
 use super::{CleanupContext, Context, InitializationContext, StepContext};
@@ -58,6 +58,7 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
     streams: Streams,
     deliveries: Deliveries,
     document: Arc<std::sync::Mutex<DocumentIndex>>,
+    traceability: std::sync::Mutex<super::traceability::TraceabilityIndex>,
 
     #[cfg(feature = "native")]
     callbacks: super::Callbacks,
@@ -94,6 +95,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             streams,
             deliveries,
             document: Arc::new(std::sync::Mutex::new(DocumentIndex::new(None))),
+            traceability: std::sync::Mutex::default(),
             #[cfg(feature = "native")]
             callbacks: super::Callbacks::default(),
             #[cfg(feature = "native")]
@@ -158,6 +160,10 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         self
     }
 
+    pub(super) fn traceability_index(&self) -> &std::sync::Mutex<super::traceability::TraceabilityIndex> {
+        &self.traceability
+    }
+
     pub(super) fn document(&self) -> &Arc<std::sync::Mutex<DocumentIndex>> {
         &self.document
     }
@@ -181,10 +187,6 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
 
     pub fn initialize<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> InitializationContext<'c, C, O, I> {
         Context::new(self, transport, Initialize).calling_stage("initialize")
-    }
-
-    pub fn traceability<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> TraceabilityContext<'c, C, O, I> {
-        Context::new(self, transport, Traceability).calling_stage("traceability")
     }
 
     pub fn step<'c>(&'c self, transport: &'c mut dyn ExecutionTransport) -> StepContext<'c, C, O, I> {
@@ -216,7 +218,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
     }
 
     pub fn resources(&self) -> &O {
-        self.own.as_deref().expect("the engine opens the attempt's resources before traceability and the first step")
+        self.own.as_deref().expect("the engine opens the attempt's resources before the first step")
     }
 
     pub fn artifacts(&self) -> &Artifacts {

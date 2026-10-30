@@ -120,13 +120,13 @@ def test_child_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caps
 def test_sidecars_archive(tmp_path: Path, target: str) -> None:
     (tmp_path / ".stkr").mkdir()
     (tmp_path / ".stkr/project.toml").write_text(
-        '[[release.plugins]]\npackage="crate-name"\nkind="sidecar"\npath="rust/plugins/opaque.dokime"\n'
+        '[[release.plugins]]\npackage="plugin-host"\nkind="sidecar"\npath="rust/plugins/plugin-host.dokime"\n'
         f'[release.plugins.targets]\nnative="{target}"\n',
         encoding="utf-8",
     )
     build = tmp_path / "build"
     (build / "plugins").mkdir(parents=True)
-    (build / "plugins/opaque.dokime").write_bytes(b"verified shipping bundle")
+    (build / "plugins/plugin-host.dokime").write_bytes(b"verified shipping bundle")
     (build / "plugins/fixture.dokime").write_bytes(b"excluded fixture")
     archive = plugins.archive(tmp_path, build, tmp_path / "output", "1.2.3", target)
     assert archive is not None
@@ -134,12 +134,12 @@ def test_sidecars_archive(tmp_path: Path, target: str) -> None:
     assert archive.name == f"dokime-sidecars-1.2.3-{target}{suffix}"
     if suffix == ".zip":
         with zipfile.ZipFile(archive) as opened:
-            assert opened.namelist() == ["opaque.dokime"]
-            assert opened.read("opaque.dokime") == b"verified shipping bundle"
+            assert opened.namelist() == ["plugin-host.dokime"]
+            assert opened.read("plugin-host.dokime") == b"verified shipping bundle"
     else:
         with tarfile.open(archive) as opened:
-            assert opened.getnames() == ["opaque.dokime"]
-            member = opened.extractfile("opaque.dokime")
+            assert opened.getnames() == ["plugin-host.dokime"]
+            member = opened.extractfile("plugin-host.dokime")
             assert member is not None
             assert member.read() == b"verified shipping bundle"
 
@@ -148,7 +148,7 @@ def test_sidecars_archive(tmp_path: Path, target: str) -> None:
 def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: bool) -> None:
     output = tmp_path / ("fixtures/plugins" if fixture else "plugins")
     native = plugins.paths.target()
-    policy = f'[[release.plugins]]\npackage = "dokime-host"\npath = "rust/plugins/host.dokime"\ntargets = {{ {native} = "native-abi" }}\n'
+    policy = f'[[release.plugins]]\npackage = "plugin-host"\npath = "rust/plugins/plugin-host.dokime"\ntargets = {{ {native} = "native-abi" }}\n'
     (tmp_path / ".stkr").mkdir()
     (tmp_path / ".stkr/project.toml").write_text(policy, encoding="utf-8")
     selected = []
@@ -169,8 +169,8 @@ def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monk
     monkeypatch.setattr(plugins.subprocess, "run", run)
     arguments = {"packages": plugins.FIXTURES} if fixture else {}
     staged = plugins.prepare(tmp_path, tmp_path / "compiler.json", "dev", tool=tmp_path / "cargo-dokime", output=output, **arguments)
-    assert selected == (["obc-plugin"] if fixture else ["dokime-host"])
-    assert [path.name for path in staged] == (["obc-plugin.dokime"] if fixture else ["host.dokime"])
+    assert selected == (["plugin-obc"] if fixture else ["plugin-host"])
+    assert [path.name for path in staged] == (["plugin-obc.dokime"] if fixture else ["plugin-host.dokime"])
     assert staged[0].read_bytes() == b"packaged executable"
 
 

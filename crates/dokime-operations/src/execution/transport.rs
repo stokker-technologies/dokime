@@ -112,7 +112,7 @@ pub struct EvidenceBatch {
     pub prompt_requests: Vec<String>,
 
     #[row(
-        description = "JSON-encoded [`TraceabilitySection`](dokime_domain::model::traceability::TraceabilitySection) values the template stated before its first step.\nOne item per section, encoded like the samples, records and prompts beside it. The host stamps the scope, the time and the provenance source it files them under, because a sidecar naming its own provenance is a sidecar that can lie about it."
+        description = "JSON-encoded [`TraceabilitySection`](dokime_domain::model::traceability::TraceabilitySection) values contributed or edited by steps through their context.\nOne item per accepted section edit, in order; repeated identifiers replace the prior section, encoded like the samples, records and prompts beside it. The host stamps the scope, the time and the provenance source it files them under, because a sidecar naming its own provenance is a sidecar that can lie about it."
     )]
     pub traceability: Vec<String>,
 
@@ -155,7 +155,7 @@ pub struct SidecarExecutionOutcome {
     pub detail_json: Option<String>,
 
     #[row(
-        description = "The stage that failed, as the run names it: a declared step's identifier, or `initialization`, `traceability`.\nThe hooks are not declared steps, so without this the host would have no row to put the failure's story on and a diagnostic from initialization would reach the console but never the document."
+        description = "The stage that failed, as the run names it: a declared step's identifier, or `initialization`.\nThe hooks are not declared steps, so without this the host would have no row to put the failure's story on and a diagnostic from initialization would reach the console but never the document."
     )]
     pub failed_in: Option<String>,
 }

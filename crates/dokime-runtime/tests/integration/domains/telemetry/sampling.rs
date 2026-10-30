@@ -229,10 +229,7 @@ async fn host_plugin_stream() {
     };
     until_telemetry(&runtime, || async {
         let samples = runtime.collect_telemetry(&selection).await.unwrap();
-        streams
-            .iter()
-            .all(|stream| samples.iter().any(|sample| &sample.stream == stream && sample.source == "host_telemetry"))
-            .then_some(())
+        streams.iter().all(|stream| samples.iter().any(|sample| &sample.stream == stream && sample.source == "plugin_host")).then_some(())
     })
     .await;
     runtime.release_stream_leases(leases).await.unwrap();
@@ -251,7 +248,7 @@ async fn host_observer_spins_down() {
     let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let mut residents = runtime.operations().watch_residents();
-    let is_host_observer = |id: &str| dokime_host::HOST_STREAMS.iter().any(|stream| stream.as_str() == id);
+    let is_host_observer = |id: &str| plugin_host::HOST_STREAMS.iter().any(|stream| stream.as_str() == id);
     assert!(!residents.borrow().keys().any(|key| is_host_observer(&key.definition)), "the idle plugin holds no observer");
 
     let system = Identifier::new("host.system").unwrap();
@@ -279,7 +276,7 @@ async fn host_observer_spins_down() {
             .filter(|(key, _)| is_host_observer(&key.definition))
             .all(|(_, status)| status.leases == 0 && status.lifecycle.phase() == OperationPhase::Stopped)
     });
-    tokio::time::timeout(dokime_host::host::system::POLICY.timeout, stopped)
+    tokio::time::timeout(plugin_host::host::system::POLICY.timeout, stopped)
         .await
         .expect("the released observer stops within its collection policy")
         .unwrap();

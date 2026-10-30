@@ -138,7 +138,7 @@ pub enum Records {
 
 #[dokime::catalog]
 pub enum Inputs {
-    System(dokime_host::System),
+    System(plugin_host::System),
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
 
@@ -171,9 +171,9 @@ pub enum ObserverStreams {
     // states a cadence and every run leasing the same stream shares one
     // running instance and its tick.
     //
-    // `dokime_host::System` is the machine itself: cpu, memory and battery. The other
-    // five — `dokime_host::Network`, `dokime_host::WifiLink`, `dokime_host::WifiScan`, `dokime_host::WifiLatency`,
-    // `dokime_host::Bluetooth` — are what a bench adds
+    // `plugin_host::System` is the machine itself: cpu, memory and battery. The other
+    // five — `plugin_host::Network`, `plugin_host::WifiLink`, `plugin_host::WifiScan`, `plugin_host::WifiLatency`,
+    // `plugin_host::Bluetooth` — are what a bench adds
     // when it is correlating the machine's radios against the unit.
     subscribes = Inputs,
     // The inputs, named once. The struct above is the declaration; every stage
@@ -228,7 +228,11 @@ impl Hold {
         Ok((template, shared))
     }
 
-    async fn traceability(&self, ctx: &TraceabilityContext<'_>) -> Result<Vec<TraceabilitySection>, Error> {
+    #[step(
+        label = "Wait for the Unit",
+        description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so."
+    )]
+    async fn connected(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let identity = ctx.resources().heater.lock().await.identity().await?;
         // What the bench is, read off the same operation that reads what it is
         // at: the reply is all a template knows about the process serving it.
@@ -244,14 +248,9 @@ impl Hold {
         bench_section.row(TraceabilityRow::text("sensor", "Sensor", bench.sensor));
         bench_section.row(TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c).unit("°C"));
 
-        Ok(vec![dut, bench_section])
-    }
+        ctx.traceability().section(dut);
+        ctx.traceability().section(bench_section);
 
-    #[step(
-        label = "Wait for the Unit",
-        description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so."
-    )]
-    async fn connected(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let budget = Duration::from_secs_f64(ctx.parameters().connect_budget_s);
         match ctx.listen::<ToolConnectionAcquired>().timeout(budget).next().await {
             Some(Ok(connected)) => {
@@ -274,6 +273,7 @@ impl Hold {
         // === Set The Target === //
 
         ctx.resources().heater.lock().await.set_target(target_c).await?;
+        ctx.traceability().row("bench", TraceabilityRow::number("target_c", "Target", target_c).unit("°C"));
         dokime::info!(ctx, "heater set to {target_c:.1} °C");
 
         // === Wait For The Band === //
@@ -406,7 +406,7 @@ impl Hold {
     )]
     fn host_quiet(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         let limit = ctx.parameters().host_cpu_limit;
-        for row in ctx.samples::<dokime_host::System>() {
+        for row in ctx.samples::<plugin_host::System>() {
             let Some(load) = row.cpu_load_percent else {
                 return Err(Error::Unmeasured("cpu_load_percent"));
             };

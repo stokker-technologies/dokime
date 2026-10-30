@@ -272,9 +272,9 @@ async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecution
 }
 
 async fn started_cycle(root: &Path, concurrency: usize, duration: f64, copies: usize) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
-    let bundle = root.join("obc-plugin.dokime");
-    std::fs::copy(super::plugin_bundle("obc-plugin.dokime"), &bundle).unwrap();
-    let host = super::plugin_bundle("host.dokime");
+    let bundle = root.join("plugin-obc.dokime");
+    std::fs::copy(super::plugin_bundle("plugin-obc.dokime"), &bundle).unwrap();
+    let host = super::plugin_bundle("plugin-host.dokime");
     let mut config = dokime_runtime::RuntimeConfig::new(
         root,
         dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("bench.report").unwrap(), "Report Bench", None),

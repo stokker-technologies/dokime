@@ -55,7 +55,7 @@ fn sidecars(pid: u32) -> Vec<u32> {
     let children = tasks
         .filter_map(|task| std::fs::read_to_string(task.ok()?.path().join("children")).ok())
         .flat_map(|children| children.split_whitespace().filter_map(|child| child.parse::<u32>().ok()).collect::<Vec<_>>());
-    children.filter(|child| std::fs::read_to_string(format!("/proc/{child}/comm")).is_ok_and(|name| name.trim() == "obc-plugin")).collect()
+    children.filter(|child| std::fs::read_to_string(format!("/proc/{child}/comm")).is_ok_and(|name| name.trim() == "plugin-obc")).collect()
 }
 
 #[cfg(not(target_os = "linux"))]

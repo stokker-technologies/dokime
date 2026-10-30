@@ -186,10 +186,10 @@ mod tests {
         let dropped = DroppedFiles::default();
         assert!(dropped.take("main").is_err(), "nothing was dropped");
 
-        dropped.record("main", &[PathBuf::from("/bundles/obc-plugin.dokime")]);
+        dropped.record("main", &[PathBuf::from("/bundles/plugin-obc.dokime")]);
         assert!(dropped.take("other").is_err(), "a drop belongs to its window");
-        dropped.record("main", &[PathBuf::from("/bundles/obc-plugin.dokime")]);
-        assert_eq!(dropped.take("main").unwrap(), PathBuf::from("/bundles/obc-plugin.dokime"));
+        dropped.record("main", &[PathBuf::from("/bundles/plugin-obc.dokime")]);
+        assert_eq!(dropped.take("main").unwrap(), PathBuf::from("/bundles/plugin-obc.dokime"));
         assert!(dropped.take("main").is_err(), "a drop is consumed by one installation");
 
         dropped.record("main", &[PathBuf::from("/bundles/a.dokime"), PathBuf::from("/bundles/b.dokime")]);

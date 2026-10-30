@@ -67,7 +67,7 @@ fn standalone_scaffold_offline() {
     let sdk = &document["dependencies"]["dokime"];
     assert_eq!(sdk["git"].as_str(), Some("https://github.com/stokker-technologies/dokime"));
     assert_eq!(sdk["tag"].as_str(), Some(concat!("v", env!("CARGO_PKG_VERSION"))));
-    let host = &document["dependencies"]["dokime-host"];
+    let host = &document["dependencies"]["plugin-host"];
     assert_eq!(host["git"].as_str(), sdk["git"].as_str());
     assert_eq!(host["tag"].as_str(), sdk["tag"].as_str());
     assert_eq!(host["default-features"].as_bool(), Some(false));

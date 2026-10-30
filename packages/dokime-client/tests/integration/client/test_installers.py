@@ -285,13 +285,13 @@ def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch:
     monkeypatch.setattr(installer, "_stable_tag", lambda: "")
     build = installer.paths.output(tmp_path, "build", "dev")
     (build / "bin/cargo-dokime.exe").write_bytes(b"tool")
-    host = build / "plugins/host.dokime"
+    host = build / "plugins/plugin-host.dokime"
     host.parent.mkdir()
     host.write_bytes(b"host plugin")
     distribution.export(tmp_path, "dev")
     (tmp_path / ".stkr").mkdir()
     (tmp_path / ".stkr/project.toml").write_text(
-        '[[release.plugins]]\npackage="opaque"\nkind="sidecar"\npath="rust/plugins/host.dokime"\n[release.plugins.targets]\n'
+        '[[release.plugins]]\npackage="opaque"\nkind="sidecar"\npath="rust/plugins/plugin-host.dokime"\n[release.plugins.targets]\n'
         + installer.paths.target()
         + '="x86_64-pc-windows-msvc"\n',
         encoding="utf-8",
@@ -316,9 +316,9 @@ def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch:
     assert package[package.index("--plugin") + 1] == str(host)
     assert package.count("--plugin") == 1
     destination = installer.paths.output(tmp_path, "package", "dev") / "rust"
-    assert (destination / "plugins/host.dokime").read_bytes() == host.read_bytes()
+    assert (destination / "plugins/plugin-host.dokime").read_bytes() == host.read_bytes()
     exported = destination / "plugins"
-    assert list(exported.iterdir()) == [exported / "host.dokime"]
+    assert list(exported.iterdir()) == [exported / "plugin-host.dokime"]
 
 
 def _native_build(root: Path, profile: str, native: str) -> dict[str, bytes]:

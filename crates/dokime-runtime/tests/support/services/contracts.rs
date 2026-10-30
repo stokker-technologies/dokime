@@ -83,12 +83,12 @@ pub fn fixture_schema(stream: &str) -> Option<Schema> {
     let definition = match stream {
         "fixture.telemetry" | "synthetic.samples" => FixtureValueRow::DEFINITION,
         "tracking" | "plt400.ract.tracking.tracking" => TrackingRow::DEFINITION,
-        "host.system" => dokime_host::System::DEFINITION,
-        "host.network" => dokime_host::Network::DEFINITION,
-        "host.wifi.link" => dokime_host::WifiLink::DEFINITION,
-        "host.wifi.latency" => dokime_host::WifiLatency::DEFINITION,
-        "host.wifi.scan" => dokime_host::WifiScan::DEFINITION,
-        "host.bluetooth" => dokime_host::Bluetooth::DEFINITION,
+        "host.system" => plugin_host::System::DEFINITION,
+        "host.network" => plugin_host::Network::DEFINITION,
+        "host.wifi.link" => plugin_host::WifiLink::DEFINITION,
+        "host.wifi.latency" => plugin_host::WifiLatency::DEFINITION,
+        "host.wifi.scan" => plugin_host::WifiScan::DEFINITION,
+        "host.bluetooth" => plugin_host::Bluetooth::DEFINITION,
         _ => return None,
     };
     Some(Schema::from_declaration(definition, &settings).unwrap())
@@ -114,12 +114,12 @@ pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySamp
     let bytes = match sample.stream.as_str() {
         "fixture.telemetry" | "synthetic.samples" => fixture_payload::<FixtureValueRow>(&sample),
         "tracking" | "plt400.ract.tracking.tracking" => fixture_payload::<TrackingRow>(&sample),
-        "host.system" => dokime_host::System::from_row(&sample.values).unwrap().encode(),
-        "host.network" => dokime_host::Network::from_row(&sample.values).unwrap().encode(),
-        "host.wifi.link" => dokime_host::WifiLink::from_row(&sample.values).unwrap().encode(),
-        "host.wifi.latency" => dokime_host::WifiLatency::from_row(&sample.values).unwrap().encode(),
-        "host.wifi.scan" => dokime_host::WifiScan::from_row(&sample.values).unwrap().encode(),
-        "host.bluetooth" => dokime_host::Bluetooth::from_row(&sample.values).unwrap().encode(),
+        "host.system" => plugin_host::System::from_row(&sample.values).unwrap().encode(),
+        "host.network" => plugin_host::Network::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.link" => plugin_host::WifiLink::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.latency" => plugin_host::WifiLatency::from_row(&sample.values).unwrap().encode(),
+        "host.wifi.scan" => plugin_host::WifiScan::from_row(&sample.values).unwrap().encode(),
+        "host.bluetooth" => plugin_host::Bluetooth::from_row(&sample.values).unwrap().encode(),
         stream => panic!("fixture stream has no explicit typed row: {stream}"),
     };
     sample.storage_payload = Some(bytes);
@@ -199,7 +199,7 @@ pub fn tracking_record_contracts() -> Vec<RecordContract> {
 
 pub fn suite_telemetry_contracts() -> Vec<TelemetryContract> {
     let mut contracts = vec![tracking_contract()];
-    contracts.extend(dokime_host::host_telemetry_contracts());
+    contracts.extend(plugin_host::host_telemetry_contracts());
     contracts
 }
 
@@ -273,7 +273,7 @@ pub fn conflicting_tracking_contract() -> TelemetryContract {
 }
 
 pub fn wifi_occupancy_contract() -> TelemetryContract {
-    let mut contract = dokime_host::host_telemetry_contract(dokime_host::HostTelemetryStream::WifiScan);
+    let mut contract = plugin_host::host_telemetry_contract(plugin_host::HostTelemetryStream::WifiScan);
     contract.default_x = Some("sample_index".to_owned());
     contract.interval = None;
     contract.allow_extra_fields = false;

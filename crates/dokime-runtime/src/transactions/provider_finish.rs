@@ -534,9 +534,7 @@ fn execution_from_outcome(existing: &TestExecution, case: &TestCase, outcome: &P
         step_attempts: existing.step_attempts.clone(),
         active_step_attempt: existing.active_step_attempt.clone(),
         capture_phase: existing.capture_phase,
-        // Authored traceability is stated once, before the first step, and the
-        // finish never restates it: what the template read off the device is
-        // what the attempt is filed under.
+        // Preserve The Latest Step-Authored Traceability At Completion.
         traceability: existing.traceability.clone(),
         test_cycle_id: existing.test_cycle_id.clone(),
         test_execution_id: existing.test_execution_id.clone(),

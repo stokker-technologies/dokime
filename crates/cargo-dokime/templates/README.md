@@ -55,7 +55,7 @@ and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
 routed through the host. Adding an operation means a request variant in
 `domain::operations::Operations` and its `impl Operation`.
 
-The SDK and `dokime-host` definitions use the same Dokime release tag. Install the host telemetry bundle before loading this template, which subscribes to `dokime_host::System`; missing publishers are refused per stream.
+The SDK and `plugin-host` definitions use the same Dokime release tag. Install the host telemetry bundle before loading this template, which subscribes to `plugin_host::System`; missing publishers are refused per stream.
 
 Install `cargo-dokime` and the `dokime` host, then run from this directory:
 

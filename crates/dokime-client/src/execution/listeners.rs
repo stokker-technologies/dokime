@@ -383,7 +383,7 @@ mod tests {
                 sequence: 3,
                 timestamp: None,
                 received_at: None,
-                source: "obc".into(),
+                source: "plugin_obc".into(),
                 scope: Some(scope.clone()),
                 values: None,
                 summary: None,

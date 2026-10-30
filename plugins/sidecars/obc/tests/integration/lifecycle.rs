@@ -23,7 +23,7 @@ use dokime::domain::model;
 use dokime::execution::Workflow;
 use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use model::records::publication::RecordPublishRequest;
-use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
+use plugin_obc::{Pulse, PulseRow, SOURCE, pulse_value, suites};
 
 /* === Constants === */
 

@@ -46,7 +46,7 @@ fn resources() {
     let staging = tempfile::Builder::new().prefix("dokime-installer-test-").tempdir_in(&root).unwrap();
     let files = [
         ("organization/fonts/font.woff2", b"font payload".as_slice()),
-        ("plugins/host.dokime", b"plugin bundle".as_slice()),
+        ("plugins/plugin-host.dokime", b"plugin bundle".as_slice()),
         ("LICENSE", b"license payload".as_slice()),
         ("distribution.json", b"distribution payload".as_slice()),
     ];

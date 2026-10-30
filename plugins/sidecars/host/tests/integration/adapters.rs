@@ -22,7 +22,7 @@ use dokime::harmos::{
     Message,
     operations::{OperationDeclaration, Visibility},
 };
-use dokime_host::host::{
+use plugin_host::host::{
     adapters::{AdapterKind, AdapterStatus, Adapters, Snapshot, snapshot},
     network::NetworkObserver,
 };

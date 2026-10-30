@@ -11,7 +11,7 @@ https://github.com/stokker-technologies/dokime/raw/refs/heads/main/screenshots/<
 ```
 
 Every image is captured from the real desktop application driving a real backend
-with the `obc-plugin` AC testbench plugin loaded, in
+with the `plugin-obc` AC testbench plugin loaded, in
 the application's own default theme, with no operating-system window
 chrome. The backend runs under a placeholder identity (`dokime-bench` /
 `Bench Operator`, no git configuration), so the captured traceability panels
@@ -39,4 +39,4 @@ only suggests.
 ## Regenerating Them
 
 Capture replacements by hand from a `mise run build` desktop with the
-`obc-plugin` bundle loaded, following the rules above, and keep the file names.
+`plugin-obc` bundle loaded, following the rules above, and keep the file names.

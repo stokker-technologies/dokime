@@ -80,13 +80,13 @@ impl Session {
     // A Development Host Launched Over Its Bundle Copy, Before The First Reload.
     async fn launch() -> Self {
         let root = tempfile::tempdir().unwrap();
-        let bytes = std::fs::read(support::artifacts::obc_plugin_bundle()).unwrap();
-        let bundle = root.path().join("bundle/obc-plugin.dokime");
+        let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
+        let bundle = root.path().join("bundle/plugin-obc.dokime");
         std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
         std::fs::write(&bundle, &bytes).unwrap();
         let home = root.path().join("host");
         std::fs::create_dir_all(home.join("plugins")).unwrap();
-        std::fs::copy(support::artifacts::host_plugin_bundle(), home.join("plugins/host.dokime")).unwrap();
+        std::fs::copy(support::artifacts::host_plugin_bundle(), home.join("plugins/plugin-host.dokime")).unwrap();
         let host = Host::launch_in(&home, Some(&bundle)).await;
         let client = host.connect().await;
         let changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
@@ -701,7 +701,7 @@ async fn serves_startup(client: &Client) -> bool {
 
 async fn status_ready(client: &Client) {
     let frame = client.call(contracts::settings::GetSettings::default()).await.unwrap();
-    let card = frame.cards.iter().find(|card| card.plugin_id == "obc").expect("the OBC settings card is registered");
+    let card = frame.cards.iter().find(|card| card.plugin_id == "plugin_obc").expect("the OBC settings card is registered");
     assert_eq!(card.state, model::settings::wire::SettingsCardState::Ready, "the native status operation serves the installed plugin");
 }
 
@@ -870,7 +870,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     assert!(log.contains("record=sidecar_prompt_answered action=continue accepted=true"));
     assert!(log.contains("Charger resources released"));
 
-    // What the template stated about the DUT before its first step, read back
+    // What the first step captured about the DUT, read back
     // through the typed query an operator's Traceability card reads.
     let observation = client.clone();
     let traceability = observation
@@ -971,7 +971,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
             .await
             .unwrap();
         for sample in page.samples {
-            assert_eq!(sample.source, "host_telemetry", "host rows arrive from the sidecar owner");
+            assert_eq!(sample.source, "plugin_host", "host rows arrive from the sidecar owner");
             host_instants.entry(*stream).or_default().push(sample.timestamp.expect("a host row carries its instant"));
         }
     }
@@ -1178,7 +1178,7 @@ async fn open_report_while_cycle_runs() {
 #[tokio::test]
 async fn store() {
     let root = tempfile::tempdir().unwrap();
-    let bytes = std::fs::read(support::artifacts::obc_plugin_bundle()).unwrap();
+    let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
 
     // An Installed Plugin Activates Only After A Restart
     let store = root.path().join("store");

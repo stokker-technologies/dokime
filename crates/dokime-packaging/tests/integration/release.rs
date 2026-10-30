@@ -57,7 +57,7 @@ async fn verified_release_cache() {
     let target = dokime::plugins::NATIVE_TARGET;
     let bundle = Bundle::build(
         Identity {
-            name: "opaque".into(),
+            name: "plugin-host".into(),
             version: "1.2.3".parse().unwrap(),
             description: String::new(),
             package: Default::default(),
@@ -71,15 +71,15 @@ async fn verified_release_cache() {
     )
     .unwrap();
     let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    archive.start_file("opaque.dokime", zip::write::SimpleFileOptions::default()).unwrap();
+    archive.start_file("plugin-host.dokime", zip::write::SimpleFileOptions::default()).unwrap();
     archive.write_all(bundle.bytes()).unwrap();
     archive.start_file("unrequested.dokime", zip::write::SimpleFileOptions::default()).unwrap();
     archive.write_all(b"must not be extracted").unwrap();
     let archive = archive.finish().unwrap().into_inner();
     let archive_name = format!("dokime-sidecars-1.2.3-{target}.zip");
     let feed = serde_json::to_vec(&serde_json::json!({"format_version":2,"plugins":[{
-        "name":"opaque", "kind":"sidecar", "version":"1.2.3", "requires_dokime":"^0.1",
-        "targets":{target:{"archive":archive_name,"member":"opaque.dokime","sha256":distribution::digest(bundle.bytes())}}
+        "name":"plugin-host", "kind":"sidecar", "version":"1.2.3", "requires_dokime":"^0.1",
+        "targets":{target:{"archive":archive_name,"member":"plugin-host.dokime","sha256":distribution::digest(bundle.bytes())}}
     }]}))
     .unwrap();
     let mut distribution_zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -128,26 +128,29 @@ async fn verified_release_cache() {
     std::fs::create_dir(&destination).unwrap();
     assert_eq!(release.distribution("dev-channel", target, &destination).await.unwrap(), "1.2.3");
     assert_eq!(std::fs::read(destination.join("distribution.json")).unwrap(), b"distribution metadata");
-    let selected = release.plugins(&["opaque".into()], target, "0.1.3", &root.path().join("plugins")).await.unwrap();
-    assert_eq!(selected.len(), 1);
+    let manifest: dokime_packaging::installer::Manifest =
+        toml::from_str("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n[[plugin]]\nname='plugin-host'").unwrap();
+    let names = manifest.plugin.into_iter().filter_map(|plugin| plugin.name).collect::<Vec<_>>();
+    let selected = release.plugins(&names, target, "0.1.3", &root.path().join("plugins")).await.unwrap();
+    assert_eq!(selected, [root.path().join("plugins/plugin-host.dokime")]);
     assert_eq!(std::fs::read(&selected[0]).unwrap(), bundle.bytes());
     assert!(!root.path().join("plugins/unrequested.dokime").exists());
     assert_eq!(requests.lock().unwrap().len(), 4);
 
-    release.plugins(&["opaque".into()], target, "0.1.3", &root.path().join("cached")).await.unwrap();
+    release.plugins(&["plugin-host".into()], target, "0.1.3", &root.path().join("cached")).await.unwrap();
     assert_eq!(requests.lock().unwrap().len(), 4);
     let cached_archive = cache.join(distribution::digest(&archive));
     std::fs::write(&cached_archive, b"corrupted cache").unwrap();
-    release.plugins(&["opaque".into()], target, "0.1.3", &root.path().join("repaired")).await.unwrap();
+    release.plugins(&["plugin-host".into()], target, "0.1.3", &root.path().join("repaired")).await.unwrap();
     assert_eq!(std::fs::read(&cached_archive).unwrap(), archive);
     assert_eq!(requests.lock().unwrap().len(), 5);
 
     std::fs::remove_file(&cached_archive).unwrap();
     contents.lock().unwrap().insert(archive_name, b"corrupted download".to_vec());
-    assert!(release.plugins(&["opaque".into()], target, "0.1.3", &root.path().join("refused")).await.is_err());
+    assert!(release.plugins(&["plugin-host".into()], target, "0.1.3", &root.path().join("refused")).await.is_err());
     assert!(!cached_archive.exists());
     assert!(release.plugins(&["missing".into()], target, "0.1.3", &root.path().join("missing")).await.is_err());
-    assert!(release.plugins(&["opaque".into()], target, "0.2.0", &root.path().join("incompatible")).await.is_err());
+    assert!(release.plugins(&["plugin-host".into()], target, "0.2.0", &root.path().join("incompatible")).await.is_err());
     assert_eq!(requests.lock().unwrap().len(), 6);
 
     let mut feed = Feed::parse(&feed).unwrap();

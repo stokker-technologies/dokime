@@ -9,7 +9,7 @@
 # === Package === #
 
 [package]
-name = "dokime-host"
+name = "plugin-host"
 publish = false
 edition.workspace = true
 rust-version.workspace = true
@@ -24,7 +24,7 @@ debuginfo = false
 # === Package Targets === #
 
 [[bin]]
-name = "dokime-host"
+name = "plugin-host"
 path = "src/main.rs"
 test = false
 required-features = ["runtime"]

@@ -38,11 +38,11 @@ The host sidecar keeps request definitions in `host/<domain>/mod.rs`:
 request structs, ids, policies, responses and contract tests. `host/controls`
 shares native state capture, inverse transactions and backend journal callbacks
 for radio, adapter and power writes. Construct `RadioSet` with
-`dokime_host::domain::controls::{Radio, RadioPower}` (`Radio::Wifi`,
+`plugin_host::domain::controls::{Radio, RadioPower}` (`Radio::Wifi`,
 `Radio::Bluetooth`, `Radio::Cellular`; `RadioPower::On`, `RadioPower::Off`).
 `RadioState.kind` shares `Radio`; inventory uses
 `host::adapters::{AdapterKind, AdapterStatus}`. Native boundary parsers reject
-unknown closed-set values with `dokime_host::Error::UnknownValue`; do not add
+unknown closed-set values with `plugin_host::Error::UnknownValue`; do not add
 string request aliases. Runtime implementations
 live in parallel `windows.rs` and `unix.rs` modules selected only by
 `#[cfg(all(feature = "runtime", target_os = "windows"))] mod windows;` and

@@ -244,7 +244,7 @@ contract discovery and shared Harmos codec:
 ```rust
 let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
 let stream = client
-    .call_operation("obc.bench.get_status", Some("obc"), b"{}", Vec::new())
+    .call_operation("obc.bench.get_status", Some("plugin_obc"), b"{}", Vec::new())
     .await?;
 while let Some(event) = stream.message().await? {
     println!("{event:?}");
@@ -716,6 +716,28 @@ access. Permission and invalid-path failures remain immediate.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
+### Capture And Edit Traceability
+
+Steps contribute traceability through their context, alongside document additions:
+
+```rust
+ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
+ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-7"));
+// A later step can correct the same row without duplicating it.
+ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-8"));
+```
+
+`section` adds or replaces the complete section by identifier. `row` adds or
+replaces a row in an existing section, preserving its other rows. Missing
+sections, duplicate row identifiers and reserved host-derived section identifiers
+are refused and logged. Edits use the same buffered evidence delivery as documents;
+the GUI and new reports show the latest captured values. Sealed reports and Python
+checkpoint reads retain the values captured at their persisted boundary.
+Criteria consume captured evidence and cannot mutate traceability. Initialization,
+observers and cleanup have no traceability mutation handle. The former template
+`traceability()` lifecycle method is removed; move identity discovery into steps.
+The storage baseline remains v1 and existing storage is never automatically reset.
+
 ### Present The Result
 
 Compose plots from the same typed measurement fields used by the procedure.
@@ -868,7 +890,7 @@ version = "0.1.3"
 target = "x86_64-pc-windows-msvc"
 
 [[plugin]]
-name = "dokime-host"
+name = "plugin-host"
 
 [[plugin]]
 path = "plugins/acme-bench.dokime"
@@ -1090,7 +1112,7 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
-Host telemetry is supplied by `host.dokime` through plugin ingest. The runtime
+Host telemetry is supplied by `plugin-host.dokime` through plugin ingest. The runtime
 has no built-in host collector or implicit plugin seed. OBC is an explicit
 test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
 
@@ -1138,7 +1160,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 ## Documentation
 
 - [Remote OBC Walkthrough](remote/overview.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
-- [OBC Plugin](obc-plugin.md) — the charger simulation and complete test templates.
+- [OBC Plugin](plugin-obc.md) — the charger simulation and complete test templates.
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
