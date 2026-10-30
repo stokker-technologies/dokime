@@ -583,6 +583,48 @@ mod tests {
     use super::*;
     use std::num::NonZeroUsize;
 
+    #[test]
+    fn retiring_metadata_does_not_scan_evidence_children() {
+        for count in [4096, 16384] {
+            let connection = Connection::open_in_memory().unwrap();
+            connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA] {
+                connection.execute_batch(schema).unwrap();
+            }
+            connection
+                .execute(
+                    "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<?1)
+                 INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
+                 SELECT printf('%016x',n),'stream',printf('sample-%d',n),printf('sample-%d',n),x'00',zeroblob(32) FROM rows",
+                    [count],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO storage_telemetry_signals
+                 SELECT 'schema','value',position,x'00','{}','fixture' FROM storage_data_entries;
+                 INSERT INTO storage_record_captures
+                 SELECT 'execution',position,identity,position,'{}' FROM storage_data_entries;
+                 INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
+                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
+                )
+                .unwrap();
+            // Foreign-Key Checks Must Seek The Parent Position Even When It Has No Children.
+            for position in ["ffffffffffffffff", "0000000000000001"] {
+                let mut delete = connection.prepare("DELETE FROM storage_data_entries WHERE position=?1").unwrap();
+                assert_eq!(delete.execute([position]).unwrap(), 1);
+                assert_eq!(delete.get_status(rusqlite::StatementStatus::FullscanStep), 0);
+                let steps = delete.get_status(rusqlite::StatementStatus::VmStep);
+                assert!(steps < 512, "retirement took {steps} VM steps with {count} evidence children");
+            }
+            for table in ["storage_telemetry_signals", "storage_record_captures"] {
+                let remaining: i64 = connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+                assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
+            }
+            assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
+        }
+    }
+
     #[tokio::test]
     async fn absent_schema_does_not_scan_other_streams() {
         let connection = Connection::open_in_memory().unwrap();

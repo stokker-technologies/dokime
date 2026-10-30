@@ -1381,6 +1381,9 @@ queues and durable acknowledgement. Plots query saved evidence in bounded pages;
 changing a display window never deletes raw evidence. Recovery restores saved
 frontiers without replaying device actions.
 
+Retiring superseded metadata seeks its matching evidence references. It does not
+scan the accumulated telemetry signals or captured records.
+
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
