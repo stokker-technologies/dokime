@@ -26,3 +26,10 @@ Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
 `check:python:generated` type-checks the client package after the build has
 verified its generated modules.
+
+## Focused Python Client Checks
+
+`mise run test:python:unit --select <expression>` checks current client source in
+the root environment without a staged wheel. A focused integration selection uses
+`mise run test:python:integration -- -- -k <expression>` and also checks source.
+Full Python unit and integration tasks retain their built-wheel input.

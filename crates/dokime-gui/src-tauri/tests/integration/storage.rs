@@ -46,6 +46,7 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn reset_refuses_unowned() {
     let root = tempfile::tempdir().unwrap();

@@ -39,7 +39,7 @@ pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harm
 
 #[derive(Clone, serde::Deserialize)]
 pub struct RuntimeConfig {
-    #[serde(skip, default = "harmos::config::SchemaSettings::default")]
+    #[serde(skip, default = "super::schema_defaults")]
     pub schema: harmos::config::SchemaSettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
@@ -95,7 +95,7 @@ impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
         Self {
-            schema: harmos::config::SchemaSettings::default(),
+            schema: super::schema_defaults(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
             local_storage: crate::config::local_storage_defaults(),

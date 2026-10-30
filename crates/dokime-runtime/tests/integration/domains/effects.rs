@@ -54,6 +54,9 @@ struct Physical {
     runtime: Mutex<Option<RuntimeHandle>>,
     entered: tokio::sync::Notify,
     release: tokio::sync::Notify,
+    block_restore: AtomicBool,
+    restoring: tokio::sync::Notify,
+    restore_release: tokio::sync::Notify,
 }
 
 #[harmos::operation(id = "fixture.effect.restore", response = EffectResult, policy = dokime_runtime::operations::ORDINARY, visibility = Host, resources = [Physical])]
@@ -107,6 +110,9 @@ impl Physical {
             runtime: Mutex::new(None),
             entered: tokio::sync::Notify::new(),
             release: tokio::sync::Notify::new(),
+            block_restore: AtomicBool::new(false),
+            restoring: tokio::sync::Notify::new(),
+            restore_release: tokio::sync::Notify::new(),
         }
     }
 }
@@ -117,6 +123,10 @@ impl harmos::Operation for Inverse {
         let physical = ctx.resource::<Physical>();
         if physical.fail_restore.load(Ordering::SeqCst) {
             return Err(Refusal::of("controlled inverse failure"));
+        }
+        if physical.block_restore.load(Ordering::SeqCst) {
+            physical.restoring.notify_one();
+            physical.restore_release.notified().await;
         }
         if self.resource == "fixture.adapter" {
             physical.adapter_on.store(self.on, Ordering::SeqCst);
@@ -445,6 +455,47 @@ async fn effect_lifecycle() {
         runtime.shutdown().await.unwrap();
         physical.runtime.lock().unwrap().take();
     }
+}
+
+#[tokio::test]
+async fn stop_shutdown_joins() {
+    use futures_util::FutureExt;
+
+    let root = tempdir().unwrap();
+    let physical = Arc::new(Physical::new());
+    let mut runtime = Runtime::start(configured(root.path(), &physical, Mode::Cancel)).await.unwrap();
+    let handle = runtime.handle();
+    let (cycle, execution) = planned(&handle).await;
+    let receipt = handle.start_next_execution(cycle, CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    physical.entered.notified().await;
+    physical.block_restore.store(true, Ordering::SeqCst);
+    let stop = {
+        let handle = handle.clone();
+        let execution = execution.clone();
+        tokio::spawn(async move { handle.stop_execution(execution, CommandContext::default()).await })
+    };
+    physical.restoring.notified().await;
+    let retry = handle.stop_execution(execution.clone(), CommandContext::default());
+    tokio::pin!(retry);
+    assert!(retry.as_mut().now_or_never().is_none());
+    stop.abort();
+    assert!(stop.await.unwrap_err().is_cancelled());
+    let shutdown = runtime.shutdown();
+    tokio::pin!(shutdown);
+    assert!(shutdown.as_mut().now_or_never().is_none(), "shutdown must await the execution's original cleanup");
+    physical.restore_release.notify_one();
+    let (stopped, shutdown) = tokio::join!(retry, shutdown);
+    stopped.unwrap();
+    shutdown.unwrap();
+    #[cfg(feature = "testing")]
+    assert_eq!(
+        dokime_runtime::testing::drain_counts(&execution),
+        BTreeMap::from([("effects", 1), ("publications", 1), ("records", 1), ("step_leases", 1), ("capture_leases", 1), ("report", 1),]),
+        "Stop, retry and shutdown share each physical cleanup stage and final report"
+    );
+    assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.radio"], "physical restoration runs once across Stop, retry and shutdown");
+    physical.runtime.lock().unwrap().take();
 }
 
 #[tokio::test]

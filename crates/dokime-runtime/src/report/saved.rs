@@ -340,6 +340,7 @@ impl PreparedExecutionReport {
         Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
     }
 
+    #[tracing::instrument(name = "report.save_dependencies", skip_all)]
     pub async fn save_dependencies(
         &mut self, manager: &Manager, sealed_at: &Timestamp, revision: &ExecutionRevision,
     ) -> Result<ExecutionSeal> {

@@ -419,8 +419,13 @@ impl DesktopSession {
             return Err(error);
         }
         if matches!(&self.0.local, Some(Ok(_))) {
-            let local = self.local_preferences(resources).await?;
-            self.0.connection.set_preferences(local);
+            match self.local_preferences(resources).await {
+                Ok(local) => self.0.connection.set_preferences(local),
+                // An Attached Backend Must Remain Usable While Another Instance Owns Local.
+                // Keep This Connection's Existing Client Preferences In That Case.
+                Err(Error::BackendRunning { .. }) => {}
+                Err(error) => return Err(error),
+            }
         }
         let connected = self.0.connection.connect(request).await;
         if let Err(error) = self.current(revision) {

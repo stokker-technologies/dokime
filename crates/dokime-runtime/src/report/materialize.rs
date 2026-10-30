@@ -94,6 +94,10 @@ async fn materialize_execution(
         return Err(invalid("report capture differs from the requested durable boundary"));
     }
     let execution = inspection.execution();
+    #[cfg(feature = "testing")]
+    if final_report {
+        crate::domains::execution::run::testing::record(&execution.test_execution_id, "report");
+    }
     let records = tracing::Instrument::instrument(context_records(inspection), tracing::info_span!("report.materialize.records")).await?;
     let selection = harmos::storage::ReadBatch::new(())
         .try_map(|_| Ok::<_, Error>(crate::document::DocumentSelection { scope: execution.scope.clone() }))?;

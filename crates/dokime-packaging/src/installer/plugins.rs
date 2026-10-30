@@ -120,7 +120,7 @@ fn verify(path: &Path, target: &str, version: &str) -> Result<(Vec<u8>, String),
         return Err(Error::Invalid("installer plugins must be .dokime bundles".into()));
     }
     let bytes = crate::bundle::read(path)?;
-    let bundle = Bundle::inspect(&bytes, Limits::default())?;
+    let bundle = Bundle::inspect_with_settings(&bytes, Limits::default(), &dokime::config::schema_defaults())?;
     let executables: Vec<_> = bundle.manifest().files.iter().filter_map(|file| file.executable.as_ref()).collect();
     if executables.is_empty()
         || executables.iter().any(|executable| executable.target != target || executable.facility != Facility::Sidecar)

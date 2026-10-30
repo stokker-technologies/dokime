@@ -201,11 +201,32 @@ Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
 
 ```python
-client = DokimeClient.from_pairing("lab.dokime-pair")
-async with client:
-    async for suite in client.suites():
-        print(suite)
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
+
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+raise SystemExit(asyncio.run(main()))
 ```
+
+The example requires the corresponding installed template. With the OBC fixture,
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
+on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
+are grouped with the original failure. Await a run directly for its saved outcome.
+Terminal record/sample iterators accept positional filters and provide `.to_json()`.
+The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
+cancelled. A template expansion returns an ordered tuple of all execution handles.
+`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
+manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
+are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -276,7 +297,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
-client provides the same durable boundary with `await cycle.seal()`.
+client provides the same durable boundary with `await cycle.seal()`, and
+`async with client.new_cycle(label)` applies it automatically on every exit.
 
 Download saved evidence without running any work again:
 
@@ -1251,6 +1273,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
+Desktop and report browser tabs use the brand's logos, preferring contained artwork
+for the viewer's color scheme and keeping the default favicon when no logos apply.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
@@ -1266,9 +1290,13 @@ the compiled identifier is used. The desktop, CLI and server share this resolver
 `DOKIME_APPLICATION_ROOT` overrides the application root for tests and isolated
 runs, including logs beneath `<root>/logs`. Changing an identifier creates a new
 installation; existing data stays under the old identifier and is never moved or
-deleted automatically. Protocol/deep-link identity, single-instance policy,
-updater verification trust and code-signing identity remain compiled. Reusing
-binaries with different distribution identities does not isolate those mechanisms.
+deleted automatically. Each desktop launch opens its own window. A local backend
+exclusively owns its data folder; if another backend already owns it, the desktop
+shows the folder and offers connection controls. Connect to another or remote
+backend, or close the other instance and retry Start Local Backend.
+Protocol/deep-link identity, updater verification trust and code-signing identity
+remain compiled. Reusing binaries with different distribution identities does not
+isolate those mechanisms.
 
 For source development, `mise run prepare:organization` refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
@@ -1386,6 +1414,22 @@ Telemetry and captured records persist as they arrive with bounded pending
 queues and durable acknowledgement. Plots query saved evidence in bounded pages;
 changing a display window never deletes raw evidence. Recovery restores saved
 frontiers without replaying device actions.
+
+Retiring superseded metadata seeks its matching evidence references. It does not
+scan the accumulated telemetry signals or captured records.
+
+Numeric execution outputs update in the same SQLite transaction as each saved
+telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
+counts, extrema, means, medians, standard deviations, RMS values, sums and
+percentiles. Completion reads these indexes instead of replaying each field's
+whole stream. Pending index work is bounded by the admitted write batch; raw
+evidence remains unchanged. Development roots with older evidence indexes need
+a fresh storage root and are never reset automatically.
+
+Capture close callers join the same in-flight sealing work. Cancelling a waiter
+does not cancel sealing; later Stop or shutdown calls await that work. Closing
+capture admission refuses new capture producers, and successful provider cleanup
+stages remain complete across retries.
 
 Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture

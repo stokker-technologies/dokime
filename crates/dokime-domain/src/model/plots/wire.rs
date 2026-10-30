@@ -20,14 +20,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
 use crate::model::catalog::wire::*;
 
-#[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::document::DownsampleTechnique;
 
-#[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 

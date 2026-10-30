@@ -244,7 +244,20 @@ async fn non_admitted_settings() {
     let bytes = crate::service_support::bundles::bundle_with_settings("failed-settings", "settings_fixture", schema.clone());
     let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
     let store = runtime.plugin_store();
-    store.record_boot(entry.installation.install_id, Some("startup-refused".into())).await.unwrap();
+    store
+        .record_boot(
+            entry.installation.install_id,
+            Some(dokime_domain::model::plugins::wire::PluginStartFailure {
+                plugin_id: "fixture".into(),
+                plugin_name: "Fixture".into(),
+                message: "startup-refused".into(),
+                code: None,
+                missing_secret: None,
+                carrier: Vec::new(),
+            }),
+        )
+        .await
+        .unwrap();
     let id = Identifier::new("settings_fixture").unwrap();
     let frame = runtime
         .query_runtime_view(RuntimeViewQuery {

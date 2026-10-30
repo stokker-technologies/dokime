@@ -35,7 +35,10 @@ macro_rules! native_adapter {
     };
     (async $name:ident ($($arg:ident: $ty:ty),* $(,)?) -> $ret:ty => $handler:path) => {
         #[tauri::command]
-        async fn $name($($arg: $ty),*) -> $ret { call_handler!(async, $handler, $($arg),*) }
+        async fn $name($($arg: $ty),*) -> $ret {
+            // Tauri Embeds This Future In Its Main-Thread Response Before Spawning.
+            Box::pin(async move { call_handler!(async, $handler, $($arg),*) }).await
+        }
     };
 }
 
@@ -44,6 +47,10 @@ macro_rules! native_commands {
         $(native_adapter!($mode $name ($($ctx: $ctx_ty,)* $($arg: $ty),*) -> $ret => $handler);)*
         pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
             tauri::generate_handler![$($name),*]
+        }
+        #[cfg(test)]
+        macro_rules! measure_commands {
+            () => { $(measure_command!($mode $name ($($ctx: $ctx_ty,)* $($arg: $ty),*));)* };
         }
     };
 }
@@ -271,3 +278,27 @@ native_commands! {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn size<Args, F: std::future::Future>(_: impl FnOnce(Args) -> F) -> usize {
+        // Measure The Wry Future Type Without Opening Native Windows Or Polling It.
+        std::mem::size_of::<F>()
+    }
+
+    macro_rules! measure_command {
+        (sync $name:ident ($($arg:ident: $ty:ty),* $(,)?)) => {};
+        (async $name:ident ($($arg:ident: $ty:ty),* $(,)?)) => {
+            let bytes = size(|($($arg,)*): ($($ty,)*)| $name($($arg),*));
+            eprintln!("{}: {bytes} bytes", stringify!($name));
+            assert!(bytes <= 16 * 1024, "{} command future uses {bytes} bytes", stringify!($name));
+        };
+    }
+
+    #[test]
+    fn command_future_sizes() {
+        measure_commands!();
+    }
+}
