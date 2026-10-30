@@ -16,9 +16,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, fields
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
 from enum import StrEnum
-from typing import Any, Self, TypedDict
+from typing import Any, Self, TypedDict, overload
 
 # Third Party Imports
 
@@ -38,7 +38,11 @@ type Value = None | bool | int | float | str | datetime | list[Value] | dict[str
 
 
 class DatetimeValue(datetime):
-    """A datetime retaining sub-microsecond precision for an unchanged wire round trip."""
+    """A datetime retaining its wire fraction through timedelta shifts and timezone changes.
+
+    ``replace`` retains the fraction unless ``microsecond`` is supplied explicitly.
+    Datetime differences still return standard microsecond-resolution timedeltas.
+    """
 
     _wire_text: str | None = None
     _nanosecond_remainder: int = 0
@@ -64,6 +68,36 @@ class DatetimeValue(datetime):
         if fraction:
             result._nanosecond_remainder = int(fraction.group(1).ljust(9, "0")[:9]) % 1000
         return result
+
+    def _transformed[T](self, result: T, remainder: int | None = None) -> T:
+        if isinstance(result, DatetimeValue) and result is not self:
+            result._nanosecond_remainder = self._nanosecond_remainder if remainder is None else remainder
+            result._wire_text = None
+        return result
+
+    def __add__(self, other: timedelta) -> Self:
+        return self._transformed(super().__add__(other))
+
+    def __radd__(self, other: timedelta) -> Self:
+        return self._transformed(super().__radd__(other))
+
+    @overload
+    def __sub__(self, other: datetime) -> timedelta: ...
+
+    @overload
+    def __sub__(self, other: timedelta) -> Self: ...
+
+    def __sub__(self, other: datetime | timedelta) -> timedelta | Self:
+        return self._transformed(super().__sub__(other))
+
+    def replace(self, *args: Any, **kwargs: Any) -> Self:
+        result = super().replace(*args, **kwargs)
+        # datetime.replace Also Accepts microsecond As Its Seventh Positional Argument.
+        remainder = 0 if len(args) >= 7 or "microsecond" in kwargs else self._nanosecond_remainder
+        return self._transformed(result, remainder)
+
+    def astimezone(self, tz: tzinfo | None = None) -> Self:
+        return self._transformed(super().astimezone(tz))
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -276,8 +310,13 @@ class SaveManifest(TypedDict):
 
 
 def _json_value(value: object) -> str:
-    if isinstance(value, DatetimeValue) and value._wire_text is not None:
-        return value._wire_text
+    if isinstance(value, DatetimeValue):
+        if value._wire_text is not None:
+            return value._wire_text
+        if value._nanosecond_remainder:
+            text = value.isoformat(timespec="microseconds")
+            # Append Submicrosecond Digits Before The UTC Offset.
+            return f"{text[:26]}{value._nanosecond_remainder:03d}{text[26:]}"
     if isinstance(value, datetime):
         return value.isoformat()
     raise TypeError(f"unsupported JSON value: {type(value).__name__}")

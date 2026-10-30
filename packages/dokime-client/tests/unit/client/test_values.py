@@ -12,7 +12,8 @@
 
 # Standard Library Imports
 import math
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Any, cast
 
 # Third Party Imports
 import pytest
@@ -57,22 +58,35 @@ def test_datetime_values() -> None:
     precise = _project(DatetimeValue.from_rfc3339("2026-09-28T12:13:14.123456789Z"))
     assert _project(decode(precise, 64)) == precise
     decoded = decode(precise, 64)
-    assert isinstance(decoded, datetime)
+    assert isinstance(decoded, DatetimeValue)
     assert decoded != date
     assert decoded > date
     assert len({decoded, date}) == 2
 
-    # Arithmetic Keeps The Precise Wire Representation
-    replaced_value = decoded.replace(second=15)
-    shifted_value = decoded + timedelta(seconds=1)
-    replaced = decode(_project(replaced_value), 64)
-    shifted = decode(_project(shifted_value), 64)
-    assert isinstance(replaced, DatetimeValue)
-    assert isinstance(shifted, DatetimeValue)
-    assert replaced._wire_text is not None
-    assert shifted._wire_text is not None
-    assert replaced._wire_text.startswith("2026-09-28T12:13:15.")
-    assert shifted._wire_text.startswith("2026-09-28T12:13:15.")
+    # Transformations Preserve The Exact Wire Fraction Unless Explicitly Replaced.
+    for transformed, expected in (
+        (decoded.replace(second=15), "2026-09-28T12:13:15.123456789+00:00"),
+        (decoded + timedelta(seconds=1), "2026-09-28T12:13:15.123456789+00:00"),
+        (timedelta(seconds=1) + decoded, "2026-09-28T12:13:15.123456789+00:00"),
+        (decoded - timedelta(hours=13, microseconds=123457), "2026-09-27T23:13:13.999999789+00:00"),
+        (decoded + timedelta(days=1, microseconds=876544), "2026-09-29T12:13:15.000000789+00:00"),
+        (decoded.replace(microsecond=0), "2026-09-28T12:13:14.000000000+00:00"),
+        (decoded.replace(2026, 9, 28, 12, 13, 15, 0), "2026-09-28T12:13:15.000000000+00:00"),
+        (decoded.astimezone(timezone(timedelta(hours=5, minutes=30))), "2026-09-28T12:13:14.123456789+00:00"),
+    ):
+        assert transformed._wire_text is None
+        received = decode(_project(transformed), 64)
+        assert isinstance(received, DatetimeValue)
+        assert received._wire_text == expected
+
+    # An Unchanged Timezone Returns The Original; Datetime Differences Stay Microsecond Timedeltas.
+    assert decoded.astimezone(decoded.tzinfo) is decoded
+    assert decoded._wire_text == "2026-09-28T12:13:14.123456789+00:00"
+    assert decoded - date == timedelta(0)
+    with pytest.raises(TypeError):
+        decoded + cast(Any, 1)
+    with pytest.raises(OverflowError):
+        decoded.replace(year=9999) + timedelta(days=366)
 
 
 def test_aggregate_codec() -> None:
