@@ -98,8 +98,11 @@ zeroize = { workspace = true, optional = true }
 
 # Serialization
 arrow-array = { workspace = true }
+arrow-buffer = { workspace = true }
+arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
+flatbuffers = { workspace = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }

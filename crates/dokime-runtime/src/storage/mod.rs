@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+pub(crate) mod ipc;
 pub mod objects;
 pub(crate) mod projection;
 mod read_rows;
@@ -48,6 +49,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Arrow telemetry: {0}")]
+    Arrow(#[from] arrow_schema::ArrowError),
+
     #[error("settings revision conflict: expected {expected}, actual {actual}")]
     SettingsConflict { expected: u64, actual: u64 },
 
