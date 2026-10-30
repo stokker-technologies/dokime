@@ -63,7 +63,12 @@ export function PageShell({ actions, children, className, trail, ...props }: Pag
 
 /** One line about the page's data, at the page's own text inset. */
 export function PageNotice({ children, tone = "status" }: PageNoticeProps) {
-  return <NotificationMessage tone={tone === "alert" ? "error" : "info"}>{children}</NotificationMessage>;
+  if (tone === "alert") return <NotificationMessage>{children}</NotificationMessage>;
+  return (
+    <p role="status" className="text-sm text-muted-foreground">
+      {children}
+    </p>
+  );
 }
 
 /* === Hooks === */

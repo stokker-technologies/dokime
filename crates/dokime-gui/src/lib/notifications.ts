@@ -249,6 +249,7 @@ function subscribe(listener: () => void): () => void {
 
 function publish(tone: NotificationTone, title: string, options: NotificationOptions = {}): string | number {
   const { source, ...display } = options;
+  const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
   const id = displayToast[tone](title, { ...display, ...(tone === "error" ? { duration: Infinity } : {}) });
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
   void recordNotification({
@@ -257,7 +258,7 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
     title,
     tone,
     unread: 1,
-    source: source ?? (typeof location === "undefined" ? "Desktop" : location.pathname),
+    source: origin && origin !== "/" ? origin : "Desktop",
     description: options.description ?? undefined,
   }).catch(historyFailure);
   return id;

@@ -225,8 +225,8 @@ test("Offline Local Edits Remain Available While Backend Reads Fail", async () =
 test("Loading Does Not Render Editable Defaults", () => {
   fixture.loading = true;
   const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-  assert.ok(fixture.notices.mock.calls.some(([props]) => (props as { tone?: string }).tone === "info"));
-  assert.doesNotMatch(html, /role="status"/);
+  assert.equal(fixture.notices.mock.calls.length, 0);
+  assert.match(html, /role="status"/);
   assert.ok(!html.includes("<form"));
 });
 

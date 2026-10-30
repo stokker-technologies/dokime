@@ -265,7 +265,12 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
     enabled: !!checkpoint,
     staleTime: Number.POSITIVE_INFINITY,
   });
-  if (query.isPending) return <NotificationMessage tone="info">Opening checkpoint…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Opening checkpoint…
+      </p>
+    );
   if (query.isError) return <NotificationMessage>Unable to open checkpoint: {query.error.message}</NotificationMessage>;
   const resolvedCheckpoint = query.data.checkpoint ?? checkpoint;
   if (!resolvedCheckpoint) {

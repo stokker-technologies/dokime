@@ -139,7 +139,12 @@ function Records({ checkpoint, session }: SessionProps) {
     gcTime: 0,
     retry: false,
   });
-  if (query.isPending) return <NotificationMessage tone="info">Loading records…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading records…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
     <section className="grid min-w-0 gap-3" aria-label="Captured Records">
@@ -174,7 +179,12 @@ function Records({ checkpoint, session }: SessionProps) {
 function Telemetry({ checkpoint, session }: SessionProps) {
   const query = useCheckpointEvidence(session, checkpoint);
   const [selected, setSelected] = useState<string | null>(null);
-  if (query.isPending) return <NotificationMessage tone="info">Loading streams…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading streams…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   const table = selected ?? query.data.telemetryTables[0]?.table ?? null;
   return (
@@ -224,7 +234,12 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
     gcTime: 0,
     retry: false,
   });
-  if (query.isPending) return <NotificationMessage tone="info">Loading samples…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading samples…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
     <section className="grid min-w-0 gap-3" aria-label="Captured Telemetry">
@@ -292,7 +307,12 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
 function Files({ checkpoint, session }: SessionProps) {
   const query = useCheckpointEvidence(session, checkpoint);
   const [selected, setSelected] = useState<string | null>(null);
-  if (query.isPending) return <NotificationMessage tone="info">Loading files…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading files…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   return (
     <div className="grid min-w-0 gap-3">
@@ -333,7 +353,12 @@ function FilePreview({ checkpoint, session, path }: SessionProps & { path: strin
     gcTime: 0,
     retry: false,
   });
-  if (query.isPending) return <NotificationMessage tone="info">Loading file bytes…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading file bytes…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   const file = query.data;
   const end = file.offset + BigInt(file.data.byteLength);
@@ -379,7 +404,12 @@ function Context({ checkpoint, session }: SessionProps) {
     gcTime: 0,
     retry: false,
   });
-  if (query.isPending) return <NotificationMessage tone="info">Loading captured context…</NotificationMessage>;
+  if (query.isPending)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading captured context…
+      </p>
+    );
   if (query.isError) return <Failure error={query.error} retry={() => void query.refetch()} />;
   const context = query.data;
   return (
