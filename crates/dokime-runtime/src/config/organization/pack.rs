@@ -147,14 +147,15 @@ pub fn resolve_with_base(base_dir: Option<&Path>, override_dir: Option<&Path>) -
     };
     let bytes = files.get("organization.toml").ok_or("the bundled organization has no manifest")?;
     let text = std::str::from_utf8(bytes).map_err(|_| "bundled organization manifest is not UTF-8")?;
-    let mut manifest: toml::Value = toml::from_str(text).map_err(|_| "bundled organization manifest is invalid")?;
+    let manifest_path = base_dir.unwrap_or(Path::new("organization")).join("organization.toml");
+    let mut manifest = parse_manifest(&manifest_path, text)?;
     if let Some(directory) = override_dir {
         let directory = directory.canonicalize().map_err(|error| error.to_string())?;
         let mut overrides = BTreeMap::new();
         collect_files(&directory, &directory, &mut overrides)?;
         if let Some(bytes) = overrides.remove("organization.toml") {
             let text = std::str::from_utf8(&bytes).map_err(|_| "organization.toml is not UTF-8")?;
-            let overlay = toml::from_str(text).map_err(|_| "organization.toml does not parse")?;
+            let overlay = parse_manifest(&directory.join("organization.toml"), text)?;
             merge(&mut manifest, overlay);
         }
         files.extend(overrides);
@@ -173,6 +174,10 @@ pub fn installation_directory() -> Option<std::path::PathBuf> {
 }
 
 /* === Private Functions === */
+
+fn parse_manifest(path: &Path, text: &str) -> Result<toml::Value, String> {
+    toml::from_str(text).map_err(|error| format!("invalid organization manifest {}: {error}", path.display()))
+}
 
 fn validate(pack: &ResolvedPack) -> Result<(), String> {
     let manifest = &pack.manifest;
@@ -270,6 +275,15 @@ fn collect_files(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn manifest_parse_diagnostics() {
+        let path = Path::new("company/organization.toml");
+        let error = parse_manifest(path, "[app]\nlabel = ?\n").unwrap_err();
+        assert!(error.contains(&path.display().to_string()), "{error}");
+        assert!(error.contains("label"), "{error}");
+        assert!(error.contains("line 2, column"), "{error}");
+    }
 
     #[test]
     fn overlay_values() {
