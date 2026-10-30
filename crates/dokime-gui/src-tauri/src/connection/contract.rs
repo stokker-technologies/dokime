@@ -85,8 +85,16 @@ pub struct AdmissionIssue {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {
-    Local { endpoint: String },
-    Remote { endpoint: String, ca_certificate_pem: Option<String> },
+    Local {
+        endpoint: String,
+    },
+    Remote {
+        endpoint: String,
+        ca_certificate_pem: Option<String>,
+
+        #[serde(default)]
+        endpoints: Vec<String>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -94,6 +102,7 @@ pub enum ConnectionTarget {
 pub enum ConnectionSecrets {
     None,
     Saved,
+    Profile { credential: String },
     Bearer { token: String, remember: bool },
 }
 

@@ -123,13 +123,19 @@ impl Registry {
 }
 
 impl Controller {
-    pub(super) async fn create_pairing(self: &Arc<Self>, label: String, endpoint: String) -> Result<CreatedPairing, Error> {
+    pub(super) async fn create_pairing(self: &Arc<Self>, label: String) -> Result<CreatedPairing, Error> {
         // Persist And Publish Even When The Native Caller Cancels.
         let controller = self.clone();
-        tokio::spawn(async move { controller.create(label, endpoint).await }).await?
+        tokio::spawn(async move {
+            {
+                controller.change(super::Change::Refresh).await?;
+                controller.create(label).await
+            }
+        })
+        .await?
     }
 
-    async fn create(&self, label: String, endpoint: String) -> Result<CreatedPairing, Error> {
+    async fn create(&self, label: String) -> Result<CreatedPairing, Error> {
         let mut state = self.state.lock().await;
         if state.closing {
             return Err(Error::Configuration("remote listener is closing"));
@@ -142,18 +148,41 @@ impl Controller {
         let identity = self.runtime.watch_state().latest().state().identity.node.node_id.to_string();
         let mut pairing = PairingFile {
             version: 1,
-            endpoint,
+            endpoints: store::host_names(server.address(), super::SERVER_REMOTE_NAMES as usize)
+                .into_iter()
+                .map(|name| {
+                    let host = if name.contains(':') { format!("[{name}]") } else { name };
+                    format!("{}://{host}:{}", if bound.tls.is_some() { "https" } else { "http" }, server.address().port())
+                })
+                .collect(),
             backend_identifier: identity,
             label,
             ca_certificate_pem: if bound.tls.is_some() {
-                Some(state.document.identity.as_ref().ok_or(Error::Configuration("active certificate is unavailable"))?.certificate.clone())
+                Some(
+                    state
+                        .document
+                        .identity
+                        .as_ref()
+                        .ok_or(Error::Configuration("active certificate is unavailable"))?
+                        .ca_certificate
+                        .clone(),
+                )
             } else {
                 None
             },
             access_key: None,
         };
         pairing.validate().map_err(Error::Listener)?;
-        validate_endpoint(&pairing, bound, server.address(), state.document.identity.as_ref()).await?;
+        if bound.tls.is_some() {
+            let identity = state.document.identity.as_ref().ok_or(Error::Configuration("active certificate is unavailable"))?;
+            for endpoint in &pairing.endpoints {
+                let authority = endpoint.split_once("://").expect("validated endpoint").1;
+                let host = authority.rsplit_once(':').expect("validated port").0.trim_matches(['[', ']']);
+                if !identity.names.iter().any(|name| name.eq_ignore_ascii_case(host)) {
+                    return Err(Error::Configuration("remote endpoint is not covered by the active TLS certificate"));
+                }
+            }
+        }
         if !matches!(bound.policy, crate::grpc::access::Policy::Clients(_)) {
             return Ok(CreatedPairing { client: None, pairing });
         }
@@ -187,6 +216,33 @@ impl Controller {
         state.document = candidate;
         pairing.access_key = Some(key.to_string());
         Ok(CreatedPairing { client: Some(metadata), pairing })
+    }
+
+    pub(super) async fn rename_client(self: &Arc<Self>, identifier: String, label: String) -> Result<(), Error> {
+        let controller = self.clone();
+        tokio::spawn(async move {
+            let mut state = controller.state.lock().await;
+            if state.closing {
+                return Err(Error::Configuration("remote listener is closing"));
+            }
+            let mut candidate = state.document.clone();
+            candidate.clients = controller.clients.records();
+            let client = candidate
+                .clients
+                .iter_mut()
+                .find(|client| client.metadata.identifier == identifier)
+                .ok_or(Error::Configuration("paired client does not exist"))?;
+            client.metadata.label = label.clone();
+            store::validate_clients(&candidate.clients)?;
+            controller.write_security(&candidate).await?;
+            let mut entries = controller.clients.entries.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(entry) = entries.iter_mut().find(|entry| entry.record.metadata.identifier == identifier) {
+                entry.record.metadata.label = label;
+            }
+            state.document = candidate;
+            Ok(())
+        })
+        .await?
     }
 
     pub(super) async fn revoke_client(self: &Arc<Self>, identifier: String) -> Result<(), Error> {
@@ -259,48 +315,6 @@ fn decode_cursor(cursor: &str) -> Result<(u64, String), Error> {
     let (timestamp, identifier) = text.split_once(':').ok_or_else(invalid)?;
     uuid::Uuid::parse_str(identifier).map_err(|_| invalid())?;
     Ok((timestamp.parse().map_err(|_| invalid())?, identifier.to_owned()))
-}
-
-async fn validate_endpoint(
-    pairing: &PairingFile, bound: &crate::grpc::Config, address: std::net::SocketAddr, identity: Option<&store::Identity>,
-) -> Result<(), Error> {
-    let (scheme, authority) = pairing.endpoint.split_once("://").ok_or(Error::Configuration("invalid pairing endpoint"))?;
-    let (host, port) = authority.rsplit_once(':').ok_or(Error::Configuration("invalid pairing endpoint"))?;
-    let host = host.trim_start_matches('[').trim_end_matches(']');
-    if port.parse::<u16>().ok() != Some(address.port()) || (scheme == "https") != bound.tls.is_some() {
-        return Err(Error::Configuration("pairing endpoint differs from the active listener"));
-    }
-    if bound.tls.is_some()
-        && !identity.is_some_and(|identity| {
-            identity.names.iter().any(|name| match (name.parse::<std::net::IpAddr>(), host.parse::<std::net::IpAddr>()) {
-                (Ok(left), Ok(right)) => left == right,
-                _ => name.eq_ignore_ascii_case(host),
-            })
-        })
-    {
-        return Err(Error::Configuration("pairing endpoint is not covered by the active TLS certificate"));
-    }
-    // Resolve To This Host Before Exporting A Reachable Listener Origin.
-    let resolved = tokio::time::timeout(std::time::Duration::from_secs(5), tokio::net::lookup_host((host, address.port())))
-        .await
-        .map_err(|_| Error::Configuration("pairing endpoint resolution timed out"))?
-        .map_err(|_| Error::Configuration("pairing endpoint cannot be resolved"))?;
-    let reachable = resolved.into_iter().any(|resolved| {
-        if resolved.ip().is_unspecified() || resolved.ip().is_multicast() {
-            return false;
-        }
-        if !address.ip().is_unspecified() {
-            return address.ip() == resolved.ip();
-        }
-        if address.is_ipv4() != resolved.is_ipv4() {
-            return false;
-        }
-        std::net::TcpListener::bind(std::net::SocketAddr::new(resolved.ip(), 0)).is_ok()
-    });
-    if !reachable {
-        return Err(Error::Configuration("pairing endpoint does not resolve to the active host listener"));
-    }
-    Ok(())
 }
 
 /* === Tests === */

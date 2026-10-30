@@ -300,18 +300,12 @@ pub(crate) async fn pairing_revocation_preserves_execution_receipts() {
         .into_inner();
     let endpoint = format!("http://{}", listening.listening_address.unwrap());
     let first = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
-            label: "Revoked Client".into(),
-            endpoint: endpoint.clone(),
-        })
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Revoked Client".into() })
         .await
         .unwrap()
         .into_inner();
     let second = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
-            label: "Surviving Client".into(),
-            endpoint: endpoint.clone(),
-        })
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Surviving Client".into() })
         .await
         .unwrap()
         .into_inner();

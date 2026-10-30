@@ -248,3 +248,36 @@ async fn negotiation_matches_fixture() {
         }
     }
 }
+
+#[tokio::test]
+async fn remote_candidates_require_identity_and_pinned_ca() {
+    let gate = Arc::new(Gate::new());
+    let mut stalled = Service::new("expected");
+    stalled.gate = Some(gate.clone());
+    let stalled = Listener::start(stalled, true, Ipv4Addr::LOCALHOST).await;
+    let wrong = Listener::start(Service::new("wrong"), true, Ipv4Addr::LOCALHOST).await;
+    let good = Listener::start(Service::new("expected"), true, Ipv4Addr::LOCALHOST).await;
+    let other = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
+    let untrusted = Listener::start_with_identity(
+        Service::new("expected"),
+        Some((other.cert.pem(), other.signing_key.serialize_pem())),
+        Ipv4Addr::LOCALHOST,
+    )
+    .await;
+    let mut request = good.remote(true, None);
+    request.expected_backend_id = Some("expected".into());
+    if let ConnectionTarget::Remote { endpoint, endpoints, .. } = &mut request.target {
+        *endpoint = stalled.endpoint.clone();
+        *endpoints = vec![untrusted.endpoint.clone(), wrong.endpoint.clone(), good.endpoint.clone()];
+    }
+    let session = ConnectionSession::default();
+    let connected = session.connect(request).await.unwrap();
+    gate.entered.notified().await;
+    gate.release.add_permits(1);
+    assert_eq!(connected.endpoint.as_deref(), Some(good.endpoint.as_str()));
+    assert_eq!(connected.backend.unwrap().backend_id, "expected");
+    let mut request = wrong.remote(true, None);
+    request.expected_backend_id = Some("expected".into());
+    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::IdentityChanged);
+    assert!(session.connect(untrusted.remote(true, None)).await.is_err());
+}

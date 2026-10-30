@@ -180,11 +180,14 @@ impl DesktopSession {
             None
         };
         let selection = if let Some(profile) = &selected {
-            let target = dokime::client::Target::new(&profile.endpoint, profile.ca_certificate_pem.clone())
-                .map_err(|error| Error::Connection { error: error.into() })?;
-            let target = if target.is_remote() {
+            let selected = dokime::client::profiles::selection(profile).map_err(|error| Error::Startup {
+                message: error.to_string(),
+                diagnostics: None,
+            })?;
+            let target = if selected.target.is_remote() || !profile.endpoints.is_empty() {
                 ConnectionTarget::Remote {
                     endpoint: profile.endpoint.clone(),
+                    endpoints: profile.endpoints.clone(),
                     ca_certificate_pem: profile.ca_certificate_pem.clone(),
                 }
             } else {
@@ -192,7 +195,7 @@ impl DesktopSession {
             };
             let secrets = match profile.secret {
                 dokime::client::profiles::Secret::None => ConnectionSecrets::None,
-                dokime::client::profiles::Secret::Keyring => ConnectionSecrets::Saved,
+                dokime::client::profiles::Secret::Keyring => ConnectionSecrets::Profile { credential: selected.credential_key() },
             };
             BackendSelection::Attach {
                 request: ConnectRequest {

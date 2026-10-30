@@ -65,7 +65,7 @@ pub(crate) async fn unsecured_pairing_creates_no_revocable_client() {
     let endpoint = format!("http://{}", status.listening_address.unwrap());
 
     let pairing = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Unsecured Lab".into(), endpoint })
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Unsecured Lab".into() })
         .await
         .unwrap()
         .into_inner();
@@ -106,15 +106,12 @@ pub(crate) async fn independent_pairings_revoke_and_survive_restart() {
     let mut created = Vec::new();
     for label in ["First Client", "Second Client"] {
         let result = native
-            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
-                label: label.into(),
-                endpoint: endpoint.clone(),
-            })
+            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: label.into() })
             .await
             .unwrap()
             .into_inner();
         assert_eq!(result.pairing.version, 1);
-        assert_eq!(result.pairing.endpoint, endpoint);
+        assert_eq!(result.pairing.endpoints, vec![endpoint.clone()]);
         assert_eq!(result.pairing.label, label);
         assert!(result.pairing.ca_certificate_pem.is_none());
         assert!(result.client.is_some());
@@ -207,10 +204,7 @@ pub(crate) async fn remote_sessions_recorded() {
         .into_inner();
     let endpoint = format!("http://{}", status.listening_address.unwrap());
     let created = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
-            label: "Session Client".into(),
-            endpoint: endpoint.clone(),
-        })
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Session Client".into() })
         .await
         .unwrap()
         .into_inner();

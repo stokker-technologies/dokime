@@ -1,102 +1,102 @@
 [
   {
     "name": "authenticated_lab",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\", \"http://192.168.1.20:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": true
   },
   {
     "name": "unsecured_lab",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": null}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": null}",
     "valid": true
   },
   {
     "name": "version",
-    "document": "{\"version\": 2, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 2, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "boolean_version",
-    "document": "{\"version\": true, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": true, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "blank_identity",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \" \", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \" \", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "blank_label",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \" \", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \" \", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "label_control",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Bad\\nLabel\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Bad\\nLabel\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "label_bound",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "wildcard",
-    "document": "{\"version\": 1, \"endpoint\": \"http://0.0.0.0:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://0.0.0.0:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "ipv6_wildcard",
-    "document": "{\"version\": 1, \"endpoint\": \"http://[::]:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://[::]:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "path",
-    "document": "{\"version\": 1, \"endpoint\": \"http://lab.example/path\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://lab.example/path\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "userinfo",
-    "document": "{\"version\": 1, \"endpoint\": \"http://user:key@lab.example\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://user:key@lab.example\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "query",
-    "document": "{\"version\": 1, \"endpoint\": \"http://lab.example/?token=x\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://lab.example/?token=x\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "http_ca",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": \"certificate\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": \"certificate\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "https_missing_ca",
-    "document": "{\"version\": 1, \"endpoint\": \"https://lab.example\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"https://lab.example\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "malformed_pem",
-    "document": "{\"version\": 1, \"endpoint\": \"https://lab.example\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\ninvalid\\n-----END CERTIFICATE-----\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"https://lab.example\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\ninvalid\\n-----END CERTIFICATE-----\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "short_key",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"short\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"short\"}",
     "valid": false
   },
   {
     "name": "unknown_field",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"name\": \"old-profile\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"name\": \"old-profile\"}",
     "valid": false
   },
   {
     "name": "old_identity",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"expected_backend_id\": \"fixture\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"expected_backend_id\": \"fixture\"}",
     "valid": false
   },
   {
     "name": "missing_version",
-    "document": "{\"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
@@ -106,27 +106,52 @@
   },
   {
     "name": "missing_backend_identifier",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "missing_label",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "missing_ca_certificate_pem",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
     "valid": false
   },
   {
     "name": "missing_access_key",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null}",
     "valid": false
   },
   {
     "name": "duplicate_field",
-    "document": "{\"version\": 1, \"endpoint\": \"http://127.0.0.1:8765\", \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"version\":1}",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://127.0.0.1:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"version\":1}",
+    "valid": false
+  },
+  {
+    "name": "empty endpoints",
+    "document": "{\"version\": 1, \"endpoints\": [], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "valid": false
+  },
+  {
+    "name": "duplicate endpoints",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://host:8765\", \"http://host:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "valid": false
+  },
+  {
+    "name": "mixed TLS",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://host:8765\", \"https://host:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "valid": false
+  },
+  {
+    "name": "too many endpoints",
+    "document": "{\"version\": 1, \"endpoints\": [\"http://host0:8765\", \"http://host1:8765\", \"http://host2:8765\", \"http://host3:8765\", \"http://host4:8765\", \"http://host5:8765\", \"http://host6:8765\", \"http://host7:8765\", \"http://host8:8765\", \"http://host9:8765\", \"http://host10:8765\", \"http://host11:8765\", \"http://host12:8765\", \"http://host13:8765\", \"http://host14:8765\", \"http://host15:8765\", \"http://host16:8765\", \"http://host17:8765\", \"http://host18:8765\", \"http://host19:8765\", \"http://host20:8765\", \"http://host21:8765\", \"http://host22:8765\", \"http://host23:8765\", \"http://host24:8765\", \"http://host25:8765\", \"http://host26:8765\", \"http://host27:8765\", \"http://host28:8765\", \"http://host29:8765\", \"http://host30:8765\", \"http://host31:8765\", \"http://host32:8765\"], \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+    "valid": false
+  },
+  {
+    "name": "old single endpoint",
+    "document": "{\"version\": 1, \"backend_identifier\": \"fixture-backend\", \"label\": \"Lab PC\", \"ca_certificate_pem\": null, \"access_key\": \"synthetic-pairing-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"endpoint\": \"http://127.0.0.1:8765\"}",
     "valid": false
   }
 ]

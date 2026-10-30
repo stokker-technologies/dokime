@@ -47,6 +47,7 @@ enum Operations {
     Operation4(wire::ListPairedClients),
     Operation5(wire::RevokePairedClient),
     Operation6(wire::ListSessions),
+    Operation7(wire::RenamePairedClient),
 }
 
 /* === Traits === */
@@ -72,11 +73,8 @@ impl Serve<wire::UpdateListener> for Remote {
 impl Serve<wire::CreatePairing> for Remote {
     fn serve<'a>(&'a self, request: wire::CreatePairing, _: Context<'a, wire::CreatePairing>) -> Served<'a, CreatedPairing> {
         Box::pin(async move {
-            let result = crate::grpc::preparation::controller(&self.0)
-                .await?
-                .create_pairing(request.label.clone(), request.endpoint.clone())
-                .await
-                .map_err(status)?;
+            let result =
+                crate::grpc::preparation::controller(&self.0).await?.create_pairing(request.label.clone()).await.map_err(status)?;
             Ok::<_, Status>(result.into())
         })
     }
@@ -132,6 +130,19 @@ impl Serve<wire::RevokePairedClient> for Remote {
     }
 }
 
+impl Serve<wire::RenamePairedClient> for Remote {
+    fn serve<'a>(&'a self, request: wire::RenamePairedClient, _: Context<'a, wire::RenamePairedClient>) -> Served<'a, ()> {
+        Box::pin(async move {
+            crate::grpc::preparation::controller(&self.0)
+                .await?
+                .rename_client(request.identifier.clone(), request.label.clone())
+                .await
+                .map(Response::new)
+                .map_err(status)
+        })
+    }
+}
+
 /* === Public Functions === */
 
 pub(in crate::grpc) fn prepare(
@@ -145,6 +156,8 @@ pub(in crate::grpc) fn prepare(
     setup.resource::<Host<wire::ListPairedClients>>(Host::<wire::ListPairedClients>::new(served.clone()));
     setup.resource::<Host<wire::RevokePairedClient>>(Host::<wire::RevokePairedClient>::new(served.clone()));
     setup.resource::<Host<wire::ListSessions>>(Host::<wire::ListSessions>::new(served.clone()));
+
+    setup.resource::<Host<wire::RenamePairedClient>>(Host::<wire::RenamePairedClient>::new(served));
 
     setup.operations::<Operations>(dokime::app::Lanes::Open);
     Ok(())

@@ -45,7 +45,7 @@ pub(super) struct Config {
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(about = "Add A Backend Profile Without Connecting.")]
+    #[command(about = "Add A Backend Profile And Verify Remote Imports.")]
     Add(add::Args),
 
     #[command(about = "List Saved Profiles Without Connecting.")]
@@ -73,9 +73,9 @@ impl Config {
 
 /* === Public Functions === */
 
-pub(crate) fn run(command: Command) -> crate::Result<()> {
+pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
-        Command::Add(args) => add::run(args),
+        Command::Add(args) => add::run(args).await,
         Command::List(args) => list::run(args),
         Command::Show(args) => show::run(args),
         Command::Use(args) => r#use::run(args),

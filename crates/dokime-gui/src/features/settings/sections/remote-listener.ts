@@ -50,20 +50,6 @@ export function listenerRunning(status: ListenerStatus): boolean {
   return Boolean(status.listeningAddress);
 }
 
-/** Suggest an origin from saved settings without advertising a wildcard bind address. */
-export function pairingEndpoint(settings: ListenerSettings): { endpoint: string; port: string } {
-  const address = /^(\[[^\]]+\]|[^:]+):(\d+)$/.exec(settings.address);
-  if (!address) return { endpoint: "", port: "" };
-  const [, listenerHost, port] = address;
-  const wildcard = listenerHost === "0.0.0.0" || /^\[[0:]+\]$/.test(listenerHost);
-  const certificateHost = settings.certificateNames.find((name) => name !== "0.0.0.0" && !/^[0:]*:[0:]*$/.test(name));
-  const localHost = settings.tlsEnabled ? undefined : listenerHost.startsWith("[") ? "[::1]" : "127.0.0.1";
-  const host = wildcard ? (certificateHost ?? localHost) : listenerHost;
-  if (!host) return { endpoint: "", port };
-  const authority = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-  return { endpoint: `${settings.tlsEnabled ? "https" : "http"}://${authority}:${port}`, port };
-}
-
 /** The host's applied settings with one committed change; never a local draft. */
 export function listenerRequest(status: ListenerStatus, change: ListenerChange): ListenerSettings {
   const applied = appliedSettings(status);

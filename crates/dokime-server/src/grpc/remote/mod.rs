@@ -92,7 +92,12 @@ impl Controller {
         }
         if state.document.settings.enabled {
             let mut candidate = state.document.clone();
-            if let Err(error) = refresh_identity(&mut candidate).and_then(|()| store::write(&self.path, &candidate)) {
+            let refreshed = async {
+                refresh_identity(&mut candidate)?;
+                self.write_security(&candidate).await
+            }
+            .await;
+            if let Err(error) = refreshed {
                 state.error = Some(error.to_string());
                 return;
             }

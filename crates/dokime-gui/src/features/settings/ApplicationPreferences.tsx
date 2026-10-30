@@ -95,6 +95,14 @@ const FIELDS: PreferenceField[] = [
     advanced: true,
   },
   {
+    group: "client",
+    key: "endpoint_stagger_ms",
+    label: "Endpoint Stagger",
+    help: "Delay between remote endpoint connection attempts.",
+    unit: "ms",
+    advanced: true,
+  },
+  {
     group: "telemetry",
     key: "interval_ms",
     label: "Telemetry Interval",

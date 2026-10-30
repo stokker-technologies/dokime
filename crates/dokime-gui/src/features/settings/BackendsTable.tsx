@@ -174,9 +174,32 @@ export function BackendsTable({
         ])}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
-          <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setAdding(true)}>
-            Add Backend
-          </Button>
+          <>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(undefined);
+                try {
+                  const imported = await preferencesCommands.desktopBackendImportPairing(null);
+                  if (imported) {
+                    setDocument(imported);
+                    onConnect?.();
+                  }
+                } catch (failure) {
+                  setError(failure);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Import Remote
+            </Button>
+            <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setAdding(true)}>
+              Add Backend
+            </Button>
+          </>
         }
       />
       <Dialog
@@ -271,6 +294,7 @@ function AddBackend({
           identifier: identifier.trim(),
           label: label.trim(),
           endpoint: endpoint.trim(),
+          endpoints: [],
           expected_backend_id: null,
           ca_certificate_pem: null,
           secret: "none",
@@ -315,7 +339,7 @@ function AddBackend({
             }
           }}
         >
-          Import Pairing File
+          Import Remote
         </Button>
         <p className="text-sm text-muted-foreground">Manual entry is for unsecured HTTP lab listeners.</p>
         <form onSubmit={submit} className="grid gap-3">

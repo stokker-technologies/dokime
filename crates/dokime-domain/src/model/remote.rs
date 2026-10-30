@@ -55,7 +55,7 @@ pub struct RemoteListenerStatus {
 #[serde(deny_unknown_fields)]
 pub struct PairingFile {
     pub version: u32,
-    pub endpoint: String,
+    pub endpoints: Vec<String>,
     pub backend_identifier: String,
     pub label: String,
 
@@ -178,38 +178,46 @@ impl PairingFile {
         if self.label.trim().is_empty() || self.label.len() > 256 || self.label.chars().any(char::is_control) {
             return Err("pairing label must be nonblank, control-free and at most 256 bytes".into());
         }
-        if self.endpoint.len() > 2048 {
-            return Err("pairing endpoint is too large".into());
+        if self.endpoints.is_empty() || self.endpoints.len() > 32 {
+            return Err("remote file requires between 1 and 32 endpoints".into());
         }
-        let (scheme, address) = self.endpoint.split_once("://").ok_or("invalid pairing endpoint")?;
-        if !matches!(scheme, "http" | "https") || address.contains(['/', '?', '#', '@', '%', '\\']) {
-            return Err("pairing endpoint must be an HTTP(S) origin with an explicit port".into());
-        }
-        let (host, port) = address.rsplit_once(':').ok_or("pairing endpoint requires a port")?;
-        if port.is_empty()
-            || !port.bytes().all(|byte| byte.is_ascii_digit())
-            || port.parse::<u16>().ok().filter(|port| *port != 0).is_none()
-        {
-            return Err("invalid pairing endpoint port".into());
-        }
-        if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
-            return Err("IPv6 pairing endpoints require brackets".into());
-        }
-        let bracketed = host.starts_with('[');
-        let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
-        if bracketed && host.parse::<std::net::Ipv6Addr>().is_err() {
-            return Err("bracketed pairing hosts must be IPv6 addresses".into());
-        }
-        match host.parse::<std::net::IpAddr>() {
-            Ok(ip) if ip.is_unspecified() || ip.is_multicast() => return Err("pairing endpoint must be a concrete host".into()),
-            Ok(_) => {}
-            Err(_) if host.len() <= 253 && host.split('.').all(valid_dns_label) => {}
-            Err(_) => return Err("invalid pairing endpoint host".into()),
-        }
-        match (scheme, &self.ca_certificate_pem) {
-            ("https", Some(pem)) => validate_certificate_pem(pem)?,
-            ("http", None) => {}
-            _ => return Err("HTTPS requires a CA certificate; HTTP must not include one".into()),
+        for (index, endpoint) in self.endpoints.iter().enumerate() {
+            if self.endpoints[..index].contains(endpoint) {
+                return Err("remote endpoints must be distinct".into());
+            }
+            if endpoint.len() > 2048 {
+                return Err("pairing endpoint is too large".into());
+            }
+            let (scheme, address) = endpoint.split_once("://").ok_or("invalid pairing endpoint")?;
+            if !matches!(scheme, "http" | "https") || address.contains(['/', '?', '#', '@', '%', '\\']) {
+                return Err("pairing endpoint must be an HTTP(S) origin with an explicit port".into());
+            }
+            let (host, port) = address.rsplit_once(':').ok_or("pairing endpoint requires a port")?;
+            if port.is_empty()
+                || !port.bytes().all(|byte| byte.is_ascii_digit())
+                || port.parse::<u16>().ok().filter(|port| *port != 0).is_none()
+            {
+                return Err("invalid pairing endpoint port".into());
+            }
+            if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+                return Err("IPv6 pairing endpoints require brackets".into());
+            }
+            let bracketed = host.starts_with('[');
+            let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
+            if bracketed && host.parse::<std::net::Ipv6Addr>().is_err() {
+                return Err("bracketed pairing hosts must be IPv6 addresses".into());
+            }
+            match host.parse::<std::net::IpAddr>() {
+                Ok(ip) if ip.is_unspecified() || ip.is_multicast() => return Err("pairing endpoint must be a concrete host".into()),
+                Ok(_) => {}
+                Err(_) if host.len() <= 253 && host.split('.').all(valid_dns_label) => {}
+                Err(_) => return Err("invalid pairing endpoint host".into()),
+            }
+            match (scheme, &self.ca_certificate_pem) {
+                ("https", Some(pem)) => validate_certificate_pem(pem)?,
+                ("http", None) => {}
+                _ => return Err("HTTPS requires a CA certificate; HTTP must not include one".into()),
+            }
         }
         if self.access_key.as_ref().is_some_and(|key| !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()))
         {
@@ -228,7 +236,7 @@ impl std::fmt::Debug for PairingFile {
         formatter
             .debug_struct("PairingFile")
             .field("version", &self.version)
-            .field("endpoint", &self.endpoint)
+            .field("endpoints", &self.endpoints)
             .field("backend_identifier", &self.backend_identifier)
             .field("label", &self.label)
             .field("access_key", &self.access_key.as_ref().map(|_| "<redacted>"))
@@ -299,7 +307,7 @@ mod tests {
     fn lab() -> PairingFile {
         PairingFile {
             version: 1,
-            endpoint: "http://127.0.0.1:8765".into(),
+            endpoints: vec!["http://127.0.0.1:8765".into()],
             backend_identifier: "backend-id".into(),
             label: "Lab".into(),
             ca_certificate_pem: None,
@@ -356,7 +364,7 @@ mod tests {
             "http://host:8765?key=value",
         ] {
             let mut pairing = lab();
-            pairing.endpoint = endpoint.into();
+            pairing.endpoints = vec![endpoint.into()];
             assert!(pairing.validate().is_err(), "{endpoint}");
         }
         let mut pairing = lab();
@@ -368,7 +376,7 @@ mod tests {
         pairing = lab();
         pairing.ca_certificate_pem = Some("invalid".into());
         assert!(pairing.validate().is_err());
-        pairing.endpoint = "https://localhost:8765".into();
+        pairing.endpoints = vec!["https://localhost:8765".into()];
         assert!(pairing.validate().is_err());
     }
 }

@@ -71,10 +71,11 @@ impl Target {
             return Err(invalid_target("Too many backend endpoints."));
         }
         for endpoint in endpoints {
-            let candidate = Self::parse(endpoint.clone(), Some(self.remote), self.ca.clone())?;
+            let candidate = Self::parse(endpoint.clone(), None, self.ca.clone())?;
             if candidate.endpoint.starts_with("https:") != self.endpoint.starts_with("https:") {
                 return Err(invalid_target("Backend endpoints must share a TLS policy."));
             }
+            self.remote |= candidate.remote;
             if !self.candidates.contains(&candidate.endpoint) {
                 if self.candidates.len() == 32 {
                     return Err(invalid_target("Too many backend endpoints."));

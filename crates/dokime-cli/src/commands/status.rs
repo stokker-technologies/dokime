@@ -57,6 +57,7 @@ pub(super) async fn check(connection: crate::connection::Args, json: bool) -> cr
     let result = connection.connect_selected(&resolved).await;
     match result {
         Ok(client) => {
+            let endpoint = client.endpoint().to_owned();
             let backend = client.backend().clone();
             client.close_and_wait().await;
             if json {

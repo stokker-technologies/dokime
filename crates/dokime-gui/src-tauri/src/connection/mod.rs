@@ -195,6 +195,7 @@ impl ConnectionSession {
         }
         match result {
             Ok((lease, backend)) => {
+                state.snapshot.endpoint = Some(lease.client().endpoint().to_owned());
                 state.lease = Some(lease);
                 state.snapshot.backend = Some(backend);
                 state.snapshot.phase = ConnectionPhase::Connected;
@@ -215,6 +216,15 @@ impl ConnectionSession {
     ) -> Result<(SessionLease, BackendSnapshot), ConnectionError> {
         let (token, remember) = match secrets {
             ConnectionSecrets::None => (None, false),
+            ConnectionSecrets::Profile { credential } => {
+                let token = self
+                    .access_secrets(generation, &cancellation, move |store| {
+                        store.read(&credential).map_err(|_| ConnectionError::SecretsUnavailable)
+                    })
+                    .await?
+                    .ok_or(ConnectionError::SecretsUnavailable)?;
+                (Some(token), false)
+            }
             ConnectionSecrets::Saved => {
                 let endpoint = target.endpoint.clone();
                 let token = self
