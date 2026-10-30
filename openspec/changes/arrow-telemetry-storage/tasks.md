@@ -39,7 +39,7 @@
 
 ## 7. Final Validation And Local Handback
 
-- [ ] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers.
+- [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers.
 - [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures.
 - [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes in small Conventional Commits and hand back status, added/deleted lines, benchmark results, tests and open issues in at most ten lines; do not push or merge.
 
