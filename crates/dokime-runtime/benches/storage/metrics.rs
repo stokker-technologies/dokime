@@ -60,10 +60,6 @@ impl Probe {
         })
     }
 
-    pub fn start_process() -> Self {
-        Self::begin(|| 0)
-    }
-
     fn begin(sample: impl Fn() -> usize + Send + 'static) -> Self {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let signal = Arc::clone(&stop);
