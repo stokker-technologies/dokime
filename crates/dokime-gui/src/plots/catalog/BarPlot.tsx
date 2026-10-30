@@ -9,6 +9,8 @@
 
 /* === Local Imports === */
 
+import { formatUnitLabel } from "@/lib/format";
+
 import { formatNumber } from "@/lib/format";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
@@ -32,7 +34,6 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
   const span = maximum - minimum || 1;
   const baseline = (-minimum / span) * 100;
   const summary = `${bars.length} categor${bars.length === 1 ? "y" : "ies"}.`;
-  const badge = plot.unit ?? "value";
 
   if (!bars.length) {
     return (
@@ -44,10 +45,11 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-4 rounded-lg bg-muted/20 p-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold">{plot.title}</h4>
+          <h4 className="truncate text-sm font-semibold" title={formatUnitLabel(plot.title, plot.unit)}>
+            {formatUnitLabel(plot.title, plot.unit)}
+          </h4>
           <p className="text-xs text-muted-foreground">{summary}</p>
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground">{badge}</span>
       </header>
       <div className="grid gap-3 pt-1">
         {bars.map((bar) => (

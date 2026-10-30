@@ -13,7 +13,7 @@ mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
 mod http;
-mod instance;
+pub(crate) mod instance;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
@@ -99,9 +99,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
     let instance = if launch.target.is_none() && launch.error.is_none() {
-        // Single-Instance Identity Remains Compiled For This Release.
-        let instance_paths = dokime::paths::ApplicationPaths::resolve_identifier(&context.config().identifier, None)?;
-        match tauri::async_runtime::block_on(instance::Instance::acquire(&instance_paths.root))? {
+        match tauri::async_runtime::block_on(instance::Instance::acquire(&paths))? {
             Some(instance) => Some(instance),
             None => return Ok(()),
         }
@@ -114,6 +112,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let controls = bindings::invoke_handler();
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
+        .manage(_log_guards.journal.clone())
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())
         .manage(plugins::DroppedFiles::default())

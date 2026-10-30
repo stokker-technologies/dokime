@@ -12,6 +12,15 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Units In Labels
+
+Labels and titles show units in square brackets on the same line, for example
+`Mean [Mbps]`. Use `formatUnitLabel` in `src/lib/format.ts` for table headings,
+plot titles and axes, legends and stat labels. The live GUI and runtime report
+HTML share this formatter. Keep structured units separate from authored labels.
+Table headings truncate as a whole with the full label in a tooltip, while sort
+and filter controls remain usable. Preserve the case of unit symbols.
+
 ## Canonical Bindings And Transport
 
 - Rust `dokime-domain::operations` declarations own the wire shape; do not
@@ -32,6 +41,11 @@ and `src/report`.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
+- Tauri constructs its async response future, including command state, on the
+  event-loop thread before spawning it. Native async adapters box their handler
+  bodies so nested runtime futures stay off that thread's stack. Native and RPC
+  command futures have a 16 KiB
+  regression budget; the plugin install guard also constructs the mock-runtime future.
 - Settings › Plugins keeps installed programs' settings and secrets editable
   after startup fails. Their declared schema comes from the verified bundle
   inventory; the page shows the recorded failure and offers an application
@@ -43,3 +57,13 @@ and `src/report`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
+
+## Console Traces
+
+The desktop logger and its owned backend share one bounded trace journal,
+independent of the terminal log filter. Console replays retained events for the
+selected Instance, Cycle or Execution scope and minimum level, then follows new
+events. These process-local traces are separate from saved execution evidence;
+restarting the desktop or standalone server process starts a new journal. Reconnects resume the scope cursor,
+replaying retained history if its epoch or cursor expires. Stream failures show
+the backend or transport cause beside the reconnect status.

@@ -635,7 +635,8 @@ async fn activation_starts_execution() {
     else {
         panic!("the required secret is absent");
     };
-    assert!(refused.to_string().contains("token"), "{refused}");
+    assert_eq!(refused.code(), dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE);
+    assert_eq!(refused.failure().detail("dokime.secret"), Some("token"));
     let previous = probe.secret_ticks.load(Ordering::Acquire);
     // The original observer ticks after another preparation fails.
     probe.until(|probe| probe.secret_ticks.load(Ordering::Acquire) > previous).await;

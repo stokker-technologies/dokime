@@ -50,7 +50,7 @@ devices. Manual operations are not recorded in execution evidence.
 - `src/operations/`: each request's `impl Operation`, reaching the bench through its declared `Resources`.
 - `src/listeners/`, `src/observers/`: record listeners and process observation.
 - `src/analyses/`: the plot analyses the plugin contributes.
-- `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section and verdict helpers.
+- `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section (including memory pressure and Memory Used [GiB] plots) and verdict helpers.
 - `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.
 - `runtime/`: the embedded Harmos bench application and deterministic device model.
 - `tests/integration/`: in-process lifecycle, confirmation, observer shutdown, and evidence checks.

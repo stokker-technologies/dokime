@@ -156,6 +156,13 @@ test("Updated Toasts Stay Recorded", async () => {
   assert.deepEqual(page.records.map((value) => value.title).sort(), ["fixture-one", "fixture-two"]);
 });
 
+test("Plugin Settings Action Survives History", async () => {
+  const history = await import("@/lib/notifications");
+  history.toast.error("fixture", { pluginSettings: "hcl" });
+  const page = await history.notificationPage();
+  assert.equal(page.records[0].pluginSettings, "hcl");
+});
+
 test("Notification Sources Never Use Empty Or Root Route Labels", async () => {
   const history = await import("@/lib/notifications");
   vi.stubGlobal("location", { pathname: "/" });

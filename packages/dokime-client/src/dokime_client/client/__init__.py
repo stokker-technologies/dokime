@@ -43,8 +43,10 @@ from .models import Prompt as Prompt
 from .models import Record as Record
 from .models import ResultSummary as ResultSummary
 from .models import Sample as Sample
+from .models import SavedFile as SavedFile
 from .models import SavedRecord as SavedRecord
 from .models import SavedSample as SavedSample
+from .models import SaveManifest as SaveManifest
 from .models import Suite as Suite
 from .models import UnsignedValue as UnsignedValue
 from .models import Value as Value

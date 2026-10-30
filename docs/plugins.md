@@ -1,5 +1,20 @@
 # Dokime Plugins
 
+Startup failures appear in a desktop notification and in Settings › Plugins,
+with the bundle's display name and the underlying cause. Missing secret bindings
+identify the secret and offer **Open Plugin Settings**. The verified settings
+remain editable even when the plugin could not start; configure the binding,
+then restart Dokime from that page to retry. The reason appears once beside the
+editable forms; missing-secret links target the same form. Notification history
+retains the settings link.
+
+A failed boot has one typed reason with the plugin identity, message and refusal
+code. Initialization failures also retain the encoded Harmos failure, including its kind,
+application refusal code, named context and source diagnostics. Plugin authors
+should return errors through `dokime::plugin::refusal` to preserve this context;
+missing secret access is classified by `MISSING_SECRET_BINDING_CODE` and the
+`dokime.secret` field, without parsing diagnostic messages.
+
 `plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
@@ -99,6 +114,13 @@ it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
 The runtime decodes these rows through the same codec as other plugins.
+`host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
+`memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.
+Each value divides the existing byte reading by 1024³. On Linux and Windows,
+both readings share the snapshot used for `memory_pressure_percent`, which is
+100 × used / total; pressure is absent when total memory is zero. The original
+byte columns remain available. Host document defaults plot used and total GiB;
+OBC system sections plot used GiB beside memory pressure.
 Direct `RuntimeHandle::publish_telemetry_batch` calls also retain original
 canonical payload bytes. If their value map omits `timestamp`, the runtime
 infers it from the sample instant using the contract's column type: `Datetime`

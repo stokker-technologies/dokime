@@ -38,7 +38,17 @@ const entry: PluginEntry = {
   sha256: "a".repeat(64),
   installed_at: "2026-10-30T00:00:00Z",
   state: "installed",
-  last_boot: null,
+  last_boot: {
+    state: "failed",
+    at: "2026-10-30T00:00:00Z",
+    failure: {
+      plugin_id: "equipment.main",
+      plugin_name: "Equipment",
+      message: "startup-refused",
+      code: "10001",
+      missing_secret: "token",
+    },
+  },
   metadata: {
     identity: { name: "equipment", version: "1.0.0", description: "" },
     owners: ["equipment.main", "equipment.extra"],
@@ -46,7 +56,7 @@ const entry: PluginEntry = {
   },
   active: false,
   restart_required: false,
-  boot_error: "startup-refused",
+  boot_failed: true,
   error: null,
 };
 
@@ -102,7 +112,7 @@ test("Failed Owner Settings", async () => {
   for (const owner of entry.metadata.owners) {
     const detail = await getInstalledPluginDetail(session, owner);
     assert.equal(detail?.plugin_id, owner);
-    assert.equal(detail?.error, entry.boot_error);
+    assert.equal(detail?.error, null);
     assert.equal(detail?.status, "failed");
     assert.deepEqual(detail?.values, { address: "corrected" });
   }
@@ -148,7 +158,7 @@ test("Failed Forms Editable", () => {
       version: "1.0.0",
       runtime: "code",
       status: "failed",
-      error: entry.boot_error,
+      error: null,
       settings: {
         contributions: [
           { kind: "text_area", id: "address", title: "Address", default: "", required: false },
@@ -166,9 +176,27 @@ test("Failed Forms Editable", () => {
     fixture.detail.mock.calls.map(([id]) => id),
     entry.metadata?.owners,
   );
+  assert.equal((html.match(/startup-refused/g) ?? []).length, 1);
+  assert.ok(html.includes('href="#plugin-settings-equipment.main"'));
+  assert.ok(html.includes('id="plugin-settings-equipment.main"'));
   assert.equal((html.match(/<textarea/g) ?? []).length, 2);
   assert.equal((html.match(/type="password"/g) ?? []).length, 2);
   assert.equal((html.match(/<button/g) ?? []).length, 1);
   assert.equal(html.includes("disabled="), false);
   assert.equal((html.match(/>corrected<\/textarea>/g) ?? []).length, 2);
+  assert.equal(entry.last_boot?.state, "failed");
+  if (entry.last_boot?.state !== "failed") throw new Error("fixture must have a boot failure");
+  for (const code of ["plugin_contract_unavailable", "plugin_contract_cycle"]) {
+    fixture.installations.mockReturnValue({
+      data: [{ ...entry, last_boot: { ...entry.last_boot, failure: { ...entry.last_boot.failure, code, missing_secret: null } } }],
+    });
+    const refused = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
+    assert.equal((refused.match(/startup-refused/g) ?? []).length, 1);
+    assert.equal((refused.match(/type="password"/g) ?? []).length, 2);
+    assert.ok(refused.includes(code));
+    assert.equal(refused.includes('href="#plugin-settings-'), false);
+  }
+  fixture.installations.mockReturnValue({ data: [{ ...entry, state: "disabled", boot_failed: false }] });
+  const disabled = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
+  assert.equal(disabled.includes("startup-refused"), false);
 });

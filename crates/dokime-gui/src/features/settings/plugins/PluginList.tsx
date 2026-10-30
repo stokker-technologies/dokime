@@ -19,7 +19,6 @@
 
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -74,7 +73,11 @@ export function PluginList({
     const switchable = entry.state === "installed" || entry.state === "disabled";
 
     return {
-      alert: status.reason ? <NotificationMessage>{status.reason}</NotificationMessage> : null,
+      alert: status.reason ? (
+        <p role="alert" className="text-sm text-destructive">
+          {status.reason}
+        </p>
+      ) : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {
@@ -117,7 +120,11 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   if (entry.state === "removal_pending") {
     return {
       label: "Removal Pending",
-      reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
+      reason: entry.active
+        ? `Active until ${brandLabel} restarts.`
+        : entry.last_boot?.state === "failed"
+          ? entry.last_boot.failure.message
+          : null,
       variant: "warning",
     };
   }
@@ -129,7 +136,7 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
     };
   }
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_error) return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
+  if (entry.boot_failed) return { label: "Failed", reason: null, variant: "destructive" };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

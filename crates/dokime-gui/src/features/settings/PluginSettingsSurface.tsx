@@ -93,6 +93,21 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : (
           <>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
+            {installation?.boot_failed && installation.last_boot?.state === "failed" ? (
+              <SettingsCard title="Startup Failed">
+                <SettingsRow label={installation.last_boot.failure.plugin_name}>
+                  <p role="alert" className="text-sm text-destructive">
+                    {installation.last_boot.failure.message}
+                    {installation.last_boot.failure.code ? <code className="block">{installation.last_boot.failure.code}</code> : null}
+                  </p>
+                  {installation.last_boot.failure.missing_secret ? (
+                    <a className="text-sm underline" href={`#plugin-settings-${installation.last_boot.failure.plugin_id}`}>
+                      Configure {installation.last_boot.failure.missing_secret}
+                    </a>
+                  ) : null}
+                </SettingsRow>
+              </SettingsCard>
+            ) : null}
             {installation?.metadata?.owners.map((owner) => (
               <PluginDetailCard key={owner} pluginId={owner} />
             ))}
