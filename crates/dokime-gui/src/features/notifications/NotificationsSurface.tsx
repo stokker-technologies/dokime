@@ -100,8 +100,8 @@ export function NotificationsSurface() {
                 {new Date(record.at).toLocaleString()}
               </time>
             </div>
-            <span className="text-xs text-muted-foreground">{record.source}</span>
-            {record.description && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
+            {record.source.trim() && record.source.trim() !== "/" && <span className="text-xs text-muted-foreground">{record.source}</span>}
+            {record.description?.trim() && <p className="break-words whitespace-pre-wrap text-sm">{record.description}</p>}
           </li>
         ))}
         {!page.records.length && (

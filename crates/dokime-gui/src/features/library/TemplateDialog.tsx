@@ -261,9 +261,13 @@ export function TemplateDialog({
         <div>
           {!parametersReady ? (
             <div role="status">
-              <NotificationMessage source="Parameters" tone={parametersError ? "error" : "info"}>
-                {parametersError ?? "Loading remembered parameters…"}
-              </NotificationMessage>
+              {parametersError ? (
+                <NotificationMessage source="Parameters" title="Remembered Parameters Could Not Load">
+                  {parametersError}
+                </NotificationMessage>
+              ) : (
+                <p className="text-sm text-muted-foreground">Loading remembered parameters…</p>
+              )}
               {parametersError ? (
                 <Button type="button" variant="ghost" onClick={() => void useParameterOverridesStore.persist.rehydrate()}>
                   Retry

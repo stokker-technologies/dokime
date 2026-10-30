@@ -167,7 +167,9 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       />
       {query.isPending ? (
         <SettingsRow label="Status">
-          <NotificationMessage tone="info">Loading storage sources…</NotificationMessage>
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading storage sources…
+          </p>
         </SettingsRow>
       ) : null}
       {error ? (

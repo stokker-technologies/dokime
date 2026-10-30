@@ -165,9 +165,9 @@ function ScopedPreferences({
   return (
     <SettingsCard title={scope === "local" ? "Local Preferences" : "Backend Preferences"}>
       {query.isPending ? (
-        <NotificationMessage source="Settings" tone="info">
+        <p role="status" className="text-sm text-muted-foreground">
           Loading settings.
-        </NotificationMessage>
+        </p>
       ) : query.error ? (
         <div className="grid justify-items-start gap-3 p-4 text-sm">
           <NotificationMessage>{preferencesError(query.error)}</NotificationMessage>

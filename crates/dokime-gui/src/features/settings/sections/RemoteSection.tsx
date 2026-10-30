@@ -60,9 +60,9 @@ export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
     return (
       <SettingsCard title="Remote Access">
         <SettingsRow label="Host Settings">
-          <NotificationMessage tone="info">
+          <p className="text-sm text-muted-foreground">
             Open Remote Access in the host's connected desktop session to configure its listener.
-          </NotificationMessage>
+          </p>
         </SettingsRow>
       </SettingsCard>
     );
@@ -95,7 +95,9 @@ function ConnectedRemoteSection({
     return (
       <SettingsCard title="Remote Access">
         <SettingsRow label="Remote Settings">
-          <NotificationMessage tone="info">Loading remote settings…</NotificationMessage>
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading remote settings…
+          </p>
         </SettingsRow>
       </SettingsCard>
     );
