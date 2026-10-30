@@ -9,9 +9,16 @@
 
 // Integration Benchmarks: Runtime Capture And Durable Plot Visibility
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
 mod capture;
+mod finalization;
 mod plots;
+
+#[path = "../../tests/support/services/mod.rs"]
+#[allow(dead_code)]
+pub mod service_support;
 
 /* === Re-Exports === */
 
@@ -26,7 +33,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, capture::benchmark, plots::benchmark);
+criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */
