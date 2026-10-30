@@ -84,8 +84,10 @@ pub fn read_radio(kind: Radio) -> Result<ControlState> {
                     continue;
                 }
                 let path = format!("/org/bluez/{name}");
-                let proxy = Proxy::new(&connection, "org.bluez", path.as_str(), "org.bluez.Adapter1").map_err(probe)?;
-                let on = proxy.get_property::<bool>("Powered").map_err(probe)?;
+                let on = {
+                    let proxy = Proxy::new(&connection, "org.bluez", path.as_str(), "org.bluez.Adapter1").map_err(probe)?;
+                    proxy.get_property::<bool>("Powered").map_err(probe)?
+                };
                 radios.push(RadioState { id: path, kind, on });
             }
         }
