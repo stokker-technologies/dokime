@@ -3,17 +3,25 @@
 ## Approved Contract
 
 ```rust
-fn interval(resources: &ExecutionContext) -> Result<Duration, Self::Error>;
+// Required Initial Cadence (Const Expressions Accepted)
+#[dokime::observer(interval_ms = DEFAULT_INTERVAL_MS)]
+impl Poller {
+    // Optional Activation Override
+    fn interval(resources: &ExecutionContext) -> Result<Duration, Error> { /* settings */ }
+}
 ```
 
 Harmos resolves the producing observer's cadence once per activation, validates a
 positive duration, and uses it for initialization retries and observation. Static
 observer inventories contain identity, activation, outputs and demand keys only.
-No compatibility shim or static nominal cadence remains.
+The required declared initial cadence remains on Observer::INTERVAL; the default
+method returns it when no override exists. Streams stay cadence-less and no
+compatibility shim is retained.
 
 Dokime host Settings owns six bounded millisecond intervals. Preparation registers
 the resolved settings snapshot; host observers read it through the runtime
-interval method. Restart or Retry applies saved changes. Static telemetry schemas
+interval method. Settings defaults and each manual generic observer's INTERVAL
+share constants owned solely by settings.rs. Restart or Retry applies saved changes. Static telemetry schemas
 omit nominal cadence rather than advertise defaults as effective values.
 
 ## Ownership And Dependency Order
@@ -34,7 +42,7 @@ or retain a sampling interval; the producer alone schedules collection.
 The existing SDK forces Observer::INTERVAL and Declared::ENTRY.interval into static
 artifact inventories; interval(S::INTERVAL) cannot consume plugin settings.
 The supported API cannot supply cadence at runtime. The approved upstream change
-replaces that path with the resource-based method above. Use an ignored
+adds the optional resource-based override above while retaining declared defaults. Use an ignored
 .cargo/config.toml patch for all resolved Harmos crates during development.
 Never commit the override or its path-based lock resolution. Publication and a
 verified published Harmos pin are deferred by the owner's commit-only instruction.

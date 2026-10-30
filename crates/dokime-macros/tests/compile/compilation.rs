@@ -336,12 +336,8 @@ fn resources(&self) -> Arc<()> {
 
 #[derive(Default)]
 struct First;
-#[sdk::observer(streams(Sample), activation = "demand")]
+#[sdk::observer(interval_ms = 10, streams(Sample), activation = "demand")]
 impl First {
-    fn interval(_: &sdk::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
-        Ok(std::time::Duration::from_millis(10))
-    }
-
     async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
     }
@@ -349,10 +345,11 @@ impl First {
 
 #[derive(Default)]
 struct Second;
-#[sdk::observer(streams(PEER_STREAM), activation = "demand")]
+#[sdk::observer(interval_ms = PEER_INTERVAL, streams(PEER_STREAM), activation = "demand")]
 impl Second {
+    // A Valid Runtime Override Must Not Hide An Invalid Declared Default.
     fn interval(_: &sdk::harmos::ExecutionContext) -> Result<std::time::Duration, PublishError> {
-        Ok(std::time::Duration::from_millis(PEER_INTERVAL))
+        Ok(std::time::Duration::from_millis(1))
     }
 
     async fn observe(&mut self, _: &ObserverContext<'_, Publisher<Shared>>) -> Result<(), PublishError> {
@@ -599,6 +596,9 @@ fn conflicting_streams_refused() {
 
 #[test]
 fn shared_stream_once() {
+    let (invalid, _) = compile_observer_catalogs("zero_observer_cadence", "", "Sample", 0);
+    assert!(!invalid.status.success(), "a zero declared observer cadence compiled");
+
     let (built, output) = compile_observer_catalogs("shared_observer_stream", "", "Sample", 20);
     assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
 

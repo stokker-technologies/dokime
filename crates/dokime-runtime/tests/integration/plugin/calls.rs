@@ -286,12 +286,8 @@ impl Bench {
     }
 }
 
-#[dokime_runtime::observer(description = "A plugin observer reaches its own plugin's operations the way a step does.")]
+#[dokime_runtime::observer(interval_ms = 5, description = "A plugin observer reaches its own plugin's operations the way a step does.")]
 impl Watch {
-    fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<std::time::Duration, dokime_runtime::harmos::sidecar::CallError> {
-        Ok(std::time::Duration::from_millis(5))
-    }
-
     async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, dokime_runtime::harmos::sidecar::CallError> {
         let shared = context.resource::<Shared>().expect("plugin prepares its observer resources");
         Ok(Self(shared.observer_ticks.clone()))

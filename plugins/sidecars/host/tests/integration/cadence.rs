@@ -65,6 +65,7 @@ impl harmos::plugin::Declared for Declaration {
 impl Observer<()> for Counter {
     type Error = Error;
     const ID: &'static str = "cadence_fixture.counter";
+    const INTERVAL: Duration = <host::System as Observer<Publishing>>::INTERVAL;
 
     fn interval(resources: &ExecutionContext) -> Result<Duration, Error> {
         <host::System as Observer<Publishing>>::interval(resources)
@@ -88,19 +89,27 @@ impl Observer<()> for Counter {
 
 #[tokio::test(start_paused = true)]
 async fn configured_collection_cadence() {
-    let intervals: &[(&str, Cadence, u64)] = &[
-        ("system_interval_ms", <host::System as Observer<Publishing>>::interval, 1_000),
-        ("network_interval_ms", <host::network::NetworkObserver as Observer<Publishing>>::interval, 1_000),
-        ("wifi_link_interval_ms", <host::WifiLink as Observer<Publishing>>::interval, 1_000),
-        ("wifi_scan_interval_ms", <host::WifiScan as Observer<Publishing>>::interval, 60_000),
-        ("wifi_latency_interval_ms", <host::WifiLatency as Observer<Publishing>>::interval, 10_000),
-        ("bluetooth_interval_ms", <host::Bluetooth as Observer<Publishing>>::interval, 5_000),
+    let intervals: &[(&str, Cadence, Duration)] = &[
+        ("system_interval_ms", <host::System as Observer<Publishing>>::interval, <host::System as Observer<Publishing>>::INTERVAL),
+        (
+            "network_interval_ms",
+            <host::network::NetworkObserver as Observer<Publishing>>::interval,
+            <host::network::NetworkObserver as Observer<Publishing>>::INTERVAL,
+        ),
+        ("wifi_link_interval_ms", <host::WifiLink as Observer<Publishing>>::interval, <host::WifiLink as Observer<Publishing>>::INTERVAL),
+        ("wifi_scan_interval_ms", <host::WifiScan as Observer<Publishing>>::interval, <host::WifiScan as Observer<Publishing>>::INTERVAL),
+        (
+            "wifi_latency_interval_ms",
+            <host::WifiLatency as Observer<Publishing>>::interval,
+            <host::WifiLatency as Observer<Publishing>>::INTERVAL,
+        ),
+        ("bluetooth_interval_ms", <host::Bluetooth as Observer<Publishing>>::interval, <host::Bluetooth as Observer<Publishing>>::INTERVAL),
     ];
     let mut configuration = dokime::plugin::Configuration::declared::<Settings>();
     let mut defaults = harmos::sidecar::__private::WireTable::new("cadence_fixture").unwrap();
     defaults.provide_resource(Arc::new(HostOptions::from(configuration.settings::<Settings>().unwrap()))).unwrap();
     for (index, (field, resolve, previous)) in intervals.iter().enumerate() {
-        assert_eq!(resolve(&defaults.context()).unwrap(), Duration::from_millis(*previous));
+        assert_eq!(resolve(&defaults.context()).unwrap(), *previous);
         configuration.settings.insert((*field).into(), dokime::Value::from(7_u64 + index as u64));
     }
     let mut configured = harmos::sidecar::__private::WireTable::new("cadence_fixture").unwrap();

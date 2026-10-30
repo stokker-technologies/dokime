@@ -23,5 +23,6 @@ All SDK consumers SHALL use the runtime cadence API without a compatibility shim
 #### Scenario: Runtime Resource Supplies Cadence
 
 - **WHEN** the producing plugin activates an observer
-- **THEN** the runtime resolves its positive interval from the execution resources
+- **THEN** the runtime uses its required positive declared interval unless an authored
+  method overrides it from execution resources
 - **AND** schema and replay window contracts retain their static definitions

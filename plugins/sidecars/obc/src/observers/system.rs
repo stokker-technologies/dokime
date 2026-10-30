@@ -60,12 +60,8 @@ pub enum Streams {
 
 /* === Implementations === */
 
-#[dokime::observer(streams(SystemRow), activation = "demand")]
+#[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
-    fn interval(_: &dokime::harmos::ExecutionContext) -> Result<std::time::Duration, Error> {
-        Ok(std::time::Duration::from_millis(1_000))
-    }
-
     async fn initialize(_: &ExecutionContext) -> Result<Self, Error> {
         Ok(Self { machine: Machine::new()? })
     }

@@ -75,9 +75,7 @@ pub(crate) mod observers {
         const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
             &[dokime_runtime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
         const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
-        fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<Duration, Error> {
-            Ok(Duration::from_millis(5))
-        }
+        const INTERVAL: std::time::Duration = Duration::from_millis(5);
 
         async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
             let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
@@ -99,12 +97,8 @@ pub(crate) mod observers {
         probe: Arc<Probe>,
     }
 
-    #[dokime_runtime::observer(streams(Measurement), activation = "demand")]
+    #[dokime_runtime::observer(interval_ms = 5, streams(Measurement), activation = "demand")]
     impl Measurements {
-        fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<std::time::Duration, Error> {
-            Ok(std::time::Duration::from_millis(5))
-        }
-
         async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
             let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
             resource.0.bump(&resource.0.observer_starts);
@@ -385,12 +379,8 @@ impl Measured {
     }
 }
 
-#[dokime_runtime::observer(demand_keys(UNIT_NOTED), activation = "demand")]
+#[dokime_runtime::observer(interval_ms = 5, demand_keys(UNIT_NOTED), activation = "demand")]
 impl RecordObserver {
-    fn interval(_: &dokime_runtime::harmos::ExecutionContext) -> Result<std::time::Duration, Error> {
-        Ok(std::time::Duration::from_millis(5))
-    }
-
     async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
         let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
         resource.0.bump(&resource.0.record_starts);

@@ -2,13 +2,15 @@
 
 ## Source Inventory
 
-- [x] 1.1 Migrate host settings.rs, six host/*/observing.rs owners and preparation resources; remove static interval defaults.
+- [x] 1.1 Migrate host settings.rs, six host/*/observing.rs owners and preparation resources; share declared and settings defaults in settings.rs.
 - [x] 1.2 Migrate host domain telemetry contracts, preserving schema and replay windows.
 - [x] 1.3 Migrate Dokime SDK integration, macros, runtime, OBC, starter templates and all affected tests/examples.
 - [x] 1.4 Add meaningful settings and controlled-clock cadence tests; audit unchanged operation policies and other constants.
 - [x] 1.5 Update product guide and applicable authoring/architecture guidance; review README impact.
 - [x] 1.6 Review paired integration and remove obsolete cadence paths; all writers hand off.
 - [x] 1.7 Migrate domains/telemetry/leases.rs to authoritative observer inventory; preserve published-stream behavior, update lease/capture tests and finalization benchmark fixture cadence.
+
+- [x] 1.8 Correct observer defaults: required validated interval_ms, optional activation override, migrate all consumers, add fallback/override validation coverage and update maintained docs/specification; host defaults remain settings-owned.
 
 ## Validation And Delivery
 

@@ -46,6 +46,7 @@ pub struct State {
 
 impl<P: plugin::Declared> Observer<Publisher<P>> for WifiLatency {
     type Error = Error;
+    const INTERVAL: Duration = Duration::from_millis(crate::settings::WIFI_LATENCY_INTERVAL_MS);
     const ID: &'static str = <Self as Declared>::ENTRY.id;
     const STREAMS: &'static [dokime::harmos::sidecar::inventory::publications::Entry] = <Self as Declared>::ENTRY.streams;
     const ACTIVATION: Activation = <Self as Declared>::ENTRY.activation;

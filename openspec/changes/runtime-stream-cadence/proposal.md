@@ -8,7 +8,7 @@ local integration override, with commits only and no push.
 
 ## What Changes
 
-- Replace static observer cadence with a runtime resource-based interval.
+- Retain declared observer defaults and allow runtime resource-based interval overrides.
 - Add all six host collection intervals to native plugin settings, retaining defaults.
 - Migrate Dokime consumers, OBC, starter templates, tests and affected guidance.
 - Keep schema, identifiers and bounded replay windows static.

@@ -478,7 +478,12 @@ Every stream's collection cadence is editable in **Collection Intervals**:
 | Wi-Fi Latency | 10,000 | 1–86,400,000 |
 | Bluetooth | 5,000 | 1–86,400,000 |
 
-The producing observer resolves its cadence from the startup settings snapshot.
+The producing observer resolves its cadence from the startup settings snapshot,
+overriding its declared initial interval. Both the declaration and settings default
+share one value in `settings.rs`. General process observers require
+`#[dokime::observer(interval_ms = …)]`; an optional synchronous
+`fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` overrides
+that default at activation.
 Consumers lease the stream without selecting its interval. Static schemas omit a
 nominal interval; demand comes from the owner's observer inventory. Minimum Scan
 Interval and Bluetooth Deep Refresh Interval independently protect native probes.

@@ -26,6 +26,14 @@ use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 
 /* === Constants === */
 
+// Declared Observer Cadences And Plugin Setting Defaults Share These Values.
+pub(crate) const SYSTEM_INTERVAL_MS: u64 = 1_000;
+pub(crate) const NETWORK_INTERVAL_MS: u64 = 1_000;
+pub(crate) const WIFI_LINK_INTERVAL_MS: u64 = 1_000;
+pub(crate) const WIFI_SCAN_INTERVAL_MS: u64 = 60_000;
+pub(crate) const WIFI_LATENCY_INTERVAL_MS: u64 = 10_000;
+pub(crate) const BLUETOOTH_INTERVAL_MS: u64 = 5_000;
+
 pub(crate) const LATENCY_HOST: &str = "1.1.1.1";
 
 // Operation Policies Remain Static Harmos Contracts.
@@ -69,7 +77,7 @@ pub struct Settings {
 pub struct Cadence {
     #[setting(
         label = "System Interval [ms]",
-        default = 1_000,
+        default = SYSTEM_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between system CPU, memory, battery and identity collections while requested."
@@ -78,7 +86,7 @@ pub struct Cadence {
 
     #[setting(
         label = "Network Interval [ms]",
-        default = 1_000,
+        default = NETWORK_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between adapter throughput and network notification collections while requested."
@@ -87,7 +95,7 @@ pub struct Cadence {
 
     #[setting(
         label = "Wi-Fi Link Interval [ms]",
-        default = 1_000,
+        default = WIFI_LINK_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between Wi-Fi link and throughput collections while requested."
@@ -96,7 +104,7 @@ pub struct Cadence {
 
     #[setting(
         label = "Wi-Fi Scan Interval [ms]",
-        default = 60_000,
+        default = WIFI_SCAN_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between Wi-Fi scan collections; active scans also honor Minimum Scan Interval."
@@ -105,7 +113,7 @@ pub struct Cadence {
 
     #[setting(
         label = "Wi-Fi Latency Interval [ms]",
-        default = 10_000,
+        default = WIFI_LATENCY_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between ICMP latency collections while requested."
@@ -114,7 +122,7 @@ pub struct Cadence {
 
     #[setting(
         label = "Bluetooth Interval [ms]",
-        default = 5_000,
+        default = BLUETOOTH_INTERVAL_MS,
         min = 1,
         max = 86_400_000,
         description = "Time between Bluetooth collections; native inventories also honor Deep Refresh Interval."
