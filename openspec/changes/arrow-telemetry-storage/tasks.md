@@ -20,7 +20,7 @@
 
 ## 4. Consumers And Removal
 
-- [x] 4.1 Replace runtime storage/query/output/report telemetry readers with overlapping batch reads plus unflushed tail; verify windows, out-of-order times, pagination, no duplicates and saved-versus-live visibility.
+- [ ] 4.1 Replace runtime storage/query/output/report telemetry readers with overlapping batch reads plus unflushed tail; verify windows, out-of-order times, pagination, no duplicates and saved-versus-live visibility. Functional proofs pass; the 1M-row query median is 3.35 s against the locked ~1 s target, so this item remains open pending optimization and owner-approved query-only revalidation.
 - [x] 4.2 Delete obsolete telemetry payload read/write paths, per-signal tables and indexes, retaining unrelated evidence and summaries; verify source searches and focused storage/durability/recovery tests.
 - [x] 4.3 Review domain/operation/client and GUI consumers; migrate all affected bindings/examples if their contracts change and read `docs/gui.md` before GUI edits; verify focused consumer tests and generated-contract consistency where affected.
 
@@ -35,12 +35,12 @@
 ## 6. Benchmark Source And Closure
 
 - [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, give the existing storage query fixture paired increasing time bounds, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
-- [x] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
+- [ ] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
 
 ## 7. Final Validation And Local Handback
 
-- [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers.
-- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures. Retain the original 1M query backend timeout as its baseline outcome; do not extend deadlines or repeat completed measurement cases. Verify the repaired storage fixture in Criterion test mode.
+- [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers. The requested local checks passed on Windows; native Linux/full-graph proof is unrun under the owner's no-umbrella instruction.
+- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures. Retain the original 1M query backend timeout as its baseline outcome; do not extend deadlines or repeat completed measurement cases. The repaired storage fixture passed Criterion test mode. The candidate measurement pass completed; its latency target remains unmet. Native trees are retained under `target/benchmarks/baseline-db2dae5b/` and `target/benchmarks/candidate-52f120d5/`.
 - [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes in small Conventional Commits and hand back status, added/deleted lines, benchmark results, tests and open issues in at most ten lines; do not push or merge.
 
 ## Workflow Follow-Up
