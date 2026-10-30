@@ -9,6 +9,8 @@
 
 /* === Modules === */
 
+mod app;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -38,7 +40,7 @@
 /* === Private Functions === */
 
 fn main() -> std::io::Result<()> {
-    dokime::plugin::run::<plugin_host::HostPlugin>()
+    dokime::plugin::run::<app::HostPlugin>()
 }
 
 /* === Tests === */

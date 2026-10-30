@@ -54,7 +54,11 @@ pub struct Notifications {
 
 impl Notifications {
     pub fn new() -> crate::Result<Self> {
-        let links = crate::host::adapters::snapshot()?.adapters.into_iter().map(|adapter| (adapter.id, adapter.status == "up")).collect();
+        let links = crate::host::adapters::snapshot()?
+            .adapters
+            .into_iter()
+            .map(|adapter| (adapter.id, adapter.status == crate::host::adapters::AdapterStatus::Up))
+            .collect();
         let descriptor =
             unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK, libc::NETLINK_ROUTE) };
         if descriptor < 0 {

@@ -62,36 +62,42 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
+    // Workspace Feature Unification May Enable Host Implementations, But Only The Host Binary Declares That Sidecar.
     let declared =
         dokime::__harmos::sidecar::Executable::at(executable()).expect("the plugin-obc executable declares itself").declaration().clone();
 
     assert_eq!(declared.id, "plugin_obc");
     assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
-    let operations = declared.operations.iter().map(|operation| operation.id.to_string()).collect::<std::collections::BTreeSet<_>>();
-    let operation_names = [
-        // The bench's own operations and its connection listener.
-        "obc.bench.check_readiness",
-        "obc.bench.connection",
-        "obc.bench.get_status",
-        "obc.bench.list_connections",
-        "obc.device.read",
-        "obc.device.set_power",
-        // The ripple analysis the plugin contributes is an operation too.
-        "obc.analysis.ripple",
-        // Every template of every suite serves a run and a signal.
-        "obc.charger.protection.overcurrent.run",
-        "obc.charger.protection.overcurrent.signal",
-        "obc.charger.recovery.power.run",
-        "obc.charger.recovery.power.signal",
-        "obc.charger.startup.sequence.run",
-        "obc.charger.startup.sequence.signal",
-        "obc.charger.steady.measurement.run",
-        "obc.charger.steady.measurement.signal",
-        "obc.checks.pulse.run",
-        "obc.checks.pulse.signal",
-    ];
-    let expected_operations = std::collections::BTreeSet::from(operation_names.map(str::to_owned));
-    assert_eq!(operations, expected_operations);
+    let operations =
+        declared.operations.iter().map(|operation| operation.id.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        operations,
+        std::collections::BTreeSet::from(
+            [
+                // The bench's own operations and its connection listener.
+                "obc.bench.check_readiness",
+                "obc.bench.connection",
+                "obc.bench.get_status",
+                "obc.bench.list_connections",
+                "obc.device.read",
+                "obc.device.set_power",
+                // The ripple analysis the plugin contributes is an operation too.
+                "obc.analysis.ripple",
+                // Every template of every suite serves a run and a signal.
+                "obc.charger.protection.overcurrent.run",
+                "obc.charger.protection.overcurrent.signal",
+                "obc.charger.recovery.power.run",
+                "obc.charger.recovery.power.signal",
+                "obc.charger.startup.sequence.run",
+                "obc.charger.startup.sequence.signal",
+                "obc.charger.steady.measurement.run",
+                "obc.charger.steady.measurement.signal",
+                "obc.checks.pulse.run",
+                "obc.checks.pulse.signal",
+            ]
+            .map(str::to_owned)
+        )
+    );
     let streams = declared.streams.iter().map(|stream| stream.id.as_str().to_owned()).collect::<Vec<_>>();
     assert_eq!(
         streams,
@@ -111,7 +117,8 @@ fn executable_declares_routes() {
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
 fn executable() -> String {
-    let nextest = std::env::var("NEXTEST_BIN_EXE_plugin-obc").ok();
-    let cargo = option_env!("CARGO_BIN_EXE_plugin-obc").map(str::to_owned);
-    nextest.or(cargo).expect("workspace executable")
+    std::env::var("NEXTEST_BIN_EXE_plugin-obc")
+        .ok()
+        .or_else(|| option_env!("CARGO_BIN_EXE_plugin-obc").map(str::to_owned))
+        .expect("workspace executable")
 }

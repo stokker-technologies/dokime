@@ -27,7 +27,7 @@ pub use windows::{administrator, connected_adapters, read_radio};
 
 /* === Imports === */
 
-use crate::domain::controls::ControlState;
+use crate::domain::controls::{ControlState, Radio, RadioPower};
 use dokime::harmos::{
     operations::{OperationPolicy, RetryPolicy},
     state::{Invertible, Transaction},
@@ -65,8 +65,8 @@ pub const RESTORE_POLICY: OperationPolicy = OperationPolicy {
     resources = [State, crate::Workers])]
 #[derive(Clone, PartialEq)]
 pub struct RadioSet {
-    pub radio: String,
-    pub state: String,
+    pub radio: Radio,
+    pub state: RadioPower,
     pub allow_disconnect: bool,
 }
 
@@ -103,9 +103,6 @@ pub struct Restore {
 impl Transaction<ControlState> for RadioSet {
     type Error = String;
     fn check(&self, state: &ControlState) -> Result<(), String> {
-        if !matches!(self.radio.as_str(), "wifi" | "bluetooth" | "cellular") || !matches!(self.state.as_str(), "on" | "off") {
-            return Err("radio must be wifi, bluetooth or cellular; state must be on or off".into());
-        }
         if state.radios.is_empty() || state.radios.iter().any(|radio| radio.kind != self.radio) {
             return Err("the selected radio is unavailable".into());
         }
@@ -113,7 +110,7 @@ impl Transaction<ControlState> for RadioSet {
     }
     fn apply(&self, state: &mut ControlState) {
         for radio in &mut state.radios {
-            radio.on = self.state == "on";
+            radio.on = self.state == RadioPower::On;
         }
     }
 }
@@ -188,35 +185,42 @@ impl Invertible<ControlState> for Restore {
 mod tests {
     use super::*;
     use crate::domain::controls::{AdapterState, RadioState};
+    use dokime::harmos::Message;
     #[test]
-    fn native_change_inverses() {
+    fn radio_inverse() {
         let radio = ControlState {
             radios: vec![
                 RadioState {
                     id: "r1".into(),
-                    kind: "wifi".into(),
+                    kind: Radio::Wifi,
                     on: true,
                 },
                 RadioState {
                     id: "r2".into(),
-                    kind: "wifi".into(),
+                    kind: Radio::Wifi,
                     on: false,
                 },
             ],
             ..Default::default()
         };
         let set = RadioSet {
-            radio: "wifi".into(),
-            state: "off".into(),
+            radio: Radio::Wifi,
+            state: RadioPower::Off,
             allow_disconnect: false,
         };
+
         set.check(&radio).unwrap();
         let inverse = set.inverse(&radio);
         let mut changed = radio.clone();
         set.apply(&mut changed);
         assert!(changed.radios.iter().all(|radio| !radio.on));
+
         inverse.apply(&mut changed);
         assert_eq!(changed, radio);
+    }
+
+    #[test]
+    fn adapter_inverse() {
         let adapter = ControlState {
             adapters: vec![AdapterState { id: "nic".into(), enabled: true }],
             ..Default::default()
@@ -226,24 +230,114 @@ mod tests {
             enabled: false,
             allow_disconnect: false,
         };
+
         set.check(&adapter).unwrap();
         let inverse = set.inverse(&adapter);
         let mut changed = adapter.clone();
         set.apply(&mut changed);
         assert!(!changed.adapters[0].enabled);
+
         inverse.apply(&mut changed);
         assert_eq!(changed, adapter);
+    }
+
+    #[test]
+    fn plan_inverse() {
         let plan = ControlState {
             power_plan: Some("balanced".into()),
             ..Default::default()
         };
         let set = PlanSet { plan_id: "performance".into() };
+
         set.check(&plan).unwrap();
         let inverse = set.inverse(&plan);
         let mut changed = plan.clone();
         set.apply(&mut changed);
         assert_eq!(changed.power_plan.as_deref(), Some("performance"));
+
         inverse.apply(&mut changed);
         assert_eq!(changed, plan);
+    }
+
+    #[test]
+    fn radio_request_codec() {
+        for radio in [Radio::Wifi, Radio::Bluetooth, Radio::Cellular] {
+            for state in [RadioPower::On, RadioPower::Off] {
+                let request = RadioSet { radio, state, allow_disconnect: false };
+                assert_eq!(RadioSet::decode(&request.encode()).unwrap(), request);
+
+                let before = ControlState {
+                    radios: vec![RadioState {
+                        id: "native-id".into(),
+                        kind: radio,
+                        on: state != RadioPower::On,
+                    }],
+                    ..Default::default()
+                };
+                request.check(&before).unwrap();
+                let mut after = before.clone();
+                request.apply(&mut after);
+                assert_eq!(after.radios[0].on, state == RadioPower::On);
+
+                let inverse = request.inverse(&before);
+                let inverse = Restore::decode(&inverse.encode()).unwrap();
+                inverse.apply(&mut after);
+                assert_eq!(after, before);
+            }
+        }
+    }
+
+    #[test]
+    fn radio_selection_refuses_unavailable_or_mixed_kinds() {
+        let request = RadioSet {
+            radio: Radio::Wifi,
+            state: RadioPower::Off,
+            allow_disconnect: false,
+        };
+        assert!(request.check(&ControlState::default()).is_err());
+
+        let state = ControlState {
+            radios: vec![RadioState {
+                id: "bt".into(),
+                kind: Radio::Bluetooth,
+                on: true,
+            }],
+            ..Default::default()
+        };
+        assert!(request.check(&state).is_err());
+    }
+
+    #[test]
+    fn radio_codec_rejects_strings_and_unknown_variants() {
+        #[dokime::message]
+        struct StringRequest {
+            radio: String,
+            state: String,
+            allow_disconnect: bool,
+        }
+
+        #[dokime::message]
+        enum FutureRadio {
+            Wifi,
+            Bluetooth,
+            Cellular,
+            Satellite,
+        }
+
+        #[dokime::message]
+        enum FuturePower {
+            On,
+            Off,
+            Standby,
+        }
+
+        let legacy = StringRequest {
+            radio: "wifi".into(),
+            state: "on".into(),
+            allow_disconnect: false,
+        };
+        assert!(RadioSet::decode(&legacy.encode()).is_err());
+        assert!(Radio::decode(&FutureRadio::Satellite.encode()).is_err());
+        assert!(RadioPower::decode(&FuturePower::Standby.encode()).is_err());
     }
 }

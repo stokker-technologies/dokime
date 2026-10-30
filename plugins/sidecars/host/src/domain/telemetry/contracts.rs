@@ -121,12 +121,11 @@ mod tests {
             let graph = contract.storage_schema.as_ref().unwrap();
             assert!(graph.root().unwrap().fields().iter().all(|field| field.name != "timestamp"));
         }
-        for (stream, name) in [(HostTelemetryStream::Bluetooth, "bluetooth_device_names")] {
-            let contract = host_telemetry_contract(stream);
-            let graph = contract.storage_schema.unwrap();
-            let field = graph.root().unwrap().fields().iter().find(|field| field.name == name).unwrap();
-            assert_eq!(field.cardinality, Cardinality::Repeated);
-            assert_eq!(field.kind, Kind::String);
-        }
+
+        let contract = host_telemetry_contract(HostTelemetryStream::Bluetooth);
+        let graph = contract.storage_schema.unwrap();
+        let field = graph.root().unwrap().fields().iter().find(|field| field.name == "bluetooth_device_names").unwrap();
+        assert_eq!(field.cardinality, Cardinality::Repeated);
+        assert_eq!(field.kind, Kind::String);
     }
 }

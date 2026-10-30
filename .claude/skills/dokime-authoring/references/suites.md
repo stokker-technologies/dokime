@@ -1,5 +1,3 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:3d168a2900bace35fd2dc8006eb09d418b7bcede7ba7d38720321fd5847aeb80 -->
-
 # Dokime Suite
 
 ## Suite Authoring

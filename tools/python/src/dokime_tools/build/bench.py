@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/build/bench.py; sha256:3d0e62bf00058fdfec26c3ae0c639a1b19935168548e1ab6f07aa8ee6dbaf7ce
 # ***
 #
 # Dokime

@@ -1,4 +1,3 @@
-# Rendered by stkr project update from templates/python/ci/__init__.py; sha256:8734ee679f54a8622847f58b13f705fa98a28ea10b4d20f77c221b6ea7753222
 # ***
 #
 # Dokime
@@ -8,7 +7,7 @@
 # ***
 
 
-"""Hub-Rendered Native CI Planning."""
+"""Native CI Planning."""
 
 # === Imports === #
 

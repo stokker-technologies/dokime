@@ -18,7 +18,10 @@ use super::unix as native;
 #[cfg(target_os = "windows")]
 use super::windows as native;
 use super::{AdapterSet, PlanSet, RadioSet, Restore};
-use crate::{Error, Result, Workers, domain::controls::ControlState};
+use crate::{
+    Error, Result, Workers,
+    domain::controls::{ControlState, Radio, RadioPower},
+};
 use dokime::operations::effects::{ConfirmEffect, EffectResult, PrepareEffect, ReadEnvironment};
 use dokime::{
     Supervisor,
@@ -67,6 +70,7 @@ implementation!(Restore, Restore);
 /* === Structs === */
 
 pub struct State {
+    owner: &'static str,
     gate: tokio::sync::Mutex<()>,
     host: std::sync::OnceLock<Supervisor>,
 }
@@ -86,8 +90,9 @@ enum Change {
 /* === Implementations === */
 
 impl State {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(owner: &'static str) -> Self {
         Self {
+            owner,
             gate: tokio::sync::Mutex::new(()),
             host: std::sync::OnceLock::new(),
         }
@@ -118,7 +123,7 @@ impl State {
         let environment = host.call::<ReadEnvironment>(ReadEnvironment {}).await.map_err(probe)?;
         let reading = change.clone();
         let task = workers.0.spawn_blocking(move || match reading {
-            Change::Radio(request) => native::read_radio(&request.radio),
+            Change::Radio(request) => native::read_radio(request.radio),
             Change::Adapter(request) => native::read_adapter(&request.adapter_id),
             Change::Plan(_) => crate::host::power::active_plan().map(|plan| ControlState {
                 power_plan: Some(plan.id),
@@ -138,8 +143,8 @@ impl State {
                     format!("host.radio.{}", request.radio),
                     format!("Set {} Radio {}", request.radio, request.state),
                     request.allow_disconnect,
-                    request.state == "off",
-                    Some(request.radio.clone()),
+                    request.state == RadioPower::Off,
+                    Some(request.radio),
                     None,
                 )
             }
@@ -171,18 +176,13 @@ impl State {
         if disabling {
             let pid = environment.backend_pid;
             let in_step = environment.in_step;
-            let task =
-                workers.0.spawn_blocking(move || guard_connection(pid, radio.as_deref(), adapter.as_deref(), allow_disconnect, in_step));
+            let task = workers.0.spawn_blocking(move || guard_connection(pid, radio, adapter.as_deref(), allow_disconnect, in_step));
             task.await.map_err(probe)??;
         }
         let ticket = host
             .call::<PrepareEffect>(PrepareEffect {
                 resource,
-                inverse_operation: format!(
-                    "{}.{}",
-                    <crate::HostPlugin as dokime::harmos::plugin::Declared>::ID,
-                    <Restore as dokime::harmos::operations::OperationDeclaration>::ID
-                ),
+                inverse_operation: format!("{}.{}", self.owner, <Restore as dokime::harmos::operations::OperationDeclaration>::ID),
                 inverse: inverse.encode(),
                 description,
             })
@@ -217,7 +217,7 @@ pub fn require_administrator() -> Result<()> {
 }
 
 // The Caller Supplies Only A Backend-Verified Override, Never A Request Flag By Itself.
-pub fn guard_connection(pid: u32, radio: Option<&str>, adapter: Option<&str>, allow_disconnect: bool, in_step: bool) -> Result<()> {
+pub fn guard_connection(pid: u32, radio: Option<Radio>, adapter: Option<&str>, allow_disconnect: bool, in_step: bool) -> Result<()> {
     if allow_disconnect && in_step {
         return Ok(());
     }
