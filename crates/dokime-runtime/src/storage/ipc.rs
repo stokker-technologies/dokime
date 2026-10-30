@@ -17,7 +17,9 @@ mod values;
 /* === Re-Exports === */
 
 pub(crate) use schema::schema as contract_schema;
-pub(crate) use values::{batch as record_batch, entry as telemetry_entry};
+pub(crate) use values::{
+    batch as record_batch, entry as telemetry_entry, metadata_text, native_encoding, normalize_values, row_key, row_keys,
+};
 
 /* === Imports === */
 
@@ -62,12 +64,15 @@ pub(crate) struct Writer {
     dictionaries: DictionaryTracker,
     context: IpcWriteContext,
     finished: bool,
+    #[cfg(test)]
+    fail_sync: bool,
 }
 
 struct HashedFile {
     file: File,
     hash: Sha256,
     length: u64,
+    batch_hash: Option<Sha256>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +81,7 @@ pub(crate) struct BatchIndex {
     pub metadata_bytes: u32,
     pub body_bytes: u64,
     pub rows: u64,
+    pub sha256: [u8; 32],
 }
 
 #[derive(Clone)]
@@ -91,10 +97,78 @@ pub(crate) struct Checkpoint {
 
 /* === Implementations === */
 
+impl Checkpoint {
+    pub(crate) fn digest(&self) -> Result<[u8; 32]> {
+        Ok(hash_state(&self.hash)?.finalize().into())
+    }
+}
+
 impl Writer {
+    // A File Without A Catalog Entry Has No Saved Rows. Only Its Valid Header Is Retained.
+    pub(crate) fn recover_empty(path: &Path, schema: SchemaRef) -> Result<Self> {
+        let mut file = File::open(path)?;
+        let mut magic = [0; 8];
+        file.read_exact(&mut magic)?;
+        if &magic != b"ARROW1\0\0" {
+            return Err(Error::Corrupt("IPC file magic differs"));
+        }
+        let embedded = arrow_ipc::reader::StreamReader::try_new(&mut file, None)?;
+        if embedded.schema() != schema {
+            return Err(Error::Corrupt("uncataloged IPC schema differs"));
+        }
+        drop(embedded);
+        let end = file.stream_position()?;
+        file.rewind()?;
+        let mut header = vec![0; usize::try_from(end).map_err(|_| Error::Corrupt("IPC header exceeds address space"))?];
+        file.read_exact(&mut header)?;
+        drop(file);
+        let mut hash = Sha256::new();
+        hash.update(&header);
+        Self::resume(
+            path,
+            schema,
+            &[],
+            &Checkpoint {
+                end,
+                hash: hash.serialize().to_vec(),
+                batches: 0,
+            },
+        )
+    }
+
+    pub(crate) fn resume(path: &Path, schema: SchemaRef, indices: &[BatchIndex], checkpoint: &Checkpoint) -> Result<Self> {
+        let file = OpenOptions::new().write(true).open(path)?;
+        if file.metadata()?.len() < checkpoint.end {
+            return Err(Error::Corrupt("IPC committed prefix is missing"));
+        }
+        let mut writer = Self {
+            file: HashedFile {
+                file,
+                hash: hash_state(&checkpoint.hash)?,
+                length: checkpoint.end,
+                batch_hash: None,
+            },
+            schema,
+            blocks: indices.iter().map(BatchIndex::block).collect::<Result<Vec<_>>>()?,
+            options: options()?,
+            dictionaries: DictionaryTracker::new(true),
+            context: IpcWriteContext::default(),
+            finished: false,
+            #[cfg(test)]
+            fail_sync: false,
+        };
+        writer.rollback(checkpoint)?;
+        Ok(writer)
+    }
+
     pub fn create(path: &Path, schema: SchemaRef) -> Result<Self> {
-        let file = OpenOptions::new().create_new(true).read(true).write(true).open(path)?;
-        let mut file = HashedFile { file, hash: Sha256::new(), length: 0 };
+        let file = OpenOptions::new().create_new(true).write(true).open(path)?;
+        let mut file = HashedFile {
+            file,
+            hash: Sha256::new(),
+            length: 0,
+            batch_hash: None,
+        };
         let options = options()?;
         // IPC V5 Uses Eight-Byte Alignment And A Continuation Prefix.
         file.write_all(b"ARROW1\0\0")?;
@@ -111,7 +185,18 @@ impl Writer {
             dictionaries,
             context: IpcWriteContext::default(),
             finished: false,
+            #[cfg(test)]
+            fail_sync: false,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_sync(&mut self) {
+        self.fail_sync = true;
+    }
+
+    pub(crate) fn digest(&self) -> [u8; 32] {
+        self.file.hash.clone().finalize().into()
     }
 
     pub fn checkpoint(&self) -> Checkpoint {
@@ -132,13 +217,19 @@ impl Writer {
             return Err(Error::Invalid("telemetry IPC does not use dictionary encoding"));
         }
         let offset = self.file.length;
+        self.file.batch_hash = Some(Sha256::new());
         let (metadata, body) = write_message(&mut self.file, message, &self.options)?;
         let index = BatchIndex {
             offset,
             metadata_bytes: u32::try_from(metadata).map_err(|_| Error::Invalid("IPC metadata length overflows"))?,
             body_bytes: body as u64,
             rows: batch.num_rows() as u64,
+            sha256: self.file.batch_hash.take().expect("batch hash is active").finalize().into(),
         };
+        #[cfg(test)]
+        if std::mem::take(&mut self.fail_sync) {
+            return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
+        }
         self.file.file.sync_all()?;
         self.blocks.push(index.block()?);
         Ok(index)
@@ -150,6 +241,7 @@ impl Writer {
         self.file.file.seek(SeekFrom::Start(checkpoint.end))?;
         self.file.hash = hash_state(&checkpoint.hash)?;
         self.file.length = checkpoint.end;
+        self.file.batch_hash = None;
         self.blocks.truncate(checkpoint.batches);
         Ok(())
     }
@@ -188,6 +280,9 @@ impl Write for HashedFile {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let written = self.file.write(bytes)?;
         self.hash.update(&bytes[..written]);
+        if let Some(hash) = &mut self.batch_hash {
+            hash.update(&bytes[..written]);
+        }
         self.length += written as u64;
         Ok(written)
     }
@@ -205,6 +300,9 @@ pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> 
     let length = usize::try_from(index.end()? - index.offset).map_err(|_| Error::Corrupt("IPC block exceeds address space"))?;
     let mut bytes = vec![0; length];
     file.read_exact(&mut bytes)?;
+    if Sha256::digest(&bytes).as_slice() != index.sha256 {
+        return Err(Error::Corrupt("IPC batch digest differs from catalog"));
+    }
     let buffer = Buffer::from_vec(bytes);
     let decoder = FileDecoder::new(schema, MetadataVersion::V5);
     let batch = decoder.read_record_batch(&index.block()?, &buffer)?.ok_or(Error::Corrupt("IPC block is not a record batch"))?;
@@ -263,6 +361,7 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
         file,
         hash: hash_state(&checkpoint.hash)?,
         length: checkpoint.end,
+        batch_hash: None,
     };
     let blocks = indices.iter().map(BatchIndex::block).collect::<Result<Vec<_>>>()?;
     footer(&mut file, &schema, &blocks)?;
@@ -394,5 +493,24 @@ mod tests {
         assert_eq!(hash, <[u8; 32]>::from(Sha256::digest(&bytes)));
         let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
         assert_eq!(reader.num_batches(), 1);
+    }
+
+    #[test]
+    fn uncataloged_first_flush_can_resume_from_its_verified_header() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("samples.arrow");
+        let batch = batch();
+        let mut writer = Writer::create(&path, batch.schema()).unwrap();
+        let header = writer.checkpoint();
+        writer.append(&batch).unwrap();
+        drop(writer);
+        let mut writer = Writer::recover_empty(&path, batch.schema()).unwrap();
+        assert_eq!(writer.checkpoint().end, header.end);
+        writer.append(&batch).unwrap();
+        writer.finish().unwrap();
+        drop(writer);
+        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
+        assert_eq!(reader.num_batches(), 1);
+        assert_eq!(reader.collect::<std::result::Result<Vec<_>, _>>().unwrap(), [batch]);
     }
 }

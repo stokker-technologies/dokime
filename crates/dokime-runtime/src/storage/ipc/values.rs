@@ -50,13 +50,71 @@ use dokime_domain::model::{
 
 /* === Public Functions === */
 
-pub(crate) fn batch(schema: SchemaRef, rows: &[(u64, TelemetryEntry)]) -> Result<RecordBatch> {
+pub(crate) fn normalize_values(field: &arrow_schema::Field, values: &mut BTreeMap<String, Value>) -> Result<()> {
+    fn normalize(field: &arrow_schema::Field, value: &mut Value) -> Result<()> {
+        if matches!(value, Value::Null) {
+            return Ok(());
+        }
+        match field.data_type() {
+            DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                let time = match value {
+                    Value::Datetime(time) => *time,
+                    Value::Text(text) => Timestamp::new(text.as_str()).to_datetime()?,
+                    _ => return Err(Error::Invalid("telemetry timestamp differs from Arrow contract")),
+                };
+                *value = Value::Datetime(
+                    time::OffsetDateTime::from_unix_timestamp_nanos(time.unix_timestamp_nanos().div_euclid(1000) * 1000)
+                        .map_err(|_| Error::Invalid("telemetry timestamp exceeds Arrow range"))?,
+                );
+            }
+            DataType::Utf8 if field.metadata().get("encoding").is_some_and(|encoding| encoding == "json") => {
+                if let Value::Text(text) = value {
+                    *value =
+                        Value::from_plain_json(serde_json::from_str(text)?).map_err(|_| Error::Invalid("invalid JSON telemetry object"))?;
+                }
+                if !matches!(value, Value::Object(_)) {
+                    return Err(Error::Invalid("telemetry JSON field is not an object"));
+                }
+            }
+            DataType::Struct(fields) => {
+                if let Value::Object(values) = value {
+                    for field in fields {
+                        if let Some(value) = values.get_mut(field.name()) {
+                            normalize(field, value)?;
+                        }
+                    }
+                }
+            }
+            DataType::List(field) => {
+                if let Value::Array(values) = value {
+                    for value in values {
+                        normalize(field, value)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    let DataType::Struct(fields) = field.data_type() else {
+        return Err(Error::Invalid("telemetry values are not a struct"));
+    };
+    for field in fields {
+        if let Some(value) = values.get_mut(field.name()) {
+            normalize(field, value)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn batch(schema: SchemaRef, rows: &[(u64, crate::storage::telemetry::Admitted)]) -> Result<RecordBatch> {
     let mut metadata = Vec::with_capacity(rows.len());
     let mut values = Vec::with_capacity(rows.len());
     for (position, entry) in rows {
         let sample = &entry.sample;
         metadata.push(Value::Object(BTreeMap::from([
             ("position".into(), Value::Unsigned(*position)),
+            ("at".into(), Value::Datetime(sample.timestamp.to_datetime()?)),
             ("epoch".into(), Value::Text(entry.epoch.to_string())),
             ("ordinal".into(), Value::Unsigned(entry.ordinal)),
             ("sample_id".into(), Value::Text(sample.sample_id.to_string())),
@@ -67,6 +125,13 @@ pub(crate) fn batch(schema: SchemaRef, rows: &[(u64, TelemetryEntry)]) -> Result
             ("scope".into(), Value::Text(serde_json::to_string(&sample.scope)?)),
             ("summary".into(), Value::Text(serde_json::to_string(&sample.summary)?)),
             ("metadata".into(), Value::Text(serde_json::to_string(&sample.metadata)?)),
+            ("native_metadata".into(), Value::Text(entry.metadata.clone())),
+            (
+                "original_strings".into(),
+                Value::Text(serde_json::to_string(
+                    &entry.strings.iter().filter(|(path, _)| changes_text(schema.field(1).data_type(), path)).collect::<Vec<_>>(),
+                )?),
+            ),
         ])));
         values.push(Value::Object(sample.values.clone()));
     }
@@ -128,6 +193,40 @@ pub(crate) fn entry(
     ))
 }
 
+pub(crate) fn row_key(batch: &RecordBatch, row: usize) -> Result<(u64, i64)> {
+    let (positions, times) = row_keys(batch)?;
+    Ok((positions.value(row), times.value(row)))
+}
+
+pub(crate) fn row_keys(batch: &RecordBatch) -> Result<(&UInt64Array, &TimestampMicrosecondArray)> {
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("telemetry metadata is not a struct"))?;
+    let positions = storage
+        .column_by_name("position")
+        .and_then(|array| array.as_any().downcast_ref::<UInt64Array>())
+        .ok_or(Error::Corrupt("telemetry position is absent"))?;
+    let times = storage
+        .column_by_name("at")
+        .and_then(|array| array.as_any().downcast_ref::<TimestampMicrosecondArray>())
+        .ok_or(Error::Corrupt("telemetry timestamp is absent"))?;
+    Ok((positions, times))
+}
+
+pub(crate) fn native_encoding(batch: &RecordBatch, row: usize) -> Result<(&str, &str)> {
+    Ok((metadata_text(batch, row, "native_metadata")?, metadata_text(batch, row, "original_strings")?))
+}
+
+pub(crate) fn metadata_text<'a>(batch: &'a RecordBatch, row: usize, name: &str) -> Result<&'a str> {
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("telemetry metadata is not a struct"))?;
+    let array = storage
+        .column_by_name(name)
+        .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+        .ok_or(Error::Corrupt("telemetry native metadata is absent"))?;
+    if array.is_null(row) {
+        return Err(Error::Corrupt("telemetry native metadata is null"));
+    }
+    Ok(array.value(row))
+}
+
 pub(crate) fn array(kind: &DataType, values: &[&Value]) -> Result<ArrayRef> {
     let validity = || Some(NullBuffer::from(values.iter().map(|value| !matches!(value, Value::Null)).collect::<Vec<_>>()));
     let mismatch = || Error::Invalid("telemetry value differs from Arrow contract");
@@ -178,7 +277,7 @@ pub(crate) fn array(kind: &DataType, values: &[&Value]) -> Result<ArrayRef> {
                 .map(|value| match value {
                     Value::Null => Ok(None),
                     Value::Text(value) => Ok(Some(value.clone())),
-                    Value::Object(_) => Ok(Some(serde_json::to_string(value)?)),
+                    Value::Object(_) => Ok(Some(serde_json::to_string(&value.to_plain_json().map_err(|_| mismatch())?)?)),
                     _ => Err(mismatch()),
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -265,16 +364,16 @@ pub(crate) fn cell(array: &ArrayRef, row: usize) -> Result<Value> {
                     .map_err(|_| Error::Corrupt("Arrow timestamp is outside range"))?,
             )
         }
-        DataType::List(_) => {
+        DataType::List(field) => {
             let items = array.as_any().downcast_ref::<ListArray>().ok_or(Error::Corrupt("Arrow list type differs"))?.value(row);
-            Value::Array((0..items.len()).map(|row| cell(&items, row)).collect::<Result<Vec<_>>>()?)
+            Value::Array((0..items.len()).map(|row| field_cell(field, &items, row)).collect::<Result<Vec<_>>>()?)
         }
         DataType::Struct(fields) => {
             let structure = array.as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("Arrow struct type differs"))?;
             let fields = fields
                 .iter()
                 .zip(structure.columns())
-                .map(|(field, column)| Ok((field.name().clone(), cell(column, row)?)))
+                .map(|(field, column)| Ok((field.name().clone(), field_cell(field, column, row)?)))
                 .collect::<Result<BTreeMap<_, _>>>()?;
             Value::Object(fields)
         }
@@ -283,5 +382,29 @@ pub(crate) fn cell(array: &ArrayRef, row: usize) -> Result<Value> {
 }
 
 /* === Private Functions === */
+
+fn field_cell(field: &arrow_schema::Field, array: &ArrayRef, row: usize) -> Result<Value> {
+    let mut value = cell(array, row)?;
+    if field.metadata().get("encoding").is_some_and(|encoding| encoding == "json")
+        && let Value::Text(text) = value
+    {
+        value = Value::from_plain_json(serde_json::from_str(&text)?).map_err(|_| Error::Corrupt("invalid JSON telemetry object"))?;
+    }
+    Ok(value)
+}
+
+fn changes_text(kind: &DataType, path: &[String]) -> bool {
+    let Some((name, rest)) = path.split_first() else {
+        return matches!(kind, DataType::Timestamp(_, _));
+    };
+    match kind {
+        DataType::Struct(fields) => fields.iter().find(|field| field.name() == name).is_some_and(|field| {
+            rest.is_empty() && field.metadata().get("encoding").is_some_and(|encoding| encoding == "json")
+                || changes_text(field.data_type(), rest)
+        }),
+        DataType::List(field) => changes_text(field.data_type(), rest),
+        _ => false,
+    }
+}
 
 /* === Tests === */
