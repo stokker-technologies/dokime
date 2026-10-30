@@ -128,15 +128,6 @@ impl harmos::Lifecycle for App {
         setup.settings().storage(config.storage.as_ref().expect("storage fixture is configured"));
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
-    }
 }
 
 /* === Public Functions === */

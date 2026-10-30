@@ -143,18 +143,6 @@ mod bare_attributes {
             setup.resource::<()>(owner.resources());
             Ok(owner)
         }
-
-        async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-            Ok(())
-        }
-
-        async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-            Ok(())
-        }
-
-        async fn cleanup(&mut self) -> Result<(), Refusal> {
-            Ok(())
-        }
     }
 
     impl Bench {

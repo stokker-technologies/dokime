@@ -230,14 +230,6 @@ impl sdk::harmos::Lifecycle for Renamed {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
         self.observers.take();
 

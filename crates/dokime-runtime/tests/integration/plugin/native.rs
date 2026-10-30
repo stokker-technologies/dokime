@@ -149,15 +149,6 @@ impl harmos::Lifecycle for Fixture {
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
-    }
 }
 
 impl<A: Attach> Native<A> {

@@ -184,18 +184,6 @@ impl sdk::harmos::Lifecycle for Plugin {
         sdk::execution::prepare::<Self, Suites>(setup)?;
         Ok(owner)
     }
-
-    async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
 }
 
 impl Plugin {

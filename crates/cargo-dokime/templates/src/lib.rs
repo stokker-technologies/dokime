@@ -140,10 +140,6 @@ impl dokime::harmos::Lifecycle for Plugin {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
         dokime::execution::interrupt().await;
         Ok(())
