@@ -63,10 +63,8 @@ def test_cancel_keeps_execution() -> None:
             cycle = await prepare(client)
             execution = cycle.executions[0]
 
-            async def received(_record) -> None:
-                return None
-
-            running = asyncio.create_task(execution.run(on_record=received))
+            await execution.start()
+            running = asyncio.create_task(collect(execution.records()))
             await backend.records_parked.wait()
             running.cancel()
             with pytest.raises(asyncio.CancelledError):
@@ -81,7 +79,7 @@ def test_cancel_keeps_execution() -> None:
             outcome = await recovered.wait()
             assert outcome.status == "cancelled"
             assert backend.created == backend.run_calls == backend.stop_calls == 1
-            records = await collect(recovered.records(follow=True))
+            records = await collect(recovered.records())
             assert records[-1].type == "fixture.stopped"
 
     asyncio.run(scenario())
@@ -94,8 +92,8 @@ def test_independent_observers() -> None:
             cycle = await prepare(client)
             execution = cycle.executions[0]
             await execution.start()
-            first = asyncio.create_task(collect(execution.records(follow=True)))
-            second = asyncio.create_task(collect(execution.records(follow=True)))
+            first = asyncio.create_task(collect(execution.records()))
+            second = asyncio.create_task(collect(execution.records()))
             await backend.records_parked.wait()
             first.cancel()
             with pytest.raises(asyncio.CancelledError):

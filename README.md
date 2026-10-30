@@ -68,8 +68,8 @@ dokime operation list --backend lab
 
 ### Python
 
-The async Python client controls a running backend and reads live or saved
-evidence. The distribution is `dokime-client`; imports use `dokime_client`.
+The async Python client controls a running backend with owned cycle contexts,
+terminal evidence iterators and saved bundles with digest manifests. The distribution is `dokime-client`; imports use `dokime_client`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples

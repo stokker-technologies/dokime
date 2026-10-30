@@ -113,7 +113,7 @@ OVERWRITE = False
 The story spells out two attempts of one materialized case. Set `EXECUTION_COUNT`
 to `1` to study only the first attempt or leave it at `2`; add explicit calls
 and evidence destinations to teach additional attempts.
-`WAIT_SECONDS` is each Run's positive deadline. Filters are case-sensitive
+`WAIT_SECONDS` is each execution's positive local deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
 for its supplied reader. Filters affect observation, not captured evidence.
@@ -122,21 +122,22 @@ for its supplied reader. Filters affect observation, not captured evidence.
 uv run --locked control-test.py
 ```
 
-Read the script from top to bottom. Its only coroutine, `run()`, lets Python
-await the client calls; there are no workflow helpers. It checks evidence
+Read the script from top to bottom. `run()` awaits the client calls and its
+local reader coroutines consume the evidence iterators. It checks evidence
 destinations, materializes one immutable case, constructs two attempts with
 separate execution UUIDs, creates a cycle and appends without starting hardware.
-The first explicit `first.run(...)` blocks until the saved outcome and reader
-drain. Client callbacks put records and samples into queues; the script then
-prints each returned item, `Saved Outcome:` and `Drained Evidence:`, and saves
-that attempt. The second explicit `second.run(...)` repeats those calls for the
-other attempt. Data-reading loops print observations, never dispatch steps.
+Each attempt starts explicitly. Independent async iterators consume its
+records and samples inside an `asyncio.TaskGroup`; awaiting the handle retrieves
+the saved outcome, and the task group waits for both final drains. The script
+then prints each item, `Saved Outcome:` and `Drained Evidence:`, and saves that
+attempt. The second attempt repeats this flow with its own execution identity.
+Data-reading loops print observations, never dispatch steps.
 
 The script saves `test-evidence/execution-1.zip`,
 `test-evidence/execution-2.zip` and the explicitly sealed
 `test-evidence/cycle.zip`. The default successful attempts each capture eight
-pulse samples. Saved outcomes are printed without aggregating them into a
-process exit status; exceptions still report a failed workflow. Set a fresh
+pulse samples. The process returns the largest execution exit code: 0 for passed, 1 for
+nonpassing and 130 for interrupted; exceptions report a failed workflow. Set a fresh
 `OUTPUT_DIRECTORY` before rerunning or explicitly
 choose `OVERWRITE = True` to replace bundle destinations atomically.
 
