@@ -192,18 +192,6 @@ impl dokime_runtime::harmos::Lifecycle for Owner {
         dokime_runtime::execution::prepare::<Self, OwnerSuites>(setup)?;
         Ok(Self)
     }
-
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
-    }
 }
 
 impl dokime_runtime::harmos::builtins::lifecycle::Policy for Consumer {
@@ -230,14 +218,6 @@ impl dokime_runtime::harmos::Lifecycle for Consumer {
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         panic!("provider resolution must not initialize a plugin")
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
     }
 }
 

@@ -285,14 +285,6 @@ impl dokime_runtime::harmos::Lifecycle for Owner {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.device.observations.record("plugin finalized");
         Ok(())
@@ -400,14 +392,6 @@ impl dokime_runtime::harmos::Lifecycle for CatalogOnly {
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         panic!("catalog export must not initialize a plugin")
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
     }
 }
 

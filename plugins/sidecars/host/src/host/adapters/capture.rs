@@ -38,7 +38,8 @@ impl dokime::harmos::Operation for super::CaptureAdapters {
     async fn run(
         self, ctx: dokime::harmos::Context<'_, Self>,
     ) -> Result<dokime::harmos::Response<dokime::operations::effects::StartEvidence>, Self::Error> {
-        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(super::snapshot);
+        let timeout = std::time::Duration::from_millis(ctx.resource::<crate::HostOptions>().timing.network_probe_timeout_ms);
+        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || super::snapshot(timeout));
         let snapshot = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
         let payload_json = dokime::plugin::refusal(serde_json::to_string(&snapshot))?;
         Ok(dokime::harmos::Response::new(dokime::operations::effects::StartEvidence { payload_json }))

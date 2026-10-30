@@ -43,7 +43,6 @@ use crate::model::values::ValueType;
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileRule {
-    // A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.
     #[row(description = "A glob over forward-slash relative paths; `*` stays within one segment, `**` crosses segments.")]
     pub glob: String,
 
@@ -54,7 +53,6 @@ pub struct FileRule {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalWatchSource {
-    // An absolute directory path on the backend host.
     #[row(description = "An absolute directory path on the backend host.")]
     pub root: String,
 }
@@ -63,11 +61,9 @@ pub struct LocalWatchSource {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FtpWatchSource {
-    // `ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.
     #[row(description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
     pub url: String,
 
-    // The host secret store entry holding the password; absent logs in anonymously.
     #[row(description = "The host secret store entry holding the password; absent logs in anonymously.")]
     pub secret_id: Option<String>,
 }
@@ -82,7 +78,6 @@ pub struct FileWatchSource {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineField {
-    // The column, and the named capture group that fills it.
     #[row(description = "The column, and the named capture group that fills it.")]
     pub name: String,
 
@@ -127,11 +122,9 @@ pub struct WatchFileOutcome {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileWatchProgress {
-    // The path relative to the source root.
     #[row(description = "The path relative to the source root.")]
     pub path: String,
 
-    // Bytes captured into the output so far.
     #[row(description = "Bytes captured into the output so far.")]
     pub offset: u64,
 
@@ -144,7 +137,6 @@ pub struct FileWatchProgress {
 pub struct FileWatchGap {
     pub path: String,
 
-    // The output offset at which the gap sits.
     #[row(description = "The output offset at which the gap sits.")]
     pub offset: u64,
 

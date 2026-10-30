@@ -22,11 +22,14 @@ per nearby network), `host.wifi.latency` (round trip and loss to the latency hos
 and `host.bluetooth`. Separate operation, stream and observer catalogs share
 the same declarations; each stream has its own demand-driven observer,
 which runs only while a lease holds that stream. Operation definitions own the
-policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
-and Unix implementations are selected at module declarations. Windows probes use
-native APIs and start no processes. Its Collection settings retain the
+policies and `settings.rs` owns the configurable collection intervals and native probe settings; Windows
+and Unix implementations are selected at module declarations. Windows radio and
+network probes use native APIs; the system collector reads Git identity through
+a bounded Git subprocess. Its Collection settings retain the
 Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
 between active Wi-Fi scans; a scan due sooner reports the cached network list.
+The [Host Settings](product-guide.md#host-settings) section lists native probe
+timings, collection intervals, refresh and sampling settings, plus static operation policies and replay windows.
 Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 `host.network` carries aggregate counters, `internet`, and the default-route
@@ -108,8 +111,8 @@ The Public `host.cpu.load` query and `host.system` rows expose calibrated
 capacity and estimated load in GFLOP/s. At plugin start, a bounded kernel runs
 eight independent f64 fused multiply-add accumulators on each available logical
 CPU. Each FMA counts two operations; completed work divided by total wall time
-gives kernel-equivalent capacity. The kernel budget is half the CPU operation's
-attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
+gives kernel-equivalent capacity. The calibration window and deadline-check batch
+size come from host settings; the default window is half the CPU operation's attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
 it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
