@@ -87,13 +87,8 @@ struct Hosting(Arc<HostLog>);
 struct Backend {
     services: Option<Operations>,
     lease: Option<harmos::operations::Running<harmos::operations::resident::Activation>>,
-    registration: Option<harmos::operations::PluginRegistration>,
-    sdk: Option<harmos::operations::PluginSdkRegistration>,
-    initializing: Option<harmos::operations::EncodedInvocation>,
-    shutting_down: Option<harmos::operations::EncodedInvocation>,
+    native: harmos::sidecar::NativeLifecycle,
     registered: bool,
-    initialized: bool,
-    shutdown_attempted: bool,
 }
 
 /* === Enums === */
@@ -266,19 +261,12 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         backend.registered = true;
         backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
         let native = Arc::new(resident.staged_operations().await.unwrap());
-        backend.registration = Some(self.operations.stage_plugin(native.scope().unwrap(), |bindings| {
+        backend.native.stage_operations(&native, &self.operations, |bindings| {
             bindings.register_native(Lanes::Open, Arc::clone(&native), NonZeroUsize::new(128).unwrap())
-        })?);
-        backend.sdk = Some(native.stage_sdk(&self.operations, Lanes::Open)?);
-        backend.initializing = Some(backend.sdk.as_ref().unwrap().submit_initialize(
-            authority,
-            &definition.configuration,
-            NonZeroUsize::new(SDK_BYTES).unwrap(),
-        )?);
-        let outcome = backend.initializing.as_mut().unwrap().await;
-        backend.initializing.take();
-        outcome?;
-        backend.initialized = true;
+        })?;
+        backend.native.stage_sdk(&native, &self.operations, Lanes::Open)?;
+        backend.native.begin_initialize(authority, &definition.configuration, NonZeroUsize::new(SDK_BYTES).unwrap())?;
+        backend.native.join_initialization().await?;
         Ok(())
     }
 
@@ -286,28 +274,11 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         definition: &PluginDefinition, authority: &PluginLifecycleAuthority<'_>, backend: &mut PluginBackend<(), Backend, ()>,
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
-        if let Some(sdk) = &backend.sdk {
-            sdk.settle().await?;
-            if let Some(initializing) = &mut backend.initializing {
-                let outcome = initializing.await;
-                backend.initializing.take();
-                outcome?;
-                backend.initialized = true;
-            }
-            if backend.initialized && !backend.shutdown_attempted {
-                backend.shutting_down = Some(sdk.submit_shutdown(authority)?);
-                backend.shutdown_attempted = true;
-            }
-            if let Some(shutdown) = &mut backend.shutting_down {
-                let outcome = shutdown.await;
-                backend.shutting_down.take();
-                outcome?;
-                backend.initialized = false;
-            }
-        }
-        if let Some(registration) = &mut backend.registration {
-            registration.shutdown().await?;
-        }
+        backend.native.settle().await?;
+        backend.native.join_initialization().await?;
+        backend.native.begin_shutdown(authority, true)?;
+        backend.native.join_shutdown().await?;
+        backend.native.withdraw().await?;
         if let Some(lease) = backend.lease.take() {
             lease.release().await?;
         }
@@ -315,11 +286,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
             backend.services.as_ref().expect("registered service owner").unregister_resident(&definition.id).await?;
         }
         backend.registered = false;
-        if let Some(sdk) = &mut backend.sdk {
-            sdk.close().await?;
-        }
-        backend.sdk.take();
-        backend.registration.take();
+        backend.native.close().await?;
         Ok(())
     }
 }

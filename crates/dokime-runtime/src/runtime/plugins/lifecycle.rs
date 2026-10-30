@@ -56,13 +56,7 @@ pub(in crate::runtime) struct Sidecar {
     definition: harmos::plugin::PluginDefinition,
     registered: bool,
     lease: Option<crate::services::Lease>,
-    operations: Option<harmos::operations::PluginRegistration>,
-    scope: Option<harmos::plugin::PluginScope>,
-    sdk: Option<harmos::operations::PluginSdkRegistration>,
-    initializing: Option<harmos::operations::EncodedInvocation>,
-    shutting_down: Option<harmos::operations::EncodedInvocation>,
-    initialized: bool,
-    shutdown_attempted: bool,
+    native: harmos::sidecar::NativeLifecycle,
     // Shared across the package's programs, but owned rather than a path lookup.
     directory: Arc<Extraction>,
 }
@@ -104,8 +98,8 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     ) -> harmos::Result<()> {
         if let Backend::Sidecar(sidecar) = backend
             && sidecar
-                .scope
-                .as_ref()
+                .native
+                .scope()
                 .is_some_and(|scope| !authority.matches_scope(scope, artifact.kind(), harmos::plugin::PluginLifecyclePhase::Shutdown))
         {
             return Err(lifecycle_error(operation("plugin shutdown generation differs")));
@@ -259,13 +253,7 @@ impl Adapter<'_> {
             definition: artifact.clone(),
             registered: false,
             lease: None,
-            operations: None,
-            scope: None,
-            sdk: None,
-            initializing: None,
-            shutting_down: None,
-            initialized: false,
-            shutdown_attempted: false,
+            native: harmos::sidecar::NativeLifecycle::default(),
             directory: Arc::clone(&package._directory),
         }))
     }
@@ -376,51 +364,27 @@ impl Sidecar {
         if !authority.matches_scope(scope, self.definition.kind(), harmos::plugin::PluginLifecyclePhase::Initialize) {
             return Err(operation("native initialization generation differs"));
         }
-        self.scope = Some(scope.clone());
         let capacity = NonZeroUsize::new(NATIVE_INVOCATION_ITEMS).expect("native invocation capacity is positive");
-        self.operations = Some(
-            handle
-                .operations
-                .stage_plugin(scope, |bindings| bindings.register_native(crate::app::Lanes::Open, Arc::clone(&native), capacity))?,
-        );
-        self.sdk = Some(native.stage_sdk(&handle.operations, crate::app::Lanes::Open)?);
-        self.initializing = Some(self.sdk.as_ref().expect("SDK staged").submit_initialize(
+        self.native.stage_operations(&native, &handle.operations, |bindings| {
+            bindings.register_native(crate::app::Lanes::Open, Arc::clone(&native), capacity)
+        })?;
+        self.native.stage_sdk(&native, &handle.operations, crate::app::Lanes::Open)?;
+        self.native.begin_initialize(
             authority,
             &self.definition.configuration,
             NonZeroUsize::new(4 * 1024 * 1024).expect("bounded initialization bytes"),
-        )?);
-        let outcome = self.initializing.as_mut().expect("initialization retained").await;
-        self.initializing.take();
-        outcome?;
-        self.initialized = true;
+        )?;
+        self.native.join_initialization().await?;
         handle.register_record_demand_source(source, record_demands, ready);
         Ok(())
     }
 
     async fn stop(&mut self, authority: &harmos::plugin::PluginLifecycleAuthority<'_>) -> Result<()> {
-        if let Some(sdk) = &self.sdk {
-            sdk.settle().await?;
-            if let Some(initializing) = &mut self.initializing {
-                let outcome = initializing.await;
-                self.initializing.take();
-                outcome?;
-                self.initialized = true;
-            }
-            if self.initialized && !self.shutdown_attempted {
-                self.shutting_down = Some(sdk.submit_shutdown(authority)?);
-                self.shutdown_attempted = true;
-            }
-            if let Some(shutdown) = &mut self.shutting_down {
-                let outcome = shutdown.await;
-                self.shutting_down.take();
-                outcome?;
-                self.initialized = false;
-            }
-        }
-        if let Some(operations) = self.operations.as_mut() {
-            operations.shutdown().await?;
-        }
-        self.operations = None;
+        self.native.settle().await?;
+        self.native.join_initialization().await?;
+        self.native.begin_shutdown(authority, true)?;
+        self.native.join_shutdown().await?;
+        self.native.withdraw().await?;
         if self.registered {
             let source = self.program.executable.id();
             let stopped = self.services.unregister_resident(source).await;
@@ -430,11 +394,7 @@ impl Sidecar {
             stopped?;
         }
         self.lease = None;
-        if let Some(sdk) = &mut self.sdk {
-            sdk.close().await?;
-        }
-        self.sdk.take();
-        self.scope = None;
+        self.native.close().await?;
 
         // Replaced packages release their preparation reference. The last old
         // generation owns deletion and keeps its receipt when deletion fails.
