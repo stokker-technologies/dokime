@@ -96,24 +96,12 @@ impl harmos::plugin::PluginLifecycle for Adapter<'_> {
         &mut self, artifact: &harmos::plugin::PluginDefinition, router: &harmos::plugin::Router,
         authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> harmos::Result<()> {
-        if authority.owner() != artifact.id
-            || authority.backend_kind() != artifact.kind()
-            || authority.phase() != harmos::plugin::PluginLifecyclePhase::Initialize
-        {
-            return Err(lifecycle_error(operation("plugin initialization authority differs")));
-        }
         self.start_artifact(artifact, router, authority, backend).await.map_err(lifecycle_error)
     }
 
     async fn stop(
         artifact: &harmos::plugin::PluginDefinition, authority: &harmos::plugin::PluginLifecycleAuthority<'_>, backend: &mut Backend,
     ) -> harmos::Result<()> {
-        if authority.owner() != artifact.id
-            || authority.backend_kind() != artifact.kind()
-            || authority.phase() != harmos::plugin::PluginLifecyclePhase::Shutdown
-        {
-            return Err(lifecycle_error(operation("plugin shutdown authority differs")));
-        }
         if let Backend::Sidecar(sidecar) = backend
             && sidecar
                 .scope
