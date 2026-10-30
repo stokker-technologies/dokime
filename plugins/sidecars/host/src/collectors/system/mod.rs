@@ -138,6 +138,8 @@ impl SystemCollector {
             ("cpu_load_percent".to_owned(), Value::from(f64::from(self.system.global_cpu_usage()))),
             ("memory_total_bytes".to_owned(), integer(total_memory)),
             ("memory_used_bytes".to_owned(), integer(used_memory)),
+            ("memory_used_gib".to_owned(), Value::from(used_memory as f64 / 1_073_741_824.0)),
+            ("memory_total_gib".to_owned(), Value::from(total_memory as f64 / 1_073_741_824.0)),
             ("system_uptime_s".to_owned(), Value::from(System::uptime() as f64)),
             ("temperature_sensor_count".to_owned(), Value::Integer(temperatures.len() as i64)),
             ("cpu_architecture".to_owned(), Value::from(std::env::consts::ARCH)),

@@ -228,17 +228,30 @@ fn system_section() -> DocumentSection {
     section(
         "hub.host.system",
         "System Performance",
-        vec![plot_card(plot(HostPlotSpec {
-            identifier: "hub.host.system.resources",
-            label: "Host System",
-            description: "Host CPU, memory pressure, battery, and power profile context captured during the execution.",
-            plot_type: PlotType::TimeSeries,
-            stream: HOST_SYSTEM,
-            x: Some("timestamp"),
-            y: &["cpu_load_percent", "memory_pressure_percent", "battery_percent"],
-            unit: Some("%"),
-            style: PlotStyle::Line,
-        }))],
+        vec![
+            plot_card(plot(HostPlotSpec {
+                identifier: "hub.host.system.resources",
+                label: "Host System",
+                description: "Host CPU, memory pressure, battery, and power profile context captured during the execution.",
+                plot_type: PlotType::TimeSeries,
+                stream: HOST_SYSTEM,
+                x: Some("timestamp"),
+                y: &["cpu_load_percent", "memory_pressure_percent", "battery_percent"],
+                unit: Some("%"),
+                style: PlotStyle::Line,
+            })),
+            plot_card(plot(HostPlotSpec {
+                identifier: "hub.host.system.memory",
+                label: "Host Memory [GiB]",
+                description: "Host used and total memory from the same snapshot as memory pressure.",
+                plot_type: PlotType::TimeSeries,
+                stream: HOST_SYSTEM,
+                x: Some("timestamp"),
+                y: &["memory_used_gib", "memory_total_gib"],
+                unit: Some("GiB"),
+                style: PlotStyle::Line,
+            })),
+        ],
     )
 }
 
