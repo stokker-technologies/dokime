@@ -16,10 +16,10 @@ try {
         exit $child.ExitCode
     }
 
-    $programPath = [IO.Path]::GetFullPath($Program).ToLowerInvariant()
+    $programPath = [IO.Path]::GetFullPath($Program)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        $digest = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($programPath))).Replace('-', '')
+        $digest = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($programPath.ToLowerInvariant()))).Replace('-', '')
     } finally {
         $sha.Dispose()
     }
