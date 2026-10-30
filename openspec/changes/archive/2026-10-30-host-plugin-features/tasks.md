@@ -88,7 +88,7 @@ Assigned source inventory: existing Bluetooth presence collectors (reuse), host 
 
 ## 7. Validation
 
-- [ ] 7.1 Targeted proof per item; workspace check; `mise run format`.
+- [x] 7.1 Targeted proof per item; workspace check; `mise run format`.
 
 - [x] 7.2 Repair hosted Rust formatting in already-committed doctor and runtime storage/evidence paths; leave active writers untouched. Evidence: `crates/dokime-cli/src/commands/doctor.rs:87` and five runtime storage/evidence files are formatted; formatter task reports only active-writer paths.
 - [x] 7.3 Remove retired tutorial artifact staging, release preparation hook, bundle declaration and candidate tests; update source tutorial setup and prove focused Python integration. Evidence: `tools/python/src/dokime_tools/build/python.py:35`, `mise.toml:487`, `stkr.toml:558`; focused integration selects 2 passing plugin-collection cases and no retired candidate stories; Python client build and package pass.
