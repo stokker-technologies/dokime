@@ -27,6 +27,9 @@ pub use publish::RecordPublication;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(RecordPublication);
+
 /* === Type Aliases === */
 
 /* === Structs === */

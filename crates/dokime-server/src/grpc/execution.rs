@@ -69,19 +69,6 @@ pub(super) struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::GetCase),
-    Operation1(wire::GetExecution),
-    Operation2(wire::ListCaseParameters),
-    Operation3(wire::ListExecutionParameters),
-    Operation4(wire::ListExecutionSteps),
-    Operation5(wire::GetCycle),
-    Operation6(wire::ListCycles),
-    Operation7(wire::ListCases),
-    Operation8(wire::ListExecutions),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -245,7 +232,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ListCases>>(Host::<wire::ListCases>::new(served.clone()));
     setup.resource::<Host<wire::ListExecutions>>(Host::<wire::ListExecutions>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

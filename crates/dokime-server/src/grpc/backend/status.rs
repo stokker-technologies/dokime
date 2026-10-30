@@ -53,15 +53,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::GetIdentity),
-    Operation1(wire::GetHealth),
-    Operation2(wire::GetAvailability),
-    Operation3(wire::WatchLogs),
-    Operation4(wire::CollectDiagnostics),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -240,7 +231,6 @@ pub(in crate::grpc) fn prepare(
     setup.resource::<Host<wire::WatchLogs>>(Host::<wire::WatchLogs>::new(resources.clone()));
     setup.resource::<Host<wire::CollectDiagnostics>>(Host::<wire::CollectDiagnostics>::new(resources));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

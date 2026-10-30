@@ -38,18 +38,6 @@ struct Remote(Arc<crate::grpc::preparation::Owner>);
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum Operations {
-    Operation0(wire::ReadListener),
-    Operation1(wire::UpdateListener),
-    Operation2(wire::CreatePairing),
-    Operation3(wire::RegenerateCertificate),
-    Operation4(wire::ListPairedClients),
-    Operation5(wire::RevokePairedClient),
-    Operation6(wire::ListSessions),
-    Operation7(wire::RenamePairedClient),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -159,7 +147,7 @@ pub(in crate::grpc) fn prepare(
 
     setup.resource::<Host<wire::RenamePairedClient>>(Host::<wire::RenamePairedClient>::new(served));
 
-    setup.operations::<Operations>(dokime::app::Lanes::Open);
+    setup.operations::<dokime::operations::remote::Operations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

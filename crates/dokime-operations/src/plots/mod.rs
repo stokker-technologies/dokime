@@ -37,6 +37,9 @@ use dokime_domain::model::plots::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(ListAnalyses, QuerySnapshots, Watch);
+
 /* === Type Aliases === */
 
 /* === Structs === */

@@ -35,6 +35,9 @@ use dokime_domain::model::planning::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(MaterializeTemplate, PreviewSelection, RegisterSelection);
+
 /* === Type Aliases === */
 
 /* === Structs === */

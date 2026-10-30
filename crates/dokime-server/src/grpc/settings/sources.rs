@@ -38,13 +38,6 @@ const SERVER_SETTINGS_RESPONSE_BYTES: u64 = 4_194_304;
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::ListStorageSources),
-    Operation1(wire::ReorderStorageSources),
-    Operation2(wire::SetStorageSourceEnabled),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -101,7 +94,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ReorderStorageSources>>(Host::<wire::ReorderStorageSources>::new(served.clone()));
     setup.resource::<Host<wire::SetStorageSourceEnabled>>(Host::<wire::SetStorageSourceEnabled>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

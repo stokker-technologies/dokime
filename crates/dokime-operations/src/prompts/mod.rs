@@ -43,6 +43,9 @@ use dokime_domain::model::values::wire::Value;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetDefinition, GetPrompt, ListDefinitions, ListPending, Respond);
+
 /* === Type Aliases === */
 
 /* === Structs === */

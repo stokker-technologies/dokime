@@ -78,13 +78,6 @@ struct Tail {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(v1::ListRecords),
-    Operation1(v1::WatchRecords),
-    Operation2(v1::GetCapturedRecordSchema),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -380,7 +373,6 @@ pub(super) fn prepare(
     setup.resource::<Host<v1::WatchRecords>>(Host::<v1::WatchRecords>::new(served.clone()));
     setup.resource::<Host<v1::GetCapturedRecordSchema>>(Host::<v1::GetCapturedRecordSchema>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -27,6 +27,9 @@ use dokime_domain::model::secrets::transfer::{Archive, Choice, Preview as Import
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(Lookup, List, Put, Remove, Export, Preview, Import);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -168,12 +171,3 @@ impl std::fmt::Debug for Import {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(Lookup, List, Put, Remove, Export, Preview, Import);
-}

@@ -38,6 +38,9 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(RunProcess);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -133,12 +136,3 @@ impl RunProcess {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(RunProcess);
-}

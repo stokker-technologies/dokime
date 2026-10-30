@@ -47,16 +47,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::ListSuites),
-    Operation1(wire::GetSuite),
-    Operation2(wire::ListRecordSchemas),
-    Operation3(wire::GetRecordSchema),
-    Operation4(wire::ListTelemetrySchemas),
-    Operation5(wire::GetTelemetrySchema),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -148,7 +138,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ListTelemetrySchemas>>(Host::<wire::ListTelemetrySchemas>::new(served.clone()));
     setup.resource::<Host<wire::GetTelemetrySchema>>(Host::<wire::GetTelemetrySchema>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

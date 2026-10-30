@@ -92,6 +92,39 @@ use dokime_domain::model::execution::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(
+    AppendExecutions,
+    CancelExecution,
+    CopyCycle,
+    CreateCycle,
+    DeleteCase,
+    GetCase,
+    GetCycle,
+    GetExecution,
+    GetExecutionCommand,
+    ListCaseParameters,
+    ListCases,
+    ListCycles,
+    ListExecutionParameters,
+    ListExecutionSteps,
+    ListExecutions,
+    PauseCycle,
+    PauseExecution,
+    RenameCycle,
+    RenameExecution,
+    ResumeCycle,
+    ResumeExecution,
+    RunProviderCycle,
+    SealCycle,
+    SetCycleArchived,
+    SetExecutionArchived,
+    StartExecution,
+    StopExecution,
+    SubmitExecutionCommand,
+    UpdateCyclePolicy
+);
+
 /* === Type Aliases === */
 
 /* === Structs === */

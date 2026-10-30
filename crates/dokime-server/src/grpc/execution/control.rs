@@ -48,26 +48,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::CreateCycle),
-    Operation1(wire::CopyCycle),
-    Operation2(wire::AppendExecutions),
-    Operation3(wire::DeleteCase),
-    Operation4(wire::SetCycleArchived),
-    Operation5(wire::SetExecutionArchived),
-    Operation6(wire::RenameCycle),
-    Operation7(wire::RenameExecution),
-    Operation8(wire::UpdateCyclePolicy),
-    Operation9(wire::PauseCycle),
-    Operation10(wire::ResumeCycle),
-    Operation11(wire::SealCycle),
-    Operation12(wire::PauseExecution),
-    Operation13(wire::ResumeExecution),
-    Operation14(wire::StopExecution),
-    Operation15(wire::CancelExecution),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -363,7 +343,6 @@ pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, ru
     setup.resource::<Host<wire::StopExecution>>(Host::<wire::StopExecution>::new(served.clone()));
     setup.resource::<Host<wire::CancelExecution>>(Host::<wire::CancelExecution>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
