@@ -181,12 +181,6 @@ native_commands! {
         (generation: String) -> Result<(), String>
         => crate::app::media::desktop_media_release;
 
-    // Patch an MP4 recording's duration in place and upload it; returns the artifact id.
-    async desktop_recording_finish
-        [window: tauri::WebviewWindow, bridge: tauri::State<'_, crate::rpc::Bridge>]
-        (generation: String, duration_ms: u64, media_type: String) -> Result<String, String>
-        => crate::app::recording::desktop_recording_finish;
-
     // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
     async desktop_plugin_install_file
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]

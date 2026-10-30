@@ -19,7 +19,6 @@ pub(crate) mod media;
 pub(crate) mod organization;
 pub(crate) mod plugins;
 pub(crate) mod preferences;
-pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
 

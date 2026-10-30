@@ -77,7 +77,7 @@ and filter controls remain usable. Preserve the case of unit symbols.
   The WebView holds no endpoint or credential; they never belong in status, logs,
   profiles, persisted browser storage or report output.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
-  artifact and recording bytes. Do not add ordinary calls to it.
+  artifact bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.

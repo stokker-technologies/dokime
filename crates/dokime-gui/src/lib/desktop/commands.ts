@@ -79,9 +79,6 @@ export const commands = {
   desktopMediaPrepare: (generation: string, source: ArtifactSource) => invoke<string>("desktop_media_prepare", { generation, source }),
   /** Release one generation's media cache. */
   desktopMediaRelease: (generation: string) => invoke<null>("desktop_media_release", { generation }),
-  /** Patch an MP4 recording's duration in place and upload it; returns the artifact id. */
-  desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
-    invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
   /** Install the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
   desktopPluginInstallFile: (generation: string, drop: boolean, progress: Channel<InstallPluginProgress>) =>
     invoke<string | null>("desktop_plugin_install_file", { generation, drop, progress }),

@@ -63,11 +63,7 @@ fn header(size_bytes: u64, scope: Option<model::content::wire::ArtifactScope>) -
 fn app_and_window(
     session: &dokime_gui::connection::ConnectionSession,
 ) -> (tauri::App<tauri::test::MockRuntime>, tauri::WebviewWindow<tauri::test::MockRuntime>) {
-    let root = tempfile::tempdir().unwrap();
-    let paths = dokime::paths::ApplicationPaths::new(root.path());
     let app = tauri::test::mock_builder()
-        .manage(root)
-        .manage(paths)
         .manage(session.clone())
         .manage(Bridge::default())
         .invoke_handler(handler())
@@ -335,60 +331,6 @@ async fn upload_owner_cancels() {
     let error = invoke(&window, "artifact_upload_write", request_bytes(generation_value, &write_payload(id, 1, b"foo")))
         .expect_err("a stream cancelled with its owner is no longer reachable");
     assert_eq!(error["kind"], "unknown_stream");
-    fixture.close().await;
-}
-
-fn recording_files(dir: &std::path::Path) -> std::collections::HashSet<String> {
-    std::fs::read_dir(dir)
-        .map(|entries| entries.filter_map(|entry| entry.ok()).filter_map(|entry| entry.file_name().into_string().ok()).collect())
-        .unwrap_or_default()
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn recording_refuses_missing_paths() {
-    let fixture = Fixture::new().await;
-    let harness = crate::support::bridge::Harness::new(fixture.session.clone());
-    let bytes = request_bytes(generation(&fixture.session), &header(0, None).wire_bytes());
-
-    let error = invoke(&harness.window, "recording_open", bytes).expect_err("missing application paths must refuse the command");
-    assert_eq!(error["kind"], "invalid_request");
-    let reply = crate::support::bridge::invoke(
-        &harness.window,
-        "rpc",
-        request_bytes(generation(&fixture.session), &[]),
-        &serde_json::json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
-    );
-    assert!(reply.is_ok(), "the command worker and connection remain usable: {reply:?}");
-    fixture.close().await;
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn recording_cancel_deletes() {
-    let fixture = Fixture::new().await;
-    let (app, window) = app_and_window(&fixture.session);
-    let generation_value = generation(&fixture.session);
-
-    let recordings_dir = {
-        use tauri::Manager;
-        app.state::<dokime::paths::ApplicationPaths>().cache().join("recordings")
-    };
-    let before = recording_files(&recordings_dir);
-
-    invoke(&window, "recording_open", request_bytes(generation_value, &header(0, None).wire_bytes())).expect("recording sink opens");
-    invoke(&window, "recording_write", request_bytes(generation_value, b"fragment")).expect("write accepted");
-
-    let mut created: Vec<_> = recording_files(&recordings_dir).difference(&before).cloned().collect();
-    let temp_name = created.pop().expect("recording_open must create exactly one temp file");
-    assert!(created.is_empty(), "recording_open must create exactly one temp file");
-    let temp_path = recordings_dir.join(temp_name);
-    assert!(temp_path.exists(), "the temp file must exist before cancel");
-
-    invoke(&window, "recording_cancel", request_bytes(generation_value, &[])).expect("cancel accepted");
-
-    assert!(!temp_path.exists(), "cancel must delete the sink's temp file");
-
-    use tauri::Manager;
-    app.state::<Bridge>().cancel_owner("main");
     fixture.close().await;
 }
 
