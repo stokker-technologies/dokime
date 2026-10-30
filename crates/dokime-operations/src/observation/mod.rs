@@ -50,16 +50,6 @@ use dokime_domain::model::observation::wire::*;
 
 /* === Enums === */
 
-// This is a latest-state invalidation stream, not a durable event log. The
-
-// initial frame always resynchronizes from current state. Subsequent frames may
-
-// coalesce commits. Query cycle/catalog details after a frame as needed.
-
-// A different epoch or a future position is rejected; reconnect without a cursor
-
-// to explicitly resynchronize. Disconnect never cancels admitted execution.
-
 #[harmos::catalog]
 pub enum Operations {
     WatchRuntime(WatchRuntime),

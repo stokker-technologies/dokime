@@ -35,6 +35,10 @@ use crate::Error;
 pub struct Manifest {
     pub installer: Distribution,
     pub dokime: Artifact,
+
+    #[serde(default)]
+    pub plugin: Vec<Plugin>,
+
     pub signing: Option<Signing>,
 }
 
@@ -50,10 +54,17 @@ pub struct Distribution {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
-    pub version: String,
+    pub version: Option<String>,
+
+    #[serde(default = "native_target")]
     pub target: String,
-    pub release_url: Option<String>,
-    pub sha256: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Plugin {
+    pub name: Option<String>,
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,8 +106,34 @@ pub enum Format {
 
 /* === Implementations === */
 
+impl Artifact {
+    pub fn version(&self) -> &str {
+        self.version.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"))
+    }
+}
+
+impl Plugin {
+    fn validate(&self, index: usize) -> Result<(), Error> {
+        let error = |reason| {
+            let message = format!("plugin entry {index}: {reason}");
+            Error::Invalid(message)
+        };
+        match (&self.name, &self.path) {
+            (Some(name), None) if !name.trim().is_empty() => Ok(()),
+            (None, Some(path)) => {
+                let Some(path) = path.to_str() else { return Err(error("path must be UTF-8")) };
+                let checked = super::distribution::relative(path);
+                checked.map_err(|_| error("path must be relative to and stay inside the organization pack"))?;
+                Ok(())
+            }
+            (Some(_), None) => Err(error("name must not be empty")),
+            _ => Err(error("set exactly one of name or path")),
+        }
+    }
+}
+
 impl Manifest {
-    pub(super) fn identity(&self, compiled: &super::payload::Identity) -> Result<super::payload::Identity, Error> {
+    pub(super) fn identity(&self, compiled: &super::distribution::Identity) -> Result<super::distribution::Identity, Error> {
         let mut identity = compiled.clone();
         if let Some(identifier) = &self.installer.identifier {
             let distribution =
@@ -112,6 +149,7 @@ impl Manifest {
         let mut manifest: Self =
             toml::from_str(&text).map_err(|_| Error::Invalid("invalid installer manifest; check TOML syntax and supported keys".into()))?;
         let base = path.parent().unwrap_or(Path::new("."));
+        manifest.validate_plugins()?;
         if let Some(folder) = &mut manifest.installer.organization {
             *folder = base.join(&*folder);
         }
@@ -126,13 +164,14 @@ impl Manifest {
         Ok(manifest)
     }
     pub fn validate(&self) -> Result<(), Error> {
+        self.validate_plugins()?;
         if let Some(identifier) = &self.installer.identifier {
             dokime::paths::DistributionIdentity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
         }
-        for version in [&self.installer.version, &self.dokime.version] {
-            if cargo_metadata::semver::Version::parse(version).is_err() {
-                return Err(Error::Invalid("versions must be exact semantic versions".into()));
-            }
+        let installer_version = cargo_metadata::semver::Version::parse(&self.installer.version);
+        let version = self.dokime.version();
+        if installer_version.is_err() || (version != "dev-channel" && cargo_metadata::semver::Version::parse(version).is_err()) {
+            return Err(Error::Invalid("versions must be exact semantic versions or Dokime dev-channel".into()));
         }
         let windows = self.dokime.target == "x86_64-pc-windows-msvc";
         let linux = self.dokime.target == "x86_64-unknown-linux-gnu";
@@ -152,22 +191,93 @@ impl Manifest {
         }
         Ok(())
     }
+
+    pub(super) fn plugin_paths(&self, default_organization: &Path) -> Result<Vec<PathBuf>, Error> {
+        self.validate_plugins()?;
+        let organization = self.installer.organization.as_deref().unwrap_or(default_organization);
+        let mut paths = Vec::new();
+        for (index, plugin) in self.plugin.iter().enumerate() {
+            let Some(relative) = &plugin.path else { continue };
+            let root = organization.canonicalize()?;
+            let path = root.join(relative);
+            if !path.canonicalize()?.starts_with(&root) {
+                let message = format!("plugin entry {} escapes the organization pack", index + 1);
+                return Err(Error::Invalid(message));
+            }
+            paths.push(path);
+        }
+        Ok(paths)
+    }
+
+    fn validate_plugins(&self) -> Result<(), Error> {
+        for (index, plugin) in self.plugin.iter().enumerate() {
+            plugin.validate(index + 1)?;
+        }
+        Ok(())
+    }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
 
+fn native_target() -> String {
+    dokime::plugins::NATIVE_TARGET.into()
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_manifest() {
+        let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n[[plugin]]\nname='opaque-name'\n[[plugin]]\npath='plugins/plugin.dokime'";
+        let manifest: Manifest = toml::from_str(text).unwrap();
+        manifest.validate_plugins().unwrap();
+        assert_eq!(manifest.dokime.version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(manifest.plugin[0].name.as_deref(), Some("opaque-name"));
+        assert_eq!(manifest.plugin[1].path.as_deref(), Some(Path::new("plugins/plugin.dokime")));
+
+        for retired in [
+            "release_url='https://example.test/archive.zip'",
+            "sha256='digest'",
+            "plugins=['opaque-name']",
+            "[[dokime.external_plugins]]\npath='plugin.dokime'",
+        ] {
+            let text = format!("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n{retired}");
+            assert!(toml::from_str::<Manifest>(&text).is_err());
+        }
+    }
+
+    #[test]
+    fn plugin_entry_validation() {
+        let base = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n";
+        let empty: Manifest = toml::from_str(base).unwrap();
+        empty.validate_plugins().unwrap();
+        assert!(empty.plugin.is_empty());
+
+        for entry in [
+            "",
+            "name='host'\npath='plugins/host.dokime'",
+            "name=''",
+            "path='../outside.dokime'",
+            "path='/host.dokime'",
+            "path='C:/host.dokime'",
+            "path='plugins\\host.dokime'",
+        ] {
+            let text = format!("{base}[[plugin]]\nname='valid'\n[[plugin]]\n{entry}");
+            let manifest: Manifest = toml::from_str(&text).unwrap();
+            let error = manifest.validate_plugins().unwrap_err();
+            assert!(error.to_string().contains("entry 2"), "{error}");
+        }
+    }
     #[test]
     fn distribution_identifier() {
         let text = "[installer]\nversion='1.2.3'\nidentifier='com.hilti.dokime'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
         let mut manifest: Manifest = toml::from_str(text).unwrap();
-        let compiled = super::super::payload::Identity {
+        let compiled = super::super::distribution::Identity {
             identifier: "com.stokker.dokime".into(),
             slug: "dokime".into(),
             updater_public_key: "trust".into(),

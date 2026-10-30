@@ -37,11 +37,11 @@ pub enum Error {
     #[error("{0}")]
     Invalid(String),
 
-    #[error("payload digest mismatch: {member}")]
-    PayloadDigest { member: String },
+    #[error("distribution digest mismatch: {member}")]
+    DistributionDigest { member: String },
 
-    #[error("payload organization member is not integrity indexed: {member}")]
-    UnindexedPayload { member: String },
+    #[error("distribution organization member is not integrity indexed: {member}")]
+    UnindexedDistribution { member: String },
 
     #[error("--sign requires explicit signing configuration")]
     SigningConfiguration,

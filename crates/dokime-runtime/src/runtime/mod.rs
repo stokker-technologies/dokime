@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub mod command;
+pub(crate) mod effects;
 mod embedded;
 pub mod error;
 pub(crate) mod handle;
@@ -36,7 +37,6 @@ pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
 pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
-
 // targets name one path, not a private module tree.
 pub use handle::RecordSubscription;
 pub use storage::{
@@ -242,11 +242,6 @@ impl Runtime {
 
     pub fn handle(&self) -> RuntimeHandle {
         self.handle.clone()
-    }
-
-    // What an unfinished stop was doing when its host stopped waiting.
-    pub fn shutdown_stage(&self) -> &'static str {
-        self.shutdown.stage
     }
 
     pub async fn shutdown(&mut self) -> Result<RuntimeOverviewSnapshot> {

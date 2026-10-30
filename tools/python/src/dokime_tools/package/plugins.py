@@ -11,13 +11,12 @@
 # === Imports === #
 
 # Standard Library Imports
-import argparse
-import hashlib
 import json
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
-from urllib.parse import urlsplit
 
 # Third Party Imports
 # Local Imports
@@ -43,9 +42,9 @@ FIXTURES = ("obc-plugin",)
 def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...] | None = None) -> list[Path]:
     """Collect The Product Build's Plugin Executables Without Another Compiler."""
     root = root.resolve()
+    declarations = policy.config(root).get("release", {}).get("plugins", [])
+    target = paths.target()
     if packages is None:
-        declarations = policy.config(root).get("release", {}).get("plugins", [])
-        target = paths.target()
         packages = tuple(item["package"] for item in declarations if target in item["targets"])
 
     metadata = messages.with_name("metadata.json")
@@ -77,20 +76,13 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
                 stderr=sys.stderr,
             )
         packager = [str(tool), "dokime", "sidecar", "package", "--build-json", str(build_json), "--output", str(output), "--json"]
-        packaged = subprocess.run(
-            packager,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-        ).stdout
+        packaged = _capture(packager, cwd=root)
         for item in json.loads(packaged):
             path = Path(item["path"])
             path = path if path.is_absolute() else root / path
-            if package == "dokime-host":
-                selected = path.with_name("host.dokime")
+            declaration = next((item for item in declarations if item["package"] == package and target in item["targets"]), None)
+            if declaration is not None and "path" in declaration:
+                selected = path.with_name(Path(declaration["path"]).name)
                 if selected != path:
                     path.rename(selected)
                 path = selected
@@ -98,53 +90,63 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
     return staged
 
 
-def release_feed(assets: list[tuple[Path, str]], *, tool: Path, requires_dokime: str) -> dict:
-    """Inspect Existing Bundles And Produce One Package's Target-Specific Release Feed."""
-    if not assets or len(assets) > 32 or not requires_dokime or len(requires_dokime) > 256:
-        raise ValueError("a release needs bounded assets and a host version requirement")
-    identity = None
-    targets: set[str] = set()
-    entries = []
-    for path, url in assets:
-        parsed = urlsplit(url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
-            raise ValueError("plugin release assets require credential-free HTTPS URLs")
-        inspected = subprocess.run(
-            [str(tool), "dokime", "sidecar", "inspect", str(path)],
+def archive(root: Path, build: Path, output: Path, version: str, target: str) -> Path | None:
+    """Archive Exactly The Declared Shipping Sidecars From Existing Build Bytes."""
+    members = shipping(root, build, target)
+    if not members:
+        return None
+
+    extension = ".zip" if "windows" in target else ".tar.gz"
+    destination = output / f"dokime-sidecars-{version}-{target}{extension}"
+    output.mkdir(parents=True, exist_ok=True)
+    if extension == ".zip":
+        with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, source in sorted(members.items()):
+                archive.write(source, name)
+    else:
+        with tarfile.open(destination, "w:gz") as archive:
+            for name, source in sorted(members.items()):
+                archive.add(source, arcname=name, recursive=False)
+    return destination
+
+
+def shipping(root: Path, build: Path, target: str) -> dict[str, Path]:
+    """Resolve Unversioned Bundle Names From Product Declarations."""
+    declarations = policy.config(root).get("release", {}).get("plugins", [])
+    selected = [item for item in declarations if target in item["targets"].values() and item.get("kind", "sidecar") == "sidecar"]
+    members = {}
+    for item in selected:
+        name = Path(item["path"]).name
+        if name.casefold() in {old.casefold() for old in members} or Path(name).suffix != ".dokime":
+            raise ValueError("shipping sidecars require distinct .dokime member names")
+        source = build / "plugins" / name
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("shipping sidecar must be an existing regular bundle")
+        members[name] = source
+    return members
+
+
+# === Private Functions === #
+
+
+def _capture(command: list[str], *, cwd: Path | None = None) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
             capture_output=True,
             text=True,
             check=True,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             stdin=sys.stdin,
         )
-        manifest = json.loads(inspected.stdout)["manifest"]
-        selected = (manifest["identity"]["name"], manifest["identity"]["version"])
-        if identity is not None and identity != selected:
-            raise ValueError("all release assets must contain the same package and version")
-        identity = selected
-        executable_targets = {item["executable"]["target"] for item in manifest["files"] if item.get("executable")}
-        if not executable_targets or targets.intersection(executable_targets):
-            raise ValueError("release assets require distinct executable targets")
-        targets.update(executable_targets)
-        with path.open("rb") as stream:
-            digest = hashlib.file_digest(stream, "sha256").hexdigest()
-        entries.extend({"target": target, "url": url, "sha256": digest} for target in sorted(executable_targets))
-    if len(entries) > 32:
-        raise ValueError("plugin release feed exceeds the target limit")
-    assert identity is not None
-    return {"format_version": 1, "package": identity[0], "version": identity[1], "requires_dokime": requires_dokime, "assets": entries}
+    except subprocess.CalledProcessError as error:
+        print(f"Command failed with exit code {error.returncode}: {subprocess.list2cmdline(command)}", file=sys.stderr)
+        outputs = filter(None, (error.stderr, error.stdout))
+        diagnostics = "\n".join(outputs)
+        print(diagnostics, file=sys.stderr)
+        raise
+    return result.stdout
 
-
-# === Private Functions === #
 
 # === Entry Point === #
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate plugins.json from inspected, already built bundles")
-    parser.add_argument("--tool", required=True, type=Path)
-    parser.add_argument("--asset", required=True, nargs=2, action="append", metavar=("BUNDLE", "HTTPS_URL"))
-    parser.add_argument("--requires-dokime", required=True)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    feed = release_feed([(Path(path), url) for path, url in args.asset], tool=args.tool, requires_dokime=args.requires_dokime)
-    args.output.write_text(json.dumps(feed, indent=2) + "\n", encoding="utf-8")

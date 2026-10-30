@@ -161,11 +161,6 @@ impl RuntimeConfig {
         self
     }
 
-    pub fn with_plugin_lookup(mut self, directory: impl Into<PathBuf>) -> Self {
-        self.plugin_lookup = Some(directory.into());
-        self
-    }
-
     pub fn with_action_dispatcher(
         mut self, plugin_id: dokime_domain::model::identity::Identifier, dispatcher: Arc<dyn ActionDispatcher>,
     ) -> Self {

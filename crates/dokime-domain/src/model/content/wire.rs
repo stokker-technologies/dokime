@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -57,7 +55,6 @@ pub struct ArtifactScope {
     pub cycle_id: Option<String>,
     pub case_id: Option<String>,
 
-    // Captured artifacts carry their owning execution.
     #[row(description = "Captured artifacts carry their owning execution.")]
     pub execution_id: Option<String>,
 }
@@ -72,7 +69,6 @@ pub struct ArtifactMetadata {
     pub content_type: Option<String>,
     pub size_bytes: u64,
 
-    // Exactly 64 lowercase hexadecimal characters.
     #[row(description = "Exactly 64 lowercase hexadecimal characters.")]
     pub sha256: String,
 
@@ -231,7 +227,6 @@ pub struct ExecutionFileSeal {
     pub position: Option<crate::model::execution::wire_checkpoint::StorageCursor>,
     pub length: u64,
 
-    // Exactly 64 lowercase hexadecimal characters, over the entire file.
     #[row(description = "Exactly 64 lowercase hexadecimal characters, over the entire file.")]
     pub sha256: String,
 }

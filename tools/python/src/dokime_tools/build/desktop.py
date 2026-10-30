@@ -135,7 +135,7 @@ def main() -> int:
         launch(
             [
                 (
-                    ["node", "./node_modules/vite/bin/vite.js", "build", "--config", "vite.report.config.ts", "--watch"],
+                    ["node", "./node_modules/vite/bin/vite.js", "build", "--mode", "report", "--watch"],
                     original,
                 )
             ],
@@ -155,7 +155,7 @@ def main() -> int:
     if environment.get("DOKIME_DEV_REPORT_WATCH") != "0":
         commands.append(
             (
-                ["node", "./node_modules/vite/bin/vite.js", "build", "--config", "vite.report.config.ts", "--watch"],
+                ["node", "./node_modules/vite/bin/vite.js", "build", "--mode", "report", "--watch"],
                 original,
             )
         )

@@ -8,7 +8,7 @@
 
 [toolchain]
 channel = "1.99.0"
-components = ["clippy", "rustfmt"]
+components = ["clippy", "rustfmt", "llvm-tools"]
 # `check:wasm` compiles dokime-contract for a wasm guest's target.
 targets = ["wasm32-unknown-unknown"]
 profile = "default"

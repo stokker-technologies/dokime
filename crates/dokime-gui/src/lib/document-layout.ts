@@ -17,7 +17,6 @@ import type { DocumentCardLayout, DocumentViewCard, DocumentViewNode, DocumentVi
 
 /* === Types === */
 
-export type DocumentCardKind = DocumentViewCard["kind"];
 export type DocumentCardLayoutAttributes = {
   "data-col-span-base": number;
   "data-col-span-sm": number;
@@ -28,24 +27,6 @@ export type DocumentCardLayoutAttributes = {
 
 /* === Constants === */
 
-export const DOCUMENT_CARD_HIERARCHY: readonly DocumentCardKind[] = [
-  "result",
-  "overview",
-  "table",
-  "traceability",
-  "plots",
-  "steps",
-  "criteria",
-  "media",
-  "artifacts",
-  "notes",
-  "records",
-  "health",
-  "telemetry_context",
-];
-
-const DOCUMENT_CARD_ORDER = new Map(DOCUMENT_CARD_HIERARCHY.map((kind, index) => [kind, index]));
-
 /* === Public Functions === */
 
 export function orderedDocumentSections(document: DocumentViewPayload | null | undefined): DocumentViewSection[] {
@@ -53,10 +34,6 @@ export function orderedDocumentSections(document: DocumentViewPayload | null | u
     ...section,
     cards: orderedSectionCards(section.cards),
   }));
-}
-
-export function documentCardRank(kind: DocumentCardKind): number {
-  return DOCUMENT_CARD_ORDER.get(kind) ?? DOCUMENT_CARD_HIERARCHY.length;
 }
 
 export function orderedSectionCards(cards: DocumentViewCard[]): DocumentViewCard[] {

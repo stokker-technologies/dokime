@@ -88,6 +88,14 @@ impl Drafts {
         }
     }
 
+    pub(crate) fn capture_scope(&mut self, scope: RecordScope) {
+        if let Some(execution) = scope.test_execution_id.clone()
+            && !self.captures.iter().any(|(owner, _, _)| owner == &execution)
+        {
+            self.captures.push((execution, Vec::new(), scope));
+        }
+    }
+
     pub(crate) fn following(&self) -> Self {
         Self {
             session: self.session.clone(),

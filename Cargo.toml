@@ -53,7 +53,6 @@ dokime-server = { version = "0.1.2", path = "crates/dokime-server" }
 # Git
 
 # Error Handling
-anyhow = { version = "1.0.104" }
 thiserror = { version = "2.0.21" }
 
 # Logging
@@ -90,6 +89,7 @@ zeroize = { version = "=1.9.1" }
 arrow-array = { version = "=60.1.0" }
 arrow-schema = { version = "=60.1.0" }
 base64 = { version = "0.23.1" }
+handlebars = { version = "6.4.4" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
@@ -139,7 +139,6 @@ tokio-stream = { version = "=0.1.19" }
 tokio-util = { version = "=0.7.20" }
 
 # Networking
-getifs = { version = "0.7.0" }
 # Excludes the aws-lc-rs TLS, Prometheus metrics and proxy-protocol defaults; the test FTP server needs none of them.
 libunftp = { version = "0.23.1", default-features = false }
 rcgen = { version = "0.14.10" }
@@ -154,6 +153,8 @@ tonic-types = { version = "=0.14.8" }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
 url = { version = "2.5.8" }
+
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 # Storage
 rusqlite = { version = "0.40.2", features = ["bundled", "functions", "limits"] }

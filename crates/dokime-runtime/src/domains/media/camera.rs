@@ -48,13 +48,11 @@ pub(super) fn capture_jpeg(camera: Option<u32>, warmup_frames: usize, jpeg_quali
         utils::{CameraIndex, RequestedFormat, RequestedFormatType},
     };
 
-    // Open The Highest Resolution Stream
     let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
     let index = CameraIndex::Index(camera.unwrap_or(0));
     let mut device = Camera::new(index, format).map_err(|source| unavailable(format!("no camera is available: {source}")))?;
     device.open_stream().map_err(|source| unavailable(format!("camera stream failed: {source}")))?;
 
-    // Settle, Then Keep One Frame
     let mut frame = None;
     for _ in 0..=warmup_frames {
         frame = Some(device.frame().map_err(|source| unavailable(format!("camera frame failed: {source}")))?);
@@ -67,7 +65,6 @@ pub(super) fn capture_jpeg(camera: Option<u32>, warmup_frames: usize, jpeg_quali
         .decode_image::<RgbFormat>()
         .map_err(|source| unavailable(format!("camera frame decoding failed: {source}")))?;
 
-    // Encode JPEG
     let mut bytes = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, jpeg_quality)
         .encode_image(&image)

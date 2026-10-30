@@ -37,7 +37,7 @@ STAMP = ROOT / "target/report-template/inputs.sha256"
 INPUT_ROOTS = [
     WEB_ROOT / "src",
     WEB_ROOT / "report.html",
-    WEB_ROOT / "vite.report.config.ts",
+    WEB_ROOT / "vite.config.ts",
     WEB_ROOT / "tsconfig.json",
     WEB_ROOT / "package.json",
     ROOT / "organization/organization.toml",
@@ -83,7 +83,7 @@ def ensure_report() -> None:
 
 def render_report(output: Path) -> None:
     subprocess.run(
-        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--config", "vite.report.config.ts", "--outDir", str(output)],
+        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", str(output)],
         cwd=WEB_ROOT,
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

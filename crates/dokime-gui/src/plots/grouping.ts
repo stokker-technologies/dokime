@@ -119,55 +119,6 @@ export function resolvedElapsedUnit(plot: DocumentViewPlot, xFormat: ValueFormat
   return elapsedColumnUnit(plot.x);
 }
 
-export function documentPlotsKey(plots: DocumentViewPlot[]): string {
-  return plots
-    .map((plot) =>
-      [
-        plot.plot_id,
-        plot.title,
-        plot.stream,
-        plot.plot_type,
-        plot.style,
-        plot.x_scale,
-        plot.y_scale,
-        plot.fft ? JSON.stringify(plot.fft) : "",
-        plot.analysis ? JSON.stringify(plot.analysis) : "",
-        plot.interval ? JSON.stringify(plot.interval) : "",
-        plot.histogram ? JSON.stringify(plot.histogram) : "",
-        plot.z_expression ? JSON.stringify(plot.z_expression) : "",
-        plot.x ?? "",
-        plot.z_stream ?? "",
-        plot.z_field ?? "",
-        plot.x_expression ? JSON.stringify(plot.x_expression) : "",
-        plot.y_expressions ? JSON.stringify(plot.y_expressions) : "",
-        plot.series_by_expression ? JSON.stringify(plot.series_by_expression) : "",
-        plot.unit ?? "",
-        plot.series_by ?? "",
-        plot.x_format ? JSON.stringify(plot.x_format) : "",
-        plot.y_format ? JSON.stringify(plot.y_format) : "",
-        plot.x_axis ? JSON.stringify(plot.x_axis) : "",
-        plot.y.join("|"),
-        (plot.marker_record_types ?? []).join("|"),
-        (plot.reference_lines ?? [])
-          .map(
-            (line) =>
-              `${line.axis}:${line.value ?? ""}:${JSON.stringify(line.source ?? null)}:${line.source_scale ?? ""}:${line.label ?? ""}`,
-          )
-          .join("|"),
-        (plot.reference_bands ?? [])
-          .map(
-            (band) =>
-              `${band.axis}:${band.min ?? ""}:${band.max ?? ""}:${JSON.stringify(band.min_source ?? null)}:${JSON.stringify(band.max_source ?? null)}:${band.label ?? ""}`,
-          )
-          .join("|"),
-        plot.live_window_s ?? "",
-        plot.display_points ?? "",
-        plot.downsample ?? "",
-      ].join(":"),
-    )
-    .join(",");
-}
-
 /** Whether the group header would only repeat its single plot's own title. */
 export function groupRepeatsPlotTitle(title: string, plots: readonly DocumentViewPlot[]): boolean {
   return plots.length === 1 && plots[0].title.trim().toLowerCase() === title.trim().toLowerCase();

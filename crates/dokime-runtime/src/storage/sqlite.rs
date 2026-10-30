@@ -44,9 +44,6 @@ use tokio::sync::{Mutex, Semaphore};
 
 pub const SCHEMA_VERSION: i64 = 1;
 
-// A runtime being replaced releases the root as it exits; a successor waits
-// this long for that before calling the root owned.
-
 static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
 static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
 static DURABLE_FILES: AtomicU64 = AtomicU64::new(0);

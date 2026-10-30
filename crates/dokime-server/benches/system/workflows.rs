@@ -62,7 +62,7 @@ struct Session {
 impl Session {
     async fn open(server: &Server) -> Self {
         let client = Client::connect(Target::local(server.endpoint()).unwrap(), None, None).await.unwrap();
-        let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+        let changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
         let first = changes.message().await.unwrap().expect("the runtime watch opens with a frame");
         let epoch = first.cursor.as_ref().expect("runtime frames carry their cursor").epoch.clone();
         Self { client, changes, epoch }
@@ -86,7 +86,7 @@ impl Session {
             cycle_id: cycle_id.to_owned(),
             ..Default::default()
         };
-        self.client.execution_list_executions(request).await.unwrap().executions
+        self.client.call(request).await.unwrap().executions
     }
 
     // The Prompt Of One Member Once It Waits, Answering Every Earlier Member's.
@@ -96,7 +96,7 @@ impl Session {
                 cycle_id: Some(cycle_id.to_owned()),
                 ..Default::default()
             };
-            for prompt in client.prompts_list_pending(request).await.unwrap().prompts {
+            for prompt in client.call(request).await.unwrap().prompts {
                 let owner = prompt.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
                 if owner == Some(execution_id) {
                     return Some(prompt.prompt_id);
@@ -115,14 +115,14 @@ impl Session {
                 cycle_id: Some(cycle_id.to_owned()),
                 ..Default::default()
             };
-            for prompt in client.prompts_list_pending(request).await.unwrap().prompts {
+            for prompt in client.call(request).await.unwrap().prompts {
                 respond(client, prompt.prompt_id).await;
             }
             let request = contracts::execution::ListExecutions {
                 cycle_id: cycle_id.to_owned(),
                 ..Default::default()
             };
-            let members = client.execution_list_executions(request).await.unwrap().executions;
+            let members = client.call(request).await.unwrap().executions;
             assert!(!members.is_empty(), "the benchmark cycle has planned executions");
             use model::execution::wire::ExecutionStatus;
             let failed = members.iter().find(|member| member.sealed && member.status != ExecutionStatus::Passed);
@@ -140,7 +140,7 @@ impl Session {
                 cycle_id: cycle_id.to_owned(),
                 ..Default::default()
             };
-            let page = client.execution_list_executions(request).await.unwrap();
+            let page = client.call(request).await.unwrap();
             page.executions.iter().any(|member| member.execution_id == execution_id && member.sealed).then_some(())
         })
         .await;
@@ -153,7 +153,7 @@ impl Session {
     }
 
     async fn template(&self, suite_id: &str, identifier: &str) -> String {
-        let suite = self.client.catalog_get_suite(contracts::catalog::GetSuite { suite_id: suite_id.to_owned() }).await.unwrap();
+        let suite = self.client.call(contracts::catalog::GetSuite { suite_id: suite_id.to_owned() }).await.unwrap();
         suite
             .templates
             .into_iter()
@@ -173,13 +173,13 @@ impl Session {
             metadata: Some(metadata),
             ..Default::default()
         };
-        let cycle_id = self.client.execution_create_cycle(created).await.unwrap().cycle_id;
+        let cycle_id = self.client.call(created).await.unwrap().cycle_id;
         for plan in plans {
             let register = contracts::planning::RegisterSelection {
                 plan: Some(plan),
                 idempotency_key: uuid::Uuid::now_v7().to_string(),
             };
-            let cases = self.client.planning_register_selection(register).await.unwrap().cases;
+            let cases = self.client.call(register).await.unwrap().cases;
             let executions = cases
                 .into_iter()
                 .map(|case| contracts::execution::ExecutionBinding {
@@ -188,20 +188,20 @@ impl Session {
                 })
                 .collect();
             let append = contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions };
-            self.client.execution_append_executions(append).await.unwrap();
+            self.client.call(append).await.unwrap();
         }
         let policy = contracts::execution::UpdateCyclePolicy {
             cycle_id: cycle_id.clone(),
             continue_automatically: true,
             ..Default::default()
         };
-        self.client.execution_update_cycle_policy(policy).await.unwrap();
+        self.client.call(policy).await.unwrap();
         let members = self.executions(&cycle_id).await.into_iter().map(|member| member.execution_id).collect::<Vec<_>>();
         let start = contracts::execution::StartExecution {
             execution_id: members[0].clone(),
             mode: model::execution::wire::ExecutionMode::Automatic,
         };
-        let reply = self.client.execution_start_execution(start).await.unwrap();
+        let reply = self.client.call(start).await.unwrap();
         assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
         (cycle_id, members)
     }
@@ -226,7 +226,7 @@ impl Session {
         };
         let request_bytes = encoded_size(&request);
         let started = Instant::now();
-        let reply = self.client.notes_create_note(request).await.unwrap();
+        let reply = self.client.call(request).await.unwrap();
         let duration = started.elapsed();
         (duration, request_bytes + encoded_size(&reply))
     }
@@ -257,12 +257,12 @@ async fn execution_failure(client: &Client, member: &model::execution::wire::Exe
         execution_id: member.execution_id.clone(),
         ..Default::default()
     };
-    let steps = client.execution_list_execution_steps(request).await.unwrap();
+    let steps = client.call(request).await.unwrap();
     let request = contracts::content::ListExecutionFiles {
         execution_id: member.execution_id.clone(),
         ..Default::default()
     };
-    let files = client.content_list_execution_files(request).await.unwrap();
+    let files = client.call(request).await.unwrap();
 
     let logs = files.files.iter().filter(|file| file.relative_path.ends_with("stream.000000.log"));
     for file in logs {
@@ -272,7 +272,7 @@ async fn execution_failure(client: &Client, member: &model::execution::wire::Exe
             offset: 0,
             max_bytes: 65_536,
         };
-        let content = client.content_read_execution_file(request).await.unwrap();
+        let content = client.call(request).await.unwrap();
         eprintln!("failed execution log: {}", String::from_utf8_lossy(&content.data));
     }
     panic!("benchmark execution {} failed: {:?}; steps: {steps:?}", member.execution_id, member.status);
@@ -296,7 +296,7 @@ fn install(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, bundle
                     let installation = install_bundle(&client, &bytes).await;
                     elapsed += started.elapsed();
                     counters("plugin_install", before, server.storage_counters(), bytes.len());
-                    client.plugins_remove(contracts::plugins::Remove { install_id: installation.install_id }).await.unwrap();
+                    client.call(contracts::plugins::Remove { install_id: installation.install_id }).await.unwrap();
                 }
                 elapsed
             })
@@ -324,7 +324,7 @@ fn running_report(criterion: &mut Criterion, executor: &tokio::runtime::Runtime,
                         let execution_id = &members[0];
                         let first = session.prompt_of(&cycle_id, execution_id).await;
                         let client = session.client.clone();
-                        let progress = client.observation_watch_runtime(Default::default()).await.unwrap();
+                        let progress = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
                         progress.message().await.unwrap().unwrap();
                         let before = server.storage_counters();
                         let report = async {
@@ -441,7 +441,7 @@ fn note(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session: 
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
                     renew_note_fixture(session, server, &mut cycle_id, &mut execution_id, &mut notes).await;
-                    let progress = session.client.observation_watch_runtime(Default::default()).await.unwrap();
+                    let progress = session.client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
                     progress.message().await.unwrap().unwrap();
                     let before = server.storage_counters();
                     let report = download_cycle_report(&session.client, &cycle_id);
@@ -612,7 +612,7 @@ async fn respond(client: &Client, prompt_id: String) -> usize {
         ..Default::default()
     };
     let request_bytes = encoded_size(&request);
-    let reply = client.prompts_respond(request).await.unwrap();
+    let reply = client.call(request).await.unwrap();
     request_bytes + encoded_size(&reply)
 }
 
@@ -694,7 +694,7 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
         analysis: None,
         summary_window: None,
     };
-    let stream = client.plots_watch(contracts::plots::Watch { requests: vec![request] }).await.unwrap();
+    let stream = client.stream(contracts::plots::Watch { requests: vec![request] }).await.unwrap();
     tokio::time::timeout(SETTLE, async {
         loop {
             let frame = stream.message().await.unwrap().expect("the plot watch opens with a frame");

@@ -14,23 +14,17 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import platform
 import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
-import tomllib
-import urllib.parse
 import urllib.request
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 # Third Party Imports
 # Local Imports
@@ -66,7 +60,6 @@ GUI_PACKAGES = (
     "linux-libc-dev",
     "libclang-dev",
 )
-HARMOS_REPOSITORY = "https://github.com/stokker-technologies/harmos.git"
 GUI_RUNTIME_PACKAGES = (
     "libwebkit2gtk-4.1-0",
     "libgtk-3-0t64",
@@ -98,8 +91,6 @@ DESKTOP_PACKAGES = (
 )
 # Google's Stable Chrome For Testing Release, Used Only When The Hosted Browser Is Absent.
 CHROME_VERSION = "156.0.8078.47"
-HARMOS_PACKAGES = ("harmos", "harmos-domain", "harmos-packaging", "harmos-sdk")
-CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
 # === Types === #
 
@@ -110,16 +101,6 @@ CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
-    if arguments.harmos_key:
-        print(_source_key(harmos_pin(Path.cwd())))
-        return 0
-    if arguments.harmos_tools:
-        prepare_harmos(
-            Path.cwd(),
-            allow_install=os.environ.get("DOKIME_CI_ROLE") in {None, "contracts"},
-            cargo_config=arguments.cargo_config,
-        )
-        return 0
     if arguments.gui_packages or arguments.gui_runtime:
         install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop)
     if arguments.desktop:
@@ -149,7 +130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="bootstrap.py",
-        description="Prepare explicitly selected native prerequisites or the pinned Harmos tool.",
+        description="Prepare explicitly selected native prerequisites.",
     )
     gui = parser.add_mutually_exclusive_group()
     gui.add_argument(
@@ -162,237 +143,8 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="install only Ubuntu GUI runtime libraries for prebuilt artifacts.",
     )
-    parser.add_argument("--harmos-key", action="store_true")
-    parser.add_argument("--harmos-tools", action="store_true")
-    parser.add_argument("--cargo-config", type=Path)
     parser.add_argument("--desktop", action="store_true")
     return parser.parse_args(argv)
-
-
-def harmos_pin(root: Path) -> dict[str, str]:
-    """Resolve Harmos To An Exact Public Git Or Locked Registry Source."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependencies = manifest["workspace"]["dependencies"]
-    if any(name in dependencies for name in ("harmos-contract", "harmos-signal")):
-        raise ValueError("Dokime depends on the harmos crate alone")
-    dependency = dependencies.get("harmos")
-    if dependency is None:
-        raise ValueError("Harmos tools require a declared harmos dependency")
-    if isinstance(dependency, str):
-        dependency = {"version": dependency}
-    if not isinstance(dependency, dict):
-        raise TypeError("Harmos tools require a string or table dependency")
-    url, revision, branch = (
-        dependency.get("git"),
-        dependency.get("rev"),
-        dependency.get("branch"),
-    )
-
-    if url is None:
-        return _registry_pin(root, dependencies, dependency.get("version"))
-    if not _is_harmos_repository(url) or any(key in dependency for key in ("path", "registry", "tag")):
-        raise ValueError("Harmos tools require the public Harmos Git source")
-    expected = [dependency.get(key) for key in ("rev", "branch")]
-    for name in HARMOS_PACKAGES[1:]:
-        if name not in dependencies:
-            continue
-        declared = dependencies[name]
-        if isinstance(declared, str):
-            declared = {"version": declared}
-        if not isinstance(declared, dict):
-            raise TypeError(f"{name} must use a dependency table")
-        actual = [declared.get(key) for key in ("rev", "branch")]
-        unsupported = any(key in declared for key in ("path", "registry", "tag"))
-        if not _is_harmos_repository(declared.get("git")) or actual != expected or unsupported:
-            raise ValueError(f"{name} must use the same public Harmos Git source")
-
-    if branch is None and isinstance(revision, str) and _is_revision(revision):
-        return {"git": HARMOS_REPOSITORY, "rev": revision, "package": "cargo-harmos"}
-    if revision is None and isinstance(branch, str) and branch:
-        # Cargo Percent-Encodes The Branch In Its Lockfile Source
-        locked = _locked_revision(root, f"branch={urllib.parse.quote(branch, safe='')}#")
-        return {"git": HARMOS_REPOSITORY, "branch": branch, "rev": locked, "package": "cargo-harmos"}
-    raise ValueError("Harmos tools require the exact declared public Git revision or a branch")
-
-
-def prepare_harmos(
-    root: Path,
-    *,
-    allow_install: bool,
-    cargo_config: Path | None = None,
-) -> Path:
-    if cargo_config is None:
-        cargo_config = _checkout_harmos_config(root)
-    local_source = None
-
-    if cargo_config is not None:
-        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("DOKIME_CI_ROLE"):
-            raise ValueError("CI refuses local Harmos tool overrides")
-        config = cargo_config.resolve(strict=True)
-        patches = tomllib.loads(config.read_text(encoding="utf-8"))["patch"]
-        sources = [
-            source for source, patch in patches.items() if (_is_harmos_repository(source) or source == "crates-io") and "harmos" in patch
-        ]
-        if len(sources) != 1:
-            raise ValueError("local Harmos tools require one explicit public Git or crates.io patch")
-        manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-        dependency = manifest["workspace"]["dependencies"].get("harmos")
-        if isinstance(dependency, str):
-            dependency = {"version": dependency}
-        if not isinstance(dependency, dict):
-            raise TypeError("local Harmos tools require a declared harmos dependency")
-        unsupported = any(key in dependency for key in ("path", "registry", "tag"))
-        foreign_git = "git" in dependency and not _is_harmos_repository(dependency["git"])
-        mismatched = _is_harmos_repository(sources[0]) != ("git" in dependency)
-        if unsupported or foreign_git or mismatched:
-            raise ValueError("local Harmos patch must match the declared public dependency source")
-        patch = patches[sources[0]]["harmos"]
-        crate = Path(patch["path"])
-        if not crate.is_absolute():
-            raise ValueError("local Harmos tool configuration requires an absolute patch path")
-        crate = crate.resolve(strict=True)
-        package = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))["package"]
-        if package["name"] != "harmos":
-            raise ValueError("local Harmos patch does not identify the harmos package")
-        local_source = crate.parent.parent
-        tool = local_source / "crates/cargo-harmos"
-        if tomllib.loads((tool / "Cargo.toml").read_text(encoding="utf-8"))["package"]["name"] != "cargo-harmos":
-            raise ValueError("local Harmos checkout has no canonical tool package")
-        source_identity = {
-            "local_source": str(local_source),
-            "source": _override_source(local_source),
-            "cargo_config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
-            "package": "cargo-harmos",
-        }
-    else:
-        source_identity = harmos_pin(root)
-    identity: dict[str, Any] = {
-        **source_identity,
-        "platform": platform.system(),
-        "architecture": platform.machine(),
-    }
-    if "registry" in source_identity:
-        targets = {"Windows": "x86_64-pc-windows-msvc", "Linux": "x86_64-unknown-linux-gnu"}
-        if identity["architecture"].lower() not in {"amd64", "x86_64"} or identity["platform"] not in targets:
-            raise ValueError("published Harmos tools require native Windows or Linux x86_64")
-        suffix = ".zip" if identity["platform"] == "Windows" else ".tar.gz"
-        identity["asset"] = f"cargo-harmos-{identity['version']}-{targets[identity['platform']]}{suffix}"
-        identity["release"] = f"https://github.com/stokker-technologies/harmos/releases/download/v{identity['version']}"
-    else:
-        identity.update(
-            {
-                "profile": "dev",
-                "rustc": subprocess.check_output(
-                    ["mise", "exec", "--", "rustc", "-vV"],
-                    text=True,
-                    encoding="utf-8",
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                    stdin=sys.stdin,
-                    stderr=sys.stderr,
-                ).strip(),
-                "environment": {
-                    name: os.environ.get(name)
-                    for name in sorted(
-                        {
-                            "RUSTC",
-                            "RUSTC_WRAPPER",
-                            "RUSTC_WORKSPACE_WRAPPER",
-                            "RUSTFLAGS",
-                            "CARGO_ENCODED_RUSTFLAGS",
-                            "CARGO_BUILD_TARGET",
-                            "CARGO_BUILD_RUSTFLAGS",
-                        }
-                        | {name for name in os.environ if name.startswith("CARGO_PROFILE_")}
-                    )
-                },
-            }
-        )
-    destination = root / ".cache/harmos-tool"
-    binary = destination / "bin" / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
-    receipt = destination / "receipt.json"
-    available = False
-    if binary.is_file() and not binary.is_symlink() and receipt.is_file() and not receipt.is_symlink():
-        try:
-            value = json.loads(receipt.read_text(encoding="utf-8"))
-            available = value.get("identity") == identity and value.get("sha256") == hashlib.sha256(binary.read_bytes()).hexdigest()
-            if "registry" in identity:
-                available = available and value.get("version") == f"cargo harmos {identity['version']}"
-                available = available and value.get("published_sha256") == value.get("sha256")
-        except (OSError, ValueError):
-            available = False
-    if not available:
-        if not allow_install:
-            raise ValueError("exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="harmos-tool-") as temporary:
-            staged = Path(temporary)
-            published_sha256 = None
-            if "registry" in identity:
-                published_sha256 = _install_harmos_release(staged, identity, binary.name)
-            else:
-                from dokime_tools.build import storage
-
-                source_arguments = (
-                    ["--path", str(local_source / "crates/cargo-harmos")]
-                    if local_source is not None
-                    else ["--git", identity["git"], "--rev", identity["rev"]]
-                )
-                storage.preflight(root, target=root / "target/tooling/harmos")
-                _run(
-                    [
-                        "mise",
-                        "exec",
-                        "--",
-                        "cargo",
-                        "install",
-                        "--debug",
-                        *source_arguments,
-                        "--locked",
-                        "--root",
-                        str(staged),
-                        "--target-dir",
-                        str(root / "target/tooling/harmos"),
-                        identity["package"],
-                    ]
-                )
-            if local_source is not None and _override_source(local_source) != identity["source"]:
-                raise ValueError("Harmos source changed while preparing the local tool")
-            executable = staged / "bin" / binary.name
-            if executable.is_symlink() or not executable.is_file():
-                raise ValueError("published Harmos package omitted its required CLI")
-            version = subprocess.check_output(
-                [str(executable), "--version"],
-                text=True,
-                encoding="utf-8",
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                stdin=sys.stdin,
-                stderr=sys.stderr,
-            ).strip()
-            if "registry" in identity and version != f"cargo harmos {identity['version']}":
-                raise ValueError("published Harmos executable reported an unexpected version")
-            value = {
-                "identity": identity,
-                "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
-                "version": version,
-            }
-            if published_sha256 is not None:
-                value["published_sha256"] = published_sha256
-            (staged / "receipt.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-            for path in staged.iterdir():
-                if path.name not in {"bin", "receipt.json"}:
-                    path.unlink()
-            if destination.exists():
-                shutil.rmtree(destination)
-            shutil.copytree(staged, destination)
-    if os.name != "nt":
-        binary.chmod(0o755)
-    github_path = os.environ.get("GITHUB_PATH")
-    if github_path:
-        with Path(github_path).open("a", encoding="utf-8") as output:
-            output.write(str(binary.parent) + "\n")
-    selected = _source_key(source_identity)
-    _step(f"Harmos CLI uses {selected} with verified installed bytes")
-    return binary
 
 
 def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> None:
@@ -496,59 +248,6 @@ def prepare_windows_desktop(root: Path) -> Path:
 # === Private Functions === #
 
 
-def _checkout_harmos_config(root: Path) -> Path | None:
-    candidate = root / ".cargo/config.toml"
-    if not candidate.is_file():
-        return None
-    declaration = tomllib.loads(candidate.read_text(encoding="utf-8"))
-    patches = declaration.get("patch", {})
-    harmos = [patch for source, patch in patches.items() if _is_harmos_repository(source) or source == "crates-io"]
-    return candidate if any("harmos" in patch for patch in harmos) else None
-
-
-def _install_harmos_release(staged: Path, identity: dict[str, Any], binary: str) -> str:
-    # The Release Publishes One Archive Per Target; Its Digest Vouches For The Executable Inside.
-    with tempfile.TemporaryDirectory(prefix="harmos-release-") as temporary:
-        parent = Path(temporary)
-        checksums = parent / "SHA256SUMS"
-        urllib.request.urlretrieve(f"{identity['release']}/SHA256SUMS", checksums)
-        matches = []
-        for line in checksums.read_text(encoding="utf-8").splitlines():
-            fields = line.split()
-            if len(fields) == 2 and fields[1].removeprefix("*") == identity["asset"]:
-                matches.append(fields[0])
-        if len(matches) != 1 or re.fullmatch(r"[0-9a-f]{64}", matches[0]) is None:
-            raise ValueError("published Harmos checksums omit one exact archive digest")
-        archive = parent / identity["asset"]
-        urllib.request.urlretrieve(f"{identity['release']}/{identity['asset']}", archive)
-        if hashlib.sha256(archive.read_bytes()).hexdigest() != matches[0]:
-            raise ValueError("published Harmos archive differs from SHA256SUMS")
-        executable = _archived_executable(archive, binary)
-        destination = staged / "bin" / binary
-        destination.parent.mkdir()
-        destination.write_bytes(executable)
-        if os.name != "nt":
-            destination.chmod(0o755)
-        return hashlib.sha256(executable).hexdigest()
-
-
-def _archived_executable(archive: Path, binary: str) -> bytes:
-    if archive.name.endswith(".zip"):
-        with zipfile.ZipFile(archive) as opened:
-            members = [member for member in opened.infolist() if not member.is_dir() and Path(member.filename).name == binary]
-            if len(members) != 1:
-                raise ValueError("published Harmos package omitted its required CLI")
-            return opened.read(members[0])
-    with tarfile.open(archive, "r:gz") as opened:
-        entries = [member for member in opened.getmembers() if Path(member.name).name == binary]
-        if len(entries) != 1 or not entries[0].isfile():
-            raise ValueError("published Harmos package omitted its required CLI")
-        extracted = opened.extractfile(entries[0])
-        if extracted is None:
-            raise ValueError("published Harmos package omitted its required CLI")
-        return extracted.read()
-
-
 def _webview_version() -> str | None:
     if sys.platform != "win32":
         return None
@@ -579,101 +278,6 @@ def _driver_version(driver: Path) -> str:
     )
     version = re.search(r"\b\d+\.\d+\.\d+\.\d+\b", output)
     return version.group() if version else ""
-
-
-def _registry_pin(root: Path, dependencies: dict[str, Any], requirement: object) -> dict[str, str]:
-    exact = isinstance(requirement, str) and requirement.startswith("=")
-    if not exact or not isinstance(requirement, str) or len(requirement) < 2:
-        raise ValueError("Harmos registry tools require an exact =version declaration")
-    version = requirement[1:]
-    if requirement != requirement.strip():
-        raise ValueError("Harmos registry tools require an exact =version declaration")
-    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
-
-    # The Primary Crate Is Required; Sibling Crates Are Checked Only When Declared, As On The Git Path.
-    for name in HARMOS_PACKAGES:
-        if name != HARMOS_PACKAGES[0] and name not in dependencies:
-            continue
-        declared = dependencies.get(name)
-        if isinstance(declared, str):
-            declared = {"version": declared}
-        if not isinstance(declared, dict):
-            raise TypeError(f"{name} must declare a dependency string or table")
-        unsupported = any(key in declared for key in ("git", "rev", "branch", "tag", "path", "registry", "package"))
-        if declared.get("version") != requirement or unsupported:
-            raise ValueError(f"{name} must declare the same exact public crates.io version")
-
-        locked = [package for package in lock.get("package", []) if package.get("name") == name]
-        if len(locked) != 1:
-            raise ValueError(f"{name} has no unambiguous matching locked public crates.io version")
-        if locked[0].get("source") != CRATES_SOURCE or locked[0].get("version") != version:
-            raise ValueError(f"{name} has no unambiguous matching locked public crates.io version")
-    return {"registry": "crates-io", "version": version, "package": "cargo-harmos"}
-
-
-def _source_key(identity: dict[str, str]) -> str:
-    if "rev" in identity:
-        return identity["rev"]
-    if "source" in identity:
-        return identity["source"]
-    return f"{identity['registry']}-{identity['version']}"
-
-
-def _is_revision(value: object) -> bool:
-    return isinstance(value, str) and len(value) == 40 and all(character in "0123456789abcdef" for character in value)
-
-
-def _is_harmos_repository(url: object) -> bool:
-    """Match The Public Harmos Repository With Or Without Its `.git` Suffix."""
-    return isinstance(url, str) and url.removesuffix(".git") == HARMOS_REPOSITORY.removesuffix(".git")
-
-
-def _locked_revision(root: Path, query: str) -> str:
-    # A Local Path Override Leaves No Git Source In The Lockfile
-    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
-    for package in lock.get("package", []):
-        scheme, _, locked = package.get("source", "").partition("+")
-        url, _, selector = locked.partition("?")
-        if package.get("name") == "harmos" and scheme == "git" and _is_harmos_repository(url) and selector.startswith(query):
-            revision = selector.removeprefix(query)
-            if _is_revision(revision):
-                return revision
-    raise ValueError("the Harmos branch has no locked public revision; a local path override is active")
-
-
-def _override_source(directory: Path) -> str:
-    """Identify The Exact Local Harmos Checkout Used By An Explicit Development Override."""
-    root = Path(
-        subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=directory,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-        ).stdout.strip()
-    )
-    files = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-        cwd=root,
-        capture_output=True,
-        check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        stdin=sys.stdin,
-    ).stdout.split(b"\0")
-    digest = hashlib.sha256()
-    for name in sorted(set(files) - {b""}):
-        path = root / os.fsdecode(name)
-        digest.update(name + b"\0")
-        if path.is_symlink():
-            digest.update(b"link\0" + os.fsencode(os.readlink(path)))
-        elif path.is_file():
-            digest.update(b"file\0" + hashlib.sha256(path.read_bytes()).digest())
-        else:
-            digest.update(b"missing\0")
-    return digest.hexdigest()
 
 
 def _package_installed(name: str) -> bool:

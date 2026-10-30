@@ -81,6 +81,7 @@ pub struct RuntimeState {
     pub identity: DokimeIdentity,
     pub run_parameters: Shared<BTreeMap<String, MaterializedParameter>>,
     pub shutting_down: bool,
+    pub pending_effects: Shared<Vec<dokime_domain::model::execution::effects::PendingEffect>>,
     pub installed_plugins: Shared<BTreeMap<String, InstalledPlugin>>,
     pub plugin_owners: Shared<BTreeMap<String, PluginOwner>>,
     pub suites: Shared<SuiteRegistry>,
@@ -372,6 +373,7 @@ impl RuntimeState {
             telemetry_definitions: Shared::default(),
             cycles: Map::default(),
             executions: Map::default(),
+            pending_effects: Shared::default(),
             retired_executions: Shared::default(),
             run_requests: Map::default(),
             run_queue: Shared::default(),
@@ -860,7 +862,7 @@ mod tests {
         state.install_plugin(plugin("fixture_first", "First")).unwrap();
         let installed = state.clone();
 
-        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field
+        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field Unchanged.
         assert!(state.install_plugin(plugin("fixture_second", "Second")).is_err());
         assert_eq!(state, installed);
 

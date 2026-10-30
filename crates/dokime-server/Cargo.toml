@@ -78,7 +78,6 @@ zip = { workspace = true }
 # Async
 futures-util = { workspace = true }
 tokio = { workspace = true }
-tokio-stream = { workspace = true, features = ["net"] }
 tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
@@ -134,14 +133,13 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-runtime = { workspace = true }
 dokime-cli = { path = "../dokime-cli" }
 dokime-host = { workspace = true }
+dokime-runtime = { workspace = true }
 
 # Git
 
 # Error Handling
-anyhow = { workspace = true }
 
 # Logging
 
@@ -163,6 +161,7 @@ keyring-core = { workspace = true }
 # Async
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "test-util"] }
+tokio-stream = { workspace = true }
 
 # Networking
 tonic = { workspace = true, features = ["channel"] }

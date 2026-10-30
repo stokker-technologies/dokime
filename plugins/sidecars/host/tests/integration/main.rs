@@ -11,9 +11,10 @@
 
 /* === Modules === */
 
-#[cfg(target_os = "linux")]
-mod bluetooth;
+mod adapters;
 mod collectors;
+mod controls;
+mod cpu;
 mod host;
 pub mod support;
 mod wifi;

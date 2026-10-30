@@ -196,21 +196,6 @@ export type InstalledPluginReadiness = {
   last_error?: string | null;
 };
 
-export type DokimeIdentity = {
-  node: {
-    node_id: string;
-    hostname_label?: string | null;
-    created_at: string;
-    updated_at: string;
-  };
-  actor?: {
-    actor_id: string;
-    display_name: string;
-  } | null;
-};
-
-export type { InstalledPluginErrorRecord } from "./view-contracts";
-
 export type HubRevisionSet = {
   run: number;
   prompts: number;

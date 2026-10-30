@@ -39,7 +39,7 @@ pub async fn finalize(client: &Client) {
     };
     let mut saved = 0;
     loop {
-        let page = client.execution_list_cycles(request.clone()).await.unwrap();
+        let page = client.call(request.clone()).await.unwrap();
         saved += save_page(client, &page.cycles, root.path()).await;
 
         let Some(after) = page.next_after_cycle_id else {
@@ -81,7 +81,14 @@ async fn save_execution(client: &Client, execution: &TestExecutionHandle, root: 
     let id = execution.id().to_string();
     assert!(execution.snapshot().await.unwrap().summary.unwrap().sealed);
     let checkpoint = execution.checkpoint().await.unwrap();
-    let evidence = execution.evidence_at(&checkpoint).await.unwrap();
+    let evidence = client
+        .call(contracts::history::GetCheckpointEvidence {
+            checkpoint: Some(checkpoint.clone()),
+            sections: vec![model::history::wire::EvidenceSection::Artifacts],
+        })
+        .await
+        .unwrap();
+    assert_eq!(evidence.checkpoint.as_ref(), Some(&checkpoint));
     let directory = root.join(&id);
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join("report.html");

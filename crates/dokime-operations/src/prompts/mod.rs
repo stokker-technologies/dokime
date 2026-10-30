@@ -55,16 +55,6 @@ use dokime_domain::model::values::wire::Value;
 
 /* === Enums === */
 
-// Current definitions are ordered by prompt type; pending requests by prompt ID.
-
-// Subsequent pages require the same runtime epoch/revision and selection.
-
-// Responder identity comes from the authenticated principal, never a request
-
-// label. This mutation follows MutationContext's no-automatic-retry contract.
-
-// After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
-
 #[harmos::catalog]
 pub enum Operations {
     ListDefinitions(ListDefinitions),

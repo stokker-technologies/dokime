@@ -255,18 +255,6 @@ impl RuntimeHandle {
         self.state_read().find_note(&request.note_id).cloned().ok_or(NoteError::Absent)
     }
 
-    pub async fn get_note_creation(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteCreation>, NoteError> {
-        let Some(admission) = self.read_note_admission(epoch, id).await? else {
-            return Ok(None);
-        };
-        let publication = self.note_publication(&admission).await;
-        Ok(Some(NoteCreation {
-            epoch: epoch.clone(),
-            admission,
-            publication,
-        }))
-    }
-
     async fn read_note_admission(&self, epoch: &SessionId, id: &NoteId) -> Result<Option<NoteAdmission>, NoteError> {
         let epoch = epoch.clone();
         let id = id.clone();

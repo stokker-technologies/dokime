@@ -44,9 +44,9 @@ see [Native Installers](docs/product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
 
 For coupled Harmos development, keep registry dependencies declared and place the
-local Cargo patch in an untracked `.cargo/config.toml`. Preparation and frontend
-tasks use that same explicit patch for the Harmos authoring tool. CI refuses
-local overrides; remove the patch and pin the published dependency before delivery.
+local Cargo patch in an untracked `.cargo/config.toml`. Cargo applies it to every
+build, including the binding generator in `cargo-dokime`; remove the patch and pin
+the published dependency before delivery.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
@@ -57,6 +57,7 @@ Debug assertions and overflow checks remain enabled.
 ## Tests And Checks
 
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
 source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run

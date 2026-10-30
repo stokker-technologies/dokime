@@ -36,7 +36,6 @@ use super::*;
         grpc(package = "dokime.v1", service = "Observation", method = "GetRuntimeShell"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetRuntimeShell {
-    // Zero selects the default page size (50); the maximum is 100.
     #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
     pub limit: u32,
 

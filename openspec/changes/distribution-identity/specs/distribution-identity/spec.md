@@ -19,4 +19,4 @@ A distribution SHALL declare its identifier in the installer manifest; packaging
 #### Scenario: Install Side By Side
 
 - **WHEN** a branded distribution is installed
-- **THEN** its install folder, uninstall entry and package name use its identifier
+- **THEN** its install folder, uninstall registry key and package name use its identifier, while installer titles, pages, shortcuts and native display names use the resolved organization manifest's display label

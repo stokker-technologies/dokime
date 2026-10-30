@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:23ebebcbc507350d7638d4fc63d943cb34ccc0ec6ffcf0f42fba9f14eb760c4d
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:4682b46e8924aa182072472523066cdbb63b08c1e76a5036fe6f8766722eb404
 name: CI
 "on":
   push:
@@ -97,7 +97,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,git-cliff
     outputs:
       stable_release: ${{ steps.release_kind.outputs.stable_release }}
     needs:
@@ -364,7 +364,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc
     needs:
     - impact
     if: >-
@@ -1873,7 +1873,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: >-
@@ -1905,7 +1905,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_product-${{ (github.event_name ==
+        ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   build_tests:
@@ -2127,7 +2127,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: >-
@@ -2157,7 +2157,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-build_tests-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   check_rust:
@@ -2346,7 +2346,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,powershell,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: >-
@@ -2376,7 +2376,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_rust-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   package_rust:
@@ -2973,7 +2973,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-package_rust-${{ (github.event_name == 'pull_request'
+        ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{ (github.event_name == 'pull_request'
         || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_acceptance:
@@ -3347,7 +3347,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ (github.event_name
+        ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ matrix.platform }}-${{ (github.event_name
         == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
         }}
       cancel-in-progress: true
@@ -3580,7 +3580,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_integration-${{ (github.event_name
+        ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform }}-${{ (github.event_name
         == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id
         }}
       cancel-in-progress: true
@@ -3896,7 +3896,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_system-${{ (github.event_name ==
+        ci-${{ github.workflow }}-validate_test_rust_system-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_rust_unit:
@@ -4125,7 +4125,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_rust_unit-${{ (github.event_name ==
+        ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{ (github.event_name ==
         'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
       cancel-in-progress: true
   validate_test_typescript_system:
@@ -4443,7 +4443,7 @@ jobs:
           container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_typescript_system-${{
+        ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform }}-${{
         (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref ||
         github.run_id }}
       cancel-in-progress: true

@@ -84,7 +84,7 @@ impl Sessions {
         true
     }
 
-    fn get(&self, execution: &str) -> Option<Arc<Session>> {
+    pub(crate) fn get(&self, execution: &str) -> Option<Arc<Session>> {
         self.lock().get(execution).cloned()
     }
 

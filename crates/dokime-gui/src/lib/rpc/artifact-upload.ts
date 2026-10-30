@@ -119,64 +119,6 @@ export async function openNativeArtifactUpload(
   return { write, finish, cancel };
 }
 
-export interface NativeRecordingSink {
-  /** Append one MediaRecorder timeslice, in arrival order. */
-  write(slice: Uint8Array): Promise<void>;
-  /** Drop the sink and delete its temp file. Safe to call more than once. */
-  cancel(): Promise<void>;
-}
-
-/**
- * Open a native recording sink: a local temp file the raw MediaRecorder
- * timeslices are appended to, not a direct upload stream. Timeslices are
- * container-level fragments, not independently valid frames, so they cannot
- * be hashed and forwarded incrementally the way an upload's slices are;
- * `desktop_recording_finish` (a JSON `bindings/mod.rs` command, called
- * separately once the recorder stops) patches an MP4's duration in place on
- * that file and only then hashes and uploads it.
- *
- * Unlike `openNativeArtifactUpload`, there is no `finish` here and no chunk
- * sequence number either (the caller already serializes writes one in
- * flight, and a MediaRecorder always delivers its timeslices strictly in
- * order) — `desktop_recording_finish` settles the sink instead. `cancel`
- * exists for every abandonment path (a recorder error, a failed write, an
- * unmount mid-recording, a failed `finish`) so a recording never lingers
- * past the point the caller gave up on it.
- */
-export async function openNativeRecording(
-  session: SessionIdentity,
-  header: MessageInitShape<typeof UploadArtifactHeaderSchema>,
-): Promise<NativeRecordingSink> {
-  const response = await invokeOwned<ArrayBuffer>(
-    session,
-    "recording_open",
-    requestBytes(session, toBinary(UploadArtifactHeaderSchema, create(UploadArtifactHeaderSchema, header))),
-  );
-  responseBytes(session, response, 8);
-  let writing = false;
-  let cancelled = false;
-  const write = async (slice: Uint8Array): Promise<void> => {
-    if (cancelled) fail({ kind: "unknown_stream" });
-    if (writing) fail({ kind: "busy" });
-    writing = true;
-    try {
-      await invokeOwned<void>(session, "recording_write", requestBytes(session, slice));
-    } catch (error) {
-      throw normalizeRpcError(error);
-    } finally {
-      writing = false;
-    }
-  };
-  const cancel = async (): Promise<void> => {
-    if (cancelled) return;
-    cancelled = true;
-    if (session.isCurrent()) {
-      await invokeOwned<void>(session, "recording_cancel", requestBytes(session, new Uint8Array(0))).catch(() => undefined);
-    }
-  };
-  return { write, cancel };
-}
-
 /* === Private Functions === */
 
 function fail(error: RpcError): never {

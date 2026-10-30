@@ -35,7 +35,6 @@ sccache = "0.19.0"
 # Formatting And Linting
 "aqua:koalaman/shellcheck" = "0.11.0"
 "go:github.com/rhysd/actionlint/cmd/actionlint" = "v1.7.13-0.20260417151945-fd33e9f582a0"
-"npm:@fission-ai/openspec" = "1.14.3"
 taplo = "0.10.0"
 
 # Protocols And Code Generation
@@ -77,11 +76,6 @@ description = "Prepare Native Desktop Automation"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 
-[tasks."prepare:harmos"]
-description = "Prepare The Pinned Harmos Authoring Tool"
-depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.ci.bootstrap --harmos-tools"
-
 [tasks."prepare:organization"]
 description = "Generate Default Organization And Desktop Icons"
 depends = ["prepare"]
@@ -92,8 +86,7 @@ description = "Regenerate Python And Desktop Contracts From One Cargo Build"
 usage = 'arg "<messages>"'
 run = [
   '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
-  'node crates/dokime-gui/tools/bindings.mjs "{{usage.messages}}"',
-  '{{vars.tools}} dokime_tools.prepare.generated --stage',
+  '{{vars.tools}} dokime_tools.prepare.generated --build-json "{{usage.messages}}" --stage',
 ]
 
 [tasks."prepare:report"]
@@ -271,7 +264,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:typescript"]
 description = "Build The Generated GUI Client And Frontend"
-depends = ["prepare:harmos"]
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
@@ -284,7 +277,7 @@ env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
   "cargo build --locked -p dokime-cli -p cargo-dokime -p dokime-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
-  "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
+  "{{vars.tools}} dokime_tools.prepare.generated --build-json target/contracts/dev.jsonl",
   "cargo run --locked -p cargo-dokime -- sidecar build --package dokime-host --output target/debug/plugins/host.dokime",
   "cargo run --locked -p cargo-dokime -- sidecar build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
@@ -315,8 +308,11 @@ env = { CARGO_INCREMENTAL = "0" }
 [tasks."test:python:unit"]
 description = "Test Unit Python"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit {% if usage.select %}-- -k "{{usage.select}}"{% endif %}'
 
 [tasks."test:python:integration"]
 description = "Test Integration Python"
@@ -432,10 +428,13 @@ run = [
 [tasks."test:typescript:integration"]
 description = "Test Integration TypeScript"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>"
+'''
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/integration --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
+  "{% if not usage.select %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
@@ -485,7 +484,7 @@ flag "--target <target>" default="any"
 run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
-description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"
+description = "Package The Desktop Installer, Tools And Plugin Archives"
 depends = ["prepare"]
 tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = '''
@@ -499,36 +498,6 @@ run = [
 
 # === CI === #
 
-[tasks.ci]
-description = "Run The CI Flow Locally"
-run = [
-  { task = "check" },
-  { task = "build" },
-  { task = "build:rust:tests" },
-  { task = "check:python:generated" },
-  { task = "check:typescript:generated" },
-  { task = "test" },
-  { task = "package" },
-  { task = "release:publish:dry" },
-]
-
-[tasks."ci:nightly"]
-description = "Run Full Nightly Release Artifacts, Tests, Coverage And Benchmarks"
-run = [
-  { task = "check" },
-  { task = "build --profile release" },
-  { task = "build:rust:tests --profile release" },
-  { task = "check:python:generated --profile release" },
-  { task = "check:typescript:generated --profile release" },
-  { task = "test --profile release" },
-  { task = "test:rust:starter --profile release" },
-  { task = "package --profile release" },
-  { task = "test:rust:coverage --profile release" },
-  { task = "test:python:coverage --profile release" },
-  { task = "build:rust:bench" },
-  { task = "bench" },
-]
-
 [tasks."ci:simulate"]
 description = "Simulate The Declared CI Graph Locally"
 usage = '''
@@ -539,10 +508,6 @@ flag "--executor <executor>"
 run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %}"
 
 # === Release === #
-
-[tasks.release]
-description = "Prepare And Validate A Release"
-run = [{ task = "release:prepare" }, { task = "ci" }, { task = "build --profile release" }]
 
 [tasks."release:prepare"]
 description = "Prepare The Release Branch"

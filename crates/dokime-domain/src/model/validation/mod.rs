@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 pub(crate) mod diagnostic;

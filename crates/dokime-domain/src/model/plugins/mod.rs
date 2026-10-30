@@ -16,6 +16,7 @@ pub mod error;
 mod installed;
 mod permission;
 pub mod product;
+pub mod release;
 pub mod wire;
 
 /* === Re-Exports === */
@@ -39,9 +40,9 @@ pub use contribution::ThemeVariant;
 pub use dispatch::ActionDispatcherError;
 pub use error::InstalledPluginErrorRecord;
 pub use error::InstalledPluginPhase;
-pub use installed::InstalledPlugin;
 pub use installed::PluginListener;
 pub use installed::SettingDiscovery;
+pub use installed::{InstalledPlugin, RunStartRegistration};
 pub use permission::Permission;
 pub use permission::PermissionError;
 pub use product::ExecutionProviderTarget;

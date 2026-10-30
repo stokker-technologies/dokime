@@ -37,8 +37,6 @@ use super::*;
 pub struct ListRecords {
     pub selection: Option<CapturedRecordSelection>,
 
-    // Both absent starts replay at zero through the current applied frontier.
-    // Continuations require BOTH cursors returned in the previous page.
     #[row(
         description = "Both absent starts replay at zero through the current applied frontier. Continuations require BOTH cursors returned in the previous page."
     )]
@@ -46,10 +44,6 @@ pub struct ListRecords {
 
     pub through: Option<Cursor>,
 
-    // Nonzero asks for the tail: the last `latest` matching records up to the
-    // current frontier, oldest first, in one complete page whose cursors sit at
-    // that frontier. Valid only with both cursors absent; follow with
-    // WatchRecords after the returned cursor.
     #[row(
         description = "Nonzero asks for the tail: the last `latest` matching records up to the current frontier, oldest first, in one complete page whose cursors sit at that frontier. Valid only with both cursors absent; follow with WatchRecords after the returned cursor."
     )]

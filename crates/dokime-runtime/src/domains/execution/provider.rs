@@ -28,7 +28,6 @@ use crate::evidence_runtime::ArtifactUploadInput;
 use crate::evidence_runtime::PublishReceipt;
 use crate::evidence_runtime::RecordPublishRequest;
 use crate::execution_runtime::authoring::ExecutionFileTarget;
-use crate::execution_runtime::authoring::SidecarStepContext;
 use crate::handle::RuntimeHandle;
 use crate::prompts::{PromptRequest, PromptResponse};
 use crate::state::RuntimeState;
@@ -177,10 +176,6 @@ impl ExecutionFixtureContext {
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {
         self.runtime.cycle_lifecycle(test_cycle_id).await
-    }
-
-    pub fn step_context_with_source(&self, scope: RecordScope, source: impl Into<String>) -> SidecarStepContext {
-        SidecarStepContext::with_source(self.runtime.clone(), scope, source)
     }
 
     pub(crate) async fn capture_publication_scope(&self, scope: RecordScope) -> crate::runtime::Result<RecordScope> {

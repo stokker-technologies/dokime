@@ -7,8 +7,6 @@
  * ***
  */
 
-// ListPairedClients
-
 /* === Modules === */
 
 /* === Re-Exports === */

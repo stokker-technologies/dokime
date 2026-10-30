@@ -324,7 +324,7 @@ fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, Error> {
 }
 
 fn invalid_pe() -> Error {
-    Error::Invalid("GUI payload has an invalid PE header or Authenticode certificate directory".into())
+    Error::Invalid("GUI executable has an invalid PE header or Authenticode certificate directory".into())
 }
 
 /* === Tests === */

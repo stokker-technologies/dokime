@@ -20,7 +20,7 @@ use std::{io::Write, path::Path, process::Stdio};
 use base64::{Engine, engine::general_purpose::STANDARD};
 
 // Local Imports
-use super::{inspect, manifest::Manifest, payload::Payload};
+use super::{distribution::Distribution, inspect, manifest::Manifest};
 use crate::Error;
 
 /* === Constants === */
@@ -39,7 +39,7 @@ use crate::Error;
 
 /* === Public Functions === */
 
-pub fn updater(manifest: &Manifest, payload: &Payload, package: &Path, output: &Path) -> Result<(), Error> {
+pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path, output: &Path) -> Result<(), Error> {
     let Some(settings) = manifest.signing.as_ref().and_then(|s| s.updater.as_ref()) else {
         return Ok(());
     };
@@ -103,7 +103,7 @@ pub fn updater(manifest: &Manifest, payload: &Payload, package: &Path, output: &
     std::fs::write(
         &public_key,
         STANDARD
-            .decode(payload.identity.updater_public_key.trim())
+            .decode(distribution.identity.updater_public_key.trim())
             .map_err(|_| Error::Invalid("compiled updater public key is invalid".into()))?,
     )?;
     inspect::run(

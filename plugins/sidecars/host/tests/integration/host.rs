@@ -9,7 +9,7 @@
 
 // Native host collection: every stream reads this machine through the
 // collectors' own platform probes (native APIs on Windows; nmcli, iw, ping and
-// bluetoothctl on Linux).
+// BlueZ D-Bus on Linux).
 
 /* === Modules === */
 
@@ -80,8 +80,6 @@ fn host_stream_row() {
                 Field::Number("network_sent_mb_per_second"),
                 Field::Integer("network_total_recv_bytes"),
                 Field::Integer("network_total_sent_bytes"),
-                Field::Integer("local_address_count"),
-                Field::Array("local_addresses"),
             ],
         ),
         (HostTelemetryStream::WifiLink, &["ok", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),

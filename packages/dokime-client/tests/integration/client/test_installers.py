@@ -23,7 +23,7 @@ import pytest
 
 # Local Imports
 from dokime_tools.build import organization
-from dokime_tools.package import installer, payload
+from dokime_tools.package import distribution, installer
 from dokime_tools.prepare import resources
 
 # Type Checking Imports
@@ -126,17 +126,17 @@ def test_tag_refuses_unsigned_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_candidate_verifies_signature(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root, dist = _candidate(tmp_path, monkeypatch)
-    payload = next(dist.glob("*.exe"))
-    signature = payload.with_suffix(".exe.sig")
+    distribution = next(dist.glob("*.exe"))
+    signature = distribution.with_suffix(".exe.sig")
     signature.write_text("candidate signature", encoding="utf-8")
     metadata = {
         "version": "0.1.0",
-        "platforms": {installer.UPDATER_TARGET: {"signature": "candidate signature", "url": f"https://example.com/{payload.name}"}},
+        "platforms": {installer.UPDATER_TARGET: {"signature": "candidate signature", "url": f"https://example.com/{distribution.name}"}},
     }
     (dist / "latest.json").write_text(json.dumps(metadata), encoding="utf-8")
 
-    def refuse_signature(checked_root: Path, checked_payload: Path, checked_signature: str) -> None:
-        assert (checked_root, checked_payload, checked_signature) == (root, payload, "candidate signature")
+    def refuse_signature(checked_root: Path, checked_distribution: Path, checked_signature: str) -> None:
+        assert (checked_root, checked_distribution, checked_signature) == (root, distribution, "candidate signature")
         raise ValueError("cryptographic refusal")
 
     monkeypatch.setattr(installer, "verify_signature", refuse_signature)
@@ -204,7 +204,7 @@ def test_published_signature_required(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 @pytest.mark.parametrize("native", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
-def test_payload_profiles(tmp_path: Path, native: str) -> None:
+def test_distribution_profiles(tmp_path: Path, native: str) -> None:
     expected_identity = {
         "identifier": "com.example.compiled",
         "slug": "dokime",
@@ -213,10 +213,10 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
     sources = {}
     for profile in ("dev", "release"):
         expected = _native_build(tmp_path, profile, native)
-        source = payload.export(tmp_path, profile)
+        source = distribution.export(tmp_path, profile)
         sources[profile] = source
-        metadata = json.loads((source / "payload.json").read_text())
-        assert source == installer.paths.output(tmp_path, "build", profile) / "product/installer-payload"
+        metadata = json.loads((source / "distribution.json").read_text())
+        assert source == installer.paths.output(tmp_path, "build", profile) / "product/installer-distribution"
         assert metadata == {
             "schema": 1,
             "version": "1.2.3",
@@ -224,11 +224,11 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
             "identity": expected_identity,
             "files": {name: hashlib.sha256(data).hexdigest() for name, data in expected.items()},
         }
-        archive = payload.archive(source, installer.paths.output(tmp_path, "package", profile) / "rust")
-        assert archive.name == f"dokime-payload-1.2.3-{native}.zip"
+        archive = distribution.archive(source, installer.paths.output(tmp_path, "package", profile) / "rust")
+        assert archive.name == f"dokime-distribution-1.2.3-{native}.zip"
         with zipfile.ZipFile(archive) as bundle:
-            assert set(bundle.namelist()) == {"payload.json", *expected}
-            assert json.loads(bundle.read("payload.json")) == metadata
+            assert set(bundle.namelist()) == {"distribution.json", *expected}
+            assert json.loads(bundle.read("distribution.json")) == metadata
             for name, data in expected.items():
                 assert bundle.read(name) == data
                 mode = bundle.getinfo(name).external_attr >> 16
@@ -246,33 +246,33 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
 
 
 @pytest.mark.parametrize("change", ["modified", "escape"])
-def test_payload_mutation_refused(tmp_path: Path, change: str) -> None:
+def test_distribution_mutation_refused(tmp_path: Path, change: str) -> None:
     _native_build(tmp_path, "dev", "x86_64-unknown-linux-gnu")
-    source = payload.export(tmp_path, "dev")
+    source = distribution.export(tmp_path, "dev")
     output = tmp_path / "distribution"
-    archive = payload.archive(source, output)
+    archive = distribution.archive(source, output)
     original = archive.read_bytes()
     if change == "modified":
         (source / "bin/dokime").write_bytes(b"changed after compilation")
     else:
-        manifest = json.loads((source / "payload.json").read_text())
+        manifest = json.loads((source / "distribution.json").read_text())
         manifest["files"]["../outside"] = "0" * 64
-        (source / "payload.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (source / "distribution.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="changed after Build|unsafe installer payload path"):
-        payload.archive(source, output)
+    with pytest.raises(ValueError, match="changed after Build|unsafe installer distribution path"):
+        distribution.archive(source, output)
     assert archive.read_bytes() == original
 
 
-def test_payload_input_retained(tmp_path: Path) -> None:
+def test_distribution_input_retained(tmp_path: Path) -> None:
     _native_build(tmp_path, "dev", "x86_64-unknown-linux-gnu")
-    source = payload.export(tmp_path, "dev")
+    source = distribution.export(tmp_path, "dev")
     original = {path.relative_to(source): path.read_bytes() for path in source.rglob("*") if path.is_file()}
     binary = installer.paths.output(tmp_path, "build", "dev") / "bin/dokime"
     binary.unlink()
 
     with pytest.raises(ValueError, match="regular file"):
-        payload.export(tmp_path, "dev")
+        distribution.export(tmp_path, "dev")
     assert {path.relative_to(source): path.read_bytes() for path in source.rglob("*") if path.is_file()} == original
 
 
@@ -288,7 +288,13 @@ def test_installer_explicitly_selects_shipping_host(tmp_path: Path, monkeypatch:
     host = build / "plugins/host.dokime"
     host.parent.mkdir()
     host.write_bytes(b"host plugin")
-    payload.export(tmp_path, "dev")
+    distribution.export(tmp_path, "dev")
+    (tmp_path / "stkr.toml").write_text(
+        '[[release.plugins]]\npackage="opaque"\nkind="sidecar"\npath="rust/plugins/host.dokime"\n[release.plugins.targets]\n'
+        + installer.paths.target()
+        + '="x86_64-pc-windows-msvc"\n',
+        encoding="utf-8",
+    )
     calls = []
 
     def record(command: list[str], output: Path, _root: Path) -> None:

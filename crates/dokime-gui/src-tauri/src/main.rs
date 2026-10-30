@@ -40,11 +40,8 @@
 /* === Private Functions === */
 
 // A desktop build never owns a console, whatever its Cargo profile: the
-
 // dev-profile installer is a debug build too, and it must not flash a
-
 // terminal at launch. `tauri dev` opts back into one through the `console`
-
 // feature so developers keep the process output.
 
 fn main() {

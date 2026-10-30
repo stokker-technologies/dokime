@@ -67,6 +67,7 @@ pub(crate) fn decode_registrations(
         }
     }
     let installation = InstalledPlugin {
+        run_start: decode_once::<dokime_domain::model::plugins::RunStartRegistration>(registrations, source, "dokime.run-start")?,
         source: source.to_owned(),
         version: version.to_owned(),
         description: description.to_owned(),

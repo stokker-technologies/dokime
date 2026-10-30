@@ -44,11 +44,9 @@ PROFILES = policy.PROFILES
 def features(profile: str, *, desktop: bool = True, extended: bool = False) -> list[str]:
     """Resolve The Repository-Owned Shipping Feature Configuration."""
     declaration = tomllib.loads((ROOT / "mise.toml").read_text(encoding="utf-8"))["vars"]
-    selected = []
+    selected = [declaration["rust_plugin_features"]]
     if desktop:
         selected.append(declaration["rust_desktop_features"])
-    else:
-        selected.append(declaration["rust_plugin_features"])
     if profile == "release":
         selected.append(declaration["rust_release_features"])
     if extended:

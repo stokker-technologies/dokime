@@ -58,9 +58,6 @@ export const LIST_STATUS_PILL_CLASS = `w-[var(--pill-width)] ${STATUS_PILL_CLASS
  */
 const FINISHED_CASE_STATES: ReadonlySet<CaseState> = new Set(["passed", "failed", "blocked", "stopped", "interrupted", "skipped"]);
 
-/** The two pre-dispatch states: no attempt at all, and one not yet dispatched. */
-const QUEUED_CASE_STATES: ReadonlySet<CaseState> = new Set(["planned", "queued"]);
-
 const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set(["running", "waiting_for_prompt", "finalizing"]);
 
 /** The execution states an attempt ends in, and so the ones Run Again follows. */
@@ -400,46 +397,6 @@ export function isCycleSealed(phase: TestCycle["phase"]): boolean {
   return phase === "sealed";
 }
 
-export function cycleStatusLabel(status: CycleLifecycle): string {
-  switch (status) {
-    case "planned":
-      return "Ready";
-    case "running":
-      return "Running";
-    case "paused":
-      return "Paused";
-    case "stopping":
-      return "Stopping";
-    case "completed":
-      return "Completed";
-    case "failed":
-      return "Failed";
-    case "stopped":
-      return "Stopped";
-    default:
-      return "Interrupted";
-  }
-}
-
-export function cycleStatusVariant(status: CycleLifecycle): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" {
-  switch (status) {
-    case "running":
-      return "default";
-    case "paused":
-    case "stopping":
-      return "warning";
-    case "completed":
-      return "success";
-    case "failed":
-      return "destructive";
-    case "stopped":
-    case "interrupted":
-      return "secondary";
-    default:
-      return "outline";
-  }
-}
-
 export function executionStatusLabel(status: TestExecution["status"]): string {
   switch (status) {
     case "planned":
@@ -494,23 +451,6 @@ export function executionStatusVariant(
     default:
       return "outline";
   }
-}
-
-/**
- * The cases the cycle still owes, as the runtime states them.
- *
- * PLANNED is a case with no attempt at all and QUEUED one whose attempt is
- * materialized but undispatched; those two, and only those two, are work
- * waiting to be dispatched. A RUNNING case is in flight, a finished one needs
- * an explicit rerun, an INVALIDATED one needs its rerun scheduled first, and a
- * captured grouping states nothing to count.
- */
-export function queuedCaseCount(cases: readonly CycleCase[]): number {
-  return cases.reduce((total, item) => total + (isQueuedCase(item) ? 1 : 0), 0);
-}
-
-export function isQueuedCase(item: CycleCase): boolean {
-  return QUEUED_CASE_STATES.has(item.status);
 }
 
 /**

@@ -64,44 +64,8 @@ impl DocumentRegistry {
         self.definitions.get(document_id)
     }
 
-    pub fn set_definition(&mut self, definition: DocumentDefinition) -> Result<(), DocumentRegistryError> {
-        let document_id = definition.document_id.clone();
-
-        if self.definitions.contains_key(&document_id) {
-            return Err(DocumentRegistryError::DuplicateDefinition(document_id));
-        }
-
-        self.definitions.insert(document_id, definition);
-
-        Ok(())
-    }
-
-    pub fn upsert_definition(&mut self, definition: DocumentDefinition) {
-        self.definitions.insert(definition.document_id.clone(), definition);
-    }
-
     pub fn instances(&self) -> impl Iterator<Item = &DocumentInstance> {
         self.instances.values()
-    }
-
-    pub fn get_instance(&self, document_id: &DocumentId) -> Option<&DocumentInstance> {
-        self.instances.get(document_id)
-    }
-
-    pub fn get_instance_mut(&mut self, document_id: &DocumentId) -> Option<&mut DocumentInstance> {
-        self.instances.get_mut(document_id)
-    }
-
-    pub fn set_instance(&mut self, instance: DocumentInstance) -> Result<(), DocumentRegistryError> {
-        let document_id = instance.document_id().clone();
-
-        if self.instances.contains_key(&document_id) {
-            return Err(DocumentRegistryError::DuplicateInstance(document_id));
-        }
-
-        self.instances.insert(document_id, instance);
-
-        Ok(())
     }
 
     pub fn open_instance(&mut self, definition: DocumentDefinition, updated_at: Timestamp) -> &mut DocumentInstance {

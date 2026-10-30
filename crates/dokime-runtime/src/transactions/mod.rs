@@ -12,6 +12,7 @@
 pub mod archive;
 pub mod cycle;
 pub mod documents;
+pub mod effects;
 pub mod evidence;
 pub mod execution_cancel;
 pub mod execution_control;
@@ -36,6 +37,7 @@ pub mod traceability;
 pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
 pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
+pub use effects::RecordEffect;
 pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
 pub use execution_cancel::CancelExecution;
 pub use execution_control::ControlExecution;
@@ -81,6 +83,7 @@ use serde::{Deserialize, Serialize};
 #[harmos::transactions(state = crate::state::RuntimeState, error = String)]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Transactions {
+    RecordEffect(RecordEffect),
     RequestCycleReportFinalization(RequestCycleReportFinalization),
     RequestReportFinalization(RequestReportFinalization),
     CaptureReportLifecycle(CaptureReportLifecycle),

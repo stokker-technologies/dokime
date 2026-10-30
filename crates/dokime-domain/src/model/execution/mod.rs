@@ -7,13 +7,12 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 pub mod checkpoint;
 pub mod command;
 pub mod cursor;
+pub mod effects;
 pub mod health;
 pub mod mode;
 pub mod notes;

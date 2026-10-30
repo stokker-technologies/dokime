@@ -142,16 +142,6 @@ impl RuntimeHandle {
         self.state_read().closed_prompts.get(prompt_id).cloned()
     }
 
-    pub async fn wait_for_prompt_response(&self, prompt_id: PromptId) -> std::result::Result<PromptResponse, Error> {
-        let mut state = self.watch_state();
-        let snapshot =
-            state.wait_until(|snapshot| snapshot.state().shutting_down || snapshot.state().prompt_response(&prompt_id).is_some()).await;
-
-        snapshot
-            .and_then(|snapshot| snapshot.state().prompt_response(&prompt_id))
-            .ok_or_else(|| prompt_wait_cancelled("runtime cancellation requested while waiting for prompt"))
-    }
-
     pub async fn wait_for_prompt_response_for_cycle(
         &self, prompt_id: PromptId, test_cycle_id: TestCycleId,
     ) -> std::result::Result<PromptResponse, Error> {

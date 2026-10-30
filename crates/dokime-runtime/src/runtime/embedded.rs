@@ -443,7 +443,7 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         customizations: catalog.app_customizations.clone(),
         themes: catalog.app_themes.clone(),
     };
-    let values = [
+    let mut values = vec![
         (SUITES_NAMESPACE, serde_json::to_vec(&catalog.suites)),
         (SETTINGS_NAMESPACE, serde_json::to_vec(&settings)),
         (APPEARANCE_NAMESPACE, serde_json::to_vec(&appearance)),
@@ -454,6 +454,9 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
         (TELEMETRY_NAMESPACE, serde_json::to_vec(&catalog.telemetry_contracts)),
         (OPTIONS_NAMESPACE, serde_json::to_vec(&catalog.option_providers)),
     ];
+    if let Some(capture) = &catalog.run_start {
+        values.push(("dokime.run-start", serde_json::to_vec(capture)));
+    }
     values
         .into_iter()
         .map(|(namespace, payload)| {

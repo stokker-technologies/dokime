@@ -31,6 +31,9 @@ use super::*;
 /* === Structs === */
 
 // Archives or unarchives one terminal execution, live or retired to history.
+// Archiving is orthogonal to the lifecycle and admitted only on a terminal
+// cycle or execution: it hides the row from lists that do not ask for archived
+// rows and changes nothing else.
 #[harmos::operation(resources = [crate::hosting::Host<SetExecutionArchived>], response = ArchiveReply, id = "dokime.execution.set_execution_archived",
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SetExecutionArchived"))]

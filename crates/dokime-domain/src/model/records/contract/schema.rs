@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::Deserialize;
@@ -221,10 +220,6 @@ impl RecordContract {
         self.validation_mode = Some(ValidationMode::Strict);
         self.allow_extra_fields = false;
         self
-    }
-
-    pub fn field_map(&self) -> BTreeMap<&str, &RecordField> {
-        self.fields.iter().map(|field| (field.metadata.identifier.as_str(), field)).collect()
     }
 }
 

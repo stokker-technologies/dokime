@@ -12,6 +12,7 @@
 /* === Modules === */
 mod bundle;
 mod installer;
+mod release;
 #[cfg(windows)]
 mod resources;
 

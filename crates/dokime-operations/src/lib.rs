@@ -14,6 +14,7 @@ pub mod backend;
 pub mod catalog;
 pub mod content;
 pub mod documents;
+pub mod effects;
 pub mod evidence;
 pub mod execution;
 pub mod files;
@@ -93,7 +94,6 @@ pub struct Declaration {
     pub path: &'static str,
     pub local_only: bool,
     pub wire: WireDeclaration,
-    pub rust_type: fn() -> &'static str,
 }
 
 /* === Enums === */
@@ -199,7 +199,6 @@ where
         path: O::PATH,
         local_only: O::LOCAL_ONLY,
         wire: WireDeclaration::of::<O>(),
-        rust_type: std::any::type_name::<O>,
     };
 }
 

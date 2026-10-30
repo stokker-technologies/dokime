@@ -11,8 +11,11 @@
 # === Imports === #
 
 # Standard Library Imports
-import hashlib
 import json
+import subprocess
+import tarfile
+import zipfile
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -69,41 +72,80 @@ def test_collect_declared_plugins_once(tmp_path: Path, monkeypatch: pytest.Monke
     assert len(calls) == 1 + 2 * len(expected)
 
 
-def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    bundle = tmp_path / "instruments.dokime"
-    bundle.write_bytes(b"complete inspected bundle")
-    manifest = {"identity": {"name": "instruments", "version": "1.2.3"}, "files": [{"executable": {"target": "x86_64-pc-windows-msvc"}}]}
-    calls = []
-
-    def inspect(command: list[str], **kwargs: object) -> SimpleNamespace:
-        calls.append(command)
-        assert kwargs["check"] is True
-        return SimpleNamespace(stdout=json.dumps({"manifest": manifest}))
-
-    monkeypatch.setattr(plugins.subprocess, "run", inspect)
+@pytest.mark.parametrize("returncode", [0, 23])
+def test_child_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], returncode: int) -> None:
+    (tmp_path / "stkr.toml").write_text("", encoding="utf-8")
     tool = tmp_path / "cargo-dokime"
-    assets = [(bundle, "https://example.test/instruments.dokime")]
-    feed = plugins.release_feed(assets, tool=tool, requires_dokime="=0.1.0")
+    bundle = tmp_path / "plugin.dokime"
+    bundle.write_bytes(b"bundle")
+    child_stderr = "llvm-objcopy is missing; install the llvm-tools-preview component"
+    child_stdout = "child diagnostic on stdout"
+    commands = []
 
-    assert calls == [[str(tool), "dokime", "sidecar", "inspect", str(bundle)]]
-    assert (feed["format_version"], feed["package"], feed["version"]) == (1, "instruments", "1.2.3")
-    assert feed["assets"] == [
-        {"target": "x86_64-pc-windows-msvc", "url": assets[0][1], "sha256": hashlib.sha256(bundle.read_bytes()).hexdigest()}
-    ]
-    with pytest.raises(ValueError, match="distinct executable targets"):
-        plugins.release_feed(assets * 2, tool=tool, requires_dokime="=0.1.0")
-    with pytest.raises(ValueError, match="credential-free HTTPS"):
-        plugins.release_feed([(bundle, "https://token@example.test/plugin")], tool=tool, requires_dokime="=0.1.0")
+    def packager(command: list[str], **kwargs: object) -> SimpleNamespace:
+        commands.append(command)
+        if "package" not in command:
+            return SimpleNamespace(stdout="")
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command, output=child_stdout, stderr=child_stderr)
+        return SimpleNamespace(stdout=json.dumps([]), stderr=child_stderr)
+
+    monkeypatch.setattr(plugins.subprocess, "run", packager)
+
+    def invoke() -> None:
+        plugins.prepare(tmp_path, tmp_path / "compiler.json", "dev", tool=tool, output=tmp_path / "plugins", packages=plugins.FIXTURES)
+
+    expected = pytest.raises(subprocess.CalledProcessError) if returncode else nullcontext()
+    with expected as raised:
+        invoke()
+
+    captured = capsys.readouterr()
+    if raised is None:
+        assert captured.out == captured.err == ""
+        return
+    assert raised.value.returncode == returncode
+    assert raised.value.cmd == commands[-1]
+    assert child_stderr in captured.err
+    assert child_stdout in captured.err
+    assert subprocess.list2cmdline(commands[-1]) in captured.err
+    assert str(returncode) in captured.err
 
 
 # === Private Functions === #
+
+
+@pytest.mark.parametrize("target", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
+def test_sidecars_archive(tmp_path: Path, target: str) -> None:
+    (tmp_path / "stkr.toml").write_text(
+        '[[release.plugins]]\npackage="crate-name"\nkind="sidecar"\npath="rust/plugins/opaque.dokime"\n'
+        f'[release.plugins.targets]\nnative="{target}"\n',
+        encoding="utf-8",
+    )
+    build = tmp_path / "build"
+    (build / "plugins").mkdir(parents=True)
+    (build / "plugins/opaque.dokime").write_bytes(b"verified shipping bundle")
+    (build / "plugins/fixture.dokime").write_bytes(b"excluded fixture")
+    archive = plugins.archive(tmp_path, build, tmp_path / "output", "1.2.3", target)
+    assert archive is not None
+    suffix = ".zip" if "windows" in target else ".tar.gz"
+    assert archive.name == f"dokime-sidecars-1.2.3-{target}{suffix}"
+    if suffix == ".zip":
+        with zipfile.ZipFile(archive) as opened:
+            assert opened.namelist() == ["opaque.dokime"]
+            assert opened.read("opaque.dokime") == b"verified shipping bundle"
+    else:
+        with tarfile.open(archive) as opened:
+            assert opened.getnames() == ["opaque.dokime"]
+            member = opened.extractfile("opaque.dokime")
+            assert member is not None
+            assert member.read() == b"verified shipping bundle"
 
 
 @pytest.mark.parametrize("fixture", [False, True])
 def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: bool) -> None:
     output = tmp_path / ("fixtures/plugins" if fixture else "plugins")
     native = plugins.paths.target()
-    policy = f'[[release.plugins]]\npackage = "dokime-host"\ntargets = {{ {native} = "native-abi" }}\n'
+    policy = f'[[release.plugins]]\npackage = "dokime-host"\npath = "rust/plugins/host.dokime"\ntargets = {{ {native} = "native-abi" }}\n'
     (tmp_path / "stkr.toml").write_text(policy, encoding="utf-8")
     selected = []
 
