@@ -1282,7 +1282,7 @@ async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_
 fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
     let cause = error.failure();
     let missing_secret = cause
-        .filter(|failure| failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE))
+        .filter(|failure| failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
         .and_then(|failure| failure.detail("dokime.secret"))
         .map(str::to_owned);
     let message = cause.map(|failure| failure.cause().to_owned()).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string());
@@ -1600,11 +1600,11 @@ mod tests {
         assert_eq!(admission.plugin_id, "hcl");
         assert_eq!(admission.plugin_name, "HCL");
         assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
-        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()));
+        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
         let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
         assert_eq!(retained, failure);
         assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
-        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE));
+        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE));
         assert!(!retained.diagnostics().unwrap().chain().is_empty());
     }
 

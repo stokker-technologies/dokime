@@ -20,7 +20,7 @@
 use super::*;
 use dokime_domain::model;
 
-use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
+use dokime_runtime::domains::installed_plugins::PluginSettingsUpdate;
 
 /* === Constants === */
 
@@ -204,7 +204,6 @@ pub(crate) async fn composed_plugin_process() {
     values.insert("workspace_id".to_owned(), dokime_runtime::Value::from("recovered-workspace"));
 
     runtime.save_plugin_settings(&artifact_id, PluginSettingsUpdate { values }).await.unwrap();
-    runtime.save_plugin_secret(&artifact_id, "token", PluginSecretUpdate { secret: "first-run-secret".to_owned() }).await.unwrap();
     drop(runtime);
     first.shutdown().await.unwrap();
 
@@ -278,9 +277,22 @@ async fn non_admitted_settings() {
     let mut values = initial.values;
     values.insert("workspace_id".into(), Value::from("corrected"));
     runtime.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
-    let updated = runtime.save_plugin_secret(&id, "token", PluginSecretUpdate { secret: "replacement".into() }).await.unwrap();
-    assert!(updated.secret_bindings.bindings["token"].configured);
-    assert!(runtime.save_plugin_secret(&id, "undeclared", PluginSecretUpdate { secret: "refused".into() }).await.is_err());
+    let snapshot = runtime
+        .operations()
+        .call::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
+            metadata: model::secrets::catalog::Metadata {
+                identifier: "token".into(),
+                label: "Token".into(),
+                description: None,
+            },
+            value: Some("replacement".into()),
+            generation: 0,
+        })
+        .await
+        .unwrap();
+    assert_eq!(snapshot.entries[0].known_uses, ["settings_fixture"]);
+    let updated = runtime.plugin_settings(&id).await.unwrap();
+    assert!(updated.secrets[0].available);
     assert!(!serde_json::to_string(&updated).unwrap().contains("replacement"));
     store.set_enabled(entry.installation.install_id, false).await.unwrap();
     drop(runtime);
@@ -290,7 +302,7 @@ async fn non_admitted_settings() {
     let recovered = runtime.plugin_settings(&id).await.unwrap();
     let store = runtime.plugin_store();
     assert_eq!(recovered.values["workspace_id"], Value::from("corrected"));
-    assert!(recovered.secret_bindings.bindings["token"].configured);
+    assert!(recovered.secrets[0].available);
     let mut invalid = recovered.values.clone();
     invalid.insert("workspace_id".into(), Value::from(true));
     assert!(runtime.save_plugin_settings(&id, PluginSettingsUpdate { values: invalid }).await.is_err());

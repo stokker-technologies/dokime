@@ -22,7 +22,7 @@ use crate::InstalledPlugin;
 use crate::domains::DispatchContext;
 use crate::{
     RuntimeHandle,
-    installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings},
+    installed_plugins::{PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings},
 };
 use dokime_domain::model::identity::Identifier;
 
@@ -42,27 +42,35 @@ use dokime_domain::model::identity::Identifier;
 
 impl RuntimeHandle {
     pub(crate) async fn action_dispatch_context(&self, plugin: &InstalledPlugin) -> Result<DispatchContext, RuntimePluginManagementError> {
-        let resolved = self
-            .plugin_preferences()
-            .read(
-                &Identifier::new(&plugin.source).map_err(|error| RuntimePluginManagementError::InvalidInput(error.to_string()))?,
-                &plugin.settings,
-                &self.secret_store(),
-            )
-            .await?;
-        let secrets_configured = resolved.redacted_secrets.missing_required.is_empty();
+        let mut secrets_configured = true;
+        for secret in plugin.settings.secrets().filter(|secret| secret.required) {
+            secrets_configured &=
+                self.secret_store().contains(&secret.id).await.map_err(|error| RuntimePluginManagementError::Store(error.to_string()))?;
+        }
 
         Ok(DispatchContext { secrets_configured })
     }
 
     pub async fn plugin_settings(&self, plugin_id: &Identifier) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         let settings = self.plugin_settings_schema(plugin_id).await?;
-        let resolved = self.plugin_preferences().read(plugin_id, &settings, &self.secret_store()).await?;
+        let resolved = self.plugin_preferences().read(plugin_id, &settings).await?;
+        let mut secrets = Vec::new();
+        for declaration in settings.secrets() {
+            let available = self
+                .secret_store()
+                .contains(&declaration.id)
+                .await
+                .map_err(|error| RuntimePluginManagementError::Store(error.to_string()))?;
+            secrets.push(dokime_domain::model::secrets::SecretAvailability {
+                identifier: declaration.id.clone(),
+                available,
+            });
+        }
         Ok(RuntimePluginSettings {
             settings,
             values: resolved.values,
             discovered: resolved.discovered,
-            secret_bindings: resolved.redacted_secrets,
+            secrets,
         })
     }
 
@@ -71,7 +79,7 @@ impl RuntimeHandle {
         let Some(plugin) = state.installed_plugins.get(plugin_id.as_str()) else {
             return;
         };
-        let saved = match self.plugin_preferences().read(plugin_id, &plugin.settings, &self.secret_store()).await {
+        let saved = match self.plugin_preferences().read(plugin_id, &plugin.settings).await {
             Ok(resolved) => resolved.saved,
             Err(error) => {
                 tracing::warn!(%plugin_id, %error, "saved settings did not resolve; nothing was discovered");
@@ -99,27 +107,6 @@ impl RuntimeHandle {
     ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         let settings = self.plugin_settings_schema(plugin_id).await?;
         self.plugin_preferences().write_values(plugin_id, &settings, update.values).await?;
-        self.plugin_settings(plugin_id).await
-    }
-
-    pub async fn save_plugin_secret(
-        &self, plugin_id: &Identifier, secret_id: &str, update: PluginSecretUpdate,
-    ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
-        if update.secret.is_empty() {
-            return Err(RuntimePluginManagementError::InvalidInput("secret secret must not be empty".to_owned()));
-        }
-        let settings = self.plugin_settings_schema(plugin_id).await?;
-        if !settings.secrets().any(|secret| secret.id == secret_id) {
-            return Err(RuntimePluginManagementError::InvalidInput(format!(
-                "secret {secret_id} is not declared by plugin plugin {plugin_id}"
-            )));
-        }
-        let stored_id = format!("{}.{}", plugin_id.as_str(), secret_id);
-        self.secret_store()
-            .set_secret(&stored_id, &update.secret)
-            .await
-            .map_err(|error| RuntimePluginManagementError::Store(error.to_string()))?;
-        self.plugin_preferences().bind_secret(plugin_id, secret_id, stored_id).await?;
         self.plugin_settings(plugin_id).await
     }
 

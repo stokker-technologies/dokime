@@ -18,7 +18,10 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, test, vi } from "vitest";
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
+import type { InstalledPluginDetail as PluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
@@ -31,7 +34,17 @@ import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Constants === */
 
-const fixture = vi.hoisted(() => ({ admitted: vi.fn(), installed: vi.fn(), settings: vi.fn(), detail: vi.fn(), installations: vi.fn() }));
+const fixture = vi.hoisted(() => ({
+  admitted: vi.fn(),
+  installed: vi.fn(),
+  settings: vi.fn(),
+  detail: vi.fn(),
+  installations: vi.fn(),
+  captureAdding: false,
+  capturedAdding: false,
+  adding: null as string | null,
+  buttons: [] as (() => void)[],
+}));
 const session = { generation: "1", isCurrent: () => true };
 const entry: PluginEntry = {
   install_id: "installation",
@@ -70,12 +83,47 @@ const entry: PluginEntry = {
 
 /* === Entry Point === */
 
+vi.mock("react", async (original) => {
+  const react = await original<typeof import("react")>();
+  return {
+    ...react,
+    useState: (initial: unknown) => {
+      const state = react.useState(initial);
+      if (fixture.captureAdding && initial === null && !fixture.capturedAdding) {
+        fixture.capturedAdding = true;
+        return [
+          fixture.adding,
+          (value: string | null) => {
+            fixture.adding = value;
+          },
+        ];
+      }
+      return state;
+    },
+  };
+});
+vi.mock("@/components/ui/button", () => ({
+  Button: ({ onClick, ...props }: ComponentProps<"button">) => {
+    if (onClick) fixture.buttons.push(() => onClick({} as never));
+    return createElement("button", { type: "button", ...props });
+  },
+}));
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? children : null),
+  DialogContent: ({ children }: { children: React.ReactNode }) => createElement("section", {}, children),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => createElement("header", {}, children),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => createElement("h2", {}, children),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => createElement("p", {}, children),
+  DialogFooter: ({ children }: { children: React.ReactNode }) => createElement("footer", {}, children),
+}));
+vi.mock("@/lib/api/native-secrets", () => ({ readSecrets: vi.fn(), putSecret: vi.fn(), removeSecret: vi.fn() }));
+vi.mock("@/features/settings/sections/SecretTransfer", () => ({ SecretTransfer: () => null }));
+vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => ({ identity: session }) }));
 vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
 vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.settings }));
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
   useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
-  useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn(), reset: vi.fn(), isPending: false }),
 }));
 vi.mock("@/features/settings/plugins/plugin-queries", () => ({
   usePluginsQuery: fixture.installations,
@@ -90,13 +138,17 @@ vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.captureAdding = false;
+  fixture.capturedAdding = false;
+  fixture.adding = null;
+  fixture.buttons.length = 0;
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
   fixture.settings.mockResolvedValue({
     settings: { contributions: [] },
     values: { address: "corrected" },
     discovered: {},
-    secret_bindings: { bindings: {}, missing_required: [] },
+    secrets: [],
   });
 });
 
@@ -162,12 +214,12 @@ test("Failed Forms Editable", () => {
       settings: {
         contributions: [
           { kind: "text_area", id: "address", title: "Address", default: "", required: false },
-          { kind: "secret_reference", id: "token", title: "Token", default: null, required: true },
+          { kind: "secret", id: "token", title: "Token", required: true },
         ],
       },
       values: { address: "corrected" },
       discovered: {},
-      secret_bindings: { bindings: {}, missing_required: ["token"] },
+      secrets: [{ identifier: "token", available: false }],
     },
   }));
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
@@ -180,8 +232,9 @@ test("Failed Forms Editable", () => {
   assert.ok(html.includes('href="#plugin-settings-equipment.main"'));
   assert.ok(html.includes('id="plugin-settings-equipment.main"'));
   assert.equal((html.match(/<textarea/g) ?? []).length, 2);
-  assert.equal((html.match(/type="password"/g) ?? []).length, 2);
-  assert.equal((html.match(/<button/g) ?? []).length, 1);
+  assert.equal((html.match(/type="password"/g) ?? []).length, 0);
+  assert.equal((html.match(/Add In Secret Storage/g) ?? []).length, 2);
+  assert.equal((html.match(/<button/g) ?? []).length, 3);
   assert.equal(html.includes("disabled="), false);
   assert.equal((html.match(/>corrected<\/textarea>/g) ?? []).length, 2);
   assert.equal(entry.last_boot?.state, "failed");
@@ -192,11 +245,71 @@ test("Failed Forms Editable", () => {
     });
     const refused = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
     assert.equal((refused.match(/startup-refused/g) ?? []).length, 1);
-    assert.equal((refused.match(/type="password"/g) ?? []).length, 2);
+    assert.equal((refused.match(/type="password"/g) ?? []).length, 0);
     assert.ok(refused.includes(code));
     assert.equal(refused.includes('href="#plugin-settings-'), false);
   }
   fixture.installations.mockReturnValue({ data: [{ ...entry, state: "disabled", boot_failed: false }] });
   const disabled = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
   assert.equal(disabled.includes("startup-refused"), false);
+});
+
+test("Declared Secret Add", () => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  client.setQueryData(["settings", "secrets", session.generation], {
+    hostId: "host",
+    hostLabel: "Host",
+    generation: 3n,
+    entries: [],
+    cleanupPending: false,
+  });
+  const detail: PluginDetail = {
+    plugin_id: "equipment.main",
+    owner: null,
+    label: "Equipment",
+    version: "1.0.0",
+    enabled: true,
+    runtime: "code",
+    status: "failed",
+    error: null,
+    values: {},
+    discovered: {},
+    settings: {
+      contributions: [
+        { kind: "secret", id: "api_token", title: "API Token", description: null, required: true },
+        { kind: "secret", id: "optional", title: "Optional", description: null, required: false },
+      ],
+    },
+    secrets: [
+      { identifier: "api_token", available: false },
+      { identifier: "optional", available: true },
+    ],
+  };
+  const render = () => {
+    fixture.capturedAdding = false;
+    return renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(InstalledPluginDetail, {
+          detail,
+          onSaveSettings: async () => {},
+        }),
+      ),
+    );
+  };
+  fixture.captureAdding = true;
+  const initial = render();
+  assert.ok(initial.includes("api_token"));
+  assert.ok(initial.includes("Required · Missing"));
+  assert.ok(initial.includes("Optional · Available"));
+  assert.equal((initial.match(/Add In Secret Storage/g) ?? []).length, 1);
+  assert.equal(initial.includes('type="password"'), false);
+  assert.equal(fixture.buttons.length, 1);
+  fixture.buttons[0]();
+  const opened = render();
+  assert.ok(opened.includes("Add Secret"));
+  assert.ok(opened.includes('value="api_token"'));
+  assert.ok(opened.includes('type="password"'));
+  client.clear();
 });

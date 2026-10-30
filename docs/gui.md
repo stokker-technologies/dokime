@@ -64,10 +64,13 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bodies so nested runtime futures stay off that thread's stack. Native and RPC
   command futures have a 16 KiB
   regression budget; the plugin install guard also constructs the mock-runtime future.
-- Settings › Plugins keeps installed programs' settings and secrets editable
-  after startup fails. Their declared schema comes from the verified bundle
-  inventory; the page shows the recorded failure and offers an application
-  restart to retry with saved changes. Every owner in an inactive bundle is editable.
+- Settings › Plugins keeps installed programs' ordinary settings editable after
+  startup fails. Their declared schema comes from the verified bundle inventory.
+  Secret declarations show identifiers and availability read-only; Add In Secret
+  Storage opens the shared Add Secret dialog prefilled with the identifier.
+  Every owner in an inactive bundle remains visible. Add missing identifiers and
+  restart Dokime, or use the existing plugin Retry to read the store again.
+  Secret Storage References lists declaring plugins, including inactive programs.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated

@@ -373,14 +373,22 @@ automatic root resets; existing files and evidence are never silently deleted.
 Each backend owns a catalog of secrets keyed by identifier. Plugins use the shared
 `dokime.secrets.lookup` operation with an identifier; a missing or deleted identifier returns
 an error. Replacing a value affects future lookups. A value already fetched by
-a running plugin remains its responsibility. Required secret settings are
-checked before execution starts.
+a running plugin remains its responsibility.
+
+A declared secret's identifier is its Secret Storage identifier. At plugin start,
+Dokime reads each declaration directly from the store. A missing required secret
+fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+(the identifier varies). Optional secrets are absent when missing. Add the exact
+identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
+to read the store again. There are no per-plugin bindings, environment-variable
+sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
 Existing values are never fetched for display. Leave the replacement field
-empty to retain a value. Known references list saved plugin settings; plugins
-can also look up identifiers dynamically, so this list is not exhaustive. Switching
+empty to retain a value. References lists plugins that declare each identifier,
+including installed plugins that failed to start. Plugins can also look up
+identifiers dynamically, so this list is not exhaustive. Switching
 backends opens that backend's catalog and discards the previous edit form.
 
 Values are stored in the host's OS keyring, separately from backend login
@@ -414,6 +422,22 @@ before retrying.
 Secrets use a shared table with Identifier and Label columns. **Add Secret**
 opens a dialog; the monospace Identifier is the machine key, while Label is the
 human display text. No `name` alias is accepted in secret contracts.
+
+### Plugin Settings
+
+**Settings → Plugins** keeps ordinary plugin settings editable after startup
+fails. Its read-only **Required Secrets** list shows each declared identifier,
+whether it is required or optional, and whether it exists in Secret Storage.
+**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+Secret values are entered only in Secret Storage; the plugin settings form has no
+secret fields. Existing saved references are ignored on load without migrating
+values or changing storage v1. A stored identifier such as `hcl.api_token` does
+not satisfy a declaration named `api_token`.
+
+Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
+`api_token: Option<dokime::plugin::Secret>` for an optional one. The field name is
+the store identifier; secret declarations have no default or `from_environment`
+argument. Rebuild external plugins against the matching SDK after this clean break.
 
 ## Planning And Creating Cycles
 
