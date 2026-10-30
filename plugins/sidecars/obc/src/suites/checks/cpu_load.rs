@@ -72,14 +72,13 @@ impl CpuLoad {
     async fn hold(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let load = ctx
             .host()
-            .operation(LoadHold {
+            .submit::<LoadHold>(LoadHold {
                 target: LoadTarget::Percent(ctx.parameters().target_percent),
                 threads: None,
             })
-            .start()
             .await?;
         tokio::time::sleep(Duration::from_secs_f64(ctx.parameters().duration_s)).await;
-        let summary = load.cancel_and_join().await?;
+        let summary = load.cancel().await?;
         ctx.info(format!("CPU mean: {} %, RMS error: {} %, duration: {} s", summary.mean, summary.error_rms, summary.duration_s));
         Ok(())
     }

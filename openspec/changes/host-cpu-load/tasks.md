@@ -15,7 +15,7 @@
 
 - [x] 2.1 Run workspace check-only proof and formatting through project tasks, focused plugin-host tests and affected OBC tests.
 - [x] 2.2 Run openspec validate host-cpu-load --strict and assess locked scenarios.
-- [ ] 2.3 Commit logical items with Conventional Commits; report actual checks and unresolved work, without push or PR.
+- [x] 2.3 Commit logical items with Conventional Commits; report actual checks and unresolved work, without push or PR.
 
 ## Workflow Follow-Up
 
