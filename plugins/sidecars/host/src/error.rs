@@ -33,6 +33,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[cfg(feature = "runtime")]
+    #[error("host system collection failed: {0}")]
+    Collection(#[from] sysinfo::Error),
+
     #[error("unknown {kind}: {value}")]
     UnknownValue { kind: &'static str, value: String },
 

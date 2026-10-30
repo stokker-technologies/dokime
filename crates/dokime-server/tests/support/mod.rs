@@ -13,6 +13,8 @@
 
 pub mod artifacts;
 pub mod budgets;
+#[path = "../../../dokime-runtime/tests/support/services/bundles.rs"]
+pub mod bundles;
 pub mod host;
 pub mod plots;
 pub mod story_reports;

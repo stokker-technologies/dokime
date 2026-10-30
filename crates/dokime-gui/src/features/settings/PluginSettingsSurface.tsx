@@ -19,13 +19,14 @@
 
 /* === External Imports === */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
   useInstalledPluginDetailQuery,
@@ -33,6 +34,9 @@ import {
   useInstalledPluginSettingsMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
+import { usePluginsQuery, useRestartAppMutation } from "@/features/settings/plugins/plugin-queries";
+import { useBrand } from "@/lib/brand";
+import { isTauriDesktop } from "@/lib/desktop-open";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -51,18 +55,25 @@ type PluginSettingsSurfaceProps = {
 
 export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
   const settings = useSettingsSections();
+  const pluginsQuery = usePluginsQuery();
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
   const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
+  const installation = !section
+    ? pluginsQuery.data?.find((entry) => entry.install_id === sectionId && entry.state !== "removal_pending")
+    : null;
 
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
-  usePageChrome({ title: `Settings › Plugins › ${section?.label ?? sectionId}`, overflow: actions });
+  usePageChrome({
+    title: `Settings › Plugins › ${section?.label ?? installation?.metadata?.identity.name ?? sectionId}`,
+    overflow: actions,
+  });
 
   const cards = settings.frame?.cards.filter((card) => card.section_id === sectionId) ?? [];
 
   return (
     <div className="p-[var(--shell-inset)]">
       <SettingsGrid>
-        {settings.loading && !settings.frame ? (
+        {(settings.loading && !settings.frame) || (!section && pluginsQuery.isPending) ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
               <p role="status" className="text-sm text-muted-foreground">
@@ -82,9 +93,14 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : (
           <>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
+            {installation?.metadata?.owners.map((owner) => (
+              <PluginDetailCard key={owner} pluginId={owner} />
+            ))}
+            {installation && !installation.active ? <PluginRestart /> : null}
+            {!section && pluginsQuery.isError ? <NotificationMessage>{pluginsQuery.error.message}</NotificationMessage> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
-            ) : pluginId ? null : (
+            ) : pluginId || installation ? null : (
               <SettingsCard title="Settings">
                 <SettingsRow label="Status">
                   <span className="text-sm text-muted-foreground">This plugin contributes no settings.</span>
@@ -99,6 +115,42 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 }
 
 /* === Private Components === */
+
+function PluginRestart() {
+  const brand = useBrand();
+  const restart = useRestartAppMutation();
+  const [open, setOpen] = useState(false);
+  return (
+    <SettingsCard title="Restart Required" description="Saved settings and secrets apply on the next start.">
+      <SettingsRow label="Retry Startup">
+        {isTauriDesktop() ? (
+          <Button onClick={() => setOpen(true)} variant="outline">
+            Restart {brand.label}
+          </Button>
+        ) : (
+          <p>Restart dokime server to retry.</p>
+        )}
+      </SettingsRow>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restart {brand.label}?</DialogTitle>
+            <DialogDescription>Active work will stop and plugin resources will close before the application restarts.</DialogDescription>
+          </DialogHeader>
+          {restart.isError ? <NotificationMessage>{restart.error.message}</NotificationMessage> : null}
+          <DialogFooter>
+            <Button onClick={() => setOpen(false)} variant="outline">
+              Later
+            </Button>
+            <Button disabled={restart.isPending} onClick={() => restart.mutate()}>
+              Restart Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SettingsCard>
+  );
+}
 
 /** The artifact's own editable settings and secret bindings. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {

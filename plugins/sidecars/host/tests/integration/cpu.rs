@@ -52,7 +52,7 @@ use plugin_host::{
 
 #[test]
 fn calibrated_cpu() {
-    let mut collector = SystemCollector::new();
+    let mut collector = SystemCollector::new().unwrap();
     collector.calibrate_cpu(POLICY.attempt_timeout / 2).unwrap();
     let load = collector.cpu_load().unwrap();
     assert!(load.capacity_gflops.is_finite() && load.capacity_gflops > 0.0);
