@@ -16,16 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::{
-    Query, StorageCursor,
-    query::{RowSlice, Source, StreamSelection, transform::Transform},
-};
+use harmos::storage::{StorageCursor, query::StreamSelection};
 
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
 use crate::storage::telemetry::TypedCodec;
-use crate::storage::telemetry::decode_positioned;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
 
@@ -45,37 +41,36 @@ use crate::telemetry::TelemetrySample;
 
 /* === Public Functions === */
 
-pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transforms: Vec<Transform>) -> Result<Query> {
-    Ok(Query {
-        at: at.clone(),
-        source: Source::Stream(StreamSelection {
-            schema: codec.schema().clone(),
-            scope: Some(harmos::Identifier::new(scope).map_err(|_| invalid("invalid execution storage scope"))?),
-            item: None,
-            stream: None,
-            source_start: None,
-            source_end: None,
-            after: 0,
-        }),
-        transforms,
-        slice: RowSlice { offset: 0, limit: None },
-    })
-}
-
 pub(in crate::report) async fn visit(
     ctx: &crate::report::Scope, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
     mut visit: impl FnMut(&TelemetrySample) -> Result<()>,
 ) -> Result<()> {
     let codec = saved_codec(ctx, session, at, contract).await?;
-    let query = plan(at, scope, &codec, Vec::new())?;
-    super::visit_batches(session, at, query, |batch| {
-        let entries = decode_positioned(&codec, batch)?;
-        for (_, entry) in entries.iter() {
+    let mut source = StreamSelection {
+        schema: codec.schema().clone(),
+        scope: Some(harmos::Identifier::new(scope).map_err(|_| invalid("invalid telemetry scope"))?),
+        item: None,
+        stream: Some(contract.stream.clone()),
+        source_start: None,
+        source_end: None,
+        after: 0,
+    };
+    loop {
+        let page = harmos::storage::ScanPage {
+            after: source.after,
+            rows: session.settings().response.batch_rows,
+            bytes: session.settings().response.batch_bytes,
+        };
+        let rows = ctx.local.telemetry_read(at.clone(), source.clone(), page).await?;
+        if rows.is_empty() {
+            break;
+        }
+        for (position, entry) in rows {
+            source.after = position;
             visit(&entry.sample)?;
         }
-        Ok(())
-    })
-    .await
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

@@ -54,7 +54,9 @@ impl RuntimePlotEnvelopeContext {
     pub(super) async fn load_at(
         runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
     ) -> crate::runtime::Result<Self> {
-        Self::at(runtime, requests, runtime.capture_state().await?, at, session).await
+        let mut saved = session.cursor_saved();
+        saved.sequence = saved.sequence.min(at.sequence);
+        Self::at(runtime, requests, runtime.capture_state().await?, &saved, session).await
     }
 
     pub(super) async fn at(

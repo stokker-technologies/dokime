@@ -92,6 +92,7 @@ pub(crate) struct ScopedTelemetry {
 
 pub(crate) struct TelemetryAdmission {
     storage: Manager,
+    local: crate::storage::sqlite::State,
     rows: Vec<(usize, ScopedTelemetry)>,
     _owners: Vec<tokio::sync::OwnedMutexGuard<super::executions::Acquisition>>,
 }
@@ -174,7 +175,16 @@ impl TelemetryAdmission {
             }
             // Materialize Only The Scope Being Committed, Releasing It Before The Next Scope.
             let mut inputs = crate::domains::telemetry::telemetry_slots(count)?;
+            let mut staged = crate::domains::telemetry::telemetry_slots(count)?;
             for row in writes {
+                let mut sample = (*row.row.sample).clone();
+                sample.scope = row.scope.clone();
+                sample.storage_payload = None;
+                staged.push(TelemetryEntry {
+                    epoch: (*row.row.epoch).clone(),
+                    ordinal: row.ordinal,
+                    sample,
+                });
                 match row.into_input() {
                     Ok(input) => inputs.push(input),
                     Err(source) if accepted.iter().any(|accepted| *accepted) => {
@@ -185,6 +195,7 @@ impl TelemetryAdmission {
                 }
             }
             let mut writes = inputs.into_iter();
+            let mut staged = staged.into_iter();
             let mut offset = 0;
             while writes.len() > 0 {
                 if let (Some(sampling), Some(scope)) = (closure, scope.as_deref())
@@ -205,20 +216,17 @@ impl TelemetryAdmission {
                 }
                 let mut batch = crate::domains::telemetry::telemetry_slots(length)?;
                 batch.extend(writes.by_ref().take(length));
-                // Once Ownership Transfers, Settle Durability Before Reporting Accepted Rows.
+                // Admission Owns The Tail; Only The Configured Flush Publishes Saved Progress.
                 tokio::select! {
                     biased;
                     result = self.storage.write_stream(batch) => {
                         match result {
                             Ok(cursor) => {
-                                if let Err(source) = self.storage.flush_until(&cursor).await {
-                                    if accepted.iter().any(|accepted| *accepted) {
-                                        failure = Some(source.into());
-                                        break 'groups;
-                                    }
-                                    return Err(source.into());
-                                }
                                 for index in &indices[offset..offset + length] { accepted[*index] = true; }
+                                if let Err(source) = self.local.stage_telemetry(self.storage.clone(),cursor,staged.by_ref().take(length).collect()).await {
+                                    failure = Some(source.into());
+                                    break 'groups;
+                                }
                             },
                             Err(source) if accepted.iter().any(|accepted| *accepted) => { failure = Some(source.into()); break 'groups; }
                             Err(source) => return Err(source.into()),
@@ -253,6 +261,7 @@ impl super::executions::ExecutionStorage {
             let Some(codec) = self.codecs.unregistered(contract, &self.schema_settings)? else {
                 continue;
             };
+            self.local.register_telemetry_contract(contract.clone(), codec.clone()).await?;
             let mutation = harmos::storage::MutationId {
                 window: storage.mutation_window()?.id,
                 key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
@@ -329,6 +338,7 @@ impl super::executions::ExecutionStorage {
         let rows = stage_rows(&self.context_epoch, samples, &codecs, payloads)?;
         Ok(TelemetryAdmission {
             storage: self.storage.clone(),
+            local: self.local.clone(),
             rows,
             _owners: owners,
         })
@@ -337,7 +347,7 @@ impl super::executions::ExecutionStorage {
 
 /* === Public Functions === */
 
-/// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
+/// Reads Schemas At The Explicit Durable Frontier.
 pub(crate) async fn saved_codecs(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, schema: Option<&SchemaKey>,
     settings: &harmos::config::SchemaSettings, selected: impl Fn(&str, u32) -> bool + Send + Sync,
@@ -384,7 +394,7 @@ pub(crate) async fn saved_codecs(
     })
 }
 
-/// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
+/// Reads The Requested Frontier, Including Its Admitted Tail When The Frontier Is Live.
 pub(crate) async fn collect_saved(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
     settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
@@ -475,7 +485,9 @@ async fn visit_positioned(
         sequence,
         after,
     } = options;
-    let codecs = saved_codecs(session, at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
+    let mut catalog_at = session.cursor_saved();
+    catalog_at.sequence = catalog_at.sequence.min(at.sequence);
+    let codecs = saved_codecs(session, &catalog_at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
 
     let mut end = None;
     if let Some((anchor, _)) = window {
@@ -545,39 +557,33 @@ async fn visit_positioned(
         if let Some(limit) = scan_limit {
             query.slice.limit = Some(limit.saturating_add(1) as u64);
         }
-        // Native Reads Avoid An Arrow Encode/Decode Round Trip When No Transform Is Needed.
-        if query.transforms.is_empty() {
-            let Source::Stream(source) = query.source else { unreachable!("telemetry uses stream storage") };
-            let mut reader = session.read_stream(harmos::storage::StreamRead { at: at.clone(), selection: source }).await?;
-            while let Some(rows) = Box::pin(reader.next()).await? {
-                let page = crate::storage::projection::page(rows, |row| {
-                    let position = row.record.position.sequence;
-                    Ok((position, sequence.sample(codec.decode_stored(&row)?, position)))
-                })?;
-                for (position, sample) in page.iter() {
-                    let Some(sample) = admit_sample(sample.clone(), &mut count, scan_limit, selection)? else { continue };
-                    if visit(schema, *position, sample)?.is_break() {
-                        continue 'schemas;
-                    }
-                }
-            }
-            continue;
-        }
-        let mut reader = session.query(query).await?;
-        while let Some(output) = Box::pin(reader.next()).await? {
-            let QueryArrow::Batch(batch) = output else {
-                continue;
+        let Source::Stream(mut source) = query.source else { unreachable!("telemetry uses stream storage") };
+        let page_rows = session.settings().response.batch_rows;
+        let page_bytes = session.settings().response.batch_bytes;
+        loop {
+            let page = harmos::storage::ScanPage {
+                after: source.after,
+                rows: page_rows,
+                bytes: page_bytes,
             };
-            let entries = telemetry::decode_positioned(codec, batch)?;
-            let page = crate::storage::projection::page(entries, |(position, entry)| Ok((position, sequence.sample(entry, position))))?;
-            for (position, sample) in page.iter() {
-                let Some(sample) = admit_sample(sample.clone(), &mut count, scan_limit, selection)? else { continue };
-                if visit(schema, *position, sample)?.is_break() {
+            let rows = local.telemetry_read(at.clone(), source.clone(), page).await?;
+            if rows.is_empty() {
+                break;
+            }
+            for (position, entry) in rows {
+                source.after = source.after.max(position);
+                if !visible.is_none_or(|visible| dokime_domain::model::execution::scope_visible_in(entry.sample.scope.as_ref(), visible)) {
+                    continue;
+                }
+                let sample = sequence.sample(entry, position);
+                let Some(sample) = admit_sample(sample, &mut count, scan_limit, selection)? else {
+                    continue;
+                };
+                if visit(schema, position, sample)?.is_break() {
                     continue 'schemas;
                 }
             }
         }
-        reader.completion()?;
     }
     Ok(())
 }
@@ -679,9 +685,8 @@ async fn telemetry_predecessors(
             break;
         }
         after = cursor;
-        for row in rows {
-            let position = row.record.position.sequence;
-            visit(position, sequence.sample(codec.decode_stored(&row)?, position))?;
+        for (position, entry) in rows {
+            visit(position, sequence.sample(entry, position))?;
         }
         tokio::task::yield_now().await;
     }
@@ -963,6 +968,7 @@ mod admission_tests {
     async fn later_refusal_preserves_the_accepted_prefix_without_replay() {
         let root = tempfile::tempdir().unwrap();
         let backend = Arc::new(crate::storage::Backend::primary(root.path().to_owned()).await.unwrap());
+        let local = backend.local_state();
         let mut settings = crate::config::storage_defaults();
         settings.request.max_pending_write_bytes = NonZeroUsize::new(128 * 1024).unwrap();
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
@@ -973,7 +979,8 @@ mod admission_tests {
         let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
         let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
         let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>();
-        let codec = telemetry::codec(&contract, &Default::default()).unwrap();
+        let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
+        local.register_telemetry_contract(contract.clone(), codec.clone()).await.unwrap();
         storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
         let execution = dokime_domain::model::identity::TestExecutionId::from_seed("partial.scope");
         let mut rows = crate::domains::telemetry::telemetry_slots(2).unwrap();
@@ -999,10 +1006,11 @@ mod admission_tests {
                 ordinal: index as u64,
             });
         }
-        let rows = stage_rows(&epoch, &rows, &[Arc::new(codec)], &crate::domains::telemetry::Payloads::Unchecked).unwrap();
+        let rows = stage_rows(&epoch, &rows, &[codec], &crate::domains::telemetry::Payloads::Unchecked).unwrap();
         let before = storage.cursor_accepted();
         let admission = TelemetryAdmission {
             storage: storage.clone(),
+            local,
             rows,
             _owners: Vec::new(),
         };

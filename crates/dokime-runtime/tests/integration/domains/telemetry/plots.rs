@@ -46,9 +46,24 @@ const PLOT_POINTS: usize = 400;
 #[tokio::test]
 async fn snapshot_query_samples() {
     let root = tempdir().unwrap();
-    let (_owner, runtime) = booted(root.path()).await;
+    let mut settings = config(root.path());
+    settings.local_storage.telemetry_rows = std::num::NonZeroUsize::new(4096).unwrap();
+    settings.local_storage.telemetry_interval = Duration::from_secs(60);
+    let (mut owner, runtime) = started(settings).await;
     register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
+    let saved = runtime.storage().cursor_saved();
+    assert!(runtime.storage().cursor_accepted().sequence > saved.sequence);
+    let pending = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(pending[0].payload.series[0].raw_points, 30);
+    let mut marked = wifi_request(None, Some(5));
+    marked.marker_record_types = vec!["test.cycle.started".into()];
+    let pending = runtime.query_plot_payloads(vec![marked], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(pending[0].payload.series[0].raw_points, 30);
+    assert_eq!(runtime.storage().cursor_saved(), saved);
+    let historical =
+        runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &saved).await.unwrap();
+    assert!(historical[0].payload.series.iter().all(|series| series.raw_points == 0));
     runtime.storage().flush().await.unwrap();
 
     let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
@@ -71,7 +86,8 @@ async fn snapshot_query_samples() {
     assert_eq!(raw[0].payload.series[0].points.len(), 30);
     assert!(!raw[0].payload.series[0].downsampled);
     let default = runtime.query_plot_payloads(vec![wifi_request(None, None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
-    assert_eq!(default[0].payload.max_points, 2_000_usize);
+    assert_eq!(default[0].payload.series[0].raw_points, 30);
+    owner.shutdown().await.unwrap();
 }
 
 #[tokio::test]

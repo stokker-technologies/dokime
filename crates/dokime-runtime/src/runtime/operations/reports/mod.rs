@@ -114,6 +114,7 @@ impl Resources {
                     analysis: crate::report::analysis::Resources::from_runtime(runtime),
                     renderer: crate::report::Renderer,
                 },
+                runtime.local_storage.clone(),
             ),
         }
     }
