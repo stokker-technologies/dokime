@@ -64,6 +64,8 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
 
 pub(super) async fn roundtrip(environment: &support::TestEnvironment, client: &WireClient, journal: &std::sync::Arc<Journal>) {
     let execution = uuid::Uuid::now_v7().to_string();
+    let mut unavailable = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, true)).await.unwrap().into_inner();
+    assert_eq!(unavailable.message().await.unwrap_err().code(), Code::Unavailable);
     emit(journal.clone(), &execution, 3);
     let mut stream = client.download::<contracts::backend::WatchTrace>(request(&execution, 0, false)).await.unwrap().into_inner();
     let first = stream.message().await.unwrap().unwrap();
@@ -133,4 +135,60 @@ pub(super) async fn roundtrip(environment: &support::TestEnvironment, client: &W
     let recovered = reconnect.message().await.unwrap().unwrap();
     assert_eq!(recovered.events, live.events);
     assert!(reconnect.message().await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn scope_history_tail() {
+    use model::backend::wire::{LogLevel, TraceScope};
+
+    let journal = Journal::new(dokime_server::trace::Limits::default());
+    let subscriber = tracing::Dispatch::new(tracing_subscriber::registry().with(dokime_server::trace::layer(journal.clone())));
+    let (environment, server, client) = diagnostics::fixture(journal.clone()).await;
+    for selection in 0..3 {
+        let cycle_id = uuid::Uuid::now_v7().to_string();
+        let execution_id = uuid::Uuid::now_v7().to_string();
+        let scope = match selection {
+            0 => TraceScope::Instance,
+            1 => TraceScope::Cycle(cycle_id.clone()),
+            _ => TraceScope::Execution(execution_id.clone()),
+        };
+        let watch = contracts::backend::WatchTrace {
+            scope: Some(scope),
+            ..request(&execution_id, 0, true)
+        };
+        let mut stream = client.download::<contracts::backend::WatchTrace>(watch.clone()).await.unwrap().into_inner();
+        let empty = stream.message().await.unwrap().unwrap();
+        assert!(empty.events.is_empty());
+
+        tracing::dispatcher::with_default(&subscriber, || {
+            tracing::debug!(target: "dokime_server", %cycle_id, %execution_id, "filtered");
+        });
+        let filtered = stream.message().await.unwrap().unwrap();
+        assert!(filtered.events.is_empty());
+        assert!(filtered.next_sequence > empty.next_sequence);
+        tracing::dispatcher::with_default(&subscriber, || {
+            tracing::info!(%cycle_id, %execution_id, "history");
+        });
+        let history = stream.message().await.unwrap().unwrap();
+        assert_eq!(history.events.len(), 1);
+        assert_eq!(history.events[0].level, LogLevel::Info);
+        assert_eq!(history.events[0].cycle_id.as_deref(), Some(cycle_id.as_str()));
+        assert_eq!(history.events[0].execution_id.as_deref(), Some(execution_id.as_str()));
+        drop(stream);
+
+        let mut replay = client.download::<contracts::backend::WatchTrace>(watch).await.unwrap().into_inner();
+        let retained = replay.message().await.unwrap().unwrap();
+        assert_eq!(retained.events, history.events);
+        assert_eq!(retained.next_sequence, history.next_sequence);
+        tracing::dispatcher::with_default(&subscriber, || {
+            tracing::warn!(%cycle_id, %execution_id, "live");
+        });
+        let live = replay.message().await.unwrap().unwrap();
+        assert_eq!(live.events.len(), 1);
+        assert_eq!(live.events[0].level, LogLevel::Warn);
+        assert!(live.next_sequence > retained.next_sequence);
+        drop(replay);
+    }
+    server.shutdown().await.unwrap();
+    drop(environment);
 }

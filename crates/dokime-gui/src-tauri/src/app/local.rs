@@ -56,7 +56,8 @@ pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
         plugins: Vec::new(),
         plugins_root: std::env::var_os("DOKIME_PLUGINS_DIR").filter(|value| !value.is_empty()).map(std::path::PathBuf::from),
     };
-    Ok(Backend::new(args).with_application(paths).with_log(super::logging::active_log()))
+    let journal = app.state::<std::sync::Arc<dokime_server::trace::Journal>>().inner().clone();
+    Ok(Backend::new(args).with_application(paths).with_log(super::logging::active_log()).with_trace_journal(journal))
 }
 
 /* === Private Functions === */

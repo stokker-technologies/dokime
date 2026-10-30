@@ -20,7 +20,9 @@ import { useStore } from "zustand";
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
+import { connectionError } from "@/app/native-session/errors";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
 /* === Constants === */
@@ -74,11 +76,11 @@ export function useConsoleRecords({
           afterSequence,
           epoch,
         });
-        stream = opened;
         if (!active || !session.identity.isCurrent()) {
           await opened.cancel();
           return;
         }
+        stream = opened;
         priorDropped += streamDropped;
         streamDropped = 0n;
         for await (const page of opened) {
@@ -93,21 +95,22 @@ export function useConsoleRecords({
       } catch (failure) {
         if (!active || !session.identity.isCurrent()) return;
         const code = grpcCode(failure);
+        const cause = connectionError(normalizeRpcError(failure));
         if (code === 11) {
           afterSequence = 0n;
           epoch = undefined;
           priorDropped = 0n;
           streamDropped = 0n;
           store().rewind(key);
-          store().setError(key, "Trace history expired; replaying retained events.");
+          store().setError(key, `Trace history expired; replaying retained events. ${cause}`);
         } else if (code === 12 || unavailable(failure)) {
           reconnect = false;
-          store().setError(key, "Tracing is not available for this connection.");
+          store().setError(key, `Tracing is not available for this connection. ${cause}`);
         } else if (code === 3 || code === 7 || code === 16 || code === 8) {
           reconnect = false;
-          store().setError(key, "Trace subscription was refused by the backend.");
+          store().setError(key, `Trace subscription was refused by the backend. ${cause}`);
         } else {
-          store().setError(key, "Trace stream unavailable; reconnecting.");
+          store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`);
         }
       } finally {
         const closing = stream;

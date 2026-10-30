@@ -39,3 +39,13 @@ and `src/report`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
+
+## Console Traces
+
+The desktop logger and its owned backend share one bounded trace journal,
+independent of the terminal log filter. Console replays retained events for the
+selected Instance, Cycle or Execution scope and minimum level, then follows new
+events. These process-local traces are separate from saved execution evidence;
+restarting the desktop or standalone server process starts a new journal. Reconnects resume the scope cursor,
+replaying retained history if its epoch or cursor expires. Stream failures show
+the backend or transport cause beside the reconnect status.
