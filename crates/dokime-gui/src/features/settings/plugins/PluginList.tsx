@@ -23,6 +23,7 @@ import type { ReactNode } from "react";
 /* === Local Imports === */
 
 import { Badge } from "@/components/ui/badge";
+import { FailureConsequences } from "@/components/FailureConsequences";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
@@ -74,9 +75,12 @@ export function PluginList({
 
     return {
       alert: status.reason ? (
-        <p role="alert" className="text-sm text-destructive">
-          {status.reason}
-        </p>
+        <div>
+          <p role="alert" className="text-sm text-destructive">
+            {status.reason}
+          </p>
+          {entry.last_boot?.state === "failed" ? <FailureConsequences items={entry.last_boot.failure.consequences} /> : null}
+        </div>
       ) : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
@@ -136,7 +140,12 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
     };
   }
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_failed) return { label: "Failed", reason: null, variant: "destructive" };
+  if (entry.boot_failed)
+    return {
+      label: "Failed",
+      reason: entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : null,
+      variant: "destructive",
+    };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

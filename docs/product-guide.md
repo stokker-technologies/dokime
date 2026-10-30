@@ -1377,6 +1377,26 @@ and installs only the explicitly selected member. Restart the host to activate i
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
 
+## Plugin Start Failures
+
+Plugin startup failures show readable root causes in notifications, Settings →
+Plugins, CLI errors and Python error text. Unavailable operations from a failed
+startup/prepare pass are summarized separately. When the pass has a construction failure, all missing-resource
+errors in that pass are consequences, regardless of reporting order. Other errors
+remain roots; without a construction failure, missing resources remain roots.
+This is a prepare-pass rule, not a resource dependency graph. Expand the consequence
+summary in the desktop to inspect each unavailable operation without mixing it into the root message.
+
+A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
+**Add Secret** dialog with that identifier prefilled, including after a failed start.
+Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+All owners in an inactive bundle keep their editable settings and secrets.
+
+The recorded failure carrier preserves the full structured startup report,
+including each original refusal code, detail and diagnostic chain. The application
+log also retains structured startup diagnostics; the root message is a presentation
+of that data, without Rust Debug formatting.
+
 ## Generated Clients
 
 Export the operation catalog's language-neutral protobuf contract without a running backend:
