@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod controls;
 pub mod document;
 pub mod telemetry;
 

@@ -427,6 +427,7 @@ async fn execute_case(
             failure("sidecar_capture_phase", message)
         },
     )?;
+    context.runtime.capture_run_start(execution.capture_scope()).await.map_err(|error| failure("run_start_evidence", error.to_string()))?;
     let record_demand = match context.runtime.hold_record_demand(&declared.records) {
         Ok(holds) => holds,
         Err(error) => {

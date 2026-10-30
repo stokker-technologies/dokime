@@ -123,6 +123,7 @@ mod tests {
         }
         shared!(
             run_parameters,
+            pending_effects,
             installed_plugins,
             plugin_owners,
             suites,

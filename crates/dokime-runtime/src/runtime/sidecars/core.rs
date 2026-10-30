@@ -44,6 +44,9 @@ pub(crate) struct RecordIngress {
 #[harmos::catalog]
 enum RecordOperations {
     Operation0(RecordPublication),
+    Environment(crate::operations::effects::ReadEnvironment),
+    PrepareEffect(crate::operations::effects::PrepareEffect),
+    ConfirmEffect(crate::operations::effects::ConfirmEffect),
 }
 
 #[harmos::catalog]
@@ -60,6 +63,9 @@ impl RecordIngress {
         let ingress = Arc::new(Self::default());
 
         setup.resource::<Host<RecordPublication>>(Host::<RecordPublication>::new(ingress.clone()));
+        setup.resource::<Host<crate::operations::effects::ReadEnvironment>>(Host::new(ingress.clone()));
+        setup.resource::<Host<crate::operations::effects::PrepareEffect>>(Host::new(ingress.clone()));
+        setup.resource::<Host<crate::operations::effects::ConfirmEffect>>(Host::new(ingress.clone()));
 
         setup.operations::<RecordOperations>(crate::app::Lanes::Open);
         Ok(ingress)
@@ -73,7 +79,7 @@ impl RecordIngress {
         self.runtime.write().expect("record ingress is healthy").take();
     }
 
-    fn runtime(&self) -> Result<RuntimeHandle, Status> {
+    pub(crate) fn runtime(&self) -> Result<RuntimeHandle, Status> {
         self.runtime.read().expect("record ingress is healthy").clone().ok_or_else(|| Status::unavailable("record ingress is closing"))
     }
 }

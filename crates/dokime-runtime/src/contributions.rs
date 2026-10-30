@@ -50,11 +50,33 @@ pub struct Evidence<S, A = ()>(PhantomData<fn() -> (S, A)>);
 
 pub struct Settings<S>(PhantomData<fn() -> S>);
 
+pub struct RunStart<O>(PhantomData<fn() -> O>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<O> harmos::plugin::Contribution for RunStart<O>
+where
+    O: harmos::operations::OperationDeclaration<Response = crate::operations::effects::StartEvidence>,
+    O::Request: harmos::Message + Default,
+{
+    const NAMESPACE: &'static str = "dokime.run-start";
+    const SECTION: Section = section!("dokime.run-start", r#"{"schema":1}"#);
+    fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
+        if O::VISIBILITY != harmos::operations::Visibility::Host {
+            return Err(invalid(Self::NAMESPACE, "run-start capture must be a Host operation"));
+        }
+        let request = <O::Request as Default>::default();
+        let registration = dokime_domain::model::plugins::RunStartRegistration {
+            operation: O::ID.into(),
+            request: harmos::Message::encode(&request),
+        };
+        register(registrar, Self::NAMESPACE, &registration)
+    }
+}
 
 impl<S> harmos::plugin::Contribution for Suites<S>
 where

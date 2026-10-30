@@ -12,6 +12,7 @@
 pub mod adapters;
 pub mod bluetooth;
 mod catalog;
+pub mod controls;
 pub mod cpu;
 pub mod network;
 pub mod operations;

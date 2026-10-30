@@ -14,6 +14,7 @@ pub mod backend;
 pub mod catalog;
 pub mod content;
 pub mod documents;
+pub mod effects;
 pub mod evidence;
 pub mod execution;
 pub mod files;

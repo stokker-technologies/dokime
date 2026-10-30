@@ -24,6 +24,29 @@ returns adapter identity, kind, MAC, status, MTU, speed, IPv4/IPv6 prefixes and
 scope, gateways, DNS servers, DHCP state and default-route ownership. Linux
 uses `getifaddrs`, kernel routes and NetworkManager's per-device DNS/DHCP data;
 DHCP is unknown when NetworkManager does not manage an interface.
+The installed host contributes a synchronous `RunStart` capture: every execution
+records its adapter inventory before the first step.
+
+The Public `host.network.radio.set` request is
+`{ radio: "wifi" | "bluetooth" | "cellular", state: "on" | "off", allow_disconnect: false }`.
+It uses Windows.Devices.Radios or NetworkManager/BlueZ native switches.
+`host.network.adapter.set` takes `{ adapter_id, enabled, allow_disconnect: false }`;
+Windows uses quiet SetupAPI and refuses without administrator rights, without UAC.
+Linux requires root or CAP_NET_ADMIN for interface writes.
+Before disabling, the host maps the trusted backend PID's established native TCP
+sockets to adapters. A change affecting a live connection refuses unless
+`allow_disconnect: true` comes from an execution step; a standalone request flag
+cannot bypass the guard. Bluetooth device presence uses native enumeration.
+
+Radio, adapter and `host.power.plan.set { plan_id }` changes preserve the exact
+prior state as invertible transactions. During an execution the backend durably
+journals the inverse before writing, records native apply/restore timestamps,
+and restores in reverse order after completion, failure or cancellation.
+Cancellation keeps native work owned until it settles. On restart, pending
+inverses run before startup returns; a failed or unavailable inverse blocks
+startup and stays pending. Keep the restoring plugin installed. Standalone
+changes persist without run-end inversion. Development storage stays v1; use a
+fresh storage root for incompatible schemas and preserve the previous root.
 The Public `host.power.plan.get` query reads the active Windows power scheme
 or Linux ACPI platform profile; unavailable native reads return a refusal.
 The Public `host.cpu.load` query and `host.system` rows expose calibrated

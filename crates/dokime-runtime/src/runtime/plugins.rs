@@ -394,6 +394,7 @@ impl Runtime {
             return Err(operation(error));
         }
         self.capture_ready_catalogs().await?;
+        self.handle.restore_effects(None).await?;
         self.recover_plugin_executions().await?;
         let inputs: Vec<_> = self.plugins.values().map(|active| active.package.input.clone()).collect();
         for input in inputs {

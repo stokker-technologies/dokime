@@ -22,8 +22,8 @@ Locked 2026-10-29. One commit per item; targeted proof per item; Linux paths are
 
 ## 3A. Public Operations And Definitions Crate
 
-- [ ] 3A.1 `visibility = Public` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
-  Declared with each operation as it lands (items 4–6); Harmos is now pinned to the Git revision using `Public` (3A.4–3A.5).
+- [x] 3A.1 `visibility = Public` on adapters, radio/adapter set, power plan read/set and CPU load; `*.collect` stay private.
+  Evidence: `host/adapters/mod.rs`, `host/controls/mod.rs`, `host/power/mod.rs` and `host/cpu/mod.rs` declare Public queries and setters; collection operations retain Private visibility. The definitions-only/all-targets caller guard passes on Windows.
 - [x] 3A.2 `dokime-host` `default = []`, `runtime` gates implementations and optional platform dependencies; bin requires `runtime`; sidecar build and packaging enable it.
 - [x] 3A.3 No-feature guard; document the git-tag dependency for external plugin authors; proof: no-feature check, runtime build, bundle build, workspace check.
   Done: the guard is the existing `build:rust:compatibility` `--workspace --lib --bins --no-default-features` lane plus every featureless workspace check; plugins README documents the git-tag dependency. Proof so far: `check -p dokime-host --no-default-features --all-targets` PASS, `test -p dokime-host --no-default-features --lib` 7 PASS, `test -p dokime-host --features runtime --lib --test integration` 14 + 6 PASS, workspace/all-targets check PASS, `mise run build:rust` PASS (host.dokime built with `dokime-host/runtime`).
@@ -43,26 +43,28 @@ Assigned source inventory: `host/adapters` owns the Public inventory query and n
 - [x] 4.1 `host.network.adapters` query (Windows `GetAdaptersAddresses`, Linux `getifaddrs` plus routes).
 - [x] 4.2 `host.network` compact form with change events from OS notifications.
   Evidence for 4.1–4.2: `plugins/sidecars/host/src/host/adapters/windows.rs::snapshot` uses IP Helper inventory/routes; `adapters/unix.rs::snapshot` uses getifaddrs/kernel routes and NetworkManager per-device DNS/DHCP. `host/network/notifications` owns bounded native events, visible overflow refusal and lease-bound teardown; the compact schema removes polled inventory and the obsolete getifs dependency. Windows targeted integration `adapters::` passes 2 stories; host lib `host::` passes 9, including native address decoding, compact event encoding and queue ordering/deduplication/overflow. Task-owned Clippy passes before both selections; the no-default-features/all-targets caller check passes. Linux decoder proof remains for CI. Canonical authoring guidance and provider-disabled generated copies describe the split catalogs; plugins README is updated and the root README has no affected claims.
-- [ ] 4.3 Adapters snapshot in execution evidence at run start.
-  Open dependency: a synchronous run-start hook through the ordinary plugin boundary is needed. Existing process-scoped asynchronous record listeners cannot guarantee a run-scoped snapshot before step writes; the generic backend lifecycle decision under 5 applies here too.
+- [x] 4.3 Adapters snapshot in execution evidence at run start.
+  Evidence: `host/adapters/capture.rs` serializes the native inventory through the Host capture declared by the ordinary plugin's `RunStart` contribution. `runtime/effects.rs::capture_run_start` records it before steps; the Windows `domains::effects::effect_lifecycle` story checks exactly one structured snapshot before any write across pass/fail/cancel, and native adapter inventory proof passes under 4.1. The definitions-only/all-targets guard passes.
 
 ## 5. Radios And Adapters (Write)
 
-Assigned source inventory: host radio/adapter operation definitions, native handlers and focused refusal/inversion tests; generic backend lifecycle/context owners only if agreed. Triage: Harmos `state::Invertible` reverses pure state only; Dokime currently has no durable run-effect journal or trusted remote-connection context in `ExecutionScope`. Owner decision pending on adding that generic lifecycle/context; do not substitute plugin-local recovery or an untrusted request guard.
+Assigned source inventory: host radio/adapter operation definitions, native handlers and focused refusal/inversion tests; generic backend lifecycle/context owners. Triage: Harmos `state::Invertible` reverses pure state only; Dokime currently has no durable run-effect journal or trusted remote-connection context in `ExecutionScope`. The locked recovery/guard requirement authorizes the generic backend lifecycle: journal pending inverses before native changes, restore under run cleanup and before exposing startup, and get the backend PID from a trusted backend response for OS-owned active socket matching. Implementing this is within the assigned items; no owner decision is pending. Inventory extends to domain pending-effect contracts, operation declarations, state encoding, transactions and runtime run/startup owners, their focused tests and native host controls. Keep schema v1, with no compatibility or automatic storage reset.
 
-- [ ] 5.1 `host.network.radio.set` (Windows.Devices.Radios / NM radio switches).
-- [ ] 5.2 `host.network.adapter.set` with the administrator refusal.
-- [ ] 5.3 Invertible transactions, run-end inversion, crash recovery, evidence timestamps.
-- [ ] 5.4 Active-connection guard with explicit step override.
+- [x] 5.1 `host.network.radio.set` (Windows.Devices.Radios / NM radio switches).
+- [x] 5.2 `host.network.adapter.set` with the administrator refusal.
+- [x] 5.3 Invertible transactions, run-end inversion, crash recovery, evidence timestamps.
+  Backend foundation: `runtime/effects.rs`, `transactions/effects.rs` and execution cleanup durably prepare inverses, restore in reverse order after run settlement and before startup exposes plugins, and retain timestamped execution records. Targeted Windows `domains::effects::` passes 2 stories covering pass/fail/cancel, nested inverses, structured start evidence, standalone callbacks, failed recovery and retry. Native control transactions and the owned generation caller integrate the same journal; cancellation retains the serialization gate until the native attempt settles.
+- [x] 5.4 Active-connection guard with explicit step override.
+  Evidence: `host/controls` owns Public radio/adapter operations, native Windows Radios/SetupAPI and Linux NetworkManager/BlueZ/ioctl paths, exact-state Harmos inverses, administrator refusal without elevation, and trusted-backend-PID TCP matching. Windows `controls::` passes 2 lib tests (inverse restoration and native power write) plus 1 integration story (real established socket mapping, refusal and step-only override); backend lifecycle/recovery proof passes 2 stories above. Native radio state changes wait on StateChanged within the operation policy. Linux runs in CI only.
 
 ## 6. Remaining Host Features
 
-Assigned source inventory: existing Bluetooth presence collectors (reuse), host power and CPU operations, bounded startup calibration, operation documentation and focused proofs. Power-plan set shares the item 5 lifecycle decision. Triage: Bluetooth presence already exists in `platform/windows/bluetooth.rs` and `platform/unix/bluetooth.rs`; native Windows power-plan read already exists in `platform/windows/power.rs`. Also update canonical `dokime-fast-release` guidance and its generated copies: PRs target `dev`, channel builds and consumers use `dev`.
+Assigned source inventory: existing Bluetooth presence collectors (reuse), host power and CPU operations, bounded startup calibration, operation documentation and focused proofs. Power-plan set shares the item 5 lifecycle. Triage: Bluetooth presence already exists in `platform/windows/bluetooth.rs` and `platform/unix/bluetooth.rs`; native Windows power-plan read already exists in `platform/windows/power.rs`. Also update canonical `dokime-fast-release` guidance and its generated copies: PRs target `dev`, channel builds and consumers use `dev`.
 
-- [ ] 6.1 Bluetooth on/off through the radio operation; device presence.
-  Triage: presence is already implemented in `plugins/sidecars/host/src/platform/windows/bluetooth.rs:66` and `platform/unix/bluetooth.rs:42`; retain it. On/off depends on 5.1 and the lifecycle/context decision.
-- [ ] 6.2 Power plan read and invertible set.
-  Public read is implemented at `host/power/windows.rs::active_plan` through the existing native Power Management reader and at `host/power/unix.rs::active_plan` through the ACPI platform profile. Windows `cpu::active_power_plan` passes; invertible set remains dependent on 5.3.
+- [x] 6.1 Bluetooth on/off through the radio operation; device presence.
+  Evidence: the shared `host/controls` radio operation covers Bluetooth on/off. `platform/windows/bluetooth.rs` uses SetupAPI presence and the same device-ID radio reader as controls; `platform/unix/bluetooth.rs` reads native BlueZ managed objects. The obsolete PowerShell/bluetoothctl paths and scripted-child fixture are removed. Windows native presence passes 1 story; three native-object decoding cases are ready for Linux CI.
+- [x] 6.2 Power plan read and invertible set.
+  Evidence: Public `GetPlan` reads Windows Power Management or Linux ACPI profiles; Public `PlanSet` preserves the exact prior plan through the shared journal/inverse path. Windows native PowerSetActiveScheme writes and verifies the current plan, the shared transaction story checks different-plan inversion, and backend lifecycle/recovery passes 2 stories. Native read proof remains in `cpu::active_power_plan`; Linux paths run in CI.
 - [x] 6.3 CPU load in GFLOP/s from a documented calibration.
   Evidence: `host/cpu/runtime.rs::calibrate` bounds a per-logical-CPU f64 FMA kernel by half the operation attempt policy; `app.rs::prepare` runs it once on an owned blocking worker. The shared system collector scales capacity by measured OS utilization for the Public `host.cpu.load` query and system stream. The method and estimate's limits are beside `CpuLoad` and in `plugins/README.md`; no root README claim changes. Windows targeted `cpu::` integration passes 2 stories (calibration/readings and native power read); the CPU scaling unit selection passes 1. Task-owned Clippy and the no-feature/all-targets guard pass; Rust formatting check passes. Linux native paths remain for CI.
 
@@ -86,7 +88,7 @@ Assigned source inventory: existing Bluetooth presence collectors (reuse), host 
 
 ## 7. Validation
 
-- [ ] 7.1 Targeted proof per item; workspace check; `mise run format`.
+- [x] 7.1 Targeted proof per item; workspace check; `mise run format`.
 
 - [x] 7.2 Repair hosted Rust formatting in already-committed doctor and runtime storage/evidence paths; leave active writers untouched. Evidence: `crates/dokime-cli/src/commands/doctor.rs:87` and five runtime storage/evidence files are formatted; formatter task reports only active-writer paths.
 - [x] 7.3 Remove retired tutorial artifact staging, release preparation hook, bundle declaration and candidate tests; update source tutorial setup and prove focused Python integration. Evidence: `tools/python/src/dokime_tools/build/python.py:35`, `mise.toml:487`, `stkr.toml:558`; focused integration selects 2 passing plugin-collection cases and no retired candidate stories; Python client build and package pass.

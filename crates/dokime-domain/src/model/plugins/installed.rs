@@ -41,6 +41,7 @@ use crate::model::telemetry::TelemetryContract;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPlugin {
+    pub run_start: Option<RunStartRegistration>,
     pub source: String,
     pub version: String,
     pub description: String,
@@ -98,6 +99,12 @@ pub struct PluginListener {
 pub struct SettingDiscovery {
     pub field: String,
     pub operation: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunStartRegistration {
+    pub operation: String,
+    pub request: Vec<u8>,
 }
 
 /* === Enums === */

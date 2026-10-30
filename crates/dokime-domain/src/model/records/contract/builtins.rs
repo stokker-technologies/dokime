@@ -75,6 +75,10 @@ builtin_record_types! {
     TestCycleFinalizationFailed => "test.cycle.finalization.failed",
     TestCycleStopRequested => "test.cycle.stop_requested",
     TestCycleStopped => "test.cycle.stopped",
+    ExecutionEffectPrepared => "test.execution.effect.prepared",
+    ExecutionEffectApplied => "test.execution.effect.applied",
+    ExecutionEffectRestored => "test.execution.effect.restored",
+    ExecutionStartEvidence => "test.execution.start.evidence",
     TestExecutionStarted => "test.execution.started",
     TestExecutionPaused => "test.execution.paused",
     TestExecutionResumed => "test.execution.resumed",
@@ -207,6 +211,10 @@ impl BuiltinRecordType {
             | Self::TestCycleFinalizationFailed
             | Self::TestCycleStopRequested
             | Self::TestCycleStopped
+            | Self::ExecutionEffectPrepared
+            | Self::ExecutionEffectApplied
+            | Self::ExecutionEffectRestored
+            | Self::ExecutionStartEvidence
             | Self::TestExecutionStarted
             | Self::TestExecutionPaused
             | Self::TestExecutionResumed
