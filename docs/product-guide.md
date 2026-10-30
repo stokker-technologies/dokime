@@ -160,9 +160,15 @@ access-key authentication are independent advanced settings; disable either
 only in an isolated lab. Changing interface names or explicitly reissuing the
 leaf preserves its CA and existing access keys.
 
-Windows NSIS installation adds an inbound application firewall rule scoped to
-**Private** networks, with administrator confirmation for that rule. Uninstall
-removes the installation's rule. Tauri installation defaults otherwise remain.
+Windows installation never needs administrator rights and does not change the
+firewall. On the computer exporting remote access, Settings → Remote Access checks
+Windows Firewall when the listener runs on a non-loopback address. If inbound access
+is blocked, **Allow In Firewall…** requests administrator approval to allow the app
+on **Private** networks once. Cancelled or refused approval leaves the app usable.
+Connecting to another backend only uses outbound access and needs no firewall rule.
+Disabling remote access attempts to remove this installation's rule without a UAC
+prompt; a standard user is told when cleanup needs an administrator. Per-user
+uninstall leaves any rule in place and never requests administrator access.
 On other platforms, permit the saved listener port through the host firewall.
 
 ## Full-Control Access And Plugin Capabilities
@@ -955,6 +961,12 @@ The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
 
 ### Native Installers
+
+Default Windows NSIS installers use `currentUser` mode and request user-level
+execution. Installation and uninstallation never need administrator rights; setup
+does not add or remove firewall rules. Exposing remote access to other PCs may need
+an administrator to allow the private-network firewall rule once in Settings →
+Remote Access on the exporting computer.
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |

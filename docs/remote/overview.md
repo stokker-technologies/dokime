@@ -132,8 +132,10 @@ Use the host's connected local desktop session, then open
    interface addresses automatically. Save `lab.dokime-remote`.
 2. Treat this file as a secret. Transfer it privately to the other PC. Loopback
    addresses work on the same PC only.
-3. The Windows installer configures a Private-network inbound application rule
-   (administrator confirmation required). On Linux, allow the listener port
+3. Windows installation needs no administrator rights. If Remote Access shows a
+   firewall notice on the host, choose **Allow In Firewall…** and have an
+   administrator approve the Private-network rule once. Connecting from the other
+   PC needs no firewall change. On Linux, allow the listener port
    through the host firewall. Advanced listener settings can change that port.
 
 Transfer that pairing file privately to `remote-demo/` on the remote computer.
