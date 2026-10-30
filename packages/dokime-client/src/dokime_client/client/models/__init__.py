@@ -13,11 +13,12 @@
 # Standard Library Imports
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Self
+from typing import Any, Self, TypedDict
 
 # Third Party Imports
 
@@ -219,6 +220,10 @@ class Record:
     related_stream_id: str | None
     related_artifact_id: str | None
 
+    def to_json(self) -> str:
+        """Serialize This Occurrence With RFC 3339 Datetime Values."""
+        return json.dumps({field.name: getattr(self, field.name) for field in fields(self)}, default=_json_value)
+
 
 @dataclass(frozen=True)
 class SavedRecord:
@@ -242,6 +247,10 @@ class Sample:
     metadata: dict[str, Value]
     scope: dict[str, Any]
 
+    def to_json(self) -> str:
+        """Serialize This Sample With RFC 3339 Datetime Values."""
+        return json.dumps({field.name: getattr(self, field.name) for field in fields(self)}, default=_json_value)
+
 
 @dataclass(frozen=True)
 class SavedSample:
@@ -252,8 +261,28 @@ class SavedSample:
     sample: Sample
 
 
+class SavedFile(TypedDict):
+    path: str
+    size: int
+    sha256: str
+
+
+class SaveManifest(TypedDict):
+    cycle_id: str
+    files: list[SavedFile]
+
+
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+def _json_value(value: object) -> str:
+    if isinstance(value, DatetimeValue) and value._wire_text is not None:
+        return value._wire_text
+    if isinstance(value, datetime):
+        return value.isoformat()
+    raise TypeError(f"unsupported JSON value: {type(value).__name__}")
+
 
 # === Entry Point === #

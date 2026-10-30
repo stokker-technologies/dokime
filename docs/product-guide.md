@@ -201,11 +201,32 @@ Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
 
 ```python
-client = DokimeClient.from_pairing("lab.dokime-pair")
-async with client:
-    async for suite in client.suites():
-        print(suite)
+import asyncio
+from pathlib import Path
+from dokime_client import DokimeClient
+
+async def main() -> int:
+    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
+        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
+            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
+            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+                print(record.type)
+        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        return run.outcome.exit_code
+
+raise SystemExit(asyncio.run(main()))
 ```
+
+The example requires the corresponding installed template. With the OBC fixture,
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
+on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
+are grouped with the original failure. Await a run directly for its saved outcome.
+Terminal record/sample iterators accept positional filters and provide `.to_json()`.
+The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
+cancelled. A template expansion returns an ordered tuple of all execution handles.
+`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
+manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
+are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -276,7 +297,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
-client provides the same durable boundary with `await cycle.seal()`.
+client provides the same durable boundary with `await cycle.seal()`, and
+`async with client.new_cycle(label)` applies it automatically on every exit.
 
 Download saved evidence without running any work again:
 
