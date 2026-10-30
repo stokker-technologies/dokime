@@ -4325,7 +4325,7 @@ async function distributionIdentityJourney() {
   const directory = join(work, "distributions");
   const shared = join(directory, "user");
   const suffix = windows ? ".exe" : "";
-  const identities = ["com.stokker.dokime", "com.hilti.dokime"];
+  const identities = ["com.stokker.dokime", "com.example.testhub"];
   const roots = [];
   for (const identifier of identities) {
     const installation = join(directory, identifier);

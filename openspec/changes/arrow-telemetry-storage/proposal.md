@@ -11,7 +11,7 @@ Telemetry currently writes an opaque sample plus per-sample and per-signal SQLit
 - **BREAKING:** Replace telemetry payload/index tables with SQLite file/stream catalogs and retained incremental numeric summaries; distinguish artifacts from other files.
 - **BREAKING:** Export original Arrow files alongside relational evidence and manifests; remove stream partitions, column splitting and `stream_columns`.
 - Keep storage and evidence baselines at v1; require fresh incompatible roots without resetting existing data.
-- Commit locally in small Conventional Commits; do not push, publish, create installers or run umbrella lanes. Do not edit Harmos or hilti-hcl.
+- Commit locally in small Conventional Commits; do not push, publish, create installers or run umbrella lanes. Do not edit Harmos or example-plugin.
 
 ## Capabilities
 

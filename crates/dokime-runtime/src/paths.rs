@@ -149,7 +149,7 @@ mod distribution_tests {
         for windows in [false, true] {
             let get = |key: &str| Some(PathBuf::from(if cfg!(windows) { "C:/user" } else { "/user" }).join(key));
             let plain = ApplicationPaths::resolve_with(DEFAULT_APPLICATION_ID, None, windows, get).unwrap();
-            let branded = ApplicationPaths::resolve_with("com.hilti.dokime", None, windows, get).unwrap();
+            let branded = ApplicationPaths::resolve_with("com.example.testhub", None, windows, get).unwrap();
             for (plain, branded) in [
                 (plain.root.clone(), branded.root.clone()),
                 (plain.default_data(), branded.default_data()),
@@ -158,9 +158,12 @@ mod distribution_tests {
                 (plain.webview(), branded.webview()),
             ] {
                 assert_ne!(plain, branded);
-                assert!(branded.to_string_lossy().contains("com.hilti.dokime"));
+                assert!(branded.to_string_lossy().contains("com.example.testhub"));
             }
-            assert_eq!(branded.logs(), get(if windows { "LOCALAPPDATA" } else { "XDG_STATE_HOME" }).unwrap().join("com.hilti.dokime/logs"));
+            assert_eq!(
+                branded.logs(),
+                get(if windows { "LOCALAPPDATA" } else { "XDG_STATE_HOME" }).unwrap().join("com.example.testhub/logs")
+            );
         }
     }
 

@@ -157,8 +157,9 @@ def _inline_asset(match: re.Match[str]) -> str:
     mime = {".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png"}.get(path.suffix)
     if mime is None:
         raise ValueError(f"unsupported organization asset: {relative}")
-    data = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f'url("data:{mime};base64,{data}")'
+    # Percent Encoding Keeps Binary Assets Opaque To Text Searches.
+    data = "".join(f"%{byte:02X}" for byte in path.read_bytes())
+    return f'url("data:{mime},{data}")'
 
 
 def _digest(path: Path) -> dict[str, str]:

@@ -243,7 +243,7 @@ async fn bundled_upgrades() {
 
 #[tokio::test]
 async fn bundled_sources_survive() {
-    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.hilti.testhub"] {
+    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
         let root = tempfile::tempdir().unwrap();
         let application = root.path().join(identifier);
         let plugins = application.join("plugins");
@@ -284,7 +284,7 @@ async fn bundled_distribution() {
     let plugins = installer.path().join("plugins");
     fs::create_dir(&plugins).unwrap();
     let distribution = installer.path().join("installer.json");
-    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.hilti.dokime"}"#).unwrap();
+    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.example.testhub"}"#).unwrap();
     let bytes = bundle("organization-host", "host", "1.0.0");
     installer_metadata(&distribution, "1.0.0", &bytes);
     fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();

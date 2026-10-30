@@ -636,7 +636,7 @@ mod tests {
 
     #[test]
     fn distribution_names() {
-        let label = "Hilti Test Hub";
+        let label = "Example Test Hub";
         let compiled = distribution::Identity {
             identifier: "com.stokker.dokime".into(),
             slug: "dokime".into(),
@@ -646,7 +646,7 @@ mod tests {
         let mut manifest: Manifest = toml::from_str(text).unwrap();
         let renderer = handlebars::Handlebars::new();
 
-        for identifier in [None, Some("com.hilti.dokime")] {
+        for identifier in [None, Some("com.example.testhub")] {
             manifest.installer.identifier = identifier.map(str::to_owned);
             let identity = manifest.identity(&compiled).unwrap();
             let windows = package_settings(&manifest, &identity, label, true);

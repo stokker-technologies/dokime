@@ -147,7 +147,7 @@ async fn distribution_identity() {
         formats: vec![],
         target: None,
     };
-    for (identifier, slug) in [(None, "dokime"), (Some("com.hilti.dokime"), "com-hilti-dokime")] {
+    for (identifier, slug) in [(None, "dokime"), (Some("com.example.testhub"), "com-example-testhub")] {
         let declaration = identifier.map_or_else(String::new, |identifier| format!("identifier='{identifier}'\n"));
         let text =
             format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");

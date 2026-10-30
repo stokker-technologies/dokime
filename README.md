@@ -119,7 +119,7 @@ The same plugin uses `#[dokime::observer]` for its
 `#[dokime::criterion]` for its
 [pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
-Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
+Custom installers can declare `[installer] identifier = "com.example.testhub"` to
 keep their installation and storage separate from plain Dokime. They include
 plugins selected by version and feed name, plus external bundles from an
 organization pack or repeatable `cargo dokime installer package --plugin <path>`
