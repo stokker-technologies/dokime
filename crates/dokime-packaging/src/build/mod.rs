@@ -27,9 +27,9 @@ use std::{
 };
 
 // Third Party Imports
-use cargo_metadata::{Message, MetadataCommand, Package};
+use cargo_metadata::{MetadataCommand, Package};
 use dokime::harmos::plugin::inventory::Declaration;
-use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
+use dokime::harmos::sidecar::CATALOG_EXPORT_LIMIT;
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 
 // Local Imports
@@ -51,7 +51,7 @@ const CATALOG_STDERR_BYTES: u64 = 262_144;
 
 /* === Type Aliases === */
 
-type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
+type Executables = BTreeMap<String, (PathBuf, Option<PathBuf>)>;
 
 /* === Structs === */
 
@@ -90,20 +90,6 @@ impl DebugInfo {
         }
         "Cargo defaults; include emitted debug symbols"
     }
-
-    // Cargo reports every emitted output for the unit, debug info included: on
-    // Windows MSVC that is the `.pdb` beside the hash-named executable in
-    // `deps/`, not beside the copy `executable` names. Disabled debug info
-    // ships no symbols even when the linker still writes one.
-    fn symbols(self, filenames: &[cargo_metadata::camino::Utf8PathBuf]) -> Option<PathBuf> {
-        if !self.enabled {
-            return None;
-        }
-        filenames
-            .iter()
-            .find(|path| path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("pdb")))
-            .map(|path| path.clone().into_std_path_buf())
-    }
 }
 
 /* === Public Functions === */
@@ -128,38 +114,19 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
     }
     let debuginfo = DebugInfo::of(package);
     let reader = std::io::BufReader::new(std::fs::File::open(messages)?);
-    let mut executables = Executables::new();
-    for message in Message::parse_stream(reader) {
-        if let Message::CompilerArtifact(artifact) = message?
-            && artifact.package_id == package.id
-            && !artifact.profile.test
-            && selected.contains(&artifact.target.name)
-            && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin)
-        {
-            let pdb = debuginfo.symbols(&artifact.filenames);
-            executables
-                .entry(artifact.target.name)
-                .or_default()
-                .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
-        }
-    }
-    let executables = single(executables, selected.len())?;
+    let executables = selected_executables(reader, &package.id.repr, &package.name, &selected, debuginfo)?;
     Ok(Collected {
         package: package.clone(),
         strip: !debuginfo.enabled && !target.contains("windows-msvc"),
         target,
-        executables: executables.into_iter().map(|(name, mut paths)| (name, paths.remove(0))).collect(),
+        executables,
     })
 }
 
 // Bundle collected executables into `output/<package>.dokime`.
 pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Error> {
     let destination = output.join(format!("{}.dokime", collected.package.name));
-    let mut executables = Executables::new();
-    for (name, (path, symbols)) in collected.executables {
-        executables.insert(name, vec![(path, symbols)]);
-    }
-    bundle(&collected.package, &collected.target, executables, destination, collected.strip).await
+    bundle(&collected.package, &collected.target, collected.executables, destination, collected.strip).await
 }
 
 /* === Private Functions === */
@@ -194,7 +161,6 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     let package = select_package(&metadata, args.package.as_deref())?;
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let selected = selected_binaries(package, binaries)?;
-    let requested = selected.iter().collect::<std::collections::BTreeSet<_>>();
     let host = host_target(package).await?;
     let target = args.target.as_deref().unwrap_or(&host);
     if target != host {
@@ -235,29 +201,7 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     terminal.status(format!("Building {} ({}) for {target}", package.name, selected.join(", ")));
     terminal.field("Debug info", debuginfo.summary());
     let output = process::cargo(command, "Cargo compilation", cargo_timeout, true).await?;
-    let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Option<PathBuf>)>>::new();
-    let mut finished = false;
-    for message in Message::parse_stream(output.stdout.as_slice()) {
-        match message? {
-            Message::CompilerArtifact(artifact)
-                if artifact.package_id == package.id
-                    && requested.contains(&artifact.target.name)
-                    && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin) =>
-            {
-                let pdb = debuginfo.symbols(&artifact.filenames);
-                executables
-                    .entry(artifact.target.name)
-                    .or_default()
-                    .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
-            }
-            Message::BuildFinished(result) => finished = result.success,
-            _ => {}
-        }
-    }
-    if !finished {
-        return Err(Error::Invalid("Cargo did not report exactly one successful executable for each selected binary".into()));
-    }
-    let executables = single(executables, selected.len())?;
+    let executables = selected_executables(output.stdout.as_slice(), &package.id.repr, &package.name, &selected, debuginfo)?;
     let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
     bundle(package, target, executables, output, !debuginfo.enabled && !target.contains("windows-msvc")).await
 }
@@ -293,51 +237,83 @@ fn selected_binaries(package: &Package, binaries: &[String]) -> Result<Vec<Strin
     Ok(selected)
 }
 
-async fn host_target(package: &Package) -> Result<String, Error> {
-    let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
-    let mut probe = dokime::domain::process::command("rustc");
-    probe.current_dir(root).arg("-vV");
-    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
-    let output_bytes = PROBE_OUTPUT_BYTES as usize;
-    let host = process::run(probe, "rustc host probe", timeout, output_bytes, output_bytes).await?;
-    String::from_utf8_lossy(&host.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: "))
-        .map(str::to_owned)
-        .ok_or_else(|| Error::Invalid("rustc did not report a host target".into()))
-}
-
-// A copy of `executable` without debug sections, written with the toolchain's own llvm-objcopy.
-async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
-    let mut sysroot = dokime::domain::process::command("rustc");
-    sysroot.arg("--print").arg("sysroot");
-    let timeout = Some(Duration::from_millis(PROBE_TIMEOUT_MS));
-    let output_bytes = PROBE_OUTPUT_BYTES as usize;
-    let sysroot = process::run(sysroot, "rustc sysroot probe", timeout, output_bytes, output_bytes).await?;
-    let sysroot = PathBuf::from(String::from_utf8_lossy(&sysroot.stdout).trim());
-    let objcopy =
-        sysroot.join("lib/rustlib").join(target).join("bin").join(if cfg!(windows) { "llvm-objcopy.exe" } else { "llvm-objcopy" });
-    if !objcopy.is_file() {
-        return Err(Error::Invalid(format!("{} is missing; install the llvm-tools-preview component", objcopy.display())));
-    }
-    let name = executable.file_name().ok_or_else(|| Error::Invalid("executable has no file name".into()))?;
-    let stripped = directory.join(name);
-    let mut command = dokime::domain::process::command(objcopy);
-    command.arg("--strip-debug").arg(executable).arg(&stripped);
-    let timeout = Some(Duration::from_millis(STRIP_TIMEOUT_MS));
-    process::run(command, "strip debug sections", timeout, output_bytes, output_bytes).await?;
-    Ok(stripped)
-}
-
-fn single(mut executables: Executables, selected: usize) -> Result<Executables, Error> {
-    for paths in executables.values_mut() {
-        paths.sort();
-        paths.dedup();
-    }
-    if executables.len() != selected || executables.values().any(|paths| paths.len() != 1) {
-        return Err(Error::Invalid("Cargo did not report exactly one successful executable for each selected binary".into()));
+fn selected_executables(
+    reader: impl std::io::BufRead, package_id: &str, producer: &str, names: &[String], debug: DebugInfo,
+) -> Result<Executables, Error> {
+    let selected = BTreeMap::from([(package_id.to_owned(), producer.to_owned())]);
+    let mut executables = harmos_packaging::cargo::collect(reader, &selected)
+        .and_then(|outputs| outputs.executables(producer, names))
+        .map_err(|error| Error::Invalid(error.to_string()))?;
+    if !debug.enabled {
+        for (_, symbols) in executables.values_mut() {
+            *symbols = None;
+        }
     }
     Ok(executables)
+}
+
+async fn native<T: Send + 'static>(
+    name: &'static str, work: impl FnOnce(harmos_packaging::BuildCancellation) -> Result<T, harmos_packaging::Error> + Send + 'static,
+) -> Result<T, Error> {
+    struct Cancel(harmos_packaging::BuildCancellation);
+    impl Drop for Cancel {
+        fn drop(&mut self) {
+            self.0.cancel();
+        }
+    }
+    let cancellation = harmos_packaging::BuildCancellation::default();
+    let guard = Cancel(cancellation.clone());
+    let mut task = tokio::task::spawn_blocking(move || work(cancellation));
+    let result = tokio::select! {
+        result = &mut task => result,
+        _ = tokio::signal::ctrl_c() => {
+            guard.0.cancel();
+            let _ = task.await;
+            return Err(Error::Cancelled);
+        }
+    }
+    .map_err(|error| Error::Io(std::io::Error::other(error)))?;
+    result.map_err(|error| match error {
+        harmos_packaging::Error::Cancelled => Error::Cancelled,
+        harmos_packaging::Error::Timeout => Error::Timeout(name.into()),
+        error => Error::Invalid(error.to_string()),
+    })
+}
+
+fn tool_settings(timeout_ms: u64, stdout_bytes: usize, stderr_bytes: usize) -> harmos_packaging::ProcessSettings {
+    harmos_packaging::ProcessSettings {
+        timeout: Some(Duration::from_millis(timeout_ms)),
+        stdout_bytes,
+        stderr_bytes,
+    }
+}
+
+async fn host_target(package: &Package) -> Result<String, Error> {
+    let root = package.manifest_path.parent().expect("Cargo manifest has a parent").as_std_path().to_owned();
+    native("rustc host probe", move |cancel| {
+        harmos_packaging::native::host_target(
+            Some(&root),
+            tool_settings(PROBE_TIMEOUT_MS, PROBE_OUTPUT_BYTES as usize, PROBE_OUTPUT_BYTES as usize),
+            &cancel,
+        )
+    })
+    .await
+}
+
+async fn strip(executable: &Path, directory: &Path, target: &str) -> Result<PathBuf, Error> {
+    let path = executable.to_owned();
+    let directory = directory.to_owned();
+    let target = target.to_owned();
+    native("strip debug sections", move |cancel| {
+        harmos_packaging::native::strip_debug(
+            &path,
+            &directory,
+            &target,
+            tool_settings(STRIP_TIMEOUT_MS, PROBE_OUTPUT_BYTES as usize, PROBE_OUTPUT_BYTES as usize),
+            &cancel,
+        )
+    })
+    .await
 }
 
 async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf, strip_debug: bool) -> Result<PathBuf, Error> {
@@ -366,8 +342,7 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     total += bytes.len();
     inputs.push((COMPATIBILITY_FILE.to_owned(), bytes, None));
 
-    for paths in executables.values() {
-        let (path, pdb) = &paths[0];
+    for (path, pdb) in executables.values() {
         let path = if strip_debug { strip(path, stripped.path(), target).await? } else { path.clone() };
         let (name, binary, executable) = collect_executable(
             &path,
@@ -469,18 +444,25 @@ async fn collect_executable(
             declaration.version, package.version
         )));
     }
-    let mut command = dokime::domain::process::command(path);
-    command.current_dir(package.manifest_path.parent().expect("Cargo manifest has a parent")).arg(CATALOG_EXPORT_FLAG);
-    let export = process::run(
-        command,
-        "plugin catalog export",
-        Some(Duration::from_millis(CATALOG_EXPORT_TIMEOUT_MS)),
-        CATALOG_EXPORT_LIMIT.min(*catalog_remaining),
-        CATALOG_STDERR_BYTES as usize,
+    let artifact = harmos_packaging::Artifact::read(
+        package.name.to_string(),
+        path.file_stem().and_then(|name| name.to_str()).unwrap_or("plugin").to_owned(),
+        path.to_owned(),
     )
+    .map_err(|error| Error::Invalid(error.to_string()))?;
+    let root = package.manifest_path.parent().expect("Cargo manifest has a parent").as_std_path().to_owned();
+    let stdout_bytes = CATALOG_EXPORT_LIMIT.min(*catalog_remaining);
+    let exported = native("plugin catalog export", move |cancel| {
+        harmos_packaging::native::catalog(
+            &artifact,
+            Some(&root),
+            tool_settings(CATALOG_EXPORT_TIMEOUT_MS, stdout_bytes, CATALOG_STDERR_BYTES as usize),
+            &cancel,
+        )
+    })
     .await?;
-    *catalog_remaining = catalog_remaining.saturating_sub(export.stdout.len());
-    let registrations: Vec<Registration> = serde_json::from_slice(&export.stdout)?;
+    *catalog_remaining = catalog_remaining.saturating_sub(exported.output_bytes);
+    let registrations = exported.registrations;
     if files::read(path, max_bytes)? != binary {
         return Err(Error::Invalid("the executable changed during catalog export".into()));
     }
@@ -543,11 +525,17 @@ mod tests {
 
     #[test]
     fn opt_out_ships_no_symbols() {
-        let disabled = DebugInfo { enabled: false };
-        let outputs = vec![cargo_metadata::camino::Utf8PathBuf::from("deps/plugin.pdb")];
-
-        assert_eq!(disabled.symbols(&outputs), None);
-        assert_eq!(DebugInfo { enabled: true }.symbols(&outputs), Some(PathBuf::from("deps/plugin.pdb")));
+        let messages = format!(
+            "{}\n{}",
+            serde_json::json!({"reason":"compiler-artifact","package_id":"fixture",
+            "target":{"name":"fixture","kind":["bin"]},"profile":{"test":false},"executable":"fixture.exe","filenames":["fixture.exe","deps/fixture.pdb"]}),
+            serde_json::json!({"reason":"build-finished","success":true})
+        );
+        for enabled in [false, true] {
+            let outputs =
+                selected_executables(messages.as_bytes(), "fixture", "fixture", &["fixture".into()], DebugInfo { enabled }).unwrap();
+            assert_eq!(outputs["fixture"].1, enabled.then(|| PathBuf::from("deps/fixture.pdb")));
+        }
     }
 
     #[test]

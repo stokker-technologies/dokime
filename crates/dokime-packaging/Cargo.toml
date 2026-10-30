@@ -28,7 +28,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true }
+harmos-packaging = { workspace = true, features = ["build-tools"] }
 semver = { workspace = true, features = ["serde"] }
 process-wrap = { workspace = true, features = ["tokio1"] }
 time = { workspace = true }
