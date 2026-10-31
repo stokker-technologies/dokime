@@ -24,6 +24,7 @@
 
 import { type FormEvent, useEffect, useId, useState } from "react";
 // Third Party Imports
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
@@ -135,7 +136,7 @@ export function SettingsDialog({
   values,
 }: SettingsDialogProps) {
   const [draft, setDraft] = useState<SettingsValues>(values);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
 
   /* Every opening starts from the node as it is now. */
@@ -156,7 +157,7 @@ export function SettingsDialog({
     setSaving(true);
     onSubmit({ ...draft, title: draft.title.trim() })
       .then(() => onOpenChange(false))
-      .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)))
+      .catch((failure: unknown) => setError(failure))
       .finally(() => setSaving(false));
   };
   const editable = Object.keys(values).some((key) => !readOnly[key as keyof SettingsValues]);
@@ -178,7 +179,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+          {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}

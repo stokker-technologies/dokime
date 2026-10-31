@@ -77,6 +77,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
         .then(() => toast.success("Unarchived"))
         .catch((error: unknown) =>
           toast.error("The Archive Mark Could Not Be Removed", {
+            error,
             description: error instanceof Error ? error.message : String(error),
           }),
         ),

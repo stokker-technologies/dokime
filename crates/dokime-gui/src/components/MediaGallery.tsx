@@ -36,6 +36,7 @@ type MediaUrlEntry = {
 };
 
 type MediaErrorEntry = {
+  failure: unknown;
   generation: string;
   key: string;
   message: string;
@@ -176,6 +177,7 @@ function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: R
             latestSession.identity.isCurrent()
           ) {
             errorsRef.current.set(request.artifact.artifact_id, {
+              failure: error,
               generation: request.generation,
               key: request.key,
               message: error instanceof Error ? error.message : "Unable to load this media preview.",
@@ -365,6 +367,7 @@ function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: R
 
   return {
     errors: Object.fromEntries([...errorsRef.current].map(([artifactId, error]) => [artifactId, error.message])),
+    failures: Object.fromEntries([...errorsRef.current].map(([artifactId, error]) => [artifactId, error.failure])),
     retry,
     urls: Object.fromEntries([...entriesRef.current].map(([artifactId, entry]) => [artifactId, entry.url])),
   };

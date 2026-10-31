@@ -1190,6 +1190,8 @@ async fn store() {
 
     // An Installed Plugin Activates Only After A Restart
     let store = root.path().join("store");
+    std::fs::create_dir_all(store.join("plugins")).unwrap();
+    std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
     assert!(!serves_startup(&client).await);

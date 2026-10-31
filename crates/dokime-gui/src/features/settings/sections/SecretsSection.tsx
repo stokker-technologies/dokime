@@ -25,6 +25,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 // Third Party Imports
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,7 +78,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
   );
   const [deleting, setDeleting] = useState<{ identifier: string; generation: bigint } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   useEffect(() => {
     if (!identifier || !snapshot) return;
     setEditor({ kind: "new", identifier, generation: snapshot.generation });
@@ -96,7 +97,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
       setEditor(null);
       setDeleting(null);
     } catch (failure) {
-      if (session.identity.isCurrent()) setError(failure instanceof Error ? failure.message : "Secret storage is unavailable");
+      if (session.identity.isCurrent()) setError(failure);
     } finally {
       if (session.identity.isCurrent()) setBusy(false);
     }
@@ -168,7 +169,9 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <p className="text-sm text-muted-foreground">
           All plugins on this host can look up these identifiers. Values stay in its OS keyring.
         </p>
-        {(error || query.error) && <NotificationMessage>{error ?? query.error?.message}</NotificationMessage>}
+        {Boolean(error || query.error) && (
+          <NotificationMessage error={error ?? query.error}>{notificationMessage(error ?? query.error)}</NotificationMessage>
+        )}
         {snapshot?.cleanupPending && (
           <NotificationMessage source="Secrets" title="Keyring Cleanup Pending" tone="info">
             The change is active, but an obsolete keyring slot could not be removed.
@@ -245,7 +248,7 @@ export function AddSecretDialog({ identifier, onClose }: { identifier: string; o
     enabled: Boolean(session),
   });
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const snapshot = query.data;
   if (!session || !snapshot) {
     return (
@@ -283,7 +286,7 @@ export function AddSecretDialog({ identifier, onClose }: { identifier: string; o
           void client.invalidateQueries({ queryKey: ["settings", "installed-plugins"] });
           onClose();
         } catch (failure) {
-          if (session.identity.isCurrent()) setError(failure instanceof Error ? failure.message : "Secret storage is unavailable");
+          if (session.identity.isCurrent()) setError(failure);
         } finally {
           if (session.identity.isCurrent()) setBusy(false);
         }
@@ -299,7 +302,7 @@ function SecretEditor({
   submit,
   error,
 }: {
-  error?: string | null;
+  error?: unknown;
   editor: Editor;
   busy: boolean;
   cancel: () => void;
@@ -324,7 +327,7 @@ function SecretEditor({
           <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
           <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
         </DialogHeader>
-        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
         <form
           className="grid gap-3"
           onSubmit={(event) => {

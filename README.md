@@ -48,6 +48,7 @@ exposing remote access to other PCs may need an administrator to allow the app
 through Windows Firewall once on the exporting computer.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
 
 #### Examples
 
