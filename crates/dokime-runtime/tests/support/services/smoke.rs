@@ -44,7 +44,7 @@ pub const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
 
 pub const PULSE_DISPLAY_POINTS: u32 = 400;
 
-const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
+pub const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 
 /* === Macros === */
 
@@ -190,6 +190,7 @@ impl Check {
         spectrum.id("fixture.checks.smoke.spectrum");
         spectrum.y(dokime_runtime::expressions::telemetry("fixture_suites.spectrum", "value"));
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
+        spectrum.fft.window = dokime_runtime::document::FftWindow::Rectangular;
         section.plot(spectrum);
         let mut document = dokime_runtime::prelude::Document::new("default", "Fixture Smoke");
         document.section(section);
