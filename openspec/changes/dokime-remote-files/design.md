@@ -33,7 +33,8 @@ malformed certificates and existing size/secret/identity violations.
 - Native desktop code owns confirmation, picker/drop imports, file publication
   and connection. The WebView sees no raw secret. Paired Clients permits rename.
 - CLI imports with `backend add --remote`; Python retains `from_pairing(path)`.
-- Installer packaging owns NSIS firewall hooks; default Tauri behavior otherwise.
+- Installer packaging never manages firewall rules. The desktop's optional host
+  action owns private-network access under the installation capability.
 
 ## Certificates And Discovery
 

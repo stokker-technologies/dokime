@@ -116,6 +116,13 @@ the backend or transport cause beside the reconnect status.
 
 ## Remote Access Files
 
+The owned local backend's Remote Access section checks inbound Windows Firewall
+policy for a running non-loopback listener. **Allow In Firewall…** is the only
+action that requests elevation; its rule uses the applied organization label and
+allows the installed executable on Private networks. Outbound remote sessions
+have no firewall action. Disabling remote access attempts owned-rule removal
+without prompting and reports skipped cleanup. Installers never manage rules.
+
 Settings → Remote Access exports `.dokime-remote` through the native save adapter
 in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
 the secret warning when stopped; running listeners export directly. Labels and
