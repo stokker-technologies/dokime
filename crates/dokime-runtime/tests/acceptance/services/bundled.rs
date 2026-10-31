@@ -50,10 +50,11 @@ fn fixture_bytes() -> Vec<u8> {
 async fn external_analysis_reload() {
     let root = tempfile::tempdir().unwrap();
     let bundle = crate::service_support::bundles::plugin_obc_bundle();
-    let config = crate::service_support::config(root.path()).with_plugins([dokime_runtime::plugins::PluginBundle::new(bundle)]);
+    let host = crate::service_support::bundles::host_plugin_bundle();
+    let config = crate::service_support::config(root.path())
+        .with_plugins([dokime_runtime::plugins::PluginBundle::new(host), dokime_runtime::plugins::PluginBundle::new(bundle)]);
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
-    crate::service_support::plots::register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.scan", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = crate::service_support::plots::wifi_request(None, Some(1));

@@ -98,6 +98,15 @@ and filter controls remain usable. Preserve the case of unit symbols.
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.
   Secret Storage References lists declaring plugins, including inactive programs.
+- Toast content and history rows open the shared notification details dialog through
+  native buttons (Enter/Space); the existing dialog handles Esc and focus return.
+  History retains serializable failure context, including field problems, root-first
+  causes, operation/request/invocation identifiers and optional backend diagnostics.
+  RPC adapters decode standard Status envelopes with canonical generated domain
+  error schemas. The server preserves redacted span/backtrace text in the captured
+  error's optional diagnostics field. Technical Details is collapsed by default;
+  Copy includes the complete record. Existing startup remediation actions remain
+  independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated

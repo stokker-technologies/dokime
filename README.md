@@ -50,6 +50,7 @@ Direct Ethernet cables support static or automatic IPv4 link-local addresses;
 see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
 
 #### Examples
 

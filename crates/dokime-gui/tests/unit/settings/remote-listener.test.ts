@@ -159,17 +159,23 @@ test("enabling applies the host's settings at once and shows the running listene
 
 test("a refused enable keeps the stopped state and surfaces the host error", async () => {
   const failures: string[] = [];
+  const reason = new Error("authentication_required");
+  const details: unknown[] = [];
   const next = await commitListener({
     status: STOPPED,
     change: { enabled: true },
     send: async () => {
-      throw new Error("authentication_required");
+      throw reason;
     },
-    fail: (message) => failures.push(message),
+    fail: (message, error) => {
+      failures.push(message);
+      details.push(error);
+    },
   });
   assert.equal(next, STOPPED);
   assert.equal(listenerRunning(next), false);
   assert.deepEqual(failures, ["authentication_required"]);
+  assert.deepEqual(details, [reason]);
 });
 
 test("saved intent without a bound address is not running", () => {
