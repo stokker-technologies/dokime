@@ -228,8 +228,8 @@ run = "uv run --locked --project tools/python python -m project_tools.release.ru
 # === Housekeeping === #
 
 [tasks.housekeeping]
-description = "Clean Owned Build Outputs And State"
-run = "stkr project housekeeping"
+description = "Clean Cargo Build Outputs"
+run = "cargo clean"
 
 [tasks."housekeeping:outdated"]
 description = "Report Available Dependency And Tool Updates Without Changing Anything"
