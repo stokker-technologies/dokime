@@ -168,7 +168,7 @@ run = [
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
-depends = ["prepare:generated"]
+depends = ["prepare"]
 run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
@@ -199,12 +199,16 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 
 [tasks."check:rust"]
 description = "Check Rust"
-depends = ["prepare:generated"]
-run = ["{{vars.tools}} dokime_tools.prepare.resources --check", { task = "format:rust --check" }, "cargo-machete --skip-target-dir"]
+run = [
+  { task = "format:rust --check" },
+  "{{vars.tools}} dokime_tools.build.cargo -- --locked --profile dev -p cargo-dokime -p dokime-server",
+  "cargo-machete --skip-target-dir",
+]
 
 [tasks."check:typescript"]
 description = "Check TypeScript"
-run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
+depends = ["prepare:generated"]
+run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }, "{{vars.tools}} dokime_tools.prepare.resources --check"]
 
 [tasks."check:typescript:generated"]
 description = "Check The Generated TypeScript Client"
