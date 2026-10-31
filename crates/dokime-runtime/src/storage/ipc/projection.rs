@@ -52,6 +52,69 @@ pub(crate) struct Projection {
 /* === Implementations === */
 
 impl Projection {
+    pub(crate) fn check_budget(&self, buffer: &Buffer, index: &BatchIndex, maximum: usize) -> Result<()> {
+        let metadata = index.metadata_bytes as usize;
+        if metadata < 8 || metadata > buffer.len() {
+            return Err(Error::Corrupt("invalid query batch header"));
+        }
+        let message = arrow_ipc::root_as_message(&buffer[8..metadata]).map_err(|_| Error::Corrupt("invalid query batch header"))?;
+        let batch = message.header_as_record_batch().ok_or(Error::Corrupt("invalid query batch layout"))?;
+        let buffers = batch.buffers().ok_or(Error::Corrupt("query buffers are absent"))?;
+        // Selected Compressed Buffer Prefixes Bound Decompression Before Arrow
+        // Allocates Them. Unselected Buffers Remain In The Bounded Read Block.
+        fn buffer_count(kind: &DataType) -> Result<usize> {
+            Ok(match kind {
+                DataType::Struct(fields) => {
+                    1 + fields.iter().map(|field| buffer_count(field.data_type())).collect::<Result<Vec<_>>>()?.into_iter().sum::<usize>()
+                }
+                DataType::List(field) => 2 + buffer_count(field.data_type())?,
+                DataType::Utf8 => 3,
+                DataType::Boolean | DataType::Int64 | DataType::UInt64 | DataType::Float64 | DataType::Timestamp(_, _) => 2,
+                _ => return Err(Error::Invalid("unsupported projected query layout")),
+            })
+        }
+        let mut selected = Vec::new();
+        let mut offset = 1usize;
+        for (index, field) in self.flat_schema.fields().iter().enumerate() {
+            if index == self.storage_nodes - 1 {
+                offset += 1;
+            }
+            let count = buffer_count(field.data_type())?;
+            if self.columns.contains(&index) {
+                selected.extend(offset..offset + count);
+            }
+            offset += count;
+        }
+        let mut used = buffer.len() as u64 + index.rows.saturating_mul(64);
+        for buffer_index in selected {
+            if buffer_index >= buffers.len() {
+                return Err(Error::Corrupt("query buffer layout differs"));
+            }
+            let item = buffers.get(buffer_index);
+            let offset = usize::try_from(item.offset()).map_err(|_| Error::Corrupt("negative query buffer offset"))?;
+            let length = usize::try_from(item.length()).map_err(|_| Error::Corrupt("negative query buffer length"))?;
+            let end = offset.checked_add(length).ok_or(Error::Corrupt("query buffer overflow"))?;
+            let bytes = buffer
+                .get(metadata.saturating_add(offset)..metadata.saturating_add(end))
+                .ok_or(Error::Corrupt("query buffer outside batch"))?;
+            let decoded = if batch.compression().is_some() && !bytes.is_empty() {
+                let prefix: [u8; 8] = bytes.get(..8).ok_or(Error::Corrupt("short compressed query buffer"))?.try_into().unwrap();
+                match i64::from_le_bytes(prefix) {
+                    -1 => bytes.len().saturating_sub(8) as u64,
+                    value if value >= 0 => value as u64,
+                    _ => return Err(Error::Corrupt("invalid compressed query size")),
+                }
+            } else {
+                bytes.len() as u64
+            };
+            used = used.saturating_add(decoded.saturating_mul(2));
+        }
+        if used > maximum as u64 {
+            return Err(Error::Data("decoded query batch exceeds working budget"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(schema: SchemaRef, metadata: &[&str], keys: &[String]) -> Result<Self> {
         let [storage, values] = schema.fields().as_ref() else {
             return Err(Error::Corrupt("telemetry roots differ"));
@@ -256,6 +319,14 @@ mod tests {
         };
         let buffer = Buffer::from_vec(bytes[index.offset as usize..index.end().unwrap() as usize].to_vec());
         (batch, buffer, index)
+    }
+
+    #[test]
+    fn query_decoded_budget() {
+        let (batch, buffer, index) = fixture();
+        let projection = Projection::new(batch.schema(), &["position"], &["unsigned".into()]).unwrap();
+        assert!(projection.check_budget(&buffer, &index, buffer.len()).is_err());
+        assert!(projection.check_budget(&buffer, &index, buffer.len() + 1024).is_ok());
     }
 
     #[test]

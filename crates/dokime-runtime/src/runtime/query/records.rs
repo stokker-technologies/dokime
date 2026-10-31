@@ -9,7 +9,16 @@
 
 /* === Modules === */
 
+#[path = "record_query.rs"]
+mod query;
+
+#[path = "record_projection.rs"]
+mod projection;
+
 /* === Re-Exports === */
+
+#[cfg(feature = "testing")]
+pub use query::RecordQueryFixture;
 
 /* === Imports === */
 

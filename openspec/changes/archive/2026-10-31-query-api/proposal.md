@@ -29,12 +29,14 @@ The owner needs to ask for matching evidence from an execution and discover rele
 
 ## Impact
 
-Proposed future owners: domain query/history/evidence/telemetry models; `crates/dokime-operations/src/query/`; runtime query/storage handlers; server operation registration/access mapping; generated Python/TypeScript descriptors; `packages/dokime-client`; generic CLI; maintained product/client documentation and focused verification fixtures.
+Owners: domain query/history/evidence/telemetry models; `crates/dokime-operations/src/query/`; runtime query/storage handlers; server operation registration/access mapping; generated Python/TypeScript descriptors; `packages/dokime-client`; generic CLI; maintained product/client documentation and focused verification fixtures.
 
-This delivery is **specification only**: no source, generated contracts, dependencies, storage, README claims or runtime behavior change. Implementation tasks stay unchecked. Commit on `docs/query-api-spec`; do not push, open a PR or archive the change.
+Implementation ownership, acceptance and remaining combined review live in
+`tasks.md`. The authorized implementation slices use local commits without
+pushing; do not open a PR or archive the change.
 
 ## Scope Decisions
 
 Queries address the connected server's local retained catalog, including live executions at a durable cut. Cross-server federation, external storage discovery, joins, arbitrary SQL, user code, full-text payload search, approximate quantiles, subscriptions with predicates and a GUI query builder are excluded. Existing merged history browsing stays available.
 
-The proposal records recommended API decisions for owner review; approval to implement is separate. Only deployment-specific budget values and performance reference machines remain deferrable, as recorded in `design.md`.
+The proposal records the agreed API direction; implementation is limited to the authorized tasks above. Deployment-specific budget calibration and performance reference machines remain deferrable, as recorded in `design.md`; initial configuration defaults establish no performance claim.

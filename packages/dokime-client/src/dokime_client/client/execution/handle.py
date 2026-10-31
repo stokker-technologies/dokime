@@ -41,6 +41,7 @@ from ..models import (
     Value,
 )
 from ..planning import TestCase
+from ..query.evidence import execution_records, telemetry
 from .listeners import read_records, read_samples, validate_patterns
 from .request import _identity, _interval
 
@@ -83,6 +84,9 @@ class Execution:
     """A Fresh Local Attempt; Append It To A Cycle Before Using Remote Controls."""
 
     __slots__ = ("_backend", "_case", "_cycle_id", "_id", "_outcome", "_transport")
+
+    query_records = execution_records
+    telemetry = telemetry
 
     def __init__(self, test_case: TestCase) -> None:
         if not isinstance(test_case, TestCase):

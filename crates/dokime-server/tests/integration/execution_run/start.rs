@@ -217,6 +217,9 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
             tokio::time::advance(step).await;
             record_pages.wait_for(|count| *count > previous_records).await.unwrap();
             sample_pages.wait_for(|count| *count > previous_samples).await.unwrap();
+            // Settle A Real Storage Read Before Advancing Past In-Flight Unary Deadlines Again.
+            let checkpoint = execution.checkpoint().await.unwrap_err();
+            assert!(matches!(checkpoint, dokime::client::Error::Rpc(status) if status.code() == Code::NotFound));
         }
         tokio::time::resume();
         drop(clock_release);

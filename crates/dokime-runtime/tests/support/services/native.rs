@@ -53,7 +53,11 @@ pub fn record_page(
 }
 
 pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> ExecutionCheckpoint {
-    super::waits::settle(handle, || async { handle.execution_saved_checkpoint(id.clone()).await.ok() }).await
+    let resident = handle.watch_state().latest().state().executions.contains_key(id);
+    if resident {
+        handle.wait_execution_report(id).await.unwrap();
+    }
+    handle.execution_saved_checkpoint(id.clone()).await.unwrap()
 }
 
 pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> ExecutionView {

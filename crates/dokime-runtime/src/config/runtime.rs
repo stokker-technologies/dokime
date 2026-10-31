@@ -41,6 +41,9 @@ pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harm
 pub struct RuntimeConfig {
     #[serde(skip, default = "super::schema_defaults")]
     pub schema: harmos::config::SchemaSettings,
+
+    #[serde(skip, default = "super::query_defaults")]
+    pub query: super::QuerySettings,
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application: crate::paths::ApplicationPaths,
@@ -96,6 +99,7 @@ impl RuntimeConfig {
         let storage_root = storage_root.into();
         Self {
             schema: super::schema_defaults(),
+            query: super::query_defaults(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
             local_storage: crate::config::local_storage_defaults(),

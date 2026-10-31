@@ -53,6 +53,97 @@ there before running the scripts. uv creates a local `.venv/`; activation is
 unnecessary. Setup needs internet access for Python and locked dependencies or
 those inputs already in uv's cache. The remote PC needs no Rust compiler.
 
+## Query Retained Evidence
+
+```python
+from dokime_client import Aggregate, DokimeClient, Predicate
+
+async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+    async for execution in client.executions(status="failed", since="2026-10-01"):
+        records = execution.query_records("example.event", where={"status": "failed"})
+        async for record in records:
+            print(record.to_json())
+        async for bucket in execution.telemetry(
+            "example.wifi.link", fields=["rssi"],
+            where=[Predicate("rssi", "gte", -80)],
+            between=("2026-10-01", "2026-10-02"), at=records.snapshot,
+            every="1s", agg=Aggregate.mean(),
+        ):
+            print(bucket.start, bucket.fields)
+```
+
+Query factories are lazy and read one fixed cut of the connected backend's local
+retained evidence. Windows are `[start, end)` in UTC. Reusing `snapshot` keeps
+records and telemetry at the same compatible cut without waiting for a seal.
+Use `pages()` to inspect schema, effective limits and completeness, and
+`await reader.aclose()` when abandoning a reader. Existing `records()` and
+`samples()` still replay and follow through the execution seal. See the
+[client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
+for projection, version selection and cycle record queries.
+
+To materialize a finite result, close the reader through its async context:
+
+```python
+async with execution.query_records("example.event") as records:
+    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+```
+
+Omitted limits use finite client `QuerySettings` defaults. Row or decoded-byte
+overflow and later page errors raise without returning a partial list. Early
+close/cancellation prevents another fetch and leaves backend execution running.
+`records.complete` reports consumption; page metadata retains server completeness,
+schema, limits and snapshot after closing. No dataframe dependency is needed.
+
+### Optional Dataframes
+
+To add conversion to the copied tutorial project, select an extra on its matching
+wheel, then transfer the updated project and lock with that wheel:
+
+```sh
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra polars
+# Choose this instead for Pandas:
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra pandas
+uv sync --locked --python 3.13
+```
+
+Use the actual matching wheel version. Given an execution handle or summary:
+
+```python
+async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
+    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+    metadata = samples.metadata
+    assert metadata is not None
+    print(frame, metadata.schema, samples.snapshot, samples.complete)
+
+async with execution.query_records("example.event") as records:
+    frame = await records.to_pandas(max_rows=10_000)
+    print(frame.attrs["dokime"])
+```
+
+Only the selected helper imports its library. Missing extras raise
+`QueryDependencyError` before fetching. Both conversions enforce the same finite
+row/decoded-byte defaults as `collect`, preserve exact integers, nullable captured
+dtypes, literal field order and UTC nanoseconds, and fail atomically on limits or
+late page errors. Unsupported nested fields raise a field-specific
+`QueryConversionError`. See [dataframe types and metadata](../../packages/dokime-client/README.md#optional-dataframes).
+
+### Server Statistics
+
+For exact statistics on raw selected telemetry, use one awaited operation:
+
+```python
+stats = await execution.telemetry("example.wifi.link").aggregate(
+    "rssi", [Aggregate.mean(), Aggregate.percentile(95)],
+)
+print([(value.name, value.value) for value in stats.values])
+print(stats.quality_counts, stats.schema, stats.snapshot)
+```
+
+Omit `every`/`agg` for statistics. The facade uses existing `Aggregate` objects
+and computes on the server, preserving typed limit failures. Raw `client.call`
+continues to expose the generated request; the older catalog aggregate operation
+groups catalog rows and is separate from these telemetry statistics.
+
 ## Edit Connection Globals
 
 Open each `control-*.py` file and select the private pairing file:

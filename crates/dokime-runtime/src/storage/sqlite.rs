@@ -11,7 +11,9 @@
 
 mod catalog;
 pub(crate) mod data;
+pub(crate) mod history;
 mod settings;
+pub(crate) mod snapshots;
 
 /* === Re-Exports === */
 
@@ -19,6 +21,8 @@ pub use crate::storage::Error;
 pub use catalog::Source;
 pub use data::Backend;
 pub(crate) use data::telemetry::StreamFile;
+pub(crate) use data::telemetry::aggregates::{Moments, ordered, unordered};
+pub(crate) use data::telemetry::query::{QueryRead, QueryWork};
 pub use rusqlite;
 
 /* === Imports === */

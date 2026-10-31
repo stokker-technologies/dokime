@@ -49,6 +49,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("query snapshot is unavailable")]
+    QuerySnapshotUnavailable,
+
     #[error("Arrow telemetry: {0}")]
     Arrow(#[from] arrow_schema::ArrowError),
 
