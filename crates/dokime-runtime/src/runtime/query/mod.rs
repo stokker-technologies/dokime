@@ -22,6 +22,7 @@ pub mod executions;
 pub(crate) mod frame;
 mod handle_reads;
 mod handle_view;
+pub mod history;
 pub(crate) mod installed_plugins;
 pub(crate) mod plots;
 pub(crate) mod projections;

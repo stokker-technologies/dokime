@@ -2,8 +2,9 @@
 
 The finite query declarations are under `crates/dokime-operations/src/query/`;
 shared messages are under `crates/dokime-domain/src/model/query/`.
-Runtime handlers, storage execution and generated clients remain pending in
-OpenSpec `query-api` tasks 1.4 onward. These declarations are not yet callable.
+Indexed local history selection is implemented under runtime query/storage ownership.
+Operation registration, evidence execution and generated clients remain pending.
+These declarations are not yet callable through transports.
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |
@@ -79,4 +80,25 @@ plus `required_fields`. Storage planning must select those versions and bind
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
 storage reader and creates no query handler. Runtime scans and snapshot binding
-remain with tasks 1.4 onward.
+remain with their later tasks.
+
+## Local History Storage
+
+Finite history queries read only the connected server's local retained SQLite catalog.
+They do not merge external adapters or other servers; the existing merged browse
+operations retain their separate conflict and discovery semantics.
+
+`storage/sqlite/history.rs` projects execution and cycle summaries in the same
+transaction as each authoritative native object write. Revision indexes support
+exact template/status/cycle/archive filters and normalized UTC time/ID seeks.
+Later metadata and archive changes append projections; earlier catalog cuts
+keep their original membership, values and ordering. Cycle membership is indexed
+at the same revision. History capture reads already durable catalog state and
+does not flush all active executions.
+
+Archive intent remains journal-owned. A successful archive mutation reconciles
+its catalog visibility atomically; startup repeats reconciliation before serving.
+Interrupted writes expose only committed projections. Layouts lacking these
+indexes are refused: select a fresh storage root explicitly, preserve the old
+root, and keep the development schema/evidence baseline at v1. No migration or
+automatic reset is performed.

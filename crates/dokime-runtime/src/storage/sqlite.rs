@@ -11,6 +11,7 @@
 
 mod catalog;
 pub(crate) mod data;
+pub(crate) mod history;
 mod settings;
 
 /* === Re-Exports === */
