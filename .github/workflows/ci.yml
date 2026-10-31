@@ -270,6 +270,7 @@ jobs:
           ${{ github.event_name == 'pull_request' && github.base_ref != '' &&
           !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) || false
           && github.event.before || '' }}
+        scope: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'package' || '' }}
     if: >-
       (true) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
