@@ -112,7 +112,38 @@ fn start_tauri_app() -> tauri::Result<()> {
         .manage(paths)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
-                window.state::<plugins::DroppedFiles>().record(window.label(), paths);
+                if window.label() == "main"
+                    && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "dokime-remote"))
+                {
+                    let app = window.app_handle().clone();
+                    let paths = paths.clone();
+                    tauri::async_runtime::spawn(async move {
+                        Box::pin(async move {
+                            use tauri::Emitter;
+                            let result = if paths.len() == 1 {
+                                crate::connection::registry::import_path(
+                                    &app,
+                                    &app.state::<crate::connection::registry::Registry>(),
+                                    &app.state::<crate::connection::ConnectionSession>(),
+                                    paths[0].clone(),
+                                    None,
+                                )
+                                .await
+                                .map(|_| ())
+                            } else {
+                                Err(crate::connection::ConnectionError::InvalidTarget {
+                                    message: "Drop exactly one .dokime-remote file".into(),
+                                })
+                            };
+                            if let Err(error) = result {
+                                let _ = app.emit("desktop://remote-import-failed", error);
+                            }
+                        })
+                        .await;
+                    });
+                } else {
+                    window.state::<plugins::DroppedFiles>().record(window.label(), paths);
+                }
             }
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 window.state::<crate::rpc::Bridge>().cancel_owner(window.label());

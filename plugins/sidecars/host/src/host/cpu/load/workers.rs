@@ -68,12 +68,13 @@ impl Workers {
             threads: Vec::new(),
         };
         let slice = settings.slice();
+        let batch_iterations = settings.batch_iterations;
         for index in 0..count {
             let shared = workers.shared.clone();
             let thread = std::thread::Builder::new()
                 .name(format!("host-cpu-load-{index}"))
                 .spawn(move || {
-                    let mut kernel = Kernel::new();
+                    let mut kernel = Kernel::new(batch_iterations);
                     loop {
                         let start = Instant::now();
                         let state = shared.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -138,8 +139,8 @@ impl Drop for Workers {
 
 #[cfg(test)]
 mod tests {
-    use super::super::config::DEFAULT;
     use super::*;
+    use crate::settings::CPU_LOAD_DEFAULTS as DEFAULT;
     #[test]
     fn sleeping_workers_wake_on_stop() {
         let settings = CpuLoadSettings {
@@ -166,7 +167,7 @@ mod tests {
         workers.stop().unwrap();
         assert!(start.elapsed() < DEFAULT.settlement());
         let operations = workers.operations();
-        let batch_operations = Kernel::new().batch();
+        let batch_operations = Kernel::new(DEFAULT.batch_iterations).batch();
         assert_eq!(operations % batch_operations, 0);
         assert_eq!(workers.operations(), operations);
     }

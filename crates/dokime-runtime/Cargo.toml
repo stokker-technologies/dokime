@@ -75,6 +75,8 @@ dokime-macros = { version = "0.1.2", path = "../dokime-macros", optional = true 
 dokime-operations = { version = "0.1.2", path = "../dokime-operations", features = ["runtime"] }
 
 # Git
+harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -86,8 +88,6 @@ tracing-error = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
-harmos = { workspace = true, features = ["plugin", "signal"] }
-harmos-packaging = { workspace = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }
@@ -98,8 +98,11 @@ zeroize = { workspace = true, optional = true }
 
 # Serialization
 arrow-array = { workspace = true }
+arrow-buffer = { workspace = true }
+arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
+flatbuffers = { workspace = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }
@@ -150,6 +153,8 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 plugin-host = { workspace = true }
 
 # Git
+harmos = { workspace = true, features = ["sidecar"] }
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
@@ -157,8 +162,6 @@ plugin-host = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos = { workspace = true, features = ["sidecar"] }
-harmos-sdk = { workspace = true }
 
 # Serialization
 serde_json = { workspace = true, features = ["float_roundtrip"] }

@@ -92,7 +92,7 @@ matrix! {
     "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
     "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
     "/dokime.v1.Remote/CreatePairing", unary, contracts::remote::CreatePairing = contracts::remote::CreatePairing {
-        label: "Fixture".into(), endpoint: "http://127.0.0.1:8765".into()
+        label: "Fixture".into(),
     };
     "/dokime.v1.Remote/ListPairedClients", unary, contracts::remote::ListPairedClients = contracts::remote::ListPairedClients {
         cursor: None, limit: 100
@@ -100,6 +100,7 @@ matrix! {
     "/dokime.v1.Remote/RevokePairedClient", unary, contracts::remote::RevokePairedClient = contracts::remote::RevokePairedClient {
         identifier: "fixture".into()
     };
+    "/dokime.v1.Remote/RenamePairedClient", unary, contracts::remote::RenamePairedClient = contracts::remote::RenamePairedClient { identifier: "fixture".into(), label: "Renamed".into() };
     "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {

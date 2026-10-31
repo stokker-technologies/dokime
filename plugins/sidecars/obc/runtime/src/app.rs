@@ -65,15 +65,6 @@ impl dokime::harmos::Lifecycle for ChargerBench {
         setup.settings().register(Transactions::catalog());
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 
 /* === Public Functions === */

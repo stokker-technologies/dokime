@@ -13,8 +13,6 @@
 
 /* === Imports === */
 
-use futures_util::StreamExt;
-
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -23,6 +21,7 @@ use std::collections::BTreeMap;
 use harmos::storage::ReadBatch;
 
 use super::Scope;
+use crate::execution::context::captured::source::CapturedSource;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
@@ -32,7 +31,6 @@ use crate::storage::{
 };
 use crate::{
     document::capture::CardBindingResult,
-    execution::context::captured::source::CapturedSource,
     runtime::Error,
     runtime::Result,
     runtime::{progress::Operation, storage::execution::ExecutionView},
@@ -46,9 +44,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Macros === */
 
 /* === Type Aliases === */
-
-type TelemetryRows = crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>;
-type ScannedTelemetry = (TelemetryRows, Vec<std::ops::Range<usize>>);
 
 /* === Structs === */
 
@@ -67,21 +62,12 @@ pub(crate) async fn sealed_member(
     execution(ctx, &inspection, true, operation).await
 }
 
-// Evidence Materialization Is CPU-Bound Between Its Reads, So It Leaves The Async Workers To Watches And Ingest.
+// Presentation Reads Are Bounded By Ingestion And Indexed Previews.
 pub(crate) async fn execution(
     ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     let span = tracing::info_span!("report.materialize", final_report);
-    off_workers(tracing::Instrument::instrument(materialize_execution(ctx, inspection, final_report, operation), span)).await
-}
-
-async fn off_workers<F: std::future::Future>(work: F) -> F::Output {
-    let multi_thread =
-        tokio::runtime::Handle::try_current().is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
-    if !multi_thread {
-        return work.await;
-    }
-    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(work))
+    tracing::Instrument::instrument(materialize_execution(ctx, inspection, final_report, operation), span).await
 }
 
 async fn materialize_execution(
@@ -97,284 +83,134 @@ async fn materialize_execution(
     #[cfg(feature = "testing")]
     if final_report {
         crate::domains::execution::run::testing::record(&execution.test_execution_id, "report");
+        crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
     }
-    let records = tracing::Instrument::instrument(context_records(inspection), tracing::info_span!("report.materialize.records")).await?;
-    let selection = harmos::storage::ReadBatch::new(())
-        .try_map(|_| Ok::<_, Error>(crate::document::DocumentSelection { scope: execution.scope.clone() }))?;
-    let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
-    let needs_rows = captured.context.execution_documents.values().any(|definition| {
-        crate::document::binding::telemetry_needed(definition, context)
-            || definition.cards.iter().any(|card| matches!(card.body, crate::document::DocumentCardBody::Plot { .. }))
-    });
-    let maximum = usize::try_from(captured.report_defaults.plot_points).map_err(|_| invalid("plot point policy exceeds native size"))?;
-    let (telemetry, exact_telemetry) = tracing::Instrument::instrument(
-        context_telemetry(ctx, inspection.session(), captured, execution, needs_rows),
-        tracing::info_span!("report.materialize.telemetry", needs_rows),
-    )
-    .await?;
-    let limits = crate::document::bounded::DocumentLimits {
-        source_bytes: 64 * 1024 * 1024,
-        materialized_bytes: 64 * 1024 * 1024,
-        ..crate::document::bounded::DocumentLimits::default()
-    };
-    let mut documents = ReadBatch::new(BTreeMap::<DocumentId, crate::document::capture::Capture>::new());
-    let mut cached = None;
-    for (id, definition) in &captured.context.execution_documents {
-        let sources = crate::document::binding::selected_sources(definition, context);
-        if cached.as_ref().is_none_or(|(previous, _, _, _, _)| previous != &sources) {
-            let mut selected_records = Vec::new();
-            let mut selected_samples = Vec::new();
-            let mut bytes = 0usize;
-            for record in records.iter().filter(|record| sources.0.iter().any(|kind| kind == record.record_type.as_str())) {
-                let size = crate::document::bounded::document_size(&record, limits.source_bytes, limits.depth)
-                    .map_err(|_| invalid("document record exceeds its 64 MiB input limit"))?;
-                bytes = bytes
-                    .checked_add(size)
-                    .filter(|bytes| *bytes <= limits.source_bytes)
-                    .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
-                selected_records.try_reserve(1).map_err(|_| invalid("document record workspace allocation failed"))?;
-                selected_records.push(record);
-            }
-            if sources.2 || !sources.1.is_empty() {
-                for sample in
-                    exact_telemetry.iter().filter(|sample| sources.2 || sources.1.iter().any(|stream| stream == sample.stream.as_str()))
+    let local = &ctx.storage;
+    let table_rows = captured.report_defaults.table_rows as usize;
+    let mut records = crate::execution::evidence_rows::EvidenceRows::default();
+    for record in local
+        .report_record_rows(
+            execution.test_execution_id.to_string(),
+            execution.test_cycle_id.to_string(),
+            captured.evidence_through.clone(),
+            table_rows,
+        )
+        .await?
+    {
+        records.append(&record).map_err(Error::Operation)?;
+    }
+    let fields = local.report_previews(execution.test_execution_id.to_string(), captured.evidence_through.clone()).await?;
+    let mut exact = local.numeric_summaries(execution.test_execution_id.to_string()).await?;
+    let mut percentiles = std::collections::BTreeSet::new();
+    for definition in captured.context.execution_documents.values() {
+        let bodies = definition
+            .cards
+            .iter()
+            .map(|card| &card.body)
+            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)));
+        for body in bodies {
+            let crate::document::DocumentCardBody::TelemetrySummary { summary } = body else { continue };
+            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
+                if let crate::expressions::DataSource::Telemetry { stream, field } = &tile.value.source
+                    && let [crate::expressions::DataTransform::Aggregate(harmos::Aggregate::Percentile(rank))] =
+                        tile.value.transforms.as_slice()
                 {
-                    let size = crate::document::bounded::document_size(&sample, limits.source_bytes, limits.depth)
-                        .map_err(|_| invalid("document sample exceeds its 64 MiB input limit"))?;
-                    bytes = bytes
-                        .checked_add(size)
-                        .filter(|bytes| *bytes <= limits.source_bytes)
-                        .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
-                    selected_samples.try_reserve(1).map_err(|_| invalid("document telemetry workspace allocation failed"))?;
-                    selected_samples.push(sample);
+                    percentiles.insert((stream.clone(), field.clone(), *rank));
                 }
             }
-            selected_samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
-            let data = crate::document::input::BorrowedData {
-                context,
-                records: crate::document::input::Records::Native(selected_records.as_slice().into()),
-                telemetry: &selected_samples,
-                artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
-            };
-            let validated = crate::document::bounded::SharedBindings::new(&selection, data, limits)?.accounting();
-            cached = Some((sources, selected_records, selected_samples, validated.0, validated.1));
         }
-        let (_, selected_records, selected_samples, bytes, rows) = cached.as_ref().expect("document selection is loaded");
-        let bindings = crate::document::bounded::SharedBindings::validated(
-            &selection,
-            crate::document::input::BorrowedData {
-                context,
-                records: crate::document::input::Records::Native(selected_records.as_slice().into()),
-                telemetry: selected_samples,
-                artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
-            },
-            limits,
-            *bytes,
-            *rows,
-        );
-        let _permit = operation.report_work().await;
-        let document = tracing::info_span!("report.materialize.document", document = %id).in_scope(|| bindings.capture(definition))?;
-        documents = documents.try_map(|mut documents| {
-            documents.insert(id.clone(), document);
-            Ok::<_, Error>(documents)
-        })?;
     }
-    drop(cached);
-    operation.phase("Querying Report Plots");
-    let plots = tracing::Instrument::instrument(
-        plots(ctx, captured, execution, &records, &exact_telemetry, &documents, operation),
-        tracing::info_span!("report.materialize.plots"),
-    )
-    .await?;
-    let selected = super::render::cycle::selection(telemetry.len(), maximum);
-    let count = selected.clone().count();
-    let preview = telemetry.try_map(|telemetry| {
-        let mut preview = Vec::new();
-        preview.try_reserve_exact(count).map_err(|_| invalid("report preview allocation failed"))?;
-        let mut selected = selected.peekable();
-        for (index, sample) in telemetry.into_iter().enumerate() {
-            if selected.peek() == Some(&index) {
-                preview.push(sample);
-                selected.next();
+    for (stream, field, rank) in percentiles {
+        for summary in
+            exact.iter_mut().filter(|summary| crate::plot::stream_matches_alias(&summary.stream, &stream) && summary.field == field)
+        {
+            let name = format!("p{rank}");
+            if summary.statistics.iter().any(|(key, _)| *key == name) {
+                continue;
+            }
+            if let Some(value) =
+                local.numeric_percentile(execution.test_execution_id.to_string(), summary.stream.clone(), field.clone(), rank).await?
+            {
+                summary.statistics.push((name, value));
             }
         }
-        Ok::<_, Error>(preview)
-    })?;
-    let preview = ReadRows::from(projection::push(harmos::storage::ReadBatch::new(Vec::new()), preview)?);
-    operation.phase("Assembling Report");
-
-    let defaults = captured.report_defaults;
-    let _assemble = tracing::info_span!("report.materialize.assemble").entered();
-    documents
-        .try_map_with(plots, |documents, plots| assemble(final_report, captured, execution, documents, plots, (records, preview), defaults))
+    }
+    let mut samples = Vec::new();
+    for versions in captured.telemetry_contracts.values() {
+        for contract in versions.values() {
+            let codec = super::query::telemetry::saved_codec(ctx, inspection.session(), &captured.evidence_through, contract).await?;
+            let rows = local
+                .report_sample_rows(
+                    execution.test_execution_id.to_string(),
+                    contract.stream.to_string(),
+                    captured.evidence_through.clone(),
+                    table_rows,
+                )
+                .await?;
+            for row in rows {
+                if row.record.schema != *codec.schema() {
+                    continue;
+                }
+                samples.push(codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample);
+            }
+        }
+    }
+    samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
+    let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+    let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
+    let selected_records: Vec<_> = records.iter().collect();
+    let outputs: Vec<_> =
+        super::previews::indices(captured.outputs.len(), table_rows).map(|index| captured.outputs[index].clone()).collect();
+    let bindings = crate::document::bounded::SharedBindings::new(
+        &selection,
+        crate::document::input::BorrowedData {
+            context,
+            records: crate::document::input::Records::Native(selected_records.as_slice().into()),
+            telemetry: &samples,
+            artifacts: crate::document::input::Artifacts::Outputs(&outputs),
+        },
+        crate::document::bounded::DocumentLimits {
+            source_bytes: captured.report_defaults.source_bytes as usize,
+            materialized_bytes: captured.report_defaults.source_bytes as usize,
+            ..crate::document::bounded::DocumentLimits::default()
+        },
+    )?;
+    let mut documents = BTreeMap::new();
+    let mut plots = BTreeMap::new();
+    for (id, definition) in &captured.context.execution_documents {
+        let _permit = operation.report_work().await;
+        let mut definition = definition.clone();
+        let limit = table_rows;
+        let repeats_unavailable = super::previews::bound_definition(&mut definition, limit);
+        let mut document = bindings.capture(&definition)?;
+        if repeats_unavailable {
+            document.warnings.push(super::previews::warning(
+                "History-dependent repeated sections are unavailable in bounded reports; inspect the complete execution evidence.".into(),
+            ));
+        }
+        super::previews::summaries(&mut document, &exact, &fields, context);
+        document.warnings.push(super::previews::warning(format!(
+            "Tables contain at most the first and last {} rows per stream. Plots show durable extrema envelopes. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
+            table_rows, execution.test_execution_id, captured.evidence_through.sequence)));
+        for card in &document.cards {
+            let CardBindingResult::Plot { descriptor } = &card.result else { continue };
+            let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
+            let (payload, warning) = super::previews::plot(&request, &fields, &exact, captured, execution)?;
+            if let Some(warning) = warning {
+                document.warnings.push(super::previews::warning(warning));
+            }
+            if plots.insert(descriptor.plot_id.to_string(), payload).is_some() {
+                return Err(invalid("report contains duplicate plot identifiers"));
+            }
+        }
+        documents.insert(id.clone(), document);
+    }
+    let preview = ReadRows::from(projection::push(ReadBatch::new(Vec::new()), ReadBatch::new(samples))?);
+    let report = assemble(final_report, captured, execution, documents, plots, (records, preview), captured.report_defaults)?;
+    Ok(ReadBatch::new(report))
 }
 
 /* === Private Functions === */
-
-async fn context_records(inspection: &ExecutionView) -> Result<crate::execution::evidence_rows::EvidenceRows<RecordEntry>> {
-    let mut records = crate::execution::evidence_rows::EvidenceRows::default();
-    let mut reader = inspection.context_records().await?;
-    while let Some(rows) = reader.next().await? {
-        for row in rows.iter() {
-            records.append(&row.record).map_err(Error::Operation)?;
-        }
-    }
-    Ok(records)
-}
-
-// One Saved-Evidence Pass Feeds The Preview And Every Exact Consumer.
-async fn context_telemetry(
-    ctx: &Scope, session: &crate::storage::Manager, captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution, needs_rows: bool,
-) -> Result<(
-    ReadBatch<Vec<crate::telemetry::TelemetrySample>>,
-    crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
-)> {
-    let scan = async {
-        let mut rows = TelemetryRows::default();
-        let mut spans = Vec::new();
-        for versions in captured.telemetry_contracts.values() {
-            for contract in versions.values() {
-                let start = rows.len();
-                super::query::telemetry::visit(
-                    ctx,
-                    session,
-                    &captured.evidence_through,
-                    execution.test_execution_id.as_str(),
-                    contract,
-                    |sample| rows.append(sample).map_err(Error::Operation),
-                )
-                .await?;
-                spans.push(start..rows.len());
-            }
-        }
-        Ok((rows, spans))
-    };
-    telemetry_pass(scan, captured.report_defaults.plot_points as usize, needs_rows).await
-}
-
-async fn telemetry_pass(
-    scan: impl std::future::Future<Output = Result<ScannedTelemetry>>, maximum: usize, needs_rows: bool,
-) -> Result<(ReadBatch<Vec<crate::telemetry::TelemetrySample>>, TelemetryRows)> {
-    let (mut rows, spans) = scan.await?;
-    let selected = spans.iter().flat_map(|span| harmos::signal::decimate_indices(span.len(), maximum).map(move |index| span.start + index));
-    let mut selected = selected.peekable();
-    let mut preview = Vec::new();
-    for (index, sample) in rows.iter().enumerate() {
-        if selected.peek() == Some(&index) {
-            preview.try_reserve(1).map_err(|_| invalid("report preview allocation failed"))?;
-            preview.push(sample);
-            selected.next();
-        }
-    }
-    let preview = super::query::telemetry::sort(ReadBatch::new(preview))?;
-    if !needs_rows {
-        rows = Default::default();
-    }
-    Ok((preview, rows))
-}
-
-// Plot Queries Respect The Supplied Concurrency; Results Keep Card Order.
-async fn plots(
-    ctx: &Scope, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
-    records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
-    telemetry: &crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
-    documents: &BTreeMap<DocumentId, crate::document::capture::Capture>, operation: &Operation,
-) -> Result<ReadBatch<BTreeMap<String, super::value::Value>>> {
-    let mut groups = Vec::<(super::query::ReadPlan, Vec<_>)>::new();
-    let mut completed = Vec::new();
-    let mut index = 0;
-    for document in documents.values() {
-        for card in &document.cards {
-            let CardBindingResult::Plot { descriptor } = &card.result else {
-                continue;
-            };
-            let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
-            let plan = super::query::read_plan(&request, &captured.telemetry_contracts)?;
-            let plot = (index, descriptor.plot_id.to_string(), request);
-            index += 1;
-            if let Some((_, requests)) = groups.iter_mut().find(|(candidate, _)| candidate == &plan) {
-                reserve_plot_slot(requests)?;
-                requests.push(plot);
-            } else {
-                let mut requests = Vec::new();
-                reserve_plot_slot(&mut requests)?;
-                requests.push(plot);
-                reserve_plot_slot(&mut groups)?;
-                groups.push((plan, requests));
-            }
-        }
-    }
-
-    if groups.is_empty() {
-        return Ok(ReadBatch::new(BTreeMap::new()));
-    }
-    let input = tracing::info_span!("report.materialize.plot_inputs").in_scope(|| plot_inputs(telemetry, records))?;
-    let input = &input;
-    let mut pending_groups = futures_util::stream::iter(groups.into_iter().map(|(plan, requests)| async move {
-        let _group = operation.report_group().await;
-        let _plan = plan;
-        let shared = super::query::ReadCache::new();
-        let results = futures_util::stream::iter(requests.into_iter().map(|(current, id, request)| {
-            let shared = &shared;
-            async move {
-                let _permit = operation.report_work().await;
-                let payload = tracing::Instrument::instrument(
-                    super::query::materialize(ctx, captured, execution, request, input, telemetry, shared),
-                    tracing::info_span!("report.materialize.plot", plot = %id),
-                )
-                .await?;
-                Ok::<_, Error>((current, payload.try_map(|payload| Ok::<_, Error>((id, payload)))?))
-            }
-        }))
-        .buffer_unordered(8)
-        .collect::<Vec<_>>()
-        .await;
-        results.into_iter().collect::<Result<Vec<_>>>()
-    }))
-    .buffer_unordered(4);
-    while let Some(group) = pending_groups.next().await {
-        completed.extend(group?);
-    }
-    completed.sort_unstable_by_key(|(index, _)| *index);
-    let mut plots = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(BTreeMap::new()))?;
-    for (_, plot) in completed {
-        plots = plots.try_map_with(plot, |mut plots, (id, plot)| {
-            if plots.insert(id, plot).is_some() {
-                return Err(invalid("report contains duplicate plot identifiers"));
-            }
-            Ok::<_, Error>(plots)
-        })?;
-    }
-    Ok(plots)
-}
-
-fn plot_inputs(
-    telemetry: &TelemetryRows, records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
-) -> Result<crate::plot::spilled::Input> {
-    let input = crate::plot::spilled::Input::new()?;
-    for sample in telemetry.iter() {
-        input.append(&sample)?;
-    }
-    for record in records.iter() {
-        input.append_record(&record)?;
-    }
-    Ok(input)
-}
-
-fn reserve_plot_slot<T>(values: &mut Vec<T>) -> Result<()> {
-    if values.len() < values.capacity() {
-        return Ok(());
-    }
-    let capacity = values
-        .len()
-        .checked_add(1)
-        .and_then(usize::checked_next_power_of_two)
-        .ok_or_else(|| invalid("report plot workspace capacity overflows"))?;
-    // Replacement Backing Can Coexist With The Original Allocation.
-    values.try_reserve_exact(capacity - values.len()).map_err(|_| invalid("report plot workspace allocation failed"))?;
-    Ok(())
-}
 
 fn assemble(
     final_report: bool, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
@@ -401,7 +237,8 @@ fn assemble(
         result: source_cycle.result.clone(),
     };
     let mut artifact_links = Vec::with_capacity(captured.outputs.len());
-    for output in &captured.outputs {
+    for index in super::previews::indices(captured.outputs.len(), captured.report_defaults.table_rows as usize) {
+        let output = &captured.outputs[index];
         if let ExecutionOutputContent::Artifact { record, .. } = &output.content {
             let mut href = String::with_capacity("outputs/".len().saturating_add(output.relative_path.len()));
             href.push_str("outputs/");
@@ -420,7 +257,7 @@ fn assemble(
             });
         }
     }
-    let appearance = super::value::Value::from_serializable(&captured.context.appearance, 32)?;
+    let appearance = super::value::Value::from_serializable(&captured.context.appearance, report_defaults.value_depth as usize)?;
     Ok(CapturedExecutionReportInput {
         report_defaults,
         final_report,
@@ -458,84 +295,3 @@ fn invalid(reason: &'static str) -> Error {
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        Value,
-        plot::{PlotPayloadContext, PlotPayloadRequest},
-        telemetry::TelemetrySample,
-    };
-    use dokime_domain::model::{identity::Identifier, time::Timestamp};
-
-    #[tokio::test]
-    async fn report_plans_share_one_telemetry_scan() {
-        let scans = std::cell::Cell::new(0);
-        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
-        let stream = Identifier::new("fixture.capture").unwrap();
-        let scan = async {
-            scans.set(scans.get() + 1);
-            let mut rows = TelemetryRows::default();
-            for index in 0..4096_u64 {
-                let mut sample = TelemetrySample::new(
-                    dokime_domain::model::identity::TelemetrySampleId::from_seed(index.to_string()),
-                    stream.clone(),
-                    index,
-                    timestamp.clone(),
-                    "fixture",
-                );
-                sample.values.insert("value".into(), Value::Number(index as f64));
-                rows.append(&sample).map_err(Error::Operation)?;
-            }
-            let length = rows.len();
-            Ok((rows, std::iter::once(0..length).collect()))
-        };
-        let (preview, exact) = telemetry_pass(scan, 32, true).await.unwrap();
-        assert_eq!(preview.len(), 32);
-        assert_eq!(exact.len(), 4096);
-        assert_eq!(exact.retained_rows(), 0);
-        assert!(exact.spooled_bytes() > 0);
-        let input = plot_inputs(&exact, &Default::default()).unwrap();
-        for maximum in [8, 16, 32] {
-            let request = PlotPayloadRequest {
-                stream: stream.to_string(),
-                y_keys: vec!["value".into()],
-                max_points: Some(maximum),
-                plot_type: Some(crate::document::PlotType::TimeSeries),
-                ..Default::default()
-            };
-            let context = PlotPayloadContext {
-                default_max_points: 32,
-                x_format: None,
-                series_format: None,
-                run_started_at: None,
-                cycle_started_at: None,
-            };
-            let payload = crate::plot::spilled::project(&input, &request, timestamp.as_str(), &context).unwrap();
-            assert_eq!(payload.series[0].raw_points, 4096);
-            assert!(payload.series[0].points.len() <= maximum);
-        }
-        assert_eq!(scans.get(), 1);
-    }
-
-    #[tokio::test]
-    async fn report_preview_releases_rows_without_exact_plans() {
-        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
-        let mut rows = TelemetryRows::default();
-        for index in 0..16_u64 {
-            let sample = TelemetrySample::new(
-                dokime_domain::model::identity::TelemetrySampleId::from_seed(index.to_string()),
-                Identifier::new("fixture.preview").unwrap(),
-                index,
-                timestamp.clone(),
-                "fixture",
-            );
-            rows.append(&sample).unwrap();
-        }
-        let spans = std::iter::once(0..rows.len()).collect();
-        let (preview, exact) = telemetry_pass(async { Ok((rows, spans)) }, 4, false).await.unwrap();
-        assert_eq!(preview.len(), 4);
-        assert!(exact.is_empty());
-    }
-}

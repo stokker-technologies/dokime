@@ -107,7 +107,7 @@ Install Dokime on `PATH`, restart the host after admitting the matching OBC
 plugin, and import the host-created pairing once:
 
 ```sh
-dokime backend add --pairing ../lab.dokime-pair --identifier lab
+dokime backend add --remote ../lab.dokime-remote --identifier lab
 ```
 
 Edit the globals at the top of each script before running it. Names, grouping,
@@ -121,7 +121,7 @@ order and meanings match the [Python examples](python.md):
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
 
 Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
-Its label, endpoint, expected identity and CA come from the pairing file; the
+Its label, ordered endpoints, expected identity and persistent CA come from the remote file; the
 native client resolves its access key from the OS keyring.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
@@ -215,8 +215,10 @@ checksums and replace files atomically; download retries never rerun hardware.
 The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
 shell redirection. The `.id` files retain confirmed native identities.
 
-Bundles contain `manifest.json`, `evidence.sqlite`, captured `files/` and
-saved `reports/`. Inspect the SQLite database and verify manifest checksums.
+Bundles contain `manifest.json`, `evidence.sqlite`, captured `artifacts/`,
+original Arrow IPC files under `telemetry/` and saved `reports/`. Cycle bundles
+place artifacts and telemetry under `executions/<execution-id>/`. Join the
+SQLite catalogs and verify manifest checksums.
 An execution bundle saved before the cycle is sealed records an Active cycle;
 the final cycle bundle includes all members and its sealed phase.
 

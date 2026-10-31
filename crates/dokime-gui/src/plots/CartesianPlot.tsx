@@ -375,7 +375,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             if (windowServes(drawnRef.current, range)) return;
             queueMicrotask(() => {
               if (plotRef.current !== plot) return;
-              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth), false);
+              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth, zoom), false);
               plot.setScale("x", range);
               const heldY = heldRangeRef.current?.y;
               if (heldY) plot.setScale("y", heldY);
@@ -538,7 +538,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     let plot: uPlot;
     try {
       drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
-      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root)), root);
+      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root), zoom), root);
     } catch (error) {
       setPlotLoadError(plotFailureMessage(error));
       return;
@@ -549,7 +549,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth), () =>
+      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth, zoom), () =>
         setLiveXScale(plot, liveXRange, xScale, timeAxis),
       );
     }
@@ -580,6 +580,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       }
       try {
         plot.setSize(nextSize);
+        if (zoom) plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
       } catch (error) {
         setPlotLoadError(plotFailureMessage(error));
       }
@@ -743,7 +744,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     updateFrameRef.current = window.requestAnimationFrame(() => {
       updateFrameRef.current = null;
       drawnRef.current.source = chartFrame.data;
-      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth);
+      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth, zoom);
       const resetChanged = resetKeyRef.current !== resetKey;
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
@@ -774,7 +775,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       viewportModeRef.current = viewportMode;
       dataSignatureRef.current = dataSignature;
     });
-  }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale]);
+  }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale, zoom]);
 
   const placeholder = displayError
     ? plotUnavailableText(displayError)
@@ -826,7 +827,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                   onViewportChangeRef.current?.(null);
                   const plot = plotRef.current;
                   if (plot && chartFrame) {
-                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth), true);
+                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth, zoom), true);
                     if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
                   }
                 }}
@@ -1095,7 +1096,7 @@ function isUsableSpan(min: number, max: number): boolean {
  * reduced to four samples per pixel column of a `columns`-wide plot and
  * recorded as what is now drawn. A faceted frame is drawn whole.
  */
-function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number): uPlot.AlignedData {
+function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
   const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
   drawn.range = range;
   if (!drawn.aligned) {
@@ -1104,7 +1105,7 @@ function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns:
   }
 
   const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
-  const indices = windowIndices(x, traces, range, columns);
+  const indices = windowIndices(x, traces, range, columns, fitPixels);
   drawn.everySample = indices === null;
   if (!indices) return source;
 

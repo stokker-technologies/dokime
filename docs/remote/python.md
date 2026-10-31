@@ -58,11 +58,11 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 Open each `control-*.py` file and select the private pairing file:
 
 ```python
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 ```
 
 Run from `python/` so the path resolves. Each script constructs its client with
-`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies endpoint, expected
+`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies ordered endpoints, expected
 backend identity, CA and access key together. The client validates the file before
 connecting and checks TLS and backend identity before application calls.
 It retains the key only in its transport credentials.
@@ -199,7 +199,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
-| `lab.dokime-pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
+| `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |

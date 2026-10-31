@@ -308,6 +308,8 @@ impl State {
             drop(rows);
             drop(statement);
             let transaction = connection.transaction()?;
+            transaction.execute("DELETE FROM artifacts WHERE file_id=?1", [file.id.as_str()])?;
+            transaction.execute("DELETE FROM files WHERE id=?1 AND kind!='telemetry'", [file.id.as_str()])?;
             let added = transaction.execute("INSERT OR IGNORE INTO storage_deleted_files VALUES (?1)",[file.id.as_str()])?;
             if added!=0 {
                 let mut head=saved(&transaction)?;

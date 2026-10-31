@@ -19,7 +19,7 @@
 use std::path::Path;
 
 // Third Party Imports
-use rusqlite::{Connection, limits::Limit, params, params_from_iter, types::Value as SqlValue};
+use rusqlite::{Connection, params, types::Value as SqlValue};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
@@ -29,13 +29,8 @@ use super::{
     error::{Error, Result},
     snapshot::Snapshot,
 };
-use crate::runtime::storage::{execution::ExecutionView, telemetry::TelemetryReader};
-use dokime_domain::model::{
-    definition::MaterializedParameter,
-    exports::EVIDENCE_EXPORT_SCHEMA_VERSION,
-    telemetry::TelemetryContract,
-    values::{Value, ValueType},
-};
+use crate::runtime::storage::execution::ExecutionView;
+use dokime_domain::model::{definition::MaterializedParameter, exports::EVIDENCE_EXPORT_SCHEMA_VERSION, values::Value};
 
 /* === Constants === */
 
@@ -86,15 +81,14 @@ CREATE TABLE records(
     timestamp TEXT NOT NULL, received_at TEXT NOT NULL, source TEXT NOT NULL, severity TEXT NOT NULL,
     message TEXT, body_json TEXT NOT NULL, PRIMARY KEY(execution_id, ordinal)
 ) STRICT;
-CREATE TABLE streams(
-    execution_id TEXT NOT NULL, stream_id TEXT NOT NULL, schema_version INTEGER NOT NULL,
-    table_name TEXT PRIMARY KEY, sample_count INTEGER NOT NULL, schema_json TEXT NOT NULL
-) STRICT;
-CREATE TABLE stream_columns(
-    base_table TEXT NOT NULL, table_name TEXT NOT NULL, field_id TEXT NOT NULL,
-    column_name TEXT NOT NULL, value_type TEXT NOT NULL, unit_json TEXT,
-    body_json TEXT NOT NULL, PRIMARY KEY(table_name, column_name)
-) STRICT;
+CREATE TABLE files(id TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('artifact','telemetry','report')),
+    path TEXT NOT NULL,size_bytes INTEGER NOT NULL,sha256 TEXT NOT NULL,media_type TEXT NOT NULL) STRICT;
+CREATE TABLE artifacts(file_id TEXT PRIMARY KEY REFERENCES files(id),execution_id TEXT NOT NULL REFERENCES executions(execution_id),
+    relative_path TEXT NOT NULL) STRICT;
+CREATE TABLE streams(file_id TEXT PRIMARY KEY REFERENCES files(id),execution_id TEXT NOT NULL REFERENCES executions(execution_id),
+    stream_id TEXT NOT NULL,rows INTEGER NOT NULL,first_at INTEGER,last_at INTEGER,batches_json TEXT NOT NULL,contract_json TEXT NOT NULL) STRICT;
+CREATE TABLE stream_summaries(file_id TEXT NOT NULL REFERENCES streams(file_id),signal TEXT NOT NULL,count INTEGER NOT NULL,
+    minimum REAL NOT NULL,maximum REAL NOT NULL,sum REAL NOT NULL,PRIMARY KEY(file_id,signal)) STRICT;
 CREATE TABLE outputs(
     execution_id TEXT NOT NULL, ordinal INTEGER NOT NULL, relative_path TEXT NOT NULL,
     archive_path TEXT NOT NULL, size_bytes ANY NOT NULL, sha256 TEXT NOT NULL, body_json TEXT NOT NULL,
@@ -111,21 +105,6 @@ CREATE TABLE outputs(
 pub(super) struct Writer {
     connection: Connection,
     streams: Vec<StreamInventory>,
-    next_table: u64,
-    maximum_inventory_entries: u64,
-}
-
-struct Stream {
-    table: String,
-    partitions: Vec<Partition>,
-    samples: u64,
-}
-
-struct Partition {
-    table: String,
-    fields: Vec<String>,
-    insert: String,
-    raw: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -140,8 +119,8 @@ pub(super) struct StreamInventory {
     pub execution_id: String,
     pub stream_id: String,
     pub schema_version: u32,
-    pub table_name: String,
-    pub partitions: Vec<String>,
+    pub file_id: String,
+    pub path: String,
     pub samples: u64,
 }
 
@@ -164,17 +143,11 @@ impl Writer {
         let phase =
             snapshot.cycle.get("phase").and_then(serde_json::Value::as_str).ok_or(Error::Invalid("captured cycle phase is missing"))?;
         connection.execute("INSERT INTO cycles VALUES(?1,?2,?3)", params![snapshot.cycle_id.as_str(), phase, json(&snapshot.cycle)?])?;
-        Ok(Self {
-            connection,
-            streams: Vec::new(),
-            next_table: 0,
-            maximum_inventory_entries: super::MAX_INVENTORY_ENTRIES,
-        })
+        Ok(Self { connection, streams: Vec::new() })
     }
 
     pub async fn execution(
-        &mut self, view: &ExecutionView, cancellation: &CancellationToken, budget: &mut InventoryBudget,
-        schema_settings: &harmos::config::SchemaSettings,
+        &mut self, view: &ExecutionView, cancellation: &CancellationToken, _budget: &mut InventoryBudget,
     ) -> Result<Counts> {
         cancelled(cancellation)?;
         self.header(view)?;
@@ -215,37 +188,6 @@ impl Writer {
                     ],
                 )?;
                 counts.records = counts.records.checked_add(1).ok_or(Error::TooLarge)?;
-            }
-        }
-        for versions in view.source_snapshot()?.telemetry_contracts.values() {
-            for contract in versions.values() {
-                if self.streams.len() as u64 >= self.maximum_inventory_entries {
-                    return Err(Error::TooLarge);
-                }
-                let mut stream = self.stream(&id, contract)?;
-                let mut reader = TelemetryReader::for_contract(view, &contract.stream, contract.schema_version, schema_settings).await?;
-                while let Some(samples) = tokio::select! {
-                    biased;
-                    _ = cancellation.cancelled() => return Err(Error::Cancelled),
-                    result = reader.next() => result?,
-                } {
-                    for entry in samples.iter() {
-                        self.sample(&id, &mut stream, entry)?;
-                        counts.samples = counts.samples.checked_add(1).ok_or(Error::TooLarge)?;
-                    }
-                }
-                self.connection
-                    .execute("UPDATE streams SET sample_count=?1 WHERE table_name=?2", params![ordinal(stream.samples)?, &stream.table])?;
-                let inventory = StreamInventory {
-                    execution_id: id.clone(),
-                    stream_id: contract.stream.to_string(),
-                    schema_version: contract.schema_version,
-                    table_name: stream.table,
-                    partitions: stream.partitions.into_iter().map(|partition| partition.table).collect(),
-                    samples: stream.samples,
-                };
-                budget.reserve(&inventory)?;
-                self.streams.push(inventory);
             }
         }
         Ok(counts)
@@ -398,107 +340,67 @@ impl Writer {
         Ok(())
     }
 
-    fn stream(&mut self, execution: &str, contract: &TelemetryContract) -> Result<Stream> {
-        let metadata_columns = [
-            "m_row INTEGER PRIMARY KEY",
-            "m_execution_id TEXT NOT NULL",
-            "m_ordinal ANY NOT NULL",
-            "m_sequence ANY NOT NULL",
-            "m_timestamp TEXT NOT NULL",
-            "m_received_at TEXT NOT NULL",
-            "m_source TEXT NOT NULL",
-        ];
-        let columns = self.connection.limit(Limit::SQLITE_LIMIT_COLUMN)?;
-        let variables = self.connection.limit(Limit::SQLITE_LIMIT_VARIABLE_NUMBER)?;
-        let available = usize::try_from(columns.min(variables)).map_err(|_| Error::TooLarge)?;
-        // The First Partition Also Stores The Original Sample JSON.
-        let first_columns = available.checked_sub(metadata_columns.len() + 1).filter(|columns| *columns != 0).ok_or(Error::TooLarge)?;
-        let following_columns = available.checked_sub(metadata_columns.len()).ok_or(Error::TooLarge)?;
-        let count = 1 + contract.columns.len().saturating_sub(first_columns).div_ceil(following_columns);
-        if count as u64 > self.maximum_inventory_entries {
-            return Err(Error::TooLarge);
-        }
-        let mut partitions = Vec::with_capacity(count);
-        let mut base = String::new();
-        for partition in 0..count {
-            let table = format!("stream_{:06}", self.next_table);
-            self.next_table = self.next_table.checked_add(1).ok_or(Error::TooLarge)?;
-            if partition == 0 {
-                base = table.clone();
-            }
-            let start = if partition == 0 { 0 } else { first_columns + (partition - 1) * following_columns };
-            let capacity = if partition == 0 { first_columns } else { following_columns };
-            let end = (start + capacity).min(contract.columns.len());
-            let fields = &contract.columns[start..end];
-            let mut columns = metadata_columns.join(", ");
-            if partition == 0 {
-                columns.push_str(", sample_json TEXT NOT NULL");
-            }
-            for (offset, field) in fields.iter().enumerate() {
-                let column = format!("c{:04}", start + offset);
-                let sql_type = match field.value_type {
-                    ValueType::Boolean => "INTEGER",
-                    ValueType::Integer | ValueType::Number => "ANY",
-                    _ => "TEXT",
-                };
-                columns.push_str(&format!(", {column} {sql_type}"));
-                self.connection.execute(
-                    "INSERT INTO stream_columns VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                    params![
-                        &base,
-                        &table,
-                        field.metadata.identifier.as_str(),
-                        &column,
-                        label(&field.value_type)?,
-                        optional_json(field.unit.as_ref())?,
-                        json(field)?,
-                    ],
-                )?;
-            }
-            self.connection.execute_batch(&format!("CREATE TABLE {table}({columns}) STRICT;"))?;
-            let parameters =
-                (0..(metadata_columns.len() + usize::from(partition == 0) + fields.len())).map(|_| "?").collect::<Vec<_>>().join(",");
-            partitions.push(Partition {
-                insert: format!("INSERT INTO {table} VALUES({parameters})"),
-                table,
-                fields: fields.iter().map(|field| field.metadata.identifier.to_string()).collect(),
-                raw: partition == 0,
-            });
-        }
+    pub fn telemetry(
+        &mut self, execution: &str, file: &crate::storage::sqlite::StreamFile, path: &str, budget: &mut InventoryBudget,
+    ) -> Result<()> {
+        let digest = super::archive::hex(&file.sha256);
         self.connection.execute(
-            "INSERT INTO streams VALUES(?1,?2,?3,?4,0,?5)",
-            params![execution, contract.stream.as_str(), contract.schema_version, &base, json(contract)?,],
+            "INSERT INTO files VALUES (?1,'telemetry',?2,?3,?4,'application/vnd.apache.arrow.file')",
+            params![file.id, path, ordinal(file.size_bytes)?, digest],
         )?;
-        Ok(Stream { table: base, partitions, samples: 0 })
+        self.connection.execute(
+            "INSERT INTO streams VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![
+                file.id,
+                execution,
+                file.stream,
+                ordinal(file.rows)?,
+                file.first_at,
+                file.last_at,
+                json(&file.batches)?,
+                json(&file.contract)?
+            ],
+        )?;
+        for summary in &file.summaries {
+            self.connection.execute(
+                "INSERT INTO stream_summaries VALUES (?1,?2,?3,?4,?5,?6)",
+                params![file.id, summary.signal, ordinal(summary.count)?, summary.minimum, summary.maximum, summary.sum],
+            )?;
+        }
+        let inventory = StreamInventory {
+            execution_id: execution.to_owned(),
+            stream_id: file.stream.clone(),
+            schema_version: file.contract.schema_version,
+            file_id: file.id.clone(),
+            path: path.to_owned(),
+            samples: file.rows,
+        };
+        budget.reserve(&inventory)?;
+        self.streams.push(inventory);
+        Ok(())
     }
 
-    fn sample(&self, execution: &str, stream: &mut Stream, entry: &crate::storage::telemetry::TelemetryEntry) -> Result<()> {
-        let sample = &entry.sample;
-        for partition in &stream.partitions {
-            let mut values = vec![
-                SqlValue::Integer(ordinal(stream.samples)?),
-                SqlValue::Text(execution.to_owned()),
-                unsigned(entry.ordinal),
-                unsigned(sample.sequence),
-                SqlValue::Text(sample.timestamp.to_string()),
-                SqlValue::Text(sample.received_at.to_string()),
-                SqlValue::Text(sample.source.clone()),
-            ];
-            if partition.raw {
-                values.push(SqlValue::Text(json(entry)?));
-            }
-            for field in &partition.fields {
-                values.push(sample.values.get(field).map(cell).transpose()?.unwrap_or(SqlValue::Null));
-            }
-            self.connection.prepare_cached(&partition.insert)?.execute(params_from_iter(values))?;
-        }
-        stream.samples = stream.samples.checked_add(1).ok_or(Error::TooLarge)?;
+    pub fn file(&self, reference: &harmos::storage::FileReference, path: &str, kind: &str) -> Result<()> {
+        self.connection.execute(
+            "INSERT OR IGNORE INTO files VALUES (?1,?2,?3,?4,?5,?6)",
+            params![
+                reference.metadata.id.as_str(),
+                kind,
+                path,
+                ordinal(reference.length)?,
+                super::archive::hex(&reference.sha256),
+                reference.metadata.media_type
+            ],
+        )?;
         Ok(())
     }
 
     pub fn output(
         &self, execution: &str, index: usize, archive: &str, value: &dokime_domain::model::execution::saved::ExecutionOutput,
     ) -> Result<()> {
+        self.file(&value.file, archive, "artifact")?;
+        self.connection
+            .execute("INSERT INTO artifacts VALUES (?1,?2,?3)", params![value.file.metadata.id.as_str(), execution, value.relative_path])?;
         let sha256 = super::archive::hex(&value.file.sha256);
         self.connection.execute(
             "INSERT INTO outputs VALUES(?1,?2,?3,?4,?5,?6,?7)",

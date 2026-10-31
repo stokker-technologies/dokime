@@ -99,7 +99,14 @@ impl Fixture {
 
         let mut rows = 0;
         for contract in support::contracts::suite_telemetry_contracts() {
-            let cadence = contract.interval.as_ref().map_or(100, |interval| interval.0);
+            // Synthetic Evidence Density Belongs To This Workload, Not The Plugin's Runtime Settings.
+            let cadence = match contract.stream.as_str() {
+                "host.system" | "host.network" | "host.wifi.link" => 1_000,
+                "host.bluetooth" => 5_000,
+                "host.wifi.latency" => 10_000,
+                "host.wifi.scan" => 60_000,
+                _ => contract.interval.as_ref().map_or(100, |interval| interval.0),
+            };
             let count = hours * 3_600_000 / cadence;
             for start in (0..count).step_by(PAGE as usize) {
                 let samples = (start..(start + PAGE).min(count))
@@ -198,13 +205,15 @@ impl Fixture {
     }
 
     async fn measure(mut self, hours: u64) -> (Duration, Duration, Duration) {
-        let report = self.report().await;
-        eprintln!("hours={hours} report_save_ms={}", report.as_secs_f64() * 1000.0);
         let started = Instant::now();
         let stopped = self.runtime.stop_execution(self.execution.clone(), CommandContext::default()).await;
         let stop = started.elapsed();
         eprintln!("hours={hours} stop_ms={} result={stopped:?}", stop.as_secs_f64() * 1000.0);
         stopped.unwrap();
+        self.runtime.wait_execution_report(&self.execution).await.unwrap();
+        let report_ready = started.elapsed();
+        let report = self.report().await;
+        eprintln!("hours={hours} report_save_ms={}", report.as_secs_f64() * 1000.0);
         let started = Instant::now();
         let cancelled = self.runtime.cancel_execution(self.pending.clone(), CommandContext::default()).await;
         let cancel = started.elapsed();
@@ -213,7 +222,7 @@ impl Fixture {
         println!(
             "{}",
             serde_json::json!({"measurement":"long_execution", "hours":hours, "rows":self.rows,
-            "stop_ms":stop.as_secs_f64()*1000.0, "cancel_ms":cancel.as_secs_f64()*1000.0, "report_save_ms":report.as_secs_f64()*1000.0})
+            "stop_ms":stop.as_secs_f64()*1000.0, "cancel_ms":cancel.as_secs_f64()*1000.0, "report_ready_ms":report_ready.as_secs_f64()*1000.0, "report_save_ms":report.as_secs_f64()*1000.0})
         );
         drop(self.runtime);
         self.owner.shutdown().await.unwrap();

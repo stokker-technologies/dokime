@@ -190,8 +190,8 @@ fn measured(target: LoadTarget, utilization: f64, flops: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::super::super::{Load, sampling::tests::fixed};
-    use super::super::config::DEFAULT;
     use super::*;
+    use crate::settings::CPU_LOAD_DEFAULTS as DEFAULT;
     use dokime::telemetry::TelemetryRow;
     use tokio_util::sync::CancellationToken;
     struct Publications(tokio::sync::mpsc::UnboundedSender<LoadControl>);

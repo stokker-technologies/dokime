@@ -733,7 +733,7 @@ fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<Strin
     }
 }
 
-fn matching_summary_state(
+pub(crate) fn matching_summary_state(
     value: &Value, conditions: &[TelemetrySummaryCondition],
 ) -> Option<crate::document::definition::TelemetrySummaryState> {
     conditions

@@ -329,6 +329,9 @@ export const remoteReadListener = (session: SessionIdentity, request: Parameters
 import { Row1Schema as remoteRegenerateCertificateRequest } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 import { Row2Schema as remoteRegenerateCertificateResponse } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 export const remoteRegenerateCertificate = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRegenerateCertificateRequest, typeof remoteRegenerateCertificateResponse>>[4]) => unary("/dokime.v1.Remote/RegenerateCertificate", remoteRegenerateCertificateRequest, remoteRegenerateCertificateResponse, session, request, 300000);
+import { Row1Schema as remoteRenamePairedClientRequest } from "@generated/dokime/v1/RemoteMessages/RenamePairedClient/messages_pb.js";
+import { Row2Schema as remoteRenamePairedClientResponse } from "@generated/dokime/v1/RemoteMessages/RenamePairedClient/messages_pb.js";
+export const remoteRenamePairedClient = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRenamePairedClientRequest, typeof remoteRenamePairedClientResponse>>[4]) => unary("/dokime.v1.Remote/RenamePairedClient", remoteRenamePairedClientRequest, remoteRenamePairedClientResponse, session, request, 300000);
 import { Row1Schema as remoteRevokePairedClientRequest } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
 import { Row2Schema as remoteRevokePairedClientResponse } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
 export const remoteRevokePairedClient = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRevokePairedClientRequest, typeof remoteRevokePairedClientResponse>>[4]) => unary("/dokime.v1.Remote/RevokePairedClient", remoteRevokePairedClientRequest, remoteRevokePairedClientResponse, session, request, 300000);

@@ -28,7 +28,7 @@ from dokime_client.client import DokimeClient
 
 # === Constants === #
 
-PAIRING_FILE = Path("lab.dokime-pair")
+PAIRING_FILE = Path("lab.dokime-remote")
 EXECUTION_ID = "00000000-0000-0000-0000-000000000001"
 WAIT_SECONDS: float | None = None
 

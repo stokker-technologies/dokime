@@ -96,7 +96,7 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
     let settings = &preferences;
     match command {
         Command::Status(args) => status::run(args, settings).await,
-        Command::Backend(command) => backend::run(command),
+        Command::Backend(command) => backend::run(command).await,
         Command::Cycle(command) => cycle::run(command, settings).await,
         Command::Execution(command) => execution::run(command, settings).await,
         Command::Catalog(command) => catalog::run(command, settings).await,

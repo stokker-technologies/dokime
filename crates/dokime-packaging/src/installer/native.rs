@@ -204,6 +204,9 @@ pub fn assemble(
         Error::Invalid(message)
     })?;
     artwork::write_ico(&installer_image, &ico_path)?;
+    let firewall = scratch.join("firewall.ps1");
+    std::fs::write(&firewall, include_str!("firewall.ps1"))?;
+    let firewall_path = firewall.to_string_lossy().replace('$', "$$");
     let hooks = scratch.join("installer-hooks.nsh");
     let sidebar = scratch.join("installer-sidebar.bmp");
     let hook_source = if windows {
@@ -213,7 +216,7 @@ pub fn assemble(
     } else {
         include_str!("hooks.nsh").to_owned()
     };
-    std::fs::write(&hooks, hook_source)?;
+    std::fs::write(&hooks, format!("!define DOKIME_FIREWALL_SCRIPT \"{firewall_path}\"\n{hook_source}"))?;
     let template = scratch.join("installer.nsi");
     std::fs::write(&template, include_str!("installer.nsi"))?;
     let png_icon = image_path.to_string_lossy().into_owned();

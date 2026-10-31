@@ -31,5 +31,5 @@ verified its generated modules.
 
 `mise run test:python:unit --select <expression>` checks current client source in
 the root environment without a staged wheel. A focused integration selection uses
-`mise run test:python:integration -- -- -k <expression>` and also checks source.
+`mise run test:python:integration --select <expression>` and also checks source.
 Full Python unit and integration tasks retain their built-wheel input.

@@ -53,20 +53,28 @@ class Row5(_message.Message):
     def __init__(self, theme_mode: _Optional[_Union[Row10, _Mapping]] = ..., theme_family: _Optional[str] = ..., density: _Optional[_Union[Row11, _Mapping]] = ...) -> None: ...
 
 class Row6(_message.Message):
-    __slots__ = ("plot_points", "plot_downsample")
+    __slots__ = ("source_bytes", "value_depth", "table_rows", "plot_points", "plot_downsample")
+    SOURCE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    VALUE_DEPTH_FIELD_NUMBER: _ClassVar[int]
+    TABLE_ROWS_FIELD_NUMBER: _ClassVar[int]
     PLOT_POINTS_FIELD_NUMBER: _ClassVar[int]
     PLOT_DOWNSAMPLE_FIELD_NUMBER: _ClassVar[int]
+    source_bytes: int
+    value_depth: int
+    table_rows: int
     plot_points: int
     plot_downsample: Row12
-    def __init__(self, plot_points: _Optional[int] = ..., plot_downsample: _Optional[_Union[Row12, _Mapping]] = ...) -> None: ...
+    def __init__(self, source_bytes: _Optional[int] = ..., value_depth: _Optional[int] = ..., table_rows: _Optional[int] = ..., plot_points: _Optional[int] = ..., plot_downsample: _Optional[_Union[Row12, _Mapping]] = ...) -> None: ...
 
 class Row7(_message.Message):
-    __slots__ = ("connect_timeout_ms", "request_timeout_ms")
+    __slots__ = ("connect_timeout_ms", "request_timeout_ms", "endpoint_stagger_ms")
     CONNECT_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINT_STAGGER_MS_FIELD_NUMBER: _ClassVar[int]
     connect_timeout_ms: int
     request_timeout_ms: int
-    def __init__(self, connect_timeout_ms: _Optional[int] = ..., request_timeout_ms: _Optional[int] = ...) -> None: ...
+    endpoint_stagger_ms: int
+    def __init__(self, connect_timeout_ms: _Optional[int] = ..., request_timeout_ms: _Optional[int] = ..., endpoint_stagger_ms: _Optional[int] = ...) -> None: ...
 
 class Row8(_message.Message):
     __slots__ = ("interval_ms",)

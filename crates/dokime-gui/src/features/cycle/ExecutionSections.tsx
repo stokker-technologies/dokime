@@ -141,12 +141,20 @@ export function ExecutionSections({
   /* Republished as the decision changes: the cluster's primary action is the
      card's own, so the two can never disagree. */
   const pageActions = live ? (
-    <NodeActionCluster
-      cycleId={cycleId}
-      menu={menu}
-      primary={primary && actions ? <ExecutionActionButton action={primary} actions={actions} /> : null}
-      subject={reportSubject}
-    />
+    <>
+      {execution?.report ? (
+        <span role="status" className="text-xs text-muted-foreground" title={execution.report.failure ?? undefined}>
+          Report {execution.report.state === "pending" ? "Pending" : execution.report.state === "failed" ? "Failed" : "Ready"}
+          {execution.report.failure ? `: ${execution.report.failure}` : ""}
+        </span>
+      ) : null}
+      <NodeActionCluster
+        cycleId={cycleId}
+        menu={menu}
+        primary={primary && actions ? <ExecutionActionButton action={primary} actions={actions} /> : null}
+        subject={reportSubject}
+      />
+    </>
   ) : null;
 
   return (

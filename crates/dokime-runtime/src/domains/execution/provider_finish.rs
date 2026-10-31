@@ -77,7 +77,7 @@ impl RuntimeHandle {
                 .find(|execution| &execution.test_execution_id == id)
                 .ok_or_else(|| Error::Operation("finished execution disappeared".into()))?;
             loop {
-                match self.finish_saved_execution(&current, execution).await {
+                match self.queue_saved_execution(&current, execution).await {
                     Ok(()) => break,
                     Err(error) => match retry_after(&error, 250) {
                         Some(wait) => tokio::time::sleep(wait).await,
@@ -104,7 +104,7 @@ impl RuntimeHandle {
         })
         .await
         .map_err(|error| Error::Operation(error.to_string()))?;
-        let mut complete = crate::transactions::CompleteRun {
+        let complete = crate::transactions::CompleteRun {
             request_id: request_id.clone(),
             at: self.state_read().run_requests[&request_id]
                 .completion_at
@@ -113,65 +113,13 @@ impl RuntimeHandle {
             unsealed: None,
         };
         let cycle = self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-        let mut pending = cycle
-            .test_executions
-            .iter()
-            .filter(|execution| {
-                selected_executions.contains(&execution.test_execution_id) && execution.saved.is_none() && execution.finished_at.is_some()
-            })
-            .collect::<Vec<_>>();
-        let mut unsealed = Vec::new();
-        let mut cause = early_failure.as_ref().map(|error| unsealed_cause("execution", error));
-        while !pending.is_empty() {
-            let failures = match self.finish_saved_executions(&cycle, &pending).await {
-                Ok(failures) => failures,
-                Err(error) if self.is_shutting_down() => return Err(error),
-                Err(error) => match retry_after(&error, 250) {
-                    Some(wait) => {
-                        tracing::debug!(%error, %cycle_id, "final execution saves will retry");
-                        tokio::time::sleep(wait).await;
-                        continue;
-                    }
-                    None => {
-                        tracing::debug!(%error, %cycle_id, "final execution saves failed");
-                        cause.get_or_insert_with(|| unsealed_cause("execution", &error));
-                        unsealed.extend(pending.drain(..).map(|execution| execution.test_execution_id.clone()));
-                        continue;
-                    }
-                },
-            };
-            let mut retry = Vec::new();
-            let mut wait = None;
-            for (id, error) in failures {
-                if self.is_shutting_down() {
-                    return Err(error);
-                }
-                tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
-                match retry_after(&error, 250) {
-                    Some(after) => {
-                        wait = wait.max(Some(after));
-                        retry.push(id);
-                    }
-                    None => {
-                        cause.get_or_insert_with(|| unsealed_cause("execution", &error));
-                        unsealed.push(id);
-                    }
-                }
-            }
-            pending.retain(|execution| retry.contains(&execution.test_execution_id));
-            if let Some(wait) = wait {
-                // Retry checkpoint publication only. Provider dispatch and outcome
-                // folds are outside this loop and cannot be executed again.
-                tokio::time::sleep(wait).await;
-            }
+        for execution in cycle.test_executions.iter().filter(|execution| {
+            selected_executions.contains(&execution.test_execution_id) && execution.saved.is_none() && execution.finished_at.is_some()
+        }) {
+            self.queue_saved_execution(&cycle, execution).await?;
         }
-        // A Run Seals Only Its Fixed Selection; The Container Remains Active.
-        if let Some(cause) = &cause {
-            tracing::error!(%cycle_id, %cause, "final execution report could not be sealed");
-            complete.unsealed = Some(crate::transactions::Unsealed {
-                cause: cause.clone(),
-                execution_ids: unsealed,
-            });
+        if let Some(error) = early_failure {
+            return Err(error);
         }
         self.commit(complete).await.map_err(|error| Error::Operation(error.to_string()))?;
         loop {
@@ -181,9 +129,8 @@ impl RuntimeHandle {
                 Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
             }
         }
-        // The durable terminal receipt acknowledges both sealed executions and
-        // their final cycle row, or the permanent cause they were not sealed.
-        // A failed transient save leaves it nonterminal.
+        // The Durable Terminal Receipt Acknowledges Drained Evidence And Its Report Intents.
+        // A Failed Evidence Save Leaves It Nonterminal.
         let (summary, interruption) = {
             let state = self.state_read();
             let request = &state.run_requests[&request_id];
@@ -291,10 +238,6 @@ impl RuntimeHandle {
 
 fn retry_after(error: &Error, milliseconds: u64) -> Option<std::time::Duration> {
     transient_persistence(error).then_some(std::time::Duration::from_millis(milliseconds))
-}
-
-fn unsealed_cause(subject: &str, error: &Error) -> String {
-    format!("final {subject} report was not sealed: {error}")
 }
 
 fn transient_persistence(error: &(dyn std::error::Error + 'static)) -> bool {

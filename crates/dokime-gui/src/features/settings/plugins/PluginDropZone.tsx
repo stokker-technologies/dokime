@@ -97,6 +97,7 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
     let unlisten: (() => void) | undefined;
     void getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
+        if (payload.type === "drop" && payload.paths.some((path) => path.endsWith(".dokime-remote"))) return;
         if (payload.type === "leave") return setOver(false);
         const hovering = inside(payload.position) && !latest.current.disabled;
         setOver(payload.type !== "drop" && hovering);

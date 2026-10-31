@@ -103,8 +103,8 @@ impl Summary {
 
 #[cfg(test)]
 mod tests {
-    use super::super::config::DEFAULT;
     use super::*;
+    use crate::settings::CPU_LOAD_DEFAULTS as DEFAULT;
     #[test]
     fn simulated_plant_converges_in_both_modes() {
         use crate::host::cpu::{

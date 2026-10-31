@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-pub mod config;
 #[cfg(feature = "runtime")]
 mod controller;
 #[cfg(feature = "runtime")]
@@ -19,7 +18,7 @@ mod workers;
 
 /* === Re-Exports === */
 
-pub use config::CpuLoadSettings;
+pub use crate::settings::CpuLoadSettings;
 
 /* === Imports === */
 
@@ -33,9 +32,9 @@ use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 /* === Constants === */
 
 pub const POLICY: OperationPolicy = OperationPolicy {
-    timeout: config::HOLD_BUDGET,
-    attempt_timeout: config::HOLD_BUDGET,
-    cancellation_timeout: config::CANCELLATION_GRACE,
+    timeout: crate::settings::CPU_LOAD_HOLD_BUDGET,
+    attempt_timeout: crate::settings::CPU_LOAD_HOLD_BUDGET,
+    cancellation_timeout: crate::settings::CPU_LOAD_CANCELLATION_GRACE,
     retries: RetryPolicy::Never,
 };
 

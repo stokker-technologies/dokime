@@ -118,7 +118,7 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
-    let pairing = directory.join("lab.dokime-pair");
+    let pairing = directory.join("lab.dokime-remote");
     let profiles = directory.join("profiles.json");
     import_profile(&binary, endpoint, &pairing, &profiles);
     let mut values = vec![
@@ -155,7 +155,7 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
     let document = serde_json::json!({
         "version": 1,
-        "endpoint": endpoint,
+        "endpoints": [endpoint],
         "backend_identifier": backend,
         "label": "Lab",
         "ca_certificate_pem": null,
@@ -164,7 +164,7 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
     let _ = std::fs::remove_file(profiles);
     let output = dokime::domain::process::command(binary)
-        .args(["backend", "add", "--pairing"])
+        .args(["backend", "add", "--remote"])
         .arg(pairing)
         .args(["--identifier", PROFILE_IDENTIFIER])
         .env("DOKIME_PROFILES_FILE", profiles)
@@ -461,17 +461,20 @@ fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &s
     assert_eq!(status, expected, "execution {id} in {}", archive.display());
 
     let stream: Option<(String, i64)> = database
-        .query_row("SELECT table_name,sample_count FROM streams WHERE execution_id=?1 AND stream_id='obc.pulse'", [id], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row(
+            "SELECT f.path,s.rows FROM streams s JOIN files f ON s.file_id=f.id WHERE s.execution_id=?1 AND s.stream_id='obc.pulse'",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .optional()
         .unwrap();
     let count = match stream {
-        Some((table, count)) => {
-            assert!(table.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'));
-            let query = format!("SELECT count(*) FROM {table}");
-            let physical: i64 = database.query_row(&query, [], |row| row.get(0)).unwrap();
-            assert_eq!(physical, count);
+        Some((member, count)) => {
+            let mut zip = zip::ZipArchive::new(std::fs::File::open(archive).unwrap()).unwrap();
+            let mut bytes = Vec::new();
+            zip.by_name(&member).unwrap().read_to_end(&mut bytes).unwrap();
+            let reader = arrow_ipc::reader::FileReader::try_new(std::io::Cursor::new(bytes), None).unwrap();
+            assert_eq!(reader.map(|batch| batch.unwrap().num_rows()).sum::<usize>() as i64, count);
             count
         }
         None => 0,

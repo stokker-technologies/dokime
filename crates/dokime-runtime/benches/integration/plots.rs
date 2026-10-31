@@ -134,7 +134,7 @@ async fn measure_queries() {
     owner.shutdown().await.unwrap();
 }
 
-fn config(root: &std::path::Path) -> RuntimeConfig {
+pub(super) fn config(root: &std::path::Path) -> RuntimeConfig {
     let schema = harmos::schema::graph::Schema::from_declaration(PlotRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
     let plugin = InstalledPlugin {
         source: OWNER.into(),
@@ -161,7 +161,7 @@ fn config(root: &std::path::Path) -> RuntimeConfig {
     RuntimeConfig::new(root, metadata("bench.plots", "Plot Bench")).with_installed_plugins([plugin])
 }
 
-fn batch(rows: usize) -> TelemetryBatch {
+pub(super) fn batch(rows: usize) -> TelemetryBatch {
     let stream = identifier(STREAM);
     let samples = (0..rows)
         .map(|index| {

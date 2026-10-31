@@ -80,11 +80,9 @@ impl RuntimeHandle {
             if page.is_empty() {
                 break;
             }
-            for row in page {
-                position = row.record.position.sequence;
-                if let Some(stream) = row.record.schema.id.as_str().strip_prefix("dokime.telemetry.") {
-                    streams.insert(stream.to_owned());
-                }
+            for (at, entry) in page {
+                position = at;
+                streams.insert(entry.sample.stream.to_string());
             }
         }
         Ok(streams)
@@ -129,7 +127,7 @@ pub fn reduce_plot_payload(
 pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
-    let at = runtime.storage().cursor_saved();
+    let at = runtime.storage().cursor_accepted();
     query_plot_payloads_at(runtime, requests, mode, &at).await
 }
 
@@ -197,7 +195,9 @@ async fn query_plot_payloads_with_context(
             continue;
         }
         let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
-            let codecs = crate::runtime::storage::telemetry::saved_codecs(session, at, None, runtime.schema_settings(), |id, _| {
+            let mut schema_at = at.clone();
+            schema_at.sequence = schema_at.sequence.min(session.cursor_saved().sequence);
+            let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &schema_at, None, runtime.schema_settings(), |id, _| {
                 id.strip_prefix("dokime.telemetry.") == Some(request.stream.as_str())
             })
             .await?;
@@ -227,7 +227,12 @@ async fn query_plot_payloads_with_context(
                     Some(query) => {
                         crate::plot::stored::materialize(
                             session,
-                            crate::plot::stored::Selection { query, codec, producer_order: false },
+                            &runtime.local_storage,
+                            crate::plot::stored::Selection {
+                                query,
+                                scope: &selection.scope,
+                                producer_order: false,
+                            },
                             &request,
                             context.generated_at.as_str(),
                             &format,
@@ -287,9 +292,11 @@ async fn query_spilled_plot(
     );
     let visible = super::records::view_filter(&context.snapshot, None, captured);
     if !record_types.is_empty() {
+        let mut records_at = at.clone();
+        records_at.sequence = records_at.sequence.min(session.cursor_saved().sequence);
         runtime
             .record_source
-            .visit_saved_records_at_in(session, context.snapshot.revision(), at, |page| {
+            .visit_saved_records_at_in(session, context.snapshot.revision(), &records_at, |page| {
                 for record in page.iter() {
                     let subscribed = captured.and_then(|captures| captures.captured_scope(record));
                     if !visible(record)

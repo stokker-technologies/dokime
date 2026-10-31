@@ -125,6 +125,8 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
 /* === Private Functions === */
 
 fn plan(fixture: &Fixture, periods: usize, kind: &str) -> Query {
+    let samples = periods * waveforms::SAMPLES_PER_PERIOD;
+    let end = if kind == "project" { samples / 2 } else { samples };
     let transform = match kind {
         "project" => Transform::Project(Project {
             fields: vec![Projection {
@@ -163,8 +165,7 @@ fn plan(fixture: &Fixture, periods: usize, kind: &str) -> Query {
             item: None,
             stream: None,
             source_start: Some(UNIX_EPOCH),
-            source_end: (kind == "project")
-                .then_some(UNIX_EPOCH + Duration::from_millis((periods * waveforms::SAMPLES_PER_PERIOD / 2) as u64)),
+            source_end: Some(UNIX_EPOCH + Duration::from_millis(end as u64)),
             after: 0,
         }),
         transforms: vec![transform],

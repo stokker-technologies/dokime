@@ -68,7 +68,7 @@ struct Moments {
 pub(crate) struct NumericSummary {
     pub(crate) stream: String,
     pub(crate) field: String,
-    pub(crate) statistics: Vec<(&'static str, f64)>,
+    pub(crate) statistics: Vec<(String, f64)>,
 }
 
 /* === Enums === */
@@ -78,7 +78,9 @@ pub(crate) struct NumericSummary {
 /* === Implementations === */
 
 impl Batch {
-    pub(in crate::storage::sqlite) fn push(&mut self, connection: &Connection, row: &StoredRow) -> Result<(), Error> {
+    pub(in crate::storage::sqlite) fn push(
+        &mut self, connection: &Connection, row: &StoredRow, previews: &mut super::previews::Batch,
+    ) -> Result<(), Error> {
         let Some(execution) = row.record.scope.as_ref() else {
             return Ok(());
         };
@@ -86,6 +88,7 @@ impl Batch {
             return Ok(());
         }
         for (field, value) in crate::storage::telemetry::numeric_metadata(&row.record.payload)? {
+            previews.push(connection, row, &field, value)?;
             let key = (execution.to_string(), row.stream.to_string(), field);
             if let std::collections::btree_map::Entry::Vacant(entry) = self.fields.entry(key.clone()) {
                 let existing: Option<Vec<u8>> = connection
@@ -190,6 +193,29 @@ impl Moments {
 }
 
 impl crate::storage::sqlite::State {
+    pub(crate) async fn numeric_percentile(
+        &self, execution: String, stream: String, field: String, rank: u8,
+    ) -> Result<Option<f64>, Error> {
+        if rank > 100 {
+            return Err(Error::Data("invalid percentile rank"));
+        }
+        self.read(move |connection| {
+            Ok((|| {
+                let moments: Option<Vec<u8>> = connection
+                    .query_row(
+                        "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
+                        params![execution, stream, field],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                moments
+                    .map(|moments| percentile(connection, &(execution, stream, field), Moments::decode(&moments)?.count, rank))
+                    .transpose()
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn numeric_summaries(&self, execution: String) -> Result<Vec<NumericSummary>, Error> {
         self.read(move |connection| {
             Ok((|| {
@@ -203,7 +229,7 @@ impl crate::storage::sqlite::State {
                     let moments = Moments::decode(blob(row, 2)?)?;
                     let std = (moments.deviations / moments.count as f64).max(0.0).sqrt();
                     let key = (execution.clone(), stream.clone(), field.clone());
-                    let statistics = vec![
+                    let statistics: Vec<_> = vec![
                         ("count", moments.count as f64),
                         ("first", moments.first),
                         ("last", moments.last),
@@ -217,7 +243,10 @@ impl crate::storage::sqlite::State {
                         ("sum", moments.sum),
                         ("p95", percentile(connection, &key, moments.count, 95)?),
                         ("p99", percentile(connection, &key, moments.count, 99)?),
-                    ];
+                    ]
+                    .into_iter()
+                    .map(|(name, value)| (name.to_owned(), value))
+                    .collect();
                     if statistics.iter().any(|(_, value)| !value.is_finite()) {
                         return Err(Error::Data("numeric aggregate exceeds finite range"));
                     }

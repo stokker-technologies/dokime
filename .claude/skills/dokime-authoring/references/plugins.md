@@ -12,7 +12,7 @@ A template lists its calls in its `requires` catalog. Its plugin's own `Private`
 
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `RunStart` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 
-The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`.
+The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`. Process observers implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe`; Harmos resolves it once at activation before initialization and sampling. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
 
 ## Layout
 
@@ -103,3 +103,14 @@ Add the exact missing identifier and restart Dokime or retry the plugin. There i
 no binding, environment source or secret default. Manual `SecretSetting`
 declarations likewise use their `id` as the store identifier. Rebuild consumers of
 removed `SecretReference` or per-plugin update APIs against the matching SDK.
+
+## Plugin Settings
+
+Declare bounded operational values with `#[dokime::settings]` and labeled
+`#[dokime::section]` groups, then contribute `dokime::Settings<Settings>`.
+Each numeric setting has a description, validation bounds and units in square
+brackets in its label. Resolve once with `config.settings::<Settings>()` in
+`prepare` and register that snapshot as a resource. Saved updates apply on restart
+or plugin Retry. Host collection cadence is declared in `settings.rs` and read by
+each process observer's runtime interval method. Operation policies remain static
+Harmos declarations; replay windows remain static publication contracts.
