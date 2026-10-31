@@ -96,7 +96,6 @@ tonic-types = { workspace = true }
 [build-dependencies]
 # Local
 dokime = { workspace = true }
-dokime-packaging = { workspace = true }
 
 # Git
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
@@ -115,6 +114,7 @@ serde_json = { workspace = true }
 # Filesystem
 
 # Parsing
+syn = { workspace = true }
 
 # Concurrency
 
