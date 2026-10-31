@@ -214,6 +214,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
+        tauri::RunEvent::Exit => dokime::diagnostics::test_trace::flush(),
         tauri::RunEvent::WindowEvent {
             event: tauri::WindowEvent::CloseRequested { api, .. },
             ..

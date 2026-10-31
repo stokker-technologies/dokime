@@ -42,6 +42,7 @@ use dokime_runtime::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID, distributi
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn distribution_file() {
     let root = tempfile::tempdir().unwrap();

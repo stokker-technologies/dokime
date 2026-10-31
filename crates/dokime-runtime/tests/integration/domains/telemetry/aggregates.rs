@@ -175,6 +175,7 @@ impl ExecutionFixture for NumericFixture {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn exact_numeric_outputs() {
     use harmos::Aggregate;

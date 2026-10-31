@@ -43,6 +43,7 @@ use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSecrets
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn switching_cancels_work() {
     let session = ConnectionSession::default();
@@ -80,6 +81,7 @@ async fn switching_cancels_work() {
     server_health(&second.endpoint).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn identity_is_consistent() {
     for fault in ["pin", "health", "availability", "api"] {
@@ -103,6 +105,7 @@ async fn identity_is_consistent() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn compatible_api_descriptor() {
     let mut service = Service::new("backend");
@@ -112,6 +115,7 @@ async fn compatible_api_descriptor() {
     assert_eq!(connected.backend.unwrap().descriptor_sha256, "07".repeat(32));
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn api_negotiation_availability() {
     let mut wrong_package = Service::new("backend");
@@ -137,6 +141,7 @@ async fn api_negotiation_availability() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn secrets_endpoint_bound() {
     let secrets = MemorySecrets::default();
@@ -169,6 +174,7 @@ async fn secrets_endpoint_bound() {
     assert_eq!(entries.lock().unwrap()[&first.endpoint], "private-token");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn transport_and_secrets() {
     let key = "fixture-access-key-012345678901234567890123456789";
@@ -205,6 +211,7 @@ async fn transport_and_secrets() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn negotiation_matches_fixture() {
     let scenarios: Vec<serde_json::Value> =
@@ -249,6 +256,7 @@ async fn negotiation_matches_fixture() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn remote_candidates_require_identity_and_pinned_ca() {
     let gate = Arc::new(Gate::new());
@@ -282,6 +290,7 @@ async fn remote_candidates_require_identity_and_pinned_ca() {
     assert!(session.connect(untrusted.remote(true, None)).await.is_err());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn remote_file_import_uses_the_saved_keyring_entry() {
     let token = "synthetic-remote-import-key-01234567890123456789";

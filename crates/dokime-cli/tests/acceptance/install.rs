@@ -314,6 +314,7 @@ fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
     })
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn install() {
     let install_code = Arc::new(Mutex::new(tonic::Code::Ok));

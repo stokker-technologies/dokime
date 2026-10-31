@@ -86,6 +86,7 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import { traceSpan } from "./test-trace.mjs";
 import { ReportBrowser } from "./report-browser.ts";
 
 /* === Re-Exports === */
@@ -235,7 +236,11 @@ function listening(endpoint) {
   });
 }
 
-async function until(description, check, timeout = 120000, interval = 150) {
+function until(description, check, timeout = 120000, interval = 150) {
+  return traceSpan(description, "step", () => waitUntil(description, check, timeout, interval));
+}
+
+async function waitUntil(description, check, timeout, interval) {
   const deadline = Date.now() + timeout;
   let last;
   while (Date.now() < deadline) {
@@ -3638,8 +3643,11 @@ async function journey(name, run) {
     return { ok: false };
   }
   try {
-    const value = await run();
-    await finalizeStoryReports(name);
+    const value = await traceSpan(name, "scene", async () => {
+      const result = await run();
+      await finalizeStoryReports(name);
+      return result;
+    });
     passedJourneys.push(name);
     results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");

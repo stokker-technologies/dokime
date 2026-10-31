@@ -53,6 +53,7 @@ pub(crate) use crate::service_support::prelude::*;
 // One runtime with the host wifi contracts carries the publication stages. The refusals run
 // first because they assert an empty evidence set; later stages scope their counts to what
 // they publish.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn evidence_publication() {
     let root = tempdir().unwrap();
@@ -70,6 +71,7 @@ async fn evidence_publication() {
 
 // Execution-published evidence: definitions, contract conflicts and traceability share one
 // runtime; the tracking transitions need an executor of their own.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn evidence_model_traceability() {
     let root = tempdir().unwrap();
@@ -83,6 +85,7 @@ async fn evidence_model_traceability() {
 }
 
 // Each batch size publishes into a runtime of its own so the stream cursors start at one.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn evidence_telemetry_batches() {
     publication::telemetry_batches_sample().await;

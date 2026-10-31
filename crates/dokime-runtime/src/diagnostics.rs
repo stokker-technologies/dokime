@@ -15,6 +15,9 @@
 
 pub use dokime_domain::model::diagnostics::*;
 
+#[cfg(feature = "native")]
+pub use dokime_tracing as test_trace;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -61,15 +64,11 @@ pub fn install_panic_hook() {
 #[cfg(feature = "native")]
 pub fn install_subscriber() {
     use tracing_subscriber::Layer;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
 
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_ansi(false).without_time().with_writer(std::io::stderr).with_filter(filter))
-        // Preserve Execution Spans Independently Of Console Verbosity.
-        .with(tracing_error::ErrorLayer::default())
-        .try_init();
+    let layers: Vec<dokime_tracing::BoxedLayer> =
+        vec![tracing_subscriber::fmt::layer().with_ansi(false).without_time().with_writer(std::io::stderr).with_filter(filter).boxed()];
+    let _ = dokime_tracing::configure(layers);
 }
 
 pub fn panicked(carried: &(dyn Any + Send)) -> Diagnostic {

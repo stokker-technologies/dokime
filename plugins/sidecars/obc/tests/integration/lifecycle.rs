@@ -130,6 +130,7 @@ fn records(replies: &[EvidenceBatch]) -> Vec<RecordPublishRequest> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_streams_outcome() {
     let workflow = workflow();
@@ -172,6 +173,7 @@ async fn execution_streams_outcome() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn repeated_cursor_output() {
     let workflow = workflow();
@@ -203,6 +205,7 @@ async fn repeated_cursor_output() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cancellation_measures_criterion() {
     let workflow = workflow();
@@ -236,6 +239,7 @@ async fn cancellation_measures_criterion() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unknown_workflow_refused() {
     let workflow = workflow();

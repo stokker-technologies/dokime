@@ -51,6 +51,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn execution_seal_report() {
     // The Stages' Futures Are Large In Debug Builds: Drive Them On A Thread With A Roomy Stack

@@ -162,18 +162,21 @@ async fn assert_refused<T: SidecarTemplate + dokime_runtime::definition::Declare
     assert!(diagnostics.contains("admission.reading"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn publication_refuses_waits() {
     assert_refused::<PublishPending>().await;
     assert_refused::<PublishReturn>().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_handles_waits() {
     assert_refused::<HandlePending>().await;
     assert_refused::<HandleReturn>().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn declared_stream_publications() {
     let (replies, samples) = run::<Declared>().await;

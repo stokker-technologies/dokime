@@ -25,6 +25,7 @@ import { parseArgs } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import "./test-trace.mjs";
 
 /* === Re-Exports === */
 

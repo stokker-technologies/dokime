@@ -43,6 +43,7 @@ const PLOT_POINTS: usize = 400;
 
 /* === Private Functions === */
 // snapshot query with all window uses all samples before downsampling.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn snapshot_query_samples() {
     let root = tempdir().unwrap();
@@ -93,6 +94,7 @@ async fn snapshot_query_samples() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn batch_replacement_requests() {
     let root = tempdir().unwrap();
@@ -117,6 +119,7 @@ async fn batch_replacement_requests() {
 // a time series plot summarizes each series over the exact rows of its window,
 // whatever the display budget: the whole window, a trailing window, a zoomed
 // range and complete replacement frames.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn series_window_summaries() {
     let root = tempdir().unwrap();
@@ -173,6 +176,7 @@ async fn series_window_summaries() {
 
 // a wifi occupancy plot carries its per-scan and per-band counts: readings
 // sharing a whole second form one scan, a channel keeping its largest reading.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn wifi_occupancy_scans() {
     let root = tempdir().unwrap();
@@ -230,6 +234,7 @@ async fn wifi_occupancy_scans() {
 }
 
 // an xy interval plot's analysis counts the samples its bins summarize.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn interval_raw_points() {
     let root = tempdir().unwrap();
@@ -266,6 +271,7 @@ async fn interval_raw_points() {
 }
 
 // Replacement Frames Carry The Complete Cartesian Window.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn replacement_frame_domains() {
     let root = tempdir().unwrap();
@@ -292,6 +298,7 @@ async fn replacement_frame_domains() {
     assert_eq!((&frame.x_domain, &frame.y_domain, frame.point_count), (&snapshot.x_domain, &snapshot.y_domain, snapshot.point_count));
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_plots_samples() {
     let root = tempdir().unwrap();
@@ -666,6 +673,7 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
 /* === Tests === */
 
 // distribution query bins its x column and does not limit evidence to the display budget.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn window_context_uses_latest_source_time_then_persisted_position() {
     let root = tempdir().unwrap();
@@ -723,6 +731,7 @@ async fn window_context_uses_latest_source_time_then_persisted_position() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn distribution_query_budget() {
     let root = tempdir().unwrap();
@@ -759,6 +768,7 @@ async fn distribution_query_budget() {
 }
 
 // record only query filters on execution dimensions without a telemetry stream.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn record_query_absent() {
     use dokime_runtime::document::{DocumentFilter, FilterOperator};
@@ -807,6 +817,7 @@ async fn record_query_absent() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_provenance() {
     let root = tempdir().unwrap();
@@ -849,6 +860,7 @@ async fn selected_analysis_provenance() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_original_coordinates() {
     let root = tempdir().unwrap();
@@ -876,6 +888,7 @@ async fn selected_original_coordinates() {
 }
 
 #[cfg(feature = "fft")]
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_fft_manager() {
     let root = tempdir().unwrap();
@@ -906,6 +919,7 @@ async fn selected_fft_manager() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_read() {
     let root = tempdir().unwrap();
@@ -925,6 +939,7 @@ async fn selected_analysis_read() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_axes() {
     let root = tempdir().unwrap();
@@ -959,11 +974,13 @@ async fn selected_analysis_axes() {
 }
 
 // The one-day guard of the saved-window path; `system/telemetry_plot_history.rs` saves seven days.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn telemetry_history() {
     crate::service_support::plots::telemetry_history(4_000, PLOT_POINTS, 1).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn numeric_query_reductions_match_spilled_results() {
     let mut reference = None;

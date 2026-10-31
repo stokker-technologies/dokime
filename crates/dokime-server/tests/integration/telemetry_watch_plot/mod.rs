@@ -45,6 +45,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn telemetry_watch_plot() {
     Box::pin(telemetry::telemetry_pages_window()).await;

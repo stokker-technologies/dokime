@@ -38,6 +38,7 @@ pub(crate) mod observers {
         row = Row, description = "Shared row metadata")]
     struct Revisioned;
 
+    #[dokime_tracing::trace_test]
     #[test]
     fn native_metadata_revision() {
         use dokime_runtime::telemetry::TelemetryStream;
@@ -493,6 +494,7 @@ fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn instance_opens_resources() {
     let probe = Arc::new(Probe::default());
@@ -532,6 +534,7 @@ async fn instance_opens_resources() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_refuses_line() {
     let probe = Arc::new(Probe::default());
@@ -556,6 +559,7 @@ async fn plugin_refuses_line() {
     assert_eq!(probe.drops.load(Ordering::SeqCst), 0, "a refused preparation never opened the resource it would have to close");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn listener_publishes_asked() {
     let probe = Arc::new(Probe::default());
@@ -613,6 +617,7 @@ async fn listener_publishes_asked() {
     native.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn raw_field_keys() {
     use dokime_runtime::telemetry::TelemetryRow;
@@ -627,6 +632,7 @@ fn raw_field_keys() {
     assert_eq!(RawIdentifiers::from_row(&values).unwrap().r#type, "probe");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn record_demand_cancel() {
     let probe = Arc::new(Probe::default());

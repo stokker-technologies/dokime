@@ -112,6 +112,7 @@ usage = 'flag "--check"'
 run = [
   "{{vars.python}} ruff format packages/dokime-client{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -145,6 +146,8 @@ run = [
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ruff check tools/python/src/dokime_tools/test/python.py",
   "{{vars.python}} ty check --project tools/python",
+  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
 ]
 
 [tasks."lint:typescript"]
@@ -160,7 +163,7 @@ run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:p
 
 [tasks."check:python"]
 description = "Check Python"
-run = [{ task = "format:python --check" }, { task = "lint:python" }]
+run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "test:tooling" }]
 
 [tasks."check:python:generated"]
 description = "Check The Generated Python Client"
@@ -305,6 +308,11 @@ depends = [
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
+[tasks."test:tooling"]
+
+description = "Test Project Tooling"
+run = "{{vars.python}} python -m unittest discover -s tools/python/tests"
+
 [tasks."test:python:unit"]
 description = "Test Unit Python"
 depends = ["prepare"]
@@ -359,8 +367,11 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]
 description = "Test Integration Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>" help="Narrow The Nextest Filterset"
+'''
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\" {% if usage.select %}-E \"{{usage.select}}\"{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:acceptance"]

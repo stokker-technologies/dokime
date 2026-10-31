@@ -377,6 +377,7 @@ fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn catalog_identifiers_are_unique() {
     for (configuration, identifier) in [
@@ -400,6 +401,7 @@ fn catalog_identifiers_are_unique() {
     std::fs::remove_file(output).unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn alias_inventory_declared() {
     let declaration = declaration_of("integration/renamed_sdk.rs");
@@ -426,6 +428,7 @@ fn alias_inventory_declared() {
     assert_eq!(namespaces, ["dokime.records", "dokime.telemetry", "dokime.settings"]);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn empty_plugin_identity() {
     let declaration = declaration_of("fixtures/routeless.rs");
@@ -436,6 +439,7 @@ fn empty_plugin_identity() {
     assert!(declaration.sections.is_empty());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn invalid_identity_refused() {
     let (built, _) = compile("fixtures/invalid_identity.rs");
@@ -448,6 +452,7 @@ fn invalid_identity_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn hyphenated_identity_refused() {
     let (built, _) = compile("fixtures/hyphenated_identity.rs");
@@ -460,6 +465,7 @@ fn hyphenated_identity_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suiteless_template_refused() {
     let (built, _) = compile("fixtures/template_identity.rs");
@@ -475,6 +481,7 @@ fn suiteless_template_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suite_refuses_templates() {
     let (built, _) = compile("fixtures/suite_templates.rs");
@@ -487,6 +494,7 @@ fn suite_refuses_templates() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn duplicate_operations_refused() {
     let (built, output) = compile("fixtures/duplicate_operations.rs");
@@ -498,6 +506,7 @@ fn duplicate_operations_refused() {
     assert!(refused.to_string().contains("duplicate ordinary operation `duplicated.read`"), "{refused}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn stream_declares_shape() {
     let (built, _) = compile("fixtures/stream_shapes.rs");
@@ -510,6 +519,7 @@ fn stream_declares_shape() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn foreign_stream_unpublished() {
     let (built, _) = compile("fixtures/unpublishable_streams.rs");
@@ -527,6 +537,7 @@ fn foreign_stream_unpublished() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn undeclared_call_refused() {
     let (built, _) = compile("fixtures/undeclared_call.rs");
@@ -543,6 +554,7 @@ fn undeclared_call_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn mount_refuses_unserved() {
     let (built, _) = compile("fixtures/unserved_calls.rs");
@@ -559,6 +571,7 @@ fn mount_refuses_unserved() {
     assert!(diagnostics.contains("aborting due to 1 previous error"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn listed_grant_refused() {
     let (built, _) = compile_observer_catalogs("listed_streams", "streams(Sample),", "Sample", 10);
@@ -569,6 +582,7 @@ fn listed_grant_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn conflicting_streams_refused() {
     let (built, _) = compile_observer_catalogs("conflicting_streams", "", "Conflicting", 10);
@@ -582,6 +596,7 @@ fn conflicting_streams_refused() {
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn shared_stream_once() {
     let (invalid, _) = compile_observer_catalogs("zero_observer_cadence", "", "Sample", 0);

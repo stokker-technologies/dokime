@@ -77,6 +77,7 @@ fn running(_pid: u32) -> bool {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stop_while_prompt_waits() {
     let Session {
@@ -135,6 +136,7 @@ async fn stop_while_prompt_waits() {
     session.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn idle_stop_leaves_sealing_to_next_start() {
     let Session {

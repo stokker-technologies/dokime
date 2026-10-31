@@ -87,6 +87,7 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 # Local
+dokime-tracing = { workspace = true }
 dokime = { workspace = true, features = ["plugin-sidecar"] }
 
 # Git

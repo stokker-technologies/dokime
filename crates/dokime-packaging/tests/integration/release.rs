@@ -50,6 +50,7 @@ use dokime_packaging::installer::release::Release;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn verified_release_cache() {
     let root = tempfile::tempdir().unwrap();

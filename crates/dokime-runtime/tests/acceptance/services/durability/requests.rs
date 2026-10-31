@@ -42,6 +42,7 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn durable_requests_reopens() {
     if let Some(root) = std::env::var_os("DOKIME_RECEIPT_KILL_ROOT") {
