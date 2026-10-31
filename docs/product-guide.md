@@ -1592,8 +1592,9 @@ The output contains `.proto` files, `descriptors.bin`, `contracts.json` and thei
 The server contract producer generates the protobuf descriptors of every public operation;
 `mise run build` regenerates the Python package's contract files from them with
 `cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
-copy. The desktop's TypeScript pipeline selects `cargo-dokime` from the same Cargo build's
-compiler messages and runs `bindings proto` before the Buf generator. Its protobuf modules,
+copy. The `prepare:generated` prerequisite builds the contract generator and server export
+with the dev compiler profile, selects `cargo-dokime` from those compiler messages
+and runs `bindings proto` before the Buf generator and report/frontend compilation. Its protobuf modules,
 client and descriptor fingerprint match the server export. Application settings still come from
 that build-script export. Ordinary wheel and source-package
 installation uses the tracked files and needs no Rust compiler.

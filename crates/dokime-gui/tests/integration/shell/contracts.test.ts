@@ -61,8 +61,8 @@ let sources: Map<string, string>;
 let contractPaths: Set<string>;
 
 beforeAll(async () => {
-  // The `prepare:bindings` Task Generates The Bindings These Stories Read
-  assert.ok(existsSync(descriptors), `${descriptors} is missing; run \`mise run prepare:bindings -- <compiler-messages>\``);
+  // The `prepare:generated` Task Generates The Bindings These Stories Read
+  assert.ok(existsSync(descriptors), `${descriptors} is missing; run \`mise run prepare:generated -- --write\``);
   sources = generatedSources(descriptors);
   sources.set(facadePath, readFileSync(resolve(gui, facadePath), "utf8"));
   const inventory: { contracts: { grpc?: { package: string; service: string; method: string } }[] } = JSON.parse(

@@ -15,7 +15,7 @@
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import configuration, frontend
-from dokime_tools.prepare import bindings, generated
+from dokime_tools.prepare import generated
 
 # Type Checking Imports
 
@@ -31,10 +31,7 @@ from dokime_tools.prepare import bindings, generated
 
 
 def build(profile: str) -> list[str]:
-    """Generate The GUI Message Modules From Protobuf And Build The Live Frontend."""
-    messages = configuration.messages(profile)
-    bindings.generate(messages, check=True)
-    generated.generate(messages, check=True)
+    """Stage The Prepared GUI Modules And Build The Live Frontend."""
     generated.stage(profile)
     built = frontend.build(profile)
     files = [path for path in built.rglob("*") if path.is_file()]

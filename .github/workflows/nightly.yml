@@ -209,7 +209,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,protoc
     concurrency:
       group: ci-${{ github.workflow }}-check_typescript-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -749,7 +749,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -1009,7 +1009,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -1273,7 +1273,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -2380,7 +2380,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 2G
@@ -4190,7 +4190,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,build:rust:tests
+      MISE_TASK_SKIP: build,build:rust:tests,prepare:generated
     needs:
     - build_product
     - build_tests

@@ -34,8 +34,12 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
-Regenerate Python and desktop bindings with `mise run prepare:bindings -- <compiler-messages.jsonl>`
-using the compiler messages from one successful server build.
+The report, frontend, desktop and TypeScript checks/tests depend on `prepare:generated`,
+which builds the contract generator and server export before generating their modules.
+Use `mise run prepare:generated -- --write` to refresh tracked Python and TypeScript clients;
+ordinary preparation checks them. Generation uses the dev compiler profile independently
+of the requested Product profile. CI lanes restore the matching Product modules and skip
+this producer instead of compiling again.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package:rust`
@@ -56,7 +60,7 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
-Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
 Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs both desktop stories on Windows and Linux.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 

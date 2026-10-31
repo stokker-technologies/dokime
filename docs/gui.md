@@ -63,8 +63,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 - Rust `dokime-domain::operations` declarations own the wire shape; do not
   maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings -- <compiler-messages.jsonl>` and `build:typescript`
-  select the build's `cargo-dokime` executable, export `bindings proto` and feed
+- `mise run prepare:generated` builds `cargo-dokime` and the server contract export
+  before any report or frontend compilation, exports `bindings proto` and feeds
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;
