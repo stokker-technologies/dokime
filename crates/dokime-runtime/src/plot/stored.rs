@@ -63,6 +63,15 @@ struct NativeTable {
     summaries: std::collections::BTreeMap<String, (usize, PlotSeriesSummary)>,
 }
 
+struct SeriesStatistics {
+    moments: harmos::signal::Summary,
+    eligible: usize,
+    extent: Option<PlotWindow>,
+    previous: Option<f64>,
+    ascending: bool,
+    values: Option<Vec<f64>>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -291,8 +300,19 @@ async fn native_table(
     if request.summary_window.is_some_and(|window| !window.from.is_finite() || !window.to.is_finite() || window.from > window.to) {
         return Err(invalid("plot summary window is invalid"));
     }
-    let mut statistics =
-        keys.iter().map(|_| (harmos::signal::Summary::new(), 0usize, None::<PlotWindow>, None::<f64>, true)).collect::<Vec<_>>();
+    // Share One Response Budget Across All Exact-Median Columns; Larger Selections Keep The Spill Path.
+    let cache_limit = session.settings().response.batch_bytes.get() / std::mem::size_of::<f64>() / keys.len();
+    let mut statistics = keys
+        .iter()
+        .map(|_| SeriesStatistics {
+            moments: harmos::signal::Summary::new(),
+            eligible: 0,
+            extent: None,
+            previous: None,
+            ascending: true,
+            values: Some(Vec::new()),
+        })
+        .collect::<Vec<_>>();
     let mut source = source.clone();
     let mut writer = None::<TableWriter>;
     let mut previous = None;
@@ -332,20 +352,32 @@ async fn native_table(
                     .map_or(ScalarValue::Null, ScalarValue::Float)
             };
             let coordinate = number(axis.clone());
-            for (value, (moments, eligible, extent, previous, ascending)) in projected.iter().zip(&mut statistics) {
+            for (value, statistics) in projected.iter().zip(&mut statistics) {
                 let Some(value) = value else { continue };
-                *eligible += 1;
+                statistics.eligible += 1;
                 if request.summary_window.is_some_and(|window| match &axis {
                     ScalarValue::Datetime(stamp) => *stamp < (window.from * 1e9) as i128 || *stamp > (window.to * 1e9) as i128,
                     _ => coordinate.is_none_or(|x| x < window.from || x > window.to),
                 }) {
                     continue;
                 }
-                *ascending &= previous.is_none_or(|previous| previous <= *value);
-                *previous = Some(*value);
-                moments.push(*value);
+                statistics.ascending &= statistics.previous.is_none_or(|previous| previous <= *value);
+                statistics.previous = Some(*value);
+                statistics.moments.push(*value);
+                if let Some(values) = &mut statistics.values {
+                    if values.len() == cache_limit {
+                        statistics.values = None;
+                    } else {
+                        if values.len() == values.capacity() {
+                            values
+                                .try_reserve_exact((cache_limit - values.len()).min(page.rows.get()))
+                                .map_err(|_| invalid("plot median allocation failed"))?;
+                        }
+                        values.push(*value);
+                    }
+                }
                 if let Some(x) = coordinate {
-                    let range = extent.get_or_insert(PlotWindow { from: x, to: x });
+                    let range = statistics.extent.get_or_insert(PlotWindow { from: x, to: x });
                     range.from = range.from.min(x);
                     range.to = range.to.max(x);
                 }
@@ -378,14 +410,35 @@ async fn native_table(
     let table = writer.finish()?;
     let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
     let mut summaries = std::collections::BTreeMap::new();
-    for (key, (moments, eligible, extent, _, ascending)) in keys.into_iter().zip(statistics) {
+    for (key, statistics) in keys.into_iter().zip(statistics) {
+        let SeriesStatistics {
+            moments,
+            eligible,
+            extent,
+            ascending,
+            values,
+            ..
+        } = statistics;
+        let median = if let Some(mut values) = values {
+            if values.is_empty() {
+                None
+            } else {
+                if !ascending {
+                    // Stable Equal-Value Ordering Preserves The Sign Of Zero At The Middle Rank.
+                    values.sort_by(|left, right| left.partial_cmp(right).expect("finite plot values"));
+                }
+                Some(midpoint(values[(values.len() - 1) / 2], values[values.len() / 2]))
+            }
+        } else {
+            native_median(&table, &key, &axis, request.summary_window, moments.count() as usize, ascending)?
+        };
         let summary = PlotSeriesSummary {
             series_id: key.clone(),
             count: moments.count() as usize,
             min: moments.min(),
             max: moments.max(),
             mean: moments.mean(),
-            median: native_median(&table, &key, &axis, request.summary_window, moments.count() as usize, ascending)?,
+            median,
             std: moments.std(),
             rms: moments.rms(),
             window: request.summary_window.or(extent),
@@ -449,17 +502,21 @@ fn native_median(
         if upper >= offset && upper < offset + page.num_rows() {
             let low = low.ok_or_else(|| invalid("plot median lower rank is absent"))?;
             let high = number(field.value(&page, upper - offset)?).ok_or_else(|| invalid("plot median upper rank is absent"))?;
-            return Ok(Some(if low == high {
-                low
-            } else if low.signum() == high.signum() {
-                low + (high - low) * 0.5
-            } else {
-                low * 0.5 + high * 0.5
-            }));
+            return Ok(Some(midpoint(low, high)));
         }
         offset += page.num_rows();
     }
     Err(invalid("plot median rank exceeds stored selection"))
+}
+
+fn midpoint(low: f64, high: f64) -> f64 {
+    if low == high {
+        low
+    } else if low.signum() == high.signum() {
+        low + (high - low) * 0.5
+    } else {
+        low * 0.5 + high * 0.5
+    }
 }
 
 // Visit The Checked Graph Once Without Materializing Every Sample's Metadata And Value Maps.
