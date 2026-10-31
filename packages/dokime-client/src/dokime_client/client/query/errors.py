@@ -45,6 +45,14 @@ class QueryDependencyError(ImportError):
         super().__init__(f"Query conversion requires {extra}; install it with `uv add 'dokime-client[{extra}]'`")
 
 
+class QueryConversionError(ValueError):
+    """A Captured Field Cannot Be Represented Without Losing Its Type Or Value."""
+
+    def __init__(self, field: str, message: str):
+        self.field = field
+        super().__init__(f"Cannot convert query field {field!r}: {message}; narrow fields or use typed iteration")
+
+
 class QueryError(RpcError):
     """A Query Failure Retaining The Original RPC Status, Metadata And Cause."""
 

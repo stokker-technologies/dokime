@@ -17,7 +17,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 # Third Party Imports
 # Local Imports
@@ -34,6 +34,9 @@ from .selection import At, Where, Window, positive, predicates, snapshot_ref, wi
 from .statistics import Statistics, statistic_value
 
 # Type Checking Imports
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 
 # === Public Exports === #
@@ -74,7 +77,21 @@ class EvidenceScope(Protocol):
     def _transport(self) -> Transport: ...
 
 
-class TelemetryReader(QueryReader[Sample | Bucket]):
+class EvidenceReader[T](QueryReader[T]):
+    """Finite Evidence With Optional, Explicitly Bounded Dataframe Conversion."""
+
+    async def to_polars(self, *, max_rows: int | None = None, max_bytes: int | None = None) -> "pl.DataFrame":
+        from .polars import convert
+
+        return await convert(self, max_rows=max_rows, max_bytes=max_bytes)
+
+    async def to_pandas(self, *, max_rows: int | None = None, max_bytes: int | None = None) -> "pd.DataFrame":
+        from .pandas import convert
+
+        return await convert(self, max_rows=max_rows, max_bytes=max_bytes)
+
+
+class TelemetryReader(EvidenceReader[Sample | Bucket]):
     """Raw Samples Or Distinct Complete Bucket Rows At A Fixed Cut."""
 
     statistics: Statistics | None = None
@@ -126,7 +143,7 @@ def execution_records(
     at: At = None,
     page_rows: int | None = None,
     page_bytes: int | None = None,
-) -> QueryReader[Record]:
+) -> EvidenceReader[Record]:
     return records(
         self._transport,
         {"Execution": {"field_0": self.id}},
@@ -208,7 +225,7 @@ def cycle_records(
     at: At = None,
     page_rows: int | None = None,
     page_bytes: int | None = None,
-) -> QueryReader[Record]:
+) -> EvidenceReader[Record]:
     if execution_id is not None and (not isinstance(execution_id, str) or not execution_id):
         raise ValueError("execution_id must be nonempty when supplied")
     scope = {"Cycle": {"field_0": {"cycle_id": self.id, "execution_id": execution_id}}}
@@ -236,12 +253,12 @@ def records(
     at: At,
     page_rows: int | None,
     page_bytes: int | None,
-) -> QueryReader[Record]:
+) -> EvidenceReader[Record]:
     settings = transport.query_settings or QuerySettings()
     selected = selection(record_type, versions, where, between, at)
     selected["record_type"] = selected.pop("identity")
     selected.update(scope=scope, page=page_settings(settings, page_rows, page_bytes))
-    return QueryReader(transport, "ListRecords", selected, lambda row: _wire.record(row, 64), settings)
+    return EvidenceReader(transport, "ListRecords", selected, lambda row: _wire.record(row, 64), settings)
 
 
 def selection(identity: str, versions: Sequence[int] | None, where: Where | None, between: Window | None, at: At) -> dict[str, Any]:

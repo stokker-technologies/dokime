@@ -58,9 +58,40 @@ from dokime_client.client.query import tabular
 assert not {'polars', 'pandas'}.intersection(sys.modules)
 reader = DokimeClient().executions(status='failed')
 assert not reader.closed
+import asyncio
+from unittest.mock import AsyncMock
+from dokime_client import QueryDependencyError
+from dokime_client.client import _wire
+from dokime_client.client.execution import Execution
+from dokime_client.client._contracts import operation
+from dokime_client.client.models import Backend
+async def scenario():
+    client = DokimeClient()
+    execution = Execution._bind('00000000-0000-0000-0000-000000000001', client._transport,
+        Backend('example', 'epoch', '1', 'Example', frozenset()))
+    reply = operation('Query', 'ListRecords').response()
+    _wire.copy(reply, {'rows': [{'record_id': 'row-1', 'severity': {'Info': {}}, 'details': _wire.encode({'count': 7}, 64)}],
+        'schema': {'identity': 'example.event'}, 'snapshot': {'token': 'cut', 'identity': 'cut-1'},
+        'limits': {'rows': 10, 'bytes': 65536}, 'complete': True})
+    client._transport.call = AsyncMock(return_value=reply)
+    for extra in ('polars', 'pandas'):
+        query = execution.query_records('example.event')
+        try:
+            await getattr(query, 'to_' + extra)()
+        except QueryDependencyError as error:
+            assert error.extra == extra
+        else:
+            raise AssertionError('Missing extra was not reported')
+        assert client._transport.call.await_count == 0
+        rows = [row async for row in query]
+        assert rows[0].details['count'] == 7 and query.complete
+        client._transport.call.reset_mock()
+    await client.close()
+asyncio.run(scenario())
 """
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
-    subprocess.run([sys.executable, "-c", script], check=True, env=environment, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", script], check=False, env=environment, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("extra", ["polars", "pandas"])
@@ -76,7 +107,7 @@ def test_query_tabular_missing_extra(extra: Literal["polars", "pandas"], monkeyp
 
         monkeypatch.setattr(tabular, "import_module", missing)
         with pytest.raises(QueryDependencyError) as caught:
-            await tabular.materialize(reader, extra, max_rows=10)
+            await getattr(reader, f"to_{extra}")(max_rows=10)
         assert caught.value.extra == extra and f"dokime-client[{extra}]" in str(caught.value)
         assert isinstance(caught.value.__cause__, ModuleNotFoundError)
         assert call.await_count == 0 and reader._mode is None

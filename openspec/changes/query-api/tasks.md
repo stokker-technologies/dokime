@@ -24,7 +24,7 @@
 ## 3. Optional Tabular Helpers
 
 - [x] 3.1 Packaging/client owner, after 2.4: declare optional `polars`/`pandas` extras in `packages/dokime-client/pyproject.toml` and lazy conversion modules; keep core imports dependency-free. Add missing-dependency and bounded-materialization test sources and install examples. Acceptance: conversion imports are isolated and limits are explicit; check-only proof: Python/repository checks.
-- [ ] 3.2 Conversion owner, after 3.1: implement declared dtypes, UTC timestamps, exact field order, nullable integers, empty frames and metadata access for both libraries. Add conversion test sources for integers above 2^53, nulls, unsupported nested types and errors. Acceptance: no silent float inference/stringification, schema/units/snapshot accessible; check-only proof: Python check and conversion contract review.
+- [x] 3.2 Conversion owner, after 3.1: implement declared dtypes, UTC timestamps, exact field order, nullable integers, empty frames and metadata access for both libraries. Add conversion test sources for integers above 2^53, nulls, unsupported nested types and errors. Acceptance: no silent float inference/stringification, schema/units/snapshot accessible; check-only proof: Python check and conversion contract review.
 - [ ] 3.3 Documentation owner, after 3.2: review root README impact and update only affected shipped interface claims/examples in README, package README, product guide and remote Python guide; remove superseded feature-internal guidance. Acceptance: bounded query/follow distinctions, CLI continuation and optional installs match contracts; check-only proof: repository/Python checks where examples are executable, plus link/API review without prose assertions.
 
 ## 4. Combined Candidate Review
@@ -43,3 +43,5 @@
 - Remaining owners: optional dataframe work is 3.x; combined scenario review is 4.1–4.2. Native cross-platform semantic/performance proof and delivery need separate authorization. Reference-machine/default-budget questions remain deferred; this slice establishes no latency claim.
 
 - 3.1 proof: task-owned lock refresh, Python/repository checks, client typecheck (346 inherited warnings; zero new), strict OpenSpec and 12 focused tabular tests pass. Missing libraries are tested with blocked imports; both installed libraries are exercised. No builds or broad lanes ran.
+
+- 3.2 proof: 50 focused tabular/frame tests pass, including isolated blocked-extra iteration and both installed libraries; Python/client checks pass with 346 inherited warnings and zero new. Int64/Uint64 use explicit nullable dtypes; the captured Integer union uses exact Polars Int128/Pandas object columns. UTC nanoseconds, envelope-first/schema field order, typed empties/errors and metadata are implemented.

@@ -1013,9 +1013,11 @@ from .client import Bucket as Bucket
 from .client import BucketValue as BucketValue
 from .client import CycleSummary as CycleSummary
 from .client import DokimeClient as DokimeClient
+from .client import EvidenceReader as EvidenceReader
 from .client import ExecutionSummary as ExecutionSummary
 from .client import Predicate as Predicate
 from .client import QualityCounts as QualityCounts
+from .client import QueryConversionError as QueryConversionError
 from .client import QueryDependencyError as QueryDependencyError
 from .client import QueryError as QueryError
 from .client import QueryLimitError as QueryLimitError
