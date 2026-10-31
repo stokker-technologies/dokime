@@ -47,6 +47,7 @@ const PHASE: &str = "fixture.sessions.stream";
 struct Probe {
     mode: Settlement,
     entered: tokio::sync::Notify,
+    row_received: tokio::sync::Notify,
     cancelled: tokio::sync::Notify,
     released: tokio::sync::watch::Sender<bool>,
     cancellation: tokio::sync::watch::Sender<bool>,
@@ -84,6 +85,7 @@ impl Probe {
         Self {
             mode,
             entered: tokio::sync::Notify::new(),
+            row_received: tokio::sync::Notify::new(),
             cancelled: tokio::sync::Notify::new(),
             released: tokio::sync::watch::Sender::new(false),
             cancellation: tokio::sync::watch::Sender::new(false),
@@ -105,6 +107,9 @@ impl Probe {
                 continue;
             }
             arrivals.push((stream, id));
+        }
+        if !arrivals.is_empty() {
+            self.row_received.notify_one();
         }
     }
 
@@ -148,6 +153,7 @@ impl Runnable for Probe {
             .map_err(Refusal::of)?;
             self.entered.notify_one();
             if self.mode == Settlement::LiveReplay {
+                self.row_received.notified().await;
                 let ended = TestStepAttempt {
                     attempt_id: start.attempt_id,
                     step_id: start.step_id,
