@@ -53,6 +53,12 @@ pub(crate) struct QueryRead {
     pub fields: Vec<String>,
     pub between: Option<Window>,
     pub after: u64,
+    pub chunk: Option<u64>,
+}
+
+pub(crate) struct QueryProgress {
+    pub complete: bool,
+    pub through: u64,
 }
 
 pub(crate) struct QueryWork {
@@ -126,16 +132,28 @@ impl Drop for Cancellation {
 
 impl State {
     pub(crate) async fn query_telemetry_contracts(
-        &self, at: u64, maximum: usize, operation: &str,
+        &self, scope: crate::storage::sqlite::snapshots::Scope, at: u64, maximum: usize, operation: &str,
     ) -> Result<Vec<dokime_domain::model::telemetry::TelemetryContract>, Box<Failure>> {
         let owned_operation = operation.to_owned();
         self.read(move |connection| {
             let operation = owned_operation;
             Ok((|| {
-                let mut statement = connection
-                    .prepare("SELECT DISTINCT contract FROM streams WHERE first_position<=?1")
-                    .map_err(|e| storage_error(e.into(), &operation))?;
-                let mut rows = statement.query([super::super::position(at)]).map_err(|e| storage_error(e.into(), &operation))?;
+                use crate::storage::sqlite::snapshots::Scope;
+                let mut sql = String::from("SELECT DISTINCT s.contract FROM streams s WHERE s.first_position<=?");
+                let mut args = vec![rusqlite::types::Value::Text(super::super::position(at))];
+                match scope {
+                    Scope::Execution(id) => {
+                        sql.push_str(" AND s.file_id IN (SELECT file_id FROM stream_captures WHERE execution=?)");
+                        args.push(id.into());
+                    }
+                    Scope::Cycle(id) => {
+                        sql.push_str(" AND s.file_id IN (SELECT file_id FROM stream_captures WHERE cycle=?)");
+                        args.push(id.into());
+                    }
+                    Scope::History => {}
+                }
+                let mut statement = connection.prepare(&sql).map_err(|e| storage_error(e.into(), &operation))?;
+                let mut rows = statement.query(rusqlite::params_from_iter(args)).map_err(|e| storage_error(e.into(), &operation))?;
                 let mut contracts = Vec::new();
                 let mut bytes = 0usize;
                 while let Some(row) = rows.next().map_err(|e| storage_error(e.into(), &operation))? {
@@ -165,7 +183,7 @@ impl State {
     pub(crate) async fn query_telemetry<T: Send + 'static>(
         &self, read: QueryRead, mut work: QueryWork, mut output: T,
         mut consume: impl FnMut(&mut T, u64, TelemetrySample) -> Result<Option<u64>, Box<Failure>> + Send + 'static,
-    ) -> Result<(T, QueryWork, bool), Box<Failure>> {
+    ) -> Result<(T, QueryWork, QueryProgress), Box<Failure>> {
         let operation = work.operation;
         let root = self.0.readers.database.parent().expect("storage root").to_owned();
         work.cancelled = Arc::new(AtomicBool::new(false));

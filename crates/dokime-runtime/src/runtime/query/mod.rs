@@ -11,6 +11,7 @@
 
 pub mod aggregate;
 pub(crate) mod artifacts;
+mod buckets;
 pub mod cases;
 pub mod checkpoint_records;
 pub mod checkpoint_telemetry;

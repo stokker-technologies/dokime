@@ -75,9 +75,6 @@ impl RuntimeHandle {
         let operation = "dokime.query.list_samples";
         tokio::time::timeout(self.query_config().limits().active_time, async {
             request.validate_shape()?;
-            if request.bucket.is_some() {
-                return Err(Failure::new(Reason::InvalidSelection, operation, "Use the bucket executor for reduced pages"));
-            }
             let limits = self.query_config().page_limits(&request.page, message_bytes, operation)?;
             let binding = tokens::binding(&request, self.query_config().limits().working_bytes as usize, operation)?;
             let snapshot = self
@@ -90,6 +87,9 @@ impl RuntimeHandle {
                 )
                 .await?;
             let contracts = self.query_snapshot_contracts(&snapshot, operation).await?;
+            if request.bucket.is_some() {
+                return self.query_bucket_samples(request, snapshot, binding, limits, contracts).await;
+            }
             let plan = Plan::new(&contracts, &request, &snapshot, self.query_config(), operation)?;
             let reserve = self
                 .query_continuation(
@@ -152,7 +152,8 @@ impl Plan {
         )?;
         let after = match &snapshot.after {
             None => 0,
-            Some(Seek::Evidence { position, .. }) if *position <= snapshot.cut.at.sequence => *position,
+            Some(Seek::Evidence { position, .. }) if request.bucket.is_none() && *position <= snapshot.cut.at.sequence => *position,
+            Some(Seek::Bucket { .. }) if request.bucket.is_some() => 0,
             _ => return Err(Failure::new(Reason::InvalidContinuation, operation, "Expected a sample position continuation")),
         };
         let fields = selection
@@ -171,6 +172,7 @@ impl Plan {
             fields,
             between: request.between.clone(),
             after,
+            chunk: None,
         };
         Ok(Self { read, selection: Arc::new(selection) })
     }
@@ -242,7 +244,7 @@ pub(super) struct RawResult {
     pub next: Option<(u64, String)>,
 }
 
-pub(super) async fn raw_page(local: &State, plan: Plan, config: QueryConfig, limits: PageLimits) -> Result<RawResult, Box<Failure>> {
+pub(super) async fn raw_page(local: &State, mut plan: Plan, config: QueryConfig, limits: PageLimits) -> Result<RawResult, Box<Failure>> {
     let operation = "dokime.query.list_samples";
     let output = RawPage {
         rows: BTreeMap::new(),
@@ -251,8 +253,9 @@ pub(super) async fn raw_page(local: &State, plan: Plan, config: QueryConfig, lim
         memory: config.limits().working_bytes as usize / 4,
         truncated: false,
     };
+    plan.read.chunk = Some(u64::from(config.limits().max_page_rows));
     let selection = plan.selection;
-    let (page, _, complete) = local
+    let (page, _, progress) = local
         .query_telemetry(plan.read, QueryWork::new(config, operation), output, move |page, position, mut sample| {
             if !matches(&selection, &sample) {
                 return Ok(None);
@@ -262,11 +265,13 @@ pub(super) async fn raw_page(local: &State, plan: Plan, config: QueryConfig, lim
             page.push(position, row, operation)
         })
         .await?;
-    let next = if !complete || page.truncated {
+    let next = if page.truncated {
         page.rows.last_key_value().map(|(position, (row, _))| {
             let SampleRow::Raw(sample) = row else { unreachable!() };
             (*position, sample.sample_id.clone())
         })
+    } else if !progress.complete {
+        Some((progress.through, String::new()))
     } else {
         None
     };

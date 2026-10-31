@@ -127,8 +127,8 @@ impl RuntimeHandle {
                     let _evidence = self.evidence_admission.lock().await;
                     let (contracts, journal, metadata) = self.query_capture_contracts(&scope, operation).await?;
                     let maximum = self.query_config().limits().schema_bytes as usize;
-                    let retained = self.local_storage.query_telemetry_contracts(metadata, maximum, operation).await?;
-                    let contracts = merge_telemetry_contracts(&contracts, retained, maximum, operation)?;
+                    let retained = self.local_storage.query_telemetry_contracts(scope.clone(), metadata, maximum, operation).await?;
+                    let contracts = merge_telemetry_contracts(&scope, &contracts, retained, maximum, operation)?;
                     self.local_storage
                         .snapshot_capture(scope.clone(), None, Some(metadata), expires, contracts, Some(journal))
                         .await
@@ -144,8 +144,9 @@ impl RuntimeHandle {
                     let admitted = self.storage().cursor_accepted();
                     self.storage().flush_until(&admitted).await.map_err(|_| unavailable(operation))?;
                     let maximum = self.query_config().limits().schema_bytes as usize;
-                    let retained = self.local_storage.query_telemetry_contracts(admitted.sequence, maximum, operation).await?;
-                    let contracts = merge_telemetry_contracts(&contracts, retained, maximum, operation)?;
+                    let retained =
+                        self.local_storage.query_telemetry_contracts(scope.clone(), admitted.sequence, maximum, operation).await?;
+                    let contracts = merge_telemetry_contracts(&scope, &contracts, retained, maximum, operation)?;
                     self.local_storage
                         .snapshot_capture(scope.clone(), Some(admitted), Some(metadata), expires, contracts, Some(journal))
                         .await
@@ -323,7 +324,7 @@ pub(super) fn validate_cut(cut: &Cut, scope: &Scope, now: Timestamp, operation: 
 /* === Private Functions === */
 
 fn merge_telemetry_contracts(
-    bytes: &[u8], retained: Vec<crate::telemetry::TelemetryContract>, maximum: usize, operation: &str,
+    scope: &Scope, bytes: &[u8], retained: Vec<crate::telemetry::TelemetryContract>, maximum: usize, operation: &str,
 ) -> Result<Vec<u8>, Box<Failure>> {
     #[derive(serde::Serialize, serde::Deserialize)]
     struct Contracts {
@@ -331,10 +332,24 @@ fn merge_telemetry_contracts(
         telemetry: Vec<crate::telemetry::TelemetryContract>,
     }
     let mut captured: Contracts = serde_json::from_slice(bytes).map_err(|_| unavailable(operation))?;
+    // Persisted Scoped Contracts Own Streams Already Present In This Evidence Cut.
+    if *scope != Scope::History {
+        captured.telemetry.retain(|contract| !retained.iter().any(|stored| stored.stream == contract.stream));
+    }
     for contract in retained {
-        if !captured.telemetry.iter().any(|prior| prior.stream == contract.stream && prior.schema_version == contract.schema_version) {
-            captured.telemetry.push(contract);
+        if let Some(prior) =
+            captured.telemetry.iter().find(|prior| prior.stream == contract.stream && prior.schema_version == contract.schema_version)
+        {
+            if prior.stream_schema() != contract.stream_schema() {
+                return Err(Failure::new(
+                    Reason::IncompatibleSchema,
+                    operation,
+                    "A retained stream reuses a version with different contracts",
+                ));
+            }
+            continue;
         }
+        captured.telemetry.push(contract);
     }
     tokens::bounded_json(&captured, maximum, operation)
 }

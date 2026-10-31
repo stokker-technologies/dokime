@@ -73,7 +73,7 @@ pub(super) fn query(
         u64,
         crate::telemetry::TelemetrySample,
     ) -> std::result::Result<Option<u64>, Box<dokime_domain::model::query::error::Failure>>,
-) -> std::result::Result<bool, Box<dokime_domain::model::query::error::Failure>> {
+) -> std::result::Result<super::query::QueryProgress, Box<dokime_domain::model::query::error::Failure>> {
     use super::query::storage_error;
     let operation = work.operation;
     let scan = || -> Result<_> {
@@ -104,6 +104,7 @@ pub(super) fn query(
     let mut statement = connection.prepare(&sql).map_err(|e| storage_error(e.into(), operation))?;
     let mut rows = statement.query(rusqlite::params_from_iter(args)).map_err(|e| storage_error(e.into(), operation))?;
     let mut cutoff = None;
+    let mut skipped = false;
     let mut partitions = std::collections::BTreeSet::new();
     while let Some(row) = rows.next().map_err(|e| storage_error(e.into(), operation))? {
         work.check()?;
@@ -123,11 +124,16 @@ pub(super) fn query(
             ))
         };
         let (index, id, execution, contract, batch_number, first) = catalog().map_err(|e| storage_error(e, operation))?;
-        if cutoff.is_some_and(|last| first > last) {
-            return Ok(false);
+        if let Some(through) = cutoff.filter(|last| first > *last) {
+            return Ok(super::query::QueryProgress { complete: false, through });
         }
         if !read.versions.contains(&contract.schema_version) {
             continue;
+        }
+        if cutoff.is_none()
+            && let Some(chunk) = read.chunk
+        {
+            cutoff = Some(first.saturating_sub(1).max(read.after).saturating_add(chunk).min(read.cut.at.sequence));
         }
         partitions.insert(id.clone());
         work.config.bound(partitions.len(), work.config.limits().partitions, "partitions", operation)?;
@@ -177,7 +183,11 @@ pub(super) fn query(
         for row in 0..batch.num_rows() {
             work.check()?;
             let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract).map_err(|e| storage_error(e, operation))?;
-            if position <= read.after || position > read.cut.at.sequence || cutoff.is_some_and(|last| position > last) {
+            if position <= read.after || position > read.cut.at.sequence {
+                continue;
+            }
+            if cutoff.is_some_and(|last| position > last) {
+                skipped = true;
                 continue;
             }
             if !ranges.iter().any(|(first, end)| *first <= row as u64 && (row as u64) < *end) {
@@ -193,7 +203,10 @@ pub(super) fn query(
             }
         }
     }
-    Ok(true)
+    Ok(super::query::QueryProgress {
+        complete: !skipped,
+        through: cutoff.unwrap_or(read.cut.at.sequence),
+    })
 }
 
 pub(super) fn indices(connection: &Connection, id: &str) -> Result<Vec<ipc::BatchIndex>> {

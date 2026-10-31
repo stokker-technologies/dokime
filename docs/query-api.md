@@ -132,7 +132,7 @@ Continuations bind the canonical selection/projection/reduction and last scanned
 key. Changing row/byte sizes preserves the selection; changing predicates or
 projection does not. History handlers reserve response metadata and continuation
 bytes before admitting rows. No SQLite transaction, client lock, member vector
-or result set is retained between pages. Raw sample execution consumes evidence seek coordinates; record and bucket execution remain with their owners.
+or result set is retained between pages. Raw sample and bucket execution consume evidence seek coordinates; record execution remains with its owner.
 
 ## Arrow Sample Pages
 
@@ -149,7 +149,7 @@ preview envelope or current numeric summary supplies raw rows. Response schema,
 snapshot and continuation metadata count toward page byte limits. Each page
 rechecks the cut and releases its reader transaction. Later arrivals are excluded
 by the physical frontier even when their timestamps fall inside the window.
-Captured contracts include retained Arrow versions, within the schema budget.
+Captured contracts include retained Arrow versions from the selected execution or cycle, within the schema budget. For streams already present in that scope, persisted Arrow contracts take precedence over the mutable active catalog; a newer plugin version in another scope cannot enlarge an older execution’s schema. Conflicting contracts that reuse one version fail explicitly. Sparse raw scans advance through bounded durable-position spans and can return empty continuation pages after excluded rows.
 
 ## Exact Sample Statistics
 
@@ -167,3 +167,26 @@ against the same scan/time budget. Interpolation uses exact integer rank positio
 and the fractional remainder of `(count - 1) * rank / 100`. Current mutable numeric
 indexes and report previews never answer a historical or filtered selection.
 Exhaustion returns a typed failure; statistics are never partial estimates.
+
+## Epoch Bucket Pages
+
+`runtime/query/buckets.rs` reduces each selected execution/stream/source partition
+across compatible captured versions. Positive `every_nanos` intervals use UTC
+Unix-epoch floor alignment, including timestamps before the epoch. Windows clip
+input rows and keep natural bucket bounds. Empty intervals are omitted; populated
+all-null buckets retain their sample count, finite-field count zero and a null
+numeric value (Count returns zero).
+
+Count/min/max use shared bounded moments. Sum/mean use bounded exponent bins
+with integer mantissa accumulation and a fixed evaluation order, so late or
+out-of-order arrival cannot change results. Each bucket reports the versions
+actually present, units and reducer. Count fields are dimensionless Uint64;
+other bucket values are nullable Float64.
+
+Partition, bucket and working-state limits apply before adding accumulators.
+Excessive cardinality returns BucketLimit with guidance to narrow the window or
+increase every; no interval is silently coarsened. Output pages contain complete
+buckets ordered by start and partition identity. Seek continuations bind the
+selection and reducer; each page rescans the fixed cut within its work budget,
+without retaining a transaction or sample history between calls. Schema,
+snapshot and the longest required continuation count against page byte limits.

@@ -119,7 +119,120 @@ async fn finite_arrow_pages() {
     let mut tiny = fixture.request();
     tiny.page.bytes = Some(32);
     assert_eq!(fixture.runtime.query_list_samples(tiny, usize::MAX).await.unwrap_err().reason, Reason::ResourceLimit);
+    let history = fixture
+        .runtime
+        .query_list_executions(
+            dokime_operations::query::ListExecutions {
+                selection: dokime_domain::model::query::selection::ExecutionSelection {
+                    template_ids: Vec::new(),
+                    cycle_ids: Vec::new(),
+                    statuses: Vec::new(),
+                    started_at: None,
+                    archive: None,
+                },
+                page: dokime_domain::model::query::page::PageRequest { rows: Some(10), bytes: None, after: None },
+                at: None,
+            },
+            usize::MAX,
+        )
+        .await
+        .unwrap();
+    assert_eq!(history.rows.len(), 1);
+    let mut related = fixture.request();
+    related.page.rows = Some(10);
+    related.at = Fixture::at(history.snapshot.as_ref().unwrap());
+    assert_eq!(fixture.page(related).await.rows.len(), 4);
     eprintln!("query shutdown");
     fixture.owner.shutdown().await.unwrap();
     eprintln!("query shutdown complete");
+
+    let mut sparse = Fixture::new(|config| {
+        config.query.page_rows = 1;
+        config.query.max_page_rows = 1;
+    })
+    .await;
+    sparse.publish(&[(0, 0, Some(5.0), "a"), (1, 1, Some(6.0), "a"), (2, 2, Some(7.0), "a")]).await;
+    let mut request = sparse.request();
+    request.r#where = vec![Predicate {
+        field: "counter".into(),
+        operator: Operator::Eq,
+        values: vec![Scalar::Unsigned(2)],
+    }];
+    let first = sparse.page(request.clone()).await;
+    assert!(first.rows.is_empty());
+    assert!(!first.complete);
+    request.at = Fixture::at(first.snapshot.as_ref().unwrap());
+    let mut next = first.next;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut rows = Vec::new();
+    while let Some(token) = next {
+        assert!(seen.insert(token.clone()), "continuation must advance");
+        request.page.after = Some(token);
+        let page = sparse.page(request.clone()).await;
+        rows.extend(page.rows);
+        if page.complete {
+            assert!(page.next.is_none());
+            next = None;
+        } else {
+            assert!(page.next.is_some());
+            next = page.next;
+        }
+    }
+    assert_eq!(rows.len(), 1);
+    sparse.owner.shutdown().await.unwrap();
+
+    // A Newer Unscoped Stream Version Cannot Enlarge An Older Execution's Contract.
+    let root = fixture._root.path().to_owned();
+    let execution_id = fixture.execution.to_string();
+    drop(fixture.runtime);
+    drop(fixture.owner);
+    let configuration = crate::service_support::config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
+        source: "query_fixture".into(),
+        version: "next".into(),
+        description: "Query Fixture".into(),
+        enabled: true,
+        telemetry_contracts: vec![crate::query_telemetry::contract(2)],
+        ..Default::default()
+    }]);
+    let (mut owner, runtime) = crate::service_support::started(configuration).await;
+    let stream = dokime_runtime::Identifier::new("query.readings").unwrap();
+    let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
+        dokime_runtime::model::identity::new_id(),
+        stream.clone(),
+        0,
+        dokime_runtime::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
+        "upgrade",
+    )
+    .typed(&crate::query_telemetry::Reading { counter: 999, value: Some(1.0) });
+    sample.schema_version = 2;
+    sample.values.insert("counter".into(), Value::Unsigned(999));
+    sample.values.insert("value".into(), Value::Number(1.0));
+    let receipt = runtime
+        .publish_telemetry_batch(dokime_runtime::telemetry::TelemetryBatch::new(
+            dokime_runtime::model::identity::new_id(),
+            stream,
+            vec![sample],
+        ))
+        .await
+        .unwrap();
+    assert_eq!(receipt.accepted, 1);
+    drop(receipt);
+    let mut request = dokime_operations::query::ListSamples {
+        execution_id,
+        stream: "query.readings".into(),
+        versions: Vec::new(),
+        fields: vec!["counter".into()],
+        r#where: Vec::new(),
+        between: None,
+        bucket: None,
+        page: dokime_domain::model::query::page::PageRequest { rows: Some(10), bytes: None, after: None },
+        at: None,
+    };
+    let retained = runtime.query_list_samples(request.clone(), usize::MAX).await.unwrap();
+    assert!(retained.complete);
+    assert_eq!(retained.rows.len(), 4);
+    assert_eq!(retained.schema.unwrap().versions, vec![1]);
+    request.versions = vec![2];
+    assert_eq!(runtime.query_list_samples(request, usize::MAX).await.unwrap_err().reason, Reason::IncompatibleSchema);
+    owner.shutdown().await.unwrap();
 }
