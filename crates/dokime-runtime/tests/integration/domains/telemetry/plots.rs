@@ -588,9 +588,6 @@ async fn execution_plots_samples() {
         scope: Some(execution),
         ..Default::default()
     };
-    let indexed = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
-    assert_eq!(plots["exact.plot"]["summaries"], serde_json::to_value(&indexed[0].payload.summaries).unwrap());
-
     // The Typed Live Expression Still Aggregates Integers Before Converting To f64.
     let mut precise = request;
     precise.y_keys.clear();
@@ -598,6 +595,11 @@ async fn execution_plots_samples() {
     let precise = runtime.query_plot_payloads(vec![precise], RuntimePlotQueryMode::Snapshot).await.unwrap();
     assert_eq!(precise[0].payload.summaries[0].mean, Some(9_007_199_254_740_994.0));
     assert_eq!(precise[0].payload.summaries[0].median, Some(9_007_199_254_740_994.0));
+    // The Report Preview Keeps The Same Exact Integer Statistics As The Typed Live Query.
+    let live = serde_json::to_value(&precise[0].payload.summaries[0]).unwrap();
+    for name in ["count", "min", "max", "mean", "median", "std", "rms", "window"] {
+        assert_eq!(plots["exact.plot"]["summaries"][0][name], live[name], "exact.plot {name}");
+    }
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
     let mut sealed = runtime.open_execution_report(&execution_id).await.unwrap();
