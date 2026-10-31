@@ -87,8 +87,8 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
 dokime = { workspace = true, features = ["plugin-sidecar"] }
+dokime-tracing = { workspace = true }
 
 # Git
 harmos-packaging = { workspace = true, features = ["generate-proto"] }

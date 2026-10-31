@@ -289,7 +289,7 @@ platform = "unix"
 [conventions.testing.deadlines]
 acceptance = 900
 integration = 120
-system = 900
+system = 300
 unit = 120
 
 [conventions.testing.limits]
@@ -297,13 +297,6 @@ acceptance = 128
 integration = 256
 system = 64
 unit = 512
-
-[[conventions.testing.overrides]]
-category = "system"
-language = "typescript"
-select = "dokime.native.*::Desktop Backend Walkthrough"
-timeout_seconds = 450
-reason = "Scene-owned reports and bounded fixtures share one prepared native walkthrough."
 
 [languages.python]
 build_target = "any"

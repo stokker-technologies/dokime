@@ -132,9 +132,9 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
 dokime-cli = { path = "../dokime-cli" }
 dokime-runtime = { workspace = true }
+dokime-tracing = { workspace = true }
 plugin-host = { workspace = true }
 
 # Git

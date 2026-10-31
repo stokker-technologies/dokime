@@ -316,7 +316,7 @@ async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, worker
     invalid.executions[0].execution_id = dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string();
     invalid.executions[0].case_id = dokime::model::identity::new_id::<dokime::CaseId>().to_string();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(invalid, TOKEN)).await.is_err());
-    // Several Reports Exercise Every Write Budget; The System Story Owns The 1,003-Member Workload.
+    // Several Reports Exercise Every Write Budget; The System Story Owns Multi-Page Scaling.
     let additional = (0..3).map(|_| uuid::Uuid::now_v7().to_string()).collect::<Vec<_>>();
     let append = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),

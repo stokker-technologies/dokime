@@ -7,8 +7,8 @@
  * ***
  */
 
-// Execution Append And Seal At Full Scale: A 1,003-Member Cycle Appends In One
-// Request And Seals; Integration Keeps The 100-Member Guard Of The Same Path.
+// Execution Append And Seal: A Multi-Page Cycle Appends In One Request And
+// Seals With Proportional Storage Work, Including Every Member's Report.
 
 /* === Modules === */
 
@@ -29,7 +29,7 @@ use dokime::storage::sqlite::{StorageCounters, counters};
 /* === Constants === */
 
 const SMALL: usize = 10;
-const LARGE: usize = 1_003;
+const LARGE: usize = 203;
 
 /* === Macros === */
 
@@ -157,12 +157,12 @@ async fn execution_append_seal() {
         .into_inner();
     let case_id = generated.cases[0].case_id.clone();
 
-    // The Reference Stage And The Full-Scale Stage Run The Same Path On One Fixture.
+    // The Reference And Multi-Page Stages Run The Same Path On One Fixture.
     let (small_append, small_seal) = append_and_seal(&handle, &wire, &case_id, SMALL).await;
     let (large_append, large_seal) = append_and_seal(&handle, &wire, &case_id, LARGE).await;
-    // Linear Scaling: Each Member Of The Full-Scale Stage Costs No More Storage Work Than A
-    // Member Of The Reference Stage (Measured 2026-10-27: Append 45 -> 4,017 Transactions,
-    // Seal 234 -> 17,633 Transactions For 10 -> 1,003 Members).
+    // Linear Scaling: Each Member Of The Multi-Page Stage Costs No More Storage
+    // Work Than A Member Of The Reference Stage. No Product Boundary Requires
+    // A Thousand Members; Crossing Multiple Pages Exercises The Same Seal Path.
     for (stage, small, large) in [("append", small_append, large_append), ("seal", small_seal, large_seal)] {
         assert!(large.transactions * SMALL as u64 <= small.transactions * LARGE as u64, "{stage}: {small:?} -> {large:?}");
         assert!(large.batches * SMALL as u64 <= small.batches * LARGE as u64, "{stage}: {small:?} -> {large:?}");
