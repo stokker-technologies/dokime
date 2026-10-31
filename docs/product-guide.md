@@ -1042,6 +1042,9 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 
 ### Operations And Plugins
 
+The [Query API Foundations](query-api.md) describe the finite query declarations;
+their runtime handlers and client integration are still pending.
+
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 
 | Command | Purpose | Key Flags |

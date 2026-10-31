@@ -70,6 +70,9 @@ tonic = { workspace = true, optional = true }
 # Local
 dokime-tracing = { workspace = true }
 
+# Serialization
+serde_json = { workspace = true }
+
 # === Target Dependencies === #
 
 # === Test Targets === #
