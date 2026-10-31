@@ -43,8 +43,8 @@
 ## 7. Final Validation And Local Handback
 
 - [x] 7.1 After query source closure, run the requested workspace check and formatting through mise on the final tree; report actual native results without umbrella lanes, release builds or installers. No GUI changes are planned.
-- [ ] 7.2 Run only the existing Arrow telemetry million-row window query once at the end through `build:rust:focused`; compare with the recorded landed-Arrow baseline. The owner authorized query-only revalidation; retain the completed write/finalize/export measurements without repeating them.
-- [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes with Conventional Commits and prepare a handback with profile findings, changes, before/after query latency and tests in at most six lines; do not push or merge.
+- [ ] 7.2 Run only the existing Arrow telemetry million-row window query once at the end through `build:rust:focused`; compare with the recorded landed-Arrow baseline. The owner authorized query-only revalidation; retain the completed write/finalize/export measurements without repeating them. **Remaining:** Supplied Windows million-sample query result meets the approximately one-second target, and write/finalize/export measurements are supplied. The recorded pre-optimization query latency and an explicit comparable before/after result are unavailable; do not invent a speedup.
+- [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes with Conventional Commits and prepare a handback with profile findings, changes, before/after query latency and tests in at most six lines; do not push or merge. **Remaining:** Strict validation and the reconciliation commit are performed by this task; the requested before/after query handback still depends on the missing comparison evidence in 7.2.
 
 ## Workflow Follow-Up
 
