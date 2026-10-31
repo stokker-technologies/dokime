@@ -79,7 +79,7 @@ plus `required_fields`. Storage planning must select those versions and bind
 `FieldRef::Declared` to actual captured columns; envelope references have their
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
-storage reader and creates no query handler. Runtime scans and snapshot binding
+storage reader and creates no query handler. Record and sample execution
 remain with their later tasks.
 
 ## Local History Storage
@@ -102,3 +102,37 @@ Interrupted writes expose only committed projections. Layouts lacking these
 indexes are refused: select a fresh storage root explicitly, preserve the old
 root, and keep the development schema/evidence baseline at v1. No migration or
 automatic reset is performed.
+
+## Fixed Query Cuts
+
+`runtime/query/snapshots.rs` drains the existing fixed publication-ingest frontier,
+then captures contracts, the journal frontier and admitted metadata cursor under
+the existing admission gates. It drains records through that journal frontier
+and flushes the admitted evidence cursor. Later record readers must apply both
+the journal and physical frontiers; queued later records cannot enlarge the cut.
+A flush that saves newer work cannot enlarge the returned cut. History capture
+uses the already durable catalog without flushing active executions. Checkpoint
+reuse keeps its original evidence boundary and separate metadata frontier.
+
+Snapshots bind the backend identity, local source, store/epoch, catalog revision,
+metadata/evidence frontiers, captured-contract identity and configured expiry.
+Contract captures are bounded by the schema budget and stored by content hash;
+sealed executions reuse their existing captured source. They contain schema
+metadata, not evidence payloads. Versioned cycle membership and member revisions
+are sought from the catalog, one bounded page at a time.
+
+The local store persists one random signing key. Authenticated tokens survive
+restart while their exact data and contract capture remain available. A token
+never grants access; transport registration and access checks remain task 1.10.
+Expired, tampered, foreign-store, deleted and unavailable cuts fail explicitly.
+History projections and captured contracts survive retirement of superseded native
+object versions. Destructive file deletion advances a separate query generation
+in the deletion transaction; affected tokens then become unavailable.
+
+Continuations bind the canonical selection/projection/reduction and last scanned
+key. Changing row/byte sizes preserves the selection; changing predicates or
+projection does not. History handlers reserve response metadata and continuation
+bytes before admitting rows. No SQLite transaction, client lock, member vector
+or result set is retained between pages. Raw evidence and bucket seek coordinates
+are available to their later execution owners; records/Arrow execution remains
+outside this implementation slice.

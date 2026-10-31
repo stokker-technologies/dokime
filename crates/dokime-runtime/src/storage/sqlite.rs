@@ -13,6 +13,7 @@ mod catalog;
 pub(crate) mod data;
 pub(crate) mod history;
 mod settings;
+pub(crate) mod snapshots;
 
 /* === Re-Exports === */
 

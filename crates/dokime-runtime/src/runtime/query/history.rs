@@ -20,6 +20,7 @@ pub use crate::storage::sqlite::history::Key;
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::Message;
 
 // Local Imports
 use crate::{
@@ -79,7 +80,7 @@ impl History {
     }
 
     pub async fn executions(
-        &self, selection: ExecutionSelection, revision: i64, after: Option<Key>, limits: PageLimits,
+        &self, selection: ExecutionSelection, cut: super::snapshots::Cut, after: Option<Key>, limits: PageLimits,
     ) -> Result<HistoryPage<ExecutionSummary>, Box<Failure>> {
         let operation = "dokime.query.list_executions";
         self.config.bound(selection.template_ids.len(), self.config.limits().alternatives, "templates", operation)?;
@@ -97,13 +98,14 @@ impl History {
         if let Some(window) = &selection.started_at {
             window.validate(operation)?;
         }
-        self.validate(revision, &after, &limits, operation)?;
+        self.validate(cut.catalog, &after, &limits, operation)?;
         let Page { rows, next } = self
             .local
             .history_executions(
                 selection,
                 Read {
-                    revision,
+                    revision: cut.catalog,
+                    cut: Some(cut),
                     after,
                     rows: limits.rows,
                     bytes: limits.bytes,
@@ -115,7 +117,7 @@ impl History {
     }
 
     pub async fn cycles(
-        &self, selection: CycleSelection, revision: i64, after: Option<Key>, limits: PageLimits,
+        &self, selection: CycleSelection, cut: super::snapshots::Cut, after: Option<Key>, limits: PageLimits,
     ) -> Result<HistoryPage<CycleSummary>, Box<Failure>> {
         let operation = "dokime.query.list_cycles";
         self.config.bound(selection.cycle_ids.len(), self.config.limits().alternatives, "cycles", operation)?;
@@ -126,13 +128,14 @@ impl History {
         if let Some(window) = &selection.created_at {
             window.validate(operation)?;
         }
-        self.validate(revision, &after, &limits, operation)?;
+        self.validate(cut.catalog, &after, &limits, operation)?;
         let Page { rows, next } = self
             .local
             .history_cycles(
                 selection,
                 Read {
-                    revision,
+                    revision: cut.catalog,
+                    cut: Some(cut),
                     after,
                     rows: limits.rows,
                     bytes: limits.bytes,
@@ -157,15 +160,123 @@ impl History {
     }
 }
 
+impl RuntimeHandle {
+    pub async fn query_list_executions(
+        &self, request: dokime_operations::query::ListExecutions, message_bytes: usize,
+    ) -> Result<dokime_domain::model::query::page::ExecutionPage, Box<Failure>> {
+        let operation = "dokime.query.list_executions";
+        tokio::time::timeout(self.query_config().limits().active_time, async {
+            request.validate_shape()?;
+            let limits = self.query_config().page_limits(&request.page, message_bytes, operation)?;
+            let binding = super::tokens::binding(&request, self.query_config().limits().working_bytes as usize, operation)?;
+            let snapshot = self
+                .query_snapshot(super::snapshots::Scope::History, request.at.as_ref(), request.page.after.as_deref(), binding, operation)
+                .await?;
+            let after = history_key(snapshot.after.as_ref(), operation)?;
+            let reserve = self.query_continuation(&snapshot, binding, reserved_key(), operation).await?;
+            let mut response = dokime_domain::model::query::page::ExecutionPage {
+                rows: Vec::new(),
+                schema: None,
+                snapshot: Some(snapshot.snapshot.clone()),
+                limits: Some(limits.clone()),
+                next: Some(reserve),
+                complete: false,
+            };
+            let admitted = page_budget(&response, &limits, operation)?;
+            let page = self.query_history().executions(request.selection, snapshot.cut.clone(), after, admitted).await?;
+            response.next = match page.next {
+                Some(key) => Some(self.query_continuation(&snapshot, binding, super::snapshots::Seek::History(key), operation).await?),
+                None => None,
+            };
+            response.rows = page.rows;
+            response.complete = response.next.is_none();
+            check_page(&response, &limits, operation)?;
+            Ok(response)
+        })
+        .await
+        .map_err(|_| Failure::new(Reason::Deadline, operation, "History query exceeded its configured active-work deadline"))?
+    }
+
+    pub async fn query_list_cycles(
+        &self, request: dokime_operations::query::ListCycles, message_bytes: usize,
+    ) -> Result<dokime_domain::model::query::page::CyclePage, Box<Failure>> {
+        let operation = "dokime.query.list_cycles";
+        tokio::time::timeout(self.query_config().limits().active_time, async {
+            request.validate_shape()?;
+            let limits = self.query_config().page_limits(&request.page, message_bytes, operation)?;
+            let binding = super::tokens::binding(&request, self.query_config().limits().working_bytes as usize, operation)?;
+            let snapshot = self
+                .query_snapshot(super::snapshots::Scope::History, request.at.as_ref(), request.page.after.as_deref(), binding, operation)
+                .await?;
+            let after = history_key(snapshot.after.as_ref(), operation)?;
+            let reserve = self.query_continuation(&snapshot, binding, reserved_key(), operation).await?;
+            let mut response = dokime_domain::model::query::page::CyclePage {
+                rows: Vec::new(),
+                schema: None,
+                snapshot: Some(snapshot.snapshot.clone()),
+                limits: Some(limits.clone()),
+                next: Some(reserve),
+                complete: false,
+            };
+            let admitted = page_budget(&response, &limits, operation)?;
+            let page = self.query_history().cycles(request.selection, snapshot.cut.clone(), after, admitted).await?;
+            response.next = match page.next {
+                Some(key) => Some(self.query_continuation(&snapshot, binding, super::snapshots::Seek::History(key), operation).await?),
+                None => None,
+            };
+            response.rows = page.rows;
+            response.complete = response.next.is_none();
+            check_page(&response, &limits, operation)?;
+            Ok(response)
+        })
+        .await
+        .map_err(|_| Failure::new(Reason::Deadline, operation, "History query exceeded its configured active-work deadline"))?
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn reserved_key() -> super::snapshots::Seek {
+    super::snapshots::Seek::History(Key {
+        missing: false,
+        time: vec![255; 16],
+        id: "f".repeat(36),
+    })
+}
+
+fn history_key(seek: Option<&super::snapshots::Seek>, operation: &str) -> Result<Option<Key>, Box<Failure>> {
+    match seek {
+        None => Ok(None),
+        Some(super::snapshots::Seek::History(key)) => Ok(Some(key.clone())),
+        _ => Err(Failure::new(Reason::InvalidContinuation, operation, "Continuation does not identify a history key")),
+    }
+}
+
+fn page_budget(value: &impl serde::Serialize, limits: &PageLimits, operation: &str) -> Result<PageLimits, Box<Failure>> {
+    let overhead = super::tokens::bounded_json(value, limits.bytes as usize, operation)?.len() as u64;
+    let bytes = limits
+        .bytes
+        .checked_sub(overhead + u64::from(limits.rows))
+        .filter(|bytes| *bytes > 0)
+        .ok_or_else(|| Failure::new(Reason::ResourceLimit, operation, "Page metadata exceeds the effective byte ceiling"))?;
+    Ok(PageLimits { rows: limits.rows, bytes })
+}
+
+fn check_page(value: &(impl serde::Serialize + Message), limits: &PageLimits, operation: &str) -> Result<(), Box<Failure>> {
+    super::tokens::bounded_json(value, limits.bytes as usize, operation)?;
+    if value.encoded_size() as u64 > limits.bytes {
+        return Err(Failure::new(Reason::ResourceLimit, operation, "Encoded page exceeds the effective byte ceiling"));
+    }
+    Ok(())
+}
 
 pub(super) fn storage_error(error: crate::storage::Error) -> Box<Failure> {
     let reason = match error {
         crate::storage::Error::Data(_) => Reason::ResourceLimit,
         crate::storage::Error::Corrupt(_) | crate::storage::Error::Decode(_) | crate::storage::Error::Json(_) => Reason::Corruption,
-        crate::storage::Error::Incompatible(_) => Reason::SnapshotUnavailable,
+        crate::storage::Error::Incompatible(_) | crate::storage::Error::QuerySnapshotUnavailable => Reason::SnapshotUnavailable,
         _ => Reason::StorageUnavailable,
     };
     Failure::new(reason, "dokime.query.history", "Local query storage could not satisfy the requested cut")

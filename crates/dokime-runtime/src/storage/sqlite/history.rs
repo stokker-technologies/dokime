@@ -85,6 +85,7 @@ pub struct Key {
 
 pub(crate) struct Read {
     pub revision: i64,
+    pub cut: Option<super::snapshots::Cut>,
     pub after: Option<Key>,
     pub rows: u32,
     pub bytes: u64,
@@ -355,6 +356,12 @@ fn execution_summary(execution: &result::TestExecution) -> Result<ExecutionSumma
 fn plan(kind: &str, archive: Option<ArchiveScope>, read: &Read) -> Plan {
     let index = if archive == Some(ArchiveScope::All) { "query_history_all" } else { "query_history_order" };
     let mut plan = Plan { sql: "SELECT h.body,h.archived,h.missing,h.time,h.id FROM query_history h WHERE h.kind=? AND h.revision<=? AND NOT EXISTS(SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision AND n.revision<=?)".into(), arguments: vec![kind.to_owned().into(),read.revision.into(),read.revision.into()] };
+    if let Some(cut) = &read.cut {
+        plan.sql = plan.sql.replace("n.revision<=?)", "n.revision<=? AND n.position<=?)");
+        plan.arguments.push(super::data::position(cut.metadata).into());
+        plan.sql.push_str(" AND h.position<=?");
+        plan.arguments.push(super::data::position(cut.metadata).into());
+    }
     select_index(&mut plan, index);
     match archive.unwrap_or(ArchiveScope::Unarchived) {
         ArchiveScope::All => {}
@@ -401,6 +408,11 @@ fn finish(plan: &mut Plan, read: &Read) {
 }
 
 fn page<T>(connection: &Connection, plan: Plan, read: &Read, decode: impl Fn(&[u8], bool) -> Result<T, Error>) -> Result<Page<T>, Error> {
+    if let Some(cut) = &read.cut
+        && !super::snapshots::available(connection, cut)?
+    {
+        return Err(Error::QuerySnapshotUnavailable);
+    }
     let mut statement = connection.prepare(&plan.sql)?;
     let mut selected = statement.query(rusqlite::params_from_iter(plan.arguments))?;
     let mut rows = Vec::new();

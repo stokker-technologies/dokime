@@ -58,7 +58,7 @@ derive = ["dep:dokime-macros"]
 # Activates the Harmos operation resource bindings for operations this package declares.
 runtime = []
 configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
-storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+storage = ["dep:base64", "dep:futures-util", "dep:hmac", "dep:rand", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
 testing = ["native"]
 fault-injection = ["native"]
@@ -88,8 +88,10 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
+hmac = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 regex = { workspace = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }

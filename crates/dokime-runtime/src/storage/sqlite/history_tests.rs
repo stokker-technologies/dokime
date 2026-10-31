@@ -53,6 +53,7 @@ fn selection() -> ExecutionSelection {
 fn read(revision: i64) -> Read {
     Read {
         revision,
+        cut: None,
         after: None,
         rows: 2,
         bytes: 8192,
