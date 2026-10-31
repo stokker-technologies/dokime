@@ -17,6 +17,10 @@ mod flush;
 mod inventory;
 pub(crate) mod previews;
 mod reader;
+
+#[cfg(feature = "native")]
+pub(crate) mod report;
+
 #[cfg(test)]
 mod tests;
 mod writer;
