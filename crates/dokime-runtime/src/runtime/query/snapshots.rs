@@ -237,6 +237,7 @@ impl RuntimeHandle {
                     source.telemetry_contracts.values().flat_map(|versions| versions.values()),
                     self.query_config().limits().schema_bytes as usize,
                     operation,
+                    self.process_epoch().to_string(),
                 )?);
             }
         }
@@ -251,6 +252,7 @@ impl RuntimeHandle {
                         state.telemetry_definitions.values(),
                         self.query_config().limits().schema_bytes as usize,
                         operation,
+                        state.process_epoch().to_string(),
                     )?,
                 };
                 Ok::<_, Box<Failure>>((contracts, self.storage().cursor_accepted().sequence))
@@ -288,6 +290,7 @@ impl RuntimeHandle {
             source.telemetry_contracts.values().flat_map(|versions| versions.values()),
             self.query_config().limits().schema_bytes as usize,
             operation,
+            self.process_epoch().to_string(),
         )?;
         drop(view);
         self.local_storage
@@ -356,14 +359,16 @@ fn merge_telemetry_contracts(
 
 fn contract_bytes<'a>(
     records: impl Iterator<Item = &'a crate::records::RecordContract>,
-    telemetry: impl Iterator<Item = &'a crate::telemetry::TelemetryContract>, maximum: usize, operation: &str,
+    telemetry: impl Iterator<Item = &'a crate::telemetry::TelemetryContract>, maximum: usize, operation: &str, record_epoch: String,
 ) -> Result<Vec<u8>, Box<Failure>> {
     #[derive(serde::Serialize)]
     struct Contracts<'a> {
+        record_epoch: String,
         records: Vec<&'a crate::records::RecordContract>,
         telemetry: Vec<&'a crate::telemetry::TelemetryContract>,
     }
     let mut captured = Contracts {
+        record_epoch,
         records: Vec::new(),
         telemetry: Vec::new(),
     };

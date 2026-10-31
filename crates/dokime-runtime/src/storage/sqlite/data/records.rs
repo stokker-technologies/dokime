@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(crate) mod query;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -80,7 +82,7 @@ impl super::State {
             Ok((|| {
                 saved(connection)?.history.check(&at.history)?;
                 let (sql, args) =
-                    scoped_query(&scope, epoch.as_deref(), (after_position, at.sequence), (after_sequence, through_sequence))?;
+                    scoped_query(&scope, epoch.as_deref(), (after_position, at.sequence), (after_sequence, through_sequence), None)?;
                 let mut query = connection.prepare(&sql)?;
                 let mut rows = query.query(rusqlite::params_from_iter(args))?;
                 let mut output = Vec::new();
@@ -186,6 +188,7 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
 
 fn scoped_query(
     scope: &crate::evidence_runtime::ScopeSelection, epoch: Option<&str>, positions: (u64, u64), sequences: (u64, u64),
+    query: Option<&query::Read>,
 ) -> Result<(String, Vec<rusqlite::types::Value>), Error> {
     use rusqlite::types::Value;
     let mut args = vec![Value::Text(position(positions.0)), Value::Text(position(positions.1))];
@@ -202,6 +205,29 @@ fn scoped_query(
     if conditions.len() == 1 {
         return Err(Error::Invalid("indexed record read requires an execution or cycle"));
     }
+    if let Some(read) = query {
+        if let Some(journal) = read.cut.journal {
+            let epoch = read.record_epoch.as_ref().ok_or(Error::Corrupt("query cut has no record journal epoch"))?;
+            args.push(Value::Text(epoch.clone()));
+            let epoch_parameter = args.len();
+            args.push(Value::Text(position(journal)));
+            conditions.push(format!("(epoch IS NULL OR epoch<>?{epoch_parameter} OR sequence<=?{})", args.len()));
+        }
+        if let super::super::snapshots::Scope::Cycle(cycle) = &read.cut.scope {
+            args.push(Value::Text(cycle.clone()));
+            let cycle_parameter = args.len();
+            args.push(Value::Integer(read.cut.catalog));
+            let catalog_parameter = args.len();
+            args.push(Value::Text(position(read.cut.metadata)));
+            conditions.push(format!(
+                "(execution IS NULL OR execution IN (SELECT m.execution FROM query_members m
+                WHERE m.cycle=?{cycle_parameter} AND m.position=(SELECT h.position FROM query_history h
+                WHERE h.kind='cycle' AND h.id=?{cycle_parameter} AND h.revision<=?{catalog_parameter}
+                AND h.position<=?{} ORDER BY h.revision DESC LIMIT 1)))",
+                args.len()
+            ));
+        }
+    }
     let order = if let Some(epoch) = epoch {
         args.push(Value::Text(epoch.to_owned()));
         conditions.push(format!("epoch=?{}", args.len()));
@@ -214,12 +240,13 @@ fn scoped_query(
         "position"
     };
     let conditions = conditions.join(" AND ");
+    let limit = query.map_or(256, |read| read.rows.saturating_add(1));
     let branch =
-        |table| format!("SELECT position FROM (SELECT DISTINCT {order} FROM {table} WHERE {conditions} ORDER BY {order} LIMIT 256)");
+        |table| format!("SELECT position FROM (SELECT DISTINCT {order} FROM {table} WHERE {conditions} ORDER BY {order} LIMIT {limit})");
     // Bound Each Indexed Branch Before Deduplication And Payload Reads.
     let sql = format!(
         "SELECT e.position,e.body,e.digest FROM ({} UNION {}) selected
-        JOIN storage_data_entries e ON e.position=selected.position ORDER BY e.position LIMIT 256",
+        JOIN storage_data_entries e ON e.position=selected.position ORDER BY e.position LIMIT {limit}",
         branch("storage_record_visibility"),
         branch("storage_record_captures"),
     );
@@ -281,7 +308,8 @@ mod tests {
                     (None, history * 2 - 8, 0, u64::MAX, history * 2 - 7, history * 2),
                     (None, 0, 0, u64::MAX, 1, 256),
                 ] {
-                    let (sql, args) = scoped_query(&scope, epoch, (physical_after, history * 2), (logical_after, logical_through)).unwrap();
+                    let (sql, args) =
+                        scoped_query(&scope, epoch, (physical_after, history * 2), (logical_after, logical_through), None).unwrap();
                     let mut query = connection.prepare(&sql).unwrap();
                     let rows = query
                         .query_map(rusqlite::params_from_iter(args), |row| row.get::<_, String>(0))
@@ -301,6 +329,7 @@ mod tests {
                 Some("current"),
                 (0, history * 2),
                 (0, history),
+                None,
             )
             .unwrap();
             assert!(!connection.prepare(&sql).unwrap().exists(rusqlite::params_from_iter(args)).unwrap());
