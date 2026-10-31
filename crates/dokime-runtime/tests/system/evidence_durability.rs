@@ -41,6 +41,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn evidence_durability() {
     crate::evidence_support::evidence_durability(7, 1440).await;

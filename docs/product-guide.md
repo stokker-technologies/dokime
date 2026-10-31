@@ -145,7 +145,9 @@ transfer it privately and revoke its client if it is lost. Raw keys never enter
 the WebView, logs or saved backend profiles. The host retains only verifiers.
 
 Endpoints are automatic: a specific bound address, or the hostname followed by
-real interface addresses in the listener address family, with private networks first. Virtual/VPN adapters are
+real interface addresses in the listener address family, with private networks first
+and IPv4 link-local addresses last. Remote Access shows these addresses with their
+adapter names before export. Virtual/VPN adapters are
 excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
 for a specific loopback bind carry **Same PC** in their generated label.
 The backend signs its listener leaf with a persistent CA, which the file pins.
@@ -171,12 +173,31 @@ Windows installation never needs administrator rights and does not change the
 firewall. On the computer exporting remote access, Settings → Remote Access checks
 Windows Firewall when the listener runs on a non-loopback address. If inbound access
 is blocked, **Allow In Firewall…** requests administrator approval to allow the app
-on **Private** networks once. Cancelled or refused approval leaves the app usable.
+on the listener's active **Private**, **Public** or domain networks. The notice
+identifies each adapter, network and profile. The inbound rule permits only this
+executable's TCP listener port, with peers restricted to the local subnet.
+Cancelled or refused approval leaves the app usable.
 Connecting to another backend only uses outbound access and needs no firewall rule.
 Disabling remote access attempts to remove this installation's rule without a UAC
 prompt; a standard user is told when cleanup needs an administrator. Per-user
 uninstall leaves any rule in place and never requests administrator access.
 On other platforms, permit the saved listener port through the host firewall.
+
+### Direct Cable Between Two PCs
+
+Connect the Ethernet cable and use a different address on each PC in the same
+subnet. Static addresses are recommended, for example `192.168.50.1/24` and
+`192.168.50.2/24`, without a gateway; choose a subnet unused by other adapters.
+Automatic IPv4 link-local addresses (`169.254.x.x`) also work once both adapters
+have acquired them. IPv6 link-local is excluded because it requires an interface
+zone identifier that remote files do not support.
+
+On the exporting PC, check the cable address and adapter name in Remote Access,
+then select **Export Remote Access**. Import the file on the second PC. A cable
+without a gateway may be classified as a Public unidentified network. If the
+firewall notice reports blocked access, optionally select **Allow In Firewall…**
+and approve the administrator prompt; the rule covers that profile for peers on
+the same subnet. Installation never changes firewall rules.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -865,7 +886,7 @@ let watch = ctx
         policy: FileWatchPolicy::Stream,
         selection: FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(100),
+        poll_interval_ms: Some(FILE_POLL_MS),
         maximum_seconds: Some(1),
         maximum_bytes: None,
         matchers: vec![LineMatcher::publishing::<ChargerLog>(
@@ -876,7 +897,7 @@ let watch = ctx
     .await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
-let captured = watch.join().await?.into_owned();
+let captured = watch.cancel().await?.into_owned();
 ```
 
 `All` follows baseline files and later arrivals. `Latest` selects the newest
@@ -889,6 +910,11 @@ Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
 file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
+
+Local watches rescan on native directory notifications. The configured poll
+interval remains the fallback upper bound when notifications are unavailable;
+FTP watches use that interval. Execution sealing and cancellation wake watches
+independently of either source.
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
@@ -972,6 +998,45 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+## Finite Evidence Queries
+
+The Python client discovers executions and cycles in the connected backend's
+local retained history, then selects records or projected telemetry at one fixed
+snapshot. These reads never start, stop, seal or follow an execution. Existing
+`records()`/`samples()` still replay and follow through the execution seal.
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            metadata = samples.metadata
+            assert metadata is not None
+            print(frame, metadata.schema, samples.snapshot, samples.complete)
+```
+
+The selected template/stream must be installed. Install the optional helper from
+the same matching wheel, for example
+`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
+The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
+
+Factories are lazy; `pages()` pulls on demand and exposes effective limits,
+captured schema, snapshot and completeness. Sparse empty pages can continue.
+`at=reader.snapshot` reuses a compatible cut after the first response; windows are
+half-open UTC intervals. Collections and dataframe helpers default to finite
+client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
+losing a later page raises without returning a partial materialization.
+Close abandoned readers with their async context or `aclose()`.
+
+The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
+Keep the returned continuation unchanged, including after an empty page, until
+`complete=true` with no continuation. The [remote Python guide](remote/python.md#query-retained-evidence)
+covers snapshot reuse, server statistics and optional wheel installs.
+
 ## CLI Reference
 
 The `dokime-cli` package installs the `dokime` executable.
@@ -1019,7 +1084,60 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
 | `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
 
+### Query Budgets
+
+Finite-query settings are programmatic startup configuration under
+`crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
+`RuntimeConfig.query`. They are validated before opening storage and retained as
+an immutable `RuntimeHandle::query_config()` snapshot. Runtime handlers serve
+history, record and telemetry queries through native and gRPC operation calls.
+These settings are not application preferences or request policy overrides.
+
+```rust
+let mut config = RuntimeConfig::new(storage_root, metadata);
+config.query.page_rows = 128;
+config.query.max_page_bytes = 512 * 1024;
+config.query.page_bytes = 256 * 1024;
+config.query.scanned_rows = 500_000;
+config.query.active_time = std::time::Duration::from_secs(3);
+```
+
+| Setting | Startup Default |
+| --- | --- |
+| Page Rows / Maximum Rows | 256 / storage response batch rows |
+| Page Bytes / Maximum Bytes | 1/8 storage response batch bytes / storage response batch bytes |
+| Working Bytes / Schema Bytes | storage response batch bytes / 1/8 batch bytes |
+| Scanned Rows / Bytes | 4,194,304 / 128 response batches |
+| Active Time / Admission Wait | 1/2 / 1/10 declared sample-query attempt ceiling |
+| Concurrency / Pending Requests | storage active / pending query ceilings |
+| Predicate Terms / IN Members | 64 / 256 |
+| Fields / Captured Versions / History Alternatives | 128 / 32 / 256 |
+| Partitions / Buckets / Aggregate Outputs | 64 / 4,096 / 64 |
+| Token Bytes / Snapshot Lifetime | 4,096 / 15 min |
+
+Composition clamps page ceilings to storage response budgets, concurrency/pending
+admission to storage capacity, working memory to schema preparation bytes, schema
+bytes to working/page budgets and fields to schema preparation work. Defaults are
+clamped with effective ceilings. A serving transport's message-byte budget further
+clamps each page; schema and metadata must fit that same budget. Callers may request
+smaller positive row/byte budgets. Zero budgets, unaddressable memory, defaults above
+configured page ceilings, admission waits above active time and active deadlines
+above any of the five declared operation ceilings fail startup. Snapshot lifetimes
+must fit an unsigned 64-bit nanosecond duration.
+
+Complexity and scan exhaustion fail explicitly; these defaults establish no latency
+or throughput claim. Snapshot tokens are authenticated, finite scans account for
+admitted rows/bytes, and runtime operation admission bounds active and waiting
+queries. The [query contracts](query-api.md) describe page/failure shapes and
+[finite records versus follow](query-api.md#finite-records-and-follow).
+
 ### Operations And Plugins
+
+The [Query API Foundations](query-api.md) describe the finite query declarations;
+the five operations share runtime handlers and existing read authorization.
+Use the generic operation command for [first and next pages](query-api.md#transport-access-and-cli-paging).
+Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
+over those same contracts.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 
@@ -1058,7 +1176,7 @@ replaced by the `sidecar` group.
 Default Windows NSIS installers use `currentUser` mode and request user-level
 execution. Installation and uninstallation never need administrator rights; setup
 does not add or remove firewall rules. Exposing remote access to other PCs may need
-an administrator to allow the private-network firewall rule once in Settings →
+an administrator to allow the listener's local-subnet firewall rule in Settings →
 Remote Access on the exporting computer.
 
 | Command | Purpose | Key Flags |
@@ -1320,7 +1438,10 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Host payloads now use native repeated fields and framework
+fresh storage root. Versioned local history projections, membership indexes
+and persistent query token identities are part of that layout; retained older
+roots are preserved and are not rebuilt in place. Finite history queries cover this local catalog only; merged browse
+discovery remains a separate API. Host payloads now use native repeated fields and framework
 publication timestamps; the earlier wrapped host row layout also requires a fresh
 root. Schemas remain v1 during development. Existing data is never silently reset.
 
@@ -1568,14 +1689,22 @@ cargo dokime bindings proto --output target/contracts/proto
 
 The output contains `.proto` files, `descriptors.bin`, `contracts.json` and their manifest.
 
-The server contract producer generates the protobuf descriptors of every public operation;
-`mise run build` regenerates the Python package's contract files from them with
-`cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
-copy. The desktop's TypeScript pipeline selects `cargo-dokime` from the same Cargo build's
-compiler messages and runs `bindings proto` before the Buf generator. Its protobuf modules,
-client and descriptor fingerprint match the server export. Application settings still come from
-that build-script export. Ordinary wheel and source-package
-installation uses the tracked files and needs no Rust compiler.
+The server contract producer generates descriptors from every canonical public
+operation. Regenerate all tracked Python/TypeScript contracts and catalog
+snapshots together through the task-owned compiler preflight:
+
+```sh
+mise run prepare:bindings
+```
+
+This task builds the contract generator and server export with the dev compiler
+profile, selects `cargo-dokime` from those compiler messages, exports Python from
+the server contracts and runs `bindings proto` before the TypeScript generator.
+The `prepare:generated` prerequisite of ordinary builds checks tracked clients
+for drift while preparing their message modules. Client descriptors and
+fingerprints match the server export; application settings come from that same
+build-script export. Wheel and source-package installation use tracked files
+and need no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
 client crosses one opaque IPC bridge into the shell, which forwards the

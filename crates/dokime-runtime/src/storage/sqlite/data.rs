@@ -23,6 +23,7 @@ pub(crate) mod telemetry;
 pub use backend::Backend;
 pub(crate) use entry::Entry;
 pub(super) use files::VerifiedPrefix;
+pub(crate) use records::query::{Read as RecordQueryRead, Scan as RecordQueryScan};
 
 /* === Imports === */
 
@@ -233,6 +234,8 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
             return Err(Error::Incompatible("local.sqlite does not satisfy the current indexed evidence schema".into()));
         }
         if initialized {
+            super::history::check_format(connection)?;
+            super::snapshots::check_format(connection)?;
             for query in [
                 "SELECT id,kind,path,size_bytes,sha256,media_type FROM files LIMIT 0",
                 "SELECT file_id,execution,relative_path FROM artifacts LIMIT 0",
@@ -374,6 +377,8 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(crate::plot::preview::index::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
+    transaction.execute_batch(super::history::SCHEMA)?;
+    super::snapshots::initialize(&transaction)?;
     initialize_head(&transaction, expected.as_ref())?;
     let head = saved(&transaction)?;
     if let Some(expected) = expected {
@@ -443,6 +448,9 @@ where
         ])?;
         // Release The Bound Row Before Decoding Its Secondary Index Metadata.
         drop(insert);
+        if let Borrowed::Object(object) = value {
+            super::history::index(&transaction, object)?;
+        }
         if let Borrowed::File(reference) = value {
             telemetry::catalog_file(&transaction, reference)?;
         }

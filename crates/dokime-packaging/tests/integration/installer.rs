@@ -98,6 +98,7 @@ fn hash(bytes: &[u8]) -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn distribution_identity() {
     let root = tempfile::tempdir().unwrap();
@@ -173,6 +174,7 @@ async fn distribution_identity() {
     assert_eq!(std::fs::read(source.join(format!("bin/dokime-gui{suffix}"))).unwrap(), original_gui);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn installer() {
     // Distribution Integrity Refusals Preserve The Unpublished Output.

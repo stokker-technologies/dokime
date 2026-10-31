@@ -184,6 +184,7 @@ async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lan
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn named_analysis_params() {
     let mut registrar = harmos::plugin::Registrar::new();
@@ -199,6 +200,7 @@ fn named_analysis_params() {
     assert_eq!(definitions[0].outputs[0].axis.as_ref().unwrap().key, "time");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn analysis_original_lifecycle() {
     let runtime = serve().await;
@@ -210,6 +212,7 @@ async fn analysis_original_lifecycle() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cancelled_analysis_shutdown() {
     let (release, receiver) = mpsc::channel();

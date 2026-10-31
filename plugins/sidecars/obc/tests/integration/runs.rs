@@ -85,6 +85,7 @@ fn start<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, re
     workflow.start_on(request, None, road(resources))
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn declining_prompt_failure() {
     let resources = Connections::default();
@@ -100,6 +101,7 @@ async fn declining_prompt_failure() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn stopping_continuous_evidence() {
     let resources = Connections::default();
@@ -114,6 +116,7 @@ async fn stopping_continuous_evidence() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn cancelling_steady_device() {
     let resources = Connections::default();
@@ -128,6 +131,7 @@ async fn cancelling_steady_device() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn image_failure_device() {
     let resources = Connections::default();
@@ -149,6 +153,7 @@ async fn image_failure_device() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn protection_refuses_baseline() {
     let resources = Connections::default();
@@ -166,6 +171,7 @@ async fn protection_refuses_baseline() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn one_token_inputs() {
     let resources = Connections::default();
@@ -181,6 +187,7 @@ async fn one_token_inputs() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn faults_contained_ready() {
     let resources = Connections::default();
@@ -277,6 +284,7 @@ async fn awaited_line<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, c
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn step_waits_connections() {
     let resources = Connections::default();
@@ -318,6 +326,7 @@ async fn step_waits_connections() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn unit_refuses_waited() {
     let resources = Connections::default();

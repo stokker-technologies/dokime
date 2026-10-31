@@ -12,6 +12,8 @@
 pub mod artifact;
 pub mod bridge;
 pub mod server;
+#[path = "../../../../dokime-runtime/tests/support/settings.rs"]
+pub mod settings;
 pub mod wire;
 
 /* === Re-Exports === */
@@ -23,6 +25,7 @@ pub mod wire;
 // Third Party Imports
 
 // Local Imports
+use dokime::RuntimeConfig;
 
 /* === Constants === */
 

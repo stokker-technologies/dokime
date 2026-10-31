@@ -30,7 +30,21 @@ from pathlib import Path
 
 LIMIT = 64 * 1024**3
 PRESERVED = frozenset(
-    ("build", "ci", "tests", "generated", "package", "packages", "reports", "documentation", "release-assets", "cache", "caches")
+    (
+        "build",
+        "ci",
+        "tests",
+        "test-reports",
+        "traces",
+        "generated",
+        "package",
+        "packages",
+        "reports",
+        "documentation",
+        "release-assets",
+        "cache",
+        "caches",
+    )
 )
 
 # === Types === #

@@ -145,9 +145,10 @@ impl Watching {
             }
             let pause = remaining.map_or(watch.poll_interval(), |remaining| remaining.min(watch.poll_interval()));
             tokio::select! {
-                () = watch.seal_requested() => break,
+                sealed = watch.wait_for_poll(pause) => {
+                    if sealed { break; }
+                }
                 () = ctx.cancelled() => break,
-                () = tokio::time::sleep(pause) => {}
             }
         }
 

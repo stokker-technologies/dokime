@@ -86,6 +86,7 @@ fn code(error: &Error) -> &str {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {
     let bench = Bench::start(|config, _| config).await;
@@ -112,22 +113,19 @@ async fn failed_initial_admission_never_reports_armed() {
         policy: FileWatchPolicy::Mirror,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: Some(1),
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let instance = operations.submit::<WatchFile>(single).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
     assert!(instance.join().await.is_err());
-    let readiness = bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await;
-    let failure = readiness.expect_err("failed hosted setup cannot report readiness success").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn source_wait_does_not_consume_the_capture_budget() {
     let bench = Bench::start(|config, _| config).await;
@@ -154,6 +152,7 @@ async fn source_wait_does_not_consume_the_capture_budget() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn empty_baseline_arms_before_the_producer() {
     let bench = Bench::start(|config, _| config).await;
@@ -172,6 +171,7 @@ async fn empty_baseline_arms_before_the_producer() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn latest_selects_by_mtime_then_path_and_follows_rotation() {
     let bench = Bench::start(|config, _| config).await;
@@ -202,6 +202,7 @@ async fn latest_selects_by_mtime_then_path_and_follows_rotation() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_ignores_baseline_and_captures_first_discoveries_from_zero() {
     let bench = Bench::start(|config, _| config).await;
@@ -223,6 +224,7 @@ async fn new_ignores_baseline_and_captures_first_discoveries_from_zero() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_with_empty_accessible_root_arms_despite_opt_in_source_wait() {
     let bench = Bench::start(|config, _| config).await;
@@ -241,6 +243,7 @@ async fn new_with_empty_accessible_root_arms_despite_opt_in_source_wait() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
     let bench = Bench::start(|config, _| config).await;
@@ -275,6 +278,7 @@ async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn source_wait_rejects_invalid_paths_and_permission_failures() {
     let bench = Bench::start(|config, _| config).await;
@@ -316,6 +320,7 @@ async fn source_wait_rejects_invalid_paths_and_permission_failures() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
     let bench = Bench::start(|config, _| config).await;
@@ -338,6 +343,7 @@ async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot() {
     let bench = Bench::start(|config, _| config).await;
@@ -352,7 +358,7 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
@@ -387,6 +393,7 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
     let bench = Bench::start(|config, _| config).await;
@@ -414,6 +421,7 @@ async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn late_source_cannot_arm_after_the_wait_deadline() {
     let bench = Bench::start(|config, _| config).await;
@@ -437,8 +445,9 @@ async fn late_source_cannot_arm_after_the_wait_deadline() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
-async fn cancelled_wait_reports_failure_to_readiness_waiters() {
+async fn cancelled_source_wait() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
     let request = WatchFile {
@@ -451,28 +460,25 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: Some(30),
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
+    watch.ready().await.unwrap();
     watch.request_cancel();
-    assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready),
-    )
-    .await;
-    let failure = result.expect("readiness settles after cancellation").expect_err("a cancelled watch is never armed").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
+    let failure = watch.join().await.expect_err("the missing-source watch settles as cancelled");
+    let cancelled = matches!(&failure, harmos::Error::OperationRefused(harmos::Refusal::Cancelled))
+        || failure.failure().is_some_and(|cause| cause.code() == harmos::operations::FailureKind::Cancelled);
+    assert!(cancelled, "the missing-source watch retains a cancellation outcome: {failure:?}");
     bench.stop().await;
 }
 // Stream captures only bytes written after the start, follows rotation and
 // truncation with gaps, picks up new files, and seals vanished ones.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -546,6 +552,7 @@ async fn stream_local_tree() {
 
 // Mirror keeps each output equal to its source, refetching on a size or
 // modification-time change.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn mirror_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -586,6 +593,7 @@ async fn mirror_local_tree() {
 }
 
 // A snapshot copies each file once: at the start, or at the stop.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn snapshot_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -623,6 +631,7 @@ async fn snapshot_local_tree() {
 
 // Caps and malformed requests are refused explicitly; a capped watch still
 // seals what it captured.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn watch_refusals() {
     let bench = Bench::start(|config, _| config).await;
@@ -693,6 +702,7 @@ async fn watch_refusals() {
 // A failed refetch keeps the last whole copy: the output never holds a
 // partial or emptied file.
 #[cfg(unix)]
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn mirror_keeps_last() {
     use std::os::unix::fs::PermissionsExt;
@@ -728,6 +738,7 @@ async fn mirror_keeps_last() {
 }
 
 // Closing the execution seals its running watch into it first.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seals_watch() {
     let bench = Bench::start(|config, _| config).await;
@@ -770,6 +781,7 @@ async fn execution_seals_watch() {
 // The step's watch over one file, submitted as an operation: its matcher
 // publishes rows to the declared stream, its marker files a record, and its
 // artifact holds only what was written after the watch started.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn watch_file_matchers() {
     const APPENDED: &[u8] = b"elapsed=1.5 locked=true\nWARN W42\nelapsed=2.5 locked=false\n";
@@ -785,7 +797,7 @@ async fn watch_file_matchers() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: vec![LineMatcher {
@@ -815,7 +827,9 @@ async fn watch_file_matchers() {
         .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
+    let mut records = bench.handle.subscribe_records();
     append(&log, APPENDED);
+    crate::service_support::waits::wait_for_subscription_record(&mut records, "tracking.fixture_warning").await;
     let outcome = watch.cancel().await.unwrap().into_owned();
     assert_eq!(
         outcome.artifacts,

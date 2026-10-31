@@ -43,6 +43,7 @@ pub(crate) mod runtime_storage;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn storage_recovery() {
     runtime_storage::aggregate::unknown_column_exist().await;

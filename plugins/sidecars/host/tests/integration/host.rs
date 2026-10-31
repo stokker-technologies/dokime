@@ -56,6 +56,7 @@ fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn host_stream_row() {
     let streams: &[(HostTelemetryStream, &[&str], &[Field])] = &[
@@ -101,6 +102,7 @@ fn host_stream_row() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn system_memory_snapshot() {
     let batch = collect_required_native_batch(HostTelemetryStream::System);
@@ -118,6 +120,7 @@ fn system_memory_snapshot() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn collected_battery_columns() {
     // Whatever this machine reports — every reading, or none on a host
@@ -134,6 +137,7 @@ fn collected_battery_columns() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn executable_declares_host() {
     let executable = std::env::var("NEXTEST_BIN_EXE_plugin-host")

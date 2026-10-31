@@ -145,13 +145,21 @@ impl State {
 
 async fn run(state: &State, storage: &Manager, settings: super::super::super::Settings) -> Result<()> {
     loop {
+        let saved = storage.cursor_saved();
         let cut = {
             let mut tail = state.0.telemetry_tail.lock().unwrap();
-            tail.cut(storage.cursor_saved(), settings)?
+            tail.cut(saved.clone(), settings)?
         };
         let Some(Flush { deadline, full, changed, through }) = cut else { return Ok(()) };
         if !full && Instant::now() < deadline {
-            tokio::select! { _ = tokio::time::sleep_until(deadline) => {}, _ = changed.notified() => { continue; } }
+            tokio::select! {
+                _ = tokio::time::sleep_until(deadline) => {},
+                _ = changed.notified() => continue,
+                result = storage.wait_saved_after(&saved) => {
+                    result?;
+                    continue;
+                }
+            }
         }
         storage.flush_until(&through).await?;
     }

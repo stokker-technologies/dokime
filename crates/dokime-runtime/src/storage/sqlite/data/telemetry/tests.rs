@@ -703,3 +703,34 @@ async fn execution_and_session_streams_have_distinct_files_and_never_become_arti
     assert_eq!(fixture.read(&through, selection).await.len(), 3);
     fixture.finish().await;
 }
+
+#[tokio::test]
+async fn query_cut_excludes_live_and_late_arrivals_across_restart() {
+    use crate::storage::sqlite::snapshots::Scope;
+    let fixture = Fixture::new(2).await;
+    let admitted = fixture.admit(&[(1, 10), (2, 20)]).await;
+    fixture.storage.flush_until(&admitted).await.unwrap();
+    let cut = fixture
+        .local
+        .snapshot_capture(
+            Scope::History,
+            Some(admitted.clone()),
+            None,
+            dokime_domain::model::identity::wire::Timestamp { seconds: 100, nanos: 0 },
+            b"{\"records\":[],\"telemetry\":[]}".to_vec(),
+            None,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let later = fixture.admit(&[(3, 5), (4, 30)]).await;
+    fixture.storage.flush_until(&later).await.unwrap();
+    let original = fixture.read(&cut.at, fixture.selection()).await;
+    assert_eq!(original.iter().map(|(_, row)| row.sample.sequence).collect::<Vec<_>>(), [1, 2]);
+    assert_eq!(fixture.read(&later, fixture.selection()).await.len(), 4);
+    let root = fixture.stop().await;
+    let fixture = Fixture::with_root(root, 2).await;
+    assert!(fixture.local.snapshot_available(cut.clone()).await.unwrap());
+    assert_eq!(fixture.read(&cut.at, fixture.selection()).await.len(), 2);
+    fixture.finish().await;
+}

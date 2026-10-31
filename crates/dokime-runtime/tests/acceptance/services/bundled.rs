@@ -46,13 +46,13 @@ fn fixture_bytes() -> Vec<u8> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn external_analysis_reload() {
     let root = tempfile::tempdir().unwrap();
     let bundle = crate::service_support::bundles::plugin_obc_bundle();
-    let host = crate::service_support::bundles::host_plugin_bundle();
     let config = crate::service_support::config(root.path())
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(host), dokime_runtime::plugins::PluginBundle::new(bundle)]);
+        .with_plugins([crate::service_support::bundles::host_plugin(), dokime_runtime::plugins::PluginBundle::new(bundle)]);
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.scan", 100, None)).await.unwrap();
@@ -84,6 +84,7 @@ async fn external_analysis_reload() {
 }
 
 // Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
@@ -128,6 +129,7 @@ async fn frozen_catalog_multiply() {
 }
 
 // Unsupported Domain Schemas Are Refused Before Admission.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unsupported_schema_refused() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};

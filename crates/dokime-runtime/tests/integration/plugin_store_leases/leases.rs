@@ -130,8 +130,7 @@ fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app:
 }
 
 async fn runtime(root: &std::path::Path) -> Runtime {
-    let configuration =
-        config(root).with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+    let configuration = config(root).with_plugins([crate::service_support::bundles::host_plugin()]);
     started(configuration).await.0
 }
 
@@ -196,10 +195,14 @@ fn reader_artifact(source: &str) -> InstalledPlugin {
     }
 }
 
-async fn stored(handle: &dokime_runtime::RuntimeHandle) -> usize {
+async fn stored(handle: &dokime_runtime::RuntimeHandle, execution: Option<&TestExecutionId>) -> usize {
     handle
         .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
             streams: vec![foreign_stream().into()],
+            scope: dokime_runtime::domains::evidence::ScopeSelection {
+                test_execution_id: execution.cloned(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await
@@ -355,8 +358,10 @@ pub(crate) async fn two_executions_rows() {
         Some(second.to_string()),
     );
 
-    // The Unscoped Measurement And Each Execution Retain Their Own Capture.
-    assert_eq!(stored(&handle).await, 3);
+    // Both Executions Capture The One Stored Measurement Without Duplicating Its Payload.
+    assert_eq!(stored(&handle, None).await, 1);
+    assert_eq!(stored(&handle, Some(&first)).await, 1);
+    assert_eq!(stored(&handle, Some(&second)).await, 1);
 
     // Releasing one hold leaves the instance running for the other, and the
     // released run stops being evidence of anything new.
@@ -365,7 +370,9 @@ pub(crate) async fn two_executions_rows() {
     handle.publish_telemetry_batch(gateway_batch(-70.0)).await.expect("the owner keeps publishing");
     assert_eq!(first_reader.delivered().len(), 1, "a released hold is handed nothing further");
     assert_eq!(second_reader.delivered().len(), 2, "the run still holding it keeps receiving");
-    assert_eq!(stored(&handle).await, 5, "only the remaining execution captures the second measurement");
+    assert_eq!(stored(&handle, None).await, 2);
+    assert_eq!(stored(&handle, Some(&first)).await, 1, "the released execution retains only its original capture");
+    assert_eq!(stored(&handle, Some(&second)).await, 2, "only the remaining execution captures the second measurement");
 
     handle.release_stream_leases(second_leases).await.unwrap();
     drop(handle);
@@ -465,10 +472,8 @@ pub(crate) async fn foreign_stream_refuses() {
         .to_string();
     assert!(refusal.contains("gateway.unknown"), "the refusal names the stream: {refusal}");
 
-    // The host keeps the unscoped measurement and the leasing run keeps its
-    // own capture; a third row would be the reader re-publishing what it was
-    // handed.
-    let stored = handle
+    // The Unscoped Measurement Carries Capture Membership Without A Reader-Owned Copy.
+    let samples = handle
         .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
             streams: vec![foreign_stream().into()],
             ..Default::default()
@@ -477,16 +482,18 @@ pub(crate) async fn foreign_stream_refuses() {
         .unwrap()
         .iter()
         .filter(|sample| sample.stream == foreign_stream())
-        .map(|sample| sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.to_string()))
+        .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(stored.len(), 2, "the reader does not re-publish its rows");
-    assert!(stored.contains(&None), "the unscoped measurement is stored");
-    assert!(stored.contains(&Some(execution.to_string())), "the leasing run captures its own copy");
+    assert_eq!(samples.len(), 1, "the reader does not re-publish its rows");
+    assert!(samples[0].scope.is_none(), "the measurement retains its producer scope");
+    assert!(samples[0].captured_scopes.iter().any(|scope| scope.test_execution_id.as_ref() == Some(&execution)));
 
     // Releasing the hold stops the delivery, not the storage.
     handle.release_stream_leases(leases).await.unwrap();
     handle.publish_telemetry_batch(gateway_batch(-70.0)).await.expect("the owning sidecar keeps publishing");
     assert_eq!(reader.delivered().len(), 1, "a released hold is handed nothing further");
+    assert_eq!(stored(&handle, None).await, 2);
+    assert_eq!(stored(&handle, Some(&execution)).await, 1);
 
     drop(handle);
     runtime.shutdown().await.expect("the runtime stops");

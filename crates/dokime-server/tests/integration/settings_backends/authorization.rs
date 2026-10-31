@@ -259,6 +259,22 @@ matrix! {
     "/dokime.v1.Prompts/ListDefinitions", unary, contracts::prompts::ListDefinitions;
     "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
     "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
+    "/dokime.v1.Query/ListCycles", unary, contracts::query::ListCycles = super::super::finite_queries::cycles();
+    "/dokime.v1.Query/ListExecutions", unary, contracts::query::ListExecutions = contracts::query::ListExecutions {
+        selection: model::query::selection::ExecutionSelection { template_ids: vec![], cycle_ids: vec![], statuses: vec![], started_at: None, archive: None },
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/ListRecords", unary, contracts::query::ListRecords = contracts::query::ListRecords {
+        scope: model::query::selection::RecordScope::Execution(String::new()), record_type: String::new(), versions: vec![], r#where: vec![], between: None,
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/ListSamples", unary, contracts::query::ListSamples = contracts::query::ListSamples {
+        execution_id: String::new(), stream: String::new(), versions: vec![], fields: vec![], r#where: vec![], between: None, bucket: None,
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/AggregateSamples", unary, contracts::query::AggregateSamples = contracts::query::AggregateSamples {
+        execution_id: String::new(), stream: String::new(), versions: vec![], r#where: vec![], between: None, outputs: vec![], at: None,
+    };
     "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::Aggregate {
         source: model::query::wire::QuerySource::Unspecified,
         filters: vec![],
@@ -482,3 +498,29 @@ pub(crate) async fn remote_refuses_local() {
 }
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn finite_query_authorization_matrix() {
+    table_covers_serves();
+    for authenticated in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let token = authenticated.then_some(TOKEN);
+        let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
+        let prepared = dokime_server::grpc::Service::prepare(config).unwrap();
+        let mut owner = runtime(root.path(), &prepared).await;
+        let server = prepared.ready().await.unwrap().listen().await.unwrap();
+        let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
+        for case in cases().filter(|case| case.path.starts_with("/dokime.v1.Query/")) {
+            if authenticated {
+                for rejected in [None, Some("wrong-key-012345678901234567890123456789")] {
+                    let status = (case.call)(channel.clone(), rejected).await.unwrap();
+                    assert_eq!(status.code(), Code::Unauthenticated);
+                }
+            }
+            assert_case_admission(case, false, (case.call)(channel.clone(), token).await);
+        }
+        server.shutdown().await.unwrap();
+        owner.shutdown().await.unwrap();
+    }
+}

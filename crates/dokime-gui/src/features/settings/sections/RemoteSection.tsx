@@ -236,6 +236,14 @@ function ListenerControls({
             Endpoints are detected automatically. Loopback addresses (127.0.0.1, ::1) work on the same PC only. Rename client labels later
             in Paired Clients.
           </p>
+          <ul aria-label="Export Endpoints" className="grid gap-1 text-sm">
+            {status.endpoints.map((endpoint) => (
+              <li key={endpoint.address}>
+                <span className="font-mono">{endpoint.address}</span>
+                {endpoint.adapterName && <span className="text-muted-foreground"> — {endpoint.adapterName}</span>}
+              </li>
+            ))}
+          </ul>
           {pairingError && (
             <p role="alert" className="text-sm text-destructive">
               {pairingError}

@@ -514,27 +514,16 @@ pub(crate) async fn discovery_shares_independently() {
     native.close_and_wait().await;
     let availability =
         client.unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailability {}).await.unwrap().into_inner();
-    use prost::Message;
-    let descriptor = prost_types::FileDescriptorSet::decode(dokime_server::grpc::FILE_DESCRIPTOR_SET).unwrap();
-    let mut expected = descriptor
-        .file
-        .into_iter()
-        .flat_map(|file| {
-            let package = file.package.unwrap_or_default();
-            file.service.into_iter().flat_map(move |service| {
-                let name = format!("/{package}.{}", service.name.unwrap());
-                service.method.into_iter().map(move |method| format!("{name}/{}", method.name.unwrap()))
-            })
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    // Runtime Startup Also Registers The Shared Storage And Operation Lifecycle Catalogs.
+    // Availability Lists Registered Bindings, Including Shared Storage And Lifecycle Operations.
+    let operations = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>().unwrap();
     let storage = dokime::harmos::operations::Contracts::of::<dokime::harmos::builtins::storage::Storage>().unwrap();
     let lifecycle = dokime::harmos::operations::Contracts::of::<dokime::harmos::builtins::lifecycle::Lifecycle>().unwrap();
-    for contract in storage.into_iter().chain(lifecycle) {
-        if let Some(binding) = contract.grpc() {
-            expected.insert(binding.path());
-        }
-    }
+    let expected = operations
+        .into_iter()
+        .chain(storage)
+        .chain(lifecycle)
+        .filter_map(|contract| contract.grpc().map(|binding| binding.path()))
+        .collect::<std::collections::BTreeSet<_>>();
     let advertised = availability.methods.iter().cloned().collect::<std::collections::BTreeSet<_>>();
     assert_eq!(advertised.len(), availability.methods.len(), "duplicate advertised method");
     assert_eq!(advertised, expected);

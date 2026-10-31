@@ -311,6 +311,16 @@ pub(crate) fn read_projected_batch(path: &Path, index: &BatchIndex, projection: 
     projection.decode(&buffer, index)
 }
 
+pub(crate) fn read_query_batch(path: &Path, index: &BatchIndex, projection: &Projection, maximum: usize) -> Result<RecordBatch> {
+    let length = index.body_bytes.saturating_add(u64::from(index.metadata_bytes));
+    if length > maximum as u64 {
+        return Err(Error::Data("query batch exceeds working budget"));
+    }
+    let buffer = read_buffer(path, index)?;
+    projection.check_budget(&buffer, index, maximum)?;
+    projection.decode(&buffer, index)
+}
+
 // Inspect Only Committed Batch Headers. Serialized SHA State Avoids A Payload Hash Scan.
 pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], checkpoint: &Checkpoint) -> Result<(u64, [u8; 32])> {
     let mut file = OpenOptions::new().read(true).write(true).open(path)?;

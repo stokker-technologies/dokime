@@ -11,8 +11,9 @@
 
     python -m dokime_tools.prepare.generated
 
-The build regenerates `target/generated/typescript` through `cargo dokime bindings proto`
-and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
+`prepare:generated` builds the contract tool and server export before regenerating
+`target/generated/typescript` through `cargo dokime bindings proto`. The frontend build
+stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
 artifact carries. Lanes restore this Product export before importing the GUI.
 """
 
@@ -27,10 +28,11 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import cargo, paths
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output
+from dokime_tools.prepare import bindings
 
 # Type Checking Imports
 
@@ -47,6 +49,26 @@ MODULES = ROOT / "target/generated/typescript"
 # === Classes === #
 
 # === Public Functions === #
+
+
+def prepare(*, check: bool = True) -> None:
+    """Build The Generator Independently Of The Frontend And Refresh Its Modules."""
+    messages = ROOT / "target/contracts/typescript/compiler.jsonl"
+    messages.parent.mkdir(parents=True, exist_ok=True)
+    arguments = ["--locked", "--profile", "dev", "-p", "cargo-dokime", "-p", "dokime-server"]
+    cargo.clippy(ROOT, arguments)
+    with messages.open("w", encoding="utf-8") as output:
+        subprocess.run(
+            ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"],
+            cwd=ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=output,
+            stderr=sys.stderr,
+        )
+    bindings.generate(messages, check=check)
+    generate(messages, check=check)
 
 
 def generate(messages: Path, *, check: bool = False) -> None:
@@ -90,17 +112,14 @@ def restore(profile: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
-    parser.add_argument("--stage", action="store_true", help="Stage freshly generated modules instead of restoring them")
-    parser.add_argument("--build-json", type=Path, help="Generate from the cargo-dokime executable in these Cargo messages")
+    parser.add_argument("--generate", action="store_true", help="Build the contract generator and regenerate modules")
     parser.add_argument("--check", action="store_true", help="Check tracked generated clients while regenerating modules")
     options = parser.parse_args()
-    if options.check and options.build_json is None:
-        parser.error("--check requires --build-json")
-    if options.build_json is not None:
-        generate(options.build_json, check=options.check)
-    if options.stage:
-        stage(options.profile)
-    elif options.build_json is None:
+    if options.check and not options.generate:
+        parser.error("--check requires --generate")
+    if options.generate:
+        prepare(check=options.check)
+    else:
         restore(options.profile)
     return 0
 

@@ -59,6 +59,7 @@ const VOCABULARY: [Aggregate; 11] = [
 /* === Tests === */
 
 // Every member serializes tagged `aggregate` under its name and reads back.
+#[dokime_tracing::trace_test]
 #[test]
 fn aggregate_json_roundtrips() {
     for aggregate in VOCABULARY {
@@ -73,6 +74,7 @@ fn aggregate_json_roundtrips() {
 }
 
 // The builder methods name the vocabulary and survive the expression tree.
+#[dokime_tracing::trace_test]
 #[test]
 fn builders_roundtrip_expressions() {
     let built = [

@@ -19,11 +19,19 @@ phase shifts, and latched faults; each execution owns its device.
 | Charger Recovery | Interrupt the supply, clear the fault, restart | Paired input lists, multiple steps, cleanup and recovery evidence |
 
 The process listener remembers connected bench resources across executions.
+Start-up defaults to one 20 ms model cycle (20 samples at 1 ms) without
+wall-clock pacing. Both acquisition phases, the inspection prompt and evidence
+attachments remain active; enable real-time pacing for a manual demonstration.
 Templates ask the plugin's operations for readiness and connections, without
 naming or borrowing the plugin. The settings card reads `get_status` live, and
 the `plugin_obc.analysis.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
+
+Pulse, steady-state and process observers use the short fixture cadences declared
+in `src/settings.rs`. Model sample intervals determine simulated waveform time;
+sample-count completion follows publication notifications. Shipping host observers
+retain their separately configured collection intervals.
 
 The remote demonstration uses `obc.checks.pulse`. It runs without a prompt by
 default. Set `require_confirmation` to `true` for one Yes/No confirmation before

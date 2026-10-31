@@ -86,6 +86,7 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 [dev-dependencies]
 # Local
+dokime-tracing = { workspace = true }
 
 # Git
 harmos-sdk = { workspace = true }

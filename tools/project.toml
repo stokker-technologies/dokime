@@ -289,7 +289,7 @@ platform = "unix"
 [conventions.testing.deadlines]
 acceptance = 900
 integration = 120
-system = 900
+system = 300
 unit = 120
 
 [conventions.testing.limits]

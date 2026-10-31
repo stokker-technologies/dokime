@@ -116,6 +116,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn boot_failure_persists_plugin_and_carrier() {
     let root = tempfile::tempdir().unwrap();
@@ -148,6 +149,7 @@ async fn boot_failure_persists_plugin_and_carrier() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn schema_budget_installation() {
     use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
@@ -183,6 +185,7 @@ async fn schema_budget_installation() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_upgrades() {
     let root = tempfile::tempdir().unwrap();
@@ -241,6 +244,7 @@ async fn bundled_upgrades() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_sources_survive() {
     for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
@@ -277,6 +281,7 @@ async fn bundled_sources_survive() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_distribution() {
     let root = tempfile::tempdir().unwrap();

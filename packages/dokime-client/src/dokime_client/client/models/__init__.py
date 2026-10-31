@@ -217,6 +217,7 @@ class Record:
     related_sample_id: str | None
     related_stream_id: str | None
     related_artifact_id: str | None
+    received_at: datetime | None = None
 
     def to_json(self) -> str:
         """Serialize This Occurrence With RFC 3339 Datetime Values."""

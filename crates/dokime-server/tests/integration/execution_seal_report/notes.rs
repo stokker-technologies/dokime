@@ -19,7 +19,6 @@
 
 // Local Imports
 use super::*;
-use dokime::RuntimeConfig;
 use dokime::domain::model;
 use dokime::runtime::command::CommandContext;
 use dokime::{RecordScope, TestCycleId};
@@ -243,7 +242,7 @@ pub(crate) async fn sealed_refuses_notes() {
     let gate = std::sync::Arc::new(Gate::reporting(|cycle| support::fixture_provider_outcome(cycle, false)));
     let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
     let mut owner = Runtime::with_execution_fixture(
-        prepared_owner.configuration(RuntimeConfig::new(root.path(), support::metadata("grpc.notes", "Notes"))),
+        prepared_owner.configuration(support::budgets::runtime_config(root.path(), support::metadata("grpc.notes", "Notes"))),
         "fixture",
         gate.clone(),
     )

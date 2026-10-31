@@ -25,7 +25,7 @@ use dokime_domain::model::secrets::{
     transfer::{Action, Choice},
 };
 use dokime_operations::secrets as wire;
-use dokime_runtime::{Runtime, RuntimeConfig};
+use dokime_runtime::Runtime;
 
 /* === Constants === */
 
@@ -58,7 +58,7 @@ pub(crate) fn secret_metadata_rejects_old_name_field() {
 pub(crate) async fn saved_file_roundtrip() {
     let root = tempfile::tempdir().unwrap();
     let metadata = crate::service_support::metadata("secrets.source", "Source");
-    let source = RuntimeConfig::new(root.path().join("source"), metadata).with_credential_store(keyring_core::mock::Store::new().unwrap());
+    let source = crate::service_support::budgets::runtime_config(root.path().join("source"), metadata);
     let mut source = Runtime::start(source).await.unwrap();
     let handle = source.handle();
 
@@ -93,8 +93,7 @@ pub(crate) async fn saved_file_roundtrip() {
     );
 
     let metadata = crate::service_support::metadata("secrets.destination", "Destination");
-    let destination =
-        RuntimeConfig::new(root.path().join("destination"), metadata).with_credential_store(keyring_core::mock::Store::new().unwrap());
+    let destination = crate::service_support::budgets::runtime_config(root.path().join("destination"), metadata);
     let mut destination = Runtime::start(destination).await.unwrap();
     let handle = destination.handle();
     let preview = handle.operations().call::<wire::Preview>(wire::Preview { data: data.clone() }).await.unwrap();

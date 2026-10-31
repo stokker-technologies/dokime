@@ -104,6 +104,7 @@ fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item 
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suite_export_bound() {
     // The plugin lists its suites on its own attribute; each of them answers
@@ -117,6 +118,7 @@ fn suite_export_bound() {
     assert_eq!(suites[0].workflow.as_deref(), Some("obc.checks"));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn contracts_bind_fields() {
     let registration = ObcChecks::definition();
@@ -151,6 +153,7 @@ fn contracts_bind_fields() {
     }));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn default_case_phases() {
     let template = ObcChecks::suite().test_case_templates.remove(0);
@@ -176,6 +179,7 @@ fn default_case_phases() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suites_survive_trip() {
     let suites = SuiteSet::new(vec![ObcChecks::definition()]);
@@ -185,6 +189,7 @@ fn suites_survive_trip() {
     assert_eq!(decoded, suites);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn pulse_leases_unmeasured() {
     let row = SystemRow {
@@ -211,6 +216,7 @@ async fn pulse_leases_unmeasured() {
     assert!(!refused.passed(), "an unmeasured global stream is refused");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn pulse_confirmation() {
     use dokime::plugin::testing::Harness;
@@ -234,6 +240,7 @@ async fn pulse_confirmation() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn cpu_load_example_uses_public_hold_and_control_subscription() {
     use plugin_host::host::cpu::load::{LoadControl, LoadHold, LoadSummary, LoadTarget};

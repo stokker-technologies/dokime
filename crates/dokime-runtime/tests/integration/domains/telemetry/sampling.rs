@@ -141,6 +141,7 @@ fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn captures_share_demand() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -166,6 +167,7 @@ async fn captures_share_demand() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_capture_drains() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -188,6 +190,7 @@ async fn new_capture_drains() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stopped_scope_sampler() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -211,13 +214,14 @@ async fn stopped_scope_sampler() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_plugin_stream() {
     use dokime_runtime::domains::evidence::TelemetrySelection;
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("fixture.host.sampling").unwrap(), "Host Sampling", None);
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata)
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+        .with_plugins([crate::service_support::bundles::host_plugin()]);
     let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let streams = [Identifier::new("host.system").unwrap(), Identifier::new("host.bluetooth").unwrap()];
@@ -236,6 +240,7 @@ async fn host_plugin_stream() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_observer_spins_down() {
     use dokime_runtime::domains::evidence::TelemetrySelection;
@@ -244,7 +249,7 @@ async fn host_observer_spins_down() {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("fixture.host.spin_down").unwrap(), "Host Spin Down", None);
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata)
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+        .with_plugins([crate::service_support::bundles::host_plugin()]);
     let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let mut residents = runtime.operations().watch_residents();
@@ -285,6 +290,7 @@ async fn host_observer_spins_down() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_publishers_required() {
     use crate::service_support::prelude::fixture_suite;

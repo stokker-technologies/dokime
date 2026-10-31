@@ -11,6 +11,7 @@
 
 pub mod aggregate;
 pub(crate) mod artifacts;
+mod buckets;
 pub mod cases;
 pub mod checkpoint_records;
 pub mod checkpoint_telemetry;
@@ -22,6 +23,7 @@ pub mod executions;
 pub(crate) mod frame;
 mod handle_reads;
 mod handle_view;
+pub mod history;
 pub(crate) mod installed_plugins;
 pub(crate) mod plots;
 pub(crate) mod projections;
@@ -29,7 +31,12 @@ pub(crate) mod records;
 mod reduction;
 pub(crate) mod request;
 pub(crate) mod runtime;
+pub mod samples;
+pub mod selection;
+pub mod snapshots;
+pub mod statistics;
 pub(crate) mod telemetry;
+mod tokens;
 
 /* === Re-Exports === */
 
@@ -78,6 +85,13 @@ pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryRead, RuntimeTelemetr
 /* === Type Aliases === */
 
 /* === Structs === */
+
+// Trusted Local Call Context; Never Deserialized From A Request Or Query Token.
+#[derive(Clone, Debug)]
+pub struct Caller {
+    pub message_bytes: usize,
+    pub revoked: Option<tokio_util::sync::CancellationToken>,
+}
 
 /* === Enums === */
 

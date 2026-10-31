@@ -47,6 +47,7 @@ pub(crate) mod secrets_transfer;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn settings_backends() {
     runtime_settings::live_status_answered().await;
@@ -85,6 +86,7 @@ async fn settings_backends() {
     secrets_transfer::saved_file_roundtrip().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn settings_backends_concurrent() {
     identity::concurrent_creators_identity().await;

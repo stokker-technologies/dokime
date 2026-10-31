@@ -85,6 +85,11 @@ pub async fn interruptions(client: &Client, endpoint: &str, root: &Path) {
     Box::pin(interruption::scripts(client, endpoint, root)).await;
 }
 
+pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
+    *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
+    Box::pin(interruption::disconnections(client, endpoint, root)).await;
+}
+
 /* === Private Functions === */
 
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {

@@ -20,6 +20,7 @@ use sysinfo::{Pid, System as Machine};
 
 // Local Imports
 // Third-Party Imports
+use crate::settings::SYSTEM_INTERVAL_MS;
 use crate::{Error, ObcPlugin};
 use dokime::harmos::ExecutionContext;
 use dokime::harmos::sidecar::{ObserverContext, Publisher};
@@ -60,7 +61,7 @@ pub enum Streams {
 
 /* === Implementations === */
 
-#[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
+#[dokime::observer(interval_ms = SYSTEM_INTERVAL_MS, streams(SystemRow), activation = "demand")]
 impl System {
     async fn initialize(_: &ExecutionContext) -> Result<Self, Error> {
         Ok(Self { machine: Machine::new()? })

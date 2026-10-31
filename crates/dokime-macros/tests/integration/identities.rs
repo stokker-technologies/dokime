@@ -120,6 +120,7 @@ impl Probe {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn item_names_identities() {
     let suite = Checks::definition();

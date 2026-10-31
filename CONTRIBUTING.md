@@ -34,8 +34,12 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
-Regenerate Python and desktop bindings with `mise run prepare:bindings -- <compiler-messages.jsonl>`
-using the compiler messages from one successful server build.
+The report, frontend, desktop and TypeScript checks/tests depend on `prepare:generated`,
+which builds the contract generator and server export before generating their modules.
+Use `mise run prepare:generated -- --write` to refresh tracked Python and TypeScript clients;
+ordinary preparation checks them. Generation uses the dev compiler profile independently
+of the requested Product profile. CI lanes restore the matching Product modules and skip
+this producer instead of compiling again.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package:rust`
@@ -56,8 +60,56 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
-Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs both desktop stories on Windows and Linux.
+Build matching artifacts, then run every test lane concurrently (the five-minute
+execution target is advisory and excludes compilation):
+
+```sh
+mise run build
+mise run build:rust:tests
+mise run test
+```
+
+Remove `UV_PROJECT_ENVIRONMENT` from the calling environment first (`env -u
+UV_PROJECT_ENVIRONMENT mise run test` on Unix, `Remove-Item
+Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue` in PowerShell).
+The entry prepares desktop prerequisites, installs the built Python wheel,
+restores generated contracts and extracts the Rust archive once before concurrent
+readers start. Standalone Rust lanes also reuse one extraction for listing and
+execution. The entry runs all ten
+lanes even if one fails and returns failure if any lane fails. Full lane logs,
+exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
+`target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
+summary under `target/test-reports/<category>-<language>/`. Individual lane tasks
+remain independently usable; avoid running the same lane twice in one checkout.
+Only one native desktop lane may use an interactive desktop session at a time,
+including runs from other worktrees. Reserve an idle test host for wall-clock
+comparisons; simultaneous external test runs can trip existing liveness guards.
+
+The scheduler reserves CPU headroom for the desktop and divides the remaining
+logical CPU slots across the four Rust nextest lanes, Python integration and both
+Vitest lanes. All seven pools use that worker count. Standalone
+Rust lanes keep nextest's CPU-sized pool; standalone Python integration uses
+xdist's automatic pool with work stealing. Vitest uses isolated worker threads
+and parallel files; tests within a file retain their authored order. Rust tests
+already run in isolated processes, with fixture-local storage and ephemeral
+listeners. Python workers own temporary roots and ephemeral gRPC listeners.
+Pytest caches and Vite/Vitest caches belong to their lane, so lanes do not replace
+one another's results.
+
+Shared input preparation completes before test consumers start:
+preparation mutates the wheel environment and generated modules and extracts shared
+read-only Rust binaries. Within its exclusively owned interactive desktop session,
+the native system lane runs independent workflows concurrently. Each workflow owns
+its temporary data roots, WebDriver/backend ports, browser profiles and native pickers.
+Process-local test fixture mutexes protect callbacks or runtime state inside one
+story; they do not lock other nextest processes. No cross-test nextest group is
+needed. Hosted CI and nightly test jobs already depend on their artifact producers
+and impact selection independently, without test-to-test dependencies or a shared
+concurrency group; each keeps its own public bootstrap and required platform legs.
+
+Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
+Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/recovery (`native-desktop`), configuration/remote access (`desktop-configuration`), and two-desktop control on Windows and Linux.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -69,7 +121,7 @@ mise run ci:simulate
 ```
 
 The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs one job at a time without CPU, memory
+is only partial proof. Local simulation runs independent jobs concurrently in dependency order without CPU, memory
 or thread limits. Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
@@ -95,15 +147,68 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 
 ### System Story Reports
 
+Both Rust and native desktop system lanes enforce a 300-second budget per story.
+Keep workloads proportional to the behavior under test; retain boundary sizes
+when the boundary is the point. Terminal interruption and transport disconnection
+are independently selectable plugin recovery stories.
+
 Report-producing system stories automatically save and reopen their final sealed
-execution reports during shared fixture teardown or desktop journey finalization.
+execution reports during shared fixture teardown or desktop scene finalization.
+Desktop scenes declare the executions they materialize and the reports they own.
+Shutdown and recovery scenes own reports sealed by their boundary, including
+unstarted members. The native finalizer saves only those declared reports once;
+read-only scenes do not re-export earlier history.
 The finalizer verifies execution identity, the durable seal/checkpoint and artifact
 inventory/content. No separate report-saving story or command is needed. Stories
 which do not produce execution reports have explicit reasons in
 `crates/dokime-runtime/tests/support/system_reports.json`.
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
-selected journeys in JUnit; full walkthrough validation remains a separate obligation.
+selected journeys in JUnit. The default lane runs both walkthrough workflows
+with every maintained scene; each has its own fixture, JUnit result and enforced
+story budget.
+The native harness logs scene totals and retains per-step timings in each story's
+`timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
+Categories distinguish launches, subprocesses, execution waits, polling, native
+pickers, report exports and browser reopens; nested categories overlap. Timings
+are diagnostic output, never correctness assertions.
+
+### Reading Test Traces
+
+After `mise run build:rust:tests`, select a small integration story with a nextest
+filterset:
+
+```sh
+mise run test:rust:integration -- --select 'test(=retained_evidence::retained_evidence)'
+```
+
+Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
+`target/test-reports/<category>-<language>/traces/`. Native tests, desktop stories
+and inherited application/sidecar processes write `<process>-<pid>.pftrace` files.
+Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
+Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
+Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or
+`#[tokio::test]` on each Rust lane story, with `dokime-tracing` in the package's
+dev-dependencies. Stories which install application logging use
+`#[dokime_tracing::trace_test(logging)]` so that logging installs the subscriber
+once; isolated parent processes call `dokime_tracing::process()` before spawning
+the child. Desktop journeys and wait steps share
+`crates/dokime-gui/e2e/test-trace.mjs`.
+Tracing is disabled unless this variable is set; it may also be set explicitly
+when diagnosing a test application. Trace fields and event payloads are excluded.
+
+Each lane writes `time-summary.md` and `time-summary.json` beside `traces/`, with
+the top 30 spans by total duration and self time, JUnit totals for every test,
+and the slowest tests. CI retains this directory with the lane artifacts, even
+on failure. Each run replaces that lane's traces; copy them before rerunning
+when comparing results. Different lanes have independent directories.
+
+Durations include async suspension. Self time subtracts the union of direct
+child lifetimes; overlapping spans/processes cannot be summed as wall time or
+CPU time. Native traces use a separate Perfetto track per span to preserve
+concurrent lifetimes, with process-local parent IDs in metadata. Normal completion
+flushes export; killed processes may omit open spans or leave unreadable files,
+which the summary lists. Test totals come from JUnit and include harness overhead.
 
 ### Storage Benchmarks
 

@@ -43,6 +43,7 @@ use dokime::domain::model;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn query_roundtrip() {
     let root = tempfile::tempdir().unwrap();

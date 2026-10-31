@@ -39,6 +39,8 @@ use dokime::runtime::query::aggregate::{AggregateColumn, AggregateFilter, Aggreg
 
 /* === Structs === */
 
+struct QueryContext(usize);
+
 struct Resources {
     pub(super) runtime: LiveRuntime,
     pub(super) max_message_bytes: usize,
@@ -54,6 +56,16 @@ enum PreparedOperations {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl dokime::harmos::grpc::middleware::Middleware for QueryContext {
+    fn enter<'a>(&'a self, call: &'a mut dokime::harmos::grpc::middleware::Invocation) -> dokime::harmos::grpc::middleware::Enter<'a> {
+        Box::pin(async move {
+            let revoked = super::access::revocation(call.context());
+            call.context_mut().insert(dokime::runtime::query::Caller { message_bytes: self.0, revoked })?;
+            Ok(())
+        })
+    }
+}
 
 impl Serve<wire::Aggregate> for Resources {
     fn serve<'a>(
@@ -72,6 +84,11 @@ impl Serve<wire::Aggregate> for Resources {
 }
 
 /* === Public Functions === */
+
+pub(super) fn activate(runtime: &dokime::RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.grpc().register_middleware(Arc::new(QueryContext(maximum)))?;
+    Ok(())
+}
 
 pub(super) fn prepare(
     setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, runtime: &LiveRuntime, maximum: usize,

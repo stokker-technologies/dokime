@@ -12,7 +12,12 @@
 
 /* === Modules === */
 
+#[path = "../../../dokime-runtime/tests/support/settings.rs"]
+pub mod settings;
+
 /* === Re-Exports === */
+
+pub use settings::CADENCE_MS;
 
 /* === Imports === */
 
@@ -42,12 +47,16 @@ use dokime::config::StorageSettings;
 /* === Public Functions === */
 
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
-    RuntimeConfig::new(root, hub_metadata)
-        .with_credential_store(keyring_core::mock::Store::new().expect("isolated fixture credential store"))
+    let mut config = RuntimeConfig::new(root, hub_metadata)
+        .with_credential_store(keyring_core::mock::Store::new().expect("isolated fixture credential store"));
+    settings::configure(&mut config);
+    config
 }
 
 pub fn story_settings() -> StorageSettings {
-    dokime::config::storage_defaults()
+    let mut settings = dokime::config::storage_defaults();
+    settings.filesystem.poll_interval = settings::FILE_POLL;
+    settings
 }
 
 /* === Private Functions === */

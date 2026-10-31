@@ -45,7 +45,6 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-chrome = { workspace = true }
-tracing-error = { workspace = true }
 tracing-flame = { workspace = true }
 tracing-subscriber = { workspace = true }
 
@@ -135,6 +134,7 @@ serde_json = { workspace = true }
 # Local
 dokime-cli = { path = "../dokime-cli" }
 dokime-runtime = { workspace = true }
+dokime-tracing = { workspace = true }
 plugin-host = { workspace = true }
 
 # Git

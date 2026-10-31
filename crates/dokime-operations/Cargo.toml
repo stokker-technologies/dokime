@@ -66,6 +66,39 @@ tonic = { workspace = true, optional = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Local
+dokime-tracing = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
 # === Target Dependencies === #
 
 # === Test Targets === #

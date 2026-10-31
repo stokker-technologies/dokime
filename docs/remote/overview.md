@@ -134,7 +134,9 @@ Use the host's connected local desktop session, then open
    addresses work on the same PC only.
 3. Windows installation needs no administrator rights. If Remote Access shows a
    firewall notice on the host, choose **Allow In Firewall…** and have an
-   administrator approve the Private-network rule once. Connecting from the other
+   administrator approve the listener's local-subnet rule for the listed network
+   profiles, including Public cable networks. See [Direct Cable Between Two PCs](../product-guide.md#direct-cable-between-two-pcs).
+   Connecting from the other
    PC needs no firewall change. On Linux, allow the listener port
    through the host firewall. Advanced listener settings can change that port.
 

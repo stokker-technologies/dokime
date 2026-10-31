@@ -15,7 +15,6 @@
 
 // Standard Library Imports
 use std::future::Future;
-use std::time::Duration;
 
 // Third Party Imports
 
@@ -131,15 +130,7 @@ pub async fn wait_for_cycle_idle(
 }
 
 pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_domain::model::identity::CommandId) {
-    // TODO(source-hook): RequestStorage publishes no receipt change; a watch on the durable run receipt would replace this poll.
-    loop {
-        if let Ok(Some(receipt)) = runtime.run_request(run).await
-            && receipt.summary.phase.terminal()
-        {
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    until_telemetry(runtime, || async { runtime.run_request(run).await.unwrap().filter(|receipt| receipt.summary.phase.terminal()) }).await;
 }
 
 pub async fn wait_for_execution_document_payload(runtime: &RuntimeHandle, scope: dokime_runtime::RecordScope) {

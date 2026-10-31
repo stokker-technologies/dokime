@@ -138,6 +138,7 @@ fn cli_executable() -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn installation_contract() {
     {

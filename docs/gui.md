@@ -61,11 +61,13 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 ## Canonical Bindings And Transport
 
-- Rust `dokime-domain::operations` declarations own the wire shape; do not
-  maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings -- <compiler-messages.jsonl>` and `build:typescript`
-  select the build's `cargo-dokime` executable, export `bindings proto` and feed
-  its descriptors to Buf. The server build-script export supplies application settings
+- Rust `dokime-operations` declarations own operation contracts and
+  `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
+- `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
+  together. The `prepare:generated` prerequisite checks those tracked clients,
+  builds `cargo-dokime` and the server export before report/frontend compilation,
+  exports `bindings proto` and feeds its descriptors to the message generator.
+  The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;
   Harmos's additional managed `Run…` RPCs remain transport projections.
@@ -74,8 +76,10 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
   typed status out, one Tauri channel per stream, fenced by the connection
   generation. The bridge never decodes or dispatches per operation; keep it so.
-  The WebView holds no endpoint or credential; they never belong in status, logs,
-  profiles, persisted browser storage or report output.
+  Native connection handles and credentials stay outside the WebView. Listener
+  status may expose this host's advertised addresses and adapter names for the
+  export preview; keep that preview transient and out of logs, persisted browser
+  storage and report output. Connection credentials never belong in status or profiles.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
   artifact and recording bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
@@ -109,6 +113,9 @@ and filter controls remain usable. Preserve the case of unit symbols.
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
   message shapes into them; preserve that boundary in components.
+- Shared report components save bounded documents through
+  `src/lib/api/native-document-delivery.ts`, which has no runtime RPC or generated
+  message imports. File-backed artifact delivery remains in `native-delivery.ts`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
@@ -128,15 +135,23 @@ the backend or transport cause beside the reconnect status.
 The owned local backend's Remote Access section checks inbound Windows Firewall
 policy for a running non-loopback listener. **Allow In Firewall…** is the only
 action that requests elevation; its rule uses the applied organization label and
-allows the installed executable on Private networks. Outbound remote sessions
+allows the installed executable's TCP listener port on the served adapters'
+active profiles, including a Public unidentified cable network, restricted to
+local-subnet peers. Specific binds select only their adapter's profile and local
+address; wildcard binds select active adapters in the listener's address family.
+The notice names the affected adapters, networks and categories. Outbound remote sessions
 have no firewall action. Disabling remote access attempts owned-rule removal
 without prompting and reports skipped cleanup. Installers never manage rules.
 
 Settings → Remote Access exports `.dokime-remote` through the native save adapter
 in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
 the secret warning when stopped; running listeners export directly. Labels and
-all candidate endpoints come from native owners. Paired Clients permits rename.
-The file bytes and raw key stay native; the WebView receives only a saved path.
+all candidate endpoints come from native owners. `RemoteListenerStatus.endpoints`
+provides the same ordered addresses used by exports, with adapter names, for the
+pre-export list. Physical IPv4 link-local follows routable addresses; IPv6
+link-local remains excluded because remote origins have no zone-ID support.
+Paired Clients permits rename.
+The file bytes and raw key stay native; the export action returns only a saved path.
 
 Picker imports and window drops share `src-tauri/src/connection/registry.rs`:
 validate, save the profile/keyring association, then connect. Native import events

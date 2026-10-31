@@ -1170,6 +1170,7 @@ dependencies = [
  "clap",
  "dokime",
  "dokime-packaging",
+ "dokime-tracing",
  "dotenvy",
  "glob",
  "harmos-packaging",
@@ -2422,6 +2423,7 @@ dependencies = [
  "clap",
  "dokime",
  "dokime-server",
+ "dokime-tracing",
  "dotenvy",
  "futures-util",
  "harmos-packaging",
@@ -2443,6 +2445,7 @@ version = "0.1.2"
 dependencies = [
  "dokime-domain",
  "dokime-operations",
+ "dokime-tracing",
  "futures-util",
  "harmos",
  "keyring",
@@ -2466,6 +2469,7 @@ name = "dokime-domain"
 version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
+ "dokime-tracing",
  "harmos",
  "semver",
  "serde",
@@ -2484,6 +2488,7 @@ dependencies = [
  "base64 0.23.1",
  "dokime",
  "dokime-server",
+ "dokime-tracing",
  "dotenvy",
  "harmos-packaging",
  "harmos-sdk",
@@ -2521,6 +2526,7 @@ name = "dokime-macros"
 version = "0.1.2"
 dependencies = [
  "dokime",
+ "dokime-tracing",
  "plugin-host",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
@@ -2535,8 +2541,10 @@ name = "dokime-operations"
 version = "0.1.2"
 dependencies = [
  "dokime-domain",
+ "dokime-tracing",
  "harmos",
  "serde",
+ "serde_json",
  "tonic",
 ]
 
@@ -2548,6 +2556,7 @@ dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
  "dokime",
+ "dokime-tracing",
  "handlebars",
  "harmos-packaging",
  "image",
@@ -2590,6 +2599,7 @@ dependencies = [
  "dokime-domain",
  "dokime-macros",
  "dokime-operations",
+ "dokime-tracing",
  "file-id",
  "flatbuffers",
  "futures-util",
@@ -2597,6 +2607,7 @@ dependencies = [
  "harmos",
  "harmos-packaging",
  "harmos-sdk",
+ "hmac 0.13.0",
  "hound",
  "image",
  "keyring",
@@ -2606,6 +2617,7 @@ dependencies = [
  "nokhwa",
  "plugin-host",
  "prost",
+ "rand 0.10.3",
  "regex",
  "rusqlite",
  "rustls-platform-verifier",
@@ -2621,8 +2633,8 @@ dependencies = [
  "tokio-util",
  "toml 1.1.8+spec-1.1.0",
  "tonic",
+ "tonic-types",
  "tracing",
- "tracing-error",
  "tracing-subscriber",
  "unftp-core",
  "unftp-sbe-fs",
@@ -2647,6 +2659,7 @@ dependencies = [
  "dokime-cli",
  "dokime-packaging",
  "dokime-runtime",
+ "dokime-tracing",
  "futures-util",
  "harmos-packaging",
  "harmos-sdk",
@@ -2675,13 +2688,26 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-chrome",
- "tracing-error",
  "tracing-flame",
  "tracing-subscriber",
  "uuid",
  "windows-sys 0.61.2",
  "zeroize",
  "zip 9.1.0",
+]
+
+[[package]]
+name = "dokime-tracing"
+version = "0.1.2"
+dependencies = [
+ "dokime-domain",
+ "dokime-macros",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+ "tracing-error",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6982,6 +7008,7 @@ version = "0.1.2"
 dependencies = [
  "dokime",
  "dokime-domain",
+ "dokime-tracing",
  "harmos-sdk",
  "libc",
  "serde",
@@ -7001,6 +7028,7 @@ name = "plugin-obc"
 version = "0.1.2"
 dependencies = [
  "dokime",
+ "dokime-tracing",
  "futures-util",
  "harmos-sdk",
  "obc-runtime",

@@ -15,6 +15,7 @@ mod authoring_catalog;
 mod execution_artifacts;
 mod execution_run;
 mod execution_seal_report;
+mod finite_queries;
 mod plugin_lifecycle;
 mod query_roundtrip;
 mod server_diagnostics;

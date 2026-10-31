@@ -82,6 +82,7 @@ pub(crate) async fn telemetry_pages_window() {
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.storage().flush().await.unwrap();
 
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();

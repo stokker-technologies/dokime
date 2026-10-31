@@ -45,7 +45,9 @@ Settings. Export a `.dokime-remote` access file on the host and import or drop i
 on another desktop to connect. The desktop remembers that choice; operators do
 not need a source checkout. Windows installation needs no administrator rights;
 exposing remote access to other PCs may need an administrator to allow the app
-through Windows Firewall once on the exporting computer.
+through Windows Firewall on the exporting computer.
+Direct Ethernet cables support static or automatic IPv4 link-local addresses;
+see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
@@ -61,7 +63,8 @@ Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
 `cargo dokime installer` to package prebuilt binaries with an organization pack.
 `cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
-contains the complete workflow.
+contains the complete workflow, including
+[finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
 #### Examples
 
@@ -74,19 +77,35 @@ dokime operation list --backend lab
 ### Python
 
 The async Python client controls a running backend with owned cycle contexts,
-terminal evidence iterators and saved bundles with digest manifests. The distribution is `dokime-client`; imports use `dokime_client`.
+terminal evidence iterators and saved bundles with digest manifests. Lazy history
+and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
+bounded dataframes with captured types. The distribution is `dokime-client`; imports use `dokime_client`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
-Install the wheel from the same candidate as your backend:
+Install the wheel from the same candidate as your backend, selecting the optional
+extra for this dataframe example:
 
 ```sh
-uv add ./dokime_client-0.1.0-py3-none-any.whl
+uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
+```
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            print(frame, samples.metadata, samples.complete)
 ```
 
 The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles and execution APIs; the [runnable examples](docs/remote/python.md) retain their complete setup.
+backend profiles, [query limits and dataframe types](packages/dokime-client/README.md#optional-dataframes).
+The example requires the corresponding installed template and stream; finite
+queries never follow or change execution state. The [remote guide](docs/remote/python.md)
+retains the complete setup and runnable lifecycle examples.
 
 ### Rust
 
@@ -166,7 +185,8 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, report previews and capture membership ranges require a fresh storage root.
+or evidence indexes without incremental numeric summaries, report previews, capture membership ranges, versioned history projections and query
+token identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or

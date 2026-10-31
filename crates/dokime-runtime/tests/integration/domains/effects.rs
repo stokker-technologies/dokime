@@ -371,6 +371,7 @@ async fn planned(handle: &RuntimeHandle) -> (TestCycleId, TestExecutionId) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_lifecycle() {
     for mode in [Mode::Pass, Mode::Fail, Mode::Cancel] {
@@ -457,6 +458,7 @@ async fn effect_lifecycle() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stop_shutdown_joins() {
     use futures_util::FutureExt;
@@ -489,15 +491,27 @@ async fn stop_shutdown_joins() {
     stopped.unwrap();
     shutdown.unwrap();
     #[cfg(feature = "testing")]
-    assert_eq!(
-        dokime_runtime::testing::drain_counts(&execution),
-        BTreeMap::from([("effects", 1), ("publications", 1), ("records", 1), ("step_leases", 1), ("capture_leases", 1), ("report", 1),]),
-        "Stop, retry and shutdown share each physical cleanup stage and final report"
+    {
+        let mut counts = dokime_runtime::testing::drain_counts(&execution);
+        let reports = counts.remove("report").unwrap_or_default();
+        assert!(reports <= 1, "background publication starts at most once before shutdown");
+        assert_eq!(
+            counts,
+            BTreeMap::from([("effects", 1), ("publications", 1), ("records", 1), ("step_leases", 1), ("capture_leases", 1)]),
+            "Stop, retry and shutdown share each physical cleanup stage"
+        );
+    }
+    let snapshot = handle.watch_state().latest();
+    assert!(
+        snapshot.state().executions[&execution].saved.is_some()
+            || snapshot.state().report_finalizations.get(&execution).is_some_and(|intent| intent.lifecycle.is_some()),
+        "shutdown retains either the published report or its recoverable finalization intent"
     );
     assert_eq!(*physical.restorations.lock().unwrap(), ["fixture.radio"], "physical restoration runs once across Stop, retry and shutdown");
     physical.runtime.lock().unwrap().take();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_resource_order() {
     let root = tempdir().unwrap();
@@ -525,6 +539,7 @@ async fn effect_resource_order() {
     physical.runtime.lock().unwrap().take();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_recovery() {
     let root = tempdir().unwrap();

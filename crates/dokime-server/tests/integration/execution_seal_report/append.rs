@@ -222,6 +222,7 @@ pub(crate) async fn explicit_append_small_write_budget_single_worker() {
     explicit_append_scenario(std::num::NonZeroUsize::new(256 * 1024), std::num::NonZeroUsize::new(1)).await;
 }
 
+#[tracing::instrument(skip_all)]
 async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, workers: Option<std::num::NonZeroUsize>) {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("grpc.fixture").unwrap(), "gRPC fixture", None);
@@ -315,18 +316,21 @@ async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, worker
     invalid.executions[0].execution_id = dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string();
     invalid.executions[0].case_id = dokime::model::identity::new_id::<dokime::CaseId>().to_string();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(invalid, TOKEN)).await.is_err());
-    // The 100-Member Guard; `system/execution_append_seal.rs` Appends And Seals 1,003 Members.
-    let large_append = contracts::execution::AppendExecutions {
+    // Several Reports Exercise Every Write Budget; The System Story Owns Multi-Page Scaling.
+    let additional = (0..3).map(|_| uuid::Uuid::now_v7().to_string()).collect::<Vec<_>>();
+    let append = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),
-        executions: (0..98)
-            .map(|_| contracts::execution::ExecutionBinding {
-                execution_id: uuid::Uuid::now_v7().to_string(),
+        executions: additional
+            .iter()
+            .map(|id| contracts::execution::ExecutionBinding {
+                execution_id: id.clone(),
                 case_id: case.case_id.clone(),
             })
             .collect(),
     };
-    let added = wire.unary::<contracts::execution::AppendExecutions>(auth(large_append, TOKEN)).await.unwrap().into_inner();
-    assert_eq!(added.execution_ids.len(), 98);
+    let added = wire.unary::<contracts::execution::AppendExecutions>(auth(append, TOKEN)).await.unwrap().into_inner();
+    assert_eq!(added.execution_ids, additional);
+    let expected = ids.iter().chain(&additional).cloned().collect::<Vec<_>>();
     assert_eq!(
         handle
             .watch_state()
@@ -335,8 +339,10 @@ async fn explicit_append_scenario(budget: Option<std::num::NonZeroUsize>, worker
             .cycle_view(&dokime::TestCycleId::from_uuid(cycle.clone()).unwrap())
             .unwrap()
             .test_executions
-            .len(),
-        100
+            .iter()
+            .map(|execution| execution.test_execution_id.to_string())
+            .collect::<Vec<_>>(),
+        expected
     );
 
     // A Retired Attempt Cannot Be Rebound To Another Active Container.

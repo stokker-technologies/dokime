@@ -27,7 +27,8 @@ const appVersion = packageJson.version ?? "dev";
 // `--mode report` builds the single-file report template that the runtime embeds; Vitest runs in `test` mode.
 export default defineConfig(({ mode }) => ({
   root: projectRoot,
-  cacheDir: `node_modules/.vite/${mode}`,
+  // Concurrent Lanes Own Separate Vite Dependency And Vitest Result Caches.
+  cacheDir: `node_modules/.vite/${mode}${mode === "test" ? `/${process.env.DOKIME_TEST_LANE ?? "all"}` : ""}`,
   publicDir: mode === "report" ? false : "public",
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
@@ -79,6 +80,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
+    // Isolated Worker Threads Avoid A Node Process Startup For Every Test File.
+    pool: "threads",
     environment: "node",
     setupFiles: ["tests/setup.ts"],
     include: ["tests/**/*.test.ts"],
