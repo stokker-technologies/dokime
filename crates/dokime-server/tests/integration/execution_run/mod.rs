@@ -456,21 +456,18 @@ pub(crate) async fn checkpoint_telemetry_queries() {
             .unwrap()
             .into_inner();
         if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
-            return Some(
-                history
-                    .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
-                        limit: 1,
-                        ..Default::default()
-                    }))
-                    .await
-                    .unwrap()
-                    .into_inner()
-                    .entries
-                    .into_iter()
-                    .find(|entry| entry.metadata.as_ref().is_some_and(|metadata| metadata.cycle_id.as_deref() == Some(cycle_id.as_str())))
-                    .and_then(|entry| entry.checkpoint)
-                    .expect("completed execution checkpoint"),
-            );
+            return history
+                .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
+                    limit: 1,
+                    ..Default::default()
+                }))
+                .await
+                .unwrap()
+                .into_inner()
+                .entries
+                .into_iter()
+                .find(|entry| entry.metadata.as_ref().is_some_and(|metadata| metadata.cycle_id.as_deref() == Some(cycle_id.as_str())))
+                .and_then(|entry| entry.checkpoint);
         }
         None
     })
@@ -990,23 +987,30 @@ fn run(id: &str) -> contracts::execution::GetCycle {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_run() {
-    Box::pin(registered_create_definitions()).await;
-    Box::pin(stopping_running_unwind()).await;
-    Box::pin(runtime_shell_cursor()).await;
-    Box::pin(checkpoint_telemetry_queries()).await;
-    Box::pin(historical_checkpoint_content()).await;
-    Box::pin(invalid_admission_values()).await;
-    Box::pin(stalled_stream_execution()).await;
-    Box::pin(run_cycle_targets()).await;
+    // Each Branch Owns Its Runtime, Listener And Storage Root.
+    tokio::join!(
+        Box::pin(registered_create_definitions()),
+        Box::pin(stopping_running_unwind()),
+        Box::pin(runtime_shell_cursor()),
+        Box::pin(checkpoint_telemetry_queries()),
+        Box::pin(historical_checkpoint_content()),
+        Box::pin(invalid_admission_values()),
+        Box::pin(stalled_stream_execution()),
+        Box::pin(run_cycle_targets()),
+    );
     Box::pin(controls::cycle_edits_state()).await;
     Box::pin(controls::labels_rename_state()).await;
     Box::pin(documents_execution::running_execution_owners()).await;
-    Box::pin(files::live_file_rewrites()).await;
+    // These Independent Roots Retain Every File, Pagination And Queued-Heartbeat Assertion.
+    tokio::join!(
+        Box::pin(files::live_file_rewrites()),
+        Box::pin(pagination::queued_cycle_seals_every_member()),
+        Box::pin(start::queued_run_outlives_the_idle_deadline()),
+    );
     Box::pin(files::execution_file_buffer()).await;
     Box::pin(inspection::inspection_separates_outputs()).await;
     Box::pin(inspection::planned_params_limit()).await;
     Box::pin(pagination::large_cycles_order()).await;
-    Box::pin(pagination::queued_cycle_seals_every_member()).await;
     Box::pin(requests::command_receipts_survive_restart()).await;
     Box::pin(requests::execution_admissions_restart()).await;
     Box::pin(requests::pairing_revocation_preserves_execution_receipts()).await;
@@ -1014,7 +1018,6 @@ async fn execution_run() {
     Box::pin(search::cycle_search_once()).await;
     Box::pin(search::listed_cases_page()).await;
     Box::pin(start::blocking_run_drains_and_preserves_work_after_callback_error()).await;
-    Box::pin(start::queued_run_outlives_the_idle_deadline()).await;
     Box::pin(start::start_identity_survives()).await;
     Box::pin(steps::step_pages_selections()).await;
 }

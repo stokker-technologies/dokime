@@ -163,17 +163,17 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
     gate.started.notified().await;
 
     // A Run Queued Behind Held Work Keeps Both Followed Readers Alive Past The Client's Idle Deadline.
-    let records = std::sync::atomic::AtomicUsize::new(0);
-    let samples = std::sync::atomic::AtomicUsize::new(0);
+    let (records, mut record_pages) = tokio::sync::watch::channel(0usize);
+    let (samples, mut sample_pages) = tokio::sync::watch::channel(0usize);
     let mut on_records = |page: &model::evidence::wire::RecordPage| {
         if page.records.is_empty() && page.replay_complete {
-            records.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            records.send_modify(|count| *count += 1);
         }
         Ok(())
     };
     let mut on_samples = |page: &model::telemetry::wire::TelemetrySamplesReply| {
         if page.samples.is_empty() && page.complete {
-            samples.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            samples.send_modify(|count| *count += 1);
         }
         Ok(())
     };
@@ -183,7 +183,7 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
         ..Default::default()
     };
     let execution = client.execution(dokime::TestExecutionId::from_uuid(second.clone()).unwrap());
-    // The Default Client Idle Deadline Applies; The Wait Outlasts It By One Server Heartbeat.
+    // The Default Client Idle Deadline Applies; Await Enough Delivered Heartbeats To Pass It.
     let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
     let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
     let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
@@ -195,18 +195,25 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
         },
     );
     let release = async {
-        tokio::time::sleep(idle + heartbeat).await;
+        record_pages.wait_for(|count| *count > 0).await.unwrap();
+        sample_pages.wait_for(|count| *count > 0).await.unwrap();
+        for _ in 0..=beats {
+            let previous_records = *record_pages.borrow();
+            let previous_samples = *sample_pages.borrow();
+            record_pages.wait_for(|count| *count > previous_records).await.unwrap();
+            sample_pages.wait_for(|count| *count > previous_samples).await.unwrap();
+        }
         let queued = gate.calls.load(std::sync::atomic::Ordering::SeqCst);
-        let quiet = (records.load(std::sync::atomic::Ordering::SeqCst), samples.load(std::sync::atomic::Ordering::SeqCst));
+        let quiet = (*records.borrow(), *samples.borrow());
         gate.release.notify_one();
         gate.started.notified().await;
         gate.release.notify_one();
         (queued, quiet)
     };
-    let (saved, (queued, (quiet_records, quiet_samples))) = tokio::join!(running, release);
+    let (_, (queued, (quiet_records, quiet_samples))) =
+        tokio::try_join!(running, async { Ok::<_, dokime::client::Error>(release.await) }).unwrap();
 
     // The Run Then Returns The Saved Outcome Of The Execution It Waited For.
-    saved.unwrap();
     assert_eq!(queued, 1, "the observed execution stayed queued past the idle deadline");
     assert!(quiet_records >= beats, "queued record watch delivered {quiet_records} of {beats} quiet frames");
     assert!(quiet_samples >= beats, "queued sample watch delivered {quiet_samples} of {beats} quiet frames");
