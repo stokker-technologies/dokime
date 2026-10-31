@@ -24,7 +24,6 @@ use crate::queries::{
 };
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -86,7 +85,7 @@ pub(crate) fn telemetry_sample_matches(sample: &TelemetrySample, stream_filter: 
     if stream_filter.is_some_and(|filter| &sample.stream != filter) {
         return false;
     }
-    if scope.is_some_and(|scope| !scope_visible_in(sample.scope.as_ref(), scope)) {
+    if scope.is_some_and(|scope| !sample.is_visible_in(scope)) {
         return false;
     }
     true

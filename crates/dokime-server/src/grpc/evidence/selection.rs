@@ -47,6 +47,19 @@ pub(super) struct Selection {
 /* === Implementations === */
 
 impl Selection {
+    pub(super) fn owners(&self) -> dokime::domains::evidence::ScopeSelection {
+        let scope = self.value.scope.as_ref();
+        dokime::domains::evidence::ScopeSelection {
+            test_execution_id: scope
+                .and_then(|scope| scope.execution_id.as_ref())
+                .map(|id| dokime::TestExecutionId::from_uuid(id).expect("selection UUID was validated")),
+            test_cycle_id: scope
+                .and_then(|scope| scope.cycle_id.as_ref())
+                .map(|id| dokime::TestCycleId::from_uuid(id).expect("selection UUID was validated")),
+            ..Default::default()
+        }
+    }
+
     pub(super) fn new(value: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
@@ -116,24 +129,23 @@ impl Selection {
         let Some(selected) = &value.scope else {
             return true;
         };
-        let Some(scope) = &record.scope else {
-            return false;
+        let matches = |scope: &dokime::RecordScope| {
+            let Ok(actual) = super::super::value::canonical::scope(scope) else { return false };
+            [
+                (&selected.session_id, &actual.session_id),
+                (&selected.cycle_id, &actual.cycle_id),
+                (&selected.case_id, &actual.case_id),
+                (&selected.execution_id, &actual.execution_id),
+                (&selected.step_id, &actual.step_id),
+                (&selected.criterion_id, &actual.criterion_id),
+                (&selected.template_id, &actual.template_id),
+                (&selected.suite_id, &actual.suite_id),
+            ]
+            .into_iter()
+            .all(|(selected, actual)| selected.as_ref().is_none_or(|v| actual.as_ref() == Some(v)))
         };
-        let Ok(actual) = super::super::value::canonical::scope(scope) else {
-            return false;
-        };
-        [
-            (&selected.session_id, &actual.session_id),
-            (&selected.cycle_id, &actual.cycle_id),
-            (&selected.case_id, &actual.case_id),
-            (&selected.execution_id, &actual.execution_id),
-            (&selected.step_id, &actual.step_id),
-            (&selected.criterion_id, &actual.criterion_id),
-            (&selected.template_id, &actual.template_id),
-            (&selected.suite_id, &actual.suite_id),
-        ]
-        .into_iter()
-        .all(|(selected, actual)| selected.as_ref().is_none_or(|v| actual.as_ref() == Some(v)))
+        record.scope.as_ref().is_some_and(matches)
+            || (selected.execution_id.is_some() || selected.cycle_id.is_some()) && record.captured_scopes.iter().any(matches)
     }
 }
 
@@ -142,3 +154,67 @@ impl Selection {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime::domain::model::{
+        execution::RecordScope,
+        identity::{RecordId, TestCycleId, TestExecutionId},
+        records::evidence::Record,
+        time::Timestamp,
+    };
+    use dokime::records::RecordSeverity;
+
+    #[test]
+    fn capture_membership() {
+        let a = TestExecutionId::from_seed("capture-a");
+        let b = TestExecutionId::from_seed("capture-b");
+        let cycle = TestCycleId::from_seed("capture-cycle");
+        let record = Record::new(
+            RecordId::from_seed("lost-target"),
+            Timestamp::new("2026-10-30T10:00:00Z"),
+            dokime::domain::model::identity::Identifier::new("example.target.lost").unwrap(),
+            1,
+            "example",
+            RecordSeverity::Info,
+        );
+        let mut entry = RecordEntry::from_record(1, record);
+        let producer = entry.scope.clone();
+        entry.captured_scopes.push(RecordScope {
+            test_cycle_id: Some(cycle.clone()),
+            test_execution_id: Some(a.clone()),
+            ..Default::default()
+        });
+        let selection = |execution: Option<&TestExecutionId>, cycle: Option<&TestCycleId>| {
+            Selection::new(Some(dokime::domain::model::evidence::wire::CapturedRecordSelection {
+                record_types: vec!["example.target.lost".into()],
+                scope: Some(common::EvidenceScope {
+                    execution_id: execution.map(ToString::to_string),
+                    cycle_id: cycle.map(ToString::to_string),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }))
+            .unwrap()
+        };
+        assert!(selection(Some(&a), None).matches(&entry));
+        assert!(selection(None, Some(&cycle)).matches(&entry));
+        assert!(!selection(Some(&b), None).matches(&entry));
+        entry.captured_scopes.push(RecordScope {
+            test_execution_id: Some(b.clone()),
+            ..Default::default()
+        });
+        assert!(selection(Some(&b), None).matches(&entry));
+        assert_eq!(entry.scope, producer);
+        entry.captured_scopes.clear();
+        entry.scope = Some(RecordScope {
+            test_execution_id: Some(a.clone()),
+            test_cycle_id: Some(cycle.clone()),
+            ..Default::default()
+        });
+        assert!(selection(Some(&a), None).matches(&entry));
+        assert!(selection(None, Some(&cycle)).matches(&entry));
+        assert!(!selection(Some(&b), None).matches(&entry));
+    }
+}

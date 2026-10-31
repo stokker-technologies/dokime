@@ -279,7 +279,7 @@ retain their truthful outcome and whatever rows were saved. An execution bundle
 taken before cycle sealing can show an Active cycle; the final cycle bundle
 shows its sealed phase and all members.
 
-Read the original typed telemetry file with an Arrow-compatible reader. For
+Read the exported typed telemetry file with an Arrow-compatible reader. For
 example, in a Python environment with Polars installed:
 
 ```python
@@ -294,6 +294,8 @@ for path in Path("unpacked-test").rglob("telemetry/*.arrow"):
 The Arrow schema carries field units, descriptions and stream identity. SQLite
 `files` rows identify each archive member and digest; `streams` links telemetry
 to its execution and lists batch offsets and row/time ranges in `batches_json`.
+This membership includes captured observer samples whose producer scope remains
+empty or identifies another owner. Shared files contribute only captured rows.
 Keep the manifest, database, reports, artifacts and Arrow files together. Use
 `.quit` to leave the SQLite CLI.
 

@@ -161,7 +161,7 @@ fn plan<'a>(
 ) -> Result<ReadBatch<Plan<'a>>> {
     let axis = request.x_expression.as_ref().and_then(telemetry_expression);
     let contextual = !aggregate && (axis.is_some() || group.is_some());
-    let scoped = records.iter().filter(|record| super::sample_matches_scope(record.scope.as_ref(), request.scope.as_ref()));
+    let scoped = records.iter().filter(|record| request.scope.as_ref().is_none_or(|scope| record.is_visible_in(scope)));
     let previous = match expression.source {
         Source::Timing { previous } => Some(previous),
         Source::Telemetry { .. } if contextual => {

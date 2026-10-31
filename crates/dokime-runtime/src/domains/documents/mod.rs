@@ -127,7 +127,7 @@ pub(crate) fn resolve_cycle_document(
             let execution = selected_execution(state, cycle, id)?;
             normalize_execution_selection(execution, &mut selection.scope);
             let Some(definition) = captured_authored_document(suites, execution, document_id) else { return Ok(None) };
-            data.telemetry.retain(|sample| crate::document::markers::scope_matches(sample.scope.as_ref(), &selection));
+            data.telemetry.retain(|sample| selection.matches_sample(sample));
             Ok(Some(PreparedDocument { definition, selection, data }))
         })();
         Ok(result)

@@ -73,6 +73,7 @@ impl Sample {
         let summary = values::decode_owned(self.summary)?;
         let metadata = values::decode_owned(self.metadata)?;
         Ok(TelemetrySample {
+            captured_scopes: Vec::new(),
             sample_id,
             stream,
             schema_version: self.schema_version,

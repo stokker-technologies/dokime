@@ -61,10 +61,15 @@ impl TelemetryFilter {
         if !self.sources.is_empty() && !self.sources.contains(&sample.source) {
             return false;
         }
-        if let Some(scope) = &self.scope
-            && sample.scope.as_ref() != Some(scope)
-        {
-            return false;
+        if let Some(scope) = &self.scope {
+            let matches = if scope.test_execution_id.is_some() || scope.test_cycle_id.is_some() {
+                sample.is_visible_in(scope)
+            } else {
+                sample.scope.as_ref() == Some(scope)
+            };
+            if !matches {
+                return false;
+            }
         }
         if let Some(start) = &self.start
             && &sample.timestamp < start

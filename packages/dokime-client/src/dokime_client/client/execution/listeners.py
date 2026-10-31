@@ -73,7 +73,7 @@ async def read_records(
                     page = pending.result()
                 except StopAsyncIteration as error:
                     raise ProtocolError("record reader ended before completion") from error
-                _records(scope, backend.epoch, page, after)
+                _records(backend.epoch, page, after)
                 after = _wire.nested(
                     "Evidence",
                     "ListRecords",
@@ -92,7 +92,7 @@ async def read_records(
     await transport.verify(backend, live=True)
     request = _wire.request("Evidence", "ListRecords", selection=selection)
     page = await transport.unary("Evidence", "ListRecords", request)
-    _records(scope, backend.epoch, page, None)
+    _records(backend.epoch, page, None)
     frontier = _wire.nested(
         "Evidence",
         "ListRecords",
@@ -105,7 +105,6 @@ async def read_records(
         page = await transport.unary("Evidence", "ListRecords", request)
     while True:
         _records(
-            scope,
             backend.epoch,
             page,
             request.after if request.HasField("after") else None,
@@ -164,7 +163,7 @@ async def read_samples(
                     raise ProtocolError("telemetry continuation did not advance")
                 for item in page.samples:
                     selected = not streams or any(fnmatchcase(item.stream, pattern) for pattern in streams)
-                    if not item.HasField("scope") or not _scope(scope, item.scope) or not selected:
+                    if not item.sample_id or not selected:
                         raise ProtocolError("sample identity or stream differs")
                 yield page
                 positions.update(through)
@@ -194,15 +193,7 @@ def validate_patterns(patterns: Sequence[str]) -> None:
 # === Private Functions === #
 
 
-def _scope(expected: Message, actual: Message) -> bool:
-    return all(
-        not expected.HasField(field) or actual.HasField(field) and getattr(actual, field) == getattr(expected, field)
-        for field in ("execution_id", "cycle_id")
-    )
-
-
 def _records(
-    scope: Message,
     epoch: str,
     page: Message,
     after: Message | None,
@@ -228,13 +219,7 @@ def _records(
         raise ProtocolError("record continuation did not advance")
     previous = after.position if after is not None else None
     for item in page.records:
-        if (
-            not item.HasField("scope")
-            or not _scope(scope, item.scope)
-            or item.sequence > scanned.position
-            or previous is not None
-            and item.sequence <= previous
-        ):
+        if not item.record_id or item.sequence > scanned.position or previous is not None and item.sequence <= previous:
             raise ProtocolError("record identity or journal position differs")
         previous = item.sequence
 

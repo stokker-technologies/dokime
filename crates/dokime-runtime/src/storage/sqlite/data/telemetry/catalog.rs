@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS stream_batch_scopes (
     FOREIGN KEY(file_id,batch) REFERENCES stream_batches(file_id,batch)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS stream_batch_scope_time ON stream_batch_scopes(scope,last_at);
+CREATE TABLE IF NOT EXISTS stream_captures (
+    execution TEXT, cycle TEXT, file_id TEXT NOT NULL, batch INTEGER NOT NULL,
+    first_row INTEGER NOT NULL, rows INTEGER NOT NULL, scope TEXT NOT NULL,
+    PRIMARY KEY(file_id,batch,scope,first_row),
+    FOREIGN KEY(file_id,batch) REFERENCES stream_batches(file_id,batch)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS stream_capture_cycle ON stream_captures(cycle,file_id,batch,first_row);
+CREATE INDEX IF NOT EXISTS stream_capture_execution ON stream_captures(execution,file_id,batch,first_row);
+CREATE INDEX IF NOT EXISTS stream_capture_batch ON stream_captures(file_id,batch);
 CREATE TABLE IF NOT EXISTS stream_summaries (
     file_id TEXT NOT NULL REFERENCES streams(file_id), signal TEXT NOT NULL,
     count INTEGER NOT NULL, minimum REAL NOT NULL, maximum REAL NOT NULL, sum REAL NOT NULL,

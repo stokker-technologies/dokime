@@ -180,6 +180,7 @@ pub(crate) fn entry(
         return Err(Error::Corrupt("telemetry values are not a struct"));
     };
     let sample = crate::telemetry::TelemetrySample {
+        captured_scopes: Vec::new(),
         sample_id: TelemetrySampleId::from_uuid(text("sample_id")?)?,
         stream: Identifier::new(contract.stream.as_str())?,
         schema_version: contract.schema_version,

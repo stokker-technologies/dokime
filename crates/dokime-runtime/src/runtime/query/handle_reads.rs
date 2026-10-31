@@ -215,11 +215,22 @@ impl RuntimeHandle {
 
     pub async fn selected_records(&self, selection: crate::evidence_runtime::RecordSelection) -> crate::runtime::Result<Vec<RecordEntry>> {
         let snapshot = self.capture_state().await?;
-        let captured =
-            crate::queries::records::execution_capture(snapshot.state().executions.values(), selection.scope.test_execution_id.as_ref());
-        Ok(selection.apply_with_subscriptions(&self.records_at(&snapshot).await?, |record| {
-            captured.and_then(|captures| captures.captured_scope(record))
-        }))
+        if selection.scope.test_execution_id.is_some() || selection.scope.test_cycle_id.is_some() {
+            let at = self.saved_through(snapshot.revision()).await?;
+            let mut after = 0;
+            let mut records = Vec::new();
+            let epoch = self.process_epoch();
+            loop {
+                let page = self.local_storage.scoped_records(at.clone(), selection.scope.clone(), None, after, 0, u64::MAX).await?;
+                let Some(last) = page.last() else { break };
+                after = last.position;
+                records.extend(
+                    page.into_iter().filter(|row| row.epoch != epoch || row.record.sequence <= snapshot.revision()).map(|row| row.record),
+                );
+            }
+            return Ok(selection.apply(&records));
+        }
+        Ok(selection.apply(&self.records_at(&snapshot).await?))
     }
 
     pub(crate) async fn record_pages_at_in(

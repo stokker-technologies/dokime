@@ -336,7 +336,8 @@ class Cycle:
 
         Event types filter on the server; occurrence IDs filter locally. Empty
         filters collect every captured record in scope, including records from
-        before subscription. Unscoped backend records are outside this scope.
+        before subscription. Observer records captured by the cycle's executions
+        are included with their original producer scopes.
         Read a fixed current frontier. No cross-restart replay.
         """
         await self._snapshot()

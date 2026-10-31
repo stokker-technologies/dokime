@@ -251,7 +251,7 @@ impl Read<'_> {
         while let Some(row) = rows.next().map_err(failure)? {
             let bytes: Vec<u8> = row.get(0).map_err(failure)?;
             let record: RecordEntry = serde_json::from_slice(&bytes).map_err(failure)?;
-            if !super::super::sample_matches_scope(record.scope.as_ref(), visible) {
+            if !visible.is_none_or(|scope| record.is_visible_in(scope)) {
                 continue;
             }
             return Ok(Some(record));

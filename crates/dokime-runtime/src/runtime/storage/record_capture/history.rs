@@ -162,7 +162,7 @@ impl Source {
     }
 
     // Save Everything Accepted So Far; One Saved Cut Then Covers The Whole History.
-    async fn save_accepted(&self, state_manager: &crate::app::StateManager) -> Result<harmos::storage::StorageCursor> {
+    pub(crate) async fn save_accepted(&self, state_manager: &crate::app::StateManager) -> Result<harmos::storage::StorageCursor> {
         let accepted = self.storage.cursor_accepted();
         let saved = self.storage.flush_until(&accepted).await?;
         self.healthy(state_manager)?;
@@ -240,6 +240,13 @@ impl History {
 }
 
 impl CapturedRecord {
+    pub(crate) fn from_entry(position: u64, record: RecordEntry) -> Self {
+        Self {
+            page: harmos::storage::ReadBatch::new(vec![CapturedRow { position, current_process: true, record }]),
+            index: 0,
+        }
+    }
+
     pub(crate) fn position(&self) -> u64 {
         self.page[self.index].position
     }

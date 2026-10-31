@@ -95,6 +95,7 @@ struct Metadata {
     source: String,
     signals: Vec<Signal>,
     scope: Option<ScopeRow>,
+    captured_scopes: Vec<ScopeRow>,
     summary: Vec<values::Cell>,
     metadata: Vec<values::Cell>,
 }
@@ -264,6 +265,7 @@ impl TypedCodec {
             source: sample::copy_text(sample.source.as_str())?,
             signals: projected,
             scope: scope.map(ScopeRow::from),
+            captured_scopes: sample.captured_scopes.iter().map(ScopeRow::from).collect(),
             summary: values::encode(&sample.summary)?,
             metadata: values::encode(&sample.metadata)?,
         };
@@ -350,6 +352,7 @@ impl TypedCodec {
             metadata: metadata.metadata,
         };
         let mut sample = sample.into_sample()?;
+        sample.captured_scopes = metadata.captured_scopes.into_iter().map(TryInto::try_into).collect::<Result<_>>()?;
         sample.values = decoded;
         sample.storage_payload = Some(payload.to_vec());
         Ok(Admitted {
@@ -527,6 +530,12 @@ pub(crate) fn numeric_metadata(bytes: &[u8]) -> Result<Vec<(String, f64)>> {
         return Err(Error::Invalid("stored telemetry metadata is not canonical"));
     }
     Ok(metadata.signals.into_iter().filter_map(|signal| signal.numeric_bits.map(|bits| (signal.name, f64::from_bits(bits)))).collect())
+}
+
+pub(crate) fn capture_scopes(bytes: &[u8]) -> Result<Vec<RecordScope>> {
+    let mut reader = Reader::new(bytes);
+    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
+    metadata.captured_scopes.into_iter().map(TryInto::try_into).collect()
 }
 
 pub(crate) fn signals(values: &BTreeMap<String, Value>) -> Vec<Signal> {

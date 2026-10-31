@@ -216,7 +216,10 @@ The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
 shell redirection. The `.id` files retain confirmed native identities.
 
 Bundles contain `manifest.json`, `evidence.sqlite`, captured `artifacts/`,
-original Arrow IPC files under `telemetry/` and saved `reports/`. Cycle bundles
+Arrow IPC files of produced or captured samples under `telemetry/` and saved `reports/`.
+Complete finalized producer files retain their original bytes; shared observer
+files contribute only the execution's captured ranges at the saved frontier.
+Cycle bundles
 place artifacts and telemetry under `executions/<execution-id>/`. Join the
 SQLite catalogs and verify manifest checksums.
 An execution bundle saved before the cycle is sealed records an Active cycle;

@@ -121,9 +121,9 @@ impl Prepared {
     }
 
     pub(crate) fn check_evidence(&self, telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> crate::runtime::Result<()> {
-        let samples = telemetry.iter().filter(|sample| {
-            sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-        });
+        let samples = telemetry
+            .iter()
+            .filter(|sample| sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample, request.scope.as_ref()));
         let first = samples.clone().next().ok_or_else(|| invalid("analysis has no retained raw samples"))?;
         if samples.clone().any(|sample| evidence_owner(sample.scope.as_ref()) != evidence_owner(first.scope.as_ref())) {
             return Err(invalid("analysis requires one evidence scope; narrow the selection"));

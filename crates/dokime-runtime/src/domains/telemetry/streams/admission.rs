@@ -305,6 +305,7 @@ pub(crate) fn share_scopes(
     }
     let mut rows = slots(count)?;
     for mut sample in samples {
+        sample.captured_scopes.clear();
         let mut leases = slots(accepting(leased, &sample).count())?;
         for scope in accepting(leased, &sample) {
             leases.push(capture(scope)?);

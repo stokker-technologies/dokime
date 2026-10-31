@@ -49,7 +49,7 @@ pub(crate) async fn rebuild(
     settings: &harmos::config::SchemaSettings,
 ) -> Result<Preview> {
     let mut telemetry = TelemetryReader::selected(view, local, None, None, 0, settings).await?;
-    let mut records = RecordReader::open(view, true).await?;
+    let mut records = RecordReader::open(view).await?;
     let mut samples = VecDeque::new();
     let mut events = VecDeque::new();
     let mut telemetry_done = false;
