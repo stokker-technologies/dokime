@@ -886,7 +886,7 @@ let watch = ctx
         policy: FileWatchPolicy::Stream,
         selection: FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(100),
+        poll_interval_ms: Some(FILE_POLL_MS),
         maximum_seconds: Some(1),
         maximum_bytes: None,
         matchers: vec![LineMatcher::publishing::<ChargerLog>(
@@ -897,7 +897,7 @@ let watch = ctx
     .await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
-let captured = watch.join().await?.into_owned();
+let captured = watch.cancel().await?.into_owned();
 ```
 
 `All` follows baseline files and later arrivals. `Latest` selects the newest
@@ -910,6 +910,11 @@ Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
 file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
+
+Local watches rescan on native directory notifications. The configured poll
+interval remains the fallback upper bound when notifications are unavailable;
+FTP watches use that interval. Execution sealing and cancellation wake watches
+independently of either source.
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.

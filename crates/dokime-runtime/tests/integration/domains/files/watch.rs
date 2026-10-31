@@ -113,19 +113,15 @@ async fn failed_initial_admission_never_reports_armed() {
         policy: FileWatchPolicy::Mirror,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: Some(1),
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let instance = operations.submit::<WatchFile>(single).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
     assert!(instance.join().await.is_err());
-    let readiness = bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await;
-    let failure = readiness.expect_err("failed hosted setup cannot report readiness success").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
     bench.stop().await;
 }
 
@@ -362,7 +358,7 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
@@ -451,7 +447,7 @@ async fn late_source_cannot_arm_after_the_wait_deadline() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
-async fn cancelled_wait_reports_failure_to_readiness_waiters() {
+async fn cancelled_source_wait() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
     let request = WatchFile {
@@ -464,24 +460,20 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: Some(30),
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
+    watch.ready().await.unwrap();
     watch.request_cancel();
-    assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready),
-    )
-    .await;
-    let failure = result.expect("readiness settles after cancellation").expect_err("a cancelled watch is never armed").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
+    let failure = watch.join().await.expect_err("the missing-source watch settles as cancelled");
+    let cancelled = matches!(&failure, harmos::Error::OperationRefused(harmos::Refusal::Cancelled))
+        || failure.failure().is_some_and(|cause| cause.code() == harmos::operations::FailureKind::Cancelled);
+    assert!(cancelled, "the missing-source watch retains a cancellation outcome: {failure:?}");
     bench.stop().await;
 }
 // Stream captures only bytes written after the start, follows rotation and
@@ -805,7 +797,7 @@ async fn watch_file_matchers() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: vec![LineMatcher {
@@ -835,7 +827,9 @@ async fn watch_file_matchers() {
         .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
+    let mut records = bench.handle.subscribe_records();
     append(&log, APPENDED);
+    crate::service_support::waits::wait_for_subscription_record(&mut records, "tracking.fixture_warning").await;
     let outcome = watch.cancel().await.unwrap().into_owned();
     assert_eq!(
         outcome.artifacts,

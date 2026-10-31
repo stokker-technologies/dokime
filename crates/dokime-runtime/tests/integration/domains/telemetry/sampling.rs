@@ -221,7 +221,7 @@ async fn host_plugin_stream() {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("fixture.host.sampling").unwrap(), "Host Sampling", None);
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata)
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+        .with_plugins([crate::service_support::bundles::host_plugin()]);
     let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let streams = [Identifier::new("host.system").unwrap(), Identifier::new("host.bluetooth").unwrap()];
@@ -249,7 +249,7 @@ async fn host_observer_spins_down() {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("fixture.host.spin_down").unwrap(), "Host Spin Down", None);
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata)
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+        .with_plugins([crate::service_support::bundles::host_plugin()]);
     let mut owner = Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let mut residents = runtime.operations().watch_residents();

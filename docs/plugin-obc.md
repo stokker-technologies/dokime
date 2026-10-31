@@ -28,6 +28,11 @@ the `plugin_obc.analysis.ripple` analysis gives any plotted trace its peak-to-pe
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
+Pulse, steady-state and process observers use the short fixture cadences declared
+in `src/settings.rs`. Model sample intervals determine simulated waveform time;
+sample-count completion follows publication notifications. Shipping host observers
+retain their separately configured collection intervals.
+
 The remote demonstration uses `obc.checks.pulse`. It runs without a prompt by
 default. Set `require_confirmation` to `true` for one Yes/No confirmation before
 capture begins; the request identifies its execution and prompt. No pulse

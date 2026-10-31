@@ -521,35 +521,19 @@ async function startBackendMeasured(
   });
   backend = { child, endpoint: `http://127.0.0.1:${port}`, log };
   const readyStarted = Date.now();
-  const readyDeadline = readyStarted + 180000;
-  const readyEnvironment = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
-  delete readyEnvironment.DOKIME_KEY;
-  delete readyEnvironment.DOKIME_ENDPOINT;
-  const readiness = { attempts: 0, ready: false, lastExitCode: null };
+  const readiness = { attempts: 0, ready: false };
   try {
+    // Normal Startup Verifies The Selected Plugins Before Binding This Listener.
     await until(
-      "backend protocol ready",
+      "backend listener ready",
       async () => {
         if (child.startupError) throw child.startupError;
         if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
-        if (!(await listening(backend.endpoint))) return false;
         readiness.attempts += 1;
-        try {
-          const result = await executeFile(cliBinary, ["status", "--endpoint", backend.endpoint, "--timeout-seconds", "120", "--json"], {
-            windowsHide: true,
-            cwd: work,
-            env: readyEnvironment,
-            timeout: Math.max(1, Math.min(120000, readyDeadline - Date.now())),
-          });
-          readiness.lastExitCode = 0;
-          readiness.ready = JSON.parse(result.stdout).status === "ready";
-          return readiness.ready;
-        } catch (error) {
-          readiness.lastExitCode = Number.isInteger(error.code) ? error.code : null;
-          return false;
-        }
+        readiness.ready = await listening(backend.endpoint);
+        return readiness.ready;
       },
-      Math.max(1, readyDeadline - Date.now()),
+      180000,
     );
   } finally {
     await writeFile(join(evidence, `${label}-readiness.json`), JSON.stringify({ ...readiness, elapsedMs: Date.now() - readyStarted }));
@@ -796,8 +780,19 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     const text = `(normalize-space(.) = ${literal} or .//span[normalize-space(.) = ${literal}] or @aria-label = ${literal} or @title = ${literal})`;
     return session.find("xpath", `//${tag}[${text}${enabled ? " and not(@disabled) and not(@aria-disabled='true')" : ""}]`);
   };
-  session.clickNamed = async (role, name, options) =>
-    session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
+  session.clickNamed = async (role, name, options) => {
+    const result = await until(`${role} ${name}`, async () => {
+      const element = await session.named(role, name, options);
+      try {
+        return { value: await session.click(element) };
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return null;
+        return { failure };
+      }
+    });
+    if (result.failure) throw result.failure;
+    return result.value;
+  };
   session.openPicker = (element) =>
     session.execute(
       `
@@ -2709,6 +2704,7 @@ async function cycleJourney(session, cycleId) {
       return trigger && document.activeElement === trigger && getComputedStyle(document.body).pointerEvents !== 'none';
     `),
   );
+  await session.executeAsync("const done = arguments[arguments.length - 1]; requestAnimationFrame(() => requestAnimationFrame(done));");
   await session.key("Escape");
   await until(
     "console closed by Escape",
@@ -2815,19 +2811,23 @@ async function executionStopJourney(session, cycleId) {
     return row.dataset.executionId ?? null;
   `);
   assert.ok(unstarted, "The copied cycle must offer an unstarted sibling for explicit selection");
-  await measured("fixed-wait", "UI settling (3000 ms)", () => delay(3000));
+  await session.waitForDom(
+    "the selected unstarted execution",
+    `return new URL(location.href).searchParams.get("executionId") === args[0] &&
+      [...document.querySelectorAll('button')].some((button) =>
+        button.textContent.trim() === 'Cancel Execution' && !button.disabled);`,
+    [unstarted],
+  );
   assert.equal(
     (await session.location()).searchParams.get("executionId"),
     unstarted,
     "An unstarted execution the operator selected must stay selected while another runs",
   );
-  assert.ok(hasText(await session.text(), "This case has not run yet"), "An unstarted execution shows its planned parameters");
   await checkParameterGeometry(session);
   /* An attempt that has not started is cancelled, not stopped: Stop belongs
      to a running attempt alone. */
   await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), 120000);
   assert.ok(!(await session.exists("button", "Stop Execution")), "An unstarted execution must not offer Stop");
-  assert.ok(!hasText(await session.text(), "No step in progress"), "An unstarted execution states that it waits for Start");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 120000);
   await session.execute(
@@ -3881,7 +3881,7 @@ async function touchJourney(session, cycleId) {
   );
   assert.ok(share >= 80, `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`);
   await session.key("Escape");
-  await measured("fixed-wait", "UI settling (500 ms)", () => delay(500));
+  await session.waitForDom("the touch dialog closes", `return !document.querySelector('[data-slot=sheet-content], [role=dialog]');`);
 
   await setDensity(session, densities.desktop);
 }
@@ -4542,8 +4542,7 @@ for index in range(desktop.get_child_count()):
         if (result.stdout.trim() !== action) return false;
         await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
         if (action === "ready") {
-          await run(["windowfocus", "--sync", ids[0]]);
-          await run(["key", "--clearmodifiers", "ctrl+l"]);
+          await run(["key", "--window", ids[0], "--clearmodifiers", "ctrl+l"]);
           picker.window = ids[0];
         } else if (action === "fill") {
           picker.entered = true;

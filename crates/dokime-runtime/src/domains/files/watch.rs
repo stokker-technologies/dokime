@@ -10,7 +10,7 @@
 // One running file watch. Each tracked file owns a private spool that holds
 // exactly its captured bytes; sealing uploads the spool as the artifact
 // `<output>/<relative path>`, so length and SHA-256 come from the artifact
-// path. The caller drives the watch: `poll` once per interval, `seal` at the
+// path. The caller drives the watch: `poll` on changes or at its interval, `seal` at the
 // end. Closing the execution asks the watch to seal, and dropping an unsealed
 // watch seals it in the background. A watch with line matchers offers each
 // line the Stream policy captures to them, publishing rows to the matched
@@ -65,6 +65,7 @@ const SOURCE: &str = "dokime.files";
 pub struct FileWatch {
     // Taken by `Drop` to seal an abandoned watch in the background.
     state: Option<State>,
+    changes: Option<harmos::storage::DirectoryWatcher>,
 }
 
 struct State {
@@ -146,6 +147,9 @@ impl FileWatch {
             .tempdir()
             .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
 
+        // Subscribe Before The Baseline So A Racing Write Remains Observable.
+        let changes = source.changes(runtime.storage()).await;
+
         // Seal Into The Execution Before It Stops Admitting Artifacts
         let (seal_sender, seal_request) = oneshot::channel();
         let registration = runtime.execution_storage.captures.register(&execution, seal_sender as SealRequest)?;
@@ -186,6 +190,7 @@ impl FileWatch {
                 seal_request,
                 seal_answer: None,
             }),
+            changes,
         })
     }
 
@@ -221,24 +226,31 @@ impl FileWatch {
     // One discovery and capture pass. Events are pushed even when the pass
     // fails, so frames already earned reach the caller.
     pub async fn poll(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
-        self.state_mut().poll(events).await
+        let result = self.state_mut().poll(events).await;
+        if self.state().complete || self.state().failed {
+            self.changes = None;
+        }
+        result
     }
 
     // Captures what remains, then seals every tracked file. Idempotent.
     pub async fn seal(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+        self.changes = None;
         self.state_mut().seal(events).await
     }
 
     // Resolves when the execution asks its running captures to seal.
     // Cancel-safe; it stays pending once answered or when no request can come.
     pub async fn seal_requested(&mut self) {
-        let state = self.state_mut();
-        if state.complete || state.seal_answer.is_some() {
-            return std::future::pending().await;
-        }
-        match (&mut state.seal_request).await {
-            Ok(answer) => state.seal_answer = Some(answer),
-            Err(_) => std::future::pending().await,
+        self.state_mut().seal_requested().await;
+    }
+
+    pub(crate) async fn wait_for_poll(&mut self, pause: Duration) -> bool {
+        let state = self.state.as_mut().expect("file watch state lives until drop");
+        tokio::select! {
+            () = state.seal_requested() => true,
+            () = source_changed(&mut self.changes) => false,
+            () = tokio::time::sleep(pause) => false,
         }
     }
 
@@ -274,6 +286,16 @@ impl Drop for FileWatch {
 }
 
 impl State {
+    async fn seal_requested(&mut self) {
+        if self.complete || self.seal_answer.is_some() {
+            return std::future::pending().await;
+        }
+        match (&mut self.seal_request).await {
+            Ok(answer) => self.seal_answer = Some(answer),
+            Err(_) => std::future::pending().await,
+        }
+    }
+
     async fn poll(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
         if self.complete || self.failed {
             return Ok(());
@@ -737,6 +759,20 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn source_changed(changes: &mut Option<harmos::storage::DirectoryWatcher>) {
+    let Some(watcher) = changes else { return std::future::pending().await };
+    match watcher.next().await {
+        Ok(Some(_)) => {}
+        result => {
+            if let Err(error) = result {
+                tracing::warn!(%error, "native file notifications stopped; configured polling remains active");
+            }
+            *changes = None;
+            std::future::pending().await
+        }
+    }
+}
 
 fn over_bytes(maximum: u64, path: &str) -> Error {
     capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))

@@ -80,6 +80,13 @@ impl Source {
         Ok(Self::Ftp(Box::new(FtpSource::open(url, password, trusted).await?)))
     }
 
+    pub(super) async fn changes(&self, storage: &crate::storage::Manager) -> Option<harmos::storage::DirectoryWatcher> {
+        match self {
+            Self::Local(source) => source.changes(storage).await,
+            Self::Ftp(_) => None,
+        }
+    }
+
     pub(super) async fn scan(&mut self, matcher: &FileMatcher) -> Result<Listing> {
         match self {
             Self::Local(source) => source.scan(matcher).await,

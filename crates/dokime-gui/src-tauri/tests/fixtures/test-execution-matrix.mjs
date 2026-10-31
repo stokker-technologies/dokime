@@ -38,11 +38,17 @@ import { openHarness } from "./rpc-harness.mjs";
 /* === Entry Point === */
 
 const harness = await openHarness();
+let changes;
 try {
   const contract = JSON.parse(readFileSync(process.argv[2], "utf8"));
   const scenario = contract.scenarios.find((item) => item.name === process.argv[3]);
   const api = await harness.load("generated/client.js");
   const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
+  changes = await api.observationWatchRuntime(session, {});
+  const changed = changes[Symbol.asyncIterator]();
+  async function nextChange() {
+    assert.ok(!(await changed.next()).done, "runtime observation ended before the condition");
+  }
   const suite = await api.catalogGetSuite(session, { suiteId: contract.suite });
   const template = suite.templates.find((item) => item.metadata.identifier === contract.template);
   assert.ok(template);
@@ -69,13 +75,10 @@ try {
   const terminal = (status) => {
     return status.summary.sealed;
   };
-  // No RPC signals a pending prompt or a published row, so the driver polls the live
-  // backend between short yields; the lane deadline bounds every wait.
-  const pause = () => new Promise((done) => setTimeout(done, 10));
   let pending = await api.promptsListPending(session, { cycleId });
   while (!pending.prompts.length) {
     assert.ok(!terminal(await status()));
-    await pause();
+    await nextChange();
     pending = await api.promptsListPending(session, { cycleId });
   }
   assert.equal(pending.prompts.length, 1);
@@ -143,14 +146,27 @@ try {
   const reading = (row) => Number(scalarField(row.values, "value", ["Integer", "Unsigned", "Number"]));
   const phase = (record) => scalarField(record.details, "phase", ["Text"]);
   // Prompt admission and evidence visibility have independent frontiers.
-  let liveRecords = await records();
-  let liveRows = await samples();
-  while (!liveRows.length || !liveRecords.some((record) => record.recordType === contract.record)) {
-    assert.ok(!terminal(await status()));
-    await pause();
-    liveRecords = await records();
-    liveRows = await samples();
+  const recordStream = await api.evidenceWatchRecords(session, { selection: { scope: { cycleId } } });
+  try {
+    for await (const page of recordStream) {
+      if (page.records.some((record) => record.recordType === contract.record)) break;
+    }
+  } finally {
+    await recordStream.cancel();
   }
+  const sampleStream = await api.telemetryWatchSamples(session, {
+    selection: { scope: { executionId: liveExecutionId }, streams: [contract.stream], limit: 1, latest: false },
+    follow: true,
+  });
+  try {
+    for await (const page of sampleStream) {
+      if (page.samples.length) break;
+    }
+  } finally {
+    await sampleStream.cancel();
+  }
+  const liveRecords = await records();
+  const liveRows = await samples();
   assert.deepEqual(liveRows.map(reading), [1]);
   assert.ok(!terminal(await status()));
   const ready = liveRecords.find((record) => record.recordType === contract.record);
@@ -173,7 +189,7 @@ try {
     let nextPrompts = await next();
     while (!nextPrompts.length) {
       assert.ok(!terminal(await status()));
-      await pause();
+      await nextChange();
       nextPrompts = await next();
     }
     await progressAt(1);
@@ -185,14 +201,14 @@ try {
   }
   let finished = await status();
   while (!terminal(finished)) {
-    await pause();
+    await nextChange();
     finished = await status();
   }
   const finalRecords = await records();
   const rows = await samples();
   const summary = await api.executionGetCycle(session, { cycleId });
   const inventory = await api.contentListArtifacts(session, {});
-  const artifact = inventory.artifacts.find((item) => item.filename.endsWith("matrix.txt"));
+  const artifact = inventory.artifacts.find((item) => item.filename.endsWith("matrix.txt") && item.scope.executionId === liveExecutionId);
   assert.ok(artifact);
   assert.equal(artifact.scope.executionId, liveExecutionId);
   assert.equal(artifact.state.HarmosVariant.case, "Complete");
@@ -255,5 +271,6 @@ try {
     })}\n`,
   );
 } finally {
+  if (changes) await changes.cancel();
   await harness.close();
 }

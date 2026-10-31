@@ -23,6 +23,13 @@ use crate::domain::operations::GetStatus;
 
 /* === Constants === */
 
+// Simulated Fixture Observers Advance Model Samples Without Real-Time Pacing.
+pub const SAMPLE_INTERVAL_MS: u64 = 1;
+pub(crate) const STEADY_INTERVAL_MS: u64 = SAMPLE_INTERVAL_MS;
+pub(crate) const SYSTEM_INTERVAL_MS: u64 = SAMPLE_INTERVAL_MS;
+// The Host Admits File Watch Polling At Fifty Milliseconds Or Longer.
+pub(crate) const FILE_POLL_MS: u32 = 50;
+
 /* === Macros === */
 
 /* === Type Aliases === */

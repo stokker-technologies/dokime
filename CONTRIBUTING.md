@@ -96,10 +96,11 @@ listeners. Python workers own temporary roots and ephemeral gRPC listeners.
 Pytest caches and Vite/Vitest caches belong to their lane, so lanes do not replace
 one another's results.
 
-Shared input preparation and the native desktop workflows serialize:
+Shared input preparation completes before test consumers start:
 preparation mutates the wheel environment and generated modules and extracts shared
-read-only Rust binaries, while desktop
-stories share window focus, native pickers and one interactive desktop session.
+read-only Rust binaries. Within its exclusively owned interactive desktop session,
+the native system lane runs independent workflows concurrently. Each workflow owns
+its temporary data roots, WebDriver/backend ports, browser profiles and native pickers.
 Process-local test fixture mutexes protect callbacks or runtime state inside one
 story; they do not lock other nextest processes. No cross-test nextest group is
 needed. Hosted CI and nightly test jobs already depend on their artifact producers

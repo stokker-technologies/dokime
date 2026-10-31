@@ -159,7 +159,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),

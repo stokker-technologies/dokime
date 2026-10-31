@@ -39,9 +39,6 @@ use dokime_domain::model::values::Value;
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
     #[cfg(feature = "native")]
-    flush_window: std::time::Duration,
-
-    #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
 
     #[cfg(feature = "native")]
@@ -101,12 +98,10 @@ pub trait OwnedStream: TelemetryStream {}
 
 impl Streams {
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
-        // Native streams own the flush timer and listener queue; the portable
+        // Native streams own the flush task and listener queue; the portable
         // stream facade delegates publication directly to its supplied sink.
         Self {
             sink,
-            #[cfg(feature = "native")]
-            flush_window: std::time::Duration::from_millis(10),
             #[cfg(feature = "native")]
             admission: None,
             #[cfg(feature = "native")]
@@ -236,8 +231,7 @@ impl Streams {
         let _ = (stream, error);
     }
 
-    // A buffered row waits at most one window: the first row after a flush
-    // arms one timer, and the timer flushes whatever is buffered by then.
+    // Coalesce Ready Publications Until The Publisher Yields, Then Flush.
     fn flush_later(&self) {
         #[cfg(feature = "native")]
         if self.sink.buffering()
@@ -246,7 +240,7 @@ impl Streams {
         {
             let streams = self.clone();
             runtime.spawn(async move {
-                tokio::time::sleep(streams.flush_window).await;
+                tokio::task::yield_now().await;
                 streams.flushing.store(false, std::sync::atomic::Ordering::Release);
                 streams.flush().await;
             });
