@@ -50,7 +50,7 @@ def run(task: str, output: str, profile: str) -> int:
         command += ["--profile", profile]
     if output == "bench":
         return _run(command, OUTPUTS[output])
-    # Check / Rust Runs lint:rust Over The Product And Tests Selections; These Producers Only Compile.
+    # Check / Rust Runs lint:rust Over The Workspace Except The Desktop Crate; These Producers Only Compile.
     previous = os.environ.get("CHECK_CLIPPY")
     os.environ["CHECK_CLIPPY"] = "1"
     try:

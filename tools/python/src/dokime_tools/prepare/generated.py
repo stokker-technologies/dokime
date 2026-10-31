@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, paths
+from dokime_tools.build import paths
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output
@@ -56,7 +56,6 @@ def prepare(*, check: bool = True) -> None:
     messages = ROOT / "target/contracts/typescript/compiler.jsonl"
     messages.parent.mkdir(parents=True, exist_ok=True)
     arguments = ["--locked", "--profile", "dev", "-p", "cargo-dokime", "-p", "dokime-server"]
-    cargo.clippy(ROOT, arguments)
     with messages.open("w", encoding="utf-8") as output:
         subprocess.run(
             ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"],
