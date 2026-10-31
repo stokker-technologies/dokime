@@ -17,6 +17,8 @@ pub(crate) mod contention;
 pub(crate) mod cycles;
 pub(crate) mod diagnostics;
 pub(crate) mod lifecycle;
+#[cfg(feature = "testing")]
+mod live_report;
 pub(crate) mod planning;
 pub(crate) mod reboot;
 pub(crate) mod records;

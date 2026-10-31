@@ -51,6 +51,9 @@ struct Plan {
     preview: Preview,
 }
 
+// A Plot Preview Read In The Same Snapshot As The Rest Of A Report's Evidence.
+pub(crate) struct Checkpoint(Plan);
+
 #[derive(Default)]
 pub(crate) struct Batch {
     loaded: BTreeSet<String>,
@@ -185,34 +188,24 @@ impl State {
         })
         .await?
     }
+}
 
-    pub(crate) async fn plot_preview(
-        &self, execution: String, plot: String, at: harmos::storage::StorageCursor, request: PlotPayloadRequest, generated_at: String,
-        epochs: (Option<String>, Option<String>),
-    ) -> crate::runtime::Result<Option<PlotPayload>> {
-        if uses_numeric_mean(&request) {
-            return Ok(None);
-        }
-        let head = self.data_saved().await?;
-        head.history.check(&at.history)?;
-        if at.sequence > head.sequence {
-            return Err(Error::Data("plot preview exceeds the saved evidence frontier").into());
-        }
-        let state = self.read(move |connection| Ok(checkpoint(connection, &execution, &plot, at.sequence))).await??;
-        let Some(state) = state else { return Ok(None) };
-        let mut saved_request = state.request.clone();
-        saved_request.max_points = request.max_points;
-        let request = saved_request;
+impl Checkpoint {
+    pub(crate) fn payload(
+        &self, request: &PlotPayloadRequest, generated_at: &str, epochs: (Option<&str>, Option<&str>),
+    ) -> crate::runtime::Result<PlotPayload> {
+        let mut saved = self.0.request.clone();
+        saved.max_points = request.max_points;
         let context = PlotPayloadContext {
-            default_max_points: request.max_points.unwrap_or(state.limits.exact_points),
-            x_format: request.x_format.as_ref(),
-            series_format: request.y_format.as_ref(),
-            run_started_at: epochs.0.as_deref(),
-            cycle_started_at: epochs.1.as_deref(),
+            default_max_points: saved.max_points.unwrap_or(self.0.limits.exact_points),
+            x_format: saved.x_format.as_ref(),
+            series_format: saved.y_format.as_ref(),
+            run_started_at: epochs.0,
+            cycle_started_at: epochs.1,
         };
-        let mut payload = state.preview.payload(&request, &generated_at, &context, state.limits)?;
-        decorate(&mut payload, &state.contracts, &request);
-        Ok(Some(payload))
+        let mut payload = self.0.preview.payload(&saved, generated_at, &context, self.0.limits)?;
+        decorate(&mut payload, &self.0.contracts, &saved);
+        Ok(payload)
     }
 }
 
@@ -293,17 +286,21 @@ pub(crate) fn decorate(payload: &mut PlotPayload, contracts: &[TelemetryContract
 
 /* === Private Functions === */
 
-fn checkpoint(connection: &Connection, execution: &str, plot: &str, at: u64) -> Result<Option<Plan>, Error> {
-    let mut query = connection.prepare("SELECT through,state FROM report_plot_previews WHERE execution=?1 AND plot=?2")?;
-    let mut rows = query.query(params![execution, plot])?;
-    let Some(row) = rows.next()? else { return Ok(None) };
-    let through: String = row.get(0)?;
-    let through = u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?;
-    if through > at {
-        return Ok(None);
+// Checkpoints That Advanced Past The Cut Are Omitted So Their Plots Rebuild Through It.
+pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> Result<BTreeMap<String, Checkpoint>, Error> {
+    let mut query = connection.prepare("SELECT plot,through,state FROM report_plot_previews WHERE execution=?1")?;
+    let mut rows = query.query([execution])?;
+    let mut checkpoints = BTreeMap::new();
+    while let Some(row) = rows.next()? {
+        let through: String = row.get(1)?;
+        let through = u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?;
+        if through > at {
+            continue;
+        }
+        let bytes: Vec<u8> = row.get(2)?;
+        checkpoints.insert(row.get(0)?, Checkpoint(serde_json::from_slice(&bytes)?));
     }
-    let bytes: Vec<u8> = row.get(1)?;
-    Ok(Some(serde_json::from_slice(&bytes)?))
+    Ok(checkpoints)
 }
 
 /* === Tests === */
@@ -330,9 +327,9 @@ mod tests {
                 [serde_json::to_vec(&plan).unwrap()],
             )
             .unwrap();
-        assert!(checkpoint(&connection, "execution", "plot", 9).unwrap().is_none());
-        let current = checkpoint(&connection, "execution", "plot", 10).unwrap().unwrap();
-        assert_eq!(current.preview.context, plan.preview.context);
-        assert!(checkpoint(&connection, "other", "plot", 10).unwrap().is_none());
+        assert!(checkpoints(&connection, "execution", 9).unwrap().is_empty());
+        let current = checkpoints(&connection, "execution", 10).unwrap().remove("plot").unwrap();
+        assert_eq!(current.0.preview.context, plan.preview.context);
+        assert!(checkpoints(&connection, "other", 10).unwrap().is_empty());
     }
 }

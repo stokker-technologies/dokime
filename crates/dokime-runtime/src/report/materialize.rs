@@ -25,6 +25,7 @@ use crate::execution::context::captured::source::CapturedSource;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
+use crate::storage::sqlite::data::telemetry::report::{Evidence, Request};
 use crate::storage::{
     Manager, ReadRows,
     projection::{self},
@@ -66,14 +67,18 @@ pub(crate) async fn sealed_member(
 pub(crate) async fn execution(
     ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
-    let span = tracing::info_span!("report.materialize", final_report);
-    tracing::Instrument::instrument(materialize_execution(ctx, inspection, final_report, operation), span).await
+    let request = evidence_request(inspection, final_report)?;
+    let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
+    execution_with_evidence(ctx, inspection, final_report, operation, evidence.remove(0)).await
 }
 
-async fn materialize_execution(
-    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
+#[tracing::instrument(name = "report.materialize", skip_all, fields(final_report))]
+pub(crate) async fn execution_with_evidence(
+    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation, evidence: Evidence,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     operation.phase("Materializing Evidence");
+    // SQLite Commits Before The Manager Publishes Its Saved Acknowledgement.
+    inspection.session().flush_until(&evidence.through).await?;
     let captured = inspection.captured_source().ok_or_else(|| invalid("report has no captured execution context"))?;
     captured.validate_header()?;
     if captured.evidence_through != *inspection.evidence_through()? {
@@ -83,72 +88,36 @@ async fn materialize_execution(
     #[cfg(feature = "testing")]
     if final_report {
         crate::domains::execution::run::testing::record(&execution.test_execution_id, "report");
-        crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
     }
-    let local = &ctx.storage;
+    #[cfg(feature = "testing")]
+    crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
+    let mut captured = captured.clone();
+    captured.evidence_through = evidence.through;
+    if !final_report && execution.finished_at.is_none() {
+        captured.captured_at = evidence.captured_at;
+        captured.context.health.push(dokime_domain::model::execution::health::HealthItem {
+            health_item_id: crate::model::identity::new_id(),
+            scope: execution.scope.clone(),
+            severity: dokime_domain::model::execution::health::HealthSeverity::Info,
+            message: format!("Report As Of {}", captured.captured_at),
+            detail: Some(format!("Saved evidence through storage cursor {}.", captured.evidence_through.sequence)),
+            observed_at: captured.captured_at.clone(),
+        });
+    }
+    let captured = &captured;
     let table_rows = captured.report_defaults.table_rows as usize;
     let mut records = crate::execution::evidence_rows::EvidenceRows::default();
-    for record in local
-        .report_record_rows(
-            execution.test_execution_id.to_string(),
-            execution.test_cycle_id.to_string(),
-            captured.evidence_through.clone(),
-            table_rows,
-        )
-        .await?
-    {
+    for record in evidence.records {
         records.append(&record).map_err(Error::Operation)?;
     }
-    let fields = local.report_previews(execution.test_execution_id.to_string(), captured.evidence_through.clone()).await?;
-    let mut exact = local.numeric_summaries(execution.test_execution_id.to_string()).await?;
-    let mut percentiles = std::collections::BTreeSet::new();
-    for definition in captured.context.execution_documents.values() {
-        let bodies = definition
-            .cards
-            .iter()
-            .map(|card| &card.body)
-            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)));
-        for body in bodies {
-            let crate::document::DocumentCardBody::TelemetrySummary { summary } = body else { continue };
-            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
-                if let crate::expressions::DataSource::Telemetry { stream, field } = &tile.value.source
-                    && let [crate::expressions::DataTransform::Aggregate(harmos::Aggregate::Percentile(rank))] =
-                        tile.value.transforms.as_slice()
-                {
-                    percentiles.insert((stream.clone(), field.clone(), *rank));
-                }
-            }
-        }
-    }
-    for (stream, field, rank) in percentiles {
-        for summary in
-            exact.iter_mut().filter(|summary| crate::plot::stream_matches_alias(&summary.stream, &stream) && summary.field == field)
-        {
-            let name = format!("p{rank}");
-            if summary.statistics.iter().any(|(key, _)| *key == name) {
-                continue;
-            }
-            if let Some(value) =
-                local.numeric_percentile(execution.test_execution_id.to_string(), summary.stream.clone(), field.clone(), rank).await?
-            {
-                summary.statistics.push((name, value));
-            }
-        }
-    }
+    let fields = evidence.fields;
+    let exact = evidence.exact;
     let mut samples = Vec::new();
     for versions in captured.telemetry_contracts.values() {
         for contract in versions.values() {
             let codec = super::query::telemetry::saved_codec(ctx, inspection.session(), &captured.evidence_through, contract).await?;
-            let rows = local
-                .report_sample_rows(
-                    execution.test_execution_id.to_string(),
-                    contract.stream.to_string(),
-                    captured.evidence_through.clone(),
-                    table_rows,
-                )
-                .await?;
-            for row in rows {
-                if row.record.schema != *codec.schema() {
+            for row in &evidence.samples {
+                if row.stream != contract.stream || row.record.schema != *codec.schema() {
                     continue;
                 }
                 samples.push(codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample);
@@ -201,20 +170,19 @@ async fn materialize_execution(
                     .unwrap_or(captured.report_defaults.plot_points as usize)
                     .min(captured.report_defaults.plot_points as usize),
             );
-            let indexed = local
-                .plot_preview(
-                    execution.test_execution_id.to_string(),
-                    descriptor.plot_id.to_string(),
-                    captured.evidence_through.clone(),
-                    request.clone(),
-                    captured.captured_at.to_string(),
+            let indexed = match evidence.plots.get(descriptor.plot_id.as_str()) {
+                Some(checkpoint) if !crate::plot::preview::index::uses_numeric_mean(&request) => Some(checkpoint.payload(
+                    &request,
+                    captured.captured_at.as_str(),
                     (
-                        execution.started_at.as_ref().map(ToString::to_string),
-                        captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string),
+                        execution.started_at.as_ref().map(|time| time.as_str()),
+                        captured.context.cycle.cycle.started_at.as_ref().map(|time| time.as_str()),
                     ),
-                )
-                .await?;
+                )?),
+                _ => None,
+            };
             let indexed = if indexed.is_none() && !crate::plot::preview::index::uses_numeric_mean(&request) {
+                let local = &ctx.storage;
                 let limits = local.preview_settings().into();
                 let preview =
                     crate::runtime::storage::plot_previews::rebuild(inspection, local, &request, limits, &ctx.resources().schema_settings)
@@ -282,6 +250,39 @@ async fn materialize_execution(
     let preview = ReadRows::from(projection::push(ReadBatch::new(Vec::new()), ReadBatch::new(samples))?);
     let report = assemble(final_report, captured, execution, documents, plots, (records, preview), captured.report_defaults)?;
     Ok(ReadBatch::new(report))
+}
+
+pub(crate) fn evidence_request(inspection: &ExecutionView, final_report: bool) -> Result<Request> {
+    let captured = inspection.source_snapshot()?;
+    let execution = inspection.execution();
+    let mut percentiles = std::collections::BTreeSet::new();
+    for definition in captured.context.execution_documents.values() {
+        let bodies = definition
+            .cards
+            .iter()
+            .map(|card| &card.body)
+            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)));
+        for body in bodies {
+            let crate::document::DocumentCardBody::TelemetrySummary { summary } = body else { continue };
+            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
+                if let crate::expressions::DataSource::Telemetry { stream, field } = &tile.value.source
+                    && let [crate::expressions::DataTransform::Aggregate(harmos::Aggregate::Percentile(rank))] =
+                        tile.value.transforms.as_slice()
+                {
+                    percentiles.insert((stream.clone(), field.clone(), *rank));
+                }
+            }
+        }
+    }
+    Ok(Request {
+        execution: execution.test_execution_id.to_string(),
+        cycle: execution.test_cycle_id.to_string(),
+        at: captured.evidence_through.clone(),
+        current: !final_report && execution.finished_at.is_none(),
+        rows: captured.report_defaults.table_rows as usize,
+        streams: captured.telemetry_contracts.keys().map(ToString::to_string).collect(),
+        percentiles,
+    })
 }
 
 /* === Private Functions === */

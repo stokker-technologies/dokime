@@ -6,7 +6,7 @@ This is a proposed experimental design, not landed behavior. Motivation is in `p
 
 ## Goals And Non-Goals
 
-Retain durable evidence and live queries while eliminating per-signal writes and export payload conversion. No Harmos changes, Parquet, compatibility adapters, development-data migrations, silent storage resets, installers or hilti-hcl changes.
+Retain durable evidence and live queries while eliminating per-signal writes and export payload conversion. No Harmos changes, Parquet, compatibility adapters, development-data migrations, silent storage resets, installers or example-plugin changes.
 
 ## Locked Decisions
 

@@ -102,11 +102,11 @@ from dokime_client import DokimeClient
 
 async def main() -> int:
     async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
-        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
-            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
-            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+        async with client.new_cycle("Example Lab Tracking") as cycle:
+            run = await cycle.start("example.demo.tracking", duration_min=10)
+            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
                 print(record.type)
-        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
         return run.outcome.exit_code
 
 

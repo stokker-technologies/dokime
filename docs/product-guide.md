@@ -228,11 +228,11 @@ from dokime_client import DokimeClient
 
 async def main() -> int:
     async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
-        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
-            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
-            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+        async with client.new_cycle("Example Lab Tracking") as cycle:
+            run = await cycle.start("example.demo.tracking", duration_min=10)
+            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
                 print(record.type)
-        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
         return run.outcome.exit_code
 
 raise SystemExit(asyncio.run(main()))
@@ -548,7 +548,7 @@ whether it is required or optional, and whether it exists in Secret Storage.
 **Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
 Secret values are entered only in Secret Storage; the plugin settings form has no
 secret fields. Existing saved references are ignored on load without migrating
-values or changing storage v1. A stored identifier such as `hcl.api_token` does
+values or changing storage v1. A stored identifier such as `example.api_token` does
 not satisfy a declaration named `api_token`.
 
 Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
@@ -1066,7 +1066,7 @@ identifier, organization override and exact Dokime binary version/target. For ex
 ```toml
 [installer]
 version = "0.1.0"
-identifier = "com.hilti.dokime"
+identifier = "com.example.testhub"
 organization = "organization"
 formats = ["nsis"]
 
@@ -1088,10 +1088,10 @@ selected distribution's organization defaults. On Linux, use `target = "x86_64-u
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
-`identifier` is a lowercase reverse-DNS identifier, such as `com.hilti.dokime`.
+`identifier` is a lowercase reverse-DNS identifier, such as `com.example.testhub`.
 It fixes the distribution's storage and install identity; omitting it uses the
 distribution's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
-"com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
+"com.example.testhub" }` to `distribution.json` beside the executables and hashes it
 in `installer.json`, the inventory used for bundled-plugin startup
 reconciliation. A malformed or unreadable identity file fails startup; only an absent file falls back to the compiled identifier.
 
@@ -1646,10 +1646,15 @@ record durations retain the preceding matching record and telemetry context.
 than four points render normally. Analyses that need more exact history than the
 configured cap identify their specific limitation. History-dependent repeated
 sections remain unavailable. Full evidence remains available for external analysis.
-A historical cut whose checkpoint has advanced, and captures and plots
-without a plot-specific checkpoint, are reconstructed from bounded evidence pages
-through the requested cut. Current reports use the saved frontier; final reports
-use the frozen cut.
+Plot checkpoints commit with the telemetry batch that advances them. A historical
+cut whose plot checkpoint has advanced, and captures and plots without a
+plot-specific checkpoint, are reconstructed from bounded evidence pages through
+the requested cut; a historical cut whose field preview has advanced is refused.
+Running reports capture field previews, plot checkpoints, exact summaries and
+first/last rows in one committed storage snapshot, shared across active cycle
+members. They show an **As Of** time and the saved evidence frontier for that cut;
+ingestion can continue while the report renders. Final reports retain their exact
+frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 

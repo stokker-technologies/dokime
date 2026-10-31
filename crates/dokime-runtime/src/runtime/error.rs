@@ -119,6 +119,9 @@ pub enum Error {
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),
 
+    #[error("The report could not be created from saved evidence. Try again; if the problem continues, collect diagnostics.")]
+    ReportUnavailable(#[source] Box<Error>),
+
     #[error("invalid checkpoint query: {0}")]
     InvalidCheckpointQuery(String),
 
