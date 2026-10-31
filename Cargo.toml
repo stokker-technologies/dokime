@@ -92,8 +92,8 @@ arrow-array = { version = "=60.1.0" }
 arrow-buffer = { version = "=60.1.0" }
 arrow-ipc = { version = "=60.1.0", features = ["zstd"] }
 arrow-schema = { version = "=60.1.0" }
-flatbuffers = { version = "25.12.19" }
 base64 = { version = "0.23.1" }
+flatbuffers = { version = "25.12.19" }
 handlebars = { version = "6.4.4" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.

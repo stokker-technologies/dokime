@@ -28,6 +28,7 @@ publish.workspace = true
 # Local
 dokime-macros = { workspace = true }
 
+# Git
 
 # Error Handling
 thiserror = { workspace = true }
@@ -37,8 +38,28 @@ tracing = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+# Utilities
+
 # Serialization
 serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Build Dependencies === #
 
@@ -48,8 +69,34 @@ serde_json = { workspace = true }
 # Local
 dokime-domain = { workspace = true }
 
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
 # Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Target Dependencies === #
 
