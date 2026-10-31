@@ -822,6 +822,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/unit-python/
           target/traces/${{ env.PROFILE }}/*/unit-python/
+          target/test-reports/unit-python/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1018,6 +1019,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/unit-typescript/
           target/traces/${{ env.PROFILE }}/*/unit-typescript/
+          target/test-reports/unit-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3732,6 +3734,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/unit-rust/
           target/traces/${{ env.PROFILE }}/*/unit-rust/
+          target/test-reports/unit-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3818,6 +3821,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/unit-rust/
           target/traces/${{ env.PROFILE }}/*/unit-rust/
+          target/test-reports/unit-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true

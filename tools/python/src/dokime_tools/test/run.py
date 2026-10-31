@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Generator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 # Third Party Imports
@@ -56,22 +56,28 @@ def test(
     project: str,
     profile: str,
     extra: Sequence[str],
+    *,
+    prepared: bool = False,
+    archive_directory: Path | None = None,
 ) -> int:
     """Run One Lane And Retain Its Native Report; Nonzero When Any Story Failed."""
     rules = policy.load(directory)
     key = f"{category}-{language}"
     _preflight(directory, category, language, profile)
-    if language == "python" and not (category in ("unit", "integration") and "-k" in extra):
+    if language == "python" and not prepared and not (category in ("unit", "integration") and "-k" in extra):
         archive.install_wheels(directory, profile)
-    with _scratch(directory, key, profile) as scratch:
+    with _scratch(directory, key, profile) as scratch, temporary.directory() if language == "python" else nullcontext(scratch) as fixtures:
         deadline = rules.deadline(category)
 
         # Native Command
         environment = dict(os.environ)
         cwd = directory / project
         if language == "rust":
-            path = archive.require(directory, profile)
-            binaries = archive.binaries(directory, profile)
+            archive.require(directory, profile)
+            extracted = archive_directory or scratch / "extract"
+            if archive_directory is None:
+                archive.extract(directory, profile, extracted)
+            binaries = archive.binaries(directory, profile, extracted)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)
             measured = nextest.overrides(rules, category, coverage=False, binaries=binaries)
@@ -79,11 +85,15 @@ def test(
             store = str(scratch / "store")
             configuration.write_text(nextest.config(store, deadline, measured), encoding="utf-8")
             junit = scratch / "store" / nextest.PROFILE / "junit.xml"
-            command = nextest.run(path, directory, configuration, scratch / "extract", expression, rest)
+            command = nextest.run(directory, configuration, extracted, expression, rest)
             cwd = directory
         elif language == "python":
             junit = scratch / "junit.xml"
-            command = pytest.run(cwd, f"tests/{category}", deadline, junit, extra)
+            arguments = list(extra)
+            if not any(argument.startswith("--basetemp") for argument in arguments):
+                arguments.append(f"--basetemp={fixtures / 'fixtures'}")
+            arguments += ["-o", f"cache_dir={fixtures / 'pytest-cache'}"]
+            command = pytest.run(cwd, f"tests/{category}", deadline, junit, arguments)
             environment = pytest.environment(directory)
             if category in ("unit", "integration") and "-k" in extra:
                 environment["PYTHONPATH"] = str(cwd / "src")
@@ -92,14 +102,14 @@ def test(
             command = vitest.run(extra, junit, deadline)
 
         environment["TEST_PROFILE"] = profile
+        environment["DOKIME_TEST_LANE"] = key
         environment.pop("TEST_REPORT_DIR", None)
         if category == "system":
             story_reports = report.native_directory(directory, report.TRACES / profile / paths.target() / key)
             environment["TEST_REPORT_DIR"] = str(story_reports)
-        trace_report = None
+        trace_report = report.native_directory(directory, Path("target/test-reports") / key)
         environment.pop("DOKIME_TEST_TRACE_DIR", None)
         if category in ("integration", "acceptance", "system"):
-            trace_report = report.native_directory(directory, Path("target/test-reports") / key)
             trace_directory = report.native_directory(directory, trace_report.relative_to(directory) / "traces")
             shutil.rmtree(trace_directory)
             trace_directory.mkdir()
@@ -120,8 +130,7 @@ def test(
                 scratch,
             )
         finally:
-            if trace_report is not None:
-                traces.summarize(trace_report, junit)
+            traces.summarize(trace_report, junit)
         lane["arguments"] = list(extra)
         return 0 if lane["outcome"] == "passed" else 1
 
@@ -260,6 +269,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     lane.add_argument("--category", choices=policy.CATEGORIES, required=True)
     lane.add_argument("--language", choices=policy.LANGUAGES, required=True)
     lane.add_argument("--coverage", action="store_true")
+    lane.add_argument(
+        "--prepared", action="store_true", help="Shared wheel installation already completed before concurrent readers started"
+    )
+    lane.add_argument("--archive-directory", type=Path, help="Read-Only Nextest Extraction Owned By The Concurrent Entry")
     bench_lane = commands.add_parser("bench", help="run one benchmark layer")
     bench_lane.add_argument("--category", choices=policy.BENCH_CATEGORIES, required=True)
     bench_lane.add_argument("--language", choices=("rust", "python"), required=True)
@@ -292,6 +305,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 options.project,
                 options.profile,
                 extra,
+                prepared=options.prepared,
+                archive_directory=options.archive_directory,
             )
         if options.command == "coverage":
             return coverage(
