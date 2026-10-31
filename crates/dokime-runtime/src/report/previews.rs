@@ -50,6 +50,48 @@ pub(in crate::report) fn indices(count: usize, limit: usize) -> impl Iterator<It
     (0..count.min(limit)).chain(count.saturating_sub(limit).max(limit)..count)
 }
 
+pub(in crate::report) fn exact_summaries(payload: &mut PlotPayload, request: &PlotPayloadRequest, exact: &[NumericSummary]) {
+    if !request.filters.is_empty()
+        || request.series_by.is_some()
+        || request.series_by_expression.is_some()
+        || request.window_s.is_some()
+        || request.summary_window.is_some()
+        || request.scope.as_ref().is_some_and(|scope| scope.step_id.is_some() || scope.criterion_id.is_some())
+    {
+        return;
+    }
+    for summary in &mut payload.summaries {
+        if summary.median.is_some() {
+            continue;
+        }
+        let field = request
+            .y_expressions
+            .iter()
+            .find_map(|expression| {
+                let DataSource::Telemetry { field, .. } = &expression.source else { return None };
+                (expression.transforms.is_empty() && (field == &summary.series_id || expression.label.as_ref() == Some(&summary.series_id)))
+                    .then_some(field.as_str())
+            })
+            .or_else(|| request.y_keys.iter().find(|field| *field == &summary.series_id).map(String::as_str));
+        let Some(exact) = exact
+            .iter()
+            .find(|exact| crate::plot::stream_matches_alias(&exact.stream, &request.stream) && Some(exact.field.as_str()) == field)
+        else {
+            continue;
+        };
+        let stat = |name| exact.statistics.iter().find(|(key, _)| key == name).map(|(_, value)| *value);
+        if let Some(count) = stat("count") {
+            summary.count = count as usize;
+        }
+        summary.min = stat("min");
+        summary.max = stat("max");
+        summary.mean = stat("mean");
+        summary.median = stat("median");
+        summary.std = stat("std");
+        summary.rms = stat("rms");
+    }
+}
+
 pub(crate) fn plot(
     request: &PlotPayloadRequest, fields: &[FieldPreview], summaries: &[NumericSummary],
     source: &crate::execution::context::captured::source::CapturedSource,
@@ -74,7 +116,7 @@ pub(crate) fn plot(
         .as_ref()
         .is_some_and(|selection| selection.id == "dokime.analysis.mean" && selection.version == 1 && selection.parameters.is_empty());
     let supported = simple
-        && maximum >= 4
+        && maximum >= 1
         && (request.analysis.is_none() || mean)
         && request.filters.is_empty()
         && request.series_by.is_none()
@@ -87,7 +129,8 @@ pub(crate) fn plot(
         && request.summary_window.is_none()
         && request.scope.as_ref().is_none_or(|scope| scope.step_id.is_none() && scope.criterion_id.is_none())
         && matches!(request.plot_type, None | Some(crate::document::PlotType::TimeSeries));
-    let mut warning = (!supported).then(|| format!("Plot {} requires history-dependent analysis, a transform, grouping, filtering, a partial scope, a non-time axis, or fewer than four display points. It is unavailable in the bounded report; full data remains in execution {} evidence.", request.plot_id.as_deref().unwrap_or(&request.stream), execution.test_execution_id));
+    let mut warning =
+        (!supported).then(|| "This execution has no saved plot-specific preview. Rerun it with this build to capture the plot.".to_owned());
     if supported && !request.marker_record_types.is_empty() {
         warning =
             Some("Record markers are omitted from the bounded plot; inspect the first/last record preview and complete evidence.".into());
@@ -119,7 +162,7 @@ pub(crate) fn plot(
             fields.iter().filter(|field| crate::plot::stream_matches_alias(&field.stream, &request.stream) && keys.contains(&field.field))
         {
             let mut envelope = field.envelope.clone();
-            envelope.fit(maximum / 4)?;
+            envelope.fit((maximum / 4).max(1))?;
             let count = envelope.buckets.values().map(|bucket| bucket.count).sum::<u64>() as usize;
             let mut points = Vec::new();
             for bucket in envelope.buckets.values() {
@@ -223,6 +266,7 @@ pub(crate) fn plot(
         });
         payload.series.clear();
     }
+    let payload = crate::plot::finish_plot_frame(payload, request)?;
     Ok((super::value::Value::from_serializable(&payload, source.report_defaults.value_depth as usize)?, warning))
 }
 

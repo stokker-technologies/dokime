@@ -144,6 +144,10 @@ struct Interruption {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PreviewSettings {
+    pub exact_points: NonZeroUsize,
+    pub grid_columns: NonZeroUsize,
+    pub grid_rows: NonZeroUsize,
+    pub groups: NonZeroUsize,
     pub report_concurrency: NonZeroUsize,
     pub bucket_count: NonZeroUsize,
     pub bucket_interval: Duration,
@@ -190,9 +194,16 @@ impl State {
         Self::open_with(root, crate::config::local_storage_defaults()).await
     }
 
+    pub(crate) fn preview_settings(&self) -> PreviewSettings {
+        self.0.previews
+    }
+
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
         if settings.previews.bucket_interval.is_zero() || settings.previews.bucket_interval.as_nanos() > i128::MAX as u128 {
             return Err(Error::Data("preview interval must fit positive nanoseconds"));
+        }
+        if settings.previews.grid_columns.get().checked_mul(settings.previews.grid_rows.get()).is_none() {
+            return Err(Error::Data("preview grid exceeds native address range"));
         }
         if settings.previews.report_concurrency.get() > Semaphore::MAX_PERMITS {
             return Err(Error::Data("report concurrency exceeds native range"));

@@ -190,12 +190,85 @@ async fn materialize_execution(
         }
         super::previews::summaries(&mut document, &exact, &fields, context);
         document.warnings.push(super::previews::warning(format!(
-            "Tables contain at most the first and last {} rows per stream. Plots show durable extrema envelopes. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
+            "Tables contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
             table_rows, execution.test_execution_id, captured.evidence_through.sequence)));
         for card in &document.cards {
             let CardBindingResult::Plot { descriptor } = &card.result else { continue };
-            let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
-            let (payload, warning) = super::previews::plot(&request, &fields, &exact, captured, execution)?;
+            let mut request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
+            request.max_points = Some(
+                request
+                    .max_points
+                    .unwrap_or(captured.report_defaults.plot_points as usize)
+                    .min(captured.report_defaults.plot_points as usize),
+            );
+            let indexed = local
+                .plot_preview(
+                    execution.test_execution_id.to_string(),
+                    descriptor.plot_id.to_string(),
+                    captured.evidence_through.clone(),
+                    request.clone(),
+                    captured.captured_at.to_string(),
+                    (
+                        execution.started_at.as_ref().map(ToString::to_string),
+                        captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string),
+                    ),
+                )
+                .await?;
+            let indexed = if indexed.is_none() && !crate::plot::preview::index::uses_numeric_mean(&request) {
+                let limits = local.preview_settings().into();
+                let preview =
+                    crate::runtime::storage::plot_previews::rebuild(inspection, &request, limits, &ctx.resources().schema_settings).await?;
+                let run = execution.started_at.as_ref().map(ToString::to_string);
+                let cycle = captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string);
+                let context = crate::plot::PlotPayloadContext {
+                    default_max_points: captured.report_defaults.plot_points as usize,
+                    x_format: request.x_format.as_ref(),
+                    series_format: request.y_format.as_ref(),
+                    run_started_at: run.as_deref(),
+                    cycle_started_at: cycle.as_deref(),
+                };
+                let mut payload = preview.payload(&request, captured.captured_at.as_str(), &context, limits)?;
+                let contracts: Vec<_> = captured.telemetry_contracts.values().flat_map(|versions| versions.values().cloned()).collect();
+                crate::plot::preview::index::decorate(&mut payload, &contracts, &request);
+                Some(payload)
+            } else {
+                indexed
+            };
+            let (payload, warning) = if let Some(mut payload) = indexed {
+                super::previews::exact_summaries(&mut payload, &request, &exact);
+                if request.analysis.is_some() && payload.analysis.is_none() {
+                    use crate::runtime::query::plots::analysis::{Environment, Prepared};
+                    let prepared =
+                        ctx.state().state().read(|state| Prepared::resolve_with(&ctx.resources().analysis, state, &request)).await?.value;
+                    match prepared {
+                        Ok(Some(prepared)) => {
+                            let contract = captured
+                                .telemetry_contracts
+                                .iter()
+                                .find(|(stream, _)| crate::plot::stream_matches_alias(stream.as_str(), &request.stream))
+                                .and_then(|(_, versions)| versions.values().next());
+                            match prepared
+                                .execute_in(
+                                    Environment::Report(&ctx.resources().analysis),
+                                    &request,
+                                    &captured.evidence_through,
+                                    ReadBatch::new(payload.clone()),
+                                    contract,
+                                )
+                                .await
+                            {
+                                Ok(computed) => payload = computed.as_ref().clone(),
+                                Err(error) => payload.analysis = Some(crate::plot::PlotAnalysis::Error { message: error.to_string() }),
+                            }
+                        }
+                        Err(error) => payload.analysis = Some(crate::plot::PlotAnalysis::Error { message: error.to_string() }),
+                        Ok(None) => {}
+                    }
+                }
+                (super::value::Value::from_serializable(&payload, captured.report_defaults.value_depth as usize)?, None)
+            } else {
+                super::previews::plot(&request, &fields, &exact, captured, execution)?
+            };
             if let Some(warning) = warning {
                 document.warnings.push(super::previews::warning(warning));
             }

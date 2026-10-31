@@ -513,7 +513,7 @@ async fn execution_plots_samples() {
         let series = plots[id]["series"].as_array().unwrap();
         assert_eq!(series.len(), 1);
         assert_eq!(series[0]["key"], field);
-        assert_eq!(series[0]["label"], field);
+        assert_eq!(series[0]["label"], label);
         assert_eq!(series[0]["raw_points"], 3);
         let points = series[0]["points"].as_array().unwrap();
         assert_eq!(points.iter().map(|point| point["x"].as_f64().unwrap()).collect::<Vec<_>>(), [0.0, 1.0, 2.0]);

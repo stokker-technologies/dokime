@@ -80,7 +80,7 @@ impl TelemetryReader {
         Ok(reader)
     }
 
-    async fn selected(
+    pub(in crate::runtime::storage) async fn selected(
         view: &ExecutionView, stream: Option<&Identifier>, version: Option<u32>, after: u64, settings: &harmos::config::SchemaSettings,
     ) -> Result<Self> {
         let session = view.session().clone();

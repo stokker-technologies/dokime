@@ -64,6 +64,8 @@ pub(crate) struct TailStopPreparation {
 }
 
 pub(crate) struct ExecutionStorage {
+    pub(crate) local: crate::storage::sqlite::State,
+    pub(crate) preview_limits: crate::plot::preview::Limits,
     pub(crate) schema_settings: harmos::config::SchemaSettings,
     pub(crate) storage: Manager,
     pub(super) state_manager: StateManager,
@@ -234,10 +236,13 @@ impl ExecutionStorage {
     pub(crate) async fn new(
         storage: Manager, state_manager: StateManager, context_epoch: SessionId,
         brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>, schema_settings: harmos::config::SchemaSettings,
-        report_concurrency: std::num::NonZeroUsize,
+        local: crate::storage::sqlite::State, previews: crate::storage::sqlite::PreviewSettings,
     ) -> Result<Self> {
+        let report_concurrency = previews.report_concurrency;
         let captures = super::captures::Captures::new();
         Ok(Self {
+            local,
+            preview_limits: previews.into(),
             schema_settings,
             storage,
             state_manager,
@@ -709,6 +714,43 @@ impl ExecutionStorage {
             validate_existing(&*owner.lock().await, execution)?;
             return Ok(owner);
         }
+        let defaults = self.local.read_application_settings().await?.settings.report;
+        let (documents, contracts) = self
+            .state_manager
+            .state()
+            .read(|state| {
+                let brand = self.brand.read().expect("brand lock is healthy");
+                let captured = super::presentation::capture(state, cycle, execution, brand.as_ref())?;
+                Ok::<_, Error>((captured.context.execution_documents, state.telemetry_definitions.values().cloned().collect::<Vec<_>>()))
+            })
+            .await?
+            .value?;
+        let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+        let mut requests = Vec::new();
+        for mut document in documents.into_values() {
+            defaults.apply(&mut document);
+            for (body, filters) in document
+                .cards
+                .iter()
+                .map(|card| (&card.body, &card.filters))
+                .chain(document.sections.iter().flat_map(|section| section.cards.iter().map(|card| (&card.body, &card.filters))))
+            {
+                let crate::document::DocumentCardBody::Plot { plot } = body else { continue };
+                let mut input = crate::document::plot_input_for_definition(plot, &[], 0, &selection);
+                input.filters.extend(filters.clone());
+                let descriptor = crate::document::plot_descriptor_for_definition(input, plot.metadata.clone());
+                requests.push(crate::plot::plot_payload_request_for_descriptor(&descriptor, Some(execution.scope.clone()), None, None));
+            }
+        }
+        self.local
+            .register_plot_previews(
+                execution.test_execution_id.to_string(),
+                requests,
+                contracts,
+                self.preview_limits,
+                crate::plot::dimension_context_for_scope(execution),
+            )
+            .await?;
         let (frozen, execution_owner) = retained_execution(execution)?;
         let id = execution.test_execution_id.clone();
         let owner = Arc::new(Mutex::new(Acquisition {

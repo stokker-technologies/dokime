@@ -36,6 +36,7 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
+import { CartesianPlot } from "@/plots/CartesianPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -51,6 +52,7 @@ import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ER
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
 import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
+import { readReportPayload } from "@/report/report-data";
 
 /* === Re-Exports === */
 
@@ -825,4 +827,74 @@ test("Declared Occupancy Context", () => {
   delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
   const absent = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
   assert.deepEqual(absent.context, {});
+});
+
+test("Bounded Report Envelopes", () => {
+  for (const values of [
+    [[3]],
+    [[3, -7]],
+    [
+      [3, -7, 11],
+      [9, null, 4],
+    ],
+  ]) {
+    const x = values[0].map((_, index) => 1_798_761_600 + index);
+    const payload = hostFrame(x, values);
+    const series = payload.series.map((series) => ({ ...series, unit: "dBm", raw_points: 20_000, downsampled: true }));
+    const html = renderToStaticMarkup(
+      createElement(CartesianPlot, {
+        title: "Signal",
+        series,
+        cartesian: payload.cartesian,
+        unit: "dBm",
+        contextSummary: "fixture-network / radio-2 / 6",
+      }),
+    );
+    assert.ok(html.includes("plot-follow"));
+    assert.ok(html.includes("[dBm]"));
+    assert.ok(html.includes("fixture-network / radio-2 / 6"));
+    const missingFrame = renderToStaticMarkup(createElement(CartesianPlot, { title: "Signal", series }));
+    assert.ok(!missingFrame.includes("plot-follow"));
+    assert.deepEqual(windowIndices(x, values, null, 640, true), null);
+  }
+});
+
+test("Report Metadata Subtitles", () => {
+  const captured = hostFrame([1, 2], [[-61, -59]]);
+  captured.context = {
+    wifi_ssid: { type: "text", value: "fixture-network" },
+    wifi_radio: { type: "text", value: "radio-2" },
+    wifi_channel: { type: "integer", value: "6" },
+  };
+  const textContent = JSON.stringify({ plots: { signal: captured }, case_runs: [{ plots: { signal: captured } }] });
+  vi.stubGlobal("document", { getElementById: () => ({ textContent }) });
+  let payload: PlotPayload;
+  try {
+    const report = readReportPayload();
+    payload = report.case_runs[0].plots.signal;
+    assert.deepEqual(payload.context, { wifi_ssid: "fixture-network", wifi_radio: "radio-2", wifi_channel: 6 });
+    assert.deepEqual(report.plots.signal.context, payload.context);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  const plot = {
+    plot_id: "fixture.rssi",
+    stream: "host.wifi.link",
+    title: "Wi-Fi RSSI",
+    plot_type: "time_series",
+    y: ["rssi"],
+  } as DocumentViewPlot;
+  const spec = documentPlotSpec({ plot, payload, plotPalette: [], position: 0, title: plot.title });
+  assert.ok(spec.contextSummary?.includes("fixture-network"));
+  assert.ok(spec.contextSummary?.includes("radio-2"));
+  const html = renderToStaticMarkup(
+    createElement(CartesianPlot, {
+      title: spec.title,
+      series: spec.series,
+      cartesian: spec.cartesian,
+      contextSummary: spec.contextSummary,
+    }),
+  );
+  assert.ok(html.includes("plot-follow"));
+  assert.ok(html.includes("fixture-network"));
 });

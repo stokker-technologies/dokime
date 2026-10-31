@@ -8,7 +8,7 @@
  */
 
 import type { SeriesSummary, StatsSummary } from "../statistics";
-import type { DocumentDataExpression, DocumentValueSource } from "../types";
+import type { DocumentDataExpression, DocumentValueSource, JsonObject } from "../types";
 import type { ParameterDefinition } from "./test";
 import type {
   PlotCartesianFrame as NativePlotCartesianFrame,
@@ -202,7 +202,8 @@ export type WifiOccupancyBandScan = {
 
 // Renderer payloads also represent locally materialized, partial plot data.
 export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
-  Partial<Pick<NativePlotPayload, "series_by" | "context" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
+  Partial<Pick<NativePlotPayload, "series_by" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
+    context?: JsonObject | null;
     series: PlotSeries[];
     computed?: EvidenceAnalysisResult | null;
     analysis?: PlotAnalysis | null;

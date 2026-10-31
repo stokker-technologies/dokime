@@ -1508,11 +1508,13 @@ its raw samples. Plots render the resulting extrema envelope within their displa
 budget; extending a run coarsens time resolution while retaining peaks and dips.
 Tables show bounded first/last rows. Each report identifies its execution and
 saved evidence frontier; evidence paging and exported bundles retain the full data.
-Exact numeric summaries, including percentiles and the built-in mean analysis,
-read the incremental numeric indexes.
+Numeric summaries, including percentiles and the built-in mean analysis,
+use all samples through the incremental numeric indexes. Within-cap plot
+summaries preserve typed integers until the final numeric result.
 
 SQLite construction settings `RuntimeConfig.local_storage.previews` own
-`bucket_count`, `bucket_interval` and `report_concurrency`; application report
+`bucket_count`, `bucket_interval`, `exact_points`, `grid_columns`, `grid_rows`,
+`groups` and `report_concurrency`; application report
 settings own `table_rows`, `plot_points`, `source_bytes` and `value_depth`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
 end, four background renders and 2,000 display points. Each bucket contributes at most four points, and
 report plots merge buckets further when their authored display budget is smaller.
@@ -1523,11 +1525,20 @@ Document input/materialization defaults to 64 MiB and report value encoding to
 Lifecycle definitions, annotations and file inventories retain complete captured
 metadata; capture cost still scales with their cardinality, rather than sample history.
 
-Analyses without an exact incremental index are visibly unavailable in reports:
-FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
-sections and non-time plots. Full evidence remains available for external analysis.
-A historical cut whose preview has advanced is refused instead of replaying raw
-history. Current reports use the saved frontier; final reports use the frozen cut.
+Plot-specific checkpoints apply filters and scopes before accumulating data. They
+keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
+extrema envelopes; XY scatter keeps paired coordinates in a density grid (64 by
+64 by default), re-binning occupied cells as extents grow. Each cell retains its
+sample count. Group counters and numeric moments update incrementally, and
+record durations retain the preceding matching record and telemetry context.
+`groups` bounds series and correlation keys (256 by default). Plots with fewer
+than four points render normally. Analyses that need more exact history than the
+configured cap identify their specific limitation. History-dependent repeated
+sections remain unavailable. Full evidence remains available for external analysis.
+A historical cut whose checkpoint has advanced, and captures and plots
+without a plot-specific checkpoint, are reconstructed from bounded evidence pages
+through the requested cut. Current reports use the saved frontier; final reports
+use the frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
