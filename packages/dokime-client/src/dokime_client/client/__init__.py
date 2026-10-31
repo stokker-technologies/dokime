@@ -53,6 +53,24 @@ from .models import Value as Value
 from .planning import Template as Template
 from .planning import TestCase as TestCase
 from .profiles import Profile as Profile
+from .query.discovery import CycleSummary as CycleSummary
+from .query.discovery import ExecutionSummary as ExecutionSummary
+from .query.errors import QueryConversionError as QueryConversionError
+from .query.errors import QueryDependencyError as QueryDependencyError
+from .query.errors import QueryError as QueryError
+from .query.errors import QueryLimitError as QueryLimitError
+from .query.errors import QuerySnapshotError as QuerySnapshotError
+from .query.evidence import Bucket as Bucket
+from .query.evidence import BucketValue as BucketValue
+from .query.evidence import EvidenceReader as EvidenceReader
+from .query.evidence import TelemetryReader as TelemetryReader
+from .query.reader import QueryPage as QueryPage
+from .query.reader import QueryReader as QueryReader
+from .query.reader import QuerySettings as QuerySettings
+from .query.selection import Predicate as Predicate
+from .query.statistics import QualityCounts as QualityCounts
+from .query.statistics import Statistic as Statistic
+from .query.statistics import Statistics as Statistics
 
 # Type Checking Imports
 

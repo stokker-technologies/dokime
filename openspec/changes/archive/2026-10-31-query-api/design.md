@@ -2,7 +2,7 @@
 
 ## Context
 
-Proposed behavior below is not landed. Motivation and scope are in `proposal.md`.
+This records the agreed API direction. `tasks.md` tracks implementation and proof; motivation and scope are in `proposal.md`.
 
 | Verified Baseline | Source |
 | --- | --- |

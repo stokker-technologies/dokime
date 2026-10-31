@@ -53,8 +53,8 @@ pub(in crate::storage::sqlite) struct Batch {
 }
 
 #[derive(Clone, Copy, Default)]
-struct Moments {
-    count: u64,
+pub(crate) struct Moments {
+    pub(crate) count: u64,
     sum: f64,
     mean: f64,
     lowest: f64,
@@ -132,7 +132,25 @@ impl Batch {
 }
 
 impl Moments {
-    fn push(&mut self, value: f64) -> Result<(), Error> {
+    pub(crate) fn value(&self, method: harmos::Aggregate) -> Option<f64> {
+        use harmos::Aggregate;
+        if self.count == 0 {
+            return None;
+        }
+        let std = if self.deviations.is_nan() { f64::NAN } else { (self.deviations / self.count as f64).max(0.0).sqrt() };
+        Some(match method {
+            Aggregate::Count => self.count as f64,
+            Aggregate::Sum => self.sum,
+            Aggregate::Mean => self.mean,
+            Aggregate::Min => self.lowest,
+            Aggregate::Max => self.highest,
+            Aggregate::Std => std,
+            Aggregate::Rms => self.mean.hypot(std),
+            _ => return None,
+        })
+    }
+
+    pub(crate) fn push(&mut self, value: f64) -> Result<(), Error> {
         let before = self.mean;
         self.count = self.count.checked_add(1).ok_or(Error::Data("numeric summary count overflow"))?;
         self.sum += value;
@@ -256,9 +274,14 @@ pub(super) fn numeric_summaries(connection: &Connection, execution: String) -> R
 
 /* === Private Functions === */
 
-fn ordered(value: f64) -> u64 {
+pub(crate) fn ordered(value: f64) -> u64 {
     let bits = value.to_bits();
     if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
+}
+
+pub(crate) fn unordered(value: u64) -> f64 {
+    let bits = if value >> 63 != 0 { value ^ (1 << 63) } else { !value };
+    f64::from_bits(bits)
 }
 
 fn rank(connection: &Connection, key: &Key, mut ordinal: u64) -> Result<f64, Error> {
@@ -281,8 +304,7 @@ fn rank(connection: &Connection, key: &Key, mut ordinal: u64) -> Result<f64, Err
         prefix.push(selected.ok_or(Error::Corrupt("numeric rank is absent"))?);
     }
     let ordered = u64::from_be_bytes(prefix.try_into().unwrap());
-    let bits = if ordered >> 63 != 0 { ordered ^ (1 << 63) } else { !ordered };
-    Ok(f64::from_bits(bits))
+    Ok(unordered(ordered))
 }
 
 fn percentile(connection: &Connection, key: &Key, count: u64, percentile: u8) -> Result<f64, Error> {

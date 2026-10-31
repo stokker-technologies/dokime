@@ -22,6 +22,9 @@ mod runtime;
 #[cfg(feature = "native")]
 mod settings;
 
+#[cfg(feature = "native")]
+mod query;
+
 mod schema;
 mod storage;
 
@@ -43,6 +46,9 @@ pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 pub use settings::{ApplicationMetadata, Settings};
 
 pub use dokime_domain::model::settings::{Appearance, Density, ReportDefaults, ThemeMode};
+
+#[cfg(feature = "native")]
+pub use query::{QueryConfig, QuerySettings, query_defaults};
 
 pub use schema::schema_defaults;
 pub use storage::{managed_storage_defaults, storage_defaults, storage_state_defaults};

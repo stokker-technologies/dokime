@@ -36,6 +36,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
+    #[error(transparent)]
+    Query(#[from] Box<dokime_domain::model::query::error::Failure>),
+
     #[error("interface lifecycle failed: {source}")]
     Hosting {
         #[source]

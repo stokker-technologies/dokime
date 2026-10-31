@@ -21,7 +21,7 @@ import ssl
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 # Third Party Imports
@@ -38,6 +38,8 @@ from .models import Backend
 from .secrets import _validate_key
 
 # Type Checking Imports
+if TYPE_CHECKING:
+    from .query.reader import QuerySettings
 
 # === Public Exports === #
 
@@ -119,6 +121,7 @@ class Transport:
         self._calls: set[Any] = set()
         self._readers: set[asyncio.Task] = set()
         self.closed = False
+        self.query_settings: QuerySettings | None = None
         self.backend: Backend | None = None
         self._request_limit = MAX_MESSAGE_BYTES
         self._response_limit = DISCOVERY_BYTES

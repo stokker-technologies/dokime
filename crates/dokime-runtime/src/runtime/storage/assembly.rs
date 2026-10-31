@@ -66,6 +66,16 @@ pub(crate) async fn initialize(
     state_manager.commit(recovered).await.map_err(reconciliation_error)?;
     parts.storage.flush().await?;
     parts.storage.flush_recovery().await?;
+    let archives = state
+        .read(|state| {
+            (
+                state.archived_cycles.iter().map(ToString::to_string).collect(),
+                state.archived_executions.iter().map(ToString::to_string).collect(),
+            )
+        })
+        .await?
+        .value;
+    parts.local_state.history_archives(archives.0, archives.1).await?;
     Ok(())
 }
 

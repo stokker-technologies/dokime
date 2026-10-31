@@ -103,7 +103,7 @@ pub fn plugin_obc_bundle() -> std::path::PathBuf {
 }
 
 pub fn host_plugin_bundle() -> std::path::PathBuf {
-    built_bundle("plugins/plugin-host.dokime")
+    built_bundle("fixtures/plugins/plugin-host.dokime")
 }
 
 pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {

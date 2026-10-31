@@ -998,6 +998,45 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+## Finite Evidence Queries
+
+The Python client discovers executions and cycles in the connected backend's
+local retained history, then selects records or projected telemetry at one fixed
+snapshot. These reads never start, stop, seal or follow an execution. Existing
+`records()`/`samples()` still replay and follow through the execution seal.
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            metadata = samples.metadata
+            assert metadata is not None
+            print(frame, metadata.schema, samples.snapshot, samples.complete)
+```
+
+The selected template/stream must be installed. Install the optional helper from
+the same matching wheel, for example
+`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
+The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
+
+Factories are lazy; `pages()` pulls on demand and exposes effective limits,
+captured schema, snapshot and completeness. Sparse empty pages can continue.
+`at=reader.snapshot` reuses a compatible cut after the first response; windows are
+half-open UTC intervals. Collections and dataframe helpers default to finite
+client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
+losing a later page raises without returning a partial materialization.
+Close abandoned readers with their async context or `aclose()`.
+
+The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
+Keep the returned continuation unchanged, including after an empty page, until
+`complete=true` with no continuation. The [remote Python guide](remote/python.md#query-retained-evidence)
+covers snapshot reuse, server statistics and optional wheel installs.
+
 ## CLI Reference
 
 The `dokime-cli` package installs the `dokime` executable.
@@ -1045,7 +1084,60 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
 | `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
 
+### Query Budgets
+
+Finite-query settings are programmatic startup configuration under
+`crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
+`RuntimeConfig.query`. They are validated before opening storage and retained as
+an immutable `RuntimeHandle::query_config()` snapshot. Runtime handlers serve
+history, record and telemetry queries through native and gRPC operation calls.
+These settings are not application preferences or request policy overrides.
+
+```rust
+let mut config = RuntimeConfig::new(storage_root, metadata);
+config.query.page_rows = 128;
+config.query.max_page_bytes = 512 * 1024;
+config.query.page_bytes = 256 * 1024;
+config.query.scanned_rows = 500_000;
+config.query.active_time = std::time::Duration::from_secs(3);
+```
+
+| Setting | Startup Default |
+| --- | --- |
+| Page Rows / Maximum Rows | 256 / storage response batch rows |
+| Page Bytes / Maximum Bytes | 1/8 storage response batch bytes / storage response batch bytes |
+| Working Bytes / Schema Bytes | storage response batch bytes / 1/8 batch bytes |
+| Scanned Rows / Bytes | 4,194,304 / 128 response batches |
+| Active Time / Admission Wait | 1/2 / 1/10 declared sample-query attempt ceiling |
+| Concurrency / Pending Requests | storage active / pending query ceilings |
+| Predicate Terms / IN Members | 64 / 256 |
+| Fields / Captured Versions / History Alternatives | 128 / 32 / 256 |
+| Partitions / Buckets / Aggregate Outputs | 64 / 4,096 / 64 |
+| Token Bytes / Snapshot Lifetime | 4,096 / 15 min |
+
+Composition clamps page ceilings to storage response budgets, concurrency/pending
+admission to storage capacity, working memory to schema preparation bytes, schema
+bytes to working/page budgets and fields to schema preparation work. Defaults are
+clamped with effective ceilings. A serving transport's message-byte budget further
+clamps each page; schema and metadata must fit that same budget. Callers may request
+smaller positive row/byte budgets. Zero budgets, unaddressable memory, defaults above
+configured page ceilings, admission waits above active time and active deadlines
+above any of the five declared operation ceilings fail startup. Snapshot lifetimes
+must fit an unsigned 64-bit nanosecond duration.
+
+Complexity and scan exhaustion fail explicitly; these defaults establish no latency
+or throughput claim. Snapshot tokens are authenticated, finite scans account for
+admitted rows/bytes, and runtime operation admission bounds active and waiting
+queries. The [query contracts](query-api.md) describe page/failure shapes and
+[finite records versus follow](query-api.md#finite-records-and-follow).
+
 ### Operations And Plugins
+
+The [Query API Foundations](query-api.md) describe the finite query declarations;
+the five operations share runtime handlers and existing read authorization.
+Use the generic operation command for [first and next pages](query-api.md#transport-access-and-cli-paging).
+Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
+over those same contracts.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 
@@ -1346,7 +1438,10 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Host payloads now use native repeated fields and framework
+fresh storage root. Versioned local history projections, membership indexes
+and persistent query token identities are part of that layout; retained older
+roots are preserved and are not rebuilt in place. Finite history queries cover this local catalog only; merged browse
+discovery remains a separate API. Host payloads now use native repeated fields and framework
 publication timestamps; the earlier wrapped host row layout also requires a fresh
 root. Schemas remain v1 during development. Existing data is never silently reset.
 
@@ -1594,15 +1689,22 @@ cargo dokime bindings proto --output target/contracts/proto
 
 The output contains `.proto` files, `descriptors.bin`, `contracts.json` and their manifest.
 
-The server contract producer generates the protobuf descriptors of every public operation;
-`mise run build` regenerates the Python package's contract files from them with
-`cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
-copy. The `prepare:generated` prerequisite builds the contract generator and server export
-with the dev compiler profile, selects `cargo-dokime` from those compiler messages
-and runs `bindings proto` before the Buf generator and report/frontend compilation. Its protobuf modules,
-client and descriptor fingerprint match the server export. Application settings still come from
-that build-script export. Ordinary wheel and source-package
-installation uses the tracked files and needs no Rust compiler.
+The server contract producer generates descriptors from every canonical public
+operation. Regenerate all tracked Python/TypeScript contracts and catalog
+snapshots together through the task-owned compiler preflight:
+
+```sh
+mise run prepare:bindings
+```
+
+This task builds the contract generator and server export with the dev compiler
+profile, selects `cargo-dokime` from those compiler messages, exports Python from
+the server contracts and runs `bindings proto` before the TypeScript generator.
+The `prepare:generated` prerequisite of ordinary builds checks tracked clients
+for drift while preparing their message modules. Client descriptors and
+fingerprints match the server export; application settings come from that same
+build-script export. Wheel and source-package installation use tracked files
+and need no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
 client crosses one opaque IPC bridge into the shell, which forwards the

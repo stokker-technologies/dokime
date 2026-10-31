@@ -79,6 +79,7 @@ dokime-tracing = { workspace = true }
 # Utilities
 
 # Serialization
+serde_json = { workspace = true }
 
 # Configuration
 

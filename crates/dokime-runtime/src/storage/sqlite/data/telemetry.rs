@@ -16,6 +16,7 @@ mod catalog;
 mod flush;
 mod inventory;
 pub(crate) mod previews;
+pub(crate) mod query;
 mod reader;
 
 #[cfg(feature = "native")]
