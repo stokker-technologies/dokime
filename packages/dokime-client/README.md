@@ -355,6 +355,41 @@ midnight UTC. Naive datetimes are refused. Each reader permits one consumer.
 and completeness. Reuse `reader.snapshot` through `at=` after the first response.
 Close an abandoned reader with `await reader.aclose()`.
 
+## Finite Evidence Queries
+
+```python
+from dokime_client import Aggregate, Predicate
+
+async for execution in client.executions(status="failed"):
+    records = execution.query_records("example.event", where={"status": "failed"})
+    async for page in records.pages():
+        for record in page.rows:
+            print(record.id, record.details)
+    samples = execution.telemetry(
+        "example.wifi.link",
+        fields=["rssi"],
+        at=records.snapshot,
+        between=("2026-10-01", "2026-10-02"),
+        where=[Predicate("rssi", "lt", -50)],
+        every="1s",
+        agg=Aggregate.mean(),
+    )
+    async for bucket in samples:
+        print(bucket.start, bucket.fields)
+```
+
+Existing execution handles expose the same factories. Cycle handles and cycle
+summaries expose `query_records(..., execution_id=...)` for optional member
+narrowing. `versions=` selects captured contract versions; omitted versions
+and telemetry fields are resolved by the server. Dotted IDs remain literal.
+Raw telemetry yields existing `Sample` models; reductions yield distinct
+`Bucket` models with bounds, partition, counts, units and reducers. Page metadata
+retains captured schema, nullability and versions even for an empty page.
+Sparse empty pages may continue. `page_rows`/`page_bytes` request smaller pages;
+the server advertises effective limits. `at=` accepts a query snapshot or saved
+`Checkpoint`. These finite readers never follow, start, stop or seal work;
+existing `records()`/`samples()` and checkpoint APIs retain their behavior.
+
 ## Aggregate Queries
 
 `Query.Aggregate` and plot expressions name their statistic with the Harmos

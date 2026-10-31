@@ -42,6 +42,7 @@ from ..models import (
     SaveManifest,
     Value,
 )
+from ..query.evidence import cycle_records
 from .handle import Execution
 from .listeners import read_records, read_samples
 from .request import _identity
@@ -66,6 +67,8 @@ VALUE_DEPTH = 64
 
 class Cycle:
     """A live cycle; evidence includes all attempts unless execution_id narrows it."""
+
+    query_records = cycle_records
 
     def __init__(
         self,

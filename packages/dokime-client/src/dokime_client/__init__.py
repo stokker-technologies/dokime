@@ -3226,6 +3226,8 @@ HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Messag
 
 # Product Client Exports
 from .client import Aggregate as Aggregate
+from .client import Bucket as Bucket
+from .client import BucketValue as BucketValue
 from .client import CycleSummary as CycleSummary
 from .client import DokimeClient as DokimeClient
 from .client import ExecutionSummary as ExecutionSummary
@@ -3236,3 +3238,4 @@ from .client import QueryPage as QueryPage
 from .client import QueryReader as QueryReader
 from .client import QuerySettings as QuerySettings
 from .client import QuerySnapshotError as QuerySnapshotError
+from .client import TelemetryReader as TelemetryReader

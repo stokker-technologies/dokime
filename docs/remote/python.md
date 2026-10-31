@@ -53,6 +53,34 @@ there before running the scripts. uv creates a local `.venv/`; activation is
 unnecessary. Setup needs internet access for Python and locked dependencies or
 those inputs already in uv's cache. The remote PC needs no Rust compiler.
 
+## Query Retained Evidence
+
+```python
+from dokime_client import Aggregate, DokimeClient, Predicate
+
+async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+    async for execution in client.executions(status="failed", since="2026-10-01"):
+        records = execution.query_records("example.event", where={"status": "failed"})
+        async for record in records:
+            print(record.to_json())
+        async for bucket in execution.telemetry(
+            "example.wifi.link", fields=["rssi"],
+            where=[Predicate("rssi", "gte", -80)],
+            between=("2026-10-01", "2026-10-02"), at=records.snapshot,
+            every="1s", agg=Aggregate.mean(),
+        ):
+            print(bucket.start, bucket.fields)
+```
+
+Query factories are lazy and read one fixed cut of the connected backend's local
+retained evidence. Windows are `[start, end)` in UTC. Reusing `snapshot` keeps
+records and telemetry at the same compatible cut without waiting for a seal.
+Use `pages()` to inspect schema, effective limits and completeness, and
+`await reader.aclose()` when abandoning a reader. Existing `records()` and
+`samples()` still replay and follow through the execution seal. See the
+[client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
+for projection, version selection and cycle record queries.
+
 ## Edit Connection Globals
 
 Open each `control-*.py` file and select the private pairing file:

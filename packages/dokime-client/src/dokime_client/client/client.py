@@ -86,6 +86,7 @@ class DokimeClient:
             expected_backend_id=expected_backend_id,
             ca_certificate_pem=ca_certificate_pem,
         )
+        self._transport.query_settings = self._query_settings
 
     @classmethod
     def from_pairing(

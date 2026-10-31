@@ -22,6 +22,7 @@ from typing import Any
 from .. import _wire
 from .._transport import Transport
 from ..models import ResultSummary
+from .evidence import cycle_records, execution_records, telemetry
 from .reader import QueryReader, QuerySettings, page_settings
 from .selection import At, Time, Where, Window, predicates, snapshot_ref, window
 
@@ -56,6 +57,9 @@ class ExecutionSummary:
     _transport: Transport = field(repr=False, compare=False)
     _query_settings: QuerySettings = field(repr=False, compare=False)
 
+    query_records = execution_records
+    telemetry = telemetry
+
 
 @dataclass(frozen=True, slots=True)
 class CycleSummary:
@@ -68,6 +72,8 @@ class CycleSummary:
     archived: bool
     _transport: Transport = field(repr=False, compare=False)
     _query_settings: QuerySettings = field(repr=False, compare=False)
+
+    query_records = cycle_records
 
 
 def executions(
