@@ -97,6 +97,16 @@ test("Allowed Or Inactive Host Does Not Offer An Action", () => {
   assert.equal(fixture.invoke.mock.calls.length, 0);
 });
 
+test("Served Network Details", () => {
+  fixture.result.message = "Cable Ethernet (Unidentified network, Public network)";
+  const html = renderToStaticMarkup(
+    createElement(FirewallNotice, { generation: "host-public", enabled: true, listenerAddress: "0.0.0.0:8765" }),
+  );
+  assert.ok(html.includes(fixture.result.message));
+  assert.ok(fixture.click);
+  assert.equal(fixture.invoke.mock.calls.length, 0);
+});
+
 test("Cancelled Elevation Leaves Nonfatal Feedback Without Reporting Success", async () => {
   renderToStaticMarkup(createElement(FirewallNotice, { generation: "host-9", enabled: true, listenerAddress: "[::]:8765" }));
   fixture.invoke.mockRejectedValueOnce(new Error("cancelled"));
