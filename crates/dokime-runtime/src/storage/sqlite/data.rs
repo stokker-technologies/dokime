@@ -239,6 +239,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
                 "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
+                "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
+                "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
+                "SELECT sequence,epoch FROM storage_record_visibility LIMIT 0",
             ] {
                 connection
                     .prepare(query)
@@ -644,7 +647,7 @@ mod tests {
             connection
                 .execute_batch(
                     "INSERT INTO storage_record_captures
-                 SELECT 'execution',position,identity,position,'{}' FROM storage_data_entries;
+                 SELECT 'execution',position,identity,position,'{}',NULL,position,NULL FROM storage_data_entries;
                  INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
                  VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
                 )

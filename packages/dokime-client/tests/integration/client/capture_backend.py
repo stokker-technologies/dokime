@@ -358,7 +358,8 @@ class CaptureBackend(BackendFixture):
 
     async def ListCheckpointRecords(self, request: Any, context: Any) -> Any:
         start = RECORD_CURSORS.index(request.after) + 1 if request.after else 0
-        records = [item for item in self.records if item.scope.execution_id]
+        scope = _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=EXECUTION_ID)
+        records = [item for item in self.records if self.record_selected(item, scope)]
         return _message(
             "History",
             "ListCheckpointRecords",

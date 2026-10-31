@@ -82,7 +82,7 @@ impl<'a> PlotSamples<'a> {
     fn iter(&self) -> impl Iterator<Item = &'a TelemetrySample> + Clone {
         self.telemetry.iter().filter(|sample| {
             let selected = sample.stream.as_str() == self.request.stream
-                && sample_matches_scope(sample.scope.as_ref(), self.request.scope.as_ref())
+                && sample_matches_scope(sample, self.request.scope.as_ref())
                 && super::payload::sample_matches_filters(sample, &self.request.filters);
             let visible = self.cutoff.is_none_or(|cutoff| parse_timestamp(sample.timestamp.as_str()).is_none_or(|time| time >= cutoff));
             selected && visible
@@ -140,7 +140,7 @@ fn indexed_samples<'a>(
     telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>, keep: impl Fn(&TelemetrySample) -> bool + Clone,
 ) -> impl Iterator<Item = IndexedRecordSample<'a>> + Clone {
     telemetry.iter().filter_map(move |sample| {
-        let selected = stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample.scope.as_ref(), scope);
+        let selected = stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample, scope);
         if !selected || !keep(sample) {
             return None;
         }

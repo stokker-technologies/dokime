@@ -50,6 +50,9 @@ pub struct TelemetrySample {
     #[serde(skip)]
     pub storage_payload: Option<Vec<u8>>,
 
+    #[serde(skip)]
+    pub captured_scopes: Vec<RecordScope>,
+
     pub summary: BTreeMap<String, Value>,
     pub metadata: BTreeMap<String, Value>,
 }
@@ -70,6 +73,7 @@ impl harmos::MemorySize for TelemetrySample {
             (harmos::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
             (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
             (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos::MemorySize::memory_size(&self.captured_scopes), std::mem::size_of_val(&self.captured_scopes)),
             (harmos::MemorySize::memory_size(&self.values), std::mem::size_of_val(&self.values)),
             (harmos::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
             (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
@@ -81,6 +85,12 @@ impl harmos::MemorySize for TelemetrySample {
 }
 
 impl TelemetrySample {
+    pub fn is_visible_in(&self, selected: &RecordScope) -> bool {
+        crate::model::execution::scope_visible_in(self.scope.as_ref(), selected)
+            || (selected.test_execution_id.is_some() || selected.test_cycle_id.is_some())
+                && self.captured_scopes.iter().any(|scope| scope.is_visible_in(selected))
+    }
+
     pub fn with_storage_payload(mut self, bytes: Vec<u8>) -> Self {
         self.storage_payload = Some(bytes);
         self
@@ -110,6 +120,7 @@ impl TelemetrySample {
             scope: None,
             values,
             storage_payload: None,
+            captured_scopes: Vec::new(),
             summary: BTreeMap::new(),
             metadata: BTreeMap::new(),
         }

@@ -66,13 +66,14 @@ impl<'a> Evidence<'a> {
     }
 
     pub(super) fn selected(self, sample: &TelemetrySample) -> bool {
-        self.selection.is_none_or(|selection| selection.matches_scope(sample.scope.as_ref()))
+        self.selection.is_none_or(|selection| selection.matches_sample(sample))
     }
 
     pub(super) fn sample(self, sample: &'a TelemetrySample) -> Row<'a> {
+        let scope = self.selection.and_then(|selection| selection.captured_sample_scope(sample)).or(sample.scope.as_ref());
         Row::Sample {
             sample,
-            context: self.context.for_scope(sample.scope.as_ref()),
+            context: self.context.for_scope(scope),
         }
     }
 

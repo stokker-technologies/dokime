@@ -80,6 +80,11 @@ suites—it is not a copy of one suite. A cycle is created explicitly, starts
 empty and grows as explicit execution attempts are appended. Appending never
 starts hardware; an execution is the Start/Stop unit.
 
+Execution and cycle record and sample queries include evidence they produced
+or captured. An observer row can belong to several executions through capture;
+its producer scope remains unchanged. SQLite capture links and Arrow batch
+ranges select that membership without storing additional sample payloads.
+
 Several cycles can stay **Active** at once, with one execution running across
 the server. Start admits an execution once by its durable identity. Optional
 server-owned ordered continuation can start the next unstarted member after
@@ -343,8 +348,11 @@ contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
 reports. The manifest records source identities, revisions, row counts and
 payload checksums. SQLite retains relational evidence and the `files`,
 `artifacts`, `streams` and `stream_summaries` catalogs. Telemetry is stored in
-ZSTD-compressed Arrow IPC files under `telemetry/<stream>.arrow`; exports copy
-those finalized files byte-for-byte. Each file contains typed `values` and
+ZSTD-compressed Arrow IPC files under `telemetry/<stream>.arrow`. Exports copy
+complete finalized files produced by the execution byte-for-byte. Captured rows
+from shared observer files are materialized from indexed ranges at the selected
+evidence frontier, excluding unrelated samples. Producer scopes stay unchanged.
+Each file contains typed `values` and
 `_storage` metadata. Timestamps use UTC microseconds. Arrow field metadata retains units,
 descriptions and stream identity; schema metadata identifies the execution, Dokime version and contract.
 
@@ -1593,8 +1601,10 @@ row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
 five seconds. Explicit evidence barriers and shutdown also drain pending rows.
 Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
 session-scoped files for telemetry outside executions. Finalize writes only the
-footer from the retained batch descriptors. Recovery rebuilds an interrupted
-footer from batch headers and catalog checkpoints without decoding sample bytes.
+footer from the retained batch descriptors. Capture ranges link executions and
+cycles to samples in their original producer files without duplicating payloads.
+Recovery rebuilds an interrupted footer from batch headers and catalog checkpoints
+without decoding sample bytes.
 Files close before rename or deletion on Windows.
 
 This experimental storage layout keeps the v1 baseline and requires a fresh

@@ -136,7 +136,12 @@ impl Batch {
             } else if !record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).is_some_and(|id| id.as_str() == owner) {
                 continue;
             }
-            if !crate::plot::sample_matches_scope(selected.scope.as_ref(), plan.request.scope.as_ref()) {
+            if plan
+                .request
+                .scope
+                .as_ref()
+                .is_some_and(|scope| !dokime_domain::model::execution::scope_visible_in(selected.scope.as_ref(), scope))
+            {
                 continue;
             }
             plan.preview.record(selected, &plan.request, plan.limits).map_err(|error| Error::Catalog(error.to_string()))?;

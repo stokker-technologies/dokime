@@ -221,6 +221,39 @@ impl Store {
                             params![id, catalog::integer(batch_number)?, scope, first, last],
                         )?;
                     }
+                    let mut captures = BTreeMap::<String, Vec<(usize, usize)>>::new();
+                    for (row, (_, entry)) in chunk.iter().enumerate() {
+                        for scope in entry.sample.scope.iter().chain(&entry.sample.captured_scopes) {
+                            if scope.test_execution_id.is_none() && scope.test_cycle_id.is_none() {
+                                continue;
+                            }
+                            let ranges = captures.entry(serde_json::to_string(scope)?).or_default();
+                            if let Some((first, count)) = ranges.last_mut()
+                                && *first + *count == row
+                            {
+                                *count += 1;
+                            } else {
+                                ranges.push((row, 1));
+                            }
+                        }
+                    }
+                    for (encoded, ranges) in captures {
+                        let scope: dokime_domain::model::execution::RecordScope = serde_json::from_str(&encoded)?;
+                        for (first, count) in ranges {
+                            transaction.execute(
+                                "INSERT INTO stream_captures VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                                params![
+                                    scope.test_execution_id.as_ref().map(|id| id.as_str()),
+                                    scope.test_cycle_id.as_ref().map(|id| id.as_str()),
+                                    id,
+                                    catalog::integer(batch_number)?,
+                                    first as i64,
+                                    count as i64,
+                                    encoded
+                                ],
+                            )?;
+                        }
+                    }
                     summaries(&transaction, &id, chunk)?;
                     stored_rows += index.rows;
                 }
@@ -239,6 +272,12 @@ impl Store {
             let mut previews = super::previews::Batch::new(self.settings.previews);
             for row in &admitted {
                 aggregates.push(&transaction, row, &mut previews)?;
+                for scope in crate::storage::telemetry::capture_scopes(&row.record.payload)? {
+                    let execution = scope.test_execution_id.as_ref().ok_or(Error::Invalid("sample capture has no execution"))?;
+                    let mut captured = (*row).clone();
+                    captured.record.scope = Some(harmos::Identifier::new(execution.as_str())?);
+                    aggregates.push(&transaction, &captured, &mut previews)?;
+                }
             }
             aggregates.save(&transaction)?;
             previews.save(&transaction)?;

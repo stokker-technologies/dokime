@@ -332,7 +332,7 @@ impl ExecutionView {
     }
 
     pub async fn context_records(&self) -> Result<super::records::RecordReader> {
-        super::records::RecordReader::open(self, true).await
+        super::records::RecordReader::open(self).await
     }
 
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {

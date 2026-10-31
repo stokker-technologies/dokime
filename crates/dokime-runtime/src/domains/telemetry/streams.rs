@@ -27,7 +27,6 @@ use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use crate::unavailable_rejection;
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::{Value, ValueType};
@@ -221,10 +220,7 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
         let host = samples
             .iter()
-            .filter(|sample| {
-                sample.stream.as_str() == "host.system"
-                    && scope.is_none_or(|scope| dokime_domain::model::execution::scope_visible_in(sample.scope.as_ref(), scope))
-            })
+            .filter(|sample| sample.stream.as_str() == "host.system" && scope.is_none_or(|scope| sample.is_visible_in(scope)))
             .max_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
         if let Some(host) = host
             && let Some(host) = crate::traceability::retained_host(host, &crate::model::time::now_utc())?
@@ -298,7 +294,7 @@ impl RuntimeHandle {
         .await?;
         let latest = host
             .iter()
-            .filter(|sample| scope.is_none_or(|selected| scope_visible_in(sample.scope.as_ref(), selected)))
+            .filter(|sample| scope.is_none_or(|selected| sample.is_visible_in(selected)))
             .max_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| left.sequence.cmp(&right.sequence)));
         let fingerprint = format!("host.system:{}:{}:{}", at.history.store, at.history.epoch, at.sequence);
         read(latest, &fingerprint)

@@ -227,7 +227,7 @@ pub(super) fn report_sample_rows(
                 bytes: std::num::NonZeroUsize::MAX,
             },
         )
-        .filter("scope", Some(execution.clone()))
+        .filter("execution", Some(execution.clone()))
         .filter("stream", Some(stream.clone()))
     };
     let mut selected = BTreeMap::new();
@@ -236,8 +236,12 @@ pub(super) fn report_sample_rows(
     }
     // The Batch Index Locates The Final Rows Without Reading Earlier Flushed Batches.
     let mut batches = connection.prepare(
-        "SELECT b.rows,b.first_position FROM stream_batches b JOIN streams s ON s.file_id=b.file_id
-                     WHERE s.execution=?1 AND s.stream=?2 AND b.first_position<=?3 ORDER BY b.last_position DESC",
+        "SELECT CASE WHEN s.execution=?1 THEN b.rows ELSE (
+            SELECT sum(rows) FROM stream_captures c WHERE c.execution=?1 AND c.file_id=b.file_id AND c.batch=b.batch)
+            END,b.first_position FROM stream_batches b JOIN streams s ON s.file_id=b.file_id
+         WHERE (s.execution=?1 OR EXISTS(SELECT 1 FROM stream_captures c
+            WHERE c.execution=?1 AND c.file_id=b.file_id AND c.batch=b.batch))
+         AND s.stream=?2 AND b.first_position<=?3 ORDER BY b.last_position DESC",
     )?;
     let mut candidates = batches.query(params![execution, stream, super::super::position(at.sequence)])?;
     let (mut counted, mut first) = (0_u64, None::<String>);

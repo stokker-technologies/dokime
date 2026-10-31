@@ -120,7 +120,13 @@ pub(crate) async fn execution_with_evidence(
                 if row.stream != contract.stream || row.record.schema != *codec.schema() {
                     continue;
                 }
-                samples.push(codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample);
+                let mut sample = codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample;
+                if let Some(scope) =
+                    sample.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(&execution.test_execution_id))
+                {
+                    sample.scope = Some(scope.clone());
+                }
+                samples.push(sample);
             }
         }
     }

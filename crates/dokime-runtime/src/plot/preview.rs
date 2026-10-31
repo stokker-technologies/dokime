@@ -119,7 +119,7 @@ impl From<crate::storage::sqlite::PreviewSettings> for Limits {
 
 impl Preview {
     pub(crate) fn sample(&mut self, mut sample: TelemetrySample, request: &PlotPayloadRequest, limits: Limits) -> Result<()> {
-        if !super::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref()) {
+        if !super::sample_matches_scope(&sample, request.scope.as_ref()) {
             return Ok(());
         }
         if !record_plot(request)
@@ -162,7 +162,7 @@ impl Preview {
         if !relevant && !request.marker_record_types.iter().any(|kind| kind == record.record_type.as_str()) {
             return Ok(());
         }
-        if !super::sample_matches_scope(record.scope.as_ref(), request.scope.as_ref()) {
+        if request.scope.as_ref().is_some_and(|scope| !record.is_visible_in(scope)) {
             return Ok(());
         }
         if !self.reduced {

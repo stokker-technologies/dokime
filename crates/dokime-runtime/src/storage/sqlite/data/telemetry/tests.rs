@@ -230,6 +230,27 @@ impl Fixture {
 /* === Tests === */
 
 #[tokio::test]
+async fn stage_saved_tail() {
+    let fixture = Fixture::new(2).await;
+    let second = fixture.admit(&[(1, 10), (2, 20)]).await;
+    fixture.saved(&second).await;
+    for task in std::mem::take(&mut *fixture.local.0.telemetry_tasks.lock().await) {
+        task.await.unwrap().unwrap();
+    }
+    // Model A Durable Prefix Whose In-Memory Retirement Has Not Yet Run.
+    {
+        let mut tail = fixture.local.0.telemetry_tail.lock().unwrap();
+        tail.entries.insert(second.sequence - 1, (tokio::time::Instant::now(), fixture.row(1, 10).1));
+        tail.entries.insert(second.sequence, (tokio::time::Instant::now(), fixture.row(2, 20).1));
+        tail.running = true;
+    }
+    let third = fixture.admit(&[(3, 30)]).await;
+    assert_eq!(fixture.local.0.telemetry_tail.lock().unwrap().entries.keys().copied().collect::<Vec<_>>(), [third.sequence]);
+    assert_eq!(fixture.storage.cursor_saved(), second);
+    fixture.finish().await;
+}
+
+#[tokio::test]
 async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
     let fixture = Fixture::new(2).await;
     let saved = fixture.storage.cursor_saved();
