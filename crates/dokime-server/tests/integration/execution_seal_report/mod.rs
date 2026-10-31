@@ -71,10 +71,13 @@ async fn stages() {
     Box::pin(planning::materialization_rejects_nonfinite_parameters_before_registration()).await;
     Box::pin(planning::registered_cases_selection()).await;
     Box::pin(append::append_cases_preserve_ordinals()).await;
-    Box::pin(append::explicit_append_retries()).await;
-    Box::pin(append::explicit_append_small_write_budget()).await;
-    Box::pin(append::explicit_append_small_write_budget_four_workers()).await;
-    Box::pin(append::explicit_append_small_write_budget_single_worker()).await;
+    // Independent Roots Keep Every Budget's Complete Append And Sealing Checks.
+    tokio::join!(
+        Box::pin(append::explicit_append_retries()),
+        Box::pin(append::explicit_append_small_write_budget()),
+        Box::pin(append::explicit_append_small_write_budget_four_workers()),
+        Box::pin(append::explicit_append_small_write_budget_single_worker()),
+    );
     Box::pin(prompts::execution_prompt_identity()).await;
     Box::pin(prompts::prompt_answers_identity()).await;
     Box::pin(prompts::prompt_condition_commit()).await;
