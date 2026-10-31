@@ -1397,6 +1397,8 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile release --output product --task build
+      env:
+        SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache-release
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev' &&
@@ -1595,6 +1597,8 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile release --output product --task build
+      env:
+        SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache-release
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (env.PROFILE == 'dev'
