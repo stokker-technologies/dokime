@@ -132,13 +132,14 @@ pub(crate) async fn get_traceability_cursor() {
 
     let first_host_receipt = handle.publish_telemetry_batch(host_batch(None, "first-host")).await.unwrap();
     assert_eq!(first_host_receipt.accepted, 1);
+    handle.storage().flush().await.unwrap();
     assert_eq!(
         client
             .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
                 limit: 1,
                 after_traceability_id: first.next_after_traceability_id.clone(),
                 cursor: first.cursor.clone(),
-                host_traceability_fingerprint: "changed".into(),
+                host_traceability_fingerprint: first.host_traceability_fingerprint.clone(),
                 ..Default::default()
             }))
             .await
@@ -154,6 +155,23 @@ pub(crate) async fn get_traceability_cursor() {
         .await
         .unwrap()
         .into_inner();
+    // Unrelated Telemetry Advances Storage Without Invalidating The Host Page.
+    let before = handle.storage().cursor_saved();
+    let stream = Identifier::new("host.network").unwrap();
+    let row = plugin_host::Network {
+        sample_index: Some(1),
+        ..Default::default()
+    };
+    let payload = dokime::harmos::Message::encode(&row);
+    let mut sample =
+        TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 0, dokime::model::time::now_utc(), "fixture.host");
+    sample.values = row.into_row();
+    sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
+    let sample = sample.with_storage_payload(payload);
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, vec![sample])).await.unwrap();
+    let after = handle.storage().flush().await.unwrap();
+    assert!(after.sequence > before.sequence);
+
     let mut pages = vec![first_after_host];
     for _iteration in 0..16 {
         if pages.last().is_some_and(|page| page.complete) {
@@ -197,6 +215,7 @@ pub(crate) async fn get_traceability_cursor() {
     .await;
     let second_host_receipt = handle.publish_telemetry_batch(host_batch(None, "second-host")).await.unwrap();
     assert_eq!(second_host_receipt.accepted, 1);
+    handle.storage().flush().await.unwrap();
 
     let scoped = client
         .unary::<contracts::observation::GetTraceability>(authenticated(contracts::observation::GetTraceability {
@@ -279,6 +298,7 @@ pub(crate) async fn traceability_bounds_clone() {
 
     let receipt = handle.publish_telemetry_batch(host_batch(None, "budget-host")).await.unwrap();
     assert_eq!(receipt.accepted, 1);
+    handle.storage().flush().await.unwrap();
 
     let snapshot = handle.watch_state().latest();
     let error = handle.traceability_snapshots_page_at(&snapshot, None, "", 100, 0, 512 * 1024).boxed_local().await.unwrap_err();
