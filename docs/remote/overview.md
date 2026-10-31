@@ -132,8 +132,12 @@ Use the host's connected local desktop session, then open
    interface addresses automatically. Save `lab.dokime-remote`.
 2. Treat this file as a secret. Transfer it privately to the other PC. Loopback
    addresses work on the same PC only.
-3. The Windows installer configures a Private-network inbound application rule
-   (administrator confirmation required). On Linux, allow the listener port
+3. Windows installation needs no administrator rights. If Remote Access shows a
+   firewall notice on the host, choose **Allow In Firewall…** and have an
+   administrator approve the listener's local-subnet rule for the listed network
+   profiles, including Public cable networks. See [Direct Cable Between Two PCs](../product-guide.md#direct-cable-between-two-pcs).
+   Connecting from the other
+   PC needs no firewall change. On Linux, allow the listener port
    through the host firewall. Advanced listener settings can change that port.
 
 Transfer that pairing file privately to `remote-demo/` on the remote computer.
@@ -277,7 +281,7 @@ retain their truthful outcome and whatever rows were saved. An execution bundle
 taken before cycle sealing can show an Active cycle; the final cycle bundle
 shows its sealed phase and all members.
 
-Read the original typed telemetry file with an Arrow-compatible reader. For
+Read the exported typed telemetry file with an Arrow-compatible reader. For
 example, in a Python environment with Polars installed:
 
 ```python
@@ -292,6 +296,8 @@ for path in Path("unpacked-test").rglob("telemetry/*.arrow"):
 The Arrow schema carries field units, descriptions and stream identity. SQLite
 `files` rows identify each archive member and digest; `streams` links telemetry
 to its execution and lists batch offsets and row/time ranges in `batches_json`.
+This membership includes captured observer samples whose producer scope remains
+empty or identifies another owner. Shared files contribute only captured rows.
 Keep the manifest, database, reports, artifacts and Arrow files together. Use
 `.quit` to leave the SQLite CLI.
 

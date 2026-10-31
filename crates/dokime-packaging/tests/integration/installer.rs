@@ -98,6 +98,7 @@ fn hash(bytes: &[u8]) -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn distribution_identity() {
     let root = tempfile::tempdir().unwrap();
@@ -147,7 +148,7 @@ async fn distribution_identity() {
         formats: vec![],
         target: None,
     };
-    for (identifier, slug) in [(None, "dokime"), (Some("com.hilti.dokime"), "com-hilti-dokime")] {
+    for (identifier, slug) in [(None, "dokime"), (Some("com.example.testhub"), "com-example-testhub")] {
         let declaration = identifier.map_or_else(String::new, |identifier| format!("identifier='{identifier}'\n"));
         let text =
             format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");
@@ -173,6 +174,7 @@ async fn distribution_identity() {
     assert_eq!(std::fs::read(source.join(format!("bin/dokime-gui{suffix}"))).unwrap(), original_gui);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn installer() {
     // Distribution Integrity Refusals Preserve The Unpublished Output.

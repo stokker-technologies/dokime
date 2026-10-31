@@ -86,8 +86,10 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 [dev-dependencies]
 # Local
+dokime-tracing = { workspace = true }
 
 # Git
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
@@ -107,6 +109,7 @@ tempfile = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
 

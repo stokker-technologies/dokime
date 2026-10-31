@@ -392,7 +392,7 @@ impl RuntimeHandle {
                 process_id,
                 brand.clone(),
                 config.schema,
-                config.local_storage.previews.report_concurrency,
+                config.local_storage.previews,
             )
             .await?,
         );

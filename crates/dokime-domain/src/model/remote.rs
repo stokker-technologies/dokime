@@ -48,6 +48,14 @@ pub struct RemoteListenerStatus {
     pub certificate_pem: Option<String>,
     pub key_configured: bool,
     pub error: Option<String>,
+    pub endpoints: Vec<RemoteEndpoint>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteEndpoint {
+    pub address: String,
+    pub adapter_name: Option<String>,
 }
 
 #[harmos::message(skip_debug)]

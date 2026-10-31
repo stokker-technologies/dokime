@@ -94,9 +94,9 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
         std::fs::write(directory.join("obc.run.started"), b"local record filename").unwrap();
         std::fs::write(directory.join("obc.pudding"), b"local stream filename").unwrap();
         let filters = [("RECORD_TYPES", "\"obc.run.*\""), ("STREAMS", "\"obc.pu*\"")];
-        configured_command(extension, workflow, endpoint, directory, &filters)
+        configured_command(extension, workflow, endpoint, directory, &filters).await
     } else {
-        command(extension, workflow, endpoint, directory)
+        command(extension, workflow, endpoint, directory).await
     };
     let output = command.output().await.unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -105,11 +105,11 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
     format!("{stdout}\n{stderr}")
 }
 
-fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
-    configured_command(extension, workflow, endpoint, directory, &[])
+async fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
+    configured_command(extension, workflow, endpoint, directory, &[]).await
 }
 
-fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
+async fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
     let workspace = artifacts::workspace_root();
     let family = if extension == "py" { "python" } else { "cli" };
     let script = workspace.join(format!("packages/dokime-client/examples/remote/{family}/control-{workflow}.{extension}"));
@@ -120,7 +120,7 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     let output = directory.to_str().unwrap();
     let pairing = directory.join("lab.dokime-remote");
     let profiles = directory.join("profiles.json");
-    import_profile(&binary, endpoint, &pairing, &profiles);
+    import_profile(&binary, endpoint, &pairing, &profiles).await;
     let mut values = vec![
         ("BACKEND_IDENTIFIER", PROFILE_IDENTIFIER.to_owned()),
         ("PAIRING_FILE", pairing.to_str().unwrap().to_owned()),
@@ -150,7 +150,7 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     command
 }
 
-fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
+async fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
     // The Host Under Test Is An Unsecured Lab Listener: No CA Or Access Key.
     let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
     let document = serde_json::json!({
@@ -163,12 +163,14 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     });
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
     let _ = std::fs::remove_file(profiles);
-    let output = dokime::domain::process::command(binary)
+    let output = Command::from(dokime::domain::process::command(binary))
         .args(["backend", "add", "--remote"])
         .arg(pairing)
         .args(["--identifier", PROFILE_IDENTIFIER])
         .env("DOKIME_PROFILES_FILE", profiles)
+        .kill_on_drop(true)
         .output()
+        .await
         .unwrap();
     assert!(output.status.success(), "profile import failed: {}", String::from_utf8_lossy(&output.stderr));
 }
@@ -274,7 +276,7 @@ async fn conflicts(endpoint: &str, root: &Path, extension: &str) {
     // Bundle Conflicts Must Not Create A Cycle Or Admit Hardware Work.
     for workflow in ["test", "prompt"] {
         let directory = root.join(workflow);
-        let mut command = command(extension, workflow, endpoint, &directory);
+        let mut command = command(extension, workflow, endpoint, &directory).await;
         let destination = directory.join("cycle.zip");
         std::fs::write(&destination, b"existing evidence").unwrap();
         let output = command.output().await.unwrap();

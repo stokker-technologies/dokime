@@ -146,6 +146,11 @@ async fn replay_stream(
             scanned = *position;
             source.after = scanned;
             entry.sample.sequence = entry.ordinal;
+            if let Some(scope) =
+                entry.sample.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(&execution.test_execution_id))
+            {
+                entry.sample.scope = Some(scope.clone());
+            }
         }
         let mut offset = 0;
         while offset < entries.len() {

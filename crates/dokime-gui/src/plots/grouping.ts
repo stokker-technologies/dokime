@@ -86,7 +86,7 @@ export function documentPlotSpec({
     referenceBands: plot.reference_bands ?? [],
     stateLabel: state.label,
     stateDetail: state.detail,
-    contextSummary: plotContextSummary({ stream: plot.stream, telemetry }),
+    contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
     context: {
       ...(payload?.context ?? {}),
       ...(plotContext({ stream: plot.stream, plotType: plot.plot_type, telemetry }) ?? {}),
@@ -224,11 +224,13 @@ function plotContext({
 function plotContextSummary({
   stream,
   telemetry,
+  context,
 }: {
   stream: string;
   telemetry?: Record<string, TelemetryStream> | null;
+  context?: Record<string, unknown> | null;
 }): string | undefined {
-  const latest = latestSample(telemetry, stream);
+  const latest = latestSample(telemetry, stream) ?? context;
   if (!latest) {
     return undefined;
   }

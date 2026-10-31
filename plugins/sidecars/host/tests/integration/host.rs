@@ -56,6 +56,7 @@ fn single_sample(batch: &TelemetryBatch) -> &TelemetrySample {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn host_stream_row() {
     let streams: &[(HostTelemetryStream, &[&str], &[Field])] = &[
@@ -101,6 +102,7 @@ fn host_stream_row() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn system_memory_snapshot() {
     let batch = collect_required_native_batch(HostTelemetryStream::System);
@@ -118,6 +120,7 @@ fn system_memory_snapshot() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn collected_battery_columns() {
     // Whatever this machine reports — every reading, or none on a host
@@ -134,6 +137,7 @@ fn collected_battery_columns() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn executable_declares_host() {
     let executable = std::env::var("NEXTEST_BIN_EXE_plugin-host")
@@ -146,9 +150,11 @@ fn executable_declares_host() {
     assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
     let streams = declared.streams.iter().map(|stream| stream.id.as_str()).collect::<std::collections::BTreeSet<_>>();
     let expected = plugin_host::host_stream_identifiers();
-    let expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    let mut expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    expected.insert(<plugin_host::host::cpu::load::LoadControl as dokime::StreamSpec>::ID);
     assert_eq!(streams, expected);
     let operations = declared.operations.iter().map(|operation| operation.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    assert!(operations.contains(<plugin_host::host::cpu::load::LoadHold as dokime::harmos::operations::OperationDeclaration>::ID));
     assert!(operations.contains("host.network.radio.set"));
     assert!(operations.contains("host.network.adapter.set"));
     assert!(operations.contains("host.power.plan.set"));

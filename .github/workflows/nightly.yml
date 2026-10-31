@@ -209,7 +209,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,protoc
     concurrency:
       group: ci-${{ github.workflow }}-check_typescript-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -749,7 +749,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -1009,7 +1009,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -1051,6 +1051,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-python/
           target/traces/${{ env.PROFILE }}/*/integration-python/
+          target/test-reports/integration-python/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1230,6 +1231,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-typescript/
           target/traces/${{ env.PROFILE }}/*/integration-typescript/
+          target/test-reports/integration-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1271,7 +1273,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,prepare:generated
     needs:
     - build_product
     concurrency:
@@ -1329,6 +1331,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-python/
           target/traces/${{ env.PROFILE }}/*/acceptance-python/
+          target/test-reports/acceptance-python/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -2377,7 +2380,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 2G
@@ -2990,6 +2993,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-rust/
           target/traces/${{ env.PROFILE }}/*/acceptance-rust/
+          target/test-reports/acceptance-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3110,6 +3114,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-rust/
           target/traces/${{ env.PROFILE }}/*/acceptance-rust/
+          target/test-reports/acceptance-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3218,6 +3223,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-rust/
           target/traces/${{ env.PROFILE }}/*/integration-rust/
+          target/test-reports/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3288,6 +3294,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-rust/
           target/traces/${{ env.PROFILE }}/*/integration-rust/
+          target/test-reports/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3600,6 +3607,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-rust/
           target/traces/${{ env.PROFILE }}/*/system-rust/
+          target/test-reports/system-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3700,6 +3708,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-rust/
           target/traces/${{ env.PROFILE }}/*/system-rust/
+          target/test-reports/system-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -4005,6 +4014,16 @@ jobs:
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: matrix.platform == 'unix' && (true) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-tests-${{ env.PROFILE }}-unix
+        path: target/ci
+      if: matrix.platform == 'unix' && (true) && (true)
+    - name: Extract build:rust:tests / tests
+      uses: ./.github/actions/extract-build
+      with:
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      if: matrix.platform == 'unix' && (true) && (true)
     - run: mise run test:typescript:system --profile ${{ env.PROFILE }}
       if: matrix.platform == 'unix' && (true) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -4014,6 +4033,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-typescript/
           target/traces/${{ env.PROFILE }}/*/system-typescript/
+          target/test-reports/system-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -4105,6 +4125,16 @@ jobs:
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: matrix.platform == 'windows' && (true) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-tests-${{ env.PROFILE }}-windows
+        path: target/ci
+      if: matrix.platform == 'windows' && (true) && (true)
+    - name: Extract build:rust:tests / tests
+      uses: ./.github/actions/extract-build
+      with:
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      if: matrix.platform == 'windows' && (true) && (true)
     - run: mise run test:typescript:system --profile ${{ env.PROFILE }}
       if: matrix.platform == 'windows' && (true) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -4114,6 +4144,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-typescript/
           target/traces/${{ env.PROFILE }}/*/system-typescript/
+          target/test-reports/system-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -4159,9 +4190,10 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build
+      MISE_TASK_SKIP: build,build:rust:tests,prepare:generated
     needs:
     - build_product
+    - build_tests
     strategy:
       fail-fast: false
       matrix:

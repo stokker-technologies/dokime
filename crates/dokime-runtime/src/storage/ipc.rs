@@ -11,11 +11,13 @@
 
 /* === Modules === */
 
+mod projection;
 mod schema;
 mod values;
 
 /* === Re-Exports === */
 
+pub(crate) use projection::Projection;
 pub(crate) use schema::schema as contract_schema;
 pub(crate) use values::{
     batch as record_batch, entry as telemetry_entry, metadata_text, native_encoding, normalize_values, row_key, row_keys,
@@ -295,21 +297,18 @@ impl Write for HashedFile {
 /* === Public Functions === */
 
 pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> Result<RecordBatch> {
-    let mut file = File::open(path)?;
-    file.seek(SeekFrom::Start(index.offset))?;
-    let length = usize::try_from(index.end()? - index.offset).map_err(|_| Error::Corrupt("IPC block exceeds address space"))?;
-    let mut bytes = vec![0; length];
-    file.read_exact(&mut bytes)?;
-    if Sha256::digest(&bytes).as_slice() != index.sha256 {
-        return Err(Error::Corrupt("IPC batch digest differs from catalog"));
-    }
-    let buffer = Buffer::from_vec(bytes);
+    let buffer = read_buffer(path, index)?;
     let decoder = FileDecoder::new(schema, MetadataVersion::V5);
     let batch = decoder.read_record_batch(&index.block()?, &buffer)?.ok_or(Error::Corrupt("IPC block is not a record batch"))?;
     if batch.num_rows() as u64 != index.rows {
         return Err(Error::Corrupt("IPC batch row count differs"));
     }
     Ok(batch)
+}
+
+pub(crate) fn read_projected_batch(path: &Path, index: &BatchIndex, projection: &Projection) -> Result<RecordBatch> {
+    let buffer = read_buffer(path, index)?;
+    projection.decode(&buffer, index)
 }
 
 // Inspect Only Committed Batch Headers. Serialized SHA State Avoids A Payload Hash Scan.
@@ -369,6 +368,18 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
 }
 
 /* === Private Functions === */
+
+fn read_buffer(path: &Path, index: &BatchIndex) -> Result<Buffer> {
+    let mut file = File::open(path)?;
+    file.seek(SeekFrom::Start(index.offset))?;
+    let length = usize::try_from(index.end()? - index.offset).map_err(|_| Error::Corrupt("IPC block exceeds address space"))?;
+    let mut bytes = vec![0; length];
+    file.read_exact(&mut bytes)?;
+    if Sha256::digest(&bytes).as_slice() != index.sha256 {
+        return Err(Error::Corrupt("IPC batch digest differs from catalog"));
+    }
+    Ok(Buffer::from_vec(bytes))
+}
 
 fn options() -> Result<IpcWriteOptions> {
     Ok(IpcWriteOptions::try_new(8, false, MetadataVersion::V5)?.try_with_compression(Some(arrow_ipc::CompressionType::ZSTD))?)

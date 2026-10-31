@@ -8,7 +8,7 @@
 - [x] 1.4 Update macros, starter and SDK examples; remove environment secret handling and obsolete binding tests.
 - [x] 1.5 Replace GUI binding fields/mutations/contracts with read-only declared secrets and existing Add Secret dialog prefill; migrate GUI stories.
 - [x] 1.6 Regenerate Python and GUI contracts through project tasks and migrate affected client consumers.
-- [x] 1.7 Update README, product guide, GUI guide and authoring skill/copies; review external hilti-hcl migration without editing it.
+- [x] 1.7 Update README, product guide, GUI guide and authoring skill/copies; review external example-plugin migration without editing it.
 
 ## Validation And Delivery
 

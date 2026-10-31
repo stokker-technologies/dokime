@@ -167,7 +167,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
+inputs = ["build#cli", "build#gui", "build#plugins", "build#clients", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:unit"
@@ -297,6 +297,13 @@ acceptance = 128
 integration = 256
 system = 64
 unit = 512
+
+[[conventions.testing.overrides]]
+category = "system"
+language = "typescript"
+select = "dokime.native.*::Desktop Backend Walkthrough"
+timeout_seconds = 450
+reason = "Scene-owned reports and bounded fixtures share one prepared native walkthrough."
 
 [languages.python]
 build_target = "any"

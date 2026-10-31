@@ -180,7 +180,7 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
     ...installation("install-1"),
     restartRequired: false,
     bootFailed: true,
-    metadata: { identity: { name: "HCL", version: "1.0.0", description: "" }, owners: ["hcl"], sizeBytes: 1n },
+    metadata: { identity: { name: "Example Plugin", version: "1.0.0", description: "" }, owners: ["example"], sizeBytes: 1n },
     lastBoot: {
       at: { seconds: 1_760_000_001n, nanos: 0 },
       result: {
@@ -188,8 +188,8 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
           case: "Error",
           value: {
             field0: {
-              pluginId: "hcl",
-              pluginName: "HCL",
+              pluginId: "example",
+              pluginName: "Example Plugin",
               message: "fixture",
               code: "10001",
               missingSecret: "api_token",
@@ -215,11 +215,11 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
   if (projected.last_boot?.state !== "failed") throw new Error("expected failed boot");
   assert.equal(projected.last_boot.failure.code, "10001");
   assert.equal(projected.last_boot.failure.missing_secret, "api_token");
-  const detail = await getInstalledPluginDetail(session, "hcl");
-  assert.equal(detail?.label, "HCL");
+  const detail = await getInstalledPluginDetail(session, "example");
+  assert.equal(detail?.label, "Example Plugin");
   assert.equal(detail?.status, "failed");
-  assert.equal(detail?.plugin_id, "hcl");
+  assert.equal(detail?.plugin_id, "example");
   assert.equal(detail?.owner?.kind, "bundle");
   assert.deepEqual(detail?.secrets, [{ identifier: "api_token", available: false }]);
-  assert.deepEqual(fixture.getSettings.mock.calls, [[session, "hcl"]]);
+  assert.deepEqual(fixture.getSettings.mock.calls, [[session, "example"]]);
 });

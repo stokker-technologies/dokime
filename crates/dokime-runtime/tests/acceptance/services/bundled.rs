@@ -46,19 +46,21 @@ fn fixture_bytes() -> Vec<u8> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn external_analysis_reload() {
     let root = tempfile::tempdir().unwrap();
     let bundle = crate::service_support::bundles::plugin_obc_bundle();
-    let config = crate::service_support::config(root.path()).with_plugins([dokime_runtime::plugins::PluginBundle::new(bundle)]);
+    let host = crate::service_support::bundles::host_plugin_bundle();
+    let config = crate::service_support::config(root.path())
+        .with_plugins([dokime_runtime::plugins::PluginBundle::new(host), dokime_runtime::plugins::PluginBundle::new(bundle)]);
     let mut owner = dokime_runtime::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
-    crate::service_support::plots::register_plot_suite(&runtime).await;
     runtime.publish_telemetry_batch(crate::service_support::evidence::samples("host.wifi.scan", 100, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = crate::service_support::plots::wifi_request(None, Some(1));
     request.analysis = Some(dokime_runtime::analysis::Selection {
-        id: "obc.analysis.ripple".into(),
+        id: "plugin_obc.analysis.ripple".into(),
         version: 1,
         parameters: Default::default(),
     });
@@ -67,13 +69,13 @@ async fn external_analysis_reload() {
             owner.reinitialize_plugin("plugin_obc").await.unwrap();
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
-        assert_eq!(definitions.iter().filter(|definition| definition.id == "obc.analysis.ripple").count(), 1);
+        assert_eq!(definitions.iter().filter(|definition| definition.id == "plugin_obc.analysis.ripple").count(), 1);
         let envelopes = runtime
             .query_plot_payloads(vec![request.clone()], dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot)
             .await
             .unwrap();
         let computed = envelopes[0].payload.computed.as_ref().unwrap();
-        assert_eq!(computed.selection.id, "obc.analysis.ripple");
+        assert_eq!(computed.selection.id, "plugin_obc.analysis.ripple");
         assert_eq!(computed.series[0].input_samples, 100);
         assert_eq!(computed.series[0].output.outputs[0].values, [99.0]);
         assert_eq!(computed.series[0].output.outputs[0].unit, "count");
@@ -83,17 +85,18 @@ async fn external_analysis_reload() {
 }
 
 // Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
-    // The analysis claims `obc.analysis.ripple` first, so the status probe naming
+    // The analysis claims `plugin_obc.analysis.ripple` first, so the status probe naming
     // it is the second claim.
     for (namespace, pointer, method, reason) in [
         ("dokime.settings", "/status_entrypoint/name", "obc.bench.missing", "undeclared"),
         ("dokime.settings", "/status_entrypoint/name", "harmos.initialize", "reserved"),
-        ("dokime.settings", "/status_entrypoint/name", "obc.analysis.ripple", "more than once"),
+        ("dokime.settings", "/status_entrypoint/name", "plugin_obc.analysis.ripple", "more than once"),
     ] {
         let mut executable = file.executable.clone().unwrap();
         let registration = executable.registrations.iter_mut().find(|entry| entry.namespace == namespace).unwrap();
@@ -127,6 +130,7 @@ async fn frozen_catalog_multiply() {
 }
 
 // Unsupported Domain Schemas Are Refused Before Admission.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unsupported_schema_refused() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};

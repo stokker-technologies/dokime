@@ -72,17 +72,21 @@ description = "Prepare Tools And Inputs"
 run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
 
 [tasks."prepare:bindings"]
-description = "Regenerate Python And Desktop Contracts From One Cargo Build"
+description = "Regenerate Python Contracts From One Cargo Build"
 usage = 'arg "<messages>"'
-run = [
-  '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
-  '{{vars.tools}} dokime_tools.prepare.generated --build-json "{{usage.messages}}" --stage',
-]
+run = '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"'
 
 [tasks."prepare:desktop"]
 description = "Prepare Native Desktop Automation"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
+
+[tasks."prepare:generated"]
+description = "Build The Contract Generator And Generate TypeScript Modules"
+depends = ["prepare"]
+usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
+run = "{{vars.tools}} dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:organization"]
 description = "Generate Default Organization And Desktop Icons"
@@ -91,7 +95,7 @@ run = "{{vars.tools}} dokime_tools.build.organization --icons"
 
 [tasks."prepare:report"]
 description = "Refresh Embedded Runtime Resources"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 run = "{{vars.tools}} dokime_tools.prepare.resources"
 
 # === Format === #
@@ -112,6 +116,7 @@ usage = 'flag "--check"'
 run = [
   "{{vars.python}} ruff format packages/dokime-client{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -145,11 +150,13 @@ run = [
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ruff check tools/python/src/dokime_tools/test/python.py",
   "{{vars.python}} ty check --project tools/python",
+  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
 ]
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
@@ -160,7 +167,7 @@ run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:p
 
 [tasks."check:python"]
 description = "Check Python"
-run = [{ task = "format:python --check" }, { task = "lint:python" }]
+run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "test:tooling" }]
 
 [tasks."check:python:generated"]
 description = "Check The Generated Python Client"
@@ -180,7 +187,7 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 
 [tasks."check:rust"]
 description = "Check Rust"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 run = ["{{vars.tools}} dokime_tools.prepare.resources --check", { task = "format:rust --check" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
@@ -189,7 +196,7 @@ run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 [tasks."check:typescript:generated"]
 description = "Check The Generated TypeScript Client"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
@@ -245,6 +252,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]
 description = "Build The Desktop With Its Compiled Frontend"
+depends = ["prepare:generated"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
@@ -264,7 +272,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:typescript"]
 description = "Build The Generated GUI Client And Frontend"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
@@ -277,7 +285,6 @@ env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
   "cargo build --locked -p dokime-cli -p cargo-dokime -p plugin-host --bins --message-format json-render-diagnostics > target/contracts/dev.jsonl",
-  "{{vars.tools}} dokime_tools.prepare.generated --build-json target/contracts/dev.jsonl",
   "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-host --output target/debug/plugins/plugin-host.dokime",
   "cargo run --locked -p cargo-dokime -- sidecar build --package plugin-obc --output target/debug/plugins/plugin-obc.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev --build-json target/contracts/dev.jsonl",
@@ -304,6 +311,11 @@ depends = [
   "test:python:acceptance --profile {{usage.profile}}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:tooling"]
+
+description = "Test Project Tooling"
+run = "{{vars.python}} python -m unittest discover -s tools/python/tests"
 
 [tasks."test:python:unit"]
 description = "Test Unit Python"
@@ -359,8 +371,11 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]
 description = "Test Integration Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>" help="Narrow The Nextest Filterset"
+'''
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\" {% if usage.select %}-E \"{{usage.select}}\"{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:acceptance"]
@@ -419,7 +434,7 @@ env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:typescript:unit"]
 description = "Test Unit TypeScript"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--select <select>"
@@ -431,7 +446,7 @@ run = [
 
 [tasks."test:typescript:integration"]
 description = "Test Integration TypeScript"
-depends = ["prepare"]
+depends = ["prepare:generated"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--select <select>"
@@ -444,11 +459,14 @@ env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:typescript:system"]
 description = "Test System TypeScript"
-depends = ["prepare:desktop"]
-usage = 'flag "--profile <profile>" default="dev"'
+depends = ["prepare:desktop", "prepare:generated"]
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <story>" help="Run One Native Desktop Story"
+'''
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit} {% if usage.select %}--select {{usage.select}}{% endif %}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 

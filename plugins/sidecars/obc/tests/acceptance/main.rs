@@ -86,6 +86,17 @@ struct Bench {
     declaration: harmos::plugin::inventory::Declaration,
 }
 
+// The Bench Requires The Host Plugin's CPU Load Hold. This Fixture Loads No Host Plugin, So It
+// Mirrors That Contract Under The Same Identifier, Fields And Policy And Refuses Every Hold.
+#[dokime::operation(id = "host.cpu.load.hold", response = plugin_host::host::cpu::load::LoadSummary,
+    policy = plugin_host::host::cpu::load::POLICY, visibility = Public,
+    operations = [dokime::harmos::builtins::streams::Publish])]
+#[derive(Clone, Debug, PartialEq)]
+struct LoadHold {
+    target: plugin_host::host::cpu::load::LoadTarget,
+    threads: Option<u32>,
+}
+
 /* === Enums === */
 
 #[harmos::lanes(harmos_path = dokime::__harmos)]
@@ -264,7 +275,10 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            let mut executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            if let Some(directory) = std::env::var_os("DOKIME_TEST_TRACE_DIR") {
+                executable = executable.variable("DOKIME_TEST_TRACE_DIR", directory);
+            }
             let resident = Resident::new(executable, handler);
             self.resident = Some(resident);
         }
@@ -462,6 +476,7 @@ enum HostOperations {
     Operation3(EvidenceBatch),
     Operation4(OperatorQuestion),
     Operation5(LeaseAsk),
+    Operation6(LoadHold),
     Publish(harmos::builtins::streams::Publish),
 }
 
@@ -487,14 +502,12 @@ impl harmos::Lifecycle for Fixture {
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
+}
+
+impl harmos::Operation for LoadHold {
+    type Error = dokime::prelude::Refusal;
+    async fn run(self, _: Context<'_, Self>) -> Result<harmos::Response<plugin_host::host::cpu::load::LoadSummary>, Self::Error> {
+        Err(dokime::prelude::Refusal::of("the test host holds no CPU load"))
     }
 }
 
@@ -532,6 +545,7 @@ async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, meth
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn inventory_matches_dispatch() {
     use harmos::Message;
@@ -623,6 +637,7 @@ async fn inventory_matches_dispatch() {
     bench.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn samples_keep_context() {
     use dokime::Value;

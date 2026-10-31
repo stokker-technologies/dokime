@@ -295,7 +295,7 @@ async fn build(
         let mut counts = database.execution(&view, &cancellation, &mut budget).await?;
         let id = selected.execution_id.as_str();
         let cycle = matches!(snapshot.subject, EvidenceSubject::Cycle(_));
-        for file in local.telemetry_files(id.to_owned()).await? {
+        for file in local.telemetry_files(id.to_owned(), view.evidence_through()?.clone()).await? {
             let path =
                 if cycle { format!("executions/{id}/telemetry/{}.arrow", file.stream) } else { format!("telemetry/{}.arrow", file.stream) };
             archive.telemetry(&path, &file, storage.settings().response.batch_bytes.get(), &mut budget)?;

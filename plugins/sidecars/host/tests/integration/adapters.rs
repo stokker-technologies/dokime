@@ -47,9 +47,11 @@ use plugin_host::host::{
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn adapter_inventory() {
-    let snapshot = snapshot().unwrap();
+    let timeout = std::time::Duration::from_millis(plugin_host::HostOptions::default().timing.network_probe_timeout_ms);
+    let snapshot = snapshot(timeout).unwrap();
     assert!(!snapshot.adapters.is_empty());
     assert_eq!(Adapters::VISIBILITY, Visibility::Public);
     let decoded = Snapshot::decode(&snapshot.encode()).unwrap();
@@ -76,17 +78,23 @@ fn adapter_inventory() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn inventory_rejects_unknown_kind_and_status() {
     assert!(serde_json::from_str::<AdapterKind>("\"satellite\"").is_err());
     assert!(serde_json::from_str::<AdapterStatus>("\"sleeping\"").is_err());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn notification_lifetime() {
     // Releasing The Observer Cancels Native Registrations And Joins Its Callbacks.
-    let observer = NetworkObserver::new().unwrap();
+    let observer =
+        NetworkObserver::new(std::time::Duration::from_millis(plugin_host::HostOptions::default().timing.network_probe_timeout_ms))
+            .unwrap();
     drop(observer);
-    let observer = NetworkObserver::new().unwrap();
+    let observer =
+        NetworkObserver::new(std::time::Duration::from_millis(plugin_host::HostOptions::default().timing.network_probe_timeout_ms))
+            .unwrap();
     drop(observer);
 }

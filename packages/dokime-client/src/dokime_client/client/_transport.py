@@ -703,6 +703,8 @@ class _Stream:
                 await self._credit.acquire()
                 item = await self._next()
                 await self._prefetch.put(item)
+        except StopAsyncIteration as end:
+            await self._prefetch.put(end)
         except asyncio.CancelledError:
             if self._transport.closed:
                 while not self._prefetch.empty():

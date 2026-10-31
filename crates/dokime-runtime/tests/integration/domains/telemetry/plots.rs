@@ -43,6 +43,7 @@ const PLOT_POINTS: usize = 400;
 
 /* === Private Functions === */
 // snapshot query with all window uses all samples before downsampling.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn snapshot_query_samples() {
     let root = tempdir().unwrap();
@@ -51,18 +52,19 @@ async fn snapshot_query_samples() {
     settings.local_storage.telemetry_interval = Duration::from_secs(60);
     let (mut owner, runtime) = started(settings).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let saved = runtime.storage().cursor_saved();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let accepted = runtime.storage().cursor_accepted();
     assert!(accepted.sequence > saved.sequence);
-    let pending = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let pending =
+        runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
+    assert_eq!(pending[0].revision, accepted.sequence);
     let mut marked = wifi_request(None, Some(5));
     marked.marker_record_types = vec!["test.cycle.started".into()];
-    let pending = runtime.query_plot_payloads(vec![marked], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let pending = runtime.query_plot_payloads_at(vec![marked], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
-    // Unrelated Background Records May Settle, But Queries Never Flush The Unsaved Telemetry Tail.
-    assert!(runtime.storage().cursor_saved().sequence < accepted.sequence);
+    assert_eq!(pending[0].revision, accepted.sequence);
     let historical =
         runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &saved).await.unwrap();
     assert!(historical[0].payload.series.iter().all(|series| series.raw_points == 0));
@@ -92,6 +94,7 @@ async fn snapshot_query_samples() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn batch_replacement_requests() {
     let root = tempdir().unwrap();
@@ -116,6 +119,7 @@ async fn batch_replacement_requests() {
 // a time series plot summarizes each series over the exact rows of its window,
 // whatever the display budget: the whole window, a trailing window, a zoomed
 // range and complete replacement frames.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn series_window_summaries() {
     let root = tempdir().unwrap();
@@ -172,6 +176,7 @@ async fn series_window_summaries() {
 
 // a wifi occupancy plot carries its per-scan and per-band counts: readings
 // sharing a whole second form one scan, a channel keeping its largest reading.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn wifi_occupancy_scans() {
     let root = tempdir().unwrap();
@@ -229,6 +234,7 @@ async fn wifi_occupancy_scans() {
 }
 
 // an xy interval plot's analysis counts the samples its bins summarize.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn interval_raw_points() {
     let root = tempdir().unwrap();
@@ -265,6 +271,7 @@ async fn interval_raw_points() {
 }
 
 // Replacement Frames Carry The Complete Cartesian Window.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn replacement_frame_domains() {
     let root = tempdir().unwrap();
@@ -291,6 +298,7 @@ async fn replacement_frame_domains() {
     assert_eq!((&frame.x_domain, &frame.y_domain, frame.point_count), (&snapshot.x_domain, &snapshot.y_domain, snapshot.point_count));
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_plots_samples() {
     let root = tempdir().unwrap();
@@ -468,7 +476,7 @@ async fn execution_plots_samples() {
     assert_eq!(receipt.accepted, 2);
     assert_eq!(receipt.dropped, 0);
     let envelopes =
-        runtime.query_plot_payloads(vec![wifi_request(Some(execution), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        runtime.query_plot_payloads(vec![wifi_request(Some(execution.clone()), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
@@ -512,7 +520,7 @@ async fn execution_plots_samples() {
             ("std", (2.0_f64 / 3.0).sqrt()),
             ("rms", ((base.powi(2) + (base + 1.0).powi(2) + (base + 2.0).powi(2)) / 3.0).sqrt()),
         ] {
-            let actual = summary[name].as_f64().unwrap();
+            let actual = summary[name].as_f64().unwrap_or_else(|| panic!("{key} {name}: {summary:?}"));
             assert!((actual - expected).abs() < 1e-9, "{key} {name}: {actual} != {expected}");
         }
         assert_eq!(summary["window"], serde_json::json!({"from": 1_767_225_600.0, "to": 1_767_225_602.0}));
@@ -531,7 +539,7 @@ async fn execution_plots_samples() {
         let series = plots[id]["series"].as_array().unwrap();
         assert_eq!(series.len(), 1);
         assert_eq!(series[0]["key"], field);
-        assert_eq!(series[0]["label"], field);
+        assert_eq!(series[0]["label"], label);
         assert_eq!(series[0]["raw_points"], 3);
         let points = series[0]["points"].as_array().unwrap();
         assert_eq!(points.iter().map(|point| point["x"].as_f64().unwrap()).collect::<Vec<_>>(), [0.0, 1.0, 2.0]);
@@ -578,6 +586,26 @@ async fn execution_plots_samples() {
                 .collect::<Vec<_>>(),
             expected
         );
+    }
+    let request = PlotPayloadRequest {
+        stream: "fixture.exact".into(),
+        plot_type: Some(dokime_runtime::document::PlotType::TimeSeries),
+        y_keys: vec!["sample_index".into()],
+        max_points: Some(100),
+        scope: Some(execution),
+        ..Default::default()
+    };
+    // The Typed Live Expression Still Aggregates Integers Before Converting To f64.
+    let mut precise = request;
+    precise.y_keys.clear();
+    precise.y_expressions = vec![dokime_runtime::expressions::telemetry("fixture.exact", "sample_index")];
+    let precise = runtime.query_plot_payloads(vec![precise], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(precise[0].payload.summaries[0].mean, Some(9_007_199_254_740_994.0));
+    assert_eq!(precise[0].payload.summaries[0].median, Some(9_007_199_254_740_994.0));
+    // The Report Preview Keeps The Same Exact Integer Statistics As The Typed Live Query.
+    let live = serde_json::to_value(&precise[0].payload.summaries[0]).unwrap();
+    for name in ["count", "min", "max", "mean", "median", "std", "rms", "window"] {
+        assert_eq!(plots["exact.plot"]["summaries"][0][name], live[name], "exact.plot {name}");
     }
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
@@ -645,6 +673,7 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
 /* === Tests === */
 
 // distribution query bins its x column and does not limit evidence to the display budget.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn window_context_uses_latest_source_time_then_persisted_position() {
     let root = tempdir().unwrap();
@@ -702,6 +731,7 @@ async fn window_context_uses_latest_source_time_then_persisted_position() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn distribution_query_budget() {
     let root = tempdir().unwrap();
@@ -738,6 +768,7 @@ async fn distribution_query_budget() {
 }
 
 // record only query filters on execution dimensions without a telemetry stream.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn record_query_absent() {
     use dokime_runtime::document::{DocumentFilter, FilterOperator};
@@ -750,15 +781,14 @@ async fn record_query_absent() {
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let scope = cycle.test_executions[0].scope.clone();
-    // Completion Keeps Writing After The Outcome; Settle Until The Saved Cut Stops Moving.
-    loop {
-        let accepted = runtime.storage().cursor_accepted();
-        runtime.storage().flush().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-        if runtime.storage().cursor_accepted() == accepted {
-            break;
-        }
-    }
+    until_state(&runtime, |state| {
+        state
+            .cycle_views()
+            .any(|cycle| cycle.test_cycle_id == cycle_id && cycle.test_executions.iter().all(|execution| execution.saved.is_some()))
+    })
+    .await;
+    runtime.storage().flush().await.unwrap();
+    let at = runtime.storage().cursor_saved();
 
     for (suite, matches) in [("custom.suite", true), ("other.suite", false)] {
         let request = PlotPayloadRequest {
@@ -780,13 +810,14 @@ async fn record_query_absent() {
             }],
             ..Default::default()
         };
-        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let result = runtime.query_plot_payloads_at(vec![request], RuntimePlotQueryMode::Snapshot, &at).await.unwrap();
         let count = result[0].payload.series.iter().map(|series| series.points.len()).sum::<usize>();
         assert_eq!(count > 0, matches);
-        assert_eq!(result[0].revision, runtime.storage().cursor_saved().sequence);
+        assert_eq!(result[0].revision, at.sequence);
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_provenance() {
     let root = tempdir().unwrap();
@@ -829,6 +860,7 @@ async fn selected_analysis_provenance() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_original_coordinates() {
     let root = tempdir().unwrap();
@@ -856,6 +888,7 @@ async fn selected_original_coordinates() {
 }
 
 #[cfg(feature = "fft")]
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_fft_manager() {
     let root = tempdir().unwrap();
@@ -886,6 +919,7 @@ async fn selected_fft_manager() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_read() {
     let root = tempdir().unwrap();
@@ -905,6 +939,7 @@ async fn selected_analysis_read() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn selected_analysis_axes() {
     let root = tempdir().unwrap();
@@ -939,7 +974,121 @@ async fn selected_analysis_axes() {
 }
 
 // The one-day guard of the saved-window path; `system/telemetry_plot_history.rs` saves seven days.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn telemetry_history() {
     crate::service_support::plots::telemetry_history(4_000, PLOT_POINTS, 1).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn numeric_query_reductions_match_spilled_results() {
+    let mut reference = None;
+    for bytes in [8192, 8 * 1024 * 1024] {
+        let root = tempdir().unwrap();
+        let mut settings = config(root.path());
+        settings.session_id = dokime_domain::model::identity::SessionId::from_seed("numeric-query");
+        settings.storage.response.batch_bytes = std::num::NonZeroUsize::new(bytes).unwrap();
+        settings.local_storage.telemetry_rows = std::num::NonZeroUsize::new(512).unwrap();
+        settings.local_storage.telemetry_interval = Duration::from_secs(60);
+        let (mut owner, runtime) = started(settings).await;
+        let mut contract = crate::service_support::contracts::fixture_telemetry_contract();
+        contract.columns[0].required = false;
+        contract.columns[0].nullable = true;
+        for (key, label) in [("sample_index", "Sample Index"), ("ordinal", "Ordinal")] {
+            contract.columns.push(
+                dokime_runtime::telemetry::TelemetryColumn::declared(
+                    key,
+                    label,
+                    dokime_runtime::ValueType::Integer,
+                    dokime_runtime::telemetry::TelemetryRole::Value,
+                )
+                .optional(),
+            );
+        }
+        runtime
+            .set_suites(
+                "numeric-query",
+                dokime_runtime::definition::SuiteSet::new([TestSuiteDefinition {
+                    suite_id: "plot.query.suite".into(),
+                    tags: Vec::new(),
+                    workflow: None,
+                    suite: plot_query_suite(),
+                    record_contracts: Vec::new(),
+                    telemetry_contracts: vec![contract],
+                }]),
+            )
+            .await
+            .unwrap();
+        for first in (0..2305).step_by(512) {
+            let samples = (first..(first + 512).min(2305))
+                .map(|index| {
+                    let mut sample = TelemetrySample::new(
+                        dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("numeric-query.{index}")),
+                        Identifier::new("fixture.telemetry").unwrap(),
+                        index as u64,
+                        Timestamp::from_datetime(
+                            time::OffsetDateTime::UNIX_EPOCH
+                                + time::Duration::nanoseconds(((index * 7) % 97) as i64 * 1_000_000_000 + (index % 3) as i64),
+                        ),
+                        "numeric-query",
+                    );
+                    sample.received_at = sample.timestamp.clone();
+                    sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
+                    if index % 5 != 0 {
+                        sample.values.insert("value".into(), Value::Number([-7.0, -0.0, 0.0, -0.0, 11.0, 3.0][index % 6]));
+                    }
+                    sample.values.insert("sample_index".into(), Value::Integer(((index * 17) % 53) as i64 - 26));
+                    sample.values.insert("ordinal".into(), Value::Unsigned(u64::MAX - index as u64));
+                    crate::service_support::contracts::typed_fixture_sample(sample)
+                })
+                .collect();
+            runtime
+                .publish_telemetry_batch(TelemetryBatch::new(
+                    dokime_domain::model::identity::TelemetryBatchId::from_seed(format!("numeric-query.batch.{first}")),
+                    Identifier::new("fixture.telemetry").unwrap(),
+                    samples,
+                ))
+                .await
+                .unwrap();
+            if first == 1536 {
+                runtime.storage().flush().await.unwrap();
+            }
+        }
+        let mut results = Vec::new();
+        for technique in [DownsampleTechnique::Raw, DownsampleTechnique::Lttb, DownsampleTechnique::MinMax, DownsampleTechnique::Auto] {
+            for x in ["timestamp", "sample_index"] {
+                for window in [None, Some(PlotWindow { from: 10.0, to: 50.0 })] {
+                    let request = PlotPayloadRequest {
+                        stream: "fixture.telemetry".into(),
+                        x_key: Some(x.into()),
+                        y_keys: vec!["value".into(), "sample_index".into(), "ordinal".into()],
+                        max_points: Some(17),
+                        technique,
+                        summary_window: window,
+                        plot_type: Some(dokime_runtime::document::PlotType::TimeSeries),
+                        ..Default::default()
+                    };
+                    let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+                    results.push(serde_json::to_string(&serde_json::json!({"series":result[0].payload.series,"summaries":result[0].payload.summaries,"analysis":result[0].payload.analysis})).unwrap());
+                }
+            }
+        }
+        let histogram = PlotPayloadRequest {
+            stream: "fixture.telemetry".into(),
+            x_key: Some("timestamp".into()),
+            y_keys: vec!["value".into()],
+            max_points: Some(17),
+            plot_type: Some(dokime_runtime::document::PlotType::Histogram),
+            ..Default::default()
+        };
+        let histogram = runtime.query_plot_payloads(vec![histogram], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        results.push(serde_json::to_string(&histogram[0].payload.analysis).unwrap());
+        if let Some(reference) = &reference {
+            assert_eq!(&results, reference);
+        } else {
+            reference = Some(results);
+        }
+        owner.shutdown().await.unwrap();
+    }
 }

@@ -17,6 +17,10 @@ mod flush;
 mod inventory;
 pub(crate) mod previews;
 mod reader;
+
+#[cfg(feature = "native")]
+pub(crate) mod report;
+
 #[cfg(test)]
 mod tests;
 mod writer;
@@ -68,6 +72,7 @@ impl State {
     ) -> Result<Vec<(u64, NumericRow)>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         let mut scan = selection_scan(at.sequence, &selection, page)?;
+        scan = scan.filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
         let owner = self.0.clone();
         self.read(move |connection| {
@@ -80,7 +85,7 @@ impl State {
                     if position <= head.sequence
                         || position <= page.after
                         || position > at.sequence
-                        || !scope.matches(entry.sample.scope.as_ref())
+                        || !scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes)
                         || !reader::selected(&entry, &selection)?
                     {
                         continue;
@@ -105,9 +110,9 @@ impl State {
         .await?
     }
 
-    pub(crate) async fn telemetry_files(&self, execution: String) -> Result<Vec<StreamFile>, Error> {
+    pub(crate) async fn telemetry_files(&self, execution: String, at: StorageCursor) -> Result<Vec<StreamFile>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        self.read(move |connection| Ok(inventory::files(connection, &root, &execution))).await?
+        self.read(move |connection| Ok(inventory::files(connection, &root, &execution, &at))).await?
     }
 
     pub(crate) async fn register_telemetry_contract(
@@ -142,8 +147,15 @@ impl State {
     pub(crate) async fn telemetry_read(
         &self, at: StorageCursor, selection: StreamSelection, page: ScanPage,
     ) -> Result<Vec<(u64, TelemetryEntry)>, Error> {
+        self.telemetry_read_scoped(at, selection, page, Default::default()).await
+    }
+
+    pub(crate) async fn telemetry_read_scoped(
+        &self, at: StorageCursor, selection: StreamSelection, page: ScanPage, scope: crate::evidence_runtime::ScopeSelection,
+    ) -> Result<Vec<(u64, TelemetryEntry)>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         let mut scan = selection_scan(at.sequence, &selection, page)?;
+        scan = scan.filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
         let owner = self.0.clone();
         self.read(move |connection| {
@@ -158,7 +170,9 @@ impl State {
                     if position <= head.sequence || position <= page.after || position > at.sequence {
                         continue;
                     }
-                    if reader::selected(&entry, &selection)? {
+                    if reader::selected(&entry, &selection)?
+                        && scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes)
+                    {
                         rows.push((position, entry));
                     }
                 }
@@ -184,7 +198,7 @@ impl State {
             rows: NonZeroUsize::new(512).unwrap(),
             bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
         };
-        let mut scan = Scan::new("stream", at.sequence, 0, page).filter("scope", execution.clone()).filter("stream", stream.clone());
+        let mut scan = Scan::new("stream", at.sequence, 0, page).filter("execution", execution.clone()).filter("stream", stream.clone());
         scan.metrics = Some(self.0.read_metrics.clone());
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         let owner = self.0.clone();
@@ -202,9 +216,9 @@ impl State {
                             entry
                                 .sample
                                 .scope
-                                .as_ref()
-                                .and_then(|scope| scope.test_execution_id.as_ref())
-                                .is_some_and(|owner| owner.as_str() == id)
+                                .iter()
+                                .chain(&entry.sample.captured_scopes)
+                                .any(|scope| scope.test_execution_id.as_ref().is_some_and(|owner| owner.as_str() == id))
                         })
                         || !stream.as_deref().is_none_or(|stream| entry.sample.stream.as_str() == stream)
                     {
@@ -229,7 +243,7 @@ impl State {
                 params![execution,stream,sample_id,position(through)], |row| row.get(0)).optional()?;
             if let Some(previous) = previous { return sequence(&previous); }
             let page = ScanPage { after: 0, rows: NonZeroUsize::new(1).unwrap(), bytes: NonZeroUsize::MAX };
-            let scan = Scan::new("stream",through,0,page).filter("scope",Some(execution.clone())).filter("stream",Some(stream.clone())).filter("item",Some(sample_id.clone()));
+            let scan = Scan::new("stream",through,0,page).filter("execution",Some(execution.clone())).filter("stream",Some(stream.clone())).filter("item",Some(sample_id.clone()));
             let rows = reader::entries(connection,&root,&scan)?;
             let (selected,_) = rows.first().ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?;
             let transaction = connection.transaction()?;
@@ -341,7 +355,7 @@ impl State {
 fn selection_scan(at: u64, selection: &StreamSelection, page: ScanPage) -> Result<Scan, Error> {
     let mut scan = Scan::new("stream", at, 0, page)
         .filter("schema_key", Some(serde_json::to_string(&selection.schema)?))
-        .filter("scope", selection.scope.as_ref().map(ToString::to_string))
+        .filter("execution", selection.scope.as_ref().map(ToString::to_string))
         .filter("item", selection.item.as_ref().map(ToString::to_string))
         .filter("stream", selection.stream.as_ref().map(ToString::to_string));
     scan.source_window = selection.source_start.zip(selection.source_end);

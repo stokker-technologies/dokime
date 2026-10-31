@@ -108,18 +108,10 @@ impl RecordSelection {
         {
             return false;
         }
-        self.scope.matches(record.scope.as_ref())
+        self.scope.matches_evidence(record.scope.as_ref(), &record.captured_scopes)
     }
 
     pub fn apply(&self, records: &[RecordEntry]) -> Vec<RecordEntry> {
-        self.apply_with_subscriptions(records, |_| None)
-    }
-
-    pub(crate) fn apply_with_subscriptions<'a>(
-        &self, records: &'a [RecordEntry], captured: impl Fn(&'a RecordEntry) -> Option<&'a RecordScope>,
-    ) -> Vec<RecordEntry> {
-        let mut unscoped = self.clone();
-        unscoped.scope = ScopeSelection::default();
         let window = RecordFilter {
             start: self.start.clone(),
             end: self.end.clone(),
@@ -129,15 +121,9 @@ impl RecordSelection {
         let mut matches = records
             .iter()
             .filter(|record| self.after_sequence.is_none_or(|sequence| record.sequence > sequence))
-            .filter(|record| unscoped.matches(record) && self.scope.matches(captured(record).or(record.scope.as_ref())))
+            .filter(|record| self.matches(record))
             .filter(|record| window.matches(record))
-            .map(|record| {
-                let mut projected = record.clone();
-                if let Some(scope) = captured(record) {
-                    projected.scope = Some(scope.clone());
-                }
-                projected
-            })
+            .cloned()
             .collect::<Vec<_>>();
         matches.sort_by(|left, right| right.timestamp.cmp(&left.timestamp).then_with(|| right.sequence.cmp(&left.sequence)));
         matches.truncate(self.limit.unwrap_or(usize::MAX));
@@ -161,7 +147,7 @@ impl TelemetrySelection {
                 }
                 .matches(sample)
             })
-            .filter(|sample| self.scope.matches(sample.scope.as_ref()))
+            .filter(|sample| self.scope.matches_evidence(sample.scope.as_ref(), &sample.captured_scopes))
             .collect::<Vec<_>>();
 
         if self.latest
@@ -176,6 +162,11 @@ impl TelemetrySelection {
 }
 
 impl ScopeSelection {
+    pub(crate) fn matches_evidence(&self, producer: Option<&RecordScope>, captures: &[RecordScope]) -> bool {
+        self.matches(producer)
+            || (self.test_execution_id.is_some() || self.test_cycle_id.is_some()) && captures.iter().any(|scope| self.matches(Some(scope)))
+    }
+
     pub fn matches(&self, scope: Option<&RecordScope>) -> bool {
         let Some(scope) = scope else {
             return self.test_cycle_id.is_none()

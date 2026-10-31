@@ -41,6 +41,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn proto_catalog_export() {
     let root = tempfile::tempdir().unwrap();

@@ -84,10 +84,6 @@ impl dokime_runtime::harmos::Lifecycle for DirectStreams {
         Ok(())
     }
 
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         let host = self.host.take().expect("initialization kept its supervisor");
         assert!(
@@ -110,6 +106,7 @@ impl DirectStreams {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_alias_publication() {
     use dokime_runtime::telemetry::TelemetryStream;

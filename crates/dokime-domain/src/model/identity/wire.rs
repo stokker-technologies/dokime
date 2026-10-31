@@ -41,7 +41,6 @@ pub struct Metadata {
     pub description: Option<String>,
     pub tags: Vec<String>,
 
-    // In key order; keys are unique.
     #[row(description = "In key order; keys are unique.")]
     pub attributes: Vec<MetadataAttribute>,
 
@@ -98,9 +97,6 @@ pub struct TraceabilitySnapshot {
     pub created_at: Option<Timestamp>,
     pub entries: Vec<TraceabilityEntry>,
 
-    // What this group is, when something said so. A template states its
-    // traceability as labelled sections and a section is a group, so the label
-    // travels with it; the groups the runtime derives on its own carry none.
     #[row(
         description = "What this group is, when something said so. A template states its traceability as labelled sections and a section is a group, so the label travels with it; the groups the runtime derives on its own carry none."
     )]
@@ -114,7 +110,6 @@ pub struct TraceabilityEntry {
     pub value: Option<Value>,
     pub source: Option<String>,
 
-    // The unit the value is stated in, for a value that has one.
     #[row(description = "The unit the value is stated in, for a value that has one.")]
     pub unit: Option<String>,
 }

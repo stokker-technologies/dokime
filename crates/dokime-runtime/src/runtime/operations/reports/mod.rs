@@ -86,12 +86,12 @@ impl Resources {
                 ReportSubject::Execution(id) => {
                     let id = TestExecutionId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
                     let progress = self.progress.begin("Materializing Execution Report");
-                    progress.track(execution(scope, self, &id, &request.at, &progress).await)
+                    progress.track(execution(scope, self, &id, &request.at, &progress).await.map_err(report_failure))
                 }
                 ReportSubject::Cycle(id) => {
                     let id = TestCycleId::from_uuid(id.clone()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
                     let progress = self.progress.begin("Materializing Cycle Report");
-                    progress.track(cycle::materialize(scope, self, &id, &request.at, &progress).await)
+                    progress.track(cycle::materialize(scope, self, &id, &request.at, &progress).await.map_err(report_failure))
                 }
             }
         })
@@ -127,6 +127,13 @@ impl Resources {
 }
 
 /* === Private Functions === */
+
+fn report_failure(error: Error) -> Error {
+    match error {
+        Error::Admission(_) | Error::ShuttingDown | Error::Interrupted => error,
+        _ => Error::ReportUnavailable(Box::new(error)),
+    }
+}
 
 async fn execution(
     ctx: &Scope, resources: &Resources, id: &TestExecutionId, at: &harmos::storage::StorageCursor,
@@ -220,7 +227,7 @@ fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
 
-// The Typed Error Stays Attached So Diagnostics Capture Still Reads It.
+// Diagnostics Keep The Typed Cause; The Transport Contains Only The Readable Message.
 pub(crate) fn status(error: Error) -> Status {
     let code = match &error {
         Error::Admission(failure) => {
@@ -239,11 +246,16 @@ pub(crate) fn status(error: Error) -> Status {
         }
         Error::InvalidReportInputs(_) | Error::InvalidCheckpointQuery(_) => tonic::Code::InvalidArgument,
         Error::ShuttingDown | Error::Interrupted => tonic::Code::Unavailable,
-        _ => tonic::Code::Internal,
+        Error::ReportUnavailable(_) => tonic::Code::FailedPrecondition,
+        _ => tonic::Code::FailedPrecondition,
     };
-    let mut status = Status::new(code, error.to_string());
-    status.set_source(Arc::new(error));
-    status
+    let message = if matches!(&error, Error::ReportUnavailable(_) | Error::Admission(_) | Error::ShuttingDown | Error::Interrupted) {
+        error.to_string()
+    } else {
+        "The report could not be created. Try again; if the problem continues, collect diagnostics.".into()
+    };
+    tracing::error!(error = ?error, "report materialization failed");
+    Status::new(code, message)
 }
 
 /* === Tests === */

@@ -12,7 +12,7 @@ A template lists its calls in its `requires` catalog. Its plugin's own `Private`
 
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `RunStart` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 
-The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`.
+The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
 
 ## Layout
 
@@ -63,6 +63,29 @@ An operation that changes external state requires `ReadEnvironment`, `PrepareEff
 
 Cancellation must retain native work and its serialization gate until it settles. A plugin retains its generation `Supervisor` during initialization and copies the serving execution scope for journal callbacks, so cancellation of the parent operation cannot strand its completion timestamp. Backend cleanup closes write admission before restoring; it keeps execution capture open through restoration. An inverse is a Host operation callable by the backend, not another plugin. Internal storage remains v1; an incompatible development store requires a fresh root without deleting the old one.
 
+
+## Host CPU Load Control
+
+`plugin_host::host::cpu::load` owns `LoadHold`, `LoadTarget`, `LoadSummary`,
+`LoadControl` and `CpuLoadSettings`. The locked Public operation is
+`host.cpu.load.hold`; preserve existing `host.cpu.load` as the capacity/load query.
+Use finite `LoadTarget::Percent(value)` in `(0,100]` or positive finite
+`LoadTarget::Flops(value)`; `threads: Option<u32>` selects logical cores when absent; explicit counts must fit `1..=logical_cores`.
+One shared CPU sampling owner serves telemetry and control; consumers never refresh
+CPU deltas. Reuse the calibrated kernel/capacity rather than adding another peak probe.
+Controller evidence uses distinct `host.cpu.load.control`, structured units and
+`Label [unit]` labels. Percent feedback counts the whole host; FLOP/s counts only
+this generator. Timing and gains belong to the CPU Load Control settings section.
+
+Start a suite handle with `ctx.host().submit::<LoadHold>(request).await?` (the
+scoped equivalent of the runtime builder’s `.start()`), hold, then `.cancel().await?` for a typed
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
+so no durable effect inverse is needed. The handler uses Harmos cooperative
+cancellation and returns the final summary within its configured policy grace.
+Use the host CPU control stream as evidence in the consuming template. Combine
+its row with the collected streams in one `Evidence` contribution; collection
+operations remain in their executable catalog.
+
 ## Shared Secrets
 
 ```rust
@@ -80,3 +103,14 @@ Add the exact missing identifier and restart Dokime or retry the plugin. There i
 no binding, environment source or secret default. Manual `SecretSetting`
 declarations likewise use their `id` as the store identifier. Rebuild consumers of
 removed `SecretReference` or per-plugin update APIs against the matching SDK.
+
+## Plugin Settings
+
+Declare bounded operational values with `#[dokime::settings]` and labeled
+`#[dokime::section]` groups, then contribute `dokime::Settings<Settings>`.
+Each numeric setting has a description, validation bounds and units in square
+brackets in its label. Resolve once with `config.settings::<Settings>()` in
+`prepare` and register that snapshot as a resource. Saved updates apply on restart
+or plugin Retry. Host collection cadence is declared in `settings.rs` and read by
+each process observer's runtime interval method. Operation policies remain static
+Harmos declarations; replay windows remain static publication contracts.

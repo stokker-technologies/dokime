@@ -337,7 +337,7 @@ pub(super) fn rows(
 
 pub(super) fn selected(sample: &TelemetrySample, request: &PlotPayloadRequest) -> bool {
     sample.stream.as_str() == request.stream
-        && payload::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
+        && payload::sample_matches_scope(sample, request.scope.as_ref())
         && payload::sample_matches_filters(sample, &request.filters)
 }
 
@@ -359,7 +359,7 @@ fn z_value(read: &Read<'_>, sample: &TelemetrySample, request: &PlotPayloadReque
     }
     let other = read.nearest(stream, sample.scope.as_ref(), sample.timestamp.as_str(), false, |candidate| {
         crate::evidence_runtime::scopes_correlate(candidate.scope.as_ref(), sample.scope.as_ref())
-            && payload::sample_matches_scope(candidate.scope.as_ref(), request.scope.as_ref())
+            && request.scope.as_ref().is_none_or(|scope| candidate.is_visible_in(scope))
             && payload::sample_value(candidate, field).and_then(payload::numeric_value).is_some()
     })?;
     Ok(other.and_then(|sample| payload::sample_value(&sample, field).and_then(payload::numeric_value)))

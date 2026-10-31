@@ -58,6 +58,7 @@ fn position_selection() -> RecordSelection {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn managed_records_kill() {
     if let Some(root) = std::env::var_os("DOKIME_RECORD_POSITION_KILL_ROOT") {

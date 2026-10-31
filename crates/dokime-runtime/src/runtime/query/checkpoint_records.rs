@@ -59,7 +59,7 @@ impl RuntimeHandle {
         &self, checkpoint: ExecutionCheckpoint, query: ExecutionRecordQuery,
     ) -> Result<harmos::storage::ReadBatch<ExecutionRecordPage>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
-        crate::runtime::storage::record_pages::read(&view, query).await
+        crate::runtime::storage::record_pages::read(&view, &self.local_storage, query).await
     }
 }
 

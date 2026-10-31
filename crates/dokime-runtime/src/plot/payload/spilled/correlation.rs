@@ -81,7 +81,7 @@ enum Source<'a> {
 impl Plan<'_> {
     fn candidate(&self, read: &Read<'_>, ordinal: i64, record: RecordEntry) -> Result<Option<Candidate>> {
         if record.record_type.as_str() != self.expression.kind
-            || !payload::sample_matches_scope(record.scope.as_ref(), self.request.scope.as_ref())
+            || !self.request.scope.as_ref().is_none_or(|scope| record.is_visible_in(scope))
         {
             return Ok(None);
         }
@@ -126,7 +126,7 @@ impl Plan<'_> {
                 _ => &self.request.stream,
             };
             let sample = read.nearest(stream, record.scope.as_ref(), record.timestamp.as_str(), true, |sample| {
-                payload::sample_matches_scope(sample.scope.as_ref(), self.request.scope.as_ref())
+                payload::sample_matches_scope(sample, self.request.scope.as_ref())
             })?;
             let matches = sample.is_some_and(|sample| payload::sample_matches_filters(&sample, std::slice::from_ref(filter)));
             if !matches {
@@ -141,7 +141,7 @@ impl Plan<'_> {
             return Ok(None);
         };
         let sample = read.nearest(stream, record.scope.as_ref(), record.timestamp.as_str(), true, |sample| {
-            payload::sample_matches_scope(sample.scope.as_ref(), self.request.scope.as_ref())
+            payload::sample_matches_scope(sample, self.request.scope.as_ref())
                 && payload::sample_value(sample, field).and_then(payload::numeric_value).is_some()
         })?;
         Ok(sample.and_then(|sample| {
@@ -182,7 +182,7 @@ impl Plan<'_> {
                 sample
             } else {
                 read.nearest(&self.request.stream, candidate.end.scope.as_ref(), candidate.end.timestamp.as_str(), true, |sample| {
-                    payload::sample_matches_scope(sample.scope.as_ref(), self.request.scope.as_ref())
+                    payload::sample_matches_scope(sample, self.request.scope.as_ref())
                 })?
             };
             let Some(sample) = sample else {

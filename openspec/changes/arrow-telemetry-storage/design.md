@@ -2,11 +2,11 @@
 
 ## Context
 
-This is a proposed experimental design, not landed behavior. Motivation is in `proposal.md`. Dokime's `crates/dokime-runtime/src/storage/sqlite/data/telemetry.rs` currently indexes encoded samples by signal; `crates/dokime-runtime/src/domains/exports/evidence/database.rs` builds partitioned export tables.
+Arrow IPC telemetry storage is landed on `dev`. This retained change owns its remaining query-latency obligation. The query-only follow-up in `perf/arrow-query` preserves the landed format, write path, finalize and export contracts. Motivation and the original locked decisions remain in `proposal.md`.
 
 ## Goals And Non-Goals
 
-Retain durable evidence and live queries while eliminating per-signal writes and export payload conversion. No Harmos changes, Parquet, compatibility adapters, development-data migrations, silent storage resets, installers or hilti-hcl changes.
+Retain durable evidence and live queries while eliminating per-signal writes and export payload conversion. No Harmos changes, Parquet, compatibility adapters, development-data migrations, silent storage resets, installers or example-plugin changes.
 
 ## Locked Decisions
 
@@ -32,7 +32,7 @@ The IPC file starts with eight bytes of magic/padding before its embedded stream
 
 ## Ownership And Dependency Order
 
-The single writer is the current chat in `feat/arrow-telemetry`; the initial tree was clean and tracked `origin/dev`. Tasks lock the source inventory. The change is activated through `stkr specification start arrow-telemetry-storage` with a native persistent goal.
+The query follow-up has one writer in the current `perf/arrow-query` worktree; its initial tree was clean at the merged Arrow storage commit and tracked `origin/dev`. Tasks lock the source inventory. The change is activated through `stkr specification start arrow-telemetry-storage` with a native persistent goal.
 
 Implement schema/configuration and catalog first, then writer/recovery, reader/durable cursor consumers, exports, documentation and benchmarks. Retire superseded code in the same feature. Keep existing managed Harmos lifecycle contracts and public operation declarations as the boundary.
 
@@ -48,7 +48,15 @@ The batch index retains complete-scope time ranges for predecessor selection, av
 
 Pending values use the same timestamp/JSON projection as persisted values. A native timestamp projection whose contract declares a string remains Arrow Utf8; its original spelling is retained for exact native envelope reconstruction. Reports use their existing owner-plus-UUID report/context file identity to distinguish them from artifacts. Runtime contract registration shares its validated codec with the backend, preserving configured schema allowances. Shutdown joins owned flush tasks and reports failures or remaining unsaved rows before closing the store, retaining the opportunity to repair and retry.
 
-The comparison baseline is the task's original origin/dev revision `9f4546ea6a49cbf24c72625fb923c873d3745abc`. The same Criterion workload measures durable 1,024-row writes, a bounded plot query over 1M saved rows, finalization plus runtime/storage close after 65,536 rows (excluding directory deletion), and execution ZIP generation/download for 16,384 rows. The close metric includes runtime teardown and SQLite checkpoint work; footer-only complexity is established separately by IPC correctness proofs. Copy only the benchmark harness additions into the baseline checkout; no storage implementation changes belong there. The baseline and candidate run sequentially in this owned workspace, avoiding retirement of other active worktrees.
+The original storage comparison used the pre-Arrow `origin/dev` revision recorded in Git history. Its write/finalize/export measurements are complete. The query-only follow-up uses the landed Arrow query measurement as its baseline and runs only `arrow_telemetry/window_query_1000000` once through the existing focused benchmark task. Workload, default settings, compiler profile and hardware remain the comparison boundary.
+
+## Query Reduction Decisions
+
+Profiling isolated generic exact-median spill/sort and decoding unused IPC fields as the principal read costs. Numeric reads select requested value fields plus only the position, microsecond time, original timestamp, sequence and optional scope/item metadata they consume. A metadata-only flattened read view removes the two non-null root struct nodes and their validity buffers; Arrow's native projected decoder skips all other fields before ZSTD decompression. Payload bytes and buffer offsets stay unchanged. Validate non-null roots, retain Arrow array validation and verify the complete stored batch digest before decoding. Cache identity includes the selected column indices.
+
+Exact medians retain finite numeric values within one existing response-byte budget shared across all projected fields. Stable numeric sorting preserves equal-value order, including signed zero; moment updates, summary-window inclusion and envelope algorithms remain unchanged. Larger selections retain the bounded external median path. No new configuration or upstream Harmos change is required. README and product-guide claims remain accurate because query behavior and storage contracts do not change.
+
+The plot integration fixture still asserted full-history report XY/histogram output removed by the locked `long-execution-finalize` bounded-report contract. Its report checks now require explicit unavailable frames and compare supported indexed summaries with live numeric queries; live reduction fixtures and the typed-integer expression retain query coverage. Report implementation and persistence stay unchanged.
 
 ## Validation And Delivery
 

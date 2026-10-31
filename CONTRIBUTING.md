@@ -34,8 +34,12 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
-Regenerate Python and desktop bindings with `mise run prepare:bindings -- <compiler-messages.jsonl>`
-using the compiler messages from one successful server build.
+The report, frontend, desktop and TypeScript checks/tests depend on `prepare:generated`,
+which builds the contract generator and server export before generating their modules.
+Use `mise run prepare:generated -- --write` to refresh tracked Python and TypeScript clients;
+ordinary preparation checks them. Generation uses the dev compiler profile independently
+of the requested Product profile. CI lanes restore the matching Product modules and skip
+this producer instead of compiling again.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package:rust`
@@ -56,7 +60,8 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
-Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Selected tests require their own generated inputs when they import them. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs both desktop stories on Windows and Linux.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -95,7 +100,11 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 ### System Story Reports
 
 Report-producing system stories automatically save and reopen their final sealed
-execution reports during shared fixture teardown or desktop journey finalization.
+execution reports during shared fixture teardown or desktop scene finalization.
+Desktop scenes declare the executions they materialize and the reports they own.
+Shutdown and recovery scenes own reports sealed by their boundary, including
+unstarted members. The native finalizer saves only those declared reports once;
+read-only scenes do not re-export earlier history.
 The finalizer verifies execution identity, the durable seal/checkpoint and artifact
 inventory/content. No separate report-saving story or command is needed. Stories
 which do not produce execution reports have explicit reasons in
@@ -103,6 +112,48 @@ which do not produce execution reports have explicit reasons in
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
 selected journeys in JUnit; full walkthrough validation remains a separate obligation.
+The native harness logs scene totals and retains per-step timings in each story's
+`timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
+Categories distinguish launches, subprocesses, execution waits, polling, native
+pickers, report exports and browser reopens; nested categories overlap. Timings
+are diagnostic output, never correctness assertions.
+
+### Reading Test Traces
+
+After `mise run build:rust:tests`, select a small integration story with a nextest
+filterset:
+
+```sh
+mise run test:rust:integration -- --select 'test(=retained_evidence::retained_evidence)'
+```
+
+Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
+`target/test-reports/<category>-<language>/traces/`. Native tests, desktop stories
+and inherited application/sidecar processes write `<process>-<pid>.pftrace` files.
+Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
+Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
+Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or
+`#[tokio::test]` on each Rust lane story, with `dokime-tracing` in the package's
+dev-dependencies. Stories which install application logging use
+`#[dokime_tracing::trace_test(logging)]` so that logging installs the subscriber
+once; isolated parent processes call `dokime_tracing::process()` before spawning
+the child. Desktop journeys and wait steps share
+`crates/dokime-gui/e2e/test-trace.mjs`.
+Tracing is disabled unless this variable is set; it may also be set explicitly
+when diagnosing a test application. Trace fields and event payloads are excluded.
+
+Each lane writes `time-summary.md` and `time-summary.json` beside `traces/`, with
+the top 30 spans by total duration and self time, JUnit totals for every test,
+and the slowest tests. CI retains this directory with the lane artifacts, even
+on failure. Each run replaces that lane's traces; copy them before rerunning
+when comparing results. Different lanes have independent directories.
+
+Durations include async suspension. Self time subtracts the union of direct
+child lifetimes; overlapping spans/processes cannot be summed as wall time or
+CPU time. Native traces use a separate Perfetto track per span to preserve
+concurrent lifetimes, with process-local parent IDs in metadata. Normal completion
+flushes export; killed processes may omit open spans or leave unreadable files,
+which the summary lists. Test totals come from JUnit and include harness overhead.
 
 ### Storage Benchmarks
 

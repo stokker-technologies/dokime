@@ -58,11 +58,17 @@ let files: DescFile[];
 
 let sources: Map<string, string>;
 
+let contractPaths: Set<string>;
+
 beforeAll(async () => {
-  // The `prepare:contracts` Task Generates The Bindings These Stories Read
-  assert.ok(existsSync(descriptors), `${descriptors} is missing; run \`mise run prepare:contracts\``);
+  // The `prepare:generated` Task Generates The Bindings These Stories Read
+  assert.ok(existsSync(descriptors), `${descriptors} is missing; run \`mise run prepare:generated -- --write\``);
   sources = generatedSources(descriptors);
   sources.set(facadePath, readFileSync(resolve(gui, facadePath), "utf8"));
+  const inventory: { contracts: { grpc?: { package: string; service: string; method: string } }[] } = JSON.parse(
+    readFileSync(resolve(descriptors, "contracts.json"), "utf8"),
+  );
+  contractPaths = new Set(inventory.contracts.flatMap(({ grpc }) => (grpc ? [`/${grpc.package}.${grpc.service}/${grpc.method}`] : [])));
 
   // Canonical Descriptors, As The Generated Modules Embed Them
   files = [];
@@ -82,10 +88,14 @@ test("Canonical Bindings", () => {
   assert.equal(facade.includes('from "./dokime/v1/'), false);
 
   // Canonical Methods
+  assert.ok(contractPaths.size > 0, "the canonical inventory declares no methods");
+  const missing = new Set(contractPaths);
   for (const file of files) {
     for (const service of file.services) {
       for (const method of service.methods) {
         const path = `/${service.typeName}/${method.name}`;
+        if (!contractPaths.has(path)) continue;
+        missing.delete(path);
         assert.ok(facade.includes(JSON.stringify(path)), `Missing canonical method: ${path}`);
         const call =
           method.methodKind === "client_streaming" ? "openClientStream" : method.methodKind === "server_streaming" ? "openStream" : "unary";
@@ -93,6 +103,7 @@ test("Canonical Bindings", () => {
       }
     }
   }
+  assert.deepEqual([...missing], [], "every canonical method has a protobuf descriptor");
 
   // LF Identity
   for (const [path, content] of sources) assert.equal(content.includes("\r\n"), false, path);

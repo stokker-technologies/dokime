@@ -139,13 +139,17 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <NotificationMessage>Open cycles could not be read. Reconnect and try again.</NotificationMessage> : null}
 
-      {suitesQuery.isError ? <NotificationMessage>The suite catalog could not be read.</NotificationMessage> : null}
+      {suitesQuery.isError ? (
+        <NotificationMessage source="Library" title="Could Not Load Suites" error={suitesQuery.error}>
+          {suitesQuery.error.message}
+        </NotificationMessage>
+      ) : null}
       <DataTable
         aria-label="Library"
         columns={columns}
         data={rows}
         getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-        emptyText={suites === null ? "Loading Suites…" : "No Templates Match"}
+        emptyText={suitesQuery.isPending ? "Loading Suites…" : suitesQuery.isError ? "Suites Unavailable" : "No Templates Match"}
         search={{ label: "Filter Templates", value: suiteSearch, onChange: setSuiteSearch }}
         onRowClick={setOpenTemplate}
       />

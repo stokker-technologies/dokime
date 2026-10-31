@@ -38,6 +38,7 @@ pub(crate) mod observers {
         row = Row, description = "Shared row metadata")]
     struct Revisioned;
 
+    #[dokime_tracing::trace_test]
     #[test]
     fn native_metadata_revision() {
         use dokime_runtime::telemetry::TelemetryStream;
@@ -63,7 +64,6 @@ pub(crate) mod observers {
             dokime_runtime::harmos::plugin::inventory::observers::Entry {
                 id: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ID,
                 description: "",
-                interval: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::INTERVAL,
                 activation: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ACTIVATION,
                 streams: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::STREAMS,
                 demand_keys: &[],
@@ -76,7 +76,7 @@ pub(crate) mod observers {
         const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
             &[dokime_runtime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
         const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
-        const INTERVAL: Duration = Duration::from_millis(5);
+        const INTERVAL: std::time::Duration = Duration::from_millis(5);
 
         async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
             let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
@@ -98,7 +98,7 @@ pub(crate) mod observers {
         probe: Arc<Probe>,
     }
 
-    #[dokime_runtime::observer(streams(Measurement), activation = "demand", interval_ms = 5)]
+    #[dokime_runtime::observer(interval_ms = 5, streams(Measurement), activation = "demand")]
     impl Measurements {
         async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
             let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
@@ -347,14 +347,6 @@ impl dokime_runtime::harmos::Lifecycle for Measured {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         let probe = &self.resource.0;
@@ -380,7 +372,7 @@ impl Measured {
     }
 }
 
-#[dokime_runtime::observer(demand_keys(UNIT_NOTED), activation = "demand", interval_ms = 5)]
+#[dokime_runtime::observer(interval_ms = 5, demand_keys(UNIT_NOTED), activation = "demand")]
 impl RecordObserver {
     async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
         let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
@@ -502,6 +494,7 @@ fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn instance_opens_resources() {
     let probe = Arc::new(Probe::default());
@@ -541,6 +534,7 @@ async fn instance_opens_resources() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_refuses_line() {
     let probe = Arc::new(Probe::default());
@@ -565,6 +559,7 @@ async fn plugin_refuses_line() {
     assert_eq!(probe.drops.load(Ordering::SeqCst), 0, "a refused preparation never opened the resource it would have to close");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn listener_publishes_asked() {
     let probe = Arc::new(Probe::default());
@@ -622,6 +617,7 @@ async fn listener_publishes_asked() {
     native.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn raw_field_keys() {
     use dokime_runtime::telemetry::TelemetryRow;
@@ -636,6 +632,7 @@ fn raw_field_keys() {
     assert_eq!(RawIdentifiers::from_row(&values).unwrap().r#type, "probe");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn record_demand_cancel() {
     let probe = Arc::new(Probe::default());

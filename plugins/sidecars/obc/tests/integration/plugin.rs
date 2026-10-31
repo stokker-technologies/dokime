@@ -43,6 +43,7 @@ use plugin_obc::ObcPlugin;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn resources_share_allocation() {
     use dokime::harmos::Lifecycle;
@@ -60,6 +61,7 @@ async fn resources_share_allocation() {
     assert!(weak.upgrade().is_none());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn executable_declares_routes() {
     // Workspace Feature Unification May Enable Host Implementations, But Only The Host Binary Declares That Sidecar.
@@ -82,7 +84,7 @@ fn executable_declares_routes() {
                 "obc.device.read",
                 "obc.device.set_power",
                 // The ripple analysis the plugin contributes is an operation too.
-                "obc.analysis.ripple",
+                "plugin_obc.analysis.ripple",
                 // Every template of every suite serves a run and a signal.
                 "obc.charger.protection.overcurrent.run",
                 "obc.charger.protection.overcurrent.signal",
@@ -92,6 +94,8 @@ fn executable_declares_routes() {
                 "obc.charger.startup.sequence.signal",
                 "obc.charger.steady.measurement.run",
                 "obc.charger.steady.measurement.signal",
+                "obc.checks.cpu_load.run",
+                "obc.checks.cpu_load.signal",
                 "obc.checks.pulse.run",
                 "obc.checks.pulse.signal",
             ]

@@ -239,6 +239,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
                 "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
+                "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
+                "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
+                "SELECT sequence,epoch FROM storage_record_visibility LIMIT 0",
             ] {
                 connection
                     .prepare(query)
@@ -368,6 +371,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(telemetry::SCHEMA)?;
     transaction.execute_batch(telemetry::aggregates::SCHEMA)?;
     transaction.execute_batch(telemetry::previews::SCHEMA)?;
+    transaction.execute_batch(crate::plot::preview::index::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     initialize_head(&transaction, expected.as_ref())?;
@@ -401,6 +405,7 @@ where
     let transaction = connection.transaction()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
+    let mut plots = crate::plot::preview::index::Batch::default();
     for (value, entry) in values.iter().zip(encoded) {
         let value = Borrowed::from(value);
         // Exact Retries Of Saved Positions Must Repeat The Same Bytes.
@@ -443,9 +448,11 @@ where
         }
         if let Borrowed::Record(row) = value {
             records::index(&transaction, row)?;
+            plots.record(&transaction, row)?;
         }
         head.sequence = entry.position;
     }
+    plots.save(&transaction)?;
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
     super::commit(transaction)?;
     super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -640,7 +647,7 @@ mod tests {
             connection
                 .execute_batch(
                     "INSERT INTO storage_record_captures
-                 SELECT 'execution',position,identity,position,'{}' FROM storage_data_entries;
+                 SELECT 'execution',position,identity,position,'{}',NULL,position,NULL FROM storage_data_entries;
                  INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
                  VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
                 )
@@ -653,10 +660,8 @@ mod tests {
                 let steps = delete.get_status(rusqlite::StatementStatus::VmStep);
                 assert!(steps < 512, "retirement took {steps} VM steps with {count} evidence children");
             }
-            for table in ["storage_record_captures"] {
-                let remaining: i64 = connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
-                assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
-            }
+            let remaining: i64 = connection.query_row("SELECT count(*) FROM storage_record_captures", [], |row| row.get(0)).unwrap();
+            assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
             assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
         }
     }

@@ -165,6 +165,11 @@ struct ThemeSection {
 /* === Implementations === */
 
 impl OrganizationState {
+    #[cfg(windows)]
+    pub(crate) fn label(&self) -> &str {
+        self.boot.pack.as_ref().map(|pack| pack.label.as_str()).unwrap_or(crate::PRODUCT)
+    }
+
     pub(crate) fn window_icon(&self) -> Option<tauri::image::Image<'static>> {
         let bytes = self.boot.pack.as_ref()?.application_icon.as_deref()?;
         tauri::image::Image::from_bytes(bytes).ok()

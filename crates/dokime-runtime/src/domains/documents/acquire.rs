@@ -169,7 +169,12 @@ pub(super) async fn acquire(
             .map_err(source)?;
         let samples = samples
             .try_map(|mut samples| {
-                samples.retain(|sample| selection.matches_scope(sample.scope.as_ref()));
+                samples.retain(|sample| selection.matches_sample(sample));
+                for sample in &mut samples {
+                    if let Some(scope) = selection.captured_sample_scope(sample) {
+                        sample.scope = Some(scope.clone());
+                    }
+                }
                 Ok::<_, harmos::Error>(samples)
             })
             .map_err(source)?;

@@ -109,7 +109,11 @@ export function BackendsTable({
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage source="Backends" title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}>
+          <NotificationMessage
+            source="Backends"
+            title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
+            error={state.phase === "failed" ? state.error : error}
+          >
             {connectionFailure || preferencesError(error)}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
@@ -234,7 +238,7 @@ export function BackendsTable({
             </Button>
           </div>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}
@@ -354,11 +358,19 @@ function AddBackend({
                 id={`${fieldId}-identifier`}
                 aria-label="Backend Identifier"
                 aria-invalid={submitted && Boolean(validation.identifier)}
+                aria-describedby={submitted && validation.identifier ? `${fieldId}-identifier-error` : undefined}
                 required
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
               />
-              {submitted && validation.identifier && <NotificationMessage>{validation.identifier}</NotificationMessage>}
+              {submitted && validation.identifier && (
+                <>
+                  <span className="sr-only" id={`${fieldId}-identifier-error`}>
+                    {validation.identifier}
+                  </span>
+                  <NotificationMessage>{validation.identifier}</NotificationMessage>
+                </>
+              )}
             </label>
             <label htmlFor={`${fieldId}-label`}>
               Label
@@ -372,12 +384,20 @@ function AddBackend({
                 aria-label="Backend Endpoint"
                 required
                 aria-invalid={submitted && Boolean(validation.endpoint)}
+                aria-describedby={submitted && validation.endpoint ? `${fieldId}-endpoint-error` : undefined}
                 placeholder="http://lab.example:8765"
                 type="url"
                 value={endpoint}
                 onChange={(event) => setEndpoint(event.target.value)}
               />
-              {submitted && validation.endpoint && <NotificationMessage>{validation.endpoint}</NotificationMessage>}
+              {submitted && validation.endpoint && (
+                <>
+                  <span className="sr-only" id={`${fieldId}-endpoint-error`}>
+                    {validation.endpoint}
+                  </span>
+                  <NotificationMessage>{validation.endpoint}</NotificationMessage>
+                </>
+              )}
             </label>
             <div className="mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
@@ -387,7 +407,7 @@ function AddBackend({
             </div>
           </fieldset>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Added">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Added" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}

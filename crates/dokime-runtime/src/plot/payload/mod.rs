@@ -441,8 +441,8 @@ pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
         || declared.strip_suffix(actual).is_some_and(|prefix| prefix.ends_with('.'))
 }
 
-pub(crate) fn sample_matches_scope(sample_scope: Option<&RecordScope>, filter: Option<&RecordScope>) -> bool {
-    filter.is_none_or(|filter| scope_visible_in(sample_scope, filter))
+pub(crate) fn sample_matches_scope(sample: &crate::telemetry::TelemetrySample, filter: Option<&RecordScope>) -> bool {
+    filter.is_none_or(|filter| sample.is_visible_in(filter))
 }
 
 pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[DocumentFilter]) -> bool {
@@ -451,7 +451,7 @@ pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[Docume
 
 /* === Private Functions === */
 
-fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
+pub(crate) fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     visit_dimension_context(execution, |key, value| insert_context_value(&mut context, key, value));
     context
@@ -688,7 +688,7 @@ fn plot_markers(records: crate::records::view::View<'_>, marker_record_types: &[
     let selected = records
         .iter()
         .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
-        .filter(|record| sample_matches_scope(record.scope.as_ref(), scope));
+        .filter(|record| scope.is_none_or(|scope| record.is_visible_in(scope)));
     let mut markers = Vec::with_capacity(selected.clone().count());
     markers.extend(selected.map(|record| {
         let record_type = record.record_type.as_str().to_owned();
@@ -725,9 +725,7 @@ fn z_samples<'a>(
     telemetry
         .iter()
         .enumerate()
-        .filter(move |(_, sample)| {
-            stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample.scope.as_ref(), scope)
-        })
+        .filter(move |(_, sample)| stream_matches_alias(sample.stream.as_str(), stream) && sample_matches_scope(sample, scope))
         .filter_map(move |(ordinal, sample)| {
             Some(ZSample {
                 scope: sample.scope.as_ref(),

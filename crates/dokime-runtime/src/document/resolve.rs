@@ -499,7 +499,7 @@ pub(super) fn resolve(input: DocumentResolveInput, materialize_plots: bool, limi
     let selection = input.selection;
     let definition = input.definition;
     let mut telemetry = input.data.telemetry;
-    telemetry.retain(|sample| scope_matches(sample.scope.as_ref(), &selection));
+    telemetry.retain(|sample| selection.matches_sample(sample));
     resolve_parts(
         definition,
         selection,

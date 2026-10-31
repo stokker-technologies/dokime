@@ -23,11 +23,13 @@ import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
+import { operationIds } from "@/lib/rpc/generated/operations";
+import { notificationFailure } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
-import { type EditorParameterRow, editorProblemCount, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
+import { type EditorParameterRow, editorProblems, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
   buildPayload,
@@ -111,14 +113,23 @@ export function TemplateDialog({
   const [fileRows, setFileRows] = useState<FileRowState[]>(() => initialFileRows(template));
   const [step, setStep] = useState<DialogStep>("parameters");
   const [preview, setPreview] = useState<PreviewTestCycleResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
   const { mutateAsync: previewTestCycle } = usePreviewTestCycleMutation();
   const { mutateAsync: appendTestCycle } = useAppendTestCycleMutation();
   const { mutateAsync: uploadArtifact } = useOperatorArtifactUploadMutation();
 
-  const problems = editorProblemCount(rows, fileRows, template.file_definitions);
+  const validation = useMemo(
+    () => ({
+      reason: "validation",
+      operation: "Planning.PreviewSelection",
+      operationId: operationIds["/dokime.v1.Planning/PreviewSelection"],
+      problems: editorProblems(rows, fileRows, template.file_definitions),
+    }),
+    [rows, fileRows, template.file_definitions],
+  );
+  const problems = validation.problems.length;
 
   const payload = useMemo(
     () =>
@@ -195,7 +206,11 @@ export function TemplateDialog({
       );
     } catch (failure: unknown) {
       setFileRows((current) =>
-        current.map((row) => (row.name === definition.name ? { ...row, error: messageOf(failure), uploading: false } : row)),
+        current.map((row) =>
+          row.name === definition.name
+            ? { ...row, error: messageOf(failure), failure: notificationFailure(failure), uploading: false }
+            : row,
+        ),
       );
     }
   }
@@ -217,7 +232,7 @@ export function TemplateDialog({
       if (summaryNeeded(expanded, rows)) setStep("summary");
       else await add(expanded);
     } catch (failure: unknown) {
-      setError(messageOf(failure));
+      setError(failure);
     } finally {
       setBusy(false);
     }
@@ -230,7 +245,7 @@ export function TemplateDialog({
     try {
       await add(preview);
     } catch (failure: unknown) {
-      setError(messageOf(failure));
+      setError(failure);
     } finally {
       setBusy(false);
     }
@@ -309,7 +324,11 @@ export function TemplateDialog({
       <div className="mx-4">
         <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
       </div>
-      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+      {error ? (
+        <NotificationMessage source="Template" error={error}>
+          {messageOf(error)}
+        </NotificationMessage>
+      ) : null}
     </div>
   );
 
@@ -335,7 +354,7 @@ export function TemplateDialog({
             Next
           </Button>
           {problems ? (
-            <NotificationMessage>
+            <NotificationMessage source="Template Inputs" title="Template Inputs Need Attention" failure={validation}>
               {problems} {problems === 1 ? "problem" : "problems"}
             </NotificationMessage>
           ) : null}

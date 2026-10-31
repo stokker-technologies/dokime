@@ -77,10 +77,15 @@ impl RecordFilter {
         if !self.sources.is_empty() && !self.sources.contains(&record.source) {
             return false;
         }
-        if let Some(scope) = &self.scope
-            && record.scope.as_ref() != Some(scope)
-        {
-            return false;
+        if let Some(scope) = &self.scope {
+            let matches = if scope.test_execution_id.is_some() || scope.test_cycle_id.is_some() {
+                record.is_visible_in(scope)
+            } else {
+                record.scope.as_ref() == Some(scope)
+            };
+            if !matches {
+                return false;
+            }
         }
         if let Some(start) = &self.start
             && &record.timestamp < start

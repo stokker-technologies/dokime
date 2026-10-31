@@ -10,6 +10,12 @@
 /* === Modules === */
 
 #[cfg(feature = "runtime")]
+mod kernel;
+pub mod load;
+#[cfg(feature = "runtime")]
+pub(crate) mod sampling;
+
+#[cfg(feature = "runtime")]
 mod runtime;
 
 /* === Re-Exports === */
@@ -27,6 +33,8 @@ pub(crate) use runtime::calibrate;
 
 /* === Constants === */
 
+const PERCENT_SCALE: f64 = 100.0;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -37,10 +45,10 @@ pub(crate) use runtime::calibrate;
 // Each FMA Counts Two Floating-Point Operations. Aggregate Completed Work Divided
 // By Wall Time Is The Calibrated Capacity; Load Is Capacity Times OS Utilization.
 // This Is A Kernel-Equivalent Estimate, Not A Hardware Peak Or Instruction Counter.
-// The Kernel Stops At Half This Operation's Attempt Budget; Release And Debug
+// The Kernel Stops At The Configured Calibration Window; Release And Debug
 // Builds Calibrate Their Own Compiled Kernel On The Current Machine.
 #[dokime::operation(id = "host.cpu.load", response = Load, policy = super::system::POLICY, visibility = Public,
-    resources = [tokio::sync::Mutex<super::system::State>, crate::Workers])]
+    resources = [tokio::sync::Mutex<super::system::State>])]
 #[derive(Clone, Default, PartialEq)]
 pub struct CpuLoad {}
 
@@ -63,7 +71,7 @@ impl Load {
         Self {
             capacity_gflops,
             utilization_percent,
-            load_gflops: capacity_gflops * utilization_percent / 100.0,
+            load_gflops: capacity_gflops * utilization_percent / PERCENT_SCALE,
         }
     }
 }

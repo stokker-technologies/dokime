@@ -49,6 +49,7 @@ pub(super) struct Context<'a> {
 pub(in crate::storage::sqlite) struct CachedBatch {
     path: std::path::PathBuf,
     index: ipc::BatchIndex,
+    projection: Option<Vec<usize>>,
     batch: arrow_array::RecordBatch,
 }
 
@@ -73,7 +74,11 @@ pub(super) fn indices(connection: &Connection, id: &str) -> Result<Vec<ipc::Batc
 }
 
 pub(super) fn entries(connection: &Connection, root: &Path, scan: &Scan) -> Result<Vec<(u64, TelemetryEntry)>> {
-    projected(connection, root, scan, |batch, row, _, contract| Ok(Some(ipc::telemetry_entry(batch, row, contract)?.1)))
+    projected(connection, root, scan, None, |batch, row, _, contract, scopes| {
+        let mut entry = ipc::telemetry_entry(batch, row, contract)?.1;
+        attach_captures(&mut entry, scopes.iter().copied());
+        Ok(Some(entry))
+    })
 }
 
 pub(super) fn numeric(
@@ -81,7 +86,14 @@ pub(super) fn numeric(
 ) -> Result<Vec<(u64, NumericRow)>> {
     use arrow_array::{Array, Float64Array, Int64Array, StructArray, UInt64Array};
     let mut scopes = std::collections::BTreeMap::new();
-    projected(connection, root, scan, |batch, row, _, _| {
+    let mut metadata = vec!["position", "at", "sequence", "timestamp"];
+    if *scope != Default::default() {
+        metadata.push("scope");
+    }
+    if scan.filters.iter().any(|(column, _)| *column == "item") {
+        metadata.push("sample_id");
+    }
+    projected(connection, root, scan, Some((&metadata, keys)), |batch, row, _, _, captures| {
         if *scope != Default::default() {
             let encoded = ipc::metadata_text(batch, row, "scope")?;
             let matches = if let Some(matches) = scopes.get(encoded) {
@@ -92,7 +104,9 @@ pub(super) fn numeric(
                 scopes.insert(encoded.to_owned(), matches);
                 matches
             };
-            if !matches {
+            let captured = (scope.test_execution_id.is_some() || scope.test_cycle_id.is_some())
+                && captures.iter().any(|capture| scope.matches(Some(capture)));
+            if !matches && !captured {
                 return Ok(None);
             }
         }
@@ -131,23 +145,33 @@ pub(super) fn numeric(
 }
 
 fn projected<T>(
-    connection: &Connection, root: &Path, scan: &Scan,
-    mut project: impl FnMut(&arrow_array::RecordBatch, usize, u64, &TelemetryContract) -> Result<Option<T>>,
+    connection: &Connection, root: &Path, scan: &Scan, columns: Option<(&[&str], &[String])>,
+    mut project: impl FnMut(
+        &arrow_array::RecordBatch,
+        usize,
+        u64,
+        &TelemetryContract,
+        &[&dokime_domain::model::execution::RecordScope],
+    ) -> Result<Option<T>>,
 ) -> Result<Vec<(u64, T)>> {
     let (start, end) = scan.source_window.map_or(scan.source_bounds, |(start, end)| (Some(start), Some(end)));
     let start_us = start.map(catalog::micros).transpose()?;
     let end_us = end.map(catalog::micros).transpose()?;
-    let mut sql = String::from("SELECT file_id,execution,contract FROM streams WHERE first_position<=?");
+    let mut sql = String::from("SELECT s.file_id,s.execution,s.contract FROM streams s WHERE s.first_position<=?");
     let mut args = vec![Value::Text(position(scan.at))];
     for (column, value) in &scan.filters {
         let field = match *column {
             "schema_key" => "schema_key",
             "scope" => "execution",
+            "execution" | "cycle" => {
+                owner_clause(&mut sql, &mut args, column, value, false);
+                continue;
+            }
             "stream" => "stream",
             "item" => continue,
             _ => return Err(Error::Invalid("invalid Arrow stream selection")),
         };
-        sql.push_str(&format!(" AND {field}=?"));
+        sql.push_str(&format!(" AND s.{field}=?"));
         args.push(value.clone());
     }
     let mut streams = connection.prepare(&sql)?;
@@ -160,31 +184,81 @@ fn projected<T>(
     for (id, execution, contract) in selected {
         let contract: TelemetryContract = serde_json::from_str(&contract)?;
         let schema = ipc::contract_schema(&contract, execution.as_deref())?;
+        let projection = columns.map(|(metadata, keys)| ipc::Projection::new(schema.clone(), metadata, keys)).transpose()?;
         let mut sql = String::from(
-            "SELECT offset,metadata_bytes,body_bytes,rows,sha256 FROM stream_batches WHERE file_id=? AND last_position>? AND first_position<=?",
+            "SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.batch FROM stream_batches b JOIN streams s ON s.file_id=b.file_id WHERE b.file_id=? AND b.last_position>? AND b.first_position<=?",
         );
         let mut args = vec![Value::Text(id.clone()), Value::Text(position(scan.page.after)), Value::Text(position(scan.at))];
+        for (column, value) in &scan.filters {
+            if matches!(*column, "execution" | "cycle") {
+                owner_clause(&mut sql, &mut args, column, value, true);
+            }
+        }
         if let Some(start) = start_us {
             // Round The Candidate Window Outwards; Original Timestamps Apply The Exact Cut Below.
-            sql.push_str(" AND last_at>=?");
+            sql.push_str(" AND b.last_at>=?");
             args.push(Value::Integer(start));
         }
         if let Some(end) = end_us {
-            sql.push_str(" AND first_at<=?");
+            sql.push_str(" AND b.first_at<=?");
             args.push(Value::Integer(end));
         }
-        sql.push_str(" ORDER BY first_position");
+        sql.push_str(" ORDER BY b.first_position");
         let mut statement = connection.prepare(&sql)?;
         let mut batches = statement.query(rusqlite::params_from_iter(args))?;
         let mut count = 0;
         while let Some(row) = batches.next()? {
             let index = index(row)?;
-            let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema.clone(), &index, scan.metrics.as_deref())?;
+            let batch_number: i64 = row.get(5)?;
+            let captures = capture_ranges(connection, &id, batch_number)?;
+            let batch = read_batch(
+                &root.join(format!("telemetry/{id}.arrow")),
+                schema.clone(),
+                &index,
+                projection.as_ref(),
+                scan.metrics.as_deref(),
+            )?;
             let (positions, times) = ipc::row_keys(&batch)?;
             let first = positions.values().partition_point(|position| *position <= scan.page.after);
             let last = positions.values().partition_point(|position| *position <= scan.at);
-            'rows: for row in first..last {
+            let owners = scan.filters.iter().filter(|(column, _)| matches!(*column, "execution" | "cycle")).collect::<Vec<_>>();
+            let mut ranges = if owners.is_empty() {
+                vec![(first, last)]
+            } else {
+                captures
+                    .iter()
+                    .filter(|(_, _, scope)| {
+                        owners.iter().all(|(column, value)| {
+                            let actual = if *column == "execution" {
+                                scope.test_execution_id.as_ref().map(|id| id.as_str())
+                            } else {
+                                scope.test_cycle_id.as_ref().map(|id| id.as_str())
+                            };
+                            actual.is_some_and(|actual| matches!(value, Value::Text(value) if value == actual))
+                        })
+                    })
+                    .map(|(start, count, _)| ((*start).max(first), start.saturating_add(*count).min(last)))
+                    .filter(|(start, end)| start < end)
+                    .collect::<Vec<_>>()
+            };
+            ranges.sort_unstable();
+            let mut selected = Vec::<(usize, usize)>::new();
+            for (start, end) in ranges {
+                if let Some((_, through)) = selected.last_mut()
+                    && start <= *through
+                {
+                    *through = (*through).max(end);
+                } else {
+                    selected.push((start, end));
+                }
+            }
+            'rows: for row in selected.into_iter().flat_map(|(start, end)| start..end) {
                 let position = positions.value(row);
+                let scopes = captures
+                    .iter()
+                    .filter(|(first, count, _)| row >= *first && row - *first < *count)
+                    .map(|(_, _, scope)| scope)
+                    .collect::<Vec<_>>();
                 let time = times.value(row);
                 if start_us.is_some_and(|start| time < start) || end_us.is_some_and(|end| time > end) {
                     continue;
@@ -205,7 +279,7 @@ fn projected<T>(
                         continue;
                     }
                 }
-                let Some(value) = project(&batch, row, position, &contract)? else {
+                let Some(value) = project(&batch, row, position, &contract, &scopes)? else {
                     continue;
                 };
                 output.push((position, value));
@@ -228,7 +302,7 @@ pub(super) fn stored(connection: &Connection, root: &Path, scan: &Scan) -> Resul
     let history = super::super::saved(connection)?.history;
     let mut codecs = std::collections::BTreeMap::new();
     let mut bytes = 0;
-    let entries = projected(connection, root, scan, |batch, index, position, contract| {
+    let entries = projected(connection, root, scan, None, |batch, index, position, contract, _| {
         let (_, entry) = ipc::telemetry_entry(batch, index, contract)?;
         let schema = key(&entry)?;
         let cache_key = serde_json::to_string(&schema)?;
@@ -303,13 +377,10 @@ pub(super) fn latest(
 ) -> Result<Option<std::time::SystemTime>> {
     let Context { root, metrics } = context;
     let mut sql = String::from(
-        "SELECT s.file_id,s.execution,s.contract,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.last_at,b.sha256 FROM streams s JOIN stream_batches b ON s.file_id=b.file_id WHERE s.schema_key=? AND b.first_position<=?",
+        "SELECT s.file_id,s.execution,s.contract,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.last_at,b.sha256,b.batch FROM streams s JOIN stream_batches b ON s.file_id=b.file_id WHERE s.schema_key=? AND b.first_position<=?",
     );
     let mut args = vec![Value::Text(serde_json::to_string(schema)?), Value::Text(position(at.sequence))];
-    if let Some(execution) = &selection.scope.test_execution_id {
-        sql.push_str(" AND s.execution=?");
-        args.push(Value::Text(execution.to_string()));
-    }
+    batch_owners(&mut sql, &mut args, selection, terms);
     if let Some(start) = &selection.start {
         sql.push_str(" AND b.last_at>=?");
         args.push(Value::Integer(catalog::micros(start.to_datetime()?.into())?));
@@ -338,7 +409,8 @@ pub(super) fn latest(
             rows: catalog::unsigned(row, 6)?,
             sha256: catalog::digest(row, 8)?,
         };
-        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, Some(metrics))?;
+        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, None, Some(metrics))?;
+        let captures = capture_ranges(connection, &id, row.get(9)?)?;
         for row in (0..batch.num_rows()).rev() {
             let (position, time) = ipc::row_key(&batch, row)?;
             if position > at.sequence || latest.is_some_and(|latest| catalog::micros(latest).is_ok_and(|latest| time < latest)) {
@@ -346,7 +418,11 @@ pub(super) fn latest(
             }
             metrics.telemetry_anchor_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             super::super::super::TELEMETRY_ANCHOR_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let (position, entry) = ipc::telemetry_entry(&batch, row, &contract)?;
+            let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract)?;
+            attach_captures(
+                &mut entry,
+                captures.iter().filter(|(first, count, _)| row >= *first && row - *first < *count).map(|(_, _, scope)| scope),
+            );
             if position > at.sequence || !matches(&entry, terms, selection)? {
                 continue;
             }
@@ -366,7 +442,7 @@ pub(super) fn predecessors(
     let Context { root, metrics } = context;
     let (start, after) = boundary;
     let mut sql = String::from(
-        "SELECT r.scope,s.file_id,s.execution,s.contract,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,r.last_at
+        "SELECT r.scope,s.file_id,s.execution,s.contract,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,r.last_at,b.batch
         FROM stream_batch_scopes r JOIN stream_batches b ON b.file_id=r.file_id AND b.batch=r.batch
         JOIN streams s ON s.file_id=b.file_id WHERE s.schema_key=? AND b.first_position<=? AND r.first_at<=? AND r.scope>?",
     );
@@ -376,10 +452,7 @@ pub(super) fn predecessors(
         Value::Integer(catalog::micros(start)?),
         Value::Text(after.to_owned()),
     ];
-    if let Some(execution) = &selection.scope.test_execution_id {
-        sql.push_str(" AND s.execution=?");
-        args.push(Value::Text(execution.to_string()));
-    }
+    batch_owners(&mut sql, &mut args, selection, terms);
     sql.push_str(" ORDER BY r.scope,r.last_at DESC,b.last_position DESC");
     let mut statement = connection.prepare(&sql)?;
     let mut batches = statement.query(rusqlite::params_from_iter(args))?;
@@ -406,7 +479,8 @@ pub(super) fn predecessors(
             rows: catalog::unsigned(row, 7)?,
             sha256: catalog::digest(row, 8)?,
         };
-        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, Some(metrics))?;
+        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, None, Some(metrics))?;
+        let captures = capture_ranges(connection, &id, row.get(10)?)?;
         for row in (0..batch.num_rows()).rev() {
             let (position, time) = ipc::row_key(&batch, row)?;
             if position > at.sequence
@@ -415,7 +489,11 @@ pub(super) fn predecessors(
             {
                 continue;
             }
-            let (_, entry) = ipc::telemetry_entry(&batch, row, &contract)?;
+            let (_, mut entry) = ipc::telemetry_entry(&batch, row, &contract)?;
+            attach_captures(
+                &mut entry,
+                captures.iter().filter(|(first, count, _)| row >= *first && row - *first < *count).map(|(_, _, scope)| scope),
+            );
             let time: std::time::SystemTime = entry.sample.timestamp.to_datetime()?.into();
             if time >= start
                 || !matches(&entry, terms, &selection)?
@@ -442,7 +520,12 @@ pub(super) fn selected(entry: &TelemetryEntry, source: &harmos::storage::query::
         || source.stream.as_ref().is_some_and(|stream| stream != &entry.sample.stream)
         || source.item.as_ref().is_some_and(|item| item.as_str() != entry.sample.sample_id.as_str())
         || source.scope.as_ref().is_some_and(|scope| {
-            entry.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str()) != Some(scope.as_str())
+            !entry
+                .sample
+                .scope
+                .iter()
+                .chain(&entry.sample.captured_scopes)
+                .any(|actual| actual.test_execution_id.as_ref().is_some_and(|id| id.as_str() == scope.as_str()))
         })
     {
         return Ok(false);
@@ -453,26 +536,83 @@ pub(super) fn selected(entry: &TelemetryEntry, source: &harmos::storage::query::
 
 /* === Private Functions === */
 
+fn attach_captures<'a>(entry: &mut TelemetryEntry, scopes: impl Iterator<Item = &'a dokime_domain::model::execution::RecordScope>) {
+    entry.sample.captured_scopes = scopes.filter(|scope| Some(*scope) != entry.sample.scope.as_ref()).cloned().collect();
+}
+
+fn batch_owners(sql: &mut String, args: &mut Vec<Value>, selection: &crate::evidence_runtime::TelemetrySelection, terms: &[(&str, Value)]) {
+    if let Some(execution) = &selection.scope.test_execution_id {
+        owner_clause(sql, args, "execution", &Value::Text(execution.to_string()), true);
+    }
+    if let Some(cycle) = &selection.scope.test_cycle_id {
+        owner_clause(sql, args, "cycle", &Value::Text(cycle.to_string()), true);
+    }
+    for (path, value) in terms {
+        let column = match *path {
+            "payload.metadata.scope.test_execution_id" if selection.scope.test_execution_id.is_none() => "execution",
+            "payload.metadata.scope.test_cycle_id" if selection.scope.test_cycle_id.is_none() => "cycle",
+            _ => continue,
+        };
+        owner_clause(sql, args, column, value, true);
+    }
+}
+
+fn owner_clause(sql: &mut String, args: &mut Vec<Value>, column: &str, value: &Value, batch: bool) {
+    if batch {
+        sql.push_str(&format!(" AND (b.file_id,b.batch) IN (SELECT DISTINCT file_id,batch FROM stream_captures WHERE {column}=?)"));
+    } else {
+        sql.push_str(&format!(" AND s.file_id IN (SELECT DISTINCT file_id FROM stream_captures WHERE {column}=?)"));
+    }
+    args.push(value.clone());
+}
+
+fn capture_ranges(
+    connection: &Connection, file: &str, batch: i64,
+) -> Result<Vec<(usize, usize, dokime_domain::model::execution::RecordScope)>> {
+    let mut statement = connection.prepare_cached("SELECT first_row,rows,scope FROM stream_captures WHERE file_id=?1 AND batch=?2")?;
+    let rows = statement.query_map(rusqlite::params![file, batch], |row| {
+        Ok((catalog::unsigned(row, 0)?, catalog::unsigned(row, 1)?, row.get::<_, String>(2)?))
+    })?;
+    rows.map(|row| {
+        let (first, count, scope) = row?;
+        Ok((
+            usize::try_from(first).map_err(|_| Error::Corrupt("capture row exceeds address space"))?,
+            usize::try_from(count).map_err(|_| Error::Corrupt("capture range exceeds address space"))?,
+            serde_json::from_str(&scope)?,
+        ))
+    })
+    .collect()
+}
+
 fn read_batch(
-    path: &Path, schema: arrow_schema::SchemaRef, index: &ipc::BatchIndex, metrics: Option<&super::super::super::ReadMetrics>,
+    path: &Path, schema: arrow_schema::SchemaRef, index: &ipc::BatchIndex, projection: Option<&ipc::Projection>,
+    metrics: Option<&super::super::super::ReadMetrics>,
 ) -> Result<arrow_array::RecordBatch> {
     if let Some(metrics) = metrics {
         let mut cached = metrics.telemetry_batch.lock().unwrap();
         if let Some(prior) = cached.as_ref()
             && prior.path == path
             && prior.index == *index
+            && prior.projection.as_deref() == projection.map(ipc::Projection::columns)
         {
             return Ok(prior.batch.clone());
         }
-        let batch = ipc::read_batch(path, schema, index)?;
+        let batch = match projection {
+            Some(projection) => ipc::read_projected_batch(path, index, projection)?,
+            None => ipc::read_batch(path, schema, index)?,
+        };
         *cached = Some(CachedBatch {
             path: path.to_owned(),
             index: index.clone(),
+            projection: projection.map(|projection| projection.columns().to_vec()),
             batch: batch.clone(),
         });
         Ok(batch)
     } else {
-        ipc::read_batch(path, schema, index)
+        match projection {
+            Some(projection) => ipc::read_projected_batch(path, index, projection),
+            None => ipc::read_batch(path, schema, index),
+        }
     }
 }
 
@@ -480,7 +620,7 @@ pub(super) fn matches(
     entry: &TelemetryEntry, terms: &[(&str, Value)], selection: &crate::evidence_runtime::TelemetrySelection,
 ) -> Result<bool> {
     let sample = &entry.sample;
-    if !selection.scope.matches(sample.scope.as_ref())
+    if !selection.scope.matches_evidence(sample.scope.as_ref(), &sample.captured_scopes)
         || !selection
             .signals
             .iter()
@@ -495,7 +635,24 @@ pub(super) fn matches(
     {
         return Ok(false);
     }
-    let scope = serde_json::to_value(sample.scope.as_ref().map(crate::storage::records::ScopeRow::from))?;
+    let captures = selection.scope.test_execution_id.is_some()
+        || selection.scope.test_cycle_id.is_some()
+        || terms
+            .iter()
+            .any(|(path, _)| matches!(*path, "payload.metadata.scope.test_execution_id" | "payload.metadata.scope.test_cycle_id"));
+    for scope in std::iter::once(sample.scope.as_ref()).chain(sample.captured_scopes.iter().filter(|_| captures).map(Some)) {
+        if !selection.scope.matches(scope) {
+            continue;
+        }
+        if scope_terms(scope, terms)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn scope_terms(scope: Option<&dokime_domain::model::execution::RecordScope>, terms: &[(&str, Value)]) -> Result<bool> {
+    let scope = serde_json::to_value(scope.map(crate::storage::records::ScopeRow::from))?;
     for (path, value) in terms {
         if *path == "$scope" {
             if *value != Value::Text(serde_json::to_string(&scope)?) {

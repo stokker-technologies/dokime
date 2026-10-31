@@ -186,15 +186,6 @@ impl harmos::Lifecycle for Model {
         }
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
-    }
 }
 
 /* === Public Functions === */

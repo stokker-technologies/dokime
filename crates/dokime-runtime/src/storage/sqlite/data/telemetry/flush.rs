@@ -42,11 +42,53 @@ pub(crate) struct Tail {
     pub changed: Arc<Notify>,
 }
 
+struct Flush {
+    deadline: Instant,
+    full: bool,
+    changed: Arc<Notify>,
+    through: StorageCursor,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Tail {
+    fn discard_saved(&mut self, through: u64) {
+        while self.entries.first_key_value().is_some_and(|(position, _)| *position <= through) {
+            self.entries.pop_first();
+        }
+    }
+
+    fn cut(&mut self, mut through: StorageCursor, settings: super::super::super::Settings) -> Result<Option<Flush>> {
+        self.discard_saved(through.sequence);
+        let Some((started, _)) = self.entries.values().next() else {
+            self.running = false;
+            return Ok(None);
+        };
+        let deadline = started.checked_add(settings.telemetry_interval).ok_or(Error::Invalid("telemetry flush deadline overflows"))?;
+        let mut counts = BTreeMap::new();
+        for (_, entry) in self.entries.values() {
+            let owner = entry
+                .sample
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.test_execution_id.as_ref())
+                .map(ToString::to_string)
+                .unwrap_or_else(|| entry.epoch.to_string());
+            *counts.entry((owner, entry.sample.stream.as_str())).or_insert(0_usize) += 1;
+        }
+        through.sequence = *self.entries.last_key_value().unwrap().0;
+        Ok(Some(Flush {
+            deadline,
+            full: self.force || counts.values().any(|rows| *rows >= settings.telemetry_rows.get()),
+            changed: self.changed.clone(),
+            through,
+        }))
+    }
+}
 
 impl State {
     pub(crate) async fn stage_telemetry(&self, storage: Manager, through: StorageCursor, entries: Vec<TelemetryEntry>) -> Result<()> {
@@ -61,6 +103,7 @@ impl State {
                     saved.history.check(&through.history)?;
                     let store = state.0.telemetry.lock().unwrap();
                     let mut tail = state.0.telemetry_tail.lock().unwrap();
+                    tail.discard_saved(saved.sequence);
                     for (index, mut entry) in entries.into_iter().enumerate() {
                         let position = first + index as u64;
                         if position > saved.sequence {
@@ -102,34 +145,69 @@ impl State {
 
 async fn run(state: &State, storage: &Manager, settings: super::super::super::Settings) -> Result<()> {
     loop {
-        let (deadline, full, changed) = {
+        let cut = {
             let mut tail = state.0.telemetry_tail.lock().unwrap();
-            let Some((started, _)) = tail.entries.values().next() else {
-                tail.running = false;
-                return Ok(());
-            };
-            let deadline = started.checked_add(settings.telemetry_interval).ok_or(Error::Invalid("telemetry flush deadline overflows"))?;
-            let mut counts = BTreeMap::new();
-            for (_, entry) in tail.entries.values() {
-                let owner = entry
-                    .sample
-                    .scope
-                    .as_ref()
-                    .and_then(|scope| scope.test_execution_id.as_ref())
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| entry.epoch.to_string());
-                *counts.entry((owner, entry.sample.stream.as_str())).or_insert(0_usize) += 1;
-            }
-            (deadline, tail.force || counts.values().any(|rows| *rows >= settings.telemetry_rows.get()), tail.changed.clone())
+            tail.cut(storage.cursor_saved(), settings)?
         };
+        let Some(Flush { deadline, full, changed, through }) = cut else { return Ok(()) };
         if !full && Instant::now() < deadline {
             tokio::select! { _ = tokio::time::sleep_until(deadline) => {}, _ = changed.notified() => { continue; } }
         }
-        let through = storage.cursor_accepted();
         storage.flush_until(&through).await?;
-        let saved = storage.cursor_saved();
-        state.0.telemetry_tail.lock().unwrap().entries.retain(|position, _| *position > saved.sequence);
     }
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn saved_tail_cut() {
+        use dokime_domain::model::identity::{SessionId, TelemetrySampleId};
+        let epoch = SessionId::from_seed("flush-session");
+        let mut tail = Tail { running: true, ..Default::default() };
+        for ordinal in 1..=4 {
+            tail.entries.insert(
+                ordinal,
+                (
+                    Instant::now(),
+                    TelemetryEntry {
+                        epoch: epoch.clone(),
+                        ordinal,
+                        sample: crate::telemetry::TelemetrySample::new(
+                            TelemetrySampleId::from_seed(ordinal.to_string()),
+                            harmos::Identifier::new("flush.reading").unwrap(),
+                            ordinal,
+                            dokime_domain::model::time::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
+                            "observer",
+                        ),
+                    },
+                ),
+            );
+        }
+        let fourth = tail.entries.remove(&4).unwrap();
+        let saved = StorageCursor {
+            history: harmos::storage::StoreHistory {
+                store: harmos::Identifier::new("store").unwrap(),
+                epoch: harmos::Identifier::new("epoch").unwrap(),
+            },
+            sequence: 2,
+        };
+        let settings = super::super::super::super::Settings {
+            telemetry_rows: std::num::NonZeroUsize::new(2).unwrap(),
+            ..crate::config::local_storage_defaults()
+        };
+        let cut = tail.cut(saved.clone(), settings).unwrap().unwrap();
+        assert!(!cut.full);
+        assert_eq!(cut.through.sequence, 3);
+        assert_eq!(tail.entries.keys().copied().collect::<Vec<_>>(), [3]);
+        tail.entries.insert(4, fourth);
+        let cut = tail.cut(saved, settings).unwrap().unwrap();
+        assert!(cut.full);
+        assert_eq!(cut.through.sequence, 4);
+        assert!(tail.cut(cut.through, settings).unwrap().is_none());
+        assert!(!tail.running);
+    }
+}

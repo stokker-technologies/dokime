@@ -64,7 +64,7 @@ void start().catch((error: unknown) => {
   root.render(
     <>
       <DokimeToaster />
-      <NotificationMessage source="Report" title="Report Could Not Open">
+      <NotificationMessage source="Report" title="Report Could Not Open" error={error}>
         {error instanceof Error ? error.message : String(error)}
       </NotificationMessage>
     </>,

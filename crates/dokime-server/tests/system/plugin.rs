@@ -1126,6 +1126,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
 // Scenes On One Shared Fixture. Each Scene Is A Test That Reruns Alone (`-- plugin::<scene>`);
 // `walkthrough` Replays Every Scene In Order On One Host.
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn development_session() {
     let mut session = Session::launch().await;
@@ -1133,6 +1134,7 @@ async fn development_session() {
     session.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn startup() {
     let mut session = Session::ready().await;
@@ -1141,6 +1143,7 @@ async fn startup() {
 }
 
 // A Steady Sweep Leaves Its Execution Evidence.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn steady_sweep() {
     let mut session = Session::ready().await;
@@ -1148,6 +1151,7 @@ async fn steady_sweep() {
     session.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn remote_scripts() {
     let mut session = Session::ready().await;
@@ -1155,6 +1159,7 @@ async fn remote_scripts() {
     session.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn interruptions() {
     let mut session = Session::ready().await;
@@ -1162,11 +1167,13 @@ async fn interruptions() {
     session.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn clean_stop() {
     scene_clean_stop(Session::ready().await).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn open_report_while_cycle_runs() {
     let mut session = Session::ready().await;
@@ -1175,6 +1182,7 @@ async fn open_report_while_cycle_runs() {
 }
 
 // The Plugin Store Installs, Removes And Skips A Broken Bundle Across Restarts.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn store() {
     let root = tempfile::tempdir().unwrap();
@@ -1182,6 +1190,8 @@ async fn store() {
 
     // An Installed Plugin Activates Only After A Restart
     let store = root.path().join("store");
+    std::fs::create_dir_all(store.join("plugins")).unwrap();
+    std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
     assert!(!serves_startup(&client).await);
@@ -1237,6 +1247,7 @@ async fn store() {
 }
 
 // Every Scene In Walkthrough Order On One Host; The Lane Runs The Scenes Individually.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 #[ignore = "replays the scenes the lane already runs; select it with --run-ignored"]
 async fn walkthrough() {

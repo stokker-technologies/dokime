@@ -22,6 +22,7 @@ use std::{
 // Third Party Imports
 use dokime::harmos::Context;
 use dokime::harmos::operations::{OperationDeclaration, Response};
+use dokime::harmos::storage::{ErasedCatalog, StorageManager};
 use dokime::operations::hosting::{Serve, Served};
 use harmos_packaging::bundle::Bundle;
 use sha2::{Digest, Sha256};
@@ -56,6 +57,8 @@ macro_rules! operation {
 }
 
 /* === Type Aliases === */
+
+type StorageEngine = <StorageManager<ErasedCatalog> as std::ops::Deref>::Target;
 
 /* === Structs === */
 
@@ -214,6 +217,7 @@ impl dokime::harmos::Lifecycle for Fixture {
     type Context = dokime::harmos::Startup<Self>;
     async fn prepare(config: Self::Config, setup: &mut dokime::harmos::Setup<Self>) -> dokime::harmos::Result<Self> {
         let host = config.host.expect("fixture hosting resources");
+        setup.resource::<Option<Arc<StorageEngine>>>(None);
         setup.resource::<dokime::operations::hosting::Host<v1::Install>>(dokime::operations::hosting::Host::<v1::Install>::new(
             host.clone(),
         ));
@@ -232,18 +236,9 @@ impl dokime::harmos::Lifecycle for Fixture {
         setup.resource::<dokime::operations::hosting::Host<runtime::GetHealth>>(
             dokime::operations::hosting::Host::<runtime::GetHealth>::new(host.clone()),
         );
-        setup.operations::<HostOperations>(Lanes::Open);
         setup.operations::<Discovery>(Lanes::Open);
+        setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
-    }
-    async fn initialize(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> dokime::harmos::Result<()> {
-        Ok(())
     }
 }
 
@@ -323,6 +318,7 @@ fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
     })
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn install() {
     let install_code = Arc::new(Mutex::new(tonic::Code::Ok));

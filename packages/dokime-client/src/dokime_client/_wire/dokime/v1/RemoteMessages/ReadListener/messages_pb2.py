@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x12%dokime.v1.RemoteMessages.ReadListener\"\x06\n\x04Row1\"\xd9\x02\n\x04Row2\x12J\n\x08settings\x18\xac\x95\x9a@ \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row3R\x08settings\x12\x34\n\x11listening_address\x18\xa8\xb3\x98\xbf\x01 \x01(\tH\x00R\x10listeningAddress\x88\x01\x01\x12/\n\x0f\x63\x65rtificate_pem\x18\xc0\x95\x9d\x10 \x01(\tH\x01R\x0e\x63\x65rtificatePem\x88\x01\x01\x12(\n\x0ekey_configured\x18\xc8\xdb\xeeg \x01(\x08R\rkeyConfigured\x12\x1c\n\x05\x65rror\x18\xa3\x9e\xc6\x0c \x01(\tH\x02R\x05\x65rror\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_400955816B\x1b\n\x19_harmos_presence_34032320B\x1b\n\x19_harmos_presence_26316579\"\xd0\x01\n\x04Row3\x12\x1b\n\x07\x65nabled\x18\x87\xef\xce\x17 \x01(\x08R\x07\x65nabled\x12\x1b\n\x07\x61\x64\x64ress\x18\xa5\xe2\xa8\x63 \x01(\tR\x07\x61\x64\x64ress\x12\"\n\x0btls_enabled\x18\xe6\x8e\xb1\x03 \x01(\x08R\ntlsEnabled\x12\x39\n\x16\x61uthentication_enabled\x18\xc4\x88\xbe\xb4\x01 \x01(\x08R\x15\x61uthenticationEnabled\x12/\n\x11\x63\x65rtificate_names\x18\xed\xda\xae\xe2\x01 \x03(\tR\x10\x63\x65rtificateNames\"\x96\x01\n\x04Row0\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row1R\x07request\x12G\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x12%dokime.v1.RemoteMessages.ReadListener\"\x06\n\x04Row1\"\xa8\x03\n\x04Row2\x12J\n\x08settings\x18\xac\x95\x9a@ \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row3R\x08settings\x12\x34\n\x11listening_address\x18\xa8\xb3\x98\xbf\x01 \x01(\tH\x00R\x10listeningAddress\x88\x01\x01\x12/\n\x0f\x63\x65rtificate_pem\x18\xc0\x95\x9d\x10 \x01(\tH\x01R\x0e\x63\x65rtificatePem\x88\x01\x01\x12(\n\x0ekey_configured\x18\xc8\xdb\xeeg \x01(\x08R\rkeyConfigured\x12\x1c\n\x05\x65rror\x18\xa3\x9e\xc6\x0c \x01(\tH\x02R\x05\x65rror\x88\x01\x01\x12M\n\tendpoints\x18\xef\xde\xbb\xc4\x01 \x03(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row4R\tendpointsB\x1c\n\x1a_harmos_presence_400955816B\x1b\n\x19_harmos_presence_34032320B\x1b\n\x19_harmos_presence_26316579\"\xd0\x01\n\x04Row3\x12\x1b\n\x07\x65nabled\x18\x87\xef\xce\x17 \x01(\x08R\x07\x65nabled\x12\x1b\n\x07\x61\x64\x64ress\x18\xa5\xe2\xa8\x63 \x01(\tR\x07\x61\x64\x64ress\x12\"\n\x0btls_enabled\x18\xe6\x8e\xb1\x03 \x01(\x08R\ntlsEnabled\x12\x39\n\x16\x61uthentication_enabled\x18\xc4\x88\xbe\xb4\x01 \x01(\x08R\x15\x61uthenticationEnabled\x12/\n\x11\x63\x65rtificate_names\x18\xed\xda\xae\xe2\x01 \x03(\tR\x10\x63\x65rtificateNames\"l\n\x04Row4\x12\x1b\n\x07\x61\x64\x64ress\x18\xa5\xe2\xa8\x63 \x01(\tR\x07\x61\x64\x64ress\x12)\n\x0c\x61\x64\x61pter_name\x18\xa9\xab\xf3W \x01(\tH\x00R\x0b\x61\x64\x61pterName\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_184341929\"\x96\x01\n\x04Row0\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row1R\x07request\x12G\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.RemoteMessages.ReadListener.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -55,11 +55,13 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW1']._serialized_start=115
   _globals['_ROW1']._serialized_end=121
   _globals['_ROW2']._serialized_start=124
-  _globals['_ROW2']._serialized_end=469
-  _globals['_ROW3']._serialized_start=472
-  _globals['_ROW3']._serialized_end=680
-  _globals['_ROW0']._serialized_start=683
-  _globals['_ROW0']._serialized_end=833
+  _globals['_ROW2']._serialized_end=548
+  _globals['_ROW3']._serialized_start=551
+  _globals['_ROW3']._serialized_end=759
+  _globals['_ROW4']._serialized_start=761
+  _globals['_ROW4']._serialized_end=869
+  _globals['_ROW0']._serialized_start=872
+  _globals['_ROW0']._serialized_end=1022
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

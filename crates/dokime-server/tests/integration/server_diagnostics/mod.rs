@@ -45,6 +45,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn server_diagnostics() {
     let journal = dokime_server::trace::Journal::new(dokime_server::trace::Limits::default());

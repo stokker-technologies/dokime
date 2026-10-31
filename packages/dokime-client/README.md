@@ -102,11 +102,11 @@ from dokime_client import DokimeClient
 
 async def main() -> int:
     async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
-        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
-            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
-            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+        async with client.new_cycle("Example Lab Tracking") as cycle:
+            run = await cycle.start("example.demo.tracking", duration_min=10)
+            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
                 print(record.type)
-        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
         return run.outcome.exit_code
 
 
@@ -148,6 +148,9 @@ nonpassing verdict, and 130 for interrupted/cancelled.
 `run.records(*types)` and `run.samples(*streams)` replay from the beginning and
 follow through the execution's saved seal, then terminate. Empty filters select
 all; filters are case-sensitive identifier globs with `*` and `?` wildcards.
+Execution and cycle queries include records and samples they produced or
+captured, including plugin-wide observers. Returned rows keep their producer
+scope, which may be empty or identify a different execution.
 Concurrent readers are independent. Each record and sample has `.to_json()`,
 including nested datetime values as RFC 3339 text; no custom encoder is needed.
 Use an `asyncio.TaskGroup` for concurrent record and sample consumption. Close an

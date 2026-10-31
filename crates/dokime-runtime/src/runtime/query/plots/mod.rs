@@ -301,12 +301,15 @@ async fn query_spilled_plot(
                     let subscribed = captured.and_then(|captures| captures.captured_scope(record));
                     if !visible(record)
                         || !record_types.contains(&record.record_type)
-                        || !scope.matches(subscribed.or(record.scope.as_ref()))
+                        || !(scope.matches_evidence(record.scope.as_ref(), &record.captured_scopes)
+                            || subscribed.is_some_and(|scope_value| scope.matches(Some(scope_value))))
                     {
                         continue;
                     }
                     let mut record = record.clone();
-                    if let Some(scope) = subscribed {
+                    if let Some(scope) =
+                        subscribed.or_else(|| record.captured_scopes.iter().find(|candidate| scope.matches(Some(candidate))))
+                    {
                         record.scope = Some(scope.clone());
                     }
                     input.append_record(&record)?;
@@ -351,6 +354,11 @@ async fn query_spilled_plot(
             options,
             &runtime.local_storage,
             |mut sample| {
+                if let Some(selected) = &request.scope
+                    && let Some(captured) = sample.captured_scopes.iter().find(|scope| scope.is_visible_in(selected))
+                {
+                    sample.scope = Some(captured.clone());
+                }
                 context.enrich_sample(&mut sample, &request);
                 input.append(&sample)
             },

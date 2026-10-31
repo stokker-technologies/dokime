@@ -25,6 +25,7 @@ use crate::execution::context::captured::source::CapturedSource;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
+use crate::storage::sqlite::data::telemetry::report::{Evidence, Request};
 use crate::storage::{
     Manager, ReadRows,
     projection::{self},
@@ -66,14 +67,18 @@ pub(crate) async fn sealed_member(
 pub(crate) async fn execution(
     ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
-    let span = tracing::info_span!("report.materialize", final_report);
-    tracing::Instrument::instrument(materialize_execution(ctx, inspection, final_report, operation), span).await
+    let request = evidence_request(inspection, final_report)?;
+    let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
+    execution_with_evidence(ctx, inspection, final_report, operation, evidence.remove(0)).await
 }
 
-async fn materialize_execution(
-    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
+#[tracing::instrument(name = "report.materialize", skip_all, fields(final_report))]
+pub(crate) async fn execution_with_evidence(
+    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation, evidence: Evidence,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     operation.phase("Materializing Evidence");
+    // SQLite Commits Before The Manager Publishes Its Saved Acknowledgement.
+    inspection.session().flush_until(&evidence.through).await?;
     let captured = inspection.captured_source().ok_or_else(|| invalid("report has no captured execution context"))?;
     captured.validate_header()?;
     if captured.evidence_through != *inspection.evidence_through()? {
@@ -83,75 +88,45 @@ async fn materialize_execution(
     #[cfg(feature = "testing")]
     if final_report {
         crate::domains::execution::run::testing::record(&execution.test_execution_id, "report");
-        crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
     }
-    let local = &ctx.storage;
+    #[cfg(feature = "testing")]
+    crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
+    let mut captured = captured.clone();
+    captured.evidence_through = evidence.through;
+    if !final_report && execution.finished_at.is_none() {
+        captured.captured_at = evidence.captured_at;
+        captured.context.health.push(dokime_domain::model::execution::health::HealthItem {
+            health_item_id: crate::model::identity::new_id(),
+            scope: execution.scope.clone(),
+            severity: dokime_domain::model::execution::health::HealthSeverity::Info,
+            message: format!("Report As Of {}", captured.captured_at),
+            detail: Some(format!("Saved evidence through storage cursor {}.", captured.evidence_through.sequence)),
+            observed_at: captured.captured_at.clone(),
+        });
+    }
+    let captured = &captured;
     let table_rows = captured.report_defaults.table_rows as usize;
     let mut records = crate::execution::evidence_rows::EvidenceRows::default();
-    for record in local
-        .report_record_rows(
-            execution.test_execution_id.to_string(),
-            execution.test_cycle_id.to_string(),
-            captured.evidence_through.clone(),
-            table_rows,
-        )
-        .await?
-    {
+    for record in evidence.records {
         records.append(&record).map_err(Error::Operation)?;
     }
-    let fields = local.report_previews(execution.test_execution_id.to_string(), captured.evidence_through.clone()).await?;
-    let mut exact = local.numeric_summaries(execution.test_execution_id.to_string()).await?;
-    let mut percentiles = std::collections::BTreeSet::new();
-    for definition in captured.context.execution_documents.values() {
-        let bodies = definition
-            .cards
-            .iter()
-            .map(|card| &card.body)
-            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)));
-        for body in bodies {
-            let crate::document::DocumentCardBody::TelemetrySummary { summary } = body else { continue };
-            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
-                if let crate::expressions::DataSource::Telemetry { stream, field } = &tile.value.source
-                    && let [crate::expressions::DataTransform::Aggregate(harmos::Aggregate::Percentile(rank))] =
-                        tile.value.transforms.as_slice()
-                {
-                    percentiles.insert((stream.clone(), field.clone(), *rank));
-                }
-            }
-        }
-    }
-    for (stream, field, rank) in percentiles {
-        for summary in
-            exact.iter_mut().filter(|summary| crate::plot::stream_matches_alias(&summary.stream, &stream) && summary.field == field)
-        {
-            let name = format!("p{rank}");
-            if summary.statistics.iter().any(|(key, _)| *key == name) {
-                continue;
-            }
-            if let Some(value) =
-                local.numeric_percentile(execution.test_execution_id.to_string(), summary.stream.clone(), field.clone(), rank).await?
-            {
-                summary.statistics.push((name, value));
-            }
-        }
-    }
+    let fields = evidence.fields;
+    let exact = evidence.exact;
     let mut samples = Vec::new();
     for versions in captured.telemetry_contracts.values() {
         for contract in versions.values() {
             let codec = super::query::telemetry::saved_codec(ctx, inspection.session(), &captured.evidence_through, contract).await?;
-            let rows = local
-                .report_sample_rows(
-                    execution.test_execution_id.to_string(),
-                    contract.stream.to_string(),
-                    captured.evidence_through.clone(),
-                    table_rows,
-                )
-                .await?;
-            for row in rows {
-                if row.record.schema != *codec.schema() {
+            for row in &evidence.samples {
+                if row.stream != contract.stream || row.record.schema != *codec.schema() {
                     continue;
                 }
-                samples.push(codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample);
+                let mut sample = codec.decode(&row.record.payload, captured.report_defaults.source_bytes as usize)?.sample;
+                if let Some(scope) =
+                    sample.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(&execution.test_execution_id))
+                {
+                    sample.scope = Some(scope.clone());
+                }
+                samples.push(sample);
             }
         }
     }
@@ -190,12 +165,85 @@ async fn materialize_execution(
         }
         super::previews::summaries(&mut document, &exact, &fields, context);
         document.warnings.push(super::previews::warning(format!(
-            "Tables contain at most the first and last {} rows per stream. Plots show durable extrema envelopes. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
+            "Tables contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
             table_rows, execution.test_execution_id, captured.evidence_through.sequence)));
         for card in &document.cards {
             let CardBindingResult::Plot { descriptor } = &card.result else { continue };
-            let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
-            let (payload, warning) = super::previews::plot(&request, &fields, &exact, captured, execution)?;
+            let mut request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
+            request.max_points = Some(
+                request
+                    .max_points
+                    .unwrap_or(captured.report_defaults.plot_points as usize)
+                    .min(captured.report_defaults.plot_points as usize),
+            );
+            let indexed = match evidence.plots.get(descriptor.plot_id.as_str()) {
+                Some(checkpoint) if !crate::plot::preview::index::uses_numeric_mean(&request) => Some(checkpoint.payload(
+                    &request,
+                    captured.captured_at.as_str(),
+                    (
+                        execution.started_at.as_ref().map(|time| time.as_str()),
+                        captured.context.cycle.cycle.started_at.as_ref().map(|time| time.as_str()),
+                    ),
+                )?),
+                _ => None,
+            };
+            let indexed = if indexed.is_none() && !crate::plot::preview::index::uses_numeric_mean(&request) {
+                let local = &ctx.storage;
+                let limits = local.preview_settings().into();
+                let preview =
+                    crate::runtime::storage::plot_previews::rebuild(inspection, local, &request, limits, &ctx.resources().schema_settings)
+                        .await?;
+                let run = execution.started_at.as_ref().map(ToString::to_string);
+                let cycle = captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string);
+                let context = crate::plot::PlotPayloadContext {
+                    default_max_points: captured.report_defaults.plot_points as usize,
+                    x_format: request.x_format.as_ref(),
+                    series_format: request.y_format.as_ref(),
+                    run_started_at: run.as_deref(),
+                    cycle_started_at: cycle.as_deref(),
+                };
+                let mut payload = preview.payload(&request, captured.captured_at.as_str(), &context, limits)?;
+                let contracts: Vec<_> = captured.telemetry_contracts.values().flat_map(|versions| versions.values().cloned()).collect();
+                crate::plot::preview::index::decorate(&mut payload, &contracts, &request);
+                Some(payload)
+            } else {
+                indexed
+            };
+            let (payload, warning) = if let Some(mut payload) = indexed {
+                super::previews::exact_summaries(&mut payload, &request, &exact);
+                if request.analysis.is_some() && payload.analysis.is_none() {
+                    use crate::runtime::query::plots::analysis::{Environment, Prepared};
+                    let prepared =
+                        ctx.state().state().read(|state| Prepared::resolve_with(&ctx.resources().analysis, state, &request)).await?.value;
+                    match prepared {
+                        Ok(Some(prepared)) => {
+                            let contract = captured
+                                .telemetry_contracts
+                                .iter()
+                                .find(|(stream, _)| crate::plot::stream_matches_alias(stream.as_str(), &request.stream))
+                                .and_then(|(_, versions)| versions.values().next());
+                            match prepared
+                                .execute_in(
+                                    Environment::Report(&ctx.resources().analysis),
+                                    &request,
+                                    &captured.evidence_through,
+                                    ReadBatch::new(payload.clone()),
+                                    contract,
+                                )
+                                .await
+                            {
+                                Ok(computed) => payload = computed.as_ref().clone(),
+                                Err(error) => payload.analysis = Some(crate::plot::PlotAnalysis::Error { message: error.to_string() }),
+                            }
+                        }
+                        Err(error) => payload.analysis = Some(crate::plot::PlotAnalysis::Error { message: error.to_string() }),
+                        Ok(None) => {}
+                    }
+                }
+                (super::value::Value::from_serializable(&payload, captured.report_defaults.value_depth as usize)?, None)
+            } else {
+                super::previews::plot(&request, &fields, &exact, captured, execution)?
+            };
             if let Some(warning) = warning {
                 document.warnings.push(super::previews::warning(warning));
             }
@@ -208,6 +256,39 @@ async fn materialize_execution(
     let preview = ReadRows::from(projection::push(ReadBatch::new(Vec::new()), ReadBatch::new(samples))?);
     let report = assemble(final_report, captured, execution, documents, plots, (records, preview), captured.report_defaults)?;
     Ok(ReadBatch::new(report))
+}
+
+pub(crate) fn evidence_request(inspection: &ExecutionView, final_report: bool) -> Result<Request> {
+    let captured = inspection.source_snapshot()?;
+    let execution = inspection.execution();
+    let mut percentiles = std::collections::BTreeSet::new();
+    for definition in captured.context.execution_documents.values() {
+        let bodies = definition
+            .cards
+            .iter()
+            .map(|card| &card.body)
+            .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)));
+        for body in bodies {
+            let crate::document::DocumentCardBody::TelemetrySummary { summary } = body else { continue };
+            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
+                if let crate::expressions::DataSource::Telemetry { stream, field } = &tile.value.source
+                    && let [crate::expressions::DataTransform::Aggregate(harmos::Aggregate::Percentile(rank))] =
+                        tile.value.transforms.as_slice()
+                {
+                    percentiles.insert((stream.clone(), field.clone(), *rank));
+                }
+            }
+        }
+    }
+    Ok(Request {
+        execution: execution.test_execution_id.to_string(),
+        cycle: execution.test_cycle_id.to_string(),
+        at: captured.evidence_through.clone(),
+        current: !final_report && execution.finished_at.is_none(),
+        rows: captured.report_defaults.table_rows as usize,
+        streams: captured.telemetry_contracts.keys().map(ToString::to_string).collect(),
+        percentiles,
+    })
 }
 
 /* === Private Functions === */

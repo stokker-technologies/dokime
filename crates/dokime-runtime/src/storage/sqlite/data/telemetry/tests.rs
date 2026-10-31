@@ -230,6 +230,27 @@ impl Fixture {
 /* === Tests === */
 
 #[tokio::test]
+async fn stage_saved_tail() {
+    let fixture = Fixture::new(2).await;
+    let second = fixture.admit(&[(1, 10), (2, 20)]).await;
+    fixture.saved(&second).await;
+    for task in std::mem::take(&mut *fixture.local.0.telemetry_tasks.lock().await) {
+        task.await.unwrap().unwrap();
+    }
+    // Model A Durable Prefix Whose In-Memory Retirement Has Not Yet Run.
+    {
+        let mut tail = fixture.local.0.telemetry_tail.lock().unwrap();
+        tail.entries.insert(second.sequence - 1, (tokio::time::Instant::now(), fixture.row(1, 10).1));
+        tail.entries.insert(second.sequence, (tokio::time::Instant::now(), fixture.row(2, 20).1));
+        tail.running = true;
+    }
+    let third = fixture.admit(&[(3, 30)]).await;
+    assert_eq!(fixture.local.0.telemetry_tail.lock().unwrap().entries.keys().copied().collect::<Vec<_>>(), [third.sequence]);
+    assert_eq!(fixture.storage.cursor_saved(), second);
+    fixture.finish().await;
+}
+
+#[tokio::test]
 async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
     let fixture = Fixture::new(2).await;
     let saved = fixture.storage.cursor_saved();
@@ -304,6 +325,31 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
         .await
         .unwrap();
     assert_eq!(numeric.iter().map(|(_, row)| row.values[0]).collect::<Vec<_>>(), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]);
+    // Reuse One Indexed Batch First As Numeric Columns, Then As Complete Envelopes.
+    let page = ScanPage {
+        after: numeric[1].0,
+        rows: NonZeroUsize::MAX,
+        bytes: NonZeroUsize::MAX,
+    };
+    let projected = fixture
+        .local
+        .telemetry_numeric(through.clone(), fixture.selection(), page, vec!["value".into()], Default::default())
+        .await
+        .unwrap();
+    let entries = fixture.local.telemetry_read(through.clone(), fixture.selection(), page).await.unwrap();
+    let expected = entries
+        .iter()
+        .map(|(position, entry)| {
+            (
+                *position,
+                entry.sample.timestamp.clone(),
+                entry.sample.sequence,
+                entry.sample.values.get("value").and_then(dokime_domain::model::values::numeric_value),
+            )
+        })
+        .collect::<Vec<_>>();
+    let actual = projected.into_iter().map(|(position, row)| (position, row.timestamp, row.sequence, row.values[0])).collect::<Vec<_>>();
+    assert_eq!(actual, expected);
     let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
         crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
     );

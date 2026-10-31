@@ -301,11 +301,13 @@ async fn run_matrix(interface: &str) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn python_runs_matrix() {
     run_matrix("python").await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn desktop_runs_matrix() {
     run_matrix("desktop").await;

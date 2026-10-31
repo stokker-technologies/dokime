@@ -89,6 +89,7 @@ pub(crate) struct ScopedTelemetry {
     row: Arc<SharedTelemetry>,
     scope: Option<dokime_domain::model::execution::RecordScope>,
     ordinal: u64,
+    captures: Vec<(usize, dokime_domain::model::execution::RecordScope)>,
 }
 
 pub(crate) struct TelemetryAdmission {
@@ -150,17 +151,42 @@ impl ScopedTelemetry {
     }
 
     fn into_input(self) -> Result<StreamInput> {
-        let prepared =
-            prepare_staged(&self.row.epoch, &self.row.sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
+        let mut captured;
+        let sample = if self.captures.is_empty() {
+            &*self.row.sample
+        } else {
+            captured = (*self.row.sample).clone();
+            captured.captured_scopes = self.captures.into_iter().map(|(_, scope)| scope).collect();
+            &captured
+        };
+        let prepared = prepare_staged(&self.row.epoch, sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
         Ok(prepared.into_input())
     }
 }
 
 impl TelemetryAdmission {
     pub(crate) async fn commit(mut self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
-        self.rows.sort_unstable_by(|left, right| left.1.execution().cmp(&right.1.execution()).then(left.0.cmp(&right.0)));
         let mut accepted = crate::domains::telemetry::telemetry_slots(self.rows.len())?;
         accepted.resize(self.rows.len(), false);
+        let mut captures = std::collections::BTreeMap::<_, Vec<_>>::new();
+        let mut originals = Vec::new();
+        for (index, row) in self.rows {
+            if let (Some(sampling), Some(execution)) = (closure, row.execution())
+                && sampling.measurement_closed(execution.as_str()).await
+            {
+                continue;
+            }
+            if row.scope == row.row.sample.scope {
+                originals.push((index, row));
+            } else if let Some(scope) = &row.scope {
+                captures.entry(Arc::as_ptr(&row.row) as usize).or_default().push((index, scope.clone()));
+            }
+        }
+        for (_, row) in &mut originals {
+            row.captures = captures.remove(&(Arc::as_ptr(&row.row) as usize)).unwrap_or_default();
+        }
+        self.rows = originals;
+        self.rows.sort_unstable_by(|left, right| left.1.execution().cmp(&right.1.execution()).then(left.0.cmp(&right.0)));
         let mut rows = self.rows.into_iter();
         let mut failure = None;
         'groups: while let Some((first_index, first)) = rows.next() {
@@ -168,11 +194,11 @@ impl TelemetryAdmission {
             let scope = first.execution().map(ToString::to_string);
             let mut indices = crate::domains::telemetry::telemetry_slots(count)?;
             let mut writes = crate::domains::telemetry::telemetry_slots(count)?;
-            indices.push(first_index);
+            indices.push(first.captures.iter().map(|(index, _)| *index).chain(std::iter::once(first_index)).collect::<Vec<_>>());
             writes.push(first);
             for _ in 1..count {
                 let (index, row) = rows.next().ok_or_else(|| invalid("telemetry scope group is incomplete"))?;
-                indices.push(index);
+                indices.push(row.captures.iter().map(|(index, _)| *index).chain(std::iter::once(index)).collect::<Vec<_>>());
                 writes.push(row);
             }
             // Materialize Only The Scope Being Committed, Releasing It Before The Next Scope.
@@ -181,6 +207,7 @@ impl TelemetryAdmission {
             for row in writes {
                 let mut sample = (*row.row.sample).clone();
                 sample.scope = row.scope.clone();
+                sample.captured_scopes = row.captures.iter().map(|(_, scope)| scope.clone()).collect();
                 sample.storage_payload = None;
                 staged.push(TelemetryEntry {
                     epoch: (*row.row.epoch).clone(),
@@ -224,7 +251,9 @@ impl TelemetryAdmission {
                     result = self.storage.write_stream(batch) => {
                         match result {
                             Ok(cursor) => {
-                                for index in &indices[offset..offset + length] { accepted[*index] = true; }
+                                for group in &indices[offset..offset + length] {
+                                    for index in group { accepted[*index] = true; }
+                                }
                                 if let Err(source) = self.local.stage_telemetry(self.storage.clone(),cursor,staged.by_ref().take(length).collect()).await {
                                     failure = Some(source.into());
                                     break 'groups;
@@ -560,6 +589,19 @@ async fn visit_positioned(
             query.slice.limit = Some(limit.saturating_add(1) as u64);
         }
         let Source::Stream(mut source) = query.source else { unreachable!("telemetry uses stream storage") };
+        let mut indexed_scope = selection.scope.clone();
+        if let Some(visible) = visible {
+            indexed_scope.test_execution_id = indexed_scope.test_execution_id.or_else(|| visible.test_execution_id.clone());
+            indexed_scope.test_cycle_id = indexed_scope.test_cycle_id.or_else(|| visible.test_cycle_id.clone());
+            if source.scope.is_none() {
+                source.scope = indexed_scope
+                    .test_execution_id
+                    .as_ref()
+                    .map(|id| Identifier::new(id.as_str()))
+                    .transpose()
+                    .map_err(crate::storage::Error::from)?;
+            }
+        }
         let page_rows = session.settings().response.batch_rows;
         let page_bytes = session.settings().response.batch_bytes;
         loop {
@@ -568,13 +610,13 @@ async fn visit_positioned(
                 rows: page_rows,
                 bytes: page_bytes,
             };
-            let rows = local.telemetry_read(at.clone(), source.clone(), page).await?;
+            let rows = local.telemetry_read_scoped(at.clone(), source.clone(), page, indexed_scope.clone()).await?;
             if rows.is_empty() {
                 break;
             }
             for (position, entry) in rows {
                 source.after = source.after.max(position);
-                if !visible.is_none_or(|visible| dokime_domain::model::execution::scope_visible_in(entry.sample.scope.as_ref(), visible)) {
+                if !visible.is_none_or(|visible| entry.sample.is_visible_in(visible)) {
                     continue;
                 }
                 let sample = sequence.sample(entry, position);
@@ -603,7 +645,7 @@ fn admit_sample(
         selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
     };
     let selected = follows
-        && selection.scope.matches(sample.scope.as_ref())
+        && selection.scope.matches_evidence(sample.scope.as_ref(), &sample.captured_scopes)
         && (selection.sources.is_empty() || selection.sources.contains(&sample.source))
         && selection.signals.iter().all(|signal| sample.values.contains_key(signal));
     Ok(selected.then_some(sample))
@@ -824,7 +866,7 @@ fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPat
 /* === Private Functions === */
 
 // Retains Each Admission Once; Scope References Borrow Its Payload And Values.
-// The Current Durable Envelope Still Materializes Each Scope At The Storage Boundary.
+// Commit Persists One Original With Its Capture Membership.
 pub(crate) fn stage_rows(
     epoch: &dokime_domain::model::identity::SessionId, samples: &[crate::domains::telemetry::PreparedSample],
     codecs: &[Arc<telemetry::TypedCodec>], payloads: &crate::domains::telemetry::Payloads,
@@ -866,6 +908,7 @@ pub(crate) fn stage_rows(
                 row: Arc::clone(shared),
                 scope: row.scope().cloned(),
                 ordinal: row.ordinal,
+                captures: Vec::new(),
             },
         ));
     }
@@ -917,6 +960,262 @@ mod admission_tests {
 
     use super::testing::{Reading, StorageConfig, TestApp};
 
+    #[harmos::message]
+    struct CaptureReading {
+        value: f64,
+    }
+
+    #[tokio::test]
+    async fn captured_sample_scope() {
+        use crate::domains::telemetry::{Payloads, PreparedSample};
+        use crate::evidence_runtime::{ScopeSelection, TelemetrySelection};
+        use dokime_domain::model::{
+            execution::RecordScope,
+            identity::{SessionId, TestCycleId, TestExecutionId},
+        };
+
+        let root = tempfile::tempdir().unwrap();
+        let settings = crate::storage::sqlite::Settings {
+            telemetry_interval: std::time::Duration::from_secs(60),
+            ..crate::config::local_storage_defaults()
+        };
+        let backend = Arc::new(crate::storage::Backend::primary_with(root.path().to_owned(), settings).await.unwrap());
+        let local = backend.local_state();
+        let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
+            crate::config::storage_state_defaults(),
+        ));
+        let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
+        let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
+        let contract = crate::telemetry::TelemetryContract::declared("capture.reading", "Reading").typed::<CaptureReading>();
+        let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
+        local.register_telemetry_contract(contract.clone(), codec.clone()).await.unwrap();
+        storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
+        storage.flush().await.unwrap();
+        let a = RecordScope {
+            test_execution_id: Some(TestExecutionId::from_seed("capture-a")),
+            test_cycle_id: Some(TestCycleId::from_seed("cycle-a")),
+            ..Default::default()
+        };
+        let b = RecordScope {
+            test_execution_id: Some(TestExecutionId::from_seed("capture-b")),
+            test_cycle_id: Some(TestCycleId::from_seed("cycle-b")),
+            ..Default::default()
+        };
+        let mut references = Vec::new();
+        for index in 1..=4 {
+            let mut sample = crate::telemetry::TelemetrySample::new(
+                crate::model::identity::new_id(),
+                contract.stream.clone(),
+                index,
+                dokime_domain::model::time::Timestamp::from_datetime(
+                    time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(index as i64),
+                ),
+                "observer",
+            )
+            .typed(&CaptureReading { value: index as f64 });
+            sample.values.insert("value".into(), dokime_domain::model::values::Value::Number(index as f64));
+            if index == 3 {
+                sample.scope = Some(b.clone());
+            }
+            let sample = Arc::new(sample);
+            references.push(PreparedSample {
+                sample: sample.clone(),
+                lease: None,
+                contract: 0,
+                ordinal: index,
+            });
+            for scope in if index == 1 {
+                vec![a.clone()]
+            } else if index == 2 {
+                vec![a.clone(), b.clone()]
+            } else {
+                Vec::new()
+            } {
+                references.push(PreparedSample {
+                    sample: sample.clone(),
+                    lease: Some(scope),
+                    contract: 0,
+                    ordinal: index,
+                });
+            }
+        }
+        let before = storage.cursor_accepted();
+        let rows =
+            stage_rows(&SessionId::from_seed("capture-session"), &references, std::slice::from_ref(&codec), &Payloads::Unchecked).unwrap();
+        let committed = TelemetryAdmission {
+            storage: storage.clone(),
+            local: local.clone(),
+            rows,
+            _owners: Vec::new(),
+        }
+        .commit(None)
+        .await
+        .unwrap();
+        assert!(committed.accepted.iter().all(|accepted| *accepted));
+        let at = storage.cursor_accepted();
+        assert_eq!(at.sequence - before.sequence, 4, "capture owners share one stored payload");
+        assert_eq!(storage.cursor_saved(), before);
+        for saved in [false, true] {
+            if saved {
+                storage.flush().await.unwrap();
+            }
+            for (scope, expected) in [
+                (
+                    ScopeSelection {
+                        test_execution_id: a.test_execution_id.clone(),
+                        ..Default::default()
+                    },
+                    vec![1, 2],
+                ),
+                (
+                    ScopeSelection {
+                        test_cycle_id: a.test_cycle_id.clone(),
+                        ..Default::default()
+                    },
+                    vec![1, 2],
+                ),
+                (
+                    ScopeSelection {
+                        test_execution_id: b.test_execution_id.clone(),
+                        ..Default::default()
+                    },
+                    vec![2, 3],
+                ),
+                (
+                    ScopeSelection {
+                        test_cycle_id: b.test_cycle_id.clone(),
+                        ..Default::default()
+                    },
+                    vec![2, 3],
+                ),
+                (
+                    ScopeSelection {
+                        test_execution_id: Some(TestExecutionId::from_seed("unrelated")),
+                        ..Default::default()
+                    },
+                    vec![],
+                ),
+            ] {
+                let selection = TelemetrySelection { scope, ..Default::default() };
+                let page = collect_page(&storage, &at, &selection, &Default::default(), Default::default(), &local).await.unwrap();
+                let values = page.samples.iter().map(|sample| sample.values["value"].clone()).collect::<Vec<_>>();
+                assert_eq!(
+                    values,
+                    expected.iter().map(|value| dokime_domain::model::values::Value::Number(*value as f64)).collect::<Vec<_>>()
+                );
+                for sample in page.samples.iter() {
+                    if sample.values["value"] == dokime_domain::model::values::Value::Number(3.0) {
+                        assert_eq!(sample.scope.as_ref(), Some(&b));
+                    } else {
+                        assert!(sample.scope.is_none());
+                    }
+                }
+            }
+            let selected = ScopeSelection {
+                test_execution_id: a.test_execution_id.clone(),
+                ..Default::default()
+            };
+            let numeric = local
+                .telemetry_numeric(
+                    at.clone(),
+                    StreamSelection {
+                        schema: codec.schema().clone(),
+                        scope: Some(Identifier::new(a.test_execution_id.as_ref().unwrap().as_str()).unwrap()),
+                        item: None,
+                        stream: None,
+                        source_start: None,
+                        source_end: None,
+                        after: 0,
+                    },
+                    harmos::storage::ScanPage {
+                        after: 0,
+                        rows: NonZeroUsize::new(8).unwrap(),
+                        bytes: NonZeroUsize::MAX,
+                    },
+                    vec!["value".into()],
+                    selected.clone(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(numeric.iter().map(|(_, row)| row.values[0]).collect::<Vec<_>>(), [Some(1.0), Some(2.0)]);
+            let selection = TelemetrySelection { scope: selected, ..Default::default() };
+            let latest = local
+                .latest_telemetry_time(at.clone(), codec.schema().clone(), Vec::new(), selection.clone(), (*codec).clone())
+                .await
+                .unwrap();
+            assert_eq!(latest, Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(2)));
+            let (_, prior) = local
+                .telemetry_predecessor_page(
+                    at.clone(),
+                    codec.schema().clone(),
+                    selection,
+                    Vec::new(),
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(3),
+                    String::new(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(prior.iter().map(|(_, entry)| entry.ordinal).collect::<Vec<_>>(), [2]);
+        }
+        let selected = TelemetrySelection {
+            scope: ScopeSelection {
+                test_execution_id: a.test_execution_id.clone(),
+                ..Default::default()
+            },
+            after_stream_cursors: std::collections::BTreeMap::from([(
+                crate::domains::telemetry::telemetry_stream_id(None, &contract.stream),
+                1,
+            )]),
+            ..Default::default()
+        };
+        let page = collect_page(&storage, &at, &selected, &Default::default(), Default::default(), &local).await.unwrap();
+        assert_eq!(page.samples.iter().map(|sample| sample.sequence).collect::<Vec<_>>(), [2]);
+        let rows: i64 =
+            local.call(|connection| connection.query_row("SELECT sum(rows) FROM stream_batches", [], |row| row.get(0))).await.unwrap();
+        assert_eq!(rows, 4);
+        let files = local.telemetry_files(a.test_execution_id.as_ref().unwrap().to_string(), at.clone()).await.unwrap();
+        assert_eq!(files.iter().map(|file| file.rows).sum::<u64>(), 2);
+        let file = &files[0];
+        let batches = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(&file.path).unwrap(), None).unwrap();
+        assert_eq!(batches.map(|batch| batch.unwrap().num_rows()).sum::<usize>(), 2);
+        let summary = file.summaries.iter().find(|summary| summary.signal == "value").unwrap();
+        assert_eq!((summary.count, summary.sum), (2, 3.0));
+        drop(files);
+        runtime.shutdown().await.unwrap();
+        storage.close().await.unwrap();
+        drop(storage);
+        drop(local);
+        let backend = crate::storage::Backend::primary(root.path().to_owned()).await.unwrap();
+        use harmos::storage::StorageBackend;
+        backend.open().await.unwrap();
+        let rows = backend
+            .local_state()
+            .telemetry_read(
+                at,
+                StreamSelection {
+                    schema: codec.schema().clone(),
+                    scope: Some(Identifier::new(a.test_execution_id.as_ref().unwrap().as_str()).unwrap()),
+                    item: None,
+                    stream: None,
+                    source_start: None,
+                    source_end: None,
+                    after: 0,
+                },
+                harmos::storage::ScanPage {
+                    after: 0,
+                    rows: NonZeroUsize::new(8).unwrap(),
+                    bytes: NonZeroUsize::MAX,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|(_, entry)| entry.sample.scope.is_none()));
+        backend.close().await.unwrap();
+    }
+
     #[test]
     fn staged_payload_memory_is_independent_of_lease_scope_count() {
         use crate::domains::telemetry::{Payloads, PreparedSample};
@@ -967,15 +1266,6 @@ mod admission_tests {
             assert_eq!(unique.len(), 1);
             let retained_payload = unique.len() * payload.capacity();
             assert_eq!(*retained.get_or_insert(retained_payload), retained_payload);
-
-            // Scope Materialization Preserves Identity And The Scoped Ordinal Without Revalidating Payloads.
-            for ((_, scoped), expected) in staged.into_iter().zip(&references) {
-                let input = scoped.into_input().unwrap();
-                let entry = codec.decode(&input.record.payload, usize::MAX).unwrap();
-                assert_eq!(entry.sample.scope.as_ref(), expected.scope());
-                assert_eq!(entry.ordinal, expected.ordinal);
-                assert_eq!(entry.sample.storage_payload.as_deref(), Some(payload.as_slice()));
-            }
         }
     }
 

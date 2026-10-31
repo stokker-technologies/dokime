@@ -18,7 +18,7 @@ Dokime or using the existing Retry reads the store again.
 ## Impact
 
 This is a clean SDK and wire break. External plugins must rebuild and declare the
-actual store identifier; hilti-hcl is outside this repository and will not be edited.
+actual store identifier; example-plugin is outside this repository and will not be edited.
 Startup root-cause presentation belongs to the concurrent worker. This change only
 supplies the typed missing-secret identifier and removes obsolete binding UI.
 Validation is check-only through project mise tasks. Commit locally; do not push,
