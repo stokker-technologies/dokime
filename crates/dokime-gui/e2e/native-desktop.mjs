@@ -715,7 +715,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     const settled = await session.executeAsync(
       `const element = arguments[0];
        const done = arguments[arguments.length - 1];
-       element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       const initial = element.getBoundingClientRect();
+       if (initial.top < 0 || initial.left < 0 || initial.bottom > innerHeight || initial.right > innerWidth) {
+         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       }
        let previous = '';
        function frame() {
          if (!element.isConnected) return done(false);
@@ -1530,7 +1533,8 @@ async function answerPendingPrompts(session) {
     }
     /* The queue is gone the moment its last prompt is answered, so what it
      showed is read here, before answering, and asserted once the run is over. */
-    const sighting = await session.execute(`
+    const observe = () =>
+      session.execute(`
     const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
     if (!queue) return null;
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
@@ -1558,6 +1562,13 @@ async function answerPendingPrompts(session) {
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
+    let sighting = await observe();
+    if (sighting?.cards.some((card) => hasText(card.text, STARTUP_PROMPT)) && !sighting.progress) {
+      sighting = await until("the startup prompt's live progress", async () => {
+        const current = await observe();
+        return current?.progress ? current : null;
+      });
+    }
     if (sighting) promptSightings.push(sighting);
     const pending = sighting?.cards.length ?? 0;
     if (!pending) return 0;
@@ -4506,7 +4517,7 @@ for index in range(desktop.get_child_count()):
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
-      Add-Type -Namespace DokimePicker -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindow(System.IntPtr handle);'
+      Add-Type -Namespace DokimePicker -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindow(System.IntPtr handle); [DllImport("user32.dll", SetLastError = true)] public static extern bool PostMessage(System.IntPtr handle, uint message, System.IntPtr wide, System.IntPtr wide2);'
       $filenameId = if ($env:DOKIME_PICKER_OPERATION -eq 'Save') { '1001' } else { '1148' }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
       $driver = Get-Process -Id ([int]$env:DOKIME_PICKER_DRIVER)
@@ -4551,8 +4562,8 @@ for index in range(desktop.get_child_count()):
           }
           $field = $window.FindFirst($scope, $fieldCondition)
           $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
-          $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonType)
+          $buttonClass = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Button')
+          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonClass)
           $button = $window.FindFirst($scope, $buttonCondition)
           if (!$field -or !$button) {
             foreach ($candidate in $window.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition)) {
@@ -4561,7 +4572,7 @@ for index in range(desktop.get_child_count()):
               }
             }
           }
-          if ($field -and $button) {
+          if ($field -and $button -and $button.Current.IsEnabled) {
             $selectedWindow = $window.Current.NativeWindowHandle
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
             # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
@@ -4586,7 +4597,18 @@ for index in range(desktop.get_child_count()):
               Write-Output ('entered:' + $selectedWindow)
               exit 0
             }
-            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            # A Native Button May Be Projected As A Pane Without InvokePattern.
+            $invoke = $null
+            if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
+              [Console]::Error.WriteLine('picker action=invoke')
+              $invoke.Invoke()
+            } else {
+              $buttonHandle = [System.IntPtr]$button.Current.NativeWindowHandle
+              if ($buttonHandle -eq [System.IntPtr]::Zero -or ![DokimePicker.Window]::PostMessage($buttonHandle, 0x00F5, [System.IntPtr]::Zero, [System.IntPtr]::Zero)) {
+                throw 'The native picker action could not be posted'
+              }
+              [Console]::Error.WriteLine('picker action=button-message')
+            }
             Write-Output ('selected:' + $selectedWindow)
             exit 0
           }

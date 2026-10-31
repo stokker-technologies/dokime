@@ -30,7 +30,7 @@ import {
   type NativeCheckpointSession,
   nativeRecordText,
 } from "@/lib/api/native-checkpoints";
-import { saveNativeDocument } from "@/lib/api/native-delivery";
+import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { nativeValueObjectToJson, timestampIso } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";

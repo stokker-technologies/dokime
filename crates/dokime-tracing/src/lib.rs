@@ -123,13 +123,17 @@ impl Writer {
             "ts": span.started, "dur": self.now() - span.started,
             "args": {"span_id": span.id, "parent_id": span.parent}
         });
+        // Serialize Before File I/O, Keeping Each Span To One Native Write.
+        let mut bytes = Vec::new();
+        if self.count != 0 {
+            bytes.extend_from_slice(b",\n");
+        }
+        serde_json::to_writer(&mut bytes, &event)?;
+        bytes.extend_from_slice(b"]}");
+
         // Keep The File Valid Even If A Child Is Later Killed.
         self.file.seek(SeekFrom::End(-2))?;
-        if self.count != 0 {
-            self.file.write_all(b",\n")?;
-        }
-        serde_json::to_writer(&mut self.file, &event)?;
-        self.file.write_all(b"]}")?;
+        self.file.write_all(&bytes)?;
         self.count += 1;
         Ok(())
     }
