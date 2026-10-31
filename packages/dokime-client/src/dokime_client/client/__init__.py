@@ -53,6 +53,15 @@ from .models import Value as Value
 from .planning import Template as Template
 from .planning import TestCase as TestCase
 from .profiles import Profile as Profile
+from .query.discovery import CycleSummary as CycleSummary
+from .query.discovery import ExecutionSummary as ExecutionSummary
+from .query.errors import QueryError as QueryError
+from .query.errors import QueryLimitError as QueryLimitError
+from .query.errors import QuerySnapshotError as QuerySnapshotError
+from .query.reader import QueryPage as QueryPage
+from .query.reader import QueryReader as QueryReader
+from .query.reader import QuerySettings as QuerySettings
+from .query.selection import Predicate as Predicate
 
 # Type Checking Imports
 

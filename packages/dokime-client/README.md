@@ -329,6 +329,32 @@ the live provider. Contract drift and unavailable gRPC bindings are refused.
 RPC failures retain their status, initial/trailing metadata and native cause;
 mutating calls are never automatically retried.
 
+## Finite History Discovery
+
+```python
+from dokime_client import DokimeClient, Predicate, QuerySettings
+
+async with DokimeClient(query_settings=QuerySettings(page_rows=500)) as client:
+    async for execution in client.executions(
+        template="example.measurement",
+        where=[Predicate("status", "eq", "failed")],
+        between=("2026-10-01", "2026-11-01"),
+    ):
+        print(execution.id, execution.status, execution.checkpoint_available)
+    async for cycle in client.cycles(phase="sealed", archive="all"):
+        print(cycle.id, cycle.execution_count)
+```
+
+Factories perform no I/O. Iteration pulls finite pages from the connected
+backend's local retained history, defaulting to unarchived rows. Summaries
+retain captured metadata and availability; they do not wait for completion.
+Use canonical statuses such as `passed` or `failed`; `completed` is invalid.
+`since`/`until` or `between` select half-open UTC windows; date strings mean
+midnight UTC. Naive datetimes are refused. Each reader permits one consumer.
+`pages()` exposes rows, captured schema, effective limits, snapshot, continuation
+and completeness. Reuse `reader.snapshot` through `at=` after the first response.
+Close an abandoned reader with `await reader.aclose()`.
+
 ## Aggregate Queries
 
 `Query.Aggregate` and plot expressions name their statistic with the Harmos
