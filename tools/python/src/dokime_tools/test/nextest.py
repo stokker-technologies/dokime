@@ -115,26 +115,26 @@ def overrides(
 
 
 def run(
-    archive: Path,
     directory: Path,
     configuration: Path,
     extract: Path,
     expression: str | None,
     rest: Sequence[str],
 ) -> list[str]:
-    """Run tests from the archive: no compilation, workspace remapped onto this checkout."""
-    extract.mkdir(parents=True, exist_ok=True)
+    """Run Extracted Binaries Without Repeating Archive Extraction Or Compilation."""
+    metadata = extract / "target/nextest"
     command = [
         "cargo",
         "nextest",
         "run",
-        "--archive-file",
-        str(archive),
+        "--cargo-metadata",
+        str(metadata / "cargo-metadata.json"),
+        "--binaries-metadata",
+        str(metadata / "binaries-metadata.json"),
         "--workspace-remap",
         str(directory),
-        "--extract-to",
-        str(extract),
-        "--extract-overwrite",
+        "--target-dir-remap",
+        str(extract / "target"),
         "--config-file",
         str(configuration),
         "--profile",
