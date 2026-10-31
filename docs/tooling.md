@@ -32,6 +32,11 @@ type-checks the repository tooling with `ty check --project tools/python`;
 `check:python:generated` type-checks the client package after the build has
 verified its generated modules.
 
+`mise run build:rust:tests` packages the host and OBC fixture bundles from the
+Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
+Rust stories resolve those fixtures from the Tests export, so the archive owns
+the bundles its integration lane requires.
+
 ## Focused Python Client Checks
 
 `mise run test:python:unit --select <expression>` checks current client source in

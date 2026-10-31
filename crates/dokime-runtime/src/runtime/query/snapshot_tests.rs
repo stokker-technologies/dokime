@@ -300,7 +300,10 @@ async fn runtime_snapshot_pages_bind_selection_and_allow_size_changes_during_wri
     use crate::{Runtime, config::RuntimeConfig, transactions::CycleDefinition};
     use dokime_domain::model::{
         identity::Metadata,
-        query::{page::PageRequest, selection::CycleSelection},
+        query::{
+            page::PageRequest,
+            selection::{CycleScope, CycleSelection, RecordScope},
+        },
     };
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("query.fixture").unwrap(), "Query", None);
@@ -330,7 +333,28 @@ async fn runtime_snapshot_pages_bind_selection_and_allow_size_changes_during_wri
     let captured = handle.query_snapshot(Scope::Cycle(first.to_string()), None, None, [0; 32], "dokime.query.list_records").await.unwrap();
     assert!(handle.query_cycle_members(&captured, "", 1, "dokime.query.list_records").await.unwrap().is_empty());
     let contracts = handle.query_snapshot_contracts(&captured, "dokime.query.list_records").await.unwrap();
-    assert!(serde_json::from_slice::<serde_json::Value>(&contracts).unwrap()["records"].is_array());
+    let contracts: serde_json::Value = serde_json::from_slice(&contracts).unwrap();
+    assert!(contracts["records"].is_array());
+    let contract = crate::records::builtin_record_contracts().into_iter().next().unwrap();
+    let records = handle
+        .query_list_records(
+            dokime_operations::query::ListRecords {
+                scope: RecordScope::Cycle(CycleScope {
+                    cycle_id: first.to_string(),
+                    execution_id: None,
+                }),
+                record_type: contract.record_type.to_string(),
+                versions: vec![],
+                r#where: vec![],
+                between: None,
+                page: PageRequest { rows: None, bytes: None, after: None },
+                at: Some(SnapshotRef::Token(captured.snapshot.token)),
+            },
+            65536,
+        )
+        .await
+        .unwrap();
+    assert!(records.complete);
     let mut request = dokime_operations::query::ListCycles {
         selection: CycleSelection {
             cycle_ids: vec![],

@@ -331,6 +331,7 @@ fn merge_telemetry_contracts(
 ) -> Result<Vec<u8>, Box<Failure>> {
     #[derive(serde::Serialize, serde::Deserialize)]
     struct Contracts {
+        record_epoch: String,
         records: Vec<crate::records::RecordContract>,
         telemetry: Vec<crate::telemetry::TelemetryContract>,
     }

@@ -68,9 +68,7 @@ async fn finite_arrow_pages() {
         start: None,
         end: Some(Timestamp { seconds: 1, nanos: 0 }),
     });
-    eprintln!("query first page");
     let page = fixture.page(request.clone()).await;
-    eprintln!("query first page returned");
     assert!(page.complete);
     let SampleRow::Raw(sample) = &page.rows[0] else { panic!("raw sample") };
     assert_eq!(
@@ -142,9 +140,7 @@ async fn finite_arrow_pages() {
     related.page.rows = Some(10);
     related.at = Fixture::at(history.snapshot.as_ref().unwrap());
     assert_eq!(fixture.page(related).await.rows.len(), 4);
-    eprintln!("query shutdown");
     fixture.owner.shutdown().await.unwrap();
-    eprintln!("query shutdown complete");
 
     let mut sparse = Fixture::new(|config| {
         config.query.page_rows = 1;
