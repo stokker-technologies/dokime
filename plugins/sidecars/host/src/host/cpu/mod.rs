@@ -10,6 +10,12 @@
 /* === Modules === */
 
 #[cfg(feature = "runtime")]
+mod kernel;
+pub mod load;
+#[cfg(feature = "runtime")]
+pub(crate) mod sampling;
+
+#[cfg(feature = "runtime")]
 mod runtime;
 
 /* === Re-Exports === */
@@ -42,7 +48,7 @@ const PERCENT_SCALE: f64 = 100.0;
 // The Kernel Stops At The Configured Calibration Window; Release And Debug
 // Builds Calibrate Their Own Compiled Kernel On The Current Machine.
 #[dokime::operation(id = "host.cpu.load", response = Load, policy = super::system::POLICY, visibility = Public,
-    resources = [tokio::sync::Mutex<super::system::State>, crate::Workers])]
+    resources = [tokio::sync::Mutex<super::system::State>])]
 #[derive(Clone, Default, PartialEq)]
 pub struct CpuLoad {}
 

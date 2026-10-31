@@ -38,6 +38,7 @@ pub enum Operations {
     Restore(super::controls::Restore),
     Adapters(super::adapters::Adapters),
     CpuLoad(super::cpu::CpuLoad),
+    LoadHold(super::cpu::load::LoadHold),
     GetPlan(super::power::GetPlan),
 }
 

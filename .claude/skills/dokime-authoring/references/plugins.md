@@ -63,6 +63,29 @@ An operation that changes external state requires `ReadEnvironment`, `PrepareEff
 
 Cancellation must retain native work and its serialization gate until it settles. A plugin retains its generation `Supervisor` during initialization and copies the serving execution scope for journal callbacks, so cancellation of the parent operation cannot strand its completion timestamp. Backend cleanup closes write admission before restoring; it keeps execution capture open through restoration. An inverse is a Host operation callable by the backend, not another plugin. Internal storage remains v1; an incompatible development store requires a fresh root without deleting the old one.
 
+
+## Host CPU Load Control
+
+`plugin_host::host::cpu::load` owns `LoadHold`, `LoadTarget`, `LoadSummary`,
+`LoadControl` and `CpuLoadSettings`. The locked Public operation is
+`host.cpu.load.hold`; preserve existing `host.cpu.load` as the capacity/load query.
+Use finite `LoadTarget::Percent(value)` in `(0,100]` or positive finite
+`LoadTarget::Flops(value)`; `threads: Option<u32>` selects logical cores when absent; explicit counts must fit `1..=logical_cores`.
+One shared CPU sampling owner serves telemetry and control; consumers never refresh
+CPU deltas. Reuse the calibrated kernel/capacity rather than adding another peak probe.
+Controller evidence uses distinct `host.cpu.load.control`, structured units and
+`Label [unit]` labels. Percent feedback counts the whole host; FLOP/s counts only
+this generator. Timing and gains belong to the CPU Load Control settings section.
+
+Start a suite handle with `ctx.host().submit::<LoadHold>(request).await?` (the
+scoped equivalent of the runtime builder’s `.start()`), hold, then `.cancel().await?` for a typed
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
+so no durable effect inverse is needed. The handler uses Harmos cooperative
+cancellation and returns the final summary within its configured policy grace.
+Use the host CPU control stream as evidence in the consuming template. Combine
+its row with the collected streams in one `Evidence` contribution; collection
+operations remain in their executable catalog.
+
 ## Shared Secrets
 
 ```rust

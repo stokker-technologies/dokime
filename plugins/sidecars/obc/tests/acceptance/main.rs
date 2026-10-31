@@ -86,6 +86,17 @@ struct Bench {
     declaration: harmos::plugin::inventory::Declaration,
 }
 
+// The Bench Requires The Host Plugin's CPU Load Hold. This Fixture Loads No Host Plugin, So It
+// Mirrors That Contract Under The Same Identifier, Fields And Policy And Refuses Every Hold.
+#[dokime::operation(id = "host.cpu.load.hold", response = plugin_host::host::cpu::load::LoadSummary,
+    policy = plugin_host::host::cpu::load::POLICY, visibility = Public,
+    operations = [dokime::harmos::builtins::streams::Publish])]
+#[derive(Clone, Debug, PartialEq)]
+struct LoadHold {
+    target: plugin_host::host::cpu::load::LoadTarget,
+    threads: Option<u32>,
+}
+
 /* === Enums === */
 
 #[harmos::lanes(harmos_path = dokime::__harmos)]
@@ -462,6 +473,7 @@ enum HostOperations {
     Operation3(EvidenceBatch),
     Operation4(OperatorQuestion),
     Operation5(LeaseAsk),
+    Operation6(LoadHold),
     Publish(harmos::builtins::streams::Publish),
 }
 
@@ -486,6 +498,13 @@ impl harmos::Lifecycle for Fixture {
         setup.resource::<Hosted<LeaseAsk>>(Hosted::<LeaseAsk>::new(hosting.clone()));
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
+    }
+}
+
+impl harmos::Operation for LoadHold {
+    type Error = dokime::prelude::Refusal;
+    async fn run(self, _: Context<'_, Self>) -> Result<harmos::Response<plugin_host::host::cpu::load::LoadSummary>, Self::Error> {
+        Err(dokime::prelude::Refusal::of("the test host holds no CPU load"))
     }
 }
 

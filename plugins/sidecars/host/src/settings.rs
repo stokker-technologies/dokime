@@ -48,6 +48,22 @@ pub(crate) const RESTORE_BUDGET_MS: u64 = CONTROL_BUDGET_MS * 2;
 // The Publication Window Bounds Replay And Native Notification Batches.
 pub(crate) const STREAM_WINDOW: usize = 4_096;
 
+// CPU Load Holds Run Until Cancelled; Runtime Settlement Must Fit The Cancellation Grace.
+pub(crate) const CPU_LOAD_HOLD_BUDGET: Duration = Duration::from_secs(1 << 32);
+pub(crate) const CPU_LOAD_CANCELLATION_GRACE: Duration = Duration::from_secs(60);
+
+pub(crate) const CPU_LOAD_DEFAULTS: CpuLoadSettings = CpuLoadSettings {
+    period_ms: 250,
+    sample_ms: 250,
+    slice_ms: 10,
+    proportional_gain: 0.5,
+    integral_gain: 0.5,
+    integral_min: -1.0,
+    integral_max: 1.0,
+    settlement_ms: 2_000,
+    batch_iterations: 4_096,
+};
+
 #[cfg(target_os = "windows")]
 const ECHO_PAYLOAD_BYTES: u32 = 32;
 
@@ -67,6 +83,7 @@ pub struct Settings {
     pub probes: Probes,
     pub timing: Timing,
     pub sampling: Sampling,
+    pub cpu_load: CpuLoadSettings,
 }
 
 #[dokime::section(
@@ -251,6 +268,49 @@ pub struct Sampling {
     pub calibration_batch_iterations: u32,
 }
 
+#[dokime::section(
+    label = "CPU Load Control",
+    description = "CPU load hold controller and worker parameters. Changes apply on plugin restart or Retry."
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CpuLoadSettings {
+    #[setting(label = "Controller Period [ms]", default = CPU_LOAD_DEFAULTS.period_ms, min = 1, max = 60_000,
+        description = "Time between CPU load controller updates and control stream rows.")]
+    pub period_ms: u32,
+
+    #[setting(label = "CPU Sampling Period [ms]", default = CPU_LOAD_DEFAULTS.sample_ms, min = 1, max = 60_000,
+        description = "Time between shared CPU utilization samples; must not exceed the controller period.")]
+    pub sample_ms: u32,
+
+    #[setting(label = "Worker Slice [ms]", default = CPU_LOAD_DEFAULTS.slice_ms, min = 1, max = 1_000,
+        description = "Duty-cycle slice of each load worker; must not exceed the controller period.")]
+    pub slice_ms: u32,
+
+    #[setting(label = "Proportional Gain", default = CPU_LOAD_DEFAULTS.proportional_gain, min = 0.0,
+        description = "Controller duty change per unit of normalized load error.")]
+    pub proportional_gain: f64,
+
+    #[setting(label = "Integral Gain [1/s]", default = CPU_LOAD_DEFAULTS.integral_gain, min = 0.0,
+        description = "Controller integral gain on normalized load error.")]
+    pub integral_gain: f64,
+
+    #[setting(label = "Integrator Minimum", default = CPU_LOAD_DEFAULTS.integral_min,
+        description = "Lower anti-windup bound of the controller integrator; must not exceed zero.")]
+    pub integral_min: f64,
+
+    #[setting(label = "Integrator Maximum", default = CPU_LOAD_DEFAULTS.integral_max,
+        description = "Upper anti-windup bound of the controller integrator; must not be below zero.")]
+    pub integral_max: f64,
+
+    #[setting(label = "Worker Settlement Budget [ms]", default = CPU_LOAD_DEFAULTS.settlement_ms, min = 1, max = 60_000,
+        description = "Maximum wait for load workers to stop after cancellation; must cover one worker slice.")]
+    pub settlement_ms: u32,
+
+    #[setting(label = "Worker Batch [iterations]", default = CPU_LOAD_DEFAULTS.batch_iterations, min = 1, max = 65_536,
+        description = "Load worker kernel iterations between stop checks.")]
+    pub batch_iterations: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HostOptions {
     pub cadence: Cadence,
@@ -271,6 +331,59 @@ pub struct HostOptions {
 impl Default for Settings {
     fn default() -> Self {
         dokime::plugin::Configuration::declared::<Self>().settings::<Self>().expect("host setting declarations have valid defaults")
+    }
+}
+
+impl Default for CpuLoadSettings {
+    fn default() -> Self {
+        CPU_LOAD_DEFAULTS
+    }
+}
+
+impl CpuLoadSettings {
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.period_ms == 0
+            || self.sample_ms == 0
+            || self.slice_ms == 0
+            || self.batch_iterations == 0
+            || self.settlement_ms < self.slice_ms
+            || self.settlement() > CPU_LOAD_CANCELLATION_GRACE
+            || self.sample_ms > self.period_ms
+            || self.slice_ms > self.period_ms
+        {
+            return Err(crate::Error::Probe(
+                "CPU timing must be positive; sampling and slices must fit a control period; settlement must cover a slice and fit the cancellation grace".into(),
+            ));
+        }
+        if !self.proportional_gain.is_finite()
+            || self.proportional_gain < 0.0
+            || !self.integral_gain.is_finite()
+            || self.integral_gain < 0.0
+            || !self.integral_min.is_finite()
+            || !self.integral_max.is_finite()
+            || self.integral_min > 0.0
+            || self.integral_max < 0.0
+            || self.integral_min >= self.integral_max
+        {
+            return Err(crate::Error::Probe("CPU gains must be finite and nonnegative; finite integrator bounds must bracket zero".into()));
+        }
+        Ok(())
+    }
+
+    pub fn period(&self) -> Duration {
+        Duration::from_millis(u64::from(self.period_ms))
+    }
+
+    pub fn sample_period(&self) -> Duration {
+        Duration::from_millis(u64::from(self.sample_ms))
+    }
+
+    pub fn slice(&self) -> Duration {
+        Duration::from_millis(u64::from(self.slice_ms))
+    }
+
+    pub fn settlement(&self) -> Duration {
+        Duration::from_millis(u64::from(self.settlement_ms))
     }
 }
 
@@ -378,6 +491,33 @@ mod tests {
     }
 
     #[test]
+    fn cpu_load_settings_validate_timing_and_gains() {
+        let defaults = dokime::plugin::Configuration::declared::<Settings>().settings::<Settings>().unwrap().cpu_load;
+        assert_eq!(defaults, CPU_LOAD_DEFAULTS);
+        assert!(defaults.validate().is_ok());
+        for settings in [
+            CpuLoadSettings { period_ms: 0, ..CPU_LOAD_DEFAULTS },
+            CpuLoadSettings {
+                sample_ms: CPU_LOAD_DEFAULTS.period_ms + 1,
+                ..CPU_LOAD_DEFAULTS
+            },
+            CpuLoadSettings { settlement_ms: 1, ..CPU_LOAD_DEFAULTS },
+            CpuLoadSettings {
+                settlement_ms: u32::MAX,
+                ..CPU_LOAD_DEFAULTS
+            },
+            CpuLoadSettings { batch_iterations: 0, ..CPU_LOAD_DEFAULTS },
+            CpuLoadSettings {
+                proportional_gain: f64::NAN,
+                ..CPU_LOAD_DEFAULTS
+            },
+            CpuLoadSettings { integral_max: -1.0, ..CPU_LOAD_DEFAULTS },
+        ] {
+            assert!(settings.validate().is_err());
+        }
+    }
+
+    #[test]
     fn out_of_bounds_probe_settings_are_refused() {
         for (field, maximum) in [
             ("system_interval_ms", 86_400_000),
@@ -402,6 +542,11 @@ mod tests {
             ("minimum_rate_window_ms", 60_000),
             ("echo_payload_bytes", 65_000),
             ("calibration_batch_iterations", 65_536),
+            ("period_ms", 60_000),
+            ("sample_ms", 60_000),
+            ("slice_ms", 1_000),
+            ("settlement_ms", 60_000),
+            ("batch_iterations", 65_536),
         ] {
             for value in [0, maximum + 1] {
                 let mut configuration = dokime::plugin::Configuration::declared::<Settings>();
