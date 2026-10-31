@@ -64,7 +64,7 @@ pub(crate) struct QueryWork {
     cancelled: Arc<AtomicBool>,
 }
 
-struct Cancellation(Arc<AtomicBool>);
+struct Cancellation(Option<Arc<AtomicBool>>);
 
 /* === Enums === */
 
@@ -118,7 +118,9 @@ impl QueryWork {
 
 impl Drop for Cancellation {
     fn drop(&mut self) {
-        self.0.store(true, Ordering::Release);
+        if let Some(cancelled) = &self.0 {
+            cancelled.store(true, Ordering::Release);
+        }
     }
 }
 
@@ -167,19 +169,23 @@ impl State {
         let operation = work.operation;
         let root = self.0.readers.database.parent().expect("storage root").to_owned();
         work.cancelled = Arc::new(AtomicBool::new(false));
-        let _cancel = Cancellation(work.cancelled.clone());
-        self.read(move |connection| {
-            Ok((|| {
-                if !crate::storage::sqlite::snapshots::available(connection, &read.cut).map_err(|e| storage_error(e, operation))? {
-                    return Err(Failure::new(Reason::SnapshotUnavailable, operation, "The exact query cut is unavailable"));
-                }
-                let complete =
-                    super::reader::query(connection, &root, &read, &mut work, |position, sample| consume(&mut output, position, sample))?;
-                Ok((output, work, complete))
-            })())
-        })
-        .await
-        .map_err(|e| storage_error(e, operation))?
+        let mut cancellation = Cancellation(Some(work.cancelled.clone()));
+        let result = self
+            .read(move |connection| {
+                Ok((|| {
+                    if !crate::storage::sqlite::snapshots::available(connection, &read.cut).map_err(|e| storage_error(e, operation))? {
+                        return Err(Failure::new(Reason::SnapshotUnavailable, operation, "The exact query cut is unavailable"));
+                    }
+                    let complete = super::reader::query(connection, &root, &read, &mut work, |position, sample| {
+                        consume(&mut output, position, sample)
+                    })?;
+                    Ok((output, work, complete))
+                })())
+            })
+            .await
+            .map_err(|e| storage_error(e, operation))?;
+        cancellation.0 = None;
+        result
     }
 }
 

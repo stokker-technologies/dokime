@@ -33,6 +33,7 @@ pub(crate) mod runtime;
 pub mod samples;
 pub mod selection;
 pub mod snapshots;
+pub mod statistics;
 pub(crate) mod telemetry;
 mod tokens;
 

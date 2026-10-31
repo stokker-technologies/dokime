@@ -150,3 +150,20 @@ snapshot and continuation metadata count toward page byte limits. Each page
 rechecks the cut and releases its reader transaction. Later arrivals are excluded
 by the physical frontier even when their timestamps fall inside the window.
 Captured contracts include retained Arrow versions, within the schema budget.
+
+## Exact Sample Statistics
+
+`runtime/query/statistics.rs` shares the durable numeric moments accumulator
+with telemetry output storage. One selection pass computes all requested moments,
+row counts and missing/null/non-finite quality counts. Count outputs are Uint64
+and dimensionless; other outputs are nullable Float64 with their input unit.
+Aliases and output schema follow request order. Non-finite requested arithmetic
+fails explicitly.
+
+Filtered percentiles and medians use the existing ordered-f64 rank representation
+with bounded radix counters over repeated projected scans. Every pass uses the
+same captured contracts, predicates, window and physical frontier, and counts
+against the same scan/time budget. Interpolation uses exact integer rank positions
+and the fractional remainder of `(count - 1) * rank / 100`. Current mutable numeric
+indexes and report previews never answer a historical or filtered selection.
+Exhaustion returns a typed failure; statistics are never partial estimates.
