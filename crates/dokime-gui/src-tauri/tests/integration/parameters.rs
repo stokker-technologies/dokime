@@ -38,6 +38,7 @@ use std::fs;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn replacement_keeps_parameters() {
     use dokime_gui::parameters;

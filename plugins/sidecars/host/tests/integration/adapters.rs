@@ -47,6 +47,7 @@ use plugin_host::host::{
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn adapter_inventory() {
     let timeout = std::time::Duration::from_millis(plugin_host::HostOptions::default().timing.network_probe_timeout_ms);
@@ -77,12 +78,14 @@ fn adapter_inventory() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn inventory_rejects_unknown_kind_and_status() {
     assert!(serde_json::from_str::<AdapterKind>("\"satellite\"").is_err());
     assert!(serde_json::from_str::<AdapterStatus>("\"sleeping\"").is_err());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn notification_lifetime() {
     // Releasing The Observer Cancels Native Registrations And Joins Its Callbacks.

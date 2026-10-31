@@ -1051,6 +1051,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-python/
           target/traces/${{ env.PROFILE }}/*/integration-python/
+          target/test-reports/integration-python/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1230,6 +1231,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-typescript/
           target/traces/${{ env.PROFILE }}/*/integration-typescript/
+          target/test-reports/integration-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1329,6 +1331,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-python/
           target/traces/${{ env.PROFILE }}/*/acceptance-python/
+          target/test-reports/acceptance-python/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -2990,6 +2993,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-rust/
           target/traces/${{ env.PROFILE }}/*/acceptance-rust/
+          target/test-reports/acceptance-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3110,6 +3114,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-rust/
           target/traces/${{ env.PROFILE }}/*/acceptance-rust/
+          target/test-reports/acceptance-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3218,6 +3223,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-rust/
           target/traces/${{ env.PROFILE }}/*/integration-rust/
+          target/test-reports/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3288,6 +3294,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-rust/
           target/traces/${{ env.PROFILE }}/*/integration-rust/
+          target/test-reports/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3600,6 +3607,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-rust/
           target/traces/${{ env.PROFILE }}/*/system-rust/
+          target/test-reports/system-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -3700,6 +3708,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-rust/
           target/traces/${{ env.PROFILE }}/*/system-rust/
+          target/test-reports/system-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -4024,6 +4033,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-typescript/
           target/traces/${{ env.PROFILE }}/*/system-typescript/
+          target/test-reports/system-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -4134,6 +4144,7 @@ jobs:
         path: |-
           target/tests/${{ env.PROFILE }}/*/system-typescript/
           target/traces/${{ env.PROFILE }}/*/system-typescript/
+          target/test-reports/system-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true

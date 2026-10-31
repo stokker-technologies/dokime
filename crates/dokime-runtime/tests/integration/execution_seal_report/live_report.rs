@@ -79,6 +79,7 @@ fn assert_cut(payload: &serde_json::Value, expected: &[f64]) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn live_report() {
     let root = tempdir().unwrap();

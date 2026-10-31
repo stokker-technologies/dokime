@@ -234,6 +234,7 @@ async fn fixture(mode: String) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn process() {
     if let Ok(mode) = std::env::var("DOKIME_PROCESS_TEST_MODE") {

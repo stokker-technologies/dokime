@@ -51,6 +51,7 @@ pub(crate) use crate::service_support::prelude::*;
 
 // One runtime carries the stages that build and read reports of executions the
 // publishing executor settles on its own; each stage runs its own cycle.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn document_reports() {
     let root = tempdir().unwrap();
@@ -66,6 +67,7 @@ async fn document_reports() {
 }
 
 // The rendered payload shapes need no runtime: they render fixture input.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn document_report_payloads() {
     report_payloads::rendered_html_data().await;
@@ -87,6 +89,7 @@ async fn document_report_payloads() {
 }
 
 // Each of these needs its own executor, configuration or cycle held open, so each boots its own runtime.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn document_report_live() {
     capture::notes_until_seal().await;
@@ -102,6 +105,7 @@ async fn document_report_live() {
 }
 
 // The saved receipt builds its storage by hand and the download story holds a second execution.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn document_report_seal() {
     reports::report_save_receipt().await;

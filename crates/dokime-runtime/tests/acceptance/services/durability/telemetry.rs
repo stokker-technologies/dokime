@@ -59,6 +59,7 @@ async fn wait_for_telemetry(
 }
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn checkpointed_telemetry_kill() {
     const PUBLISHED: usize = 25;

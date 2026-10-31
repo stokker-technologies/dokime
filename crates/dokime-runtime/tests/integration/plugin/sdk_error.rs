@@ -151,6 +151,7 @@ impl Boundary {
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn sdk_error_boundary() {
     let report = Harness::template(TEMPLATE)

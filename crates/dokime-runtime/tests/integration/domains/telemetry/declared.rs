@@ -240,6 +240,7 @@ impl EmbeddedProvider for DeclaringProvider {
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_declarations_register() {
     // The Plugin Grants The Shared Stream Once
@@ -283,6 +284,7 @@ async fn template_declarations_register() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn conflicting_record_refused() {
     let root = tempdir().unwrap();
@@ -305,6 +307,7 @@ async fn conflicting_record_refused() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn conflicting_prompt_refused() {
     let root = tempdir().unwrap();

@@ -105,6 +105,43 @@ Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
 selected journeys in JUnit; full walkthrough validation remains a separate obligation.
 
+### Reading Test Traces
+
+After `mise run build:rust:tests`, select a small integration story with a nextest
+filterset:
+
+```sh
+mise run test:rust:integration -- --select 'test(=retained_evidence::retained_evidence)'
+```
+
+Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
+`target/test-reports/<category>-<language>/traces/`. Native tests, desktop stories
+and inherited application/sidecar processes write `<process>-<pid>.pftrace` files.
+Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
+Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
+Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or
+`#[tokio::test]` on each Rust lane story, with `dokime-tracing` in the package's
+dev-dependencies. Stories which install application logging use
+`#[dokime_tracing::trace_test(logging)]` so that logging installs the subscriber
+once; isolated parent processes call `dokime_tracing::process()` before spawning
+the child. Desktop journeys and wait steps share
+`crates/dokime-gui/e2e/test-trace.mjs`.
+Tracing is disabled unless this variable is set; it may also be set explicitly
+when diagnosing a test application. Trace fields and event payloads are excluded.
+
+Each lane writes `time-summary.md` and `time-summary.json` beside `traces/`, with
+the top 30 spans by total duration and self time, JUnit totals for every test,
+and the slowest tests. CI retains this directory with the lane artifacts, even
+on failure. Each run replaces that lane's traces; copy them before rerunning
+when comparing results. Different lanes have independent directories.
+
+Durations include async suspension. Self time subtracts the union of direct
+child lifetimes; overlapping spans/processes cannot be summed as wall time or
+CPU time. Native traces use a separate Perfetto track per span to preserve
+concurrent lifetimes, with process-local parent IDs in metadata. Normal completion
+flushes export; killed processes may omit open spans or leave unreadable files,
+which the summary lists. Test totals come from JUnit and include harness overhead.
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite

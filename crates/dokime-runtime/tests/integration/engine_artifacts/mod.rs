@@ -43,6 +43,7 @@ pub(crate) mod diagnostics;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn engine_artifacts() {
     artifacts::importing_file_whole();
@@ -53,6 +54,7 @@ async fn engine_artifacts() {
     diagnostics::redacted_diagnostic_directory();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn engine_artifacts_paused() {
     artifacts::directory::file_sent_piece().await;

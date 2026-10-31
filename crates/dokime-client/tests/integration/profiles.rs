@@ -81,6 +81,7 @@ impl SecretStore for Secrets {
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[test]
 fn profiles() {
     let directory = tempfile::tempdir().unwrap();

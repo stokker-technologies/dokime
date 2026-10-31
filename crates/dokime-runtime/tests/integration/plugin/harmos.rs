@@ -106,6 +106,7 @@ impl DirectStreams {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_alias_publication() {
     use dokime_runtime::telemetry::TelemetryStream;

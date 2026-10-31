@@ -130,6 +130,7 @@ async fn append_and_seal(handle: &dokime::RuntimeHandle, wire: &WireClient, case
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_append_seal() {
     let root = tempfile::tempdir().unwrap();

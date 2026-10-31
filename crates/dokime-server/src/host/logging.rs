@@ -17,7 +17,7 @@
 use std::path::Path;
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
 
 // Local Imports
 use crate::host::{Error, Result};
@@ -38,6 +38,7 @@ pub(crate) type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 pub struct LoggingGuards {
     journal: std::sync::Arc<crate::trace::Journal>,
+    _trace: dokime::diagnostics::test_trace::Guard,
     _appender: tracing_appender::non_blocking::WorkerGuard,
     _file_appender: tracing_appender::non_blocking::WorkerGuard,
     _hub_log_appender: tracing_appender::non_blocking::WorkerGuard,
@@ -165,18 +166,12 @@ pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<Loggi
         None => None,
     };
 
-    Registry::default()
-        .with(layers)
-        // Not a logging layer: `ErrorLayer` is what lets a captured
-        // `dokime::plugin::Diagnostic` read back the spans it happened inside.
-        // Without it in this subscriber every host-side span trace is empty, and
-        // nothing says so.
-        .with(tracing_error::ErrorLayer::default())
-        .try_init()
+    let trace = dokime::diagnostics::test_trace::configure(layers)
         .map_err(|error| Error::Setup(format!("failed to install tracing subscriber: {error}")))?;
 
     Ok(LoggingGuards {
         journal,
+        _trace: trace,
         _appender: appender_guard,
         _file_appender: file_appender_guard,
         _hub_log_appender: hub_log_appender_guard,

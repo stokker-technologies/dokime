@@ -46,6 +46,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn authoring_catalog() {
     authoring::untyped_artifact_refused();

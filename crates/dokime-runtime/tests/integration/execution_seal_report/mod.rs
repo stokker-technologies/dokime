@@ -77,6 +77,7 @@ fn stage<F: Future<Output = ()>>(future: F) -> Pin<Box<F>> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report() {
     // Each Story Stage Owns Its Async Frame Independently.
@@ -112,6 +113,7 @@ async fn execution_seal_report() {
     stage(report_cancellation::stopped_report_boundary()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_threaded() {
     stage(storage::permanent_finalization_settles()).await;
@@ -119,12 +121,14 @@ async fn execution_seal_report_threaded() {
 }
 
 // The Smoke Provider Stages Share One Embedded Fixture Binding.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report_smoke() {
     stage(contention::contended_reads_interactive()).await;
     stage(artifacts::chunked_artifact_rewrite()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_arrow_evidence_export() {
     stage(artifacts::saved_evidence_export()).await;
@@ -132,16 +136,19 @@ async fn execution_arrow_evidence_export() {
 }
 
 // Each Of These Stages Boots Its Own Embedded Runtime And Owns Process-Wide Fixture State.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report_streams() {
     stage(streams::live_rows_paths()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_transfers() {
     stage(artifacts::abandoned_transfer_slots()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn execution_seal_report_sync() {
     cycles::catalog_reconciliation_preserves_execution_evidence();

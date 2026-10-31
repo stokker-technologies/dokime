@@ -46,6 +46,7 @@ fn fixture_bytes() -> Vec<u8> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn external_analysis_reload() {
     let root = tempfile::tempdir().unwrap();
@@ -84,6 +85,7 @@ async fn external_analysis_reload() {
 }
 
 // Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
@@ -128,6 +130,7 @@ async fn frozen_catalog_multiply() {
 }
 
 // Unsupported Domain Schemas Are Refused Before Admission.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unsupported_schema_refused() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};

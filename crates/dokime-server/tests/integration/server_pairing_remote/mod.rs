@@ -44,6 +44,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn server_pairing_remote() {
     Box::pin(server::unsecured_pairing_creates_no_revocable_client()).await;

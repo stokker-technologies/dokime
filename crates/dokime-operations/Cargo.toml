@@ -66,6 +66,10 @@ tonic = { workspace = true, optional = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Local
+dokime-tracing = { workspace = true }
+
 # === Target Dependencies === #
 
 # === Test Targets === #

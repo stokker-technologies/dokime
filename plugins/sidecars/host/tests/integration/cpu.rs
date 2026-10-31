@@ -50,6 +50,7 @@ use plugin_host::{
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn calibrated_cpu() {
     let mut collector = SystemCollector::new(plugin_host::HostOptions::default()).unwrap();
@@ -66,6 +67,7 @@ fn calibrated_cpu() {
 }
 
 #[cfg(target_os = "windows")]
+#[dokime_tracing::trace_test]
 #[test]
 fn active_power_plan() {
     use plugin_host::host::power::{GetPlan, Plan, active_plan};

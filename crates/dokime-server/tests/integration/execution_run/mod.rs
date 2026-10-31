@@ -987,6 +987,7 @@ fn run(id: &str) -> contracts::execution::GetCycle {
 /* === Tests === */
 
 // Registered execution runs: create, start, control, inspect, search, files, checkpoints and restart receipts.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_run() {
     Box::pin(registered_create_definitions()).await;

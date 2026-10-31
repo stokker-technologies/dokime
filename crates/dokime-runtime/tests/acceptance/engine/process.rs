@@ -149,6 +149,7 @@ fn logged(report: &dokime_runtime::plugin::testing::Report, level: Level) -> Vec
 /* === Tests === */
 // One shot: stdout streams into the produced artifact, stderr reaches the log
 // at warning with the execution's identity, and the exit is recorded.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn process_output_artifact() {
     let report = Harness::template(RUN).run::<Suites>().await.expect("the run completes");
@@ -165,6 +166,7 @@ async fn process_output_artifact() {
 }
 
 // Submitted and cancelled: SIGTERM ends it, and the exit says so.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn process_cancel_exit() {
     let directory = tempfile::tempdir().unwrap();

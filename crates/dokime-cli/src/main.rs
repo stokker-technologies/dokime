@@ -41,6 +41,7 @@ use dokime::domain::model::diagnostics::Diagnostic;
 /* === Private Functions === */
 
 fn main() -> ExitCode {
+    let _trace = dokime::diagnostics::test_trace::pending();
     let cli = dokime_cli::Cli::parse();
     let terminal = dokime::terminal::Terminal::new(cli.color);
     let result = execute(cli);
