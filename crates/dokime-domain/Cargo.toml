@@ -75,6 +75,34 @@ serde_json = { workspace = true }
 # Local
 dokime-tracing = { workspace = true }
 
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
 # === Target Dependencies === #
 
 # === Test Targets === #

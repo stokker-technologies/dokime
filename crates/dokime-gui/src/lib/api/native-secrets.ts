@@ -17,7 +17,7 @@
 
 // Third Party Imports
 
-import { saveNativeDocument } from "@/lib/api/native-delivery";
+import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { commands } from "@/lib/desktop/commands";
 // Local Imports
 import type { Wire } from "@/lib/rpc/canonical";

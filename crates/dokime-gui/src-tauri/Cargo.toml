@@ -144,8 +144,8 @@ tauri-build = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
 dokime = { path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
+dokime-tracing = { workspace = true }
 
 # Git
 harmos-packaging = { workspace = true, features = ["generate-proto"] }

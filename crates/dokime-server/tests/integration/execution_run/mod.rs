@@ -1001,12 +1001,10 @@ async fn execution_run() {
     Box::pin(controls::cycle_edits_state()).await;
     Box::pin(controls::labels_rename_state()).await;
     Box::pin(documents_execution::running_execution_owners()).await;
-    // These Independent Roots Retain Every File, Pagination And Queued-Heartbeat Assertion.
-    tokio::join!(
-        Box::pin(files::live_file_rewrites()),
-        Box::pin(pagination::queued_cycle_seals_every_member()),
-        Box::pin(start::queued_run_outlives_the_idle_deadline()),
-    );
+    // These Independent Roots Retain Every File And Pagination Assertion.
+    tokio::join!(Box::pin(files::live_file_rewrites()), Box::pin(pagination::queued_cycle_seals_every_member()),);
+    // The Paused-Clock Branch Owns Its Runtime Without Other Fixtures In Flight.
+    Box::pin(start::queued_run_outlives_the_idle_deadline()).await;
     Box::pin(files::execution_file_buffer()).await;
     Box::pin(inspection::inspection_separates_outputs()).await;
     Box::pin(inspection::planned_params_limit()).await;

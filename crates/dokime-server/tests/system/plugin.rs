@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod diagnosis;
+mod disconnections;
 mod shutdown;
 
 /* === Re-Exports === */
@@ -1260,5 +1261,6 @@ async fn walkthrough() {
     Box::pin(scene_open_report_while_cycle_runs(&mut session)).await;
     Box::pin(scene_remote_scripts(&mut session)).await;
     Box::pin(scene_interruptions(&mut session)).await;
+    Box::pin(disconnections::scene(&mut session)).await;
     Box::pin(scene_clean_stop(session)).await;
 }

@@ -76,6 +76,13 @@ run = [
   "pnpm --dir crates/dokime-gui install --frozen-lockfile",
 ]
 
+[tasks."prepare:generated"]
+description = "Build The Contract Generator And Generate TypeScript Modules"
+depends = ["prepare"]
+usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
+run = "{{vars.tools}} dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
+env.CARGO_INCREMENTAL = "0"
+
 [tasks."prepare:bindings"]
 description = "Regenerate Canonical Python And TypeScript Contracts"
 depends = ["prepare"]
@@ -86,13 +93,6 @@ env.CARGO_INCREMENTAL = "0"
 description = "Prepare Native Desktop Automation"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
-
-[tasks."prepare:generated"]
-description = "Build The Contract Generator And Generate TypeScript Modules"
-depends = ["prepare"]
-usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
-run = "{{vars.tools}} dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
-env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:organization"]
 description = "Generate Default Organization And Desktop Icons"
@@ -318,11 +318,6 @@ depends = [
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:tooling"]
-
-description = "Test Project Tooling"
-run = "{{vars.python}} python -m unittest discover -s tools/python/tests"
-
 [tasks."test:python:unit"]
 description = "Test Unit Python"
 depends = ["prepare"]
@@ -387,11 +382,14 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:acceptance"]
 description = "Test Acceptance Rust"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>" help="Narrow The Nextest Filterset"
+'''
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
+  "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust {% if usage.select %}-- -E \"{{usage.select}}\"{% endif %}",
 ]
 env.CARGO_INCREMENTAL = "0"
 
@@ -427,6 +425,11 @@ description = "Prove The Standalone Starter In Nightly Validation"
 usage = 'flag "--profile <profile>" default="release"'
 run = "{{vars.tools}} dokime_tools.test.rust.starter --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
+
+[tasks."test:tooling"]
+
+description = "Test Project Tooling"
+run = "{{vars.python}} python -m unittest discover -s tools/python/tests"
 
 [tasks."test:typescript"]
 description = "Test TypeScript Layers"

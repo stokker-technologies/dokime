@@ -113,6 +113,9 @@ and filter controls remain usable. Preserve the case of unit symbols.
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
   message shapes into them; preserve that boundary in components.
+- Shared report components save bounded documents through
+  `src/lib/api/native-document-delivery.ts`, which has no runtime RPC or generated
+  message imports. File-backed artifact delivery remains in `native-delivery.ts`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.

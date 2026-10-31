@@ -88,9 +88,9 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
-import { traceSpan } from "./test-trace.mjs";
-import { ReportBrowser } from "./report-browser.ts";
 import { call } from "./native-rpc.mjs";
+import { ReportBrowser } from "./report-browser.ts";
+import { traceSpan } from "./test-trace.mjs";
 
 /* === Re-Exports === */
 
@@ -99,7 +99,12 @@ import { call } from "./native-rpc.mjs";
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const { values: options } = parseArgs({
-  options: { junit: { type: "string" }, release: { type: "boolean", default: false }, profile: { type: "string" } },
+  options: {
+    junit: { type: "string" },
+    release: { type: "boolean", default: false },
+    profile: { type: "string" },
+    workflow: { type: "string" },
+  },
 });
 const profile = options.profile ?? (options.release ? "release" : "dev");
 assert.ok(["dev", "release"].includes(profile), "native desktop profile must be dev or release");
@@ -151,8 +156,44 @@ const WEBDRIVER_KEYS = {
   Backspace: "\uE003",
 };
 
-/** The journeys everything after them depends on, whatever the filter says. */
+/** Journey Filters Retain These Prerequisites Within Their Selected Workflow. */
 const REQUIRED_JOURNEYS = new Set(["startup", "plugin-install", "library"]);
+
+/** Independent Workflows Share Only Their Connection And Catalog Prerequisites. */
+const workflows = {
+  execution: {
+    title: "Desktop Execution And Recovery",
+    journeys: new Set([
+      "startup",
+      "plugin-install",
+      "library",
+      "active-cycle",
+      "cycle",
+      "touch",
+      "execution-stop",
+      "containers",
+      "cycles-home",
+      "history",
+      "attachment",
+      "restart",
+    ]),
+  },
+  configuration: {
+    title: "Desktop Configuration And Access",
+    journeys: new Set([
+      "owned-startup",
+      "startup",
+      "plugin-install",
+      "idle",
+      "settings",
+      "distribution-identity",
+      "organization",
+      "remote-access",
+    ]),
+  },
+};
+assert.ok(!options.workflow || Object.hasOwn(workflows, options.workflow), `Unknown desktop workflow: ${options.workflow}`);
+const workflow = workflows[options.workflow];
 
 /** Opt out of real key presses when the driver cannot honour the Actions API. */
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
@@ -160,8 +201,8 @@ const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
 /**
  * Which journeys to run, as a comma-separated list; every one by default.
  *
- * `startup`, `plugin-install` and `library` always run: they establish
- * the connection and materialize the cycle every journey after them addresses.
+ * `startup`, `plugin-install` and `library` run when their workflow owns them:
+ * they establish the connection and materialize the execution workflow's cycle.
  */
 const selectedJourneys = new Set(
   (process.env.DOKIME_E2E_JOURNEYS ?? "")
@@ -260,7 +301,7 @@ async function measured(category, name, run) {
   }
 }
 
-function until(description, check, timeout = 120000, interval = 150) {
+function until(description, check, timeout = 120000, interval = 25) {
   return traceSpan(description, "step", () => waitUntil(description, check, timeout, interval));
 }
 
@@ -715,7 +756,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     const settled = await session.executeAsync(
       `const element = arguments[0];
        const done = arguments[arguments.length - 1];
-       element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       const initial = element.getBoundingClientRect();
+       if (initial.top < 0 || initial.left < 0 || initial.bottom > innerHeight || initial.right > innerWidth) {
+         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       }
        let previous = '';
        function frame() {
          if (!element.isConnected) return done(false);
@@ -1530,7 +1574,8 @@ async function answerPendingPrompts(session) {
     }
     /* The queue is gone the moment its last prompt is answered, so what it
      showed is read here, before answering, and asserted once the run is over. */
-    const sighting = await session.execute(`
+    const observe = () =>
+      session.execute(`
     const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
     if (!queue) return null;
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
@@ -1558,6 +1603,13 @@ async function answerPendingPrompts(session) {
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
+    let sighting = await observe();
+    if (sighting?.cards.some((card) => hasText(card.text, STARTUP_PROMPT)) && !sighting.progress) {
+      sighting = await until("the startup prompt's live progress", async () => {
+        const current = await observe();
+        return current?.progress ? current : null;
+      });
+    }
     if (sighting) promptSightings.push(sighting);
     const pending = sighting?.cards.length ?? 0;
     if (!pending) return 0;
@@ -2651,6 +2703,12 @@ async function cycleJourney(session, cycleId) {
   }
   await session.key("Escape");
   await session.waitForDom("console level menu closed", `return !document.querySelector('[role=listbox]');`);
+  await until("console level focus restored", () =>
+    session.execute(`
+      const trigger = document.querySelector('section[aria-label=Console] [data-slot=select-trigger]');
+      return trigger && document.activeElement === trigger && getComputedStyle(document.body).pointerEvents !== 'none';
+    `),
+  );
   await session.key("Escape");
   await until(
     "console closed by Escape",
@@ -3838,9 +3896,12 @@ async function touchJourney(session, cycleId) {
 async function journey(name, run, reports = () => []) {
   timingScene = name;
   const started = Date.now();
-  if (selectedJourneys.size && !selectedJourneys.has(name) && !REQUIRED_JOURNEYS.has(name)) {
-    process.stdout.write(`\n== ${name}\n   skipped by DOKIME_E2E_JOURNEYS\n`);
-    results.push({ name, seconds: 0, skipped: "Excluded by the journey filter" });
+  if (
+    (workflow && !workflow.journeys.has(name)) ||
+    (selectedJourneys.size && !selectedJourneys.has(name) && !REQUIRED_JOURNEYS.has(name))
+  ) {
+    process.stdout.write(`\n== ${name}\n   excluded from the selected journeys or workflow\n`);
+    results.push({ name, seconds: 0, skipped: "Excluded from the selected journeys or workflow" });
     return { ok: true, skipped: true };
   }
   process.stdout.write(`\n== ${name}\n`);
@@ -4506,7 +4567,7 @@ for index in range(desktop.get_child_count()):
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
-      Add-Type -Namespace DokimePicker -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindow(System.IntPtr handle);'
+      Add-Type -Namespace DokimePicker -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindow(System.IntPtr handle); [DllImport("user32.dll", SetLastError = true)] public static extern bool PostMessage(System.IntPtr handle, uint message, System.IntPtr wide, System.IntPtr wide2);'
       $filenameId = if ($env:DOKIME_PICKER_OPERATION -eq 'Save') { '1001' } else { '1148' }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
       $driver = Get-Process -Id ([int]$env:DOKIME_PICKER_DRIVER)
@@ -4551,8 +4612,8 @@ for index in range(desktop.get_child_count()):
           }
           $field = $window.FindFirst($scope, $fieldCondition)
           $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
-          $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonType)
+          $buttonClass = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Button')
+          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonClass)
           $button = $window.FindFirst($scope, $buttonCondition)
           if (!$field -or !$button) {
             foreach ($candidate in $window.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition)) {
@@ -4561,21 +4622,18 @@ for index in range(desktop.get_child_count()):
               }
             }
           }
-          if ($field -and $button) {
+          if ($field -and $button -and $button.Current.IsEnabled) {
             $selectedWindow = $window.Current.NativeWindowHandle
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
             # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
             if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
               if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
-                # The Save Dialog Resolves Only What Is Typed Into Its Filename Box, So The Path Arrives As Keyboard Characters.
-                if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2);' }
+                # Replace The Selection In One Native Edit, Including Its EN_CHANGE Notification.
+                if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2); [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern System.IntPtr ReplaceSelection(System.IntPtr window, uint message, System.IntPtr wide, string text);' }
                 $edit = [System.IntPtr]$field.Current.NativeWindowHandle
                 if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Save Filename Box Has No Window Handle' }
                 [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
-                [void][DokimePicker.Input]::SendMessage($edit, 0x0303, [System.IntPtr]::Zero, [System.IntPtr]::Zero)
-                foreach ($character in $env:DOKIME_PICKER_FILE.ToCharArray()) {
-                  [void][DokimePicker.Input]::SendMessage($edit, 0x0102, [System.IntPtr][int]$character, [System.IntPtr]1)
-                }
+                [void][DokimePicker.Input]::ReplaceSelection($edit, 0x00C2, [System.IntPtr]1, $env:DOKIME_PICKER_FILE)
               } else {
                 $value.SetValue($env:DOKIME_PICKER_FILE)
               }
@@ -4586,7 +4644,18 @@ for index in range(desktop.get_child_count()):
               Write-Output ('entered:' + $selectedWindow)
               exit 0
             }
-            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            # A Native Button May Be Projected As A Pane Without InvokePattern.
+            $invoke = $null
+            if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
+              [Console]::Error.WriteLine('picker action=invoke')
+              $invoke.Invoke()
+            } else {
+              $buttonHandle = [System.IntPtr]$button.Current.NativeWindowHandle
+              if ($buttonHandle -eq [System.IntPtr]::Zero -or ![DokimePicker.Window]::PostMessage($buttonHandle, 0x00F5, [System.IntPtr]::Zero, [System.IntPtr]::Zero)) {
+                throw 'The native picker action could not be posted'
+              }
+              [Console]::Error.WriteLine('picker action=button-message')
+            }
             Write-Output ('selected:' + $selectedWindow)
             exit 0
           }
@@ -4810,13 +4879,18 @@ async function writeJunit() {
     else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
   }
   const failed = cases.filter((result) => result.failure);
-  const requested = selectedJourneys.size ? cases.filter((result) => selectedJourneys.has(result.name)) : cases;
+  const requested = cases.filter((result) =>
+    selectedJourneys.size ? selectedJourneys.has(result.name) : !workflow || workflow.journeys.has(result.name),
+  );
   const skipped =
     failed.length === 0 &&
     (requested.length === 0 ||
       (selectedJourneys.size && requested.length !== selectedJourneys.size) ||
+      (!selectedJourneys.size && workflow && requested.length !== workflow.journeys.size) ||
       requested.some((result) => result.skipped));
-  const name = selectedJourneys.size ? `Selected Desktop Journeys: ${[...selectedJourneys].join(", ")}` : "Desktop Backend Walkthrough";
+  const name = selectedJourneys.size
+    ? `Selected Desktop Journeys: ${[...selectedJourneys].join(", ")}`
+    : (workflow?.title ?? "Desktop Backend Walkthrough");
   const seconds = (performance.now() - walkthroughStarted) / 1000;
   const detail = cases
     .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)
@@ -4891,7 +4965,8 @@ async function startSecretService() {
 
 async function main() {
   if (!windows && process.platform !== "linux") throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
-  if (releaseValidation && selectedJourneys.size) throw new Error("Installed release validation requires every maintained journey.");
+  if (releaseValidation && (selectedJourneys.size || workflow))
+    throw new Error("Installed release validation requires every maintained journey.");
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
@@ -4965,7 +5040,7 @@ async function main() {
     );
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
     await journey("history", () => historyJourney(session, cycleId, library.value.title, library.value.measuringExecutionId));
-  } else {
+  } else if (!library.skipped) {
     for (const name of ["cycle", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
@@ -5024,7 +5099,7 @@ async function main() {
 }
 
 /* Mechanical Native Fixture Shared By Independent Desktop Stories. */
-export { startBackend, startSession, stopBackend, until, unusedPort, chooseNativeFile, terminate };
+export { chooseNativeFile, startBackend, startSession, stopBackend, terminate, until, unusedPort };
 
 export async function openNativeReport(path) {
   const reopened = await fetch(reportBrowser.endpoint, {

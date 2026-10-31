@@ -148,6 +148,7 @@ pub(crate) async fn blocking_run_drains_and_preserves_work_after_callback_error(
     owner.shutdown().await.unwrap();
 }
 
+#[tracing::instrument(skip_all)]
 pub(crate) async fn queued_run_outlives_the_idle_deadline() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
@@ -183,10 +184,22 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
         ..Default::default()
     };
     let execution = client.execution(dokime::TestExecutionId::from_uuid(second.clone()).unwrap());
-    // The Default Client Idle Deadline Applies; Await Enough Delivered Heartbeats To Pass It.
+    // Keep Real Network I/O From Advancing The Paused Clock On Its Own.
+    let (clock_release, wait) = std::sync::mpsc::channel::<()>();
+    let (entered, ready) = tokio::sync::oneshot::channel();
+    let held = tokio::task::spawn_blocking(move || {
+        let _ = entered.send(());
+        let _ = wait.recv();
+    });
+    ready.await.unwrap();
+
+    // Cross The Default Idle Deadline Through Delivered Heartbeats, Without A Wall-Clock Wait.
     let idle = std::time::Duration::from_millis(client.settings().request_timeout_ms);
     let heartbeat = dokime_server::grpc::WATCH_HEARTBEAT;
-    let beats = usize::try_from(idle.as_millis() / heartbeat.as_millis()).unwrap();
+    assert!(heartbeat < idle);
+    let step = heartbeat + (idle - heartbeat) / 2;
+    assert!(heartbeat < step && step < idle);
+    let beats = usize::try_from(idle.as_nanos() / step.as_nanos()).unwrap() + 1;
     let running = execution.run(
         options,
         dokime::client::RunCallbacks {
@@ -197,12 +210,17 @@ pub(crate) async fn queued_run_outlives_the_idle_deadline() {
     let release = async {
         record_pages.wait_for(|count| *count > 0).await.unwrap();
         sample_pages.wait_for(|count| *count > 0).await.unwrap();
-        for _ in 0..=beats {
+        tokio::time::pause();
+        for _ in 0..beats {
             let previous_records = *record_pages.borrow();
             let previous_samples = *sample_pages.borrow();
+            tokio::time::advance(step).await;
             record_pages.wait_for(|count| *count > previous_records).await.unwrap();
             sample_pages.wait_for(|count| *count > previous_samples).await.unwrap();
         }
+        tokio::time::resume();
+        drop(clock_release);
+        held.await.unwrap();
         let queued = gate.calls.load(std::sync::atomic::Ordering::SeqCst);
         let quiet = (*records.borrow(), *samples.borrow());
         gate.release.notify_one();

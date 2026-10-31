@@ -256,8 +256,6 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     for extension in extensions {
         Box::pin(scenario(client, endpoint, root, extension, "test")).await;
         Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
-        Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
-        Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
         if *extension != "py" {
             Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
             Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
@@ -270,6 +268,22 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     let saved = other_execution.wait(None, None).await.unwrap();
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
     Box::pin(partial_capture(client, endpoint, root)).await;
+}
+
+pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
+    std::fs::create_dir_all(root).unwrap();
+    let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
+    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
+    for extension in extensions {
+        Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
+        Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
+        let summary = other_execution.snapshot().await.unwrap();
+        assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script disconnect");
+        assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
+    }
+    other_cycle.seal().await.unwrap();
+    let saved = other_execution.wait(None, None).await.unwrap();
+    assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 }
 
 /* === Private Functions === */

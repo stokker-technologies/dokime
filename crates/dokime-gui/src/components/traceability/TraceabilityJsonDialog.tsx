@@ -20,7 +20,7 @@ import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { saveNativeDocument } from "@/lib/api/native-delivery";
+import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { type TraceabilityExportName, traceabilityJson, traceabilityJsonFilename } from "@/lib/traceability";
 import type { TraceabilitySnapshot } from "@/lib/types";
