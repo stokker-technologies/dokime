@@ -451,7 +451,7 @@ pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[Docume
 
 /* === Private Functions === */
 
-fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
+pub(crate) fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     visit_dimension_context(execution, |key, value| insert_context_value(&mut context, key, value));
     context

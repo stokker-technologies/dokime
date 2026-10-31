@@ -587,7 +587,7 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     stream: payload.stream,
     x_key: payload.xKey,
     series_by: payload.seriesBy ?? null,
-    context: nativeValueObjectToJson(payload.context) as PlotPayload["context"],
+    context: nativeValueObjectToJson(payload.context),
     series: payload.series.map(mapNativePlotSeries),
     analysis: mapNativePlotAnalysis(payload.analysis),
     computed: mapNativeComputation(payload.computed),

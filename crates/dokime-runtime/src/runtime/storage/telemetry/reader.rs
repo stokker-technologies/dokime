@@ -65,7 +65,7 @@ impl TelemetryReader {
         Self::selected(view, local, Some(stream), None, after, settings).await
     }
 
-    async fn selected(
+    pub(in crate::runtime::storage) async fn selected(
         view: &ExecutionView, local: &crate::storage::sqlite::State, stream: Option<&Identifier>, version: Option<u32>, after: u64,
         settings: &harmos::config::SchemaSettings,
     ) -> Result<Self> {

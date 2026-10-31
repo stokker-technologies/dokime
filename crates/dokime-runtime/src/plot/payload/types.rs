@@ -252,7 +252,7 @@ pub struct PlotPayloadDiagnostics {
     pub window_s: Option<f64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PlotSeries {
     pub key: String,
@@ -266,7 +266,7 @@ pub struct PlotSeries {
     pub format: Option<ValueFormat>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PlotPoint {
     // Both native value types encode the same recursive JSON vocabulary.

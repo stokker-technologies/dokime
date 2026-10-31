@@ -368,6 +368,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(telemetry::SCHEMA)?;
     transaction.execute_batch(telemetry::aggregates::SCHEMA)?;
     transaction.execute_batch(telemetry::previews::SCHEMA)?;
+    transaction.execute_batch(crate::plot::preview::index::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     initialize_head(&transaction, expected.as_ref())?;
@@ -401,6 +402,7 @@ where
     let transaction = connection.transaction()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
+    let mut plots = crate::plot::preview::index::Batch::default();
     for (value, entry) in values.iter().zip(encoded) {
         let value = Borrowed::from(value);
         // Exact Retries Of Saved Positions Must Repeat The Same Bytes.
@@ -443,9 +445,11 @@ where
         }
         if let Borrowed::Record(row) = value {
             records::index(&transaction, row)?;
+            plots.record(&transaction, row)?;
         }
         head.sequence = entry.position;
     }
+    plots.save(&transaction)?;
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
     super::commit(transaction)?;
     super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

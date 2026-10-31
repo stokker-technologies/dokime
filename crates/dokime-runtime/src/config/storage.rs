@@ -68,6 +68,10 @@ pub fn managed_storage_defaults() -> ManagedStorageSettings {
 pub fn local_storage_defaults() -> crate::storage::sqlite::Settings {
     crate::storage::sqlite::Settings {
         previews: crate::storage::sqlite::PreviewSettings {
+            exact_points: NonZeroUsize::new(2_000).unwrap(),
+            grid_columns: NonZeroUsize::new(64).unwrap(),
+            grid_rows: NonZeroUsize::new(64).unwrap(),
+            groups: NonZeroUsize::new(256).unwrap(),
             report_concurrency: NonZeroUsize::new(4).unwrap(),
             bucket_count: NonZeroUsize::new(256).unwrap(),
             bucket_interval: std::time::Duration::from_millis(1),

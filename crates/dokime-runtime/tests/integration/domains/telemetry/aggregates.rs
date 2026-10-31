@@ -60,7 +60,11 @@ impl ExecutionFixture for NumericFixture {
                             dokime_runtime::model::identity::new_id(),
                             identifier("tracking"),
                             (page * 3 + index) as u64,
-                            dokime_runtime::model::time::now_utc(),
+                            dokime_runtime::Timestamp::new(
+                                (time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds((page * 3 + index) as i64))
+                                    .format(&time::format_description::well_known::Rfc3339)
+                                    .unwrap(),
+                            ),
                             "testdb",
                         );
                         sample.scope = Some(scope.clone());
@@ -77,6 +81,88 @@ impl ExecutionFixture for NumericFixture {
                     .await
                     .unwrap();
                 storage.flush().await.unwrap();
+            }
+            for scan in 0..3 {
+                let stamp = dokime_runtime::Timestamp::new(
+                    (time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(scan))
+                        .format(&time::format_description::well_known::Rfc3339)
+                        .unwrap(),
+                );
+                for (stream, values) in [
+                    (
+                        "host.wifi.scan",
+                        std::collections::BTreeMap::from([
+                            ("wifi_channel".into(), Value::Integer(1)),
+                            ("network_count".into(), Value::Integer(scan + 1)),
+                        ]),
+                    ),
+                    (
+                        "host.wifi.scan",
+                        std::collections::BTreeMap::from([
+                            ("wifi_channel".into(), Value::Integer(6)),
+                            ("network_count".into(), Value::Integer(scan + 2)),
+                        ]),
+                    ),
+                    (
+                        "host.wifi.link",
+                        std::collections::BTreeMap::from([
+                            ("wifi_ssid".into(), Value::from("fixture-network")),
+                            ("wifi_radio".into(), Value::from("radio-2")),
+                            ("wifi_channel".into(), Value::Integer(6)),
+                            ("wifi_rssi_dbm".into(), Value::Number(-61.0 + scan as f64)),
+                        ]),
+                    ),
+                    (
+                        "host.system",
+                        std::collections::BTreeMap::from([
+                            ("cpu_load_percent".into(), Value::Number(12.0 + scan as f64)),
+                            ("memory_pressure_percent".into(), Value::Number(42.0 + scan as f64)),
+                        ]),
+                    ),
+                ] {
+                    let mut sample = TelemetrySample::new(
+                        dokime_runtime::model::identity::new_id(),
+                        identifier(stream),
+                        scan as u64,
+                        stamp.clone(),
+                        "testdb",
+                    );
+                    sample.scope = Some(scope.clone());
+                    sample.values = values;
+                    context
+                        .publish_telemetry_batch(TelemetryBatch::new(
+                            dokime_runtime::model::identity::new_id(),
+                            identifier(stream),
+                            vec![typed_fixture_sample(sample)],
+                        ))
+                        .await
+                        .unwrap();
+                    storage.flush().await.unwrap();
+                }
+            }
+            for index in 0..3 {
+                for (kind, state, seconds) in [
+                    ("tool.connection.lost", "disconnected", index * 10),
+                    ("tool.connection.acquired", "connected", index * 10 + index + 1),
+                ] {
+                    let mut record = dokime_domain::model::records::publication::RecordPublishRequest::new(
+                        identifier(kind),
+                        dokime_runtime::records::RecordSeverity::Info,
+                    );
+                    record.scope = Some(scope.clone());
+                    record.timestamp = Some(dokime_runtime::Timestamp::new(
+                        (time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(seconds))
+                            .format(&time::format_description::well_known::Rfc3339)
+                            .unwrap(),
+                    ));
+                    record.details = std::collections::BTreeMap::from([
+                        ("resource_id".into(), Value::from("fixture")),
+                        ("resource_kind".into(), Value::from("tool")),
+                        ("connection_state".into(), Value::from(state)),
+                    ]);
+                    context.publish_record(record).await.unwrap();
+                    storage.flush().await.unwrap();
+                }
             }
             Ok(custom_outcome(cycle))
         })
@@ -108,11 +194,38 @@ async fn exact_numeric_outputs() {
     plot.id("fixture.numeric");
     plot.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     section.plot(plot);
+    let mut scatter = dokime_runtime::document::Plot::xy_scatter("Easting / Northing");
+    scatter.id("fixture.scatter");
+    scatter.x(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
+    scatter.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
+    section.plot(scatter);
+    let mut reconnect = dokime_runtime::document::Plot::time_series("Time To Reconnect Tool");
+    reconnect.y(dokime_runtime::expressions::record("tool.connection.acquired").time_between("tool.connection.lost"));
+    section.plot(reconnect);
+    let mut occupancy = dokime_runtime::document::PlotDefinition::with_type(
+        "Wi-Fi Channel Occupancy",
+        dokime_runtime::document::PlotType::WifiChannelOccupancy,
+    );
+    occupancy.stream = Some("host.wifi.scan".into());
+    occupancy.x = Some("timestamp".into());
+    occupancy.y = vec!["network_count".into()];
+    occupancy.series_by = Some("wifi_channel".into());
+    section.plot(occupancy);
+    let mut rssi = dokime_runtime::document::Plot::time_series("Wi-Fi RSSI");
+    rssi.y(dokime_runtime::expressions::telemetry("host.wifi.link", "wifi_rssi_dbm").label("fixture.signal"));
+    rssi.unit("dBm");
+    section.plot(rssi);
+    let mut load = dokime_runtime::document::Plot::time_series("Host Load");
+    load.y(dokime_runtime::expressions::telemetry("host.system", "cpu_load_percent").label("fixture.cpu"));
+    load.y(dokime_runtime::expressions::telemetry("host.system", "memory_pressure_percent").label("fixture.memory"));
+    load.unit("%");
+    section.plot(load);
     document.section(section);
     for template in &mut suite.test_case_templates {
         template.document = Some(document.clone());
     }
     register_custom_suite(&runtime, suite.clone()).await;
+    let suite = runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == "provider:testdb:custom.suite").unwrap().suite;
     let cycle = start_cycle(&runtime, suite).await;
     let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
@@ -151,12 +264,47 @@ async fn exact_numeric_outputs() {
     let mut report = runtime.open_execution_report(&execution.test_execution_id).await.unwrap();
     let html = crate::service_support::reports::opened_bytes(&mut report).await;
     let payload = crate::service_support::reports::parse(std::str::from_utf8(&html).unwrap());
-    let plot = payload["case_runs"][0]["plots"].as_object().unwrap().values().next().unwrap();
+    let plots = payload["case_runs"][0]["plots"].as_object().unwrap();
+    let plot =
+        plots.values().find(|plot| plot["x_key"] == "timestamp" && plot["stream"] == "tracking" && plot["series_by"].is_null()).unwrap();
+    assert_eq!(plot["cartesian"]["mode"], "aligned");
+    assert!(!plot["cartesian"]["series"][0]["x"].as_array().unwrap().is_empty());
+    let scatter = plots.values().find(|plot| plot["cartesian"]["mode"] == "faceted").unwrap();
+    let mut pairs: Vec<_> = scatter["series"][0]["points"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|point| (point["x"].as_f64().unwrap(), point["y"].as_f64().unwrap()))
+        .collect();
+    pairs.sort_by(|left, right| left.0.total_cmp(&right.0));
+    let mut reference = VALUES.iter().map(|value| (*value, *value)).collect::<Vec<_>>();
+    reference.sort_by(|left, right| left.0.total_cmp(&right.0));
+    assert_eq!(pairs, reference);
+    let reconnect = plots.values().find(|plot| plot["series"][0]["unit"] == "s").unwrap();
+    assert_eq!(
+        reconnect["series"][0]["points"].as_array().unwrap().iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(),
+        vec![1.0, 2.0, 3.0]
+    );
+    assert_eq!(reconnect["cartesian"]["mode"], "aligned");
+    let occupancy = plots.values().find(|plot| plot["analysis"]["kind"] == "wifi_occupancy").unwrap();
+    assert_eq!(occupancy["analysis"]["channels"], serde_json::json!([1, 6]));
+    assert_eq!(occupancy["analysis"]["scans"].as_array().unwrap().last().unwrap()["total_networks"], 7);
+    assert_eq!(occupancy["series"].as_array().unwrap().iter().map(|series| series["raw_points"].as_u64().unwrap()).sum::<u64>(), 6);
     assert_eq!(plot["series"][0]["raw_points"], VALUES.len());
     let points = plot["series"][0]["points"].as_array().unwrap();
     assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).fold(f64::INFINITY, f64::min), -7.0);
     assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).fold(f64::NEG_INFINITY, f64::max), 99.0);
     assert_eq!(plot["summaries"][0]["count"], VALUES.len());
+    let rssi = plots.values().find(|plot| plot["stream"] == "host.wifi.link").unwrap();
+    assert_eq!(rssi["series"][0]["unit"], "dBm");
+    assert_eq!(rssi["context"]["wifi_ssid"]["value"], "fixture-network");
+    assert_eq!(rssi["context"]["wifi_radio"]["value"], "radio-2");
+    assert_eq!(rssi["cartesian"]["point_count"], 3);
+    let load = plots.values().find(|plot| plot["stream"] == "host.system").unwrap();
+    assert_eq!(load["series"].as_array().unwrap().len(), 2);
+    assert!(load["series"].as_array().unwrap().iter().all(|series| series["unit"] == "%"));
+    assert_eq!(load["cartesian"]["mode"], "aligned");
+    assert_eq!(load["cartesian"]["point_count"], 6);
     drop(report);
     let connection = dokime_runtime::storage::sqlite::rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
     let envelope: Vec<u8> = connection

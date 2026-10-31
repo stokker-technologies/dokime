@@ -49,6 +49,7 @@ pub(crate) struct Evidence {
     pub(crate) samples: Vec<StoredRow>,
     pub(crate) fields: Vec<previews::FieldPreview>,
     pub(crate) exact: Vec<aggregates::NumericSummary>,
+    pub(crate) plots: std::collections::BTreeMap<String, crate::plot::preview::index::Checkpoint>,
 }
 
 /* === Enums === */
@@ -97,6 +98,7 @@ impl State {
                             }
                         }
                     }
+                    let plots = crate::plot::preview::index::checkpoints(connection, &request.execution, through.sequence)?;
                     let records =
                         previews::report_record_rows(connection, request.execution.clone(), request.cycle, through.clone(), request.rows)?;
                     let mut samples = Vec::new();
@@ -117,6 +119,7 @@ impl State {
                         samples,
                         fields,
                         exact,
+                        plots,
                     });
                 }
                 Ok(evidence)

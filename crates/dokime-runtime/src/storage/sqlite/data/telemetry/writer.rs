@@ -98,6 +98,8 @@ impl Store {
         let mut head = saved(connection)?;
         let mut groups: BTreeMap<String, Vec<(u64, Admitted)>> = BTreeMap::new();
         let mut admitted = Vec::new();
+        // Plot Previews Fold The Normalized Admission; Their Checkpoints Commit With The Catalog Below.
+        let mut plots = crate::plot::preview::index::Batch::default();
         for row in rows {
             head.history.check(&row.record.position.history)?;
             if row.record.position.sequence <= head.sequence {
@@ -123,6 +125,7 @@ impl Store {
             }
             let mut entry = stream.codec.decode_admission(row)?;
             ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
+            plots.sample(connection, row, &entry.entry.sample)?;
             groups.entry(id).or_default().push((row.record.position.sequence, entry));
             admitted.push(row);
             head.sequence = row.record.position.sequence;
@@ -231,7 +234,7 @@ impl Store {
                     params![id, catalog::integer(checkpoint.end)?, stream.writer.digest().as_slice()],
                 )?;
             }
-            // Report Aggregates And Preview Envelopes Share The Catalog Commit That Publishes Their Batches.
+            // Report Aggregates, Preview Envelopes And Plot Previews Share The Catalog Commit That Publishes Their Batches.
             let mut aggregates = super::aggregates::Batch::default();
             let mut previews = super::previews::Batch::new(self.settings.previews);
             for row in &admitted {
@@ -239,6 +242,7 @@ impl Store {
             }
             aggregates.save(&transaction)?;
             previews.save(&transaction)?;
+            plots.save(&transaction)?;
             transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
             super::super::super::commit(transaction)?;
             Ok(head)
