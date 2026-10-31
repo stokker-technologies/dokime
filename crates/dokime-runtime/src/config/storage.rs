@@ -78,6 +78,8 @@ pub fn local_storage_defaults() -> crate::storage::sqlite::Settings {
         },
         readers: storage_defaults().request.max_active_queries,
         checkpoint_pages: std::num::NonZeroU32::new(16_384).unwrap(),
+        telemetry_rows: std::num::NonZeroUsize::new(65_536).unwrap(),
+        telemetry_interval: std::time::Duration::from_secs(5),
     }
 }
 

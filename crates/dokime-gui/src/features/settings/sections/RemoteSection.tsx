@@ -31,6 +31,7 @@ import { ApplicationPreferences } from "@/features/settings/ApplicationPreferenc
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
+import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
 import {
   commitListener,
   type ListenerChange,
@@ -187,6 +188,9 @@ function ListenerControls({
 
   return (
     <>
+      {session.snapshot.ownership === "owned_local" && (
+        <FirewallNotice generation={session.identity.generation} listenerAddress={status.listeningAddress} enabled={settings.enabled} />
+      )}
       <SettingsCard
         title="Effective Listener State"
         footer={

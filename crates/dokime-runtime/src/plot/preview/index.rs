@@ -84,13 +84,15 @@ impl Batch {
         Ok(())
     }
 
-    pub(crate) fn sample(&mut self, connection: &Connection, row: &harmos::storage::StoredRow) -> Result<(), Error> {
+    // Telemetry Arrives Already Decoded And Normalized To Its Arrow Contract, Matching What Replay Reads Back.
+    pub(crate) fn sample(
+        &mut self, connection: &Connection, row: &harmos::storage::StoredRow, sample: &crate::telemetry::TelemetrySample,
+    ) -> Result<(), Error> {
         let Some(execution) = row.record.scope.as_ref() else { return Ok(()) };
         if !row.record.schema.id.as_str().starts_with("dokime.telemetry.") {
             return Ok(());
         }
         self.load(connection, execution.as_str())?;
-        let mut decoded = None;
         for ((owner, _), (through, plan)) in &mut self.plans {
             if owner != execution.as_str() || row.record.position.sequence <= *through {
                 continue;
@@ -99,16 +101,7 @@ impl Batch {
             {
                 continue;
             }
-            if decoded.is_none() {
-                let Some(contract) = plan.contracts.iter().find(|contract| {
-                    contract.stream.as_str() == row.stream.as_str() && contract.schema_version == row.record.schema.version.get()
-                }) else {
-                    continue;
-                };
-                let codec = crate::storage::telemetry::codec(contract, &crate::config::schema_defaults())?;
-                decoded = Some(codec.decode_stored(row)?.sample);
-            }
-            let mut sample = decoded.as_ref().expect("decoded sample").clone();
+            let mut sample = sample.clone();
             for (key, value) in &plan.context {
                 sample.values.entry(key.clone()).or_insert_with(|| value.clone());
             }

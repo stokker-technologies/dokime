@@ -150,13 +150,10 @@ impl Manager {
         let _cancel_on_drop = cancellation.clone().drop_guard();
         let manager = self.clone();
         let storage = runtime.storage().clone();
-        let schema_settings = *runtime.schema_settings();
+        let local = runtime.local_storage.clone();
         let executor = tokio::runtime::Handle::current();
         // SQLite And ZIP I/O Stay On The Blocking Worker; Native Reads Remain Async.
-        tokio::task::spawn_blocking(move || {
-            executor.block_on(build(manager, storage, subject, cancellation, permit, work, schema_settings))
-        })
-        .await?
+        tokio::task::spawn_blocking(move || executor.block_on(build(manager, storage, local, subject, cancellation, permit, work))).await?
     }
 }
 
@@ -266,8 +263,8 @@ async fn read_source(mut reader: FileReader, source: Arc<Source>) -> (FileReader
 }
 
 async fn build(
-    manager: Manager, storage: crate::storage::Manager, subject: EvidenceSubject, cancellation: CancellationToken,
-    permit: OwnedSemaphorePermit, work: TaskTrackerToken, schema_settings: harmos::config::SchemaSettings,
+    manager: Manager, storage: crate::storage::Manager, local: crate::storage::sqlite::State, subject: EvidenceSubject,
+    cancellation: CancellationToken, permit: OwnedSemaphorePermit, work: TaskTrackerToken,
 ) -> Result<Bundle> {
     let Manager { root, .. } = manager;
     let mut directory = std::fs::DirBuilder::new();
@@ -295,17 +292,27 @@ async fn build(
             return Err(Error::Cancelled);
         }
         let view = snapshot.execution(selected).await?;
-        let counts = database.execution(&view, &cancellation, &mut budget, &schema_settings).await?;
+        let mut counts = database.execution(&view, &cancellation, &mut budget).await?;
         let id = selected.execution_id.as_str();
+        let cycle = matches!(snapshot.subject, EvidenceSubject::Cycle(_));
+        for file in local.telemetry_files(id.to_owned()).await? {
+            let path =
+                if cycle { format!("executions/{id}/telemetry/{}.arrow", file.stream) } else { format!("telemetry/{}.arrow", file.stream) };
+            archive.telemetry(&path, &file, storage.settings().response.batch_bytes.get(), &mut budget)?;
+            database.telemetry(id, &file, &path, &mut budget)?;
+            counts.samples = counts.samples.checked_add(file.rows).ok_or(Error::TooLarge)?;
+        }
         for (index, output) in view.outputs()?.iter().enumerate() {
-            let archive_path = archive::output_path(id, index, &output.relative_path);
+            let archive_path = archive::output_path(cycle.then_some(id), &output.relative_path)?;
             let reader = view.read_file(&output.file, ByteRange { offset: 0, limit: None }).await?;
             archive.stored_file(&archive_path, Some(&output.relative_path), output.file.clone(), reader, &mut budget).await?;
             database.output(id, index, &archive_path, output)?;
         }
         let report = &view.execution().saved.as_ref().ok_or(Error::Unsealed("execution"))?.report;
         let reader = view.read_file(report, ByteRange { offset: 0, limit: None }).await?;
-        archive.stored_file(&format!("reports/execution-{id}.html"), None, report.clone(), reader, &mut budget).await?;
+        let report_path = format!("reports/execution-{id}.html");
+        database.file(report, &report_path, "report")?;
+        archive.stored_file(&report_path, None, report.clone(), reader, &mut budget).await?;
         let inventory = ExecutionInventory {
             revision: view.checkpoint()?,
             captured_at: view.captured_at()?.clone(),
@@ -323,7 +330,9 @@ async fn build(
                 range: ByteRange { offset: 0, limit: None },
             })
             .await?;
-        archive.stored_file(&format!("reports/cycle-{}.html", snapshot.cycle_id), None, report.clone(), reader, &mut budget).await?;
+        let report_path = format!("reports/cycle-{}.html", snapshot.cycle_id);
+        database.file(report, &report_path, "report")?;
+        archive.stored_file(&report_path, None, report.clone(), reader, &mut budget).await?;
     }
     let streams = database.finish()?;
     let reader = storage

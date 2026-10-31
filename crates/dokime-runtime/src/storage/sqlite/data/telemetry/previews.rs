@@ -212,25 +212,65 @@ impl crate::storage::sqlite::State {
     pub(crate) async fn report_sample_rows(
         &self, execution: String, stream: String, at: harmos::storage::StorageCursor, limit: usize,
     ) -> Result<Vec<harmos::storage::StoredRow>, Error> {
+        let Some(rows) = std::num::NonZeroUsize::new(limit) else { return Ok(Vec::new()) };
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         self.read(move |connection| {
             Ok((|| {
                 let head = super::super::saved(connection)?;
                 head.history.check(&at.history)?;
+                let scan = |after: u64| {
+                    super::super::Scan::new(
+                        "stream",
+                        at.sequence,
+                        0,
+                        harmos::storage::ScanPage {
+                            after,
+                            rows,
+                            bytes: std::num::NonZeroUsize::MAX,
+                        },
+                    )
+                    .filter("scope", Some(execution.clone()))
+                    .filter("stream", Some(stream.clone()))
+                };
                 let mut selected = BTreeMap::new();
-                for order in ["ASC", "DESC"] {
-                    let sql = format!("SELECT body,digest FROM storage_data_entries WHERE kind='stream' AND scope=?1 AND stream=?2 AND position<=?3 ORDER BY position {order} LIMIT ?4");
-                    let mut query = connection.prepare(&sql)?;
-                    let mut rows = query.query(params![execution, stream, super::super::position(at.sequence), limit as i64])?;
-                    while let Some(row) = rows.next()? {
-                        let body = super::super::blob(row, 0)?;
-                        super::super::check_digest(body, super::super::blob(row, 1)?)?;
-                        let super::super::Entry::Stream(row) = super::super::Entry::decode("stream", body)? else { unreachable!() };
-                        selected.insert(row.record.position.sequence, row);
+                for row in super::reader::stored(connection, &root, &scan(0))? {
+                    selected.insert(row.record.position.sequence, row);
+                }
+                // The Batch Index Locates The Final Rows Without Reading Earlier Flushed Batches.
+                let mut batches = connection.prepare(
+                    "SELECT b.rows,b.first_position FROM stream_batches b JOIN streams s ON s.file_id=b.file_id
+                     WHERE s.execution=?1 AND s.stream=?2 AND b.first_position<=?3 ORDER BY b.last_position DESC",
+                )?;
+                let mut candidates = batches.query(params![execution, stream, super::super::position(at.sequence)])?;
+                let (mut counted, mut first) = (0_u64, None::<String>);
+                while let Some(row) = candidates.next()? {
+                    counted = counted.saturating_add(u64::try_from(row.get::<_, i64>(0)?).unwrap_or_default());
+                    first = Some(row.get(1)?);
+                    if counted >= limit as u64 {
+                        break;
                     }
+                }
+                let Some(first) = first else { return Ok(selected.into_values().collect()) };
+                let mut after = super::super::sequence(&first)?.saturating_sub(1);
+                let mut last = std::collections::VecDeque::with_capacity(limit);
+                loop {
+                    let page = super::reader::stored(connection, &root, &scan(after))?;
+                    let Some(end) = page.last().map(|row| row.record.position.sequence) else { break };
+                    for row in page {
+                        if last.len() == limit {
+                            last.pop_front();
+                        }
+                        last.push_back(row);
+                    }
+                    after = end;
+                }
+                for row in last {
+                    selected.insert(row.record.position.sequence, row);
                 }
                 Ok(selected.into_values().collect())
             })())
-        }).await?
+        })
+        .await?
     }
 
     pub(crate) async fn report_record_rows(

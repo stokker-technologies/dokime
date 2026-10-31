@@ -40,6 +40,17 @@ pub enum Catalog {
     Bluetooth(Bluetooth),
 }
 
+#[dokime::catalog]
+pub enum Evidence {
+    System(System),
+    Network(Network),
+    WifiLink(WifiLink),
+    WifiScan(WifiScan),
+    WifiLatency(WifiLatency),
+    Bluetooth(Bluetooth),
+    Control(super::cpu::load::LoadControl),
+}
+
 /* === Traits === */
 
 /* === Implementations === */

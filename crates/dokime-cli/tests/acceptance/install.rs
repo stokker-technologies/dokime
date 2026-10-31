@@ -236,15 +236,6 @@ impl dokime::harmos::Lifecycle for Fixture {
         setup.operations::<Discovery>(Lanes::Open);
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> dokime::harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> dokime::harmos::Result<()> {
-        Ok(())
-    }
 }
 
 /* === Public Functions === */

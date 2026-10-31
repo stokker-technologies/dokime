@@ -29,24 +29,17 @@ pub use observing::{NetworkObserver, State};
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use crate::HostTelemetryStream;
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
+use dokime::harmos::operations::OperationPolicy;
 use dokime::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Constants === */
 
-const BUDGET: Duration = Duration::from_millis(2000);
-pub const POLICY: OperationPolicy = OperationPolicy {
-    timeout: BUDGET,
-    attempt_timeout: BUDGET,
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: RetryPolicy::Never,
-};
+pub const POLICY: OperationPolicy = crate::settings::collection_policy(crate::settings::NETWORK_BUDGET_MS);
 
 /* === Macros === */
 

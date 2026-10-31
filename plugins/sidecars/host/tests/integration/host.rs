@@ -146,9 +146,11 @@ fn executable_declares_host() {
     assert_eq!(declared.version.to_string(), env!("CARGO_PKG_VERSION"));
     let streams = declared.streams.iter().map(|stream| stream.id.as_str()).collect::<std::collections::BTreeSet<_>>();
     let expected = plugin_host::host_stream_identifiers();
-    let expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    let mut expected = expected.iter().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    expected.insert(<plugin_host::host::cpu::load::LoadControl as dokime::StreamSpec>::ID);
     assert_eq!(streams, expected);
     let operations = declared.operations.iter().map(|operation| operation.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+    assert!(operations.contains(<plugin_host::host::cpu::load::LoadHold as dokime::harmos::operations::OperationDeclaration>::ID));
     assert!(operations.contains("host.network.radio.set"));
     assert!(operations.contains("host.network.adapter.set"));
     assert!(operations.contains("host.power.plan.set"));

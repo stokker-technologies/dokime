@@ -43,7 +43,9 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. Export a `.dokime-remote` access file on the host and import or drop it
 on another desktop to connect. The desktop remembers that choice; operators do
-not need a source checkout.
+not need a source checkout. Windows installation needs no administrator rights;
+exposing remote access to other PCs may need an administrator to allow the app
+through Windows Firewall once on the exporting computer.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 
@@ -89,7 +91,7 @@ backend profiles and execution APIs; the [runnable examples](docs/remote/python.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `4e2669fa03cf5a123aa62de1aad0f042fb5cb381`)
+(currently pinned to revision `91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -162,9 +164,9 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing older stream-row formats, earlier plugin identities,
-or evidence indexes without incremental numeric summaries and report previews require a fresh storage
-root. Dokime reports incompatible data and never resets an existing root.
+Development roots containing earlier telemetry layouts, plugin identities,
+or evidence indexes without incremental numeric summaries and report previews require a fresh storage root.
+Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
@@ -183,7 +185,7 @@ and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
 Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
 for packaging, inspection and installation.
 
-Live plots display saved telemetry. The time-range slider filters storage queries:
+Live plots combine saved telemetry batches with the unflushed in-memory tail. The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 

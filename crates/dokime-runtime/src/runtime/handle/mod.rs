@@ -387,11 +387,11 @@ impl RuntimeHandle {
         let execution_storage = Arc::new(
             crate::runtime::storage::executions::ExecutionStorage::new(
                 storage.clone(),
+                local_state.clone(),
                 harmos_runtime.state.clone(),
                 process_id,
                 brand.clone(),
                 config.schema,
-                local_state.clone(),
                 config.local_storage.previews,
             )
             .await?,

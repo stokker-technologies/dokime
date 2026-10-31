@@ -160,9 +160,15 @@ access-key authentication are independent advanced settings; disable either
 only in an isolated lab. Changing interface names or explicitly reissuing the
 leaf preserves its CA and existing access keys.
 
-Windows NSIS installation adds an inbound application firewall rule scoped to
-**Private** networks, with administrator confirmation for that rule. Uninstall
-removes the installation's rule. Tauri installation defaults otherwise remain.
+Windows installation never needs administrator rights and does not change the
+firewall. On the computer exporting remote access, Settings → Remote Access checks
+Windows Firewall when the listener runs on a non-loopback address. If inbound access
+is blocked, **Allow In Firewall…** requests administrator approval to allow the app
+on **Private** networks once. Cancelled or refused approval leaves the app usable.
+Connecting to another backend only uses outbound access and needs no firewall rule.
+Disabling remote access attempts to remove this installation's rule without a UAC
+prompt; a standard user is told when cleanup needs an administrator. Per-user
+uninstall leaves any rule in place and never requests administrator access.
 On other platforms, permit the saved listener port through the host firewall.
 
 ## Full-Control Access And Plugin Capabilities
@@ -335,10 +341,17 @@ A sealed execution is exportable while its cycle stays Active. A cycle export
 requires its durable seal and includes every exact member revision. The ZIP
 contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
 reports. The manifest records source identities, revisions, row counts and
-payload checksums; SQLite exposes inputs, definitions, outcomes, records and
-typed stream columns. Query `streams` and `stream_columns` to find each stream's
-tables, field names and units. Wide streams use partitions joined by `m_row`.
-Canonical JSON retains nested values and unsigned integer identity.
+payload checksums. SQLite retains relational evidence and the `files`,
+`artifacts`, `streams` and `stream_summaries` catalogs. Telemetry is stored in
+ZSTD-compressed Arrow IPC files under `telemetry/<stream>.arrow`; exports copy
+those finalized files byte-for-byte. Each file contains typed `values` and
+`_storage` metadata. Timestamps use UTC microseconds. Arrow field metadata retains units,
+descriptions and stream identity; schema metadata identifies the execution, Dokime version and contract.
+
+Execution bundles place captured files under `artifacts/<relative path>`.
+Cycle bundles use `executions/<execution-id>/artifacts/` and
+`executions/<execution-id>/telemetry/`, with their saved cycle report in `reports/`.
+Telemetry is cataloged as a file and never appears as a captured artifact.
 
 Exports use saved storage snapshots and survive server restart. Missing
 required evidence fails the export. The server admits one export at a time,
@@ -452,6 +465,82 @@ opens a dialog; the monospace Identifier is the machine key, while Label is the
 human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
+
+#### Host Settings
+
+The host plugin declares its 20 settings in
+[`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
+Edit the host plugin form in **Settings → Plugins**, then use the existing
+Retry workflow or restart Dokime. Each startup resolves one settings snapshot.
+Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
+`1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
+the native default.
+
+| Probe Timing | Default | Allowed [ms] |
+| --- | ---: | ---: |
+| Network Inventory/Connectivity Timeout | 2,000 ms | 1–2,000 |
+| System Git Identity Timeout | 2,000 ms | 1–2,000 |
+| Existing CPU Calibration Window | 1,000 ms | 1–1,000 |
+| Unix Wi-Fi Link Command Timeout | 2,000 ms | 1–2,000 |
+| Unix Wi-Fi Scan Command Timeout | 12,000 ms | 1–12,000 |
+| Windows Active Wi-Fi Scan Window | 6,000 ms | 1–6,000 |
+| Unix Latency Process Timeout | 4,000 ms | 1–4,000 |
+| Echo Reply Timeout | 2,000 ms | 1–2,000 |
+| Unix Bluetooth D-Bus Method Timeout | 6,000 ms | 1–6,000 |
+| Bluetooth Deep Refresh Interval | 300,000 ms | 1–86,400,000 |
+| Unix Control D-Bus Method Timeout | 30,000 ms | 1–30,000 |
+| Windows Radio Settle Timeout | 15,000 ms | 1–15,000 |
+
+Sampling settings select the minimum throughput denominator (1 ms, allowed
+1–60,000 ms), congestion contribution (10 % per fully overlapping network,
+allowed 0.01–100), echo payload (32 bytes on Windows, 56 on Unix, allowed
+1–65,000 bytes), and existing calibration batch (4,096 iterations, allowed
+1–65,536). The active-scan minimum permits 1–3,600 s. Unix ping rounds the echo
+wait up to whole seconds; its independent process timeout still bounds it.
+Native Windows inventory calls remain synchronous and have no cancellable
+timeout API. Per-command and per-method waits do not replace the operation's
+overall deadline. Radio writes and inverse restoration use the same resolved
+native timing settings.
+
+Every stream's collection cadence is editable in **Collection Intervals**:
+
+| Stream | Default [ms] | Allowed [ms] |
+| --- | ---: | ---: |
+| System | 1,000 | 1–86,400,000 |
+| Network | 1,000 | 1–86,400,000 |
+| Wi-Fi Link | 1,000 | 1–86,400,000 |
+| Wi-Fi Scan | 60,000 | 1–86,400,000 |
+| Wi-Fi Latency | 10,000 | 1–86,400,000 |
+| Bluetooth | 5,000 | 1–86,400,000 |
+
+The producing observer resolves its cadence from the startup settings snapshot,
+overriding its declared initial interval. Both the declaration and settings default
+share one value in `settings.rs`. General process observers require
+`#[dokime::observer(interval_ms = …)]`; an optional synchronous
+`fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` overrides
+that default at activation.
+Consumers lease the stream without selecting its interval. Static schemas omit a
+nominal interval; demand comes from the owner's observer inventory. Minimum Scan
+Interval and Bluetooth Deep Refresh Interval independently protect native probes.
+An interval shorter than collection work does not overlap that observer's calls;
+missed ticks are skipped.
+
+Operation policies remain Harmos declarations: collection bounds are 2/2/2/12/4/6 s
+for system, network, link, scan, latency and Bluetooth; controls allow 30 s and
+restoration 60 s. These policies use no retries or cancellation grace. Making their
+timeout, attempt timeout, cancellation grace or retry/backoff policy configurable
+requires a separate Harmos operation-policy change. The 4,096-row publication
+window remains a static replay and notification-batch contract.
+
+Unit conversions, percent scales, native ABI layouts and enum discriminants,
+Wi-Fi channel/frequency mappings, congestion model identifiers, schema v1 and
+stream/operation identifiers retain their fixed meanings. CPU kernel arithmetic
+and accumulator layout define the existing calibration workload; its time
+window and batch size are settings. Windows ICMP reply storage follows the
+native API's required trailer layout. These are measurement or protocol
+definitions rather than deployment tunables.
+
+#### Ordinary Settings And Shared Secrets
 
 **Settings → Plugins** keeps ordinary plugin settings editable after startup
 fails. Its read-only **Required Secrets** list shows each declared identifier,
@@ -955,6 +1044,12 @@ The former top-level `new`, `build`, `package`, `dev` and `inspect` commands are
 replaced by the `sidecar` group.
 
 ### Native Installers
+
+Default Windows NSIS installers use `currentUser` mode and request user-level
+execution. Installation and uninstallation never need administrator rights; setup
+does not add or remove firewall rules. Exposing remote access to other PCs may need
+an administrator to allow the private-network firewall rule once in Settings →
+Remote Access on the exporting computer.
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1486,10 +1581,26 @@ patched in the shell rather than framed by the WebView.
 
 ## Long-Running Evidence And Report Saves
 
-Telemetry and captured records persist as they arrive with bounded pending
-queues and durable acknowledgement. Plots query saved evidence in bounded pages;
-changing a display window never deletes raw evidence. Recovery restores saved
-frontiers without replaying device actions.
+Telemetry admission retains a bounded in-memory tail. A flush writes a
+ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
+and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
+with the unflushed tail; historical reads retain their requested saved frontier.
+Changing a display window never deletes raw evidence. Only flushed batches are
+durable; accepted tail rows can be lost in a crash.
+
+`RuntimeConfig.local_storage.telemetry_rows` and `telemetry_interval` configure
+row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
+five seconds. Explicit evidence barriers and shutdown also drain pending rows.
+Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
+session-scoped files for telemetry outside executions. Finalize writes only the
+footer from the retained batch descriptors. Recovery rebuilds an interrupted
+footer from batch headers and catalog checkpoints without decoding sample bytes.
+Files close before rename or deletion on Windows.
+
+This experimental storage layout keeps the v1 baseline and requires a fresh
+root for incompatible development data. Existing roots are never reset or
+silently deleted. Captured records keep their bounded durable queue and recovery
+restores saved frontiers without replaying device actions.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.

@@ -217,7 +217,8 @@ async fn materialize_execution(
             let indexed = if indexed.is_none() && !crate::plot::preview::index::uses_numeric_mean(&request) {
                 let limits = local.preview_settings().into();
                 let preview =
-                    crate::runtime::storage::plot_previews::rebuild(inspection, &request, limits, &ctx.resources().schema_settings).await?;
+                    crate::runtime::storage::plot_previews::rebuild(inspection, local, &request, limits, &ctx.resources().schema_settings)
+                        .await?;
                 let run = execution.started_at.as_ref().map(ToString::to_string);
                 let cycle = captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string);
                 let context = crate::plot::PlotPayloadContext {

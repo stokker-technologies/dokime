@@ -158,9 +158,18 @@ pub(crate) fn plot(
     }
     let mut computed = Vec::new();
     if supported {
-        for field in
-            fields.iter().filter(|field| crate::plot::stream_matches_alias(&field.stream, &request.stream) && keys.contains(&field.field))
-        {
+        // Series Follow The Authored Key Order, Not The Preview Catalog's Field Order.
+        let mut ordered = Vec::new();
+        for key in &keys {
+            if ordered.contains(&key) {
+                continue;
+            }
+            ordered.push(key);
+        }
+        let selected = ordered.into_iter().flat_map(|key| {
+            fields.iter().filter(move |field| crate::plot::stream_matches_alias(&field.stream, &request.stream) && field.field == *key)
+        });
+        for field in selected {
             let mut envelope = field.envelope.clone();
             envelope.fit((maximum / 4).max(1))?;
             let count = envelope.buckets.values().map(|bucket| bucket.count).sum::<u64>() as usize;

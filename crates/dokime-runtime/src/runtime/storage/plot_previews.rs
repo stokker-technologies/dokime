@@ -45,9 +45,10 @@ use crate::runtime::Result;
 /* === Public Functions === */
 
 pub(crate) async fn rebuild(
-    view: &ExecutionView, request: &PlotPayloadRequest, limits: Limits, settings: &harmos::config::SchemaSettings,
+    view: &ExecutionView, local: &crate::storage::sqlite::State, request: &PlotPayloadRequest, limits: Limits,
+    settings: &harmos::config::SchemaSettings,
 ) -> Result<Preview> {
-    let mut telemetry = TelemetryReader::selected(view, None, None, 0, settings).await?;
+    let mut telemetry = TelemetryReader::selected(view, local, None, None, 0, settings).await?;
     let mut records = RecordReader::open(view, true).await?;
     let mut samples = VecDeque::new();
     let mut events = VecDeque::new();
