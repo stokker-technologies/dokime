@@ -1,6 +1,6 @@
 # Dokime Python Client
 
-Async remote control, live records and telemetry, and saved execution evidence.
+Async remote control, live records and telemetry, finite snapshot queries, and saved execution evidence.
 The Python package connects to a running Dokime backend. Its wheel and source
 package contain Python code and generated protobuf bindings; building Dokime's
 Rust applications is a separate backend operation.
@@ -361,7 +361,7 @@ async with DokimeClient(query_settings=QuerySettings(page_rows=500)) as client:
 Factories perform no I/O. Iteration pulls finite pages from the connected
 backend's local retained history, defaulting to unarchived rows. Summaries
 retain captured metadata and availability; they do not wait for completion.
-Use canonical statuses such as `passed` or `failed`; `completed` is invalid.
+Use canonical statuses such as `passed` or `failed`.
 `since`/`until` or `between` select half-open UTC windows; date strings mean
 midnight UTC. Naive datetimes are refused. Each reader permits one consumer.
 `pages()` exposes rows, captured schema, effective limits, snapshot, continuation
@@ -423,6 +423,64 @@ Sparse empty pages may continue. `page_rows`/`page_bytes` request smaller pages;
 the server advertises effective limits. `at=` accepts a query snapshot or saved
 `Checkpoint`. These finite readers never follow, start, stop or seal work;
 existing `records()`/`samples()` and checkpoint APIs retain their behavior.
+
+## Optional Dataframes
+
+Given an execution handle or discovery summary, convert record or telemetry
+queries with either [optional extra](#install). Construct a fresh reader for each
+conversion; item/page/collect/aggregate/dataframe consumption is exclusive.
+
+```python
+async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
+    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+    metadata = samples.metadata
+    assert metadata is not None and metadata.schema is not None
+    print(metadata.schema.fields, metadata.schema.versions)
+    print(samples.snapshot, samples.complete)
+
+async with execution.query_records("example.event") as records:
+    frame = await records.to_pandas(max_rows=10_000)
+    print(frame.attrs["dokime"])
+```
+
+Both helpers use finite `QuerySettings.max_rows`/`max_bytes` when omitted. The byte
+budget charges decoded rows and page metadata as for `collect`; dataframe
+allocation is an additional client cost, not a server dependency or a process
+memory ceiling. Limits and later page failures raise without returning a partial
+frame. `QueryDependencyError.extra` identifies a missing library and gives its
+installation command before fetching any page; the reader remains available for
+typed iteration.
+
+Rows keep query order. Raw frames begin with `@id`, `@timestamp`, `@received_at`,
+`@source`, `@schema_version`, plus records' `@severity`, followed by captured
+schema fields in their exact order with literal IDs, including dots. Bucket
+frames begin with `@start`, `@end`, `@execution_id`, `@source`, `@sample_count`,
+then the captured reduction fields. These envelope columns describe the frame;
+telemetry `fields=` still selects declared stream fields.
+
+| Captured Type | Polars | Pandas |
+| --- | --- | --- |
+| Int64 / Uint64 | Int64 / UInt64 | Nullable Int64 / UInt64 |
+| Integer (Signed/Unsigned Union) | Int128 | `object` (Exact Python Integers) |
+| Float64 | Float64 | Nullable Float64 |
+| Boolean | Boolean | Nullable boolean |
+| Text / Severity | String | string |
+| Datetime | Datetime(ns, UTC) | datetime64[ns, UTC] |
+
+Empty and all-null columns retain these dtypes. Integers above 2^53 stay exact;
+there is no float intermediate. Missing and explicit null values share a nullable
+frame cell; use typed iteration to distinguish them. Timestamps normalize to UTC
+without discarding nanoseconds. Nested Object/Array fields, mismatched values and
+timestamps outside the signed nanosecond range raise `QueryConversionError`
+with its `field`, including unsupported types in an empty selection. Narrow the
+projection or use typed rows; values are never stringified to make conversion fit.
+
+Pandas `frame.attrs["dokime"]` contains `schema`, `units`, `versions`, `projection`,
+`snapshot` and `complete`. For Polars, keep the originating reader: its
+`metadata.schema.fields` carries ordered field types, nullability and units,
+`metadata.schema.versions` carries captured versions, and `snapshot`/`complete`
+remain accessible after closing. This metadata comes from the captured contract,
+including when no rows match.
 
 ## Aggregate Queries
 

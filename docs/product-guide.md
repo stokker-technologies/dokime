@@ -993,6 +993,45 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+## Finite Evidence Queries
+
+The Python client discovers executions and cycles in the connected backend's
+local retained history, then selects records or projected telemetry at one fixed
+snapshot. These reads never start, stop, seal or follow an execution. Existing
+`records()`/`samples()` still replay and follow through the execution seal.
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            metadata = samples.metadata
+            assert metadata is not None
+            print(frame, metadata.schema, samples.snapshot, samples.complete)
+```
+
+The selected template/stream must be installed. Install the optional helper from
+the same matching wheel, for example
+`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
+The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
+
+Factories are lazy; `pages()` pulls on demand and exposes effective limits,
+captured schema, snapshot and completeness. Sparse empty pages can continue.
+`at=reader.snapshot` reuses a compatible cut after the first response; windows are
+half-open UTC intervals. Collections and dataframe helpers default to finite
+client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
+losing a later page raises without returning a partial materialization.
+Close abandoned readers with their async context or `aclose()`.
+
+The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
+Keep the returned continuation unchanged, including after an empty page, until
+`complete=true` with no continuation. The [remote Python guide](remote/python.md#query-retained-evidence)
+covers snapshot reuse, server statistics and optional wheel installs.
+
 ## CLI Reference
 
 The `dokime-cli` package installs the `dokime` executable.
@@ -1092,7 +1131,8 @@ queries. The [query contracts](query-api.md) describe page/failure shapes and
 The [Query API Foundations](query-api.md) describe the finite query declarations;
 the five operations share runtime handlers and existing read authorization.
 Use the generic operation command for [first and next pages](query-api.md#transport-access-and-cli-paging).
-High-level Python query readers remain pending their client slice.
+Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
+over those same contracts.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 

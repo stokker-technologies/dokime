@@ -94,6 +94,41 @@ close/cancellation prevents another fetch and leaves backend execution running.
 `records.complete` reports consumption; page metadata retains server completeness,
 schema, limits and snapshot after closing. No dataframe dependency is needed.
 
+### Optional Dataframes
+
+To add conversion to the copied tutorial project, select an extra on its matching
+wheel, then transfer the updated project and lock with that wheel:
+
+```sh
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra polars
+# Choose this instead for Pandas:
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra pandas
+uv sync --locked --python 3.13
+```
+
+Use the actual matching wheel version. Given an execution handle or summary:
+
+```python
+async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
+    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+    metadata = samples.metadata
+    assert metadata is not None
+    print(frame, metadata.schema, samples.snapshot, samples.complete)
+
+async with execution.query_records("example.event") as records:
+    frame = await records.to_pandas(max_rows=10_000)
+    print(frame.attrs["dokime"])
+```
+
+Only the selected helper imports its library. Missing extras raise
+`QueryDependencyError` before fetching. Both conversions enforce the same finite
+row/decoded-byte defaults as `collect`, preserve exact integers, nullable captured
+dtypes, literal field order and UTC nanoseconds, and fail atomically on limits or
+late page errors. Unsupported nested fields raise a field-specific
+`QueryConversionError`. See [dataframe types and metadata](../../packages/dokime-client/README.md#optional-dataframes).
+
+### Server Statistics
+
 For exact statistics on raw selected telemetry, use one awaited operation:
 
 ```python

@@ -31,10 +31,9 @@ The owner needs to ask for matching evidence from an execution and discover rele
 
 Owners: domain query/history/evidence/telemetry models; `crates/dokime-operations/src/query/`; runtime query/storage handlers; server operation registration/access mapping; generated Python/TypeScript descriptors; `packages/dokime-client`; generic CLI; maintained product/client documentation and focused verification fixtures.
 
-Server tasks 1.1–1.11 are implemented on `feat/query-api`, including runtime/server
-registration and generated consumers. The authorized 1.10–1.11 slice uses one
-local commit per task without pushing. Python client tasks 2.x and tabular helpers
-remain separately owned; do not open a PR or archive the change.
+Implementation ownership, acceptance and remaining combined review live in
+`tasks.md`. The authorized implementation slices use local commits without
+pushing; do not open a PR or archive the change.
 
 ## Scope Decisions
 

@@ -5,8 +5,8 @@ shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
 Record and telemetry query execution share that ownership.
 The five operations are callable through native and gRPC transports with generated
-low-level Python/TypeScript contracts. High-level Python readers remain with the
-client slice.
+low-level Python/TypeScript contracts. The [Python client](../packages/dokime-client/README.md#finite-evidence-queries)
+adds lazy readers, server statistics and [optional bounded dataframe conversion](../packages/dokime-client/README.md#optional-dataframes).
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |

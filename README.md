@@ -77,19 +77,35 @@ dokime operation list --backend lab
 ### Python
 
 The async Python client controls a running backend with owned cycle contexts,
-terminal evidence iterators and saved bundles with digest manifests. The distribution is `dokime-client`; imports use `dokime_client`.
+terminal evidence iterators and saved bundles with digest manifests. Lazy history
+and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
+bounded dataframes with captured types. The distribution is `dokime-client`; imports use `dokime_client`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
-Install the wheel from the same candidate as your backend:
+Install the wheel from the same candidate as your backend, selecting the optional
+extra for this dataframe example:
 
 ```sh
-uv add ./dokime_client-0.1.0-py3-none-any.whl
+uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
+```
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            print(frame, samples.metadata, samples.complete)
 ```
 
 The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles and execution APIs; the [runnable examples](docs/remote/python.md) retain their complete setup.
+backend profiles, [query limits and dataframe types](packages/dokime-client/README.md#optional-dataframes).
+The example requires the corresponding installed template and stream; finite
+queries never follow or change execution state. The [remote guide](docs/remote/python.md)
+retains the complete setup and runnable lifecycle examples.
 
 ### Rust
 
