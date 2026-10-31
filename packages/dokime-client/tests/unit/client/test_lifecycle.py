@@ -16,6 +16,7 @@ import hashlib
 import json
 from contextlib import nullcontext
 from dataclasses import replace
+from datetime import timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -241,6 +242,13 @@ def test_lifecycle_iterators_end_and_serialize(monkeypatch: pytest.MonkeyPatch) 
         sample = replace(samples_seen[0], values={"at": date})
         assert json.loads(record.to_json())["details"]["nested"] == [date._wire_text, 2**64 - 1]
         assert json.loads(sample.to_json())["values"] == {"at": date._wire_text}
+        shifted = (date + timedelta(seconds=1)).astimezone(timezone(timedelta(hours=5, minutes=30)))
+        expected_time = "2026-10-30T15:50:31.123456789+05:30"
+        record = replace(record, timestamp=shifted, details={"at": shifted})
+        sample = replace(sample, values={"at": shifted})
+        assert json.loads(record.to_json())["timestamp"] == expected_time
+        assert json.loads(record.to_json())["details"] == {"at": expected_time}
+        assert json.loads(sample.to_json())["values"] == {"at": expected_time}
         await client.close()
 
     asyncio.run(scenario())

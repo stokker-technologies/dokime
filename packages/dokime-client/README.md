@@ -169,6 +169,11 @@ including nested datetime values as RFC 3339 text; no custom encoder is needed.
 Use an `asyncio.TaskGroup` for concurrent record and sample consumption. Close an
 early-abandoned iterator with `contextlib.aclosing`.
 
+`DatetimeValue` timestamps retain nanoseconds through `timedelta` shifts, timezone changes
+and `replace` unless `microsecond` is supplied explicitly, which clears the
+sub-microsecond remainder. Wire and `to_json()` output preserve that remainder;
+standard `datetime` formatting and datetime differences keep microsecond precision.
+
 `await cycle.save(directory, report=None)` creates the directory and writes
 `execution-<id>.zip` for every known member, `cycle.zip`, optional `report.html`,
 and `manifest.json`. It waits for pending execution reports, and exposes publication
