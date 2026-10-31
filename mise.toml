@@ -168,7 +168,7 @@ run = [
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
-depends = ["prepare:generated"]
+depends = ["prepare"]
 run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
