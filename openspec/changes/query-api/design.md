@@ -2,7 +2,7 @@
 
 ## Context
 
-Proposed behavior below is not landed. Motivation and scope are in `proposal.md`.
+This records the agreed API direction. `tasks.md` distinguishes landed server work from pending client work; motivation and scope are in `proposal.md`.
 
 | Verified Baseline | Source |
 | --- | --- |

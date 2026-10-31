@@ -61,11 +61,13 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 ## Canonical Bindings And Transport
 
-- Rust `dokime-domain::operations` declarations own the wire shape; do not
-  maintain parallel domain DTOs or a second codec.
-- `mise run prepare:generated` builds `cargo-dokime` and the server contract export
-  before any report or frontend compilation, exports `bindings proto` and feeds
-  its descriptors to Buf. The server build-script export supplies application settings
+- Rust `dokime-operations` declarations own operation contracts and
+  `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
+- `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
+  together. The `prepare:generated` prerequisite checks those tracked clients,
+  builds `cargo-dokime` and the server export before report/frontend compilation,
+  exports `bindings proto` and feeds its descriptors to the message generator.
+  The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;
   Harmos's additional managed `Run…` RPCs remain transport projections.

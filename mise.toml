@@ -72,9 +72,10 @@ description = "Prepare Tools And Inputs"
 run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
 
 [tasks."prepare:bindings"]
-description = "Regenerate Python Contracts From One Cargo Build"
-usage = 'arg "<messages>"'
-run = '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"'
+description = "Regenerate Canonical Python And TypeScript Contracts"
+depends = ["prepare"]
+run = "{{vars.tools}} dokime_tools.prepare.generated --generate"
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:desktop"]
 description = "Prepare Native Desktop Automation"

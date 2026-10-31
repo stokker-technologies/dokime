@@ -4,8 +4,9 @@ The finite query declarations are under `crates/dokime-operations/src/query/`;
 shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
 Record and telemetry query execution share that ownership.
-The five operations are callable through native and gRPC transports; generated
-contracts and high-level client integration follow their owning tasks.
+The five operations are callable through native and gRPC transports with generated
+low-level Python/TypeScript contracts. High-level Python readers remain with the
+client slice.
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |
@@ -263,7 +264,7 @@ dokime operation call dokime.query.list_cycles --backend lab --input next-reques
 ```
 
 Repeat until `complete=true` and no `next` is returned, including after empty
-pages. The continuation already binds the original snapshot. To start another
-compatible query at that cut, use `at: {"token": "RETURNED_SNAPSHOT_TOKEN"}` with
-the token from the completion's `snapshot`. `operation show` exposes each exact
-request shape; requests cannot supply timeouts or operation policy overrides.
+pages. The continuation already binds the original snapshot. `operation show`
+exposes each exact protobuf JSON request shape, including the tagged `at`
+reference for reusing a snapshot in another compatible query. Requests cannot
+supply timeouts or operation policy overrides.
