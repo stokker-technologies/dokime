@@ -65,3 +65,8 @@ Use discovered mise tasks with standard compiler preflight and `UV_PROJECT_ENVIR
 ## Risks And Rollout
 
 Cross-resource durability needs fault tests proving fsync → catalog commit → saved-cursor publication. Recovery must preserve existing storage and Windows handle ownership. New incompatible roots remain explicit operator choices; existing roots are never reset.
+
+The owner-supplied Windows query measurement is 803 ms for one million samples,
+meeting the latency target. Durable write of 1,024 rows is 32.1 ms, finalize of
+65,536 rows is 16.9 ms and export of 16,384 rows is 33.7 ms. The pre-optimization
+query latency is unavailable here; the explicit comparison remains open.

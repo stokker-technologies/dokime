@@ -1,7 +1,7 @@
 # test-lane-traces Specification
 
 ## Purpose
-TBD - created by archiving change test-lane-traces. Update Purpose after archive.
+Define opt-in native and desktop span capture, payload-free process traces and retained per-lane timing summaries for diagnosing test execution.
 
 ## Requirements
 

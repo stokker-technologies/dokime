@@ -1,7 +1,7 @@
 # notification-details Specification
 
 ## Purpose
-TBD - created by archiving change notification-details. Update Purpose after archive.
+Define accessible inspection and copying of complete notification context, root causes and aggregated validation problems across transient and retained feedback.
 
 ## Requirements
 

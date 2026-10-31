@@ -15,6 +15,6 @@
 
 ## Final Validation And Delivery
 
-- [ ] 2.1 Run one-hour/four-hour after measurements and verify flat end-of-run cost; record native benchmark evidence under target.
-- [ ] 2.2 After source closure run requested workspace check, format and focused tests; report actual platform limitations without claiming unrun proof.
-- [ ] 2.3 Commit logical fixes only, retain the updated change for integration and hand back at most eight lines with numbers. No push or PR.
+- [x] 2.1 Run one-hour/four-hour after measurements and verify flat end-of-run cost; record native benchmark evidence under target. **Reconciled:** Owner-supplied quiet-machine Windows one-hour/four-hour long_execution measurements establish flat Stop, Cancel, report-ready and save cost; benchmark fixture and invocation are maintained in CONTRIBUTING.md.
+- [x] 2.2 After source closure run requested workspace check, format and focused tests; report actual platform limitations without claiming unrun proof. **Reconciled:** Later Arrow task 7.1 records final workspace check/format; supplied #166/#170 Windows lanes prove the integrated finalization tests. Linux was not run today.
+- [x] 2.3 Commit logical fixes only, retain the updated change for integration and hand back at most eight lines with numbers. No push or PR. **Reconciled:** Logical finalization fixes and report publication landed at #121/#131; this reconciliation supplies the requested measured handback and retains the archive for integration history.

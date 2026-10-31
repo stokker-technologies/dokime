@@ -92,3 +92,8 @@ Stop-to-seal, Cancel-to-settled and report/save measurements separately. Physica
 drain counts prove concurrency, re-entry and cancelled-waiter behavior. Requested
 workspace checks and format follow source closure, with focused tests throughout.
 Commit only.
+
+Owner-supplied quiet-machine Windows measurements on 2026-10-31 compare one-hour
+and four-hour workloads: Stop 157/173 ms, Cancel 17/25 ms, report readiness
+413/440 ms and synced save 205/220 ms. These establish flat end-of-run cost
+for the measured workload; they do not establish Linux performance.

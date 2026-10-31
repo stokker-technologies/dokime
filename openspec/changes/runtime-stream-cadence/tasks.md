@@ -20,4 +20,4 @@
 
 ## Workflow Follow-Up
 
-- [ ] 3.1 After upstream publication, pin verified Harmos, remove local override, resolve the published lockfile and validate the unpatched graph.
+- [ ] 3.1 After upstream publication, pin verified Harmos, remove local override, resolve the published lockfile and validate the unpatched graph. **Remaining:** Cargo.toml and Cargo.lock use an immutable Harmos git revision, with no local Cargo override present. The requested subsequent published release pin and unpatched released-graph validation are still pending.
