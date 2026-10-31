@@ -104,7 +104,9 @@ def timestamp(value: Time) -> dict[str, int]:
         raise TypeError("Time bounds require an aware datetime or RFC3339/date string")
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("Naive datetimes are invalid; supply a UTC offset")
-    delta = value.astimezone(UTC).replace(microsecond=0) - datetime(1970, 1, 1, tzinfo=UTC)
+    normalized = value.astimezone(UTC)
+    nanos = normalized.microsecond * 1000 + nanos % 1000
+    delta = normalized.replace(microsecond=0) - datetime(1970, 1, 1, tzinfo=UTC)
     return {"seconds": delta.days * 86400 + delta.seconds, "nanos": nanos}
 
 

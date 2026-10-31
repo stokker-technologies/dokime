@@ -81,6 +81,19 @@ Use `pages()` to inspect schema, effective limits and completeness, and
 [client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
 for projection, version selection and cycle record queries.
 
+To materialize a finite result, close the reader through its async context:
+
+```python
+async with execution.query_records("example.event") as records:
+    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+```
+
+Omitted limits use finite client `QuerySettings` defaults. Row or decoded-byte
+overflow and later page errors raise without returning a partial list. Early
+close/cancellation prevents another fetch and leaves backend execution running.
+`records.complete` reports consumption; page metadata retains server completeness,
+schema, limits and snapshot after closing. No dataframe dependency is needed.
+
 For exact statistics on raw selected telemetry, use one awaited operation:
 
 ```python

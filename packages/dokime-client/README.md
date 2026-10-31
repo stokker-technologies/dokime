@@ -355,6 +355,27 @@ midnight UTC. Naive datetimes are refused. Each reader permits one consumer.
 and completeness. Reuse `reader.snapshot` through `at=` after the first response.
 Close an abandoned reader with `await reader.aclose()`.
 
+Readers also support async contexts and explicit bounded materialization:
+
+```python
+async with execution.query_records("example.event") as records:
+    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+print(records.complete, records.snapshot)
+```
+
+Omitted collection limits use finite `QuerySettings.max_rows` and `max_bytes`.
+The byte budget charges decoded Python row objects and page metadata cumulatively,
+including schema/snapshot data on empty pages; it is separate from encoded page
+bytes and process memory. A limit, malformed continuation or later RPC failure
+raises without returning a partial list. Narrow the selection or consume pages
+when a collection exceeds its budget. Readers fetch only on demand, with no
+prefetch; closing cancels an in-flight request and prevents another fetch.
+`reader.complete` reports successful consumption; early item close stays
+incomplete even if the fetched final page advertises `page.complete=True`.
+Metadata and snapshot remain inspectable after closing. History pages may have
+`schema=None`; evidence pages retain their captured schema. Aggregate results
+are also available through the telemetry reader's `metadata` and `statistics`.
+
 ## Finite Evidence Queries
 
 ```python

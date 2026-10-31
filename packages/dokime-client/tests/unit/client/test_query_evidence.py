@@ -76,6 +76,9 @@ def test_query_evidence_sparse_schema_and_cut(monkeypatch: pytest.MonkeyPatch) -
                 ],
             },
         )
+        _wire.copy(empty.schema, reply.schema)
+        empty.limits.rows = 7
+        reply.limits.rows = 7
         calls = AsyncMock(side_effect=[empty, reply])
         monkeypatch.setattr(client._transport, "call", calls)
         reader = execution.query_records("example.event", where=[Predicate("nullable", "exists", False)], versions=[1, 2], page_rows=7)
@@ -85,7 +88,7 @@ def test_query_evidence_sparse_schema_and_cut(monkeypatch: pytest.MonkeyPatch) -
         assert rows[0].details["counter"] == 2**63 + 1 and isinstance(rows[0].details["counter"], UnsignedValue)
         assert rows[0].details["nullable"] is None and "absent" not in rows[0].details
         assert rows[0].received_at is not None and rows[0].received_at.isoformat().startswith("1970-01-01T00:00:01")
-        assert reader.metadata is not None and reader.metadata.schema.fields[0].unit == "items"
+        assert reader.metadata is not None and reader.metadata.schema is not None and reader.metadata.schema.fields[0].unit == "items"
         telemetry = execution.telemetry("example.stream", fields=["counter"], at=reader.snapshot)
         assert telemetry._request.at.Token.field_0 == "cut" and telemetry._request.fields == ["counter"]
         assert reader._request.page.after == "scan-1" and calls.await_count == 2
@@ -195,6 +198,7 @@ def test_query_evidence_early_close_and_cancel(monkeypatch: pytest.MonkeyPatch) 
         {"every": "1s"},
         {"agg": Aggregate.mean()},
         {"every": "0s", "agg": Aggregate.mean()},
+        {"every": "1.00000000000000000000000000001ns", "agg": Aggregate.mean()},
         {"every": "1s", "agg": Aggregate.percentile(95)},
         {"fields": ["rssi", "rssi"]},
         {"versions": [0]},

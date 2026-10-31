@@ -82,7 +82,7 @@ def test_query_statistics_one_request_and_captured_schema(monkeypatch: pytest.Mo
         assert [value.value for value in result.values] == [15.0, 28.5]
         assert result.selected_rows == 5 and result.quality_counts[0].null == 1 and result.quality_counts[0].finite == 4
         assert result.schema.versions == [2] and result.schema.fields[0].unit == "dBm"
-        assert result.complete and reader.snapshot == result.snapshot and reader.statistics is result
+        assert result.complete and reader.snapshot == result.snapshot and reader.statistics is result and reader.metadata is result
         calls.assert_awaited_once()
         op, request = calls.call_args.args
         assert op.id == "dokime.query.aggregate_samples" and request.execution_id == EXECUTION_ID
@@ -165,6 +165,36 @@ def test_query_statistics_failures(failure: str, monkeypatch: pytest.MonkeyPatch
             await reader.aggregate("rssi", [Aggregate.mean(), Aggregate.percentile(95)])
         assert reader.statistics is None and not reader.complete
         call.assert_awaited_once()
+        await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_query_statistics_close_inflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        execution = Execution._bind(EXECUTION_ID, client._transport, BACKEND)
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        async def call(op: Any, request: Any) -> Any:
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        mock = AsyncMock(side_effect=call)
+        monkeypatch.setattr(client._transport, "call", mock)
+        reader = execution.telemetry("example.stream")
+        task = asyncio.create_task(reader.aggregate("rssi", [Aggregate.mean()]))
+        await entered.wait()
+        await reader.aclose()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert cancelled.is_set() and reader.closed and reader.metadata is None and not reader.complete
+        with pytest.raises(RuntimeError):
+            await reader.aggregate("rssi", [Aggregate.mean()])
+        mock.assert_awaited_once()
         await client.close()
 
     asyncio.run(scenario())

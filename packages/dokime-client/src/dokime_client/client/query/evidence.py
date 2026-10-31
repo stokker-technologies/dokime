@@ -17,7 +17,6 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 from typing import Any, Protocol
 
 # Third Party Imports
@@ -98,8 +97,15 @@ class TelemetryReader(QueryReader[Sample | Bucket]):
             if self._closed:
                 raise RuntimeError("Query reader was closed during aggregation")
             result = statistics.decode(response, requested)
+            if (
+                self._request.HasField("at")
+                and self._request.at.HasField("Token")
+                and result.snapshot.token != self._request.at.Token.field_0
+            ):
+                raise ProtocolError("Statistics differ from the supplied snapshot")
             self.snapshot = result.snapshot
             self.statistics = result
+            self.metadata = result
             self.complete = result.complete
             return result
         finally:
@@ -264,10 +270,14 @@ def bucket_request(every: str | None, aggregate: Aggregate | None) -> dict[str, 
     if match is None:
         raise ValueError("every requires a positive fixed duration, for example '1s' or '250ms'")
     multipliers = {"ns": 1, "us": 1000, "ms": 10**6, "s": 10**9, "m": 60 * 10**9, "h": 3600 * 10**9, "d": 86400 * 10**9}
-    nanos = Decimal(match[1]) * multipliers[match[2]]
-    if nanos != int(nanos) or not 0 < nanos < 2**64:
+    whole, _, fraction = match[1].partition(".")
+    fraction = fraction.rstrip("0")
+    denominator = 10 ** len(fraction)
+    fractional_nanos, remainder = divmod(int(fraction or "0") * multipliers[match[2]], denominator)
+    nanos = int(whole) * multipliers[match[2]] + fractional_nanos
+    if remainder or not 0 < nanos < 2**64:
         raise ValueError("every must fit positive uint64 nanoseconds without sub-nanosecond precision")
-    return {"every_nanos": int(nanos), "aggregate": aggregate.to_wire()}
+    return {"every_nanos": nanos, "aggregate": aggregate.to_wire()}
 
 
 # === Private Functions === #

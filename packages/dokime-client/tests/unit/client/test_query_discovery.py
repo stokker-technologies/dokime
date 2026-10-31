@@ -14,7 +14,7 @@
 # Standard Library Imports
 import asyncio
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
@@ -75,7 +75,11 @@ def test_query_discovery_lazy_filters_paging(monkeypatch: pytest.MonkeyPatch) ->
 
         async def call(op: Any, request: Any) -> Any:
             requests.append(type(request).FromString(request.SerializeToString()))
-            return query_page("ListExecutions", [execution_row(f"execution-{len(requests)}")], after="next" if len(requests) == 1 else None)
+            reply = query_page(
+                "ListExecutions", [execution_row(f"execution-{len(requests)}")], after="next" if len(requests) == 1 else None
+            )
+            reply.limits.rows = 5
+            return reply
 
         mock = AsyncMock(side_effect=call)
         monkeypatch.setattr(client._transport, "call", mock)
@@ -148,6 +152,10 @@ def test_query_discovery_nanoseconds_and_predicates() -> None:
     assert reader._request.selection.started_at.end.nanos == 2
     aware = DokimeClient().cycles(since=datetime(2026, 10, 1, tzinfo=UTC))
     assert aware._request.selection.created_at.start.nanos == 0
+    offset = timezone(timedelta(microseconds=500_000))
+    shifted = DokimeClient().cycles(since=datetime(2026, 10, 1, microsecond=100_000, tzinfo=offset))
+    assert shifted._request.selection.created_at.start.nanos == 600_000_000
+    assert shifted._request.selection.created_at.start.seconds == aware._request.selection.created_at.start.seconds - 1
     wire = Predicate("counter", "eq", 2**63 + 1).to_wire()
     assert wire["values"] == [{"Unsigned": {"field_0": 2**63 + 1}}]
     for value in (None, float("inf"), {}, []):

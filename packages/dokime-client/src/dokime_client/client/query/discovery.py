@@ -55,7 +55,6 @@ class ExecutionSummary:
     checkpoint_available: bool
     archived: bool
     _transport: Transport = field(repr=False, compare=False)
-    _query_settings: QuerySettings = field(repr=False, compare=False)
 
     query_records = execution_records
     telemetry = telemetry
@@ -71,9 +70,11 @@ class CycleSummary:
     execution_count: int
     archived: bool
     _transport: Transport = field(repr=False, compare=False)
-    _query_settings: QuerySettings = field(repr=False, compare=False)
 
     query_records = cycle_records
+
+
+# === Public Functions === #
 
 
 def executions(
@@ -110,7 +111,6 @@ def executions(
             row.checkpoint_available,
             row.archived,
             transport,
-            settings,
         )
 
     fields = {"selection": selection, "page": page_settings(settings, page_rows, page_bytes), "at": snapshot_ref(at)}
@@ -145,14 +145,11 @@ def cycles(
             row.execution_count,
             row.archived,
             transport,
-            settings,
         )
 
     fields = {"selection": selection, "page": page_settings(settings, page_rows, page_bytes), "at": snapshot_ref(at)}
     return QueryReader(transport, "ListCycles", fields, decode, settings)
 
-
-# === Public Functions === #
 
 # === Private Functions === #
 
