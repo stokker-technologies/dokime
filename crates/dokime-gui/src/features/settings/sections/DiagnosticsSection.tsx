@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
-import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
+import { saveNativeDiagnosticsBundle } from "@/lib/api/native-document-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { bootOrganization, organizationPack } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
