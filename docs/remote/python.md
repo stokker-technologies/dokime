@@ -81,6 +81,21 @@ Use `pages()` to inspect schema, effective limits and completeness, and
 [client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
 for projection, version selection and cycle record queries.
 
+For exact statistics on raw selected telemetry, use one awaited operation:
+
+```python
+stats = await execution.telemetry("example.wifi.link").aggregate(
+    "rssi", [Aggregate.mean(), Aggregate.percentile(95)],
+)
+print([(value.name, value.value) for value in stats.values])
+print(stats.quality_counts, stats.schema, stats.snapshot)
+```
+
+Omit `every`/`agg` for statistics. The facade uses existing `Aggregate` objects
+and computes on the server, preserving typed limit failures. Raw `client.call`
+continues to expose the generated request; the older catalog aggregate operation
+groups catalog rows and is separate from these telemetry statistics.
+
 ## Edit Connection Globals
 
 Open each `control-*.py` file and select the private pairing file:

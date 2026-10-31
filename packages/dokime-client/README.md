@@ -392,6 +392,34 @@ existing `records()`/`samples()` and checkpoint APIs retain their behavior.
 
 ## Aggregate Queries
 
+Telemetry statistics use one awaited server operation over raw selected samples:
+
+```python
+stats = await execution.telemetry(
+    "example.wifi.link",
+    between=("2026-10-01", "2026-10-02"),
+    versions=[1],
+).aggregate("rssi", [Aggregate.mean(), Aggregate.percentile(95), Aggregate.max()])
+for value in stats.values:
+    print(value.name, value.value)  # mean, p95, max, in request order
+print(stats.selected_rows, stats.quality_counts, stats.snapshot)
+```
+
+The server computes all outputs together at one cut; Python performs no local
+history reduction. `stats.schema` retains the returned captured output types,
+units and versions, including empty/all-null populations. Quality counts report
+finite, missing, null and non-finite inputs. Field count counts finite numbers;
+`.aggregate("", [Aggregate.count()])` counts selected rows. Duplicate outputs,
+strings such as `"mean"`, nonintegral percentile ranks and bucket settings are
+refused locally. Statistics and item/page/collect consumption are exclusive.
+`QueryLimitError` reports work/resource exhaustion without partial statistics;
+query exceptions retain RPC status, typed details, metadata and native cause.
+
+This facade constructs the generated `dokime.query.aggregate_samples` request;
+raw `client.call` still exposes its canonical contracts. The existing catalog
+`dokime.query.aggregate` remains a separate grouping operation, using the same
+`Aggregate` vocabulary for catalog columns rather than stream samples.
+
 `Query.Aggregate` and plot expressions name their statistic with the Harmos
 aggregate enum message: one `_harmos_variant` oneof whose members are `Count`,
 `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std` and `Percentile`, which

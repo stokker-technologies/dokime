@@ -3232,10 +3232,13 @@ from .client import CycleSummary as CycleSummary
 from .client import DokimeClient as DokimeClient
 from .client import ExecutionSummary as ExecutionSummary
 from .client import Predicate as Predicate
+from .client import QualityCounts as QualityCounts
 from .client import QueryError as QueryError
 from .client import QueryLimitError as QueryLimitError
 from .client import QueryPage as QueryPage
 from .client import QueryReader as QueryReader
 from .client import QuerySettings as QuerySettings
 from .client import QuerySnapshotError as QuerySnapshotError
+from .client import Statistic as Statistic
+from .client import Statistics as Statistics
 from .client import TelemetryReader as TelemetryReader

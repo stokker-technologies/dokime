@@ -65,6 +65,9 @@ from .query.reader import QueryPage as QueryPage
 from .query.reader import QueryReader as QueryReader
 from .query.reader import QuerySettings as QuerySettings
 from .query.selection import Predicate as Predicate
+from .query.statistics import QualityCounts as QualityCounts
+from .query.statistics import Statistic as Statistic
+from .query.statistics import Statistics as Statistics
 
 # Type Checking Imports
 

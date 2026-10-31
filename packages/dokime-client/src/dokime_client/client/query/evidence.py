@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -22,12 +23,16 @@ from typing import Any, Protocol
 # Third Party Imports
 # Local Imports
 from .. import _wire
+from .._contracts import operation
 from .._transport import Transport
 from ..aggregate import Aggregate
 from ..errors import ProtocolError
 from ..models import Record, Sample
+from . import statistics
+from .errors import query_call
 from .reader import QueryReader, QuerySettings, page_settings
 from .selection import At, Where, Window, positive, predicates, snapshot_ref, window
+from .statistics import Statistics, statistic_value
 
 # Type Checking Imports
 
@@ -72,6 +77,34 @@ class EvidenceScope(Protocol):
 
 class TelemetryReader(QueryReader[Sample | Bucket]):
     """Raw Samples Or Distinct Complete Bucket Rows At A Fixed Cut."""
+
+    statistics: Statistics | None = None
+
+    async def aggregate(self, field: str, aggregates: Sequence[Aggregate]) -> Statistics:
+        """Reduce Raw Selected Samples On The Server In One Canonical Request."""
+        if self._request.HasField("bucket"):
+            raise ValueError("Statistics require raw telemetry; omit every/agg and use Aggregate objects here")
+        requested = statistics.outputs(field, aggregates)
+        self._claim("aggregate")
+        fields = {name: getattr(self._request, name) for name in ("execution_id", "stream", "versions", "where")}
+        for name in ("at", "between"):
+            if self._request.HasField(name):
+                fields[name] = getattr(self._request, name)
+        fields["outputs"] = requested
+        request = _wire.request("Query", "AggregateSamples", **fields)
+        try:
+            self._pending = asyncio.create_task(query_call(self._transport, operation("Query", "AggregateSamples"), request))
+            response = await self._pending
+            if self._closed:
+                raise RuntimeError("Query reader was closed during aggregation")
+            result = statistics.decode(response, requested)
+            self.snapshot = result.snapshot
+            self.statistics = result
+            self.complete = result.complete
+            return result
+        finally:
+            self._pending = None
+            await self.aclose()
 
 
 # === Public Functions === #
@@ -235,13 +268,6 @@ def bucket_request(every: str | None, aggregate: Aggregate | None) -> dict[str, 
     if nanos != int(nanos) or not 0 < nanos < 2**64:
         raise ValueError("every must fit positive uint64 nanoseconds without sub-nanosecond precision")
     return {"every_nanos": int(nanos), "aggregate": aggregate.to_wire()}
-
-
-def statistic_value(value: Any) -> int | float:
-    member = _wire.variant(value)
-    if member not in ("Count", "Number"):
-        raise ProtocolError("Unknown statistic value kind")
-    return getattr(value, member).field_0
 
 
 # === Private Functions === #
