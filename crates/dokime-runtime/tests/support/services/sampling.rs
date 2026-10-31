@@ -109,12 +109,13 @@ pub async fn large_case_seals(size: Sampling) {
     runtime.shutdown().await.unwrap();
 }
 
-// Whole-History Analyses Are Explicitly Unavailable In Bounded Reports.
+// Whole-Capture Spectra Render Within The Exact Preview Cap And Keep Execution Scope.
 pub async fn whole_capture_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
     let behaviour = Behaviour::new(size.rows, size.spectrum_rows, false).artifacts(false);
     let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, Some(size.page_bytes)).await;
+    run_case(&handle, "spectrum.previous").await;
     let execution_id = run_case(&handle, "spectrum.whole").await;
     let html = super::native::report(&handle, &execution_id).await;
     let payload = super::reports::parse(&html);
@@ -126,8 +127,40 @@ pub async fn whole_capture_seals(size: Sampling) {
         "the streamed plot was reduced from every pulse row"
     );
     let spectrum = &plots["fixture.checks.smoke.spectrum"];
-    assert!(spectrum["series"].as_array().unwrap().is_empty());
-    assert_eq!(spectrum["analysis"]["kind"], "error");
+    let series = spectrum["series"].as_array().unwrap();
+    assert_eq!(series.len(), 1);
+    assert_eq!(series[0]["raw_points"], size.spectrum_rows, "only this execution's spectrum rows are transformed");
+    let points = series[0]["points"].as_array().unwrap();
+    #[cfg(not(feature = "fft"))]
+    {
+        assert!(points.is_empty(), "a build without FFT cannot emit frequency points");
+        assert_eq!(spectrum["analysis"]["kind"], "error");
+    }
+    #[cfg(feature = "fft")]
+    {
+        let cap = dokime_runtime::config::local_storage_defaults().previews.exact_points.get();
+        if size.spectrum_rows as usize > cap {
+            assert_eq!(spectrum["analysis"]["kind"], "error");
+        } else {
+            assert!(spectrum["analysis"].is_null(), "the exact capture supports FFT: {spectrum}");
+            assert_eq!(points.len(), size.spectrum_rows as usize / 2);
+            // The Repeated 0..15 Ramp Has Harmonics At Multiples Of Rate / 16.
+            for (index, point) in points.iter().enumerate() {
+                let bin = index + 1;
+                let harmonic_stride = size.spectrum_rows as usize / 16;
+                let amplitude = if bin == size.spectrum_rows as usize / 2 {
+                    0.5
+                } else if bin.is_multiple_of(harmonic_stride) {
+                    1.0 / (std::f64::consts::PI * (bin / harmonic_stride) as f64 / 16.0).sin()
+                } else {
+                    0.0
+                };
+                let frequency = bin as f64 * super::smoke::SPECTRUM_SAMPLE_RATE_HZ / f64::from(size.spectrum_rows);
+                assert!((point["x"].as_f64().unwrap() - frequency).abs() < 1e-9, "frequency bin {bin}: {point}");
+                assert!((point["y"].as_f64().unwrap() - amplitude).abs() < 1e-9, "amplitude bin {bin}: {point}");
+            }
+        }
+    }
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
