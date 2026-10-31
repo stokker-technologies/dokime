@@ -38,6 +38,7 @@ const HUB_IDENTIFIER: &str = "dokime.test_hub";
 #[derive(Clone, Debug)]
 pub struct Config {
     pub schema: harmos::config::SchemaSettings,
+    pub query: super::QuerySettings,
     pub title: String,
     pub label: Option<String>,
     pub output_root: PathBuf,
@@ -75,6 +76,7 @@ impl Config {
     pub fn local(output_root: impl Into<PathBuf>) -> Self {
         Self {
             schema: super::schema_defaults(),
+            query: super::query_defaults(),
             title: "Dokime".to_owned(),
             label: None,
             output_root: output_root.into(),
@@ -99,6 +101,7 @@ impl Config {
         let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
         let mut config = RuntimeConfig::new(&self.output_root, metadata);
         config.schema = self.schema;
+        config.query = self.query;
         config.storage = self.storage;
         config.managed_storage = self.managed_storage;
         config.storage_state = self.storage_state;

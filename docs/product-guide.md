@@ -1040,6 +1040,51 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
 | `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
 
+### Query Budgets
+
+Finite-query settings are programmatic startup configuration under
+`crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
+`RuntimeConfig.query`. They are validated before opening storage and retained as
+an immutable `RuntimeHandle::query_config()` snapshot. Query handlers remain pending.
+These settings are not application preferences or request policy overrides.
+
+```rust
+let mut config = RuntimeConfig::new(storage_root, metadata);
+config.query.page_rows = 128;
+config.query.max_page_bytes = 512 * 1024;
+config.query.page_bytes = 256 * 1024;
+config.query.scanned_rows = 500_000;
+config.query.active_time = std::time::Duration::from_secs(3);
+```
+
+| Setting | Startup Default |
+| --- | --- |
+| Page Rows / Maximum Rows | 256 / storage response batch rows |
+| Page Bytes / Maximum Bytes | 1/8 storage response batch bytes / storage response batch bytes |
+| Working Bytes / Schema Bytes | storage response batch bytes / 1/8 batch bytes |
+| Scanned Rows / Bytes | 4,194,304 / 128 response batches |
+| Active Time / Admission Wait | 1/2 / 1/10 declared sample-query attempt ceiling |
+| Concurrency / Pending Requests | storage active / pending query ceilings |
+| Predicate Terms / IN Members | 64 / 256 |
+| Fields / Captured Versions / History Alternatives | 128 / 32 / 256 |
+| Partitions / Buckets / Aggregate Outputs | 64 / 4,096 / 64 |
+| Token Bytes / Snapshot Lifetime | 4,096 / 15 min |
+
+Composition clamps page ceilings to storage response budgets, concurrency/pending
+admission to storage capacity, working memory to schema preparation bytes, schema
+bytes to working/page budgets and fields to schema preparation work. Defaults are
+clamped with effective ceilings. A serving transport's message-byte budget further
+clamps each page; schema and metadata must fit that same budget. Callers may request
+smaller positive row/byte budgets. Zero budgets, unaddressable memory, defaults above
+configured page ceilings, admission waits above active time and active deadlines
+above any of the five declared operation ceilings fail startup. Snapshot lifetimes
+must fit an unsigned 64-bit nanosecond duration.
+
+Complexity and scan exhaustion fail explicitly; these defaults establish no latency
+or throughput claim. Token authentication/admission enforcement and scan accounting
+belong to the later query runtime tasks. The [query contracts](query-api.md) describe
+page and failure shapes.
+
 ### Operations And Plugins
 
 The [Query API Foundations](query-api.md) describe the finite query declarations;
