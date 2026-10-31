@@ -3,7 +3,7 @@
 The finite query declarations are under `crates/dokime-operations/src/query/`;
 shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
-Operation registration, evidence execution and generated clients remain pending.
+Operation registration, record execution and generated clients remain pending.
 These declarations are not yet callable through transports.
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
@@ -51,7 +51,7 @@ Int64/Uint64. No integer is converted to a floating value in raw results.
 are opaque, authenticated, bounded and scoped to the local retained store;
 they never grant access or imply terminal readiness. Continuations bind the
 snapshot, selection, projection/reduction and last scanned key, permitting only
-page-budget changes. Token creation/validation belongs to later snapshot work.
+page-budget changes. Token creation/validation uses the fixed-cut snapshot owner.
 
 `bucket: {every_nanos, aggregate}` requires a positive fixed interval and a
 count/sum/mean/min/max reducer. Buckets are epoch-aligned, clip inputs to the
@@ -79,8 +79,7 @@ plus `required_fields`. Storage planning must select those versions and bind
 `FieldRef::Declared` to actual captured columns; envelope references have their
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
-storage reader and creates no query handler. Record and sample execution
-remain with their later tasks.
+storage reader and creates no query handler. Raw sample execution uses this prepared selection; record execution remains with its owner.
 
 ## Local History Storage
 
@@ -133,6 +132,21 @@ Continuations bind the canonical selection/projection/reduction and last scanned
 key. Changing row/byte sizes preserves the selection; changing predicates or
 projection does not. History handlers reserve response metadata and continuation
 bytes before admitting rows. No SQLite transaction, client lock, member vector
-or result set is retained between pages. Raw evidence and bucket seek coordinates
-are available to their later execution owners; records/Arrow execution remains
-outside this implementation slice.
+or result set is retained between pages. Raw sample execution consumes evidence seek coordinates; record and bucket execution remain with their owners.
+
+## Arrow Sample Pages
+
+`runtime/query/samples.rs` plans captured versions and the union of projected,
+predicate and envelope columns. The SQLite reader prunes stream/capture, durable
+position and time batches before projected Arrow decoding. A bounded candidate
+map merges interleaved stream files by durable position; raw values retain their
+signed/unsigned integer representation and original source/scope/version.
+Window matching uses original timestamp precision and excludes the upper bound.
+
+Compressed blocks and decoded buffer sizes are admitted before allocation or
+decompression. Oversized layouts fail explicitly; no full-history object list,
+preview envelope or current numeric summary supplies raw rows. Response schema,
+snapshot and continuation metadata count toward page byte limits. Each page
+rechecks the cut and releases its reader transaction. Later arrivals are excluded
+by the physical frontier even when their timestamps fall inside the window.
+Captured contracts include retained Arrow versions, within the schema budget.

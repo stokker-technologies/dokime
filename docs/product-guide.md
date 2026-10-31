@@ -1045,7 +1045,7 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 Finite-query settings are programmatic startup configuration under
 `crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
 `RuntimeConfig.query`. They are validated before opening storage and retained as
-an immutable `RuntimeHandle::query_config()` snapshot. Query handlers remain pending.
+an immutable `RuntimeHandle::query_config()` snapshot. Transport registration remains pending.
 These settings are not application preferences or request policy overrides.
 
 ```rust
@@ -1081,14 +1081,14 @@ above any of the five declared operation ceilings fail startup. Snapshot lifetim
 must fit an unsigned 64-bit nanosecond duration.
 
 Complexity and scan exhaustion fail explicitly; these defaults establish no latency
-or throughput claim. Token authentication/admission enforcement and scan accounting
-belong to the later query runtime tasks. The [query contracts](query-api.md) describe
+or throughput claim. Snapshot tokens are authenticated and finite Arrow scans account for admitted
+rows/bytes. Transport authorization and query admission remain with registration. The [query contracts](query-api.md) describe
 page and failure shapes.
 
 ### Operations And Plugins
 
 The [Query API Foundations](query-api.md) describe the finite query declarations;
-their runtime handlers and client integration are still pending.
+transport registration and client integration are still pending.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 

@@ -32,6 +32,9 @@ mod execution_seal_report;
 mod execution_workflow;
 mod plugin;
 mod plugin_store_leases;
+mod query_samples;
+#[path = "../support/query_telemetry.rs"]
+mod query_telemetry;
 mod runtime;
 mod runtime_queries;
 mod settings_backends;

@@ -126,6 +126,9 @@ impl RuntimeHandle {
                 if scope == Scope::History {
                     let _evidence = self.evidence_admission.lock().await;
                     let (contracts, journal, metadata) = self.query_capture_contracts(&scope, operation).await?;
+                    let maximum = self.query_config().limits().schema_bytes as usize;
+                    let retained = self.local_storage.query_telemetry_contracts(metadata, maximum, operation).await?;
+                    let contracts = merge_telemetry_contracts(&contracts, retained, maximum, operation)?;
                     self.local_storage
                         .snapshot_capture(scope.clone(), None, Some(metadata), expires, contracts, Some(journal))
                         .await
@@ -140,6 +143,9 @@ impl RuntimeHandle {
                     self.record_source.wait_through(&self.state_manager, journal).await.map_err(|_| unavailable(operation))?;
                     let admitted = self.storage().cursor_accepted();
                     self.storage().flush_until(&admitted).await.map_err(|_| unavailable(operation))?;
+                    let maximum = self.query_config().limits().schema_bytes as usize;
+                    let retained = self.local_storage.query_telemetry_contracts(admitted.sequence, maximum, operation).await?;
+                    let contracts = merge_telemetry_contracts(&contracts, retained, maximum, operation)?;
                     self.local_storage
                         .snapshot_capture(scope.clone(), Some(admitted), Some(metadata), expires, contracts, Some(journal))
                         .await
@@ -315,6 +321,23 @@ pub(super) fn validate_cut(cut: &Cut, scope: &Scope, now: Timestamp, operation: 
 }
 
 /* === Private Functions === */
+
+fn merge_telemetry_contracts(
+    bytes: &[u8], retained: Vec<crate::telemetry::TelemetryContract>, maximum: usize, operation: &str,
+) -> Result<Vec<u8>, Box<Failure>> {
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Contracts {
+        records: Vec<crate::records::RecordContract>,
+        telemetry: Vec<crate::telemetry::TelemetryContract>,
+    }
+    let mut captured: Contracts = serde_json::from_slice(bytes).map_err(|_| unavailable(operation))?;
+    for contract in retained {
+        if !captured.telemetry.iter().any(|prior| prior.stream == contract.stream && prior.schema_version == contract.schema_version) {
+            captured.telemetry.push(contract);
+        }
+    }
+    tokens::bounded_json(&captured, maximum, operation)
+}
 
 fn contract_bytes<'a>(
     records: impl Iterator<Item = &'a crate::records::RecordContract>,

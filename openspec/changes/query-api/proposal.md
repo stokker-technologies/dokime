@@ -31,7 +31,7 @@ The owner needs to ask for matching evidence from an execution and discover rele
 
 Owners: domain query/history/evidence/telemetry models; `crates/dokime-operations/src/query/`; runtime query/storage handlers; server operation registration/access mapping; generated Python/TypeScript descriptors; `packages/dokime-client`; generic CLI; maintained product/client documentation and focused verification fixtures.
 
-The initial delivery was specification only. Server foundations 1.1–1.3 are implemented. The owner has authorized local history and snapshot tasks 1.4–1.5 on `feat/query-api`, with one local commit per task. Transport registration, record/Arrow execution and generated consumers remain outside this slice. Do not push, open a PR or archive the change.
+The initial delivery was specification only. Server foundations and history/snapshot tasks 1.1–1.5 are implemented. The owner has authorized Arrow tasks 1.7–1.9 on `feat/query-api`, with one local commit per task. Record queries (1.6) have a separate owner; transport registration and generated consumers remain outside this Arrow slice. Do not push, open a PR or archive the change.
 
 ## Scope Decisions
 

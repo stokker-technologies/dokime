@@ -30,6 +30,7 @@ pub(crate) mod records;
 mod reduction;
 pub(crate) mod request;
 pub(crate) mod runtime;
+pub mod samples;
 pub mod selection;
 pub mod snapshots;
 pub(crate) mod telemetry;

@@ -67,6 +67,135 @@ pub(crate) struct NumericRow {
 
 /* === Public Functions === */
 
+pub(super) fn query(
+    connection: &Connection, root: &Path, read: &super::query::QueryRead, work: &mut super::query::QueryWork,
+    mut consume: impl FnMut(
+        u64,
+        crate::telemetry::TelemetrySample,
+    ) -> std::result::Result<Option<u64>, Box<dokime_domain::model::query::error::Failure>>,
+) -> std::result::Result<bool, Box<dokime_domain::model::query::error::Failure>> {
+    use super::query::storage_error;
+    let operation = work.operation;
+    let scan = || -> Result<_> {
+        let mut sql = String::from(
+            "SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,s.file_id,s.execution,s.contract,b.batch,b.first_position FROM streams s JOIN stream_batches b ON b.file_id=s.file_id WHERE s.stream=? AND b.last_position>? AND b.first_position<=? AND (b.file_id,b.batch) IN (SELECT file_id,batch FROM stream_captures WHERE execution=?)",
+        );
+        let mut args = vec![
+            Value::Text(read.stream.clone()),
+            Value::Text(position(read.after)),
+            Value::Text(position(read.cut.at.sequence)),
+            Value::Text(read.execution.clone()),
+        ];
+        if let Some(window) = &read.between {
+            for (bound, comparison) in [(window.start, "b.last_at>=?"), (window.end, "b.first_at<=?")] {
+                if let Some(bound) = bound {
+                    sql.push_str(" AND ");
+                    sql.push_str(comparison);
+                    args.push(Value::Integer(catalog::micros(
+                        bound.to_datetime().map_err(|_| Error::Invalid("invalid query time"))?.into(),
+                    )?));
+                }
+            }
+        }
+        sql.push_str(" ORDER BY b.first_position,s.file_id,b.batch");
+        Ok((sql, args))
+    };
+    let (sql, args) = scan().map_err(|e| storage_error(e, operation))?;
+    let mut statement = connection.prepare(&sql).map_err(|e| storage_error(e.into(), operation))?;
+    let mut rows = statement.query(rusqlite::params_from_iter(args)).map_err(|e| storage_error(e.into(), operation))?;
+    let mut cutoff = None;
+    let mut partitions = std::collections::BTreeSet::new();
+    while let Some(row) = rows.next().map_err(|e| storage_error(e.into(), operation))? {
+        work.check()?;
+        let catalog = || -> Result<_> {
+            let encoded = row.get_ref(7)?.as_str().map_err(|_| Error::Corrupt("invalid query contract"))?;
+            if encoded.len() > work.config.limits().schema_bytes as usize {
+                return Err(Error::Data("query contract exceeds schema budget"));
+            }
+            let contract: TelemetryContract = serde_json::from_str(encoded)?;
+            Ok((
+                index(row)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                contract,
+                row.get::<_, i64>(8)?,
+                super::super::sequence(&row.get::<_, String>(9)?)?,
+            ))
+        };
+        let (index, id, execution, contract, batch_number, first) = catalog().map_err(|e| storage_error(e, operation))?;
+        if cutoff.is_some_and(|last| first > last) {
+            return Ok(false);
+        }
+        if !read.versions.contains(&contract.schema_version) {
+            continue;
+        }
+        partitions.insert(id.clone());
+        work.config.bound(partitions.len(), work.config.limits().partitions, "partitions", operation)?;
+        work.charge(index.rows, index.body_bytes.saturating_add(u64::from(index.metadata_bytes)))?;
+        let batch = (|| -> Result<_> {
+            let schema = ipc::contract_schema(&contract, execution.as_deref())?;
+            let metadata = [
+                "position",
+                "epoch",
+                "ordinal",
+                "sample_id",
+                "sequence",
+                "timestamp",
+                "received_at",
+                "source",
+                "scope",
+                "summary",
+                "metadata",
+            ];
+            let projection = ipc::Projection::new(schema, &metadata, &read.fields)?;
+            ipc::read_query_batch(
+                &root.join(format!("telemetry/{id}.arrow")),
+                &index,
+                &projection,
+                work.config.limits().working_bytes as usize / 2,
+            )
+        })()
+        .map_err(|e| storage_error(e, operation))?;
+        // Capture Ranges Are Bounded By The Admitted Batch, Never By History Length.
+        let ranges = (|| -> Result<_> {
+            let mut statement = connection.prepare_cached(
+                "SELECT first_row,rows FROM stream_captures WHERE execution=?1 AND file_id=?2 AND batch=?3 ORDER BY first_row",
+            )?;
+            let mut rows = statement.query(rusqlite::params![read.execution, id, batch_number])?;
+            let mut ranges = Vec::new();
+            while let Some(row) = rows.next()? {
+                if ranges.len() >= work.config.limits().working_bytes as usize / 64 {
+                    return Err(Error::Data("query capture ranges exceed working budget"));
+                }
+                let first = catalog::unsigned(row, 0)?;
+                let count = catalog::unsigned(row, 1)?;
+                ranges.push((first, first.saturating_add(count)));
+            }
+            Ok(ranges)
+        })()
+        .map_err(|e| storage_error(e, operation))?;
+        for row in 0..batch.num_rows() {
+            work.check()?;
+            let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract).map_err(|e| storage_error(e, operation))?;
+            if position <= read.after || position > read.cut.at.sequence || cutoff.is_some_and(|last| position > last) {
+                continue;
+            }
+            if !ranges.iter().any(|(first, end)| *first <= row as u64 && (row as u64) < *end) {
+                continue;
+            }
+            // Arrow Nulls Do Not Recreate Fields Absent From This Contract Version.
+            entry.sample.values.retain(|key, _| contract.columns.iter().any(|c| c.metadata.identifier.as_str() == key));
+            if harmos::MemorySize::memory_size(&entry.sample) > work.config.limits().working_bytes as usize / 4 {
+                return Err(storage_error(Error::Data("query row exceeds working budget"), operation));
+            }
+            if let Some(next) = consume(position, entry.sample)? {
+                cutoff = Some(next);
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub(super) fn indices(connection: &Connection, id: &str) -> Result<Vec<ipc::BatchIndex>> {
     let mut statement =
         connection.prepare("SELECT offset,metadata_bytes,body_bytes,rows,sha256 FROM stream_batches WHERE file_id=?1 ORDER BY batch")?;
