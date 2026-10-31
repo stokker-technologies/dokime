@@ -20,7 +20,7 @@
 
 ## 4. Consumers And Removal
 
-- [ ] 4.1 Replace runtime storage/query/output/report telemetry readers with overlapping batch reads plus unflushed tail; verify windows, out-of-order times, pagination, no duplicates and saved-versus-live visibility. Functional proofs pass; the 1M-row query median is 3.35 s against the locked ~1 s target, so this item remains open pending optimization and owner-approved query-only revalidation.
+- [x] 4.1 Complete overlapping indexed Arrow reads plus unflushed-tail queries, with projected numeric decoding and bounded exact median reduction. Focused proofs cover windows, out-of-order times, pagination, saved/live visibility, cache switching and identical statistics/envelopes; final latency acceptance remains in 7.2.
 - [x] 4.2 Delete obsolete telemetry payload read/write paths, per-signal tables and indexes, retaining unrelated evidence and summaries; verify source searches and focused storage/durability/recovery tests.
 - [x] 4.3 Review domain/operation/client and GUI consumers; migrate all affected bindings/examples if their contracts change and read `docs/gui.md` before GUI edits; verify focused consumer tests and generated-contract consistency where affected.
 
@@ -34,14 +34,17 @@
 
 ## 6. Benchmark Source And Closure
 
+- [x] 6.3 Profile the landed read path before optimization; own query-only changes in runtime `plot/stored.rs`, `storage/ipc{,/projection}.rs` and `storage/sqlite/data/telemetry{,/reader.rs,/tests.rs}`, plus deterministic plot/storage parity fixtures and dependency declarations only if needed. Preserve the file format, write/finalize/export paths and exact statistics/envelopes; remove superseded unconditional full-batch numeric decoding and repeated median materialization within the bounded cache. Review README/product-guide impact.
+- [x] 6.4 Prove query equivalence on deterministic fixtures covering projected fields, nulls, numeric types, scope/time/frontier selection, pagination, saved/tail merging, exact statistics and downsampling. Migrate the existing report fixture from removed full-history XY/histogram rendering to the already-locked bounded-report contract; retain live typed-integer precision and live XY/histogram coverage. Replace global-progress race assertions with event-driven saved-execution barriers and explicit query frontiers.
+
 - [x] 6.1 Extend the existing runtime bench harness (`benches/storage` and related unit/integration/system owners as appropriate) to compare origin/dev with Arrow writes, 1M-sample window query, finalize and export; verify equivalent inputs, give the existing storage query fixture paired increasing time bounds, wait for both terminal run receipt and saved execution before export, and retain reproducible before/after output without running the benchmark yet.
-- [ ] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
+- [x] 6.2 Close every implementation item and targeted proof in the combined branch, including removal and consumer inventory; only then declare SOURCE COMPLETE. Verify no unimplemented contract or unhanded-off writer remains.
 
 ## 7. Final Validation And Local Handback
 
-- [x] 7.1 Run requested workspace checks and formatting through mise after source closure, plus TypeScript check/lint if GUI changed; record actual results without umbrella lanes or installers. The requested local checks passed on Windows; native Linux/full-graph proof is unrun under the owner's no-umbrella instruction.
-- [ ] 7.2 Run the existing project bench task once at the end with before/after comparison; report write throughput, 1M-sample window latency, finalize and export numbers, including unresolved failures. Retain the original 1M query backend timeout as its baseline outcome; do not extend deadlines or repeat completed measurement cases. The repaired storage fixture passed Criterion test mode. The candidate measurement pass completed; its latency target remains unmet. Native trees are retained under `target/benchmarks/baseline-db2dae5b/` and `target/benchmarks/candidate-52f120d5/`.
-- [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes in small Conventional Commits and hand back status, added/deleted lines, benchmark results, tests and open issues in at most ten lines; do not push or merge.
+- [x] 7.1 After query source closure, run the requested workspace check and formatting through mise on the final tree; report actual native results without umbrella lanes, release builds or installers. No GUI changes are planned.
+- [ ] 7.2 Run only the existing Arrow telemetry million-row window query once at the end through `build:rust:focused`; compare with the recorded landed-Arrow baseline. The owner authorized query-only revalidation; retain the completed write/finalize/export measurements without repeating them.
+- [ ] 7.3 Validate the complete OpenSpec change strictly, commit owned changes with Conventional Commits and prepare a handback with profile findings, changes, before/after query latency and tests in at most six lines; do not push or merge.
 
 ## Workflow Follow-Up
 

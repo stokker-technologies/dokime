@@ -304,6 +304,31 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
         .await
         .unwrap();
     assert_eq!(numeric.iter().map(|(_, row)| row.values[0]).collect::<Vec<_>>(), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]);
+    // Reuse One Indexed Batch First As Numeric Columns, Then As Complete Envelopes.
+    let page = ScanPage {
+        after: numeric[1].0,
+        rows: NonZeroUsize::MAX,
+        bytes: NonZeroUsize::MAX,
+    };
+    let projected = fixture
+        .local
+        .telemetry_numeric(through.clone(), fixture.selection(), page, vec!["value".into()], Default::default())
+        .await
+        .unwrap();
+    let entries = fixture.local.telemetry_read(through.clone(), fixture.selection(), page).await.unwrap();
+    let expected = entries
+        .iter()
+        .map(|(position, entry)| {
+            (
+                *position,
+                entry.sample.timestamp.clone(),
+                entry.sample.sequence,
+                entry.sample.values.get("value").and_then(dokime_domain::model::values::numeric_value),
+            )
+        })
+        .collect::<Vec<_>>();
+    let actual = projected.into_iter().map(|(position, row)| (position, row.timestamp, row.sequence, row.values[0])).collect::<Vec<_>>();
+    assert_eq!(actual, expected);
     let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
         crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
     );

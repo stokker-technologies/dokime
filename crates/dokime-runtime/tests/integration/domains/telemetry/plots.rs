@@ -51,18 +51,19 @@ async fn snapshot_query_samples() {
     settings.local_storage.telemetry_interval = Duration::from_secs(60);
     let (mut owner, runtime) = started(settings).await;
     register_plot_suite(&runtime).await;
-    runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let saved = runtime.storage().cursor_saved();
+    runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let accepted = runtime.storage().cursor_accepted();
     assert!(accepted.sequence > saved.sequence);
-    let pending = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let pending =
+        runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
+    assert_eq!(pending[0].revision, accepted.sequence);
     let mut marked = wifi_request(None, Some(5));
     marked.marker_record_types = vec!["test.cycle.started".into()];
-    let pending = runtime.query_plot_payloads(vec![marked], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let pending = runtime.query_plot_payloads_at(vec![marked], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
-    // Unrelated Background Records May Settle, But Queries Never Flush The Unsaved Telemetry Tail.
-    assert!(runtime.storage().cursor_saved().sequence < accepted.sequence);
+    assert_eq!(pending[0].revision, accepted.sequence);
     let historical =
         runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &saved).await.unwrap();
     assert!(historical[0].payload.series.iter().all(|series| series.raw_points == 0));
@@ -468,7 +469,7 @@ async fn execution_plots_samples() {
     assert_eq!(receipt.accepted, 2);
     assert_eq!(receipt.dropped, 0);
     let envelopes =
-        runtime.query_plot_payloads(vec![wifi_request(Some(execution), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        runtime.query_plot_payloads(vec![wifi_request(Some(execution.clone()), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
@@ -512,73 +513,44 @@ async fn execution_plots_samples() {
             ("std", (2.0_f64 / 3.0).sqrt()),
             ("rms", ((base.powi(2) + (base + 1.0).powi(2) + (base + 2.0).powi(2)) / 3.0).sqrt()),
         ] {
-            let actual = summary[name].as_f64().unwrap();
+            let actual = summary[name].as_f64().unwrap_or_else(|| panic!("{key} {name}: {summary:?}"));
             assert!((actual - expected).abs() < 1e-9, "{key} {name}: {actual} != {expected}");
         }
         assert_eq!(summary["window"], serde_json::json!({"from": 1_767_225_600.0, "to": 1_767_225_602.0}));
     }
-    let sparse = plots["sparse.plot"]["series"][0]["points"].as_array().unwrap();
-    assert_eq!(sparse.len(), 3);
-    for (x, y) in [(0.0, None), (1.0, Some(102.0)), (2.0, Some(100.0))] {
-        let point = sparse.iter().find(|point| point["x"].as_f64() == Some(x)).unwrap();
-        assert_eq!(point["y"].as_f64(), y);
-    }
-    let definitions = report["case_runs"][0]["documents"]["default"]["definition"]["cards"].as_array().unwrap();
-    for (id, field, label, expected) in [
-        ("distance.plot", "distance_m", "distance.selected", [11.0, 12.0, 10.0]),
-        ("position.plot", "position_x_m", "position.selected", [21.0, 22.0, 20.0]),
+    // Non-Time Plots And Histogram Analysis Are Unavailable In Bounded Reports.
+    // Their Live Query Coverage Remains In The Plot And Reduction Fixtures.
+    for id in [
+        "sparse.plot",
+        "distance.plot",
+        "position.plot",
+        "histogram.plot",
+        "missing-x.plot",
+        "fractional.plot",
+        "constant.plot",
+        "empty.plot",
     ] {
-        let series = plots[id]["series"].as_array().unwrap();
-        assert_eq!(series.len(), 1);
-        assert_eq!(series[0]["key"], field);
-        assert_eq!(series[0]["label"], field);
-        assert_eq!(series[0]["raw_points"], 3);
-        let points = series[0]["points"].as_array().unwrap();
-        assert_eq!(points.iter().map(|point| point["x"].as_f64().unwrap()).collect::<Vec<_>>(), [0.0, 1.0, 2.0]);
-        assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), expected);
-        let definition = definitions.iter().find(|card| card["data"]["plot"]["metadata"]["identifier"] == id).unwrap();
-        let expression = &definition["data"]["plot"]["y_expressions"][0];
-        assert_eq!(expression["label"], label);
-        assert_eq!(expression["source"]["field"], field);
+        assert!(plots[id]["series"].as_array().unwrap().is_empty());
+        assert_eq!(plots[id]["analysis"]["kind"], "error");
     }
-    let histogram = &plots["histogram.plot"]["analysis"]["series"][0];
-    assert_eq!(histogram["count"], 3);
-    assert_eq!(histogram["statistics"]["mean"], 11.0);
-    let bins = histogram["bins"].as_array().unwrap();
-    assert_eq!(
-        bins.iter()
-            .map(|bin| (bin["lower"].as_f64().unwrap(), bin["upper"].as_f64().unwrap(), bin["count"].as_u64().unwrap()))
-            .collect::<Vec<_>>(),
-        [(10.0, 11.0, 1), (11.0, 12.0, 2)]
-    );
-    let exact = &plots["exact.plot"]["summaries"][0];
-    assert_eq!(exact["count"], 2);
-    // Rounding Each Input First Would Yield 9_007_199_254_740_992 Instead.
-    assert_eq!(exact["mean"], 9_007_199_254_740_994.0);
-    assert_eq!(exact["median"], 9_007_199_254_740_994.0);
-    let missing_x = &plots["missing-x.plot"];
-    let points = missing_x["series"][0]["points"].as_array().unwrap();
-    assert_eq!(points.len(), 2);
-    assert_eq!(points.iter().find(|point| point["x"].is_null()).unwrap()["y"], 9_007_199_254_740_992.0);
-    assert_eq!(points.iter().find(|point| point["x"] == 7.0).unwrap()["y"], 9_007_199_254_740_994.0);
-    assert_eq!(missing_x["summaries"][0]["count"], 2);
-    assert_eq!(missing_x["summaries"][0]["window"], serde_json::json!({"from": 7.0, "to": 7.0}));
-    for (id, expected) in [
-        ("fractional.plot", vec![(0.1, 0.2, 1), (0.2, 0.3, 2)]),
-        ("constant.plot", vec![(7.0, 8.0, 1), (8.0, 9.0, 0)]),
-        ("empty.plot", vec![(0.0, 1.0, 0), (1.0, 2.0, 0)]),
-    ] {
-        let histogram = &plots[id]["analysis"]["series"][0];
-        assert_eq!(
-            histogram["bins"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|bin| (bin["lower"].as_f64().unwrap(), bin["upper"].as_f64().unwrap(), bin["count"].as_u64().unwrap()))
-                .collect::<Vec<_>>(),
-            expected
-        );
-    }
+    let request = PlotPayloadRequest {
+        stream: "fixture.exact".into(),
+        plot_type: Some(dokime_runtime::document::PlotType::TimeSeries),
+        y_keys: vec!["sample_index".into()],
+        max_points: Some(100),
+        scope: Some(execution),
+        ..Default::default()
+    };
+    let indexed = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(plots["exact.plot"]["summaries"], serde_json::to_value(&indexed[0].payload.summaries).unwrap());
+
+    // The Typed Live Expression Still Aggregates Integers Before Converting To f64.
+    let mut precise = request;
+    precise.y_keys.clear();
+    precise.y_expressions = vec![dokime_runtime::expressions::telemetry("fixture.exact", "sample_index")];
+    let precise = runtime.query_plot_payloads(vec![precise], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(precise[0].payload.summaries[0].mean, Some(9_007_199_254_740_994.0));
+    assert_eq!(precise[0].payload.summaries[0].median, Some(9_007_199_254_740_994.0));
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
     let mut sealed = runtime.open_execution_report(&execution_id).await.unwrap();
@@ -750,15 +722,14 @@ async fn record_query_absent() {
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let scope = cycle.test_executions[0].scope.clone();
-    // Completion Keeps Writing After The Outcome; Settle Until The Saved Cut Stops Moving.
-    loop {
-        let accepted = runtime.storage().cursor_accepted();
-        runtime.storage().flush().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-        if runtime.storage().cursor_accepted() == accepted {
-            break;
-        }
-    }
+    until_state(&runtime, |state| {
+        state
+            .cycle_views()
+            .any(|cycle| cycle.test_cycle_id == cycle_id && cycle.test_executions.iter().all(|execution| execution.saved.is_some()))
+    })
+    .await;
+    runtime.storage().flush().await.unwrap();
+    let at = runtime.storage().cursor_saved();
 
     for (suite, matches) in [("custom.suite", true), ("other.suite", false)] {
         let request = PlotPayloadRequest {
@@ -780,10 +751,10 @@ async fn record_query_absent() {
             }],
             ..Default::default()
         };
-        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let result = runtime.query_plot_payloads_at(vec![request], RuntimePlotQueryMode::Snapshot, &at).await.unwrap();
         let count = result[0].payload.series.iter().map(|series| series.points.len()).sum::<usize>();
         assert_eq!(count > 0, matches);
-        assert_eq!(result[0].revision, runtime.storage().cursor_saved().sequence);
+        assert_eq!(result[0].revision, at.sequence);
     }
 }
 
@@ -942,4 +913,116 @@ async fn selected_analysis_axes() {
 #[tokio::test]
 async fn telemetry_history() {
     crate::service_support::plots::telemetry_history(4_000, PLOT_POINTS, 1).await;
+}
+
+#[tokio::test]
+async fn numeric_query_reductions_match_spilled_results() {
+    let mut reference = None;
+    for bytes in [8192, 8 * 1024 * 1024] {
+        let root = tempdir().unwrap();
+        let mut settings = config(root.path());
+        settings.session_id = dokime_domain::model::identity::SessionId::from_seed("numeric-query");
+        settings.storage.response.batch_bytes = std::num::NonZeroUsize::new(bytes).unwrap();
+        settings.local_storage.telemetry_rows = std::num::NonZeroUsize::new(512).unwrap();
+        settings.local_storage.telemetry_interval = Duration::from_secs(60);
+        let (mut owner, runtime) = started(settings).await;
+        let mut contract = crate::service_support::contracts::fixture_telemetry_contract();
+        contract.columns[0].required = false;
+        contract.columns[0].nullable = true;
+        for (key, label) in [("sample_index", "Sample Index"), ("ordinal", "Ordinal")] {
+            contract.columns.push(
+                dokime_runtime::telemetry::TelemetryColumn::declared(
+                    key,
+                    label,
+                    dokime_runtime::ValueType::Integer,
+                    dokime_runtime::telemetry::TelemetryRole::Value,
+                )
+                .optional(),
+            );
+        }
+        runtime
+            .set_suites(
+                "numeric-query",
+                dokime_runtime::definition::SuiteSet::new([TestSuiteDefinition {
+                    suite_id: "plot.query.suite".into(),
+                    tags: Vec::new(),
+                    workflow: None,
+                    suite: plot_query_suite(),
+                    record_contracts: Vec::new(),
+                    telemetry_contracts: vec![contract],
+                }]),
+            )
+            .await
+            .unwrap();
+        for first in (0..2305).step_by(512) {
+            let samples = (first..(first + 512).min(2305))
+                .map(|index| {
+                    let mut sample = TelemetrySample::new(
+                        dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("numeric-query.{index}")),
+                        Identifier::new("fixture.telemetry").unwrap(),
+                        index as u64,
+                        Timestamp::from_datetime(
+                            time::OffsetDateTime::UNIX_EPOCH
+                                + time::Duration::nanoseconds(((index * 7) % 97) as i64 * 1_000_000_000 + (index % 3) as i64),
+                        ),
+                        "numeric-query",
+                    );
+                    sample.received_at = sample.timestamp.clone();
+                    sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
+                    if index % 5 != 0 {
+                        sample.values.insert("value".into(), Value::Number([-7.0, -0.0, 0.0, -0.0, 11.0, 3.0][index % 6]));
+                    }
+                    sample.values.insert("sample_index".into(), Value::Integer(((index * 17) % 53) as i64 - 26));
+                    sample.values.insert("ordinal".into(), Value::Unsigned(u64::MAX - index as u64));
+                    crate::service_support::contracts::typed_fixture_sample(sample)
+                })
+                .collect();
+            runtime
+                .publish_telemetry_batch(TelemetryBatch::new(
+                    dokime_domain::model::identity::TelemetryBatchId::from_seed(format!("numeric-query.batch.{first}")),
+                    Identifier::new("fixture.telemetry").unwrap(),
+                    samples,
+                ))
+                .await
+                .unwrap();
+            if first == 1536 {
+                runtime.storage().flush().await.unwrap();
+            }
+        }
+        let mut results = Vec::new();
+        for technique in [DownsampleTechnique::Raw, DownsampleTechnique::Lttb, DownsampleTechnique::MinMax, DownsampleTechnique::Auto] {
+            for x in ["timestamp", "sample_index"] {
+                for window in [None, Some(PlotWindow { from: 10.0, to: 50.0 })] {
+                    let request = PlotPayloadRequest {
+                        stream: "fixture.telemetry".into(),
+                        x_key: Some(x.into()),
+                        y_keys: vec!["value".into(), "sample_index".into(), "ordinal".into()],
+                        max_points: Some(17),
+                        technique,
+                        summary_window: window,
+                        plot_type: Some(dokime_runtime::document::PlotType::TimeSeries),
+                        ..Default::default()
+                    };
+                    let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+                    results.push(serde_json::to_string(&serde_json::json!({"series":result[0].payload.series,"summaries":result[0].payload.summaries,"analysis":result[0].payload.analysis})).unwrap());
+                }
+            }
+        }
+        let histogram = PlotPayloadRequest {
+            stream: "fixture.telemetry".into(),
+            x_key: Some("timestamp".into()),
+            y_keys: vec!["value".into()],
+            max_points: Some(17),
+            plot_type: Some(dokime_runtime::document::PlotType::Histogram),
+            ..Default::default()
+        };
+        let histogram = runtime.query_plot_payloads(vec![histogram], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        results.push(serde_json::to_string(&histogram[0].payload.analysis).unwrap());
+        if let Some(reference) = &reference {
+            assert_eq!(&results, reference);
+        } else {
+            reference = Some(results);
+        }
+        owner.shutdown().await.unwrap();
+    }
 }
