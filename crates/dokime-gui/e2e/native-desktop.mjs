@@ -397,7 +397,7 @@ async function checkStatusBounds(session) {
   );
 }
 
-async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true) {
+async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true, { dataRoot = join(work, "data") } = {}) {
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
@@ -411,7 +411,7 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
       "--port",
       String(port),
       "--output-root",
-      join(work, "data"),
+      dataRoot,
       "--application-root",
       join(work, "application"),
     ],
@@ -480,10 +480,11 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
  * WebKitWebDriver 2.52 serializes commands per session and a concurrent pair
  * can leave one of them pending forever.
  */
-async function startSession(work, endpoint, evidence, distribution) {
+async function startSession(work, endpoint, evidence, distribution, { startLocal = true, downloadsRoot } = {}) {
   const home = join(work, "shell");
-  const downloads = join(evidence, "downloads");
+  const downloads = downloadsRoot ?? join(evidence, "downloads");
   const applicationRoot = distribution ? join(home, "data", distribution.identifier) : join(home, "application");
+  const profilesFile = join(home, windows ? "data" : "config", "dokime", "backends.json");
   for (const directory of ["config", "data", "state", "cache", "bin"]) {
     await mkdir(join(home, directory), { recursive: true });
   }
@@ -514,6 +515,7 @@ async function startSession(work, endpoint, evidence, distribution) {
         TAURI_WEBVIEW_AUTOMATION: "true",
         DOKIME_AUTOMATION_REPORT_OPENER: reportBrowser.endpoint,
         DOKIME_APPLICATION_ROOT: distribution ? "" : applicationRoot,
+        DOKIME_PROFILES_FILE: profilesFile,
         ...(distribution ? { DOKIME_OUTPUT_ROOT: "", DOKIME_PLUGINS_DIR: "" } : {}),
         ...(windows
           ? {
@@ -595,6 +597,7 @@ async function startSession(work, endpoint, evidence, distribution) {
     closed: false,
     applicationRoot,
     downloads,
+    profilesFile,
     id: created.sessionId,
     lastBody: "",
     process: webdriver,
@@ -838,7 +841,7 @@ async function startSession(work, endpoint, evidence, distribution) {
   session.goto = async (path) => {
     await session.load(path.startsWith("file:") ? path : session.origin + path);
     if (path.startsWith("file:")) return;
-    if (!endpoint) await session.clickNamed("button", "Start Local Backend");
+    if (!endpoint && startLocal) await session.clickNamed("button", "Start Local Backend");
     await session.connected();
     await until(`route ${path}`, async () => (await session.location()).pathname === new URL(session.origin + path).pathname, 120000);
     await installSaveTap(session);
@@ -1004,7 +1007,7 @@ async function startSession(work, endpoint, evidence, distribution) {
     (["http:", "https:"].includes(initial.protocol) && initial.hostname === "tauri.localhost");
   assert.ok(embedded, `the packaged shell must render embedded assets, received ${initial.href}`);
   session.origin = `${initial.protocol}//${initial.host}`;
-  if (!endpoint) await session.clickNamed("button", "Start Local Backend");
+  if (!endpoint && startLocal) await session.clickNamed("button", "Start Local Backend");
   return session;
 }
 
@@ -4074,10 +4077,10 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
   await session.screenshot("plugin-install");
 }
 
-async function chooseNativeFile(picker, file, operation = "Open") {
+async function chooseNativeFile(picker, file, operation = "Open", owner = driverProcess) {
   if (!windows) {
     if (picker.failure) throw picker.failure;
-    const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
+    const children = await readFile(`/proc/${owner.pid}/task/${owner.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
@@ -4223,7 +4226,8 @@ for index in range(desktop.get_child_count()):
         [Console]::Error.WriteLine(('picker state=' + ($state | ConvertTo-Json -Compress -Depth 4)))
       }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
-      foreach ($process in Get-Process | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
+      $owned = @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq [int]$env:DOKIME_PICKER_DRIVER } | ForEach-Object { $_.ProcessId })
+      foreach ($process in Get-Process | Where-Object { $_.Id -in $owned -and $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
         [Console]::Error.WriteLine(('picker process={0}' -f $process.Id))
         $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
         foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)) {
@@ -4299,6 +4303,7 @@ for index in range(desktop.get_child_count()):
     env: {
       ...process.env,
       DOKIME_PICKER_SHELL: resolve(shellBinary),
+      DOKIME_PICKER_DRIVER: String(owner.pid),
       DOKIME_PICKER_FILE: target,
       DOKIME_PICKER_OPERATION: operation,
       DOKIME_PICKER_ENTERED: picker.entered ? String(picker.entered) : "",
@@ -4697,98 +4702,135 @@ async function main() {
   await journey("restart", restartJourney);
 }
 
+/* Mechanical Native Fixture Shared By Independent Desktop Stories. */
+export { startBackend, startSession, stopBackend, until, unusedPort, chooseNativeFile, terminate };
+
+export async function openNativeReport(path) {
+  const reopened = await fetch(reportBrowser.endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  assert.ok(reopened.ok, "The owned report browser reopens saved HTML");
+  await reportBrowser.closeTabs();
+}
+
+export async function prepareNativeFixture(root, output) {
+  work = root;
+  evidence = output;
+  const prepared = join(workspace, "target/tooling/desktop/chrome-linux64/chrome");
+  const chrome =
+    process.env.DOKIME_E2E_CHROME ??
+    (windows
+      ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
+      : existsSync(prepared)
+        ? prepared
+        : "google-chrome");
+  reportBrowser = await ReportBrowser.start(work, chrome);
+  await startSecretService();
+  return async () => {
+    await reportBrowser.close();
+    await terminate(driverProcess);
+    for (const child of [secretKeyring, secretBus]) await terminate(child);
+  };
+}
+
 /* === Entry Point === */
 
-try {
-  await main();
-} catch (failure) {
-  failures.push({ kind: "failure", name: "harness", reason: redact(failure.message) });
-  process.stdout.write(`\nHarness failure: ${redact(failure.message)}\n`);
-} finally {
-  for (const [name, cleanup] of [
-    ["shell shutdown", closeSession],
-    [
-      "report browser cleanup",
-      async () => {
-        await reportBrowser?.close();
-        reportBrowserClosed = true;
-      },
-    ],
-    ["backend shutdown", stopBackend],
-    [
-      "desktop logs",
-      async () => {
-        if (!work) return;
-        const directory = join(work, "shell", "application", "logs");
-        if (!existsSync(directory)) return;
-        for (const file of await readdir(directory)) {
-          if (!/^dokime-gui\..*\.log$/.test(file)) continue;
-          await writeFile(join(evidence, `desktop-${file}`), redact(await readFile(join(directory, file), "utf8")));
-        }
-      },
-    ],
-  ]) {
-    try {
-      await cleanup();
-    } catch (error) {
-      failures.push({ kind: "failure", name, reason: error.message });
+async function runDesktopWalkthrough() {
+  try {
+    await main();
+  } catch (failure) {
+    failures.push({ kind: "failure", name: "harness", reason: redact(failure.message) });
+    process.stdout.write(`\nHarness failure: ${redact(failure.message)}\n`);
+  } finally {
+    for (const [name, cleanup] of [
+      ["shell shutdown", closeSession],
+      [
+        "report browser cleanup",
+        async () => {
+          await reportBrowser?.close();
+          reportBrowserClosed = true;
+        },
+      ],
+      ["backend shutdown", stopBackend],
+      [
+        "desktop logs",
+        async () => {
+          if (!work) return;
+          const directory = join(work, "shell", "application", "logs");
+          if (!existsSync(directory)) return;
+          for (const file of await readdir(directory)) {
+            if (!/^dokime-gui\..*\.log$/.test(file)) continue;
+            await writeFile(join(evidence, `desktop-${file}`), redact(await readFile(join(directory, file), "utf8")));
+          }
+        },
+      ],
+    ]) {
+      try {
+        await cleanup();
+      } catch (error) {
+        failures.push({ kind: "failure", name, reason: error.message });
+      }
     }
-  }
-  if (driverProcess)
-    await terminate(driverProcess).catch((error) => failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }));
-  if (backend) {
-    await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
-    await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
-  }
-  for (const child of [secretKeyring, secretBus]) {
-    if (!child) continue;
-    try {
-      await terminate(child);
-      await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 120000);
-    } catch (error) {
-      failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
+    if (driverProcess)
+      await terminate(driverProcess).catch((error) => failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }));
+    if (backend) {
+      await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
+      await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
     }
-  }
-  if (installerAttempted) {
-    try {
-      const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
-      assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
-      await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
-        windowsHide: true,
-        windowsVerbatimArguments: true,
-        timeout: 120000,
-      });
-    } catch (error) {
-      failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
+    for (const child of [secretKeyring, secretBus]) {
+      if (!child) continue;
+      try {
+        await terminate(child);
+        await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 120000);
+      } catch (error) {
+        failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
+      }
     }
+    if (installerAttempted) {
+      try {
+        const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
+        assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
+        await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
+          windowsHide: true,
+          windowsVerbatimArguments: true,
+          timeout: 120000,
+        });
+      } catch (error) {
+        failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
+      }
+    }
+    if (work)
+      await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
+        failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
+      );
+    if (work && reportBrowserClosed && !failures.length)
+      await rm(work, { force: true, recursive: true }).catch((error) =>
+        failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
+      );
+    await writeJunit();
   }
-  if (work)
-    await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
-      failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
-    );
-  if (work && reportBrowserClosed && !failures.length)
-    await rm(work, { force: true, recursive: true }).catch((error) =>
-      failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
-    );
-  await writeJunit();
-}
 
-for (const note of notes) process.stdout.write(`\nnote: ${note}\n`);
+  for (const note of notes) process.stdout.write(`\nnote: ${note}\n`);
 
-if (failures.length) {
-  /* A defect is the product refusing what the redesign promised; a failure is
+  if (failures.length) {
+    /* A defect is the product refusing what the redesign promised; a failure is
      this gate not getting through. Both are non-zero, and they are not the
      same report. */
-  for (const kind of ["defect", "failure"]) {
-    const group = failures.filter((entry) => entry.kind === kind);
-    if (!group.length) continue;
-    process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
-    for (const entry of group) process.stdout.write(`  - ${entry.name}: ${redact(entry.reason)}\n`);
+    for (const kind of ["defect", "failure"]) {
+      const group = failures.filter((entry) => entry.kind === kind);
+      if (!group.length) continue;
+      process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
+      for (const entry of group) process.stdout.write(`  - ${entry.name}: ${redact(entry.reason)}\n`);
+    }
+    process.stdout.write(`\nEvidence: ${evidence}\n`);
+    process.exitCode = 1;
+  } else {
+    process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
+    process.stdout.write(`Evidence: ${evidence}\n`);
+    if (!process.env.DOKIME_E2E_KEEP && !options.junit) await rm(evidence, { force: true, recursive: true });
   }
-  process.stdout.write(`\nEvidence: ${evidence}\n`);
-  process.exitCode = 1;
-} else {
-  process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
-  process.stdout.write(`Evidence: ${evidence}\n`);
-  if (!process.env.DOKIME_E2E_KEEP && !options.junit) await rm(evidence, { force: true, recursive: true });
 }
+
+if (resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await runDesktopWalkthrough();
