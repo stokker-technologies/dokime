@@ -55,6 +55,7 @@ from .planning import TestCase as TestCase
 from .profiles import Profile as Profile
 from .query.discovery import CycleSummary as CycleSummary
 from .query.discovery import ExecutionSummary as ExecutionSummary
+from .query.errors import QueryDependencyError as QueryDependencyError
 from .query.errors import QueryError as QueryError
 from .query.errors import QueryLimitError as QueryLimitError
 from .query.errors import QuerySnapshotError as QuerySnapshotError

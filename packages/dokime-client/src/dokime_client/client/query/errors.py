@@ -37,6 +37,14 @@ from ..errors import RpcError
 # === Classes === #
 
 
+class QueryDependencyError(ImportError):
+    """An Optional Dataframe Dependency Is Missing."""
+
+    def __init__(self, extra: str):
+        self.extra = extra
+        super().__init__(f"Query conversion requires {extra}; install it with `uv add 'dokime-client[{extra}]'`")
+
+
 class QueryError(RpcError):
     """A Query Failure Retaining The Original RPC Status, Metadata And Cause."""
 

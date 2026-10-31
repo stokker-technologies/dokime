@@ -69,7 +69,12 @@ generated_python = "packages/dokime-client/src/dokime_client/_wire packages/doki
 
 [tasks.prepare]
 description = "Prepare Tools And Inputs"
-run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
+usage = 'flag "--refresh-lock" help="Refresh The Python Workspace Lock Before Synchronizing"'
+run = [
+  "{% if usage.refresh_lock %}uv lock{% endif %}",
+  "uv sync --locked --all-groups --no-install-package dokime-client",
+  "pnpm --dir crates/dokime-gui install --frozen-lockfile",
+]
 
 [tasks."prepare:bindings"]
 description = "Regenerate Canonical Python And TypeScript Contracts"

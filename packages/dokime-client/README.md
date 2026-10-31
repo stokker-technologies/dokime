@@ -30,6 +30,19 @@ The source package uses Hatchling and requires no Rust compiler or contract
 generation. Runtime dependencies are `grpcio`, `protobuf` and `python-dotenv`; install their
 compatible platform wheels as usual.
 
+Finite query iteration needs no dataframe library. Install either optional extra
+for local conversion, keeping the client and backend revisions matched:
+
+```sh
+uv add 'dokime-client[polars]'
+uv add 'dokime-client[pandas]'
+# For a matching local wheel:
+uv add './dokime_client-0.1.2-py3-none-any.whl' --extra polars
+```
+
+Only the selected conversion imports its library. A missing extra raises
+`QueryDependencyError` with installation guidance before any page is requested.
+
 ## Named Backend Profiles
 
 Read an unsecured lab profile explicitly:

@@ -3233,6 +3233,7 @@ from .client import DokimeClient as DokimeClient
 from .client import ExecutionSummary as ExecutionSummary
 from .client import Predicate as Predicate
 from .client import QualityCounts as QualityCounts
+from .client import QueryDependencyError as QueryDependencyError
 from .client import QueryError as QueryError
 from .client import QueryLimitError as QueryLimitError
 from .client import QueryPage as QueryPage
