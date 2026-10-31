@@ -14,14 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Third Party Imports
 
 // Local Imports
 // Third-Party Imports
 use crate::error::Error;
+use crate::settings::SAMPLE_INTERVAL_MS;
 use crate::suites::common::system::{self, SystemInputs};
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
@@ -31,10 +31,8 @@ use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
 const LABEL: &str = "Pulse";
 pub const DEFAULT_SAMPLE_COUNT: i64 = 8;
-pub const SAMPLE_INTERVAL_MS: u64 = 100;
 pub const DEFAULT_TOLERANCE: f64 = 1e-9;
 const MAX_SAMPLE_COUNT: u64 = 64;
-const PROGRESS_POLL: Duration = Duration::from_millis(5);
 
 /* === Macros === */
 
@@ -61,10 +59,9 @@ pub struct RunCompleted {
 
 pub struct Pulse;
 
-#[derive(Default)]
 pub struct PulseResources {
     armed: AtomicBool,
-    produced: AtomicU64,
+    produced: tokio::sync::watch::Sender<u64>,
 }
 
 // The attribute reads these fields once and generates every half: the columns
@@ -147,6 +144,15 @@ pub enum ObserverStreams {
 
 /* === Implementations === */
 
+impl Default for PulseResources {
+    fn default() -> Self {
+        Self {
+            armed: AtomicBool::new(false),
+            produced: tokio::sync::watch::Sender::new(0),
+        }
+    }
+}
+
 #[dokime::template(
     id = "obc.checks.pulse",
     label = LABEL,
@@ -214,17 +220,16 @@ impl Pulse {
         // template-wide samples(...) declaration is needed for this window.
         let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
-        let started = ctx.resources().produced.load(Ordering::Acquire);
-        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
-            tokio::time::sleep(PROGRESS_POLL).await;
-        }
+        let mut produced = ctx.resources().produced.subscribe();
+        let started = *produced.borrow_and_update();
+        produced.wait_for(|count| count.saturating_sub(started) >= wanted).await.expect("the resources retain the sample counter");
 
         Ok(())
     }
 
     #[dokime::step(label = "Complete", description = "The last phase: say what the run produced.")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let produced = ctx.resources().produced.load(Ordering::Acquire);
+        let produced = *ctx.resources().produced.borrow();
         ctx.publish(RunCompleted { samples: produced }).await;
 
         Ok(())
@@ -256,13 +261,13 @@ impl Pulse {
             return Ok(());
         }
         // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
-        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let index = *ctx.resources().produced.borrow();
         ctx.publish(PulseRow {
             sample_index: index as i64,
             value: pulse_value(index),
         })
         .await;
-        ctx.resources().produced.store(index + 1, Ordering::Release);
+        ctx.resources().produced.send_replace(index + 1);
 
         Ok(())
     }

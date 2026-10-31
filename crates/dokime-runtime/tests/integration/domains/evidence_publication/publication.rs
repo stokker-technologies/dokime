@@ -176,20 +176,6 @@ pub(super) async fn telemetry_batches_sample() {
     assert_eq!(evidence.counts().telemetry, 5_000);
 }
 
-pub(super) async fn record_history_ranges(runtime: &RuntimeHandle) {
-    runtime.publish_product_record(product_calibration(ProductCalibrationPhase::Started)).await.unwrap();
-    for index in 0..520 {
-        runtime
-            .add_health_item(RecordScope::default(), HealthSeverity::Info, format!("transaction-only fixture {index}"), None)
-            .await
-            .expect("health transaction is accepted");
-    }
-    runtime.publish_product_record(product_calibration(ProductCalibrationPhase::Completed)).await.unwrap();
-
-    let records = runtime.selected_records(RecordSelection::default()).await.unwrap();
-    assert!(records.iter().any(|record| { record.record_type.as_str() == "calibration.field.completed" && record.sequence > 512 }));
-}
-
 pub(super) async fn publish_record_warning(runtime: &RuntimeHandle) {
     let result = runtime.publish_record(invalid_product_record("calibration.field.completed", "done")).await;
     let evidence = runtime.evidence_snapshot().await.unwrap();

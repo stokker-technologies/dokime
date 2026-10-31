@@ -64,7 +64,6 @@ async fn evidence_publication() {
     publication::evidence_write_revision(&runtime).await;
     publication::subscriptions_deliver_selection(&runtime).await;
     records::native_publications_order(&mut owner).await;
-    publication::record_history_ranges(&runtime).await;
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

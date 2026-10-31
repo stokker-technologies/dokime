@@ -28,7 +28,7 @@ use crate::service_support::sampling::{self, Sampling};
 const SIZE: Sampling = Sampling {
     paged_rows: 640,
     cases: 2,
-    rows: 2_000,
+    rows: sampling::LIVE_DISPLAY_POINTS + 1,
     spectrum_rows: 1_024,
     page_bytes: 64 * 1024,
 };

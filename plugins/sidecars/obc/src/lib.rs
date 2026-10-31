@@ -22,8 +22,8 @@ pub mod suites;
 /* === Re-Exports === */
 
 pub use error::Error;
-pub use settings::BenchSettings;
-pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
+pub use settings::{BenchSettings, SAMPLE_INTERVAL_MS};
+pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, pulse_value};
 
 /* === Imports === */
 

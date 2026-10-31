@@ -71,6 +71,24 @@ impl LocalSource {
         self
     }
 
+    pub(super) async fn changes(&self, storage: &crate::storage::Manager) -> Option<harmos::storage::DirectoryWatcher> {
+        if !tokio::fs::metadata(&self.root).await.is_ok_and(|metadata| metadata.is_dir()) {
+            return None;
+        }
+        let selection = harmos::domain::model::storage::DirectorySelection {
+            root: self.root.clone(),
+            recursive: self.depth != 1,
+            rules: vec![harmos::domain::model::storage::DirectoryRule { pattern: "**".into(), include: true }],
+        };
+        match storage.watch_directory(selection, false).await {
+            Ok(changes) => Some(changes),
+            Err(error) => {
+                tracing::warn!(%error, "native file notifications unavailable; configured polling remains active");
+                None
+            }
+        }
+    }
+
     pub(super) async fn scan(&self, matcher: &FileMatcher) -> Result<Listing> {
         let root = self.root.clone();
         let matcher = matcher.clone();

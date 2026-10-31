@@ -28,6 +28,7 @@ use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 /* === Constants === */
 const WATCHED_CONTENT: &[u8] = b"the chamber log, rewritten in place\n";
 const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
+const ROWS: u32 = 2;
 
 /* === Macros === */
 
@@ -43,7 +44,7 @@ const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 
 /* === Private Functions === */
 async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
-    let provider = Smoke::new(Behaviour::new(777, 0, false).artifacts(abandoned));
+    let provider = Smoke::new(Behaviour::new(ROWS, 0, false).artifacts(abandoned));
     let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
     let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite)).await;
@@ -87,7 +88,7 @@ async fn export_zip(
     use std::io::{Read, Write};
     let maximum = match &subject {
         dokime_domain::model::exports::EvidenceSubject::Execution(_) => 2 * 1024 * 1024,
-        dokime_domain::model::exports::EvidenceSubject::Cycle(_) => 257,
+        dokime_domain::model::exports::EvidenceSubject::Cycle(_) => crate::service_support::budgets::settings::EXPORT_CHUNK_BYTES,
     };
     let maximum = std::num::NonZeroUsize::new(maximum).unwrap();
     let mut bundle = runtime.export_evidence(subject.clone()).await.unwrap();
@@ -179,7 +180,7 @@ pub(crate) async fn saved_evidence_export() {
     let path = root.path().join("execution.zip");
     let manifest = export_zip(&runtime, execution_subject.clone(), &path).await;
     assert_eq!(manifest["executions"].as_array().unwrap().len(), 1);
-    assert_eq!(manifest["executions"][0]["counts"]["samples"], 777);
+    assert_eq!(manifest["executions"][0]["counts"]["samples"], ROWS);
     assert!(manifest["executions"][0]["counts"]["records"].as_u64().unwrap() > 0);
     let database_path = root.path().join("inspection.sqlite");
     let mut zip = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
@@ -189,19 +190,21 @@ pub(crate) async fn saved_evidence_export() {
     let database = rusqlite::Connection::open(&database_path).unwrap();
     assert_eq!(database.query_row("SELECT count(*) FROM executions", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
     assert_eq!(database.query_row("SELECT phase FROM cycles", [], |row| row.get::<_, String>(0)).unwrap(), "active");
-    assert_eq!(database.query_row("SELECT sum(rows) FROM streams", [], |row| row.get::<_, i64>(0)).unwrap(), 777);
+    assert_eq!(database.query_row("SELECT sum(rows) FROM streams", [], |row| row.get::<_, i64>(0)).unwrap(), i64::from(ROWS));
     assert!(database.query_row("SELECT count(*) FROM outputs", [], |row| row.get::<_, i64>(0)).unwrap() >= 2);
     let (member, id): (String, String) = database
-        .query_row("SELECT f.path,f.id FROM streams s JOIN files f ON s.file_id=f.id WHERE s.rows=777 AND f.kind='telemetry'", [], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row(
+            "SELECT f.path,f.id FROM streams s JOIN files f ON s.file_id=f.id WHERE s.rows=?1 AND f.kind='telemetry'",
+            [ROWS],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .unwrap();
     assert!(member.starts_with("telemetry/") && member.ends_with(".arrow"));
     let mut contents = Vec::new();
     zip.by_name(&member).unwrap().read_to_end(&mut contents).unwrap();
     assert_eq!(contents, std::fs::read(runtime.storage_root().join(format!("telemetry/{id}.arrow"))).unwrap());
     let reader = arrow_ipc::reader::FileReader::try_new(std::io::Cursor::new(contents), None).unwrap();
-    assert_eq!(reader.map(|batch| batch.unwrap().num_rows()).sum::<usize>(), 777);
+    assert_eq!(reader.map(|batch| batch.unwrap().num_rows()).sum::<usize>(), ROWS as usize);
     assert_eq!(
         database
             .query_row("SELECT count(*) FROM artifacts a JOIN files f ON a.file_id=f.id WHERE f.kind='telemetry'", [], |row| row

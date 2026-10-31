@@ -20,6 +20,7 @@ use std::{path::PathBuf, time::Duration};
 
 // Local Imports
 use super::*;
+use crate::settings::FILE_POLL_MS;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
@@ -319,7 +320,7 @@ impl Startup {
 
     #[dokime::step(
         label = "Tail the Charger Log",
-        description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. Bounded, it settles on its own once the readings are in."
+        description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The producer cancels and seals the bounded watch after writing its readings."
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let watch = ctx
@@ -336,7 +337,7 @@ impl Startup {
                 policy: FileWatchPolicy::Stream,
                 selection: FileWatchSelection::All,
                 wait_for_source_seconds: None,
-                poll_interval_ms: Some(100),
+                poll_interval_ms: Some(FILE_POLL_MS),
                 maximum_seconds: Some(1),
                 maximum_bytes: None,
                 matchers: vec![LineMatcher::publishing::<ChargerLog>(
@@ -351,9 +352,8 @@ impl Startup {
         let interval_s = ctx.parameters().sample_interval_s;
         for index in 0..5 {
             self.device.sample(f64::from(index) * interval_s);
-            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let captured = watch.join().await?.into_owned();
+        let captured = watch.cancel().await?.into_owned();
         ctx.info(format!("record=charger_log bytes={}", captured.artifacts.iter().map(|artifact| artifact.size_bytes).sum::<u64>()));
         Ok(())
     }

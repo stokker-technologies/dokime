@@ -56,21 +56,31 @@ let failed = false;
 /* === Entry Point === */
 
 try {
-  for (const name of selected) {
-    const started = performance.now();
-    const report = join(scratch, `${name}.xml`);
-    const script = name === "desktop-configuration" ? "native-desktop" : name;
-    const workflow =
-      name === "native-desktop" ? ["--workflow", "execution"] : name === "desktop-configuration" ? ["--workflow", "configuration"] : [];
-    const child = spawn(process.execPath, [`e2e/${script}.mjs`, "--profile", options.profile, "--junit", report, ...workflow], {
-      stdio: "inherit",
-      windowsHide: true,
-    });
-    const [code] = await once(child, "exit");
-    process.stdout.write(`\nStory Timing: ${name} ${((performance.now() - started) / 1000).toFixed(3)} s\n`);
-    failed ||= code !== 0;
-    const document = await readFile(report, "utf8");
-    suites.push(document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")));
+  const results = await Promise.allSettled(
+    selected.map(async (name) => {
+      const started = performance.now();
+      const report = join(scratch, `${name}.xml`);
+      const script = name === "desktop-configuration" ? "native-desktop" : name;
+      const workflow =
+        name === "native-desktop" ? ["--workflow", "execution"] : name === "desktop-configuration" ? ["--workflow", "configuration"] : [];
+      const child = spawn(process.execPath, [`e2e/${script}.mjs`, "--profile", options.profile, "--junit", report, ...workflow], {
+        stdio: "inherit",
+        windowsHide: true,
+      });
+      const [code] = await once(child, "exit");
+      process.stdout.write(`\nStory Timing: ${name} ${((performance.now() - started) / 1000).toFixed(3)} s\n`);
+      const document = await readFile(report, "utf8");
+      return { code, suite: document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")) };
+    }),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      failed = true;
+      process.stderr.write(`${result.reason.stack ?? result.reason}\n`);
+      continue;
+    }
+    failed ||= result.value.code !== 0;
+    suites.push(result.value.suite);
   }
 } finally {
   if (options.junit) {

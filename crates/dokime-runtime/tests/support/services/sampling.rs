@@ -41,7 +41,7 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 
 /* === Constants === */
 
-const LIVE_DISPLAY_POINTS: u32 = 1_500;
+pub const LIVE_DISPLAY_POINTS: u32 = 1_500;
 
 /* === Macros === */
 

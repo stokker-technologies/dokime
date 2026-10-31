@@ -14,16 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{
-    Mutex,
-    atomic::{AtomicU64, Ordering},
-};
-use std::time::Duration;
+use std::sync::Mutex;
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
+use crate::settings::STEADY_INTERVAL_MS;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::measurement::InputMeasurement;
 use crate::suites::common::system::{self, SystemInputs};
@@ -38,7 +35,6 @@ use obc_runtime::device::Device;
 
 /* === Constants === */
 
-const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 const STEADY_STREAM: &str = "obc.charger.steady.samples";
 
 /* === Macros === */
@@ -52,7 +48,7 @@ bench!(Parameters);
 pub struct SteadyResources {
     device: Mutex<Device>,
     interval_s: f64,
-    produced: AtomicU64,
+    produced: tokio::sync::watch::Sender<u64>,
 }
 
 pub struct Steady {
@@ -225,7 +221,7 @@ impl Steady {
         let shared = SteadyResources {
             device: Mutex::new(Device::initialize(ctx.parameters().supply()).map_err(Error::Device)?),
             interval_s: ctx.parameters().sample_interval_s,
-            produced: AtomicU64::new(0),
+            produced: tokio::sync::watch::Sender::new(0),
         };
         Ok((template, shared))
     }
@@ -284,10 +280,9 @@ impl Steady {
         // Counted from this step's start: the observer also samples during
         // initialization and between steps, and those rows carry no step
         // attempt, so the criterion never sees them.
-        let started = ctx.resources().produced.load(Ordering::Acquire);
-        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
-            tokio::time::sleep(STEADY_SAMPLE_POLL).await;
-        }
+        let mut produced = ctx.resources().produced.subscribe();
+        let started = *produced.borrow_and_update();
+        produced.wait_for(|count| count.saturating_sub(started) >= wanted).await.expect("the resources retain the sample counter");
         events
             .push(BenchEvent {
                 event: "hold_reached".into(),
@@ -317,7 +312,7 @@ impl Steady {
     #[dokime::step(label = "Attach Measurement Evidence")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let device = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.clone();
-        let produced = ctx.resources().produced.load(Ordering::Acquire);
+        let produced = *ctx.resources().produced.borrow();
         ctx.publish(Completed {
             sample_count: produced,
             accepted: self.accepted && device.fault.is_none(),
@@ -345,13 +340,13 @@ impl Steady {
             && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
     }
 
-    #[dokime::observer(interval_ms = 50, streams = ObserverStreams)]
+    #[dokime::observer(interval_ms = STEADY_INTERVAL_MS, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
-        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let index = *ctx.resources().produced.borrow();
         let row = reading(ctx.resources(), index)?;
         ctx.stream::<InputMeasurement>().into::<Samples>().push(row).await;
-        ctx.resources().produced.store(index + 1, Ordering::Release);
+        ctx.resources().produced.send_replace(index + 1);
 
         Ok(())
     }

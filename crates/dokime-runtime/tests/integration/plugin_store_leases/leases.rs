@@ -130,8 +130,7 @@ fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app:
 }
 
 async fn runtime(root: &std::path::Path) -> Runtime {
-    let configuration =
-        config(root).with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+    let configuration = config(root).with_plugins([crate::service_support::bundles::host_plugin()]);
     started(configuration).await.0
 }
 
