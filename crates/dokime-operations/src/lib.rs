@@ -58,8 +58,6 @@ use harmos::schema::Described;
 
 /* === Constants === */
 
-pub const PACKAGE: &str = "dokime.v1";
-
 // Bounds One Ordinary Request From Admission To Its Response.
 pub const ORDINARY: OperationPolicy = policy(Duration::from_secs(10));
 

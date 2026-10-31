@@ -283,10 +283,6 @@ impl Journal {
         self.lock().ring(scope).map_or(0, |ring| ring.end().saturating_sub(1).max(ring.base))
     }
 
-    pub fn evicted(&self, scope: &Scope) -> u64 {
-        self.lock().ring(scope).map_or(0, |ring| ring.front - ring.base - 1)
-    }
-
     fn lock(&self) -> MutexGuard<'_, State> {
         // A Panic Elsewhere Never Leaves A Ring Half-Written: Pushes Are Infallible.
         self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
