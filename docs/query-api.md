@@ -3,7 +3,8 @@
 The finite query declarations are under `crates/dokime-operations/src/query/`;
 shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
-Operation registration, evidence execution and generated clients remain pending.
+Record query execution is implemented under the same ownership.
+Operation registration, telemetry execution and generated clients remain pending.
 These declarations are not yet callable through transports.
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
@@ -51,7 +52,7 @@ Int64/Uint64. No integer is converted to a floating value in raw results.
 are opaque, authenticated, bounded and scoped to the local retained store;
 they never grant access or imply terminal readiness. Continuations bind the
 snapshot, selection, projection/reduction and last scanned key, permitting only
-page-budget changes. Token creation/validation belongs to later snapshot work.
+page-budget changes. Token creation/validation uses the fixed-cut lifecycle below.
 
 `bucket: {every_nanos, aggregate}` requires a positive fixed interval and a
 count/sum/mean/min/max reducer. Buckets are epoch-aligned, clip inputs to the
@@ -79,8 +80,7 @@ plus `required_fields`. Storage planning must select those versions and bind
 `FieldRef::Declared` to actual captured columns; envelope references have their
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
-storage reader and creates no query handler. Record and sample execution
-remain with their later tasks.
+storage reader. Record execution uses this planner; sample execution remains pending.
 
 ## Local History Storage
 
@@ -131,8 +131,37 @@ in the deletion transaction; affected tokens then become unavailable.
 
 Continuations bind the canonical selection/projection/reduction and last scanned
 key. Changing row/byte sizes preserves the selection; changing predicates or
-projection does not. History handlers reserve response metadata and continuation
+projection does not. History and record handlers reserve response metadata and continuation
 bytes before admitting rows. No SQLite transaction, client lock, member vector
-or result set is retained between pages. Raw evidence and bucket seek coordinates
-are available to their later execution owners; records/Arrow execution remains
-outside this implementation slice.
+or result set is retained between pages. Arrow execution remains with its owning tasks.
+
+## Finite Records And Follow
+
+`RuntimeHandle::query_list_records` selects one record type within an execution
+or cycle, optionally narrowed to a member execution. It reads the existing indexed
+producer/capture links, returning each occurrence once in durable position order.
+Captured observer records keep their original producer scope, source, occurrence
+time, receive time and schema version; capture does not rewrite attribution.
+Cycle membership uses the captured catalog revision, excluding later members.
+
+Queries are finite reads at one retained cut. They never wait for execution
+completion or future records, and never start, stop or seal work. Existing replay
+and follow readers remain the interfaces for observing later evidence. A fresh
+query may see newer evidence; passing the returned snapshot preserves the old cut.
+The captured record journal epoch and position constrain records independently
+of the physical storage boundary, including after restart. Checkpoints retain
+their original physical boundary without a new journal cutoff.
+
+Selection and output use captured record contracts, including compatible versions,
+nullable fields and units. Each row includes only that version's declared details;
+missing fields stay absent and nulls stay null, without applying defaults.
+Unknown fields/contracts and incompatible versions fail before evidence scanning,
+including when no rows match. Integer details remain lossless.
+
+Each call scans at most the configured `max_page_rows` chunk within working and
+scan budgets. A sparse chunk can return no rows with `complete=false` and a seek
+continuation after its last scanned occurrence. Follow that continuation until
+`complete=true`; an empty page alone does not mean exhaustion. Page row/byte limits
+can change between calls. Schema, snapshot and continuation metadata count toward
+the page ceiling. An indivisible oversized row or metadata, work exhaustion,
+corruption or unavailable cut returns a typed failure, never a complete subset.

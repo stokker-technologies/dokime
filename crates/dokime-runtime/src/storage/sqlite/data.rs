@@ -23,6 +23,7 @@ pub(crate) mod telemetry;
 pub use backend::Backend;
 pub(crate) use entry::Entry;
 pub(super) use files::VerifiedPrefix;
+pub(crate) use records::query::{Read as RecordQueryRead, Scan as RecordQueryScan};
 
 /* === Imports === */
 
