@@ -117,6 +117,8 @@ run = [
   "{{vars.python}} ruff format packages/dokime-client{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff format tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -152,6 +154,10 @@ run = [
   "{{vars.python}} ty check --project tools/python",
   '{{vars.python}} ruff check tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
   '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py',
+  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py',
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py',
+  '{{vars.python}} ruff check tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
 ]
 
 [tasks."lint:typescript"]
@@ -293,13 +299,10 @@ run = [
 # === Test === #
 
 [tasks.test]
-description = "Test Every Layer"
+description = "Test Every Layer Concurrently From Built Artifacts"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = [
-  "test:rust --profile {{usage.profile}}",
-  "test:python --profile {{usage.profile}}",
-  "test:typescript --profile {{usage.profile}}",
-]
+depends = ["prepare:desktop"]
+run = "{{vars.tools}} dokime_tools.test.schedule --profile {{usage.profile}}"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python"]

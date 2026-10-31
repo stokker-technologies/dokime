@@ -60,6 +60,52 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests And Checks
 
+Build matching artifacts, then run every test lane concurrently (the five-minute
+execution target is advisory and excludes compilation):
+
+```sh
+mise run build
+mise run build:rust:tests
+mise run test
+```
+
+Remove `UV_PROJECT_ENVIRONMENT` from the calling environment first (`env -u
+UV_PROJECT_ENVIRONMENT mise run test` on Unix, `Remove-Item
+Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue` in PowerShell).
+The entry prepares desktop prerequisites, installs the built Python wheel,
+restores generated contracts and extracts the Rust archive once before concurrent
+readers start. Standalone Rust lanes also reuse one extraction for listing and
+execution. The entry runs all ten
+lanes even if one fails and returns failure if any lane fails. Full lane logs,
+exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
+`target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
+summary under `target/test-reports/<category>-<language>/`. Individual lane tasks
+remain independently usable; avoid running the same lane twice in one checkout.
+Only one native desktop lane may use an interactive desktop session at a time,
+including runs from other worktrees. Reserve an idle test host for wall-clock
+comparisons; simultaneous external test runs can trip existing liveness guards.
+
+The scheduler reserves CPU headroom for the desktop and divides the remaining
+logical CPU slots across the four Rust nextest lanes, Python integration and both
+Vitest lanes. All seven pools use that worker count. Standalone
+Rust lanes keep nextest's CPU-sized pool; standalone Python integration uses
+xdist's automatic pool with work stealing. Vitest uses isolated worker threads
+and parallel files; tests within a file retain their authored order. Rust tests
+already run in isolated processes, with fixture-local storage and ephemeral
+listeners. Python workers own temporary roots and ephemeral gRPC listeners.
+Pytest caches and Vite/Vitest caches belong to their lane, so lanes do not replace
+one another's results.
+
+Shared input preparation and the native desktop workflows serialize:
+preparation mutates the wheel environment and generated modules and extracts shared
+read-only Rust binaries, while desktop
+stories share window focus, native pickers and one interactive desktop session.
+Process-local test fixture mutexes protect callbacks or runtime state inside one
+story; they do not lock other nextest processes. No cross-test nextest group is
+needed. Hosted CI and nightly test jobs already depend on their artifact producers
+and impact selection independently, without test-to-test dependencies or a shared
+concurrency group; each keeps its own public bootstrap and required platform legs.
+
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
 Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/recovery (`native-desktop`), configuration/remote access (`desktop-configuration`), and two-desktop control on Windows and Linux.
@@ -74,7 +120,7 @@ mise run ci:simulate
 ```
 
 The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs one job at a time without CPU, memory
+is only partial proof. Local simulation runs independent jobs concurrently in dependency order without CPU, memory
 or thread limits. Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
