@@ -96,7 +96,11 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 ### System Story Reports
 
 Report-producing system stories automatically save and reopen their final sealed
-execution reports during shared fixture teardown or desktop journey finalization.
+execution reports during shared fixture teardown or desktop scene finalization.
+Desktop scenes declare the executions they materialize and the reports they own.
+Shutdown and recovery scenes own reports sealed by their boundary, including
+unstarted members. The native finalizer saves only those declared reports once;
+read-only scenes do not re-export earlier history.
 The finalizer verifies execution identity, the durable seal/checkpoint and artifact
 inventory/content. No separate report-saving story or command is needed. Stories
 which do not produce execution reports have explicit reasons in
@@ -104,6 +108,11 @@ which do not produce execution reports have explicit reasons in
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
 selected journeys in JUnit; full walkthrough validation remains a separate obligation.
+The native harness logs scene totals and retains per-step timings in each story's
+`timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
+Categories distinguish launches, subprocesses, execution waits, polling, native
+pickers, report exports and browser reopens; nested categories overlap. Timings
+are diagnostic output, never correctness assertions.
 
 ### Storage Benchmarks
 

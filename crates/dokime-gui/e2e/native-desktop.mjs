@@ -16,7 +16,7 @@
 // role and stable copy; never by class names, which the design pass keeps
 // moving.
 //
-// Journeys, in order, each asserting on DOM text and roles and screenshotting
+// Journeys, each asserting on DOM text and roles and screenshotting
 // into the evidence directory when it fails:
 //
 //   a. startup      the connection screen, then Cycles with empty groups
@@ -50,7 +50,7 @@
 //     fixture cleanup. `xdg-open` is a no-op for unrelated file-manager opens.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
 //     session can reach, which would hang the gate on Download Report. The gate
-//     taps inline document saves at the Tauri IPC boundary. Shared report
+//     taps inline document saves at the Tauri IPC boundary. Scene-owned report
 //     finalization drives the real native save picker and verified pull, then
 //     retains the reopened report and its linked artifacts in `<evidence>/downloads`.
 //     Every domain RPC still
@@ -65,7 +65,7 @@
 import assert from "node:assert/strict";
 
 import { execFile, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
@@ -77,6 +77,8 @@ import { tmpdir } from "node:os";
 
 import { basename, dirname, join, resolve } from "node:path";
 
+import { createInterface } from "node:readline";
+
 import { setTimeout as delay } from "node:timers/promises";
 
 import { fileURLToPath } from "node:url";
@@ -87,6 +89,7 @@ import { parseArgs, promisify } from "node:util";
 
 // Local Imports
 import { ReportBrowser } from "./report-browser.ts";
+import { call } from "./native-rpc.mjs";
 
 /* === Re-Exports === */
 
@@ -148,7 +151,7 @@ const WEBDRIVER_KEYS = {
 };
 
 /** The journeys everything after them depends on, whatever the filter says. */
-const REQUIRED_JOURNEYS = new Set(["startup", "library"]);
+const REQUIRED_JOURNEYS = new Set(["startup", "plugin-install", "library"]);
 
 /** Opt out of real key presses when the driver cannot honour the Actions API. */
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
@@ -156,7 +159,7 @@ const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
 /**
  * Which journeys to run, as a comma-separated list; every one by default.
  *
- * `startup` and `library` always run whatever the filter says: they establish
+ * `startup`, `plugin-install` and `library` always run: they establish
  * the connection and materialize the cycle every journey after them addresses.
  */
 const selectedJourneys = new Set(
@@ -169,8 +172,14 @@ const selectedJourneys = new Set(
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
 let reportBrowser;
+let nativePickerWorker;
 let reportBrowserClosed = false;
+const walkthroughStarted = performance.now();
 const results = [];
+const timings = [];
+const finalizedReports = new Set();
+const pendingReports = new Set();
+let timingScene = "setup";
 const failures = [];
 const passedJourneys = [];
 
@@ -235,19 +244,36 @@ function listening(endpoint) {
   });
 }
 
-async function until(description, check, timeout = 120000, interval = 150) {
-  const deadline = Date.now() + timeout;
-  let last;
-  while (Date.now() < deadline) {
-    try {
-      const value = await check();
-      if (value) return value;
-    } catch (failure) {
-      last = failure;
-    }
-    await delay(interval);
+async function executeFile(command, args, options) {
+  const category = command === cliBinary ? "cli" : command === "python" ? "fixture-preparation" : "native-process";
+  return measured(category, basename(command), () => promisify(execFile)(command, args, options));
+}
+
+async function measured(category, name, run) {
+  const started = performance.now();
+  const scene = timingScene;
+  try {
+    return await run();
+  } finally {
+    timings.push({ scene, category, name, milliseconds: performance.now() - started });
   }
-  throw new Error(`Timed out: ${description}${last ? ` (last error: ${last.message})` : ""}`);
+}
+
+async function until(description, check, timeout = 120000, interval = 150) {
+  return measured("wait", description, async () => {
+    const deadline = Date.now() + timeout;
+    let last;
+    while (Date.now() < deadline) {
+      try {
+        const value = await measured("step", description, check);
+        if (value) return value;
+      } catch (failure) {
+        last = failure;
+      }
+      await measured("poll-delay", description, () => delay(interval));
+    }
+    throw new Error(`Timed out: ${description}${last ? ` (last error: ${last.message})` : ""}`);
+  });
 }
 
 function xpathLiteral(value) {
@@ -321,7 +347,9 @@ async function promptHoverLabels() {
   await frameDrawn();
   const bounds = overlay.getBoundingClientRect();
   overlay.dispatchEvent(new MouseEvent("mouseenter", { clientX: bounds.left, clientY: bounds.top + bounds.height / 2 }));
-  for (let offset = 0; offset <= bounds.width; offset += 4) {
+  const last = Math.floor(bounds.width / 4);
+  for (let index = 0; index <= last; index += 1) {
+    const offset = (index % 2 === 0 ? index / 2 : last - (index - 1) / 2) * 4;
     overlay.dispatchEvent(
       new MouseEvent("mousemove", {
         bubbles: true,
@@ -329,7 +357,7 @@ async function promptHoverLabels() {
         clientY: bounds.top + bounds.height / 2,
       }),
     );
-    await frameDrawn();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     const label = frame.querySelector("[role=tooltip]")?.textContent;
     if (label) labels.add(label);
     if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
@@ -398,7 +426,18 @@ async function checkStatusBounds(session) {
   );
 }
 
-async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true, { dataRoot = join(work, "data") } = {}) {
+async function startBackend(...args) {
+  return measured("backend-launch", "startBackend", () => startBackendMeasured(...args));
+}
+
+async function startBackendMeasured(
+  work,
+  evidence,
+  endpoint,
+  label = "backend",
+  launchPlugin = true,
+  { dataRoot = join(work, "data") } = {},
+) {
   for (const path of [backendBinary, cliBinary, hostBundle, ...(launchPlugin ? [pluginBundle] : [])]) {
     if (!existsSync(path)) throw new Error(`Missing backend artifact at ${path}. Use the same candidate's prepared artifacts.`);
   }
@@ -450,16 +489,12 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
         if (!(await listening(backend.endpoint))) return false;
         readiness.attempts += 1;
         try {
-          const result = await promisify(execFile)(
-            cliBinary,
-            ["status", "--endpoint", backend.endpoint, "--timeout-seconds", "120", "--json"],
-            {
-              windowsHide: true,
-              cwd: work,
-              env: readyEnvironment,
-              timeout: Math.max(1, Math.min(120000, readyDeadline - Date.now())),
-            },
-          );
+          const result = await executeFile(cliBinary, ["status", "--endpoint", backend.endpoint, "--timeout-seconds", "120", "--json"], {
+            windowsHide: true,
+            cwd: work,
+            env: readyEnvironment,
+            timeout: Math.max(1, Math.min(120000, readyDeadline - Date.now())),
+          });
           readiness.lastExitCode = 0;
           readiness.ready = JSON.parse(result.stdout).status === "ready";
           return readiness.ready;
@@ -484,7 +519,11 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
  * WebKitWebDriver 2.52 serializes commands per session and a concurrent pair
  * can leave one of them pending forever.
  */
-async function startSession(work, endpoint, evidence, distribution, { startLocal = true, downloadsRoot } = {}) {
+async function startSession(...args) {
+  return measured("gui-launch", "startSession", () => startSessionMeasured(...args));
+}
+
+async function startSessionMeasured(work, endpoint, evidence, distribution, { startLocal = true, downloadsRoot } = {}) {
   const home = join(work, "shell");
   const downloads = downloadsRoot ?? join(evidence, "downloads");
   const applicationRoot = distribution ? join(home, "data", distribution.identifier) : join(home, "application");
@@ -608,12 +647,50 @@ async function startSession(work, endpoint, evidence, distribution, { startLocal
   };
   let queue = Promise.resolve();
   session.request = (method, path, body) => {
-    const queued = queue.then(() => request(method, `/session/${session.id}${path}`, body));
+    const queued = queue.then(() =>
+      measured("webdriver", `${method} ${path}`, () => request(method, `/session/${session.id}${path}`, body)),
+    );
     queue = queued.catch(() => undefined);
     return queued;
   };
   session.execute = (script, args = []) => session.request("POST", "/execute/sync", { args, script });
   session.executeAsync = (script, args = []) => session.request("POST", "/execute/async", { args, script });
+  session.domRevision = () =>
+    session.execute(`
+    if (!globalThis.__dokimeDom) {
+      const state = {revision: 0};
+      new MutationObserver(() => state.revision++).observe(document, {attributes: true, childList: true, characterData: true, subtree: true});
+      globalThis.__dokimeDom = state;
+    }
+    return globalThis.__dokimeDom.revision;
+  `);
+  session.waitForDom = (description, script, args = []) =>
+    measured("dom-wait", description, async () => {
+      const result = await session.executeAsync(
+        `
+      const args = arguments[0];
+      const done = arguments[arguments.length - 1];
+      const ready = () => {${script}};
+      const observer = new MutationObserver(check);
+      function check() {
+        try {
+          const value = ready();
+          if (!value) return;
+          observer.disconnect();
+          done({value});
+        } catch (error) {
+          observer.disconnect();
+          done({failure: String(error)});
+        }
+      }
+      observer.observe(document, {attributes: true, childList: true, characterData: true, subtree: true});
+      check();
+    `,
+        [args],
+      );
+      assert.equal(result.failure, undefined, result.failure);
+      return result.value;
+    });
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
@@ -672,6 +749,16 @@ async function startSession(work, endpoint, evidence, distribution, { startLocal
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
+  session.openPicker = (element) =>
+    session.execute(
+      `
+    const button = arguments[0];
+    if (button.disabled) throw new Error('Native picker control is disabled');
+    button.focus();
+    button.click();
+  `,
+      [element],
+    );
   session.clickCss = async (selector) => {
     const element = await until(selector, () => session.find("css selector", selector));
     await until(`stable pointer target ${selector}`, () =>
@@ -835,19 +922,59 @@ async function startSession(work, endpoint, evidence, distribution, { startLocal
       120000,
     );
   };
-  /**
-   * Go to a route by loading it.
-   *
-   * A load of the dev origin drops the native session and the shell attaches
-   * again, which costs a few seconds per route and is the price of driving the
-   * real deep links rather than poking the router's history from outside it.
-   */
-  session.goto = async (path) => {
-    await session.load(path.startsWith("file:") ? path : session.origin + path);
-    if (path.startsWith("file:")) return;
-    if (!endpoint && startLocal) await session.clickNamed("button", "Start Local Backend");
+  /** Navigate Through Application Controls; Reload Only For Explicit Persistence Checks. */
+  session.goto = async (path, { reload = false } = {}) => {
+    const url = path.startsWith("file:") ? path : session.origin + path;
+    const target = new URL(url);
+    const destinations = { "/cycles": "Cycles", "/library": "Library", "/history": "History", "/notifications": "Notifications" };
+    const sections = {
+      backends: "Backends",
+      appearance: "Appearance",
+      organization: "Organization",
+      plugins: "Plugins",
+      secrets: "Secret Storage",
+      remote: "Remote Access",
+      diagnostics: "Diagnostics",
+      about: "About",
+    };
+    const section = sections[/^\/settings\/([^/]+)$/.exec(target.pathname)?.[1]];
+    const button = (navigation, label) =>
+      session.find(
+        "xpath",
+        `//nav[@aria-label=${xpathLiteral(navigation)}]//button[normalize-space(.)=${xpathLiteral(label)} or @aria-label=${xpathLiteral(label)}]`,
+      );
+    let navigated = false;
+    if (
+      !reload &&
+      (await session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));")) &&
+      (!target.search || (target.search === "?view=cycle" && (await session.location()).pathname === target.pathname)) &&
+      (await session.execute("return !document.querySelector('[role=dialog][data-state=open], [role=alertdialog][data-state=open]');"))
+    ) {
+      if (target.search === "?view=cycle") {
+        const overview = await until("cycle overview navigation", () =>
+          session.find("css selector", 'nav[aria-label="Navigation"] li[data-level="overview"] button[data-tree-select]'),
+        );
+        await session.click(overview);
+        navigated = true;
+      } else if (section) {
+        if (!(await session.execute("return Boolean(document.querySelector('nav[aria-label=\"Settings Sections\"]'));"))) {
+          await session.click(await button("Navigation", "Settings"));
+          await until("settings navigation", () => session.find("css selector", 'nav[aria-label="Settings Sections"]'));
+        }
+        await session.click(await button("Settings Sections", section));
+        navigated = true;
+      } else if (destinations[target.pathname]) {
+        await session.click(await button("Navigation", destinations[target.pathname]));
+        navigated = true;
+      }
+    }
+    if (!navigated) {
+      await measured("navigation", "deep link", () => session.load(url));
+      if (path.startsWith("file:")) return;
+      if (!endpoint && startLocal) await session.clickNamed("button", "Start Local Backend");
+    }
     await session.connected();
-    await until(`route ${path}`, async () => (await session.location()).pathname === new URL(session.origin + path).pathname, 120000);
+    await until(`route ${path}`, async () => (await session.location()).pathname === target.pathname, 120000);
     await installSaveTap(session);
   };
   session.close = async () => {
@@ -934,7 +1061,7 @@ async function startSession(work, endpoint, evidence, distribution, { startLocal
           })),
         drainInvokeLedger(session),
         windows
-          ? promisify(execFile)(
+          ? executeFile(
               "powershell.exe",
               [
                 "-NoProfile",
@@ -1040,7 +1167,7 @@ async function sizeViewport(session, target) {
     assert.ok(Number.isSafeInteger(frame.width) && frame.width > 0, `Invalid frame width after ${JSON.stringify(measurements)}`);
     assert.ok(Number.isSafeInteger(frame.height) && frame.height > 0, `Invalid frame height after ${JSON.stringify(measurements)}`);
     const resized = await session.resize(frame.width, frame.height);
-    await delay(350);
+    await session.executeAsync("const done = arguments[arguments.length - 1]; requestAnimationFrame(() => requestAnimationFrame(done));");
     const [width, height] = await session.viewport();
     measurements.push({ requested: frame, resized, viewport: { width, height } });
     await writeFile(
@@ -1320,7 +1447,6 @@ async function setDensity(session, variant) {
     120000,
   );
   await sizeViewport(session, variant);
-  await delay(400);
 }
 
 async function selectDensity(session, density) {
@@ -1336,20 +1462,18 @@ async function selectDensity(session, density) {
   );
 }
 
-/** Let the transient notifications clear before the next pointer-like click. */
+/** Dismiss Toasts Through Their Controls Before The Next Pointer Target. */
 async function settle(session) {
-  await until(
-    "transient notifications clear",
-    () =>
-      session.execute(`
-        return [...document.querySelectorAll('[data-sonner-toast]')].every((toast) => {
-          if (toast.dataset.visible === 'false') return true;
-          const style = getComputedStyle(toast);
-          return style.pointerEvents === 'none' || !toast.getClientRects().length;
-        });
-      `),
-    120000,
-  ).catch(() => undefined);
+  await session.execute(`
+    for (const close of document.querySelectorAll('[data-sonner-toast] [data-close-button]')) close.click();
+  `);
+  await session.waitForDom(
+    "toast dismissal",
+    `
+    return [...document.querySelectorAll('[data-sonner-toast]')].every(toast =>
+      toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
+  `,
+  );
 }
 
 /**
@@ -1392,7 +1516,12 @@ async function answerPendingPrompts(session) {
       const link = [...document.querySelectorAll('[data-input-needed] button')].find((button) => /^Answer On #/.test(button.innerText.trim()));
       link?.click();
     `);
-      await delay(800);
+      await session.waitForDom(
+        "execution prompt queue",
+        `
+        return Boolean(document.querySelector('ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
+      `,
+      );
     }
     /* The queue is gone the moment its last prompt is answered, so what it
      showed is read here, before answering, and asserted once the run is over. */
@@ -1442,7 +1571,14 @@ async function answerPendingPrompts(session) {
      }`,
       [OPERATOR_NOTE],
     );
-    await delay(400);
+    await session.waitForDom(
+      "prompt response ready",
+      `
+      const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
+      return panel && [...panel.querySelectorAll('button')].some(button =>
+        /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()) && !button.disabled);
+    `,
+    );
     const submitted = await session.execute(`
     const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
     if (!panel) return false;
@@ -1450,10 +1586,18 @@ async function answerPendingPrompts(session) {
       /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
     );
     if (!submit) return false;
+    const id = panel.closest("[data-prompt-id]").dataset.promptId;
     submit.click();
-    return true;
+    return id;
   `);
-    if (submitted) await delay(1500);
+    if (submitted)
+      await session.waitForDom(
+        "prompt response acknowledged",
+        `
+      return ![...document.querySelectorAll('[data-prompt-id]')].some(card => card.dataset.promptId === args[0]);
+    `,
+        [submitted],
+      );
     return pending;
   } finally {
     if (selection) {
@@ -1475,7 +1619,11 @@ async function answerPendingPrompts(session) {
 }
 
 /** Wait for a condition while answering whatever prompts appear meanwhile. */
-async function runUntil(session, description, check, timeout) {
+async function runUntil(...args) {
+  return measured("execution-wait", args[1], () => runUntilMeasured(...args));
+}
+
+async function runUntilMeasured(session, description, check, timeout) {
   const deadline = Date.now() + timeout;
   /* A run that never starts looks exactly like a run that is slow, and the
      difference is in the toast: the workspace reports every command's own
@@ -1484,10 +1632,11 @@ async function runUntil(session, description, check, timeout) {
      reason. */
   let announcement = "";
   while (Date.now() < deadline) {
+    const revision = await session.domRevision();
     if (await check()) return;
     announcement = (await toastText(session).catch(() => "")) || announcement;
     await answerPendingPrompts(session);
-    await delay(1200);
+    await session.waitForDom(description, "return globalThis.__dokimeDom.revision !== args[0];", [revision]);
   }
   throw new Error(`Timed out: ${description}. The application said: ${announcement || "nothing at all"}`);
 }
@@ -1574,23 +1723,17 @@ async function openMenu(session, name, attempts = 2) {
 
 /** Leave no open menu behind: Radix keeps the page inert while one is up. */
 async function closeAnyMenu(session) {
-  await until(
-    "no open menu",
-    async () => {
-      const open = await session.execute("return document.querySelectorAll('[role=menu]').length;");
-      if (!open) return true;
-      await session.execute(`
-        for (const menu of document.querySelectorAll('[role=menu]')) {
-          for (const type of ['keydown', 'keyup']) {
-            menu.dispatchEvent(new KeyboardEvent(type, {bubbles: true, key: 'Escape'}));
-          }
-        }
-      `);
-      return false;
-    },
-    120000,
-  ).catch(() => undefined);
-  await delay(300);
+  await session.execute(`
+    for (const menu of document.querySelectorAll('[role=menu]')) {
+      for (const type of ['keydown', 'keyup']) menu.dispatchEvent(new KeyboardEvent(type, {bubbles: true, key: 'Escape'}));
+    }
+  `);
+  await session.waitForDom(
+    "menus closed",
+    `
+    return !document.querySelector('[role=menu]') && document.body.style.pointerEvents !== 'none';
+  `,
+  );
 }
 
 /** One case row's own text, which carries its status and attempt count. */
@@ -1764,6 +1907,8 @@ async function activeCycleJourney(session, otherTitle) {
     return /Added 1 case to /i.test(text) ? text : null;
   });
   assert.ok(hasText(added, title), `The case must join the active cycle (got ${normalize(added)})`);
+  await session.clickNamed("button", "Open Cycle");
+  return { executionIds: await cycleExecutionIds(session) };
 }
 
 /**
@@ -1774,6 +1919,63 @@ async function activeCycleJourney(session, otherTitle) {
  * configured, the editor exercised on a number and on a list, the summary
  * read, and the cases materialized twice into that same cycle.
  */
+/** Materialize Only The Cases A Non-Library Scene Needs Through The Real Bridge. */
+async function prepareCycle(session, title, selections) {
+  await session.goto("/cycles");
+  const cycle = await call(session, "Execution", "CreateCycle", { metadata: { label: title }, continueAutomatically: false });
+  const catalog = await call(session, "Catalog", "ListSuites");
+  const executionIds = [];
+  const result = { id: cycle.cycleId, title, executionIds };
+  for (const [suiteLabel, templateLabel] of selections) {
+    const suite = catalog.suites.find((candidate) => candidate.metadata.label === suiteLabel);
+    assert.ok(suite, `The prepared fixture registers ${suiteLabel}`);
+    const definition = await call(session, "Catalog", "GetSuite", { suiteId: suite.suiteId });
+    const template = definition.templates.find((candidate) => candidate.metadata.label === templateLabel);
+    assert.ok(template, `The prepared fixture registers ${templateLabel}`);
+    const plan = await call(session, "Planning", "MaterializeTemplate", {
+      selection: { suiteId: suite.suiteId, templateId: template.templateId, parameters: [] },
+    });
+    const testCase = plan.cases[0];
+    assert.ok(testCase, "A fixture selection materializes its case");
+    const execution = { executionId: randomUUID(), caseId: testCase.caseId };
+    await call(session, "Execution", "AppendExecutions", { cycleId: cycle.cycleId, executions: [execution] });
+    executionIds.push(execution.executionId);
+    if (templateLabel === STARTUP_TEMPLATE) result.startupExecutionId = execution.executionId;
+    if (templateLabel === PROTECTION_TEMPLATE) result.measuringExecutionId = execution.executionId;
+  }
+  const opener = await until("prepared cycle in native navigation", () =>
+    session.find("xpath", `//nav[@aria-label='Navigation']//button[normalize-space(.)=${xpathLiteral(title)}]`),
+  );
+  await session.click(opener);
+  await until("prepared cycle selected", async () => (await session.location()).pathname === `/cycles/${cycle.cycleId}`);
+  return result;
+}
+
+async function cycleExecutions(session) {
+  const cycleId = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname)?.[1];
+  assert.ok(cycleId, "Execution inventory belongs to the selected cycle");
+  const executions = [];
+  let afterExecutionId;
+  let cursor;
+  do {
+    const page = await call(session, "Execution", "ListExecutions", {
+      cycleId,
+      limit: 32,
+      ...(afterExecutionId ? { afterExecutionId } : {}),
+      ...(cursor ? { cursor } : {}),
+    });
+    executions.push(...page.executions);
+    afterExecutionId = page.nextAfterExecutionId;
+    cursor = page.cursor;
+  } while (afterExecutionId);
+  return executions;
+}
+
+async function cycleExecutionIds(session) {
+  const executions = await cycleExecutions(session);
+  return executions.map((execution) => execution.executionId);
+}
+
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
@@ -1819,11 +2021,18 @@ async function libraryJourney(session) {
   assert.ok(hasText(step1, "Values you change are remembered for this template."), "Step 1 must state that edits persist");
   await until("parameter grid", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
   assert.ok(await session.exists("button", "Reset All"), "The parameter step must carry Reset All");
+  const resetAll = await session.named("button", "Reset All", { enabled: false });
+  if (await session.execute("return !arguments[0].disabled;", [resetAll])) await session.click(resetAll);
+  await session.waitForDom(
+    "fixture parameters reset",
+    `
+    return !document.querySelector('[data-testid="parameter-editor-grid"] [data-edited="true"]');
+  `,
+  );
 
   /* A number edit reveals that row's Reset affordance and its gilt rule. */
   const number = await session.find("css selector", `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`);
   await session.type(number, "60");
-  await delay(500);
   const edited = await until("edited row reset", () =>
     session.execute(
       `const row = document.querySelector('[data-testid="parameter-row-' + arguments[0] + '"]');
@@ -1879,7 +2088,7 @@ async function libraryJourney(session) {
     assert.ok(hasText(referenceText, syntax), `The reference must document ${syntax}`);
   }
   await session.key("Escape");
-  await delay(400);
+  await session.waitForDom("expression reference closed", "return !document.querySelector('[data-testid=expression-reference]');");
 
   /* Step 2 reads the preview back: the deltas, the count, and the target. */
   await session.clickNamed("button", "Next");
@@ -1922,7 +2131,7 @@ async function libraryJourney(session) {
 
   await session.clickNamed("button", "Open Cycle");
   await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 120000);
-  await until("the appended startup execution", () =>
+  const startupExecutionId = await until("the appended startup execution", () =>
     session.execute(
       `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
         .find(row => row.innerText.includes(arguments[0]))?.dataset.executionId ?? null;`,
@@ -1939,7 +2148,7 @@ async function libraryJourney(session) {
       ),
     120000,
   );
-  return { id: appendTo, title: title.trim(), measuringExecutionId };
+  return { id: appendTo, title: title.trim(), measuringExecutionId, startupExecutionId, executionIds: await cycleExecutionIds(session) };
 }
 
 /**
@@ -2006,6 +2215,9 @@ async function cycleJourney(session, cycleId) {
     row.querySelector('button').click();
   `,
     [PROTECTION_TEMPLATE],
+  );
+  const measuringExecutionId = await until("the selected measuring execution", async () =>
+    (await session.location()).searchParams.get("executionId"),
   );
   assert.ok(await startCaseFromItsRow(session, PROTECTION_TEMPLATE), "The measuring execution Start must be admitted");
   listened = await until("live bridge reads from the selected measuring execution", () =>
@@ -2238,7 +2450,7 @@ async function cycleJourney(session, cycleId) {
     throw new Error(`${error.message}; the open dialog reads: ${normalize(openDialog)}`);
   }
   await session.goto("/cycles");
-  await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
+  await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`, { reload: true });
   await until(
     "the same plot frame after remounting",
     () =>
@@ -2392,7 +2604,6 @@ async function cycleJourney(session, cycleId) {
       item?.click();
     }
   `);
-  await delay(600);
   const consoleLayout = await until("scrollable console records", () =>
     session.execute(`
     const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
@@ -2428,13 +2639,13 @@ async function cycleJourney(session, cycleId) {
      cleanup keys on, and it left `pointer-events: none` on the body after it
      closed, which made every later control in this journey unclickable. */
   await session.clickCss("section[aria-label=Console] [data-slot=select-trigger]");
-  await delay(600);
+  await session.waitForDom("console level options", `return document.querySelectorAll('[role=option]').length > 0;`);
   const levels = await session.execute("return [...document.querySelectorAll('[role=option]')].map((item) => item.innerText.trim());");
   for (const level of ["Trace", "Info", "Error"]) {
     assert.ok(levels.includes(level), `The level selector must offer ${level} (got ${levels})`);
   }
   await session.key("Escape");
-  await delay(400);
+  await session.waitForDom("console level menu closed", `return !document.querySelector('[role=listbox]');`);
   await session.key("Escape");
   await until(
     "console closed by Escape",
@@ -2469,7 +2680,7 @@ async function cycleJourney(session, cycleId) {
     "",
     "A closed overflow menu must leave the page interactive",
   );
-  return selection;
+  return { ...selection, executionIds: [rerunId], reports: [measuringExecutionId, selection.executionId, rerunId] };
 }
 
 /**
@@ -2500,6 +2711,7 @@ async function executionStopJourney(session, cycleId) {
     },
     120000,
   );
+  const executionIds = await cycleExecutionIds(session);
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "Explicit Start admits the selected execution");
 
   // === Select The Running Execution === //
@@ -2540,7 +2752,7 @@ async function executionStopJourney(session, cycleId) {
     return row.dataset.executionId ?? null;
   `);
   assert.ok(unstarted, "The copied cycle must offer an unstarted sibling for explicit selection");
-  await delay(3000);
+  await measured("fixed-wait", "UI settling (3000 ms)", () => delay(3000));
   assert.equal(
     (await session.location()).searchParams.get("executionId"),
     unstarted,
@@ -2614,13 +2826,15 @@ async function executionStopJourney(session, cycleId) {
     !hasText(await session.text(), "Active · Stopped"),
     "Stopping or cancelling one execution must leave the cycle Active, not Stopped",
   );
-  return copyId;
+  return { id: copyId, executionIds, unrun: [cancelled], reports: [running] };
 }
 
 /** Completed executions seal independently; the operator closes their container. */
 async function containersJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await cyclePhase(session, "Active");
+  const executions = await cycleExecutions(session);
+  const reports = executions.filter((execution) => !execution.sealed).map((execution) => execution.executionId);
   await exportAvailability(session, false);
   const select = await until("a finished execution row", () =>
     session.find("css selector", "nav[aria-label=Navigation] li[data-level=case] button[data-tree-select]"),
@@ -2676,6 +2890,7 @@ async function containersJourney(session, cycleId) {
   await exportAvailability(session, false);
   await sealContainer(session);
   await exportAvailability(session, true);
+  return { reports };
 }
 
 /** The cycle's own state reads "Active · Idle" and the like while Active, then "Sealing" and "Sealed". */
@@ -2846,7 +3061,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
 }
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
-async function remoteAccessJourney() {
+async function remoteAccessJourney(recoveredReports) {
   const input = (label) =>
     until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
   /* Preferences Autosave Before The Listener Is Explicitly Restarted. */
@@ -2879,6 +3094,7 @@ async function remoteAccessJourney() {
   };
   /* A notice still on screen from an earlier change cannot stand in for this one. */
   const notice = async (text, action) => {
+    await settle(session);
     await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 120000);
     await action();
     return until(text, async () => {
@@ -2914,13 +3130,19 @@ async function remoteAccessJourney() {
   const profiles = join(work, "pairing-profiles.json");
   const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
   delete env.DOKIME_ENDPOINT;
-  const cli = (args) => promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 120000 });
-  const connect = async (identifier, accepted) => {
+  const cli = (args, applicationRoot = env.DOKIME_APPLICATION_ROOT) =>
+    executeFile(cliBinary, args, {
+      windowsHide: true,
+      cwd: work,
+      env: { ...env, DOKIME_APPLICATION_ROOT: applicationRoot },
+      timeout: 120000,
+    });
+  const connect = async (identifier, accepted, applicationRoot, profilesPath = profiles) => {
     let result;
     try {
-      result = await cli(["catalog", "list", "--backend", identifier, "--profiles-file", profiles]);
+      result = await cli(["catalog", "list", "--backend", identifier, "--profiles-file", profilesPath], applicationRoot);
     } catch (error) {
-      assert.ok(!accepted, "The paired client establishes a real CLI connection");
+      assert.ok(!accepted, `The paired client establishes a real CLI connection: ${redact(error.stderr ?? error.message)}`);
       assert.equal(error.killed, false);
       assert.ok(Number.isInteger(error.code) && error.code !== 0);
       return;
@@ -2932,7 +3154,7 @@ async function remoteAccessJourney() {
   const createPairing = async (identifier, address) => {
     const path = join(await realpath(work), `${identifier}.dokime-remote`);
     const saved = await notice("Remote Access File Saved", async () => {
-      await session.clickNamed("button", "Export Remote Access");
+      await session.openPicker(await session.named("button", "Export Remote Access"));
       const picker = { window: null };
       await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), 120000);
     });
@@ -2987,17 +3209,13 @@ async function remoteAccessJourney() {
   await session.clickNamed("button", "Add Backend");
   const identifier = await until("backend identifier", () => session.find("css selector", '[aria-label="Backend Identifier"]'));
   await session.type(identifier, "desktop-pairing");
-  await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
+  await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
   const importPicker = { window: null };
   await until("native pairing import", () => chooseNativeFile(importPicker, first), 120000);
   await until("imported backend", async () => hasText(await session.text(), "desktop-pairing"));
 
-  await closeSession();
-  session = await startSession(work, backend.endpoint, evidence);
-  await session.connected();
-
   // A Failed Bind Preserves The Existing Listener.
-  await session.goto("/settings/remote");
+  await session.goto("/settings/remote", { reload: true });
   const occupied = net.createServer();
   occupied.listen(0, "127.0.0.1");
   await once(occupied, "listening");
@@ -3014,12 +3232,9 @@ async function remoteAccessJourney() {
 
   // Restart Preserves Both Independent Client Verifiers.
   const nativeEndpoint = backend.endpoint;
-  await closeSession();
   await stopBackend();
-  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart");
-  session = await startSession(work, nativeEndpoint, evidence);
-  await session.connected();
-  await session.goto("/settings/remote");
+  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", false);
+  await session.goto("/settings/remote", { reload: true });
   assert.equal(await endpoint(), address);
   await connect("desktop-first", true);
   await connect("desktop-second", true);
@@ -3027,7 +3242,8 @@ async function remoteAccessJourney() {
   assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)));
 
   // Revocation Preserves An Admitted Execution Waiting For Its Operator.
-  const activeCycle = (await libraryJourney(session)).id;
+  const remoteCycle = await prepareCycle(session, "Revocation Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
+  const activeCycle = remoteCycle.id;
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE));
   await until("operator prompt before revocation", () => startupPromptOpen(session), 120000);
   await session.goto("/settings/remote");
@@ -3096,8 +3312,17 @@ async function remoteAccessJourney() {
   await restart();
   await connect("desktop-regenerated", true);
   await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
-  for (let index = 0; index < 21; index += 1) await connect("desktop-regenerated", true);
-  await session.goto("/settings/remote");
+  const clients = await Promise.allSettled(
+    Array.from({ length: 21 }, async (_, index) => {
+      const root = join(work, "session-clients", String(index));
+      await mkdir(root, { recursive: true });
+      const clientProfiles = join(root, "profiles.json");
+      await copyFile(profiles, clientProfiles);
+      await connect("desktop-regenerated", true, root, clientProfiles);
+    }),
+  );
+  for (const client of clients) if (client.status === "rejected") throw client.reason;
+  await session.goto("/settings/remote", { reload: true });
   const pageSize = await until("remote session table page size", () =>
     session.find("xpath", "//table[@aria-label='Recent Remote Sessions']/parent::div/parent::div//select[@aria-label='Rows Per Page']"),
   );
@@ -3137,6 +3362,7 @@ async function remoteAccessJourney() {
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("paired backend removed", async () => !(await session.exists("button", "Actions For desktop-pairing")));
+  return { executionIds: remoteCycle.executionIds, reports: [...recoveredReports, remoteCycle.startupExecutionId] };
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -3308,9 +3534,14 @@ async function settingsJourney(session, notes) {
           access_key: null,
         }),
       );
-      await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
+      await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
       const picker = { window: null };
       await until("native identity pairing import", () => chooseNativeFile(picker, pairing), 120000);
+      await until("native identity import completes", () =>
+        session.execute(`
+        return globalThis.__dokimeInvokes.some(entry => entry.command === 'desktop_backend_import_pairing' && entry.state !== 'pending');
+      `),
+      );
       await until("identity mismatch refuses the imported connection", async () => {
         const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
         return status.connection.phase === "failed";
@@ -3414,24 +3645,27 @@ async function settingsJourney(session, notes) {
 }
 
 /** Shared Journey Finalizer: Native Sealed Pull, Saved File Reopen And Artifact Delivery. */
-async function finalizeStoryReports(name) {
+async function finalizeStoryReports(name, executionIds) {
   const exemptions = JSON.parse(await readFile(join(workspace, "crates/dokime-runtime/tests/support/system_reports.json"), "utf8"));
   if (Object.hasOwn(exemptions.desktop, name)) {
+    assert.deepEqual(executionIds, [], "A report exemption must not hide owned executions");
     process.stdout.write(`   execution report exempt: ${exemptions.desktop[name]}\n`);
     return;
   }
+  assert.ok(executionIds.length > 0, "Report-producing scene must declare its executions");
+  assert.equal(new Set(executionIds).size, executionIds.length, "A scene owns each execution once");
   const reopenedSession = !session || session.closed;
   if (reopenedSession) {
     session = await startSession(work, backend?.endpoint, evidence);
     await session.connected();
   }
-  const original = await session.location();
   let saved = 0;
-  const inventory = [];
-  const deliver = async (request, destination) => {
-    let settled = false;
-    const pending = session.executeAsync(
-      `
+  const inventory = [...executionIds];
+  const deliver = async (request, destination) =>
+    measured("report-export", request.source.kind, async () => {
+      let settled = false;
+      const pending = session.executeAsync(
+        `
       const request = arguments[0];
       const done = arguments[arguments.length - 1];
       const invoke = globalThis.__TAURI_INTERNALS__.invoke;
@@ -3439,116 +3673,90 @@ async function finalizeStoryReports(name) {
         invoke('desktop_artifact_deliver', {generation: status.connection.generation, request})
       ).then(value => done({value}), error => done({failure: String(error)}));
     `,
-      [request],
-    );
-    const picker = { window: null };
-    const [delivery, selection] = await Promise.allSettled([
-      pending.finally(() => {
-        settled = true;
-      }),
-      until("native artifact save", () => settled || chooseNativeFile(picker, destination, "Save")),
-    ]);
-    if (delivery.status === "rejected") throw delivery.reason;
-    if (selection.status === "rejected") throw selection.reason;
-    const response = delivery.value;
-    assert.equal(response.failure, undefined, response.failure);
-    assert.ok(response.value?.path);
-    return response.value;
-  };
+        [request],
+      );
+      const picker = { window: null };
+      const [delivery, selection] = await Promise.allSettled([
+        pending.finally(() => {
+          settled = true;
+        }),
+        until("native artifact save", () => settled || chooseNativeFile(picker, destination, "Save"), 120000, 25),
+      ]);
+      if (delivery.status === "rejected") throw delivery.reason;
+      if (selection.status === "rejected") throw selection.reason;
+      const response = delivery.value;
+      assert.equal(response.failure, undefined, response.failure);
+      assert.ok(response.value?.path);
+      return response.value;
+    });
   try {
-    await session.goto("/history");
-    const count = await until("report history", () =>
-      session.execute(`
-      return document.querySelectorAll('[aria-busy="false"] tbody button[aria-label="Open"]').length || null;
-    `),
-    );
-    for (let index = 0; index < count; index += 1) {
-      await session.goto("/history");
-      const opener = await until("report history entry", () =>
-        session.execute(
-          `
-        return document.querySelectorAll('[aria-busy="false"] tbody button[aria-label="Open"]')[arguments[0]] ?? null;
-      `,
-          [index],
-        ),
+    for (const id of executionIds) {
+      assert.ok(!finalizedReports.has(id), "Execution reports have one scene owner");
+      const path = join(work, "story-reports", name, id, "report.html");
+      await mkdir(dirname(path), { recursive: true });
+      const delivered = await deliver(
+        {
+          source: { kind: "execution_report", executionId: id },
+          kind: "html_report",
+          filename: "report.html",
+          action: "save",
+        },
+        path,
       );
-      await session.click(opener);
-      await until("report history detail", async () => (await session.location()).pathname !== "/history");
-      const ids = await until("sealed execution inventory", () =>
-        session.execute(`
-        const table = document.querySelector('[aria-busy="false"] table[aria-label="History Executions"]');
-        if (!table) return null;
-        const ids = [...table.querySelectorAll('[data-execution-id]')].filter(node =>
-          node.closest('tr').querySelector('button[aria-label="Inspect"]:not(:disabled)')
-        ).map(node => node.dataset.executionId);
-        return ids;
-      `),
+      assert.equal(delivered.origin, "sealed");
+      assert.equal(await realpath(delivered.path), await realpath(path));
+      const html = await readFile(path, "utf8");
+      const marker = '<script id="hub-report-data" type="application/json">';
+      const report = JSON.parse(html.split(marker)[1].split("</script>")[0]);
+      assert.deepEqual(
+        report.test_executions.map((execution) => execution.test_execution_id),
+        [id],
       );
-      inventory.push({ path: (await session.location()).pathname, executions: ids });
-      for (const id of ids) {
-        const path = join(work, "story-reports", name, id, "report.html");
-        await mkdir(dirname(path), { recursive: true });
-        const delivered = await deliver(
+      const artifacts = report.snapshot.artifacts;
+      assert.ok(Array.isArray(artifacts));
+      assert.equal(new Set(artifacts.map((artifact) => artifact.artifact_id)).size, artifacts.length);
+      for (const artifact of artifacts) {
+        assert.equal(artifact.href, `outputs/${artifact.path}`);
+        assert.equal(artifact.downloadHref, artifact.href);
+        assert.ok(artifact.path.split("/").every((part) => part && part !== "." && part !== ".." && !/[\\:]/.test(part)));
+        const destination = join(dirname(path), artifact.href);
+        await mkdir(dirname(destination), { recursive: true });
+        const content = await deliver(
           {
-            source: { kind: "execution_report", executionId: id },
-            kind: "html_report",
-            filename: "report.html",
+            source: { kind: "artifact", artifactId: artifact.artifact_id },
+            kind: "artifact",
+            filename: artifact.path.split("/").at(-1),
             action: "save",
           },
-          path,
+          destination,
         );
-        assert.equal(delivered.origin, "sealed");
-        assert.equal(await realpath(delivered.path), await realpath(path));
-        const html = await readFile(path, "utf8");
-        const marker = '<script id="hub-report-data" type="application/json">';
-        const report = JSON.parse(html.split(marker)[1].split("</script>")[0]);
-        assert.deepEqual(
-          report.test_executions.map((execution) => execution.test_execution_id),
-          [id],
-        );
-        const artifacts = report.snapshot.artifacts;
-        assert.ok(Array.isArray(artifacts));
-        assert.equal(new Set(artifacts.map((artifact) => artifact.artifact_id)).size, artifacts.length);
-        for (const artifact of artifacts) {
-          assert.equal(artifact.href, `outputs/${artifact.path}`);
-          assert.equal(artifact.downloadHref, artifact.href);
-          assert.ok(artifact.path.split("/").every((part) => part && part !== "." && part !== ".." && !/[\\:]/.test(part)));
-          const destination = join(dirname(path), artifact.href);
-          await mkdir(dirname(destination), { recursive: true });
-          const content = await deliver(
-            {
-              source: { kind: "artifact", artifactId: artifact.artifact_id },
-              kind: "artifact",
-              filename: artifact.path.split("/").at(-1),
-              action: "save",
-            },
-            destination,
-          );
-          assert.equal(await realpath(content.path), await realpath(destination));
-          const file = await open(destination, "r");
-          try {
-            assert.equal((await file.stat()).size, artifact.size_bytes);
-          } finally {
-            await file.close();
-          }
+        assert.equal(await realpath(content.path), await realpath(destination));
+        const file = await open(destination, "r");
+        try {
+          assert.equal((await file.stat()).size, artifact.size_bytes);
+        } finally {
+          await file.close();
         }
-        // Open The Saved Copy After Its Relative Artifact Links Have Been Published.
-        const reopened = await fetch(reportBrowser.endpoint, {
+      }
+      // Open The Saved Copy After Its Relative Artifact Links Have Been Published.
+      const reopened = await measured("report-reopen", id, () =>
+        fetch(reportBrowser.endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ path }),
-        });
-        assert.ok(reopened.ok);
-        await cp(dirname(path), join(session.downloads, name, id), { recursive: true });
-        saved += 1;
-      }
+        }),
+      );
+      assert.ok(reopened.ok);
+      await cp(dirname(path), join(session.downloads, name, id), { recursive: true });
+      saved += 1;
+      finalizedReports.add(id);
+      pendingReports.delete(id);
     }
     await session.dump(`report-inventory-${name}`, inventory);
     assert.ok(saved > 0, "Report-producing story needs a sealed execution; exempt no-report stories centrally");
     process.stdout.write(`   reopened ${saved} sealed execution reports with their artifacts\n`);
   } finally {
     if (reopenedSession) await closeSession();
-    else await session.goto(`${original.pathname}${original.search}`);
   }
 }
 
@@ -3610,7 +3818,7 @@ async function touchJourney(session, cycleId) {
   );
   assert.ok(share >= 80, `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`);
   await session.key("Escape");
-  await delay(500);
+  await measured("fixed-wait", "UI settling (500 ms)", () => delay(500));
 
   await setDensity(session, densities.desktop);
 }
@@ -3622,7 +3830,8 @@ async function touchJourney(session, cycleId) {
  * so it states that and nothing else. `startup` and `library` ignore the
  * filter because everything after them addresses what they establish.
  */
-async function journey(name, run) {
+async function journey(name, run, reports = () => []) {
+  timingScene = name;
   const started = Date.now();
   if (selectedJourneys.size && !selectedJourneys.has(name) && !REQUIRED_JOURNEYS.has(name)) {
     process.stdout.write(`\n== ${name}\n   skipped by DOKIME_E2E_JOURNEYS\n`);
@@ -3638,8 +3847,10 @@ async function journey(name, run) {
     return { ok: false };
   }
   try {
-    const value = await run();
-    await finalizeStoryReports(name);
+    const value = await measured("scene-behavior", name, run);
+    for (const id of value?.executionIds ?? []) pendingReports.add(id);
+    for (const id of value?.unrun ?? []) pendingReports.delete(id);
+    await measured("reports", name, () => finalizeStoryReports(name, reports(value)));
     passedJourneys.push(name);
     results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");
@@ -3671,6 +3882,9 @@ async function journey(name, run) {
     return { ok: false };
   } finally {
     await reportBrowser?.closeTabs();
+    const seconds = (Date.now() - started) / 1000;
+    process.stdout.write(`   timing: ${name} ${seconds.toFixed(3)} s\n`);
+    if (evidence) await writeFile(join(evidence, "timings.json"), JSON.stringify(timings, null, 2));
   }
 }
 
@@ -3678,7 +3892,7 @@ async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (windows) {
     try {
-      await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+      await executeFile("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
     } catch (error) {
       if (child.exitCode !== null || child.signalCode !== null) return;
       try {
@@ -3729,7 +3943,7 @@ async function installWindowsCandidate() {
   assert.equal(await sha256(installer), checks[0][2], "installer matches the selected candidate");
   installation = join(work, "installation");
   installerAttempted = true;
-  await promisify(execFile)(resolve(installer), ["/S", `/D=${installation}`], {
+  await executeFile(resolve(installer), ["/S", `/D=${installation}`], {
     windowsHide: true,
     windowsVerbatimArguments: true,
     timeout: 120000,
@@ -3757,7 +3971,11 @@ async function installWindowsCandidate() {
   );
 }
 
-async function closeSession() {
+async function closeSession(...args) {
+  return measured("gui-shutdown", "closeSession", () => closeSessionMeasured(...args));
+}
+
+async function closeSessionMeasured() {
   if (!session) {
     await terminate(driverProcess);
     driverProcess = undefined;
@@ -3773,7 +3991,11 @@ async function closeSession() {
   session = undefined;
 }
 
-async function stopBackend() {
+async function stopBackend(...args) {
+  return measured("backend-shutdown", "stopBackend", () => stopBackendMeasured(...args));
+}
+
+async function stopBackendMeasured() {
   if (!backend) return;
   const owned = backend;
   if (owned.child.startupError) throw owned.child.startupError;
@@ -3821,6 +4043,9 @@ async function ownedStartupJourney() {
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
+  await installSaveTap(session);
+  await installPluginThroughPicker(session, hostBundle);
+  await installPluginThroughPicker(session);
   const closing = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
@@ -3835,13 +4060,7 @@ async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
-  await installSaveTap(session);
-  await installPluginThroughPicker(session, hostBundle);
-  await installPluginThroughPicker(session);
-  await closeSession();
-  session = await startSession(work, undefined, evidence);
-  await session.connected();
-  const runningCycle = await libraryJourney(session);
+  const runningCycle = await prepareCycle(session, "Owned Shutdown Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The owned backend starts its installed plugin");
   await until("owned execution awaits its operator", () => startupPromptOpen(session), 120000);
   const running = await session.executeAsync(`
@@ -3870,8 +4089,8 @@ async function ownedStartupJourney() {
   );
   assert.ok(await session.exists("button", "Open Report"), "Orderly close preserves the sealed cycle report");
   await session.screenshot("owned-running-recovered");
-  await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
+  return { executionIds: runningCycle.executionIds, reports: runningCycle.executionIds };
 }
 
 async function idleJourney() {
@@ -3893,13 +4112,12 @@ async function idleInvokes(surface) {
     session.execute(`
     const calls = globalThis.__dokimeInvokes;
     const pending = calls.some((entry) => entry.state === 'pending');
-    const latest = calls.at(-1)?.at ?? 0;
-    return !pending && Date.now() - latest >= 6000;
+    return !pending;
   `),
   );
   const started = await session.execute("return Date.now();");
-  await delay(10000);
-  const measured = await session.execute(
+  await measured("fixed-wait", "UI settling (10000 ms)", () => delay(10000));
+  const observation = await session.execute(
     `
     const calls = globalThis.__dokimeInvokes.filter((entry) => entry.at >= arguments[0]);
     const counts = {};
@@ -3912,7 +4130,7 @@ async function idleInvokes(surface) {
   `,
     [started],
   );
-  return measured;
+  return observation;
 }
 
 async function emptyCycleHistory(session, cycleId, title, ownership) {
@@ -3973,7 +4191,7 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
     ),
   );
   const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
-  const result = await promisify(execFile)(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+  const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
     windowsHide: true,
     cwd: work,
     timeout: 120000,
@@ -3985,7 +4203,7 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
   assert.equal(bytes.readUInt32LE(0), 0x04034b50, "saved evidence is a ZIP archive");
 }
 
-async function restartJourney() {
+async function restartJourney(recoveredReports) {
   const activeCycleId = await createEmptyContainer(session, "Server Restart Evidence");
   await cyclePhase(session, "Active");
   const previous = await session.executeAsync(`
@@ -3997,7 +4215,7 @@ async function restartJourney() {
   await closeSession();
   assert.ok(await listening(endpoint), "closing the attached shell leaves its backend alive");
   await stopBackend();
-  backend = await startBackend(work, evidence, endpoint, "backend-restart");
+  backend = await startBackend(work, evidence, endpoint, "backend-restart", false);
   session = await startSession(work, endpoint, evidence);
   await session.connected();
   const current = await session.executeAsync(`
@@ -4015,59 +4233,46 @@ async function restartJourney() {
   await session.goto("/history");
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 120000);
   await setDensity(session, densities.desktop);
-  const cycle = await libraryJourney(session);
-  await cycleJourney(session, cycle.id);
+  const cycle = await prepareCycle(session, "Restart Campaign", [
+    [PROTECTION_SUITE, PROTECTION_TEMPLATE],
+    [STARTUP_SUITE, STARTUP_TEMPLATE],
+  ]);
+  const recovered = await cycleJourney(session, cycle.id);
   await session.screenshot("native-restart");
+  return {
+    ...recovered,
+    executionIds: [...cycle.executionIds, ...recovered.executionIds],
+    reports: [...recoveredReports, ...recovered.reports],
+  };
 }
 
 async function pluginInstallJourney() {
-  const previous = backend;
-  const root = join(work, "plugin-install");
-  await mkdir(root, { recursive: true });
-  await closeSession();
-  try {
-    backend = await startBackend(root, evidence, undefined, "plugin-install", false);
-    session = await startSession(root, backend.endpoint, evidence);
-    await session.connected();
-    await sizeViewport(session, densities.desktop);
-    await installSaveTap(session);
-    await installPluginThroughPicker(session);
-
-    await closeSession();
-    await stopBackend();
-    backend = await startBackend(root, evidence, undefined, "plugin-activation", false);
-    session = await startSession(root, backend.endpoint, evidence);
-    await session.connected();
-    await sizeViewport(session, densities.desktop);
-    await session.goto("/settings/plugins");
-    await until(
-      "installed bundle active after restart",
-      () =>
-        session.execute(`
-      const row = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
-        .find(row => row.innerText.includes('plugin-obc'));
-      return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
-    `),
-      120000,
-    );
-    await session.goto("/library");
-    await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
-    await session.screenshot("plugin-activation");
-  } finally {
-    await closeSession();
-    if (backend !== previous) await stopBackend();
-    backend = previous;
-    session = await startSession(work, backend.endpoint, evidence);
-    await sizeViewport(session, densities.desktop);
-    await installSaveTap(session);
-  }
+  await installSaveTap(session);
+  await installPluginThroughPicker(session);
+  const endpoint = backend.endpoint;
+  await stopBackend();
+  backend = await startBackend(work, evidence, endpoint, "plugin-activation", false);
+  await session.goto("/settings/plugins", { reload: true });
+  await until(
+    "installed bundle active after restart",
+    () =>
+      session.execute(`
+    const row = [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
+      .find(row => row.innerText.includes('plugin-obc'));
+    return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
+  `),
+    120000,
+  );
+  await session.goto("/library");
+  await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
+  await session.screenshot("plugin-activation");
 }
 
 async function installPluginThroughPicker(session, bundle = pluginBundle) {
   await session.goto("/settings/plugins");
   await session.clickNamed("button", "Install Plugin");
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
-  await session.clickNamed("button", "Choose File");
+  await session.openPicker(await session.named("button", "Choose File"));
   const picker = { window: null };
   await until("native plugin file picker", () => chooseNativeFile(picker, bundle), 120000);
   const installed = await until(
@@ -4100,14 +4305,95 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
   await session.screenshot("plugin-install");
 }
 
-async function chooseNativeFile(picker, file, operation = "Open", owner = driverProcess) {
+/** One Owned Automation Host Reuses Its CLR And Native Providers Across Pickers. */
+async function windowsPicker(script, environment) {
+  if (!nativePickerWorker) {
+    const boundary = script.indexOf("      $filenameId =");
+    const initialization = script.slice(0, boundary);
+    const selection = script.slice(boundary).replaceAll("exit 0", "return");
+    const server = `
+      [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+      [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+      ${initialization}
+      $owners = @{}
+      while ($line = [Console]::ReadLine()) {
+        try {
+          $request = $line | ConvertFrom-Json
+          foreach ($property in $request.PSObject.Properties) {
+            [Environment]::SetEnvironmentVariable($property.Name, [string]$property.Value)
+          }
+          $outcome = & {${selection}}
+          [Console]::Out.WriteLine((@{value=($outcome -join "")} | ConvertTo-Json -Compress))
+        } catch {
+          [Console]::Out.WriteLine((@{failure=$_.Exception.Message} | ConvertTo-Json -Compress))
+        }
+      }`;
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", server], {
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    const worker = { child, lines, responses: lines[Symbol.asyncIterator](), diagnostics: "", busy: false };
+    worker.closed = once(child, "exit").then(([code]) => {
+      throw new Error(`Native picker host exited (${code})`);
+    });
+    worker.closed.catch(() => {});
+    child.stdin.on("error", () => {});
+    child.stderr.on("data", (chunk) => {
+      worker.diagnostics = (worker.diagnostics + chunk).slice(-65536);
+    });
+    nativePickerWorker = worker;
+  }
+  const worker = nativePickerWorker;
+  assert.ok(!worker.busy, "Native picker requests remain serial");
+  worker.busy = true;
+  const timer = new AbortController();
+  try {
+    worker.child.stdin.write(`${JSON.stringify(environment)}\n`);
+    const line = await Promise.race([
+      worker.responses.next(),
+      worker.closed,
+      delay(120000, undefined, { signal: timer.signal }).then(() => {
+        throw new Error("Native picker host did not answer");
+      }),
+    ]);
+    assert.ok(!line.done, "Native picker host returns its selection");
+    const response = JSON.parse(line.value);
+    assert.equal(response.failure, undefined, response.failure);
+    const diagnostics = worker.diagnostics;
+    worker.diagnostics = "";
+    return { stdout: response.value, stderr: diagnostics };
+  } catch (error) {
+    const failure = new Error(`${error.message}${worker.diagnostics ? `\n${worker.diagnostics}` : ""}`, { cause: error });
+    await stopNativePicker();
+    throw failure;
+  } finally {
+    timer.abort();
+    worker.busy = false;
+  }
+}
+
+async function stopNativePicker() {
+  const worker = nativePickerWorker;
+  if (!worker) return;
+  nativePickerWorker = undefined;
+  worker.child.stdin.end();
+  await terminate(worker.child);
+  worker.lines.close();
+}
+
+async function chooseNativeFile(...args) {
+  return measured("native-picker", "chooseNativeFile", () => chooseNativeFileMeasured(...args));
+}
+
+async function chooseNativeFileMeasured(picker, file, operation = "Open", owner = driverProcess) {
   if (!windows) {
     if (picker.failure) throw picker.failure;
     const children = await readFile(`/proc/${owner.pid}/task/${owner.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
-      const run = (args) => promisify(execFile)("xdotool", args, { windowsHide: true, timeout: 120000 });
+      const run = (args) => executeFile("xdotool", args, { windowsHide: true, timeout: 120000 });
       const found = await run([
         "search",
         "--all",
@@ -4180,7 +4466,7 @@ for index in range(desktop.get_child_count()):
     break
 `;
       try {
-        const result = await promisify(execFile)("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
+        const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
           windowsHide: true,
           timeout: 120000,
         });
@@ -4212,52 +4498,36 @@ for index in range(desktop.get_child_count()):
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
+      Add-Type -Namespace DokimePicker -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindow(System.IntPtr handle);'
       $filenameId = if ($env:DOKIME_PICKER_OPERATION -eq 'Save') { '1001' } else { '1148' }
-      function Write-PickerState($phase, $window, $pidCondition) {
-        $state = [ordered]@{phase=$phase; field=$null; button=$null; windows=@()}
-        try {
-          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $filenameId)
-          $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
-          $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
-          if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
-            $fieldName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'File name:')
-            $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldCondition, $fieldName)
-          }
-          $field = $window.FindFirst($scope, $fieldCondition)
-          if ($field) {
-            $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-            $state.field = @{value=$value.Current.Value; enabled=$field.Current.IsEnabled; offscreen=$field.Current.IsOffscreen; focused=$field.Current.HasKeyboardFocus}
-          }
-        } catch { $state.fieldError = $_.Exception.Message }
-        try {
-          $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
-          $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonType)
-          $button = $window.FindFirst($scope, $buttonCondition)
-          if ($button) {
-            $state.button = @{name=$button.Current.Name; enabled=$button.Current.IsEnabled; offscreen=$button.Current.IsOffscreen; focused=$button.Current.HasKeyboardFocus}
-          }
-        } catch { $state.buttonError = $_.Exception.Message }
-        try {
-          $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)
-          $state.windowCount = $windows.Count
-          for ($index = 0; $index -lt [Math]::Min(8, $windows.Count); $index++) {
-            $popup = $windows[$index]
-            $state.windows += @{handle=$popup.Current.NativeWindowHandle; title=$popup.Current.Name; class=$popup.Current.ClassName; enabled=$popup.Current.IsEnabled; offscreen=$popup.Current.IsOffscreen}
-          }
-        } catch { $state.windowError = $_.Exception.Message }
-        [Console]::Error.WriteLine(('picker state=' + ($state | ConvertTo-Json -Compress -Depth 4)))
-      }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
-      $owned = @(Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + [int]$env:DOKIME_PICKER_DRIVER) | ForEach-Object { $_.ProcessId })
-      foreach ($process in Get-Process | Where-Object { $_.Id -in $owned -and $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
+      $driver = Get-Process -Id ([int]$env:DOKIME_PICKER_DRIVER)
+      $ownerKey = $driver.Id.ToString() + '/' + $driver.StartTime.ToFileTimeUtc().ToString()
+      if (!$owners.ContainsKey($ownerKey)) {
+        $children = @(Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $driver.Id) | ForEach-Object { $_.ProcessId })
+        $found = @(Get-Process -Id $children -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL } | ForEach-Object {
+          @{Id=$_.Id; Started=$_.StartTime.ToFileTimeUtc()}
+        })
+        if ($found.Count) { $owners[$ownerKey] = $found }
+      }
+      foreach ($entry in $owners[$ownerKey]) {
+        $process = Get-Process -Id $entry.Id -ErrorAction SilentlyContinue
+        if (!$process -or $process.Path -ne $env:DOKIME_PICKER_SHELL -or $process.StartTime.ToFileTimeUtc() -ne $entry.Started) { continue }
         [Console]::Error.WriteLine(('picker process={0}' -f $process.Id))
         $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-        foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)) {
+        $handle = if ($env:DOKIME_PICKER_WINDOW) { $env:DOKIME_PICKER_WINDOW } else { $env:DOKIME_PICKER_ENTERED }
+        if ($handle -and ![DokimePicker.Window]::IsWindow([IntPtr][long]$handle)) { Write-Output 'closed'; exit 0 }
+        try {
+          $windows = if ($handle) { @([System.Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$handle)) } else { $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition) }
+        } catch {
+          if ($handle -and ![DokimePicker.Window]::IsWindow([IntPtr][long]$handle)) { Write-Output 'closed'; exit 0 }
+          throw
+        }
+        foreach ($window in $windows) {
+          if (!$window -or $window.Current.ProcessId -ne $process.Id -or $window.Current.ClassName -ne "#32770") { continue }
           [Console]::Error.WriteLine(('picker handle={0} title={1} offscreen={2}' -f $window.Current.NativeWindowHandle, $window.Current.Name, $window.Current.IsOffscreen))
           if ($env:DOKIME_PICKER_WINDOW) {
             if ($window.Current.NativeWindowHandle.ToString() -eq $env:DOKIME_PICKER_WINDOW) {
-              Write-PickerState 'waiting' $window $pidCondition
               Write-Output 'open'
               exit 0
             }
@@ -4290,7 +4560,7 @@ for index in range(desktop.get_child_count()):
             if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
               if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
                 # The Save Dialog Resolves Only What Is Typed Into Its Filename Box, So The Path Arrives As Keyboard Characters.
-                Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2);'
+                if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2);' }
                 $edit = [System.IntPtr]$field.Current.NativeWindowHandle
                 if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Save Filename Box Has No Window Handle' }
                 [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
@@ -4302,16 +4572,13 @@ for index in range(desktop.get_child_count()):
                 $value.SetValue($env:DOKIME_PICKER_FILE)
               }
               [Console]::Error.WriteLine(('picker entered={0}' -f $value.Current.Value))
-              Write-PickerState 'entered' $window $pidCondition
               if (![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
                 throw 'The Native Picker Filename Differs From The Requested File After Entry'
               }
               Write-Output ('entered:' + $selectedWindow)
               exit 0
             }
-            Write-PickerState 'before-invoke' $window $pidCondition
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-            Write-PickerState 'after-invoke' $window $pidCondition
             Write-Output ('selected:' + $selectedWindow)
             exit 0
           }
@@ -4321,18 +4588,13 @@ for index in range(desktop.get_child_count()):
       elseif ($env:DOKIME_PICKER_ENTERED) { Write-Output 'vanished' }`;
   /* The dialog resolves what is typed, so it receives the long form of a short 8.3 temporary path. */
   const target = join(await realpath(dirname(resolve(file))), basename(file));
-  const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    windowsHide: true,
-    env: {
-      ...process.env,
-      DOKIME_PICKER_SHELL: resolve(shellBinary),
-      DOKIME_PICKER_DRIVER: String(owner.pid),
-      DOKIME_PICKER_FILE: target,
-      DOKIME_PICKER_OPERATION: operation,
-      DOKIME_PICKER_ENTERED: picker.entered ? String(picker.entered) : "",
-      DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
-    },
-    timeout: 120000,
+  const result = await windowsPicker(script, {
+    DOKIME_PICKER_SHELL: resolve(shellBinary),
+    DOKIME_PICKER_DRIVER: String(owner.pid),
+    DOKIME_PICKER_FILE: target,
+    DOKIME_PICKER_OPERATION: operation,
+    DOKIME_PICKER_ENTERED: picker.entered ? String(picker.entered) : "",
+    DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
   });
   await appendFile(join(evidence, "native-picker.log"), `${result.stderr}\n${result.stdout}\n`);
   const outcome = result.stdout.trim();
@@ -4408,7 +4670,7 @@ project = "lab/dokime"
 [updates.connections.lab]
 host = "https://127.0.0.1:1"
 `;
-  await promisify(execFile)(
+  await executeFile(
     "python",
     [
       "-c",
@@ -4424,7 +4686,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   );
   const choose = async () => {
     await session.goto("/settings/organization");
-    await session.clickNamed("button", "Choose File…");
+    await session.openPicker(await session.named("button", "Choose File…"));
     const picker = { window: null };
     await until("native organization file picker", () => chooseNativeFile(picker, archive), 120000);
     await until("pending organization pack", async () => hasText(await session.text(), "Applies on next start."));
@@ -4493,16 +4755,18 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await select("Update Checks", "disabled");
   await select("Release Source", "private");
   await session.screenshot("organization-update-policy");
+  await session.key("Escape");
+  await session.waitForDom("update policy dialog closed", `return !document.querySelector('[role=dialog][data-state=open]');`);
+  await choose();
+  await writeFile(join(root, "pending", "organization.toml"), "invalid [");
   await restart();
   await session.goto("/settings/about");
   await session.clickNamed("button", "Check For Updates");
   await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
   assert.equal(await selection("Update Checks"), "disabled");
-  await restart();
-
-  await choose();
-  await writeFile(join(root, "pending", "organization.toml"), "invalid [");
-  await restart();
+  await session.key("Escape");
+  await session.waitForDom("update policy dialog closed", `return !document.querySelector('[role=dialog][data-state=open]');`);
+  await session.goto("/settings/organization");
   assert.ok(hasText(await session.text(), "Stokker Technologies"), "An invalid pending pack retains the active appearance");
   assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
   assert.equal(
@@ -4545,7 +4809,7 @@ async function writeJunit() {
       (selectedJourneys.size && requested.length !== selectedJourneys.size) ||
       requested.some((result) => result.skipped));
   const name = selectedJourneys.size ? `Selected Desktop Journeys: ${[...selectedJourneys].join(", ")}` : "Desktop Backend Walkthrough";
-  const seconds = cases.reduce((total, result) => total + result.seconds, 0);
+  const seconds = (performance.now() - walkthroughStarted) / 1000;
   const detail = cases
     .map((result) => `${result.name}: ${result.failure ?? (result.skipped ? "Skipped" : "Passed")} (${result.seconds}s)`)
     .join("\n");
@@ -4601,7 +4865,7 @@ async function startSecretService() {
   await until("isolated unlocked OS keyring", async () => {
     if (startupError) throw startupError;
     if (secretKeyring.exitCode !== null) throw new Error("The private keyring exited before startup");
-    const result = await promisify(execFile)(
+    const result = await executeFile(
       "dbus-send",
       [
         "--session",
@@ -4655,13 +4919,17 @@ async function main() {
   process.env.DOKIME_E2E_CHROME = chrome;
   reportBrowser = await ReportBrowser.start(work, chrome);
   await startSecretService();
-  const owned = await journey("owned-startup", ownedStartupJourney);
+  const owned = await journey("owned-startup", ownedStartupJourney, (scene) => scene.reports);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
-  backend = await startBackend(work, evidence);
+  timingScene = "attached-setup";
+  await closeSession();
+  backend = await startBackend(work, evidence, undefined, "backend", false);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
 
   await journey("startup", () => startupJourney(session, notes));
+  const installed = await journey("plugin-install", pluginInstallJourney);
+  if (!installed.ok) throw new Error("Native plugin installation failed");
   await installSaveTap(session);
 
   /* The Library is where cases come from, so it runs whatever the home said:
@@ -4671,10 +4939,22 @@ async function main() {
   await journey("active-cycle", () => activeCycleJourney(session, library.value?.title ?? null));
 
   if (cycleId) {
-    await journey("cycle", () => cycleJourney(session, cycleId));
+    await journey(
+      "cycle",
+      () => cycleJourney(session, cycleId),
+      (scene) => scene.reports,
+    );
     await journey("touch", () => touchJourney(session, cycleId));
-    await journey("execution-stop", () => executionStopJourney(session, cycleId));
-    await journey("containers", () => containersJourney(session, cycleId));
+    await journey(
+      "execution-stop",
+      () => executionStopJourney(session, cycleId),
+      (scene) => scene.reports,
+    );
+    await journey(
+      "containers",
+      () => containersJourney(session, cycleId),
+      (scene) => scene.reports,
+    );
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
     await journey("history", () => historyJourney(session, cycleId, library.value.title, library.value.measuringExecutionId));
   } else {
@@ -4689,10 +4969,13 @@ async function main() {
 
   await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
-  await journey("plugin-install", pluginInstallJourney);
-  await journey("organization", organizationJourney);
   await journey("distribution-identity", distributionIdentityJourney);
-  await journey("remote-access", remoteAccessJourney);
+  await journey("organization", organizationJourney);
+  await journey(
+    "remote-access",
+    () => remoteAccessJourney([...pendingReports]),
+    (scene) => scene.reports,
+  );
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
@@ -4722,7 +5005,14 @@ async function main() {
     await until("reconnected cycle admission ready", () => session.named("button", "Seal Cycle"));
     assert.ok(await session.exists("button", "Seal Cycle"), "reconnecting preserves Active admission");
   });
-  await journey("restart", restartJourney);
+  await journey(
+    "restart",
+    () => restartJourney([...pendingReports]),
+    (scene) => scene.reports,
+  );
+  if (!selectedJourneys.size) {
+    assert.deepEqual([...pendingReports], [], "Every materialized execution has an explicit report disposition");
+  }
 }
 
 /* Mechanical Native Fixture Shared By Independent Desktop Stories. */
@@ -4753,8 +5043,10 @@ export async function prepareNativeFixture(root, output) {
   await startSecretService();
   return async () => {
     await reportBrowser.close();
+    await stopNativePicker();
     await terminate(driverProcess);
     for (const child of [secretKeyring, secretBus]) await terminate(child);
+    await writeFile(join(evidence, "timings.json"), JSON.stringify(timings, null, 2));
   };
 }
 
@@ -4767,6 +5059,7 @@ async function runDesktopWalkthrough() {
     failures.push({ kind: "failure", name: "harness", reason: redact(failure.message) });
     process.stdout.write(`\nHarness failure: ${redact(failure.message)}\n`);
   } finally {
+    timingScene = "cleanup";
     for (const [name, cleanup] of [
       ["shell shutdown", closeSession],
       [
@@ -4776,6 +5069,7 @@ async function runDesktopWalkthrough() {
           reportBrowserClosed = true;
         },
       ],
+      ["native picker cleanup", stopNativePicker],
       ["backend shutdown", stopBackend],
       [
         "desktop logs",
@@ -4815,7 +5109,7 @@ async function runDesktopWalkthrough() {
       try {
         const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
         assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
-        await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
+        await executeFile(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
           windowsHide: true,
           windowsVerbatimArguments: true,
           timeout: 120000,
@@ -4832,6 +5126,12 @@ async function runDesktopWalkthrough() {
       await rm(work, { force: true, recursive: true }).catch((error) =>
         failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
       );
+    if (evidence) {
+      await writeFile(join(evidence, "timings.json"), JSON.stringify(timings, null, 2));
+      const totals = {};
+      for (const entry of timings) totals[entry.category] = (totals[entry.category] ?? 0) + entry.milliseconds;
+      process.stdout.write(`\nTiming Categories (Nested): ${JSON.stringify(totals)}\n`);
+    }
     await writeJunit();
   }
 
