@@ -233,3 +233,41 @@ async fn pulse_confirmation() {
         }
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn cpu_load_example_uses_public_hold_and_control_subscription() {
+    use plugin_host::host::cpu::load::{LoadControl, LoadHold, LoadSummary, LoadTarget};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let row = LoadControl {
+        mode: "percent".into(),
+        target_percent: Some(35.0),
+        measured_percent: Some(35.0),
+        target_flops: None,
+        measured_flops: None,
+        duty_percent: 20.0,
+        generator_flops: 1_000.0,
+    };
+    let report = dokime::plugin::testing::Harness::template("obc.checks.cpu_load")
+        .parameter("target_percent", 35.0)
+        .parameter("duration_s", 1.0)
+        .measuring::<LoadControl>([row])
+        .answering::<LoadHold, _>(move |request| {
+            assert_eq!(request.target, LoadTarget::Percent(35.0));
+            assert_eq!(request.threads, None);
+            observed.fetch_add(1, Ordering::SeqCst);
+            LoadSummary {
+                target: request.target,
+                mean: 35.0,
+                error_rms: 0.0,
+                duration_s: 1.0,
+                samples: 4,
+            }
+        })
+        .run::<plugin_obc::suites::Suites>()
+        .await
+        .unwrap();
+    assert!(report.passed(), "{}", report.diagnostics());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

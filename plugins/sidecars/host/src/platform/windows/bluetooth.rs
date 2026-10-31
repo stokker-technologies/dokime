@@ -55,7 +55,7 @@ pub fn snapshot(options: &HostOptions, _: Duration) -> Result<BluetoothSnapshot>
     let filter = options.bluetooth_adapter_name.as_ref().map(|value| value.to_lowercase());
     let device_names =
         names.into_iter().filter(|name| filter.as_ref().is_none_or(|filter| name.to_lowercase().contains(filter))).collect::<Vec<_>>();
-    let radios = match crate::host::controls::read_radio(Radio::Bluetooth) {
+    let radios = match crate::host::controls::read_radio(Radio::Bluetooth, &options.timing) {
         Ok(state) => Some(state),
         Err(error @ Error::UnknownValue { .. }) => return Err(error),
         Err(_) => None,

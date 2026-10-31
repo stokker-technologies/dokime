@@ -17,7 +17,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 // Third Party Imports
@@ -70,9 +69,6 @@ struct Instance {
 
     // The Publication Watch That Wants This Stream From Its Owner While The Stream Is Held.
     demand: Option<StreamDemand>,
-
-    #[allow(dead_code, reason = "the declared cadence the running instance was started at")]
-    interval: Duration,
 
     holders: BTreeSet<String>,
     generation: u64,
@@ -139,8 +135,8 @@ struct Delivery {
 
 // What A Stream Needs Before A Run Reads It.
 enum LeaseTarget {
-    Sampled { owner: String, interval: Duration },
-    // No Cadence: Its Owner Publishes It Without Being Sampled.
+    Sampled { owner: String },
+    // Its Owner Publishes It Without A Sampling Declaration Or Observer.
     Published,
 }
 
@@ -304,7 +300,7 @@ impl StreamLeases {
         }
     }
 
-    fn take(&self, stream: &Identifier, owner: String, requester: &str, interval: Duration, scope: RecordScope) -> (String, bool) {
+    fn take(&self, stream: &Identifier, owner: String, requester: &str, scope: RecordScope) -> (String, bool) {
         let lease_id = format!("lease-{}", uuid::Uuid::now_v7());
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         let entry = state.instances.entry(stream.clone());
@@ -312,7 +308,6 @@ impl StreamLeases {
         let instance = entry.or_insert_with(|| Instance {
             owner: owner.clone(),
             demand: None,
-            interval,
             holders: BTreeSet::new(),
             generation: 0,
         });
@@ -405,10 +400,12 @@ impl RuntimeHandle {
             ids: Vec::with_capacity(streams.len()),
         };
         for stream in streams {
-            let LeaseTarget::Sampled { owner, interval } = self.lease_target(stream)? else {
-                return Err(Error::Operation(format!("telemetry stream {stream} declares no cadence, so nothing samples it to lease")));
+            let LeaseTarget::Sampled { owner } = self.lease_target(stream)? else {
+                return Err(Error::Operation(format!(
+                    "telemetry stream {stream} declares no sampling or observer, so nothing samples it to lease"
+                )));
             };
-            let (lease_id, started) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+            let (lease_id, started) = self.stream_leases().take(stream, owner, requester, record_scope.clone());
             if started {
                 self.engage_stream_demand(stream);
             }
@@ -425,8 +422,8 @@ impl RuntimeHandle {
         let mut declared = DeclaredLeases::default();
         for stream in streams {
             match self.lease_target(stream) {
-                Ok(LeaseTarget::Sampled { owner, interval }) => {
-                    let (lease_id, started) = self.stream_leases().take(stream, owner, requester, interval, record_scope.clone());
+                Ok(LeaseTarget::Sampled { owner }) => {
+                    let (lease_id, started) = self.stream_leases().take(stream, owner, requester, record_scope.clone());
                     if started {
                         self.engage_stream_demand(stream);
                     }
@@ -790,11 +787,16 @@ impl RuntimeHandle {
             .ok_or_else(|| {
                 Error::Operation(format!("telemetry stream {stream} is not owned by an installed plugin and cannot be leased"))
             })?;
-        let Some(interval) = contract.interval else {
+        let observed = self.routing.get().is_some_and(|router| {
+            router.graph().ordered().iter().any(|provider| {
+                provider.id == owner
+                    && provider.contributions.observers.iter().any(|observer| observer.streams.iter().any(|id| id == stream.as_str()))
+            })
+        });
+        if contract.interval.is_none() && !observed {
             return Ok(LeaseTarget::Published);
-        };
-        let interval = Duration::from_millis(interval.0.max(1));
-        Ok(LeaseTarget::Sampled { owner, interval })
+        }
+        Ok(LeaseTarget::Sampled { owner })
     }
 
     // Wants A Held Stream From Its Owner's Current Publication; A Stream Whose Owner Is Not

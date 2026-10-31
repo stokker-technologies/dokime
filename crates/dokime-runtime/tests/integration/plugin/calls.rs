@@ -266,14 +266,6 @@ impl dokime_runtime::harmos::Lifecycle for Bench {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         Ok(())

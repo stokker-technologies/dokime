@@ -45,7 +45,8 @@ impl dokime::harmos::Operation for super::Adapters {
     type Error = dokime::prelude::Refusal;
 
     async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::Response<super::Snapshot>, Self::Error> {
-        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(snapshot);
+        let timeout = std::time::Duration::from_millis(ctx.resource::<crate::HostOptions>().timing.network_probe_timeout_ms);
+        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || snapshot(timeout));
         let snapshot = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
         Ok(dokime::harmos::Response::new(snapshot))
     }
@@ -53,7 +54,7 @@ impl dokime::harmos::Operation for super::Adapters {
 
 /* === Public Functions === */
 
-pub fn snapshot() -> crate::Result<Snapshot> {
+pub fn snapshot(timeout: std::time::Duration) -> crate::Result<Snapshot> {
     let mut first = null_mut();
     // SAFETY: getifaddrs Owns The Linked List Until freeifaddrs In List::drop.
     if unsafe { libc::getifaddrs(&mut first) } != 0 {
@@ -137,7 +138,7 @@ pub fn snapshot() -> crate::Result<Snapshot> {
         current = entry.ifa_next;
     }
     read_routes(&mut adapters)?;
-    network_manager(&mut adapters);
+    network_manager(&mut adapters, timeout);
     Ok(Snapshot {
         adapters: adapters.into_values().collect(),
     })
@@ -195,7 +196,7 @@ fn read_routes(adapters: &mut BTreeMap<String, Adapter>) -> crate::Result<()> {
     Ok(())
 }
 
-fn network_manager(adapters: &mut BTreeMap<String, Adapter>) {
+fn network_manager(adapters: &mut BTreeMap<String, Adapter>, timeout: std::time::Duration) {
     // NetworkManager Supplies Per-Interface DNS And DHCP Where It Manages The Link.
     let mut command = dokime_domain::process::command("nmcli");
     command.args([
@@ -207,7 +208,7 @@ fn network_manager(adapters: &mut BTreeMap<String, Adapter>) {
         "device",
         "show",
     ]);
-    let Ok(output) = crate::collectors::run_command_bounded(command, super::super::network::POLICY.attempt_timeout) else {
+    let Ok(output) = crate::collectors::run_command_bounded(command, timeout) else {
         return;
     };
     if !output.status.success() {

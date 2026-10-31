@@ -1,18 +1,5 @@
-; Firewall changes elevate their helper while retaining Tauri's install mode.
-!macro DOKIME_FIREWALL ACTION
-  InitPluginsDir
-  File /oname=$PLUGINSDIR\dokime-firewall.ps1 "${DOKIME_FIREWALL_SCRIPT}"
-  ClearErrors
-  ExecWait 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\dokime-firewall.ps1" -Action ${ACTION} -Program "$INSTDIR\${MAINBINARYNAME}.exe" -BundleId "${BUNDLEID}"' $0
-  ${If} ${Errors}
-  ${OrIf} $0 != 0
-    Abort "Could not ${ACTION} the private-network remote access firewall rule. Allow administrator access and run setup again."
-  ${EndIf}
-!macroend
-
 ; Backticks delimit NSIS strings; $$ passes a literal dollar to PowerShell.
 !macro NSIS_HOOK_POSTINSTALL
-  !insertmacro DOKIME_FIREWALL Install
   ${IfNot} ${FileExists} "$INSTDIR\dokime.exe"
     Abort "${PRODUCTNAME} CLI binary was not found at $INSTDIR\dokime.exe"
   ${EndIf}
@@ -32,7 +19,6 @@
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  !insertmacro DOKIME_FIREWALL Remove
   DetailPrint "Removing ${PRODUCTNAME} CLI command path"
   System::Call 'Kernel32::SetEnvironmentVariable(t "DOKIME_INSTALL_DIR", t "$INSTDIR") i .r0'
   ${If} $0 == 0

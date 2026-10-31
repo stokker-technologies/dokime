@@ -34,7 +34,7 @@ use starship_battery::{
         time::second,
     },
 };
-use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
+use sysinfo::{Components, MemoryRefreshKind, System};
 
 // Local Imports
 use crate::{
@@ -45,6 +45,9 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
+const BYTES_PER_GIBIBYTE: f64 = 1_073_741_824.0;
+const PERCENT_SCALE: f64 = 100.0;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -52,8 +55,9 @@ use dokime_domain::model::values::Value;
 /* === Structs === */
 
 pub struct SystemCollector {
+    options: crate::HostOptions,
     sample_index: u64,
-    capacity_gflops: Option<f64>,
+    cpu: Option<crate::host::cpu::sampling::Sampler>,
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
@@ -82,10 +86,11 @@ struct PowerProfileContext {
 /* === Implementations === */
 
 impl SystemCollector {
-    pub fn new() -> Result<Self> {
+    pub fn new(options: crate::HostOptions) -> Result<Self> {
         Ok(Self {
+            options,
             sample_index: 0,
-            capacity_gflops: None,
+            cpu: None,
             system: System::new_all()?,
             components: Components::new_with_refreshed_list()?,
             battery_manager: BatteryManager::new().ok(),
@@ -94,26 +99,36 @@ impl SystemCollector {
     }
 
     pub fn calibrate_cpu(&mut self, budget: std::time::Duration) -> Result<()> {
-        self.capacity_gflops = Some(crate::host::cpu::calibrate(budget)?);
+        self.prepare_cpu(budget, crate::settings::CPU_LOAD_DEFAULTS.sample_period())
+    }
+
+    pub(crate) fn prepare_cpu(&mut self, budget: std::time::Duration, period: std::time::Duration) -> Result<()> {
+        let capacity = crate::host::cpu::calibrate(budget, self.options.sampling.calibration_batch_iterations)?;
+        self.cpu = Some(crate::host::cpu::sampling::Sampler::start(capacity, period)?);
         Ok(())
     }
 
-    pub fn cpu_load(&mut self) -> Result<crate::host::cpu::Load> {
-        let capacity = self.capacity_gflops.ok_or_else(|| crate::Error::Probe("CPU capacity has not been calibrated".into()))?;
-        self.system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
-        let utilization = f64::from(self.system.global_cpu_usage()).clamp(0.0, 100.0);
-        Ok(crate::host::cpu::Load::measured(capacity, utilization))
+    pub(crate) fn cpu_source(&self) -> Result<crate::host::cpu::sampling::Source> {
+        self.cpu.as_ref().map(|sampler| sampler.source()).ok_or_else(|| crate::Error::Probe("CPU capacity has not been calibrated".into()))
+    }
+
+    pub(crate) fn stop_cpu(&mut self) {
+        self.cpu.take();
+    }
+
+    pub fn cpu_load(&self) -> Result<crate::host::cpu::Load> {
+        self.cpu_source()?.read()
     }
 
     pub fn collect(&mut self) -> Result<HostStreamSample> {
         self.sample_index += 1;
-        self.system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
         self.system.refresh_memory_specifics(MemoryRefreshKind::everything());
         self.components.refresh(true);
 
+        let cpu = self.cpu_load().ok();
         let total_memory = self.system.total_memory();
         let used_memory = self.system.used_memory();
-        let memory_pressure = if total_memory > 0 { Some((used_memory as f64 / total_memory as f64) * 100.0) } else { None };
+        let memory_pressure = if total_memory > 0 { Some((used_memory as f64 / total_memory as f64) * PERCENT_SCALE) } else { None };
         let temperatures = self
             .components
             .iter()
@@ -128,19 +143,18 @@ impl SystemCollector {
         let mut values = BTreeMap::from([
             ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
             ("probe_status".to_owned(), Value::from("ok")),
-            ("cpu_load_percent".to_owned(), Value::from(f64::from(self.system.global_cpu_usage()))),
+            ("cpu_load_percent".to_owned(), Value::from(cpu.as_ref().map(|load| load.utilization_percent).unwrap_or(0.0))),
             ("memory_total_bytes".to_owned(), integer(total_memory)),
             ("memory_used_bytes".to_owned(), integer(used_memory)),
-            ("memory_used_gib".to_owned(), Value::from(used_memory as f64 / 1_073_741_824.0)),
-            ("memory_total_gib".to_owned(), Value::from(total_memory as f64 / 1_073_741_824.0)),
+            ("memory_used_gib".to_owned(), Value::from(used_memory as f64 / BYTES_PER_GIBIBYTE)),
+            ("memory_total_gib".to_owned(), Value::from(total_memory as f64 / BYTES_PER_GIBIBYTE)),
             ("system_uptime_s".to_owned(), Value::from(System::uptime()? as f64)),
             ("temperature_sensor_count".to_owned(), Value::Integer(temperatures.len() as i64)),
             ("cpu_architecture".to_owned(), Value::from(std::env::consts::ARCH)),
             ("logical_cpu_count".to_owned(), Value::Integer(self.system.cpus().len() as i64)),
         ]);
-        if let Some(capacity) = self.capacity_gflops {
-            let load = crate::host::cpu::Load::measured(capacity, f64::from(self.system.global_cpu_usage()).clamp(0.0, 100.0));
-            values.insert("cpu_capacity_gflops".into(), Value::from(capacity));
+        if let Some(load) = cpu {
+            values.insert("cpu_capacity_gflops".into(), Value::from(load.capacity_gflops));
             values.insert("cpu_load_gflops".into(), Value::from(load.load_gflops));
         }
         maybe_insert(&mut values, "physical_cpu_count", System::physical_core_count().ok().map(|count| Value::Integer(count as i64)));
@@ -154,7 +168,9 @@ impl SystemCollector {
         maybe_insert(&mut values, "cpu_frequency_mhz", first_cpu.map(|cpu| Value::Integer(cpu.frequency() as i64)));
         maybe_insert(&mut values, "host_name", System::host_name().ok().map(Value::from));
         maybe_insert(&mut values, "user", std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok().map(Value::from));
-        let git = self.git_identity.get_or_insert_with(git_identity);
+        let git = self
+            .git_identity
+            .get_or_insert_with(|| git_identity(std::time::Duration::from_millis(self.options.timing.system_probe_timeout_ms)));
         maybe_insert(&mut values, "git_user_name", git.name.clone().map(Value::from));
         maybe_insert(&mut values, "git_user_email", git.email.clone().map(Value::from));
         maybe_insert(&mut values, "os_name", System::name().ok().map(Value::from));
@@ -178,10 +194,10 @@ impl SystemCollector {
 
 /* === Private Functions === */
 
-fn git_identity() -> GitIdentity {
+fn git_identity(timeout: std::time::Duration) -> GitIdentity {
     let mut command = dokime_domain::process::command("git");
     command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
-    let Ok(output) = super::run_command_bounded(command, system_probe_timeout()) else {
+    let Ok(output) = super::run_command_bounded(command, timeout) else {
         return GitIdentity::default();
     };
     if !output.status.success() {
@@ -207,11 +223,6 @@ fn parse_git_identity(text: &str) -> GitIdentity {
         *slot = present.then_some(value);
     }
     identity
-}
-
-// A System Probe Is Bounded By The Collection It Serves.
-fn system_probe_timeout() -> std::time::Duration {
-    crate::host::system::POLICY.attempt_timeout
 }
 
 fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
@@ -251,7 +262,43 @@ fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>
 /* === Tests === */
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    pub(crate) fn with_cpu(cpu: crate::host::cpu::sampling::Sampler) -> crate::Result<super::SystemCollector> {
+        let mut collector = super::SystemCollector::new(crate::HostOptions::default())?;
+        collector.cpu = Some(cpu);
+        Ok(collector)
+    }
+
+    #[test]
+    fn concurrent_system_collection_and_controller_reads_preserve_cpu_sample() {
+        use std::sync::{Arc, Mutex};
+        let expected = crate::host::cpu::Load::measured(12.0, 37.5);
+        let mut collector = super::SystemCollector::new(crate::HostOptions::default()).unwrap();
+        collector.cpu = Some(crate::host::cpu::sampling::tests::fixed(expected.clone()));
+        let source = collector.cpu_source().unwrap();
+        let collector = Arc::new(Mutex::new(collector));
+        std::thread::scope(|scope| {
+            let system = collector.clone();
+            let system_expected = expected.clone();
+            scope.spawn(move || {
+                for _ in 0..2 {
+                    let row = system.lock().unwrap().collect().unwrap();
+                    assert_eq!(
+                        row.values["cpu_load_percent"],
+                        dokime_domain::model::values::Value::from(system_expected.utilization_percent)
+                    );
+                    assert_eq!(row.values["cpu_load_gflops"], dokime_domain::model::values::Value::from(system_expected.load_gflops));
+                }
+            });
+            scope.spawn(|| {
+                for _ in 0..1000 {
+                    assert!(source.read().unwrap() == expected);
+                }
+            });
+        });
+        assert!(collector.lock().unwrap().cpu_load().unwrap() == expected);
+    }
+
     #[test]
     fn git_identity_takes_the_last_value_of_each_key() {
         let output = "user.name First

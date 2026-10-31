@@ -92,6 +92,8 @@ fn executable_declares_routes() {
                 "obc.charger.startup.sequence.signal",
                 "obc.charger.steady.measurement.run",
                 "obc.charger.steady.measurement.signal",
+                "obc.checks.cpu_load.run",
+                "obc.checks.cpu_load.signal",
                 "obc.checks.pulse.run",
                 "obc.checks.pulse.signal",
             ]
