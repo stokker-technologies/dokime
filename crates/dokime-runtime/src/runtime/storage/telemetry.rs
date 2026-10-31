@@ -1042,7 +1042,8 @@ mod admission_tests {
             }
         }
         let before = storage.cursor_accepted();
-        let rows = stage_rows(&SessionId::from_seed("capture-session"), &references, &[codec.clone()], &Payloads::Unchecked).unwrap();
+        let rows =
+            stage_rows(&SessionId::from_seed("capture-session"), &references, std::slice::from_ref(&codec), &Payloads::Unchecked).unwrap();
         let committed = TelemetryAdmission {
             storage: storage.clone(),
             local: local.clone(),

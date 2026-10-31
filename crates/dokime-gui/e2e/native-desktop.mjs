@@ -320,6 +320,7 @@ async function promptHoverLabels() {
   const frameDrawn = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await frameDrawn();
   const bounds = overlay.getBoundingClientRect();
+  overlay.dispatchEvent(new MouseEvent("mouseenter", { clientX: bounds.left, clientY: bounds.top + bounds.height / 2 }));
   for (let offset = 0; offset <= bounds.width; offset += 4) {
     overlay.dispatchEvent(
       new MouseEvent("mousemove", {
@@ -398,6 +399,9 @@ async function checkStatusBounds(session) {
 }
 
 async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true, { dataRoot = join(work, "data") } = {}) {
+  for (const path of [backendBinary, cliBinary, hostBundle, ...(launchPlugin ? [pluginBundle] : [])]) {
+    if (!existsSync(path)) throw new Error(`Missing backend artifact at ${path}. Use the same candidate's prepared artifacts.`);
+  }
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
@@ -1757,7 +1761,7 @@ async function activeCycleJourney(session, otherTitle) {
   await dialogsClosed();
   const added = await until("add announced", async () => {
     const text = await toastText(session);
-    return /Added 1 case to /.test(text) ? text : null;
+    return /Added 1 case to /i.test(text) ? text : null;
   });
   assert.ok(hasText(added, title), `The case must join the active cycle (got ${normalize(added)})`);
 }
@@ -2294,8 +2298,11 @@ async function cycleJourney(session, cycleId) {
     /\bPassed\b/,
     `Closing plot settings must leave the prompting re-run able to pass: ${normalize(rerunOutcome)}`,
   );
-  const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
-  assertPromptHovers(promptHovers);
+  await until("prompt marker hover labels", async () => {
+    const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
+    assertPromptHovers(promptHovers);
+    return true;
+  });
   assertHistogram(await until("live voltage histogram", () => session.execute(`return (${histogramPresentation.toString()})();`)));
   const statisticsHeaders = await until(
     "the native trace statistics headers",
@@ -2311,11 +2318,19 @@ async function cycleJourney(session, cycleId) {
               const range = document.createRange();
               range.selectNodeContents(node);
               const text = range.getBoundingClientRect();
+              let visibleLeft = text.left;
+              let visibleRight = text.right;
               let parent = node;
               while (parent && parent !== table.parentElement) {
                 const style = getComputedStyle(parent);
                 const bounds = parent.getBoundingClientRect();
-                if (['hidden', 'clip'].includes(style.overflowX) && (text.left < bounds.left - 1 || text.right > bounds.right + 1)) return true;
+                if (['hidden', 'clip'].includes(style.overflowX) && (visibleLeft < bounds.left - 1 || visibleRight > bounds.right + 1)) {
+                  const fullLabel = node.textContent.replace(/\\s+/g, ' ').trim();
+                  const tooltip = node.closest('[title]')?.getAttribute('title')?.replace(/\\s+/g, ' ').trim();
+                  if (style.textOverflow !== 'ellipsis' || tooltip !== fullLabel) return true;
+                  visibleLeft = Math.max(visibleLeft, bounds.left);
+                  visibleRight = Math.min(visibleRight, bounds.right);
+                }
                 if (['hidden', 'clip'].includes(style.overflowY) && (text.top < bounds.top - 1 || text.bottom > bounds.bottom + 1)) return true;
                 parent = parent.parentElement;
               }
@@ -2331,13 +2346,13 @@ async function cycleJourney(session, cycleId) {
     "Native statistics include cursor headings",
   );
   assert.ok(
-    statisticsHeaders.some((header) => /\([^)]\S*\)/.test(header.text)),
+    statisticsHeaders.some((header) => /\[[^\]]+\]/.test(header.text)),
     "Native statistics include physical units",
   );
   assert.deepEqual(
     statisticsHeaders.filter((header) => header.clipped),
     [],
-    "Statistics titles and units remain readable without clipping",
+    "Statistics titles and units need full-label tooltips when truncated and must not clip vertically",
   );
   await session.execute(
     `
@@ -2778,7 +2793,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
       session.execute(
         `
       const candidates = [...document.querySelectorAll('tbody tr')].filter(row =>
-        /\\b[1-9]\\d* passed\\b/.test(row.innerText)
+        /\\b[1-9]\\d* passed\\b/i.test(row.innerText)
         && [...row.querySelectorAll('button')].some(button => button.innerText.trim() === arguments[0]));
       if (candidates.length !== 1) return null;
       return [...candidates[0].querySelectorAll('button')].find(button => button.innerText.trim() === arguments[0]);
@@ -2800,8 +2815,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
       .find((node) => node.dataset.executionId === arguments[0]);
     const entry = identity?.closest('tr');
     if (!entry || !/\\b(passed|failed)\\b/i.test(entry.innerText)) return null;
-    return [...entry.querySelectorAll('button')]
-      .find((button) => button.innerText.trim() === 'Inspect' && !button.disabled) ?? null;
+    return entry.querySelector('button[aria-label="Inspect"]:not(:disabled)');
   `,
         [executionId],
       ),
@@ -2818,7 +2832,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
   await until(
     "captured records",
     async () => {
-      const section = await session.find("css selector", "section[aria-label='Captured records']").catch(() => null);
+      const section = await session.find("css selector", "section[aria-label='Captured Records']").catch(() => null);
       if (!section) return false;
       return !hasText(await session.textOf(section), "No execution records at this checkpoint.");
     },
@@ -2888,7 +2902,7 @@ async function remoteAccessJourney() {
   /* Certificate controls are advanced settings; each settings page states the view it needs. */
   const showAdvanced = async () => {
     await openMenu(session, "Page Actions");
-    await toggle("Show advanced", true);
+    await toggle("Show Advanced", true);
     await session.key("Escape");
     await until("settings actions closed", () => session.execute("return document.querySelectorAll('[role=menu]').length === 0;"));
   };
@@ -2927,10 +2941,14 @@ async function remoteAccessJourney() {
     const pairing = JSON.parse(await readFile(path, "utf8"));
     assert.equal(pairing.version, 1);
     assert.deepEqual(pairing.endpoints, [address]);
-    await session.clickNamed("button", pairing.label);
-    await session.type(await session.find("css selector", '[aria-label="Client Label"]'), identifier);
-    await session.clickNamed("button", "Rename");
-    if (pairing.access_key) secrets.add(pairing.access_key);
+    if (pairing.access_key) {
+      secrets.add(pairing.access_key);
+      await session.clickNamed("button", pairing.label);
+      await session.type(await session.find("css selector", '[aria-label="Client Label"]'), identifier);
+      await session.clickNamed("button", "Rename");
+    } else {
+      assert.equal(await session.exists("button", pairing.label), false, "A keyless access file creates no paired-client verifier");
+    }
     await cli(["backend", "add", "--remote", path, "--identifier", identifier, "--profiles-file", profiles]);
     return path;
   };
@@ -3171,15 +3189,16 @@ async function settingsJourney(session, notes) {
     "storage sources",
     async () => {
       const state = await session.execute(`
-        const list = document.querySelector('[aria-label="Storage source priority"]');
-        return {rows: list ? list.children.length : 0, text: document.body.innerText};
+        const table = document.querySelector('table[aria-label="Storage Source Priority"]');
+        const rows = table ? [...table.querySelectorAll('tbody tr')].filter(row => !row.querySelector('td[colspan]')) : [];
+        return {rows: rows.length, text: document.body.innerText};
       `);
-      return state.rows >= 1 || hasText(state.text, "No storage sources are configured.") ? state : null;
+      return state.rows >= 1 || hasText(state.text, "No storage sources are configured") ? state : null;
     },
     120000,
   );
   assert.ok(
-    storage.rows >= 1 || hasText(storage.text, "No storage sources are configured."),
+    storage.rows >= 1 || hasText(storage.text, "No storage sources are configured"),
     "Storage Sources must render its rows or say there are none",
   );
 
@@ -3337,7 +3356,11 @@ async function settingsJourney(session, notes) {
   await session.goto("/settings/backends");
   await until("registry after selection", () => rowAction("native-stale", "Select"));
   await session.click(await rowAction("native-stale", "Select"));
-  await until("failed selection displays the registry", () => session.find("css selector", 'main [role="alert"]'));
+  await until("failed selection displays the registry", async () => {
+    const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+    if (status.connection.phase !== "failed") return false;
+    return hasText(await toastText(session), "Backend Connection Failed") && (await rowAction("native-recovery", "Select"));
+  });
   const afterFailure = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
   assert.equal(afterFailure.default, "native-recovery");
   await session.click(await rowAction("native-recovery", "Select"));
@@ -4226,7 +4249,7 @@ for index in range(desktop.get_child_count()):
         [Console]::Error.WriteLine(('picker state=' + ($state | ConvertTo-Json -Compress -Depth 4)))
       }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
-      $owned = @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq [int]$env:DOKIME_PICKER_DRIVER } | ForEach-Object { $_.ProcessId })
+      $owned = @(Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + [int]$env:DOKIME_PICKER_DRIVER) | ForEach-Object { $_.ProcessId })
       foreach ($process in Get-Process | Where-Object { $_.Id -in $owned -and $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
         [Console]::Error.WriteLine(('picker process={0}' -f $process.Id))
         $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
@@ -4458,8 +4481,8 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.execute(
     `const button = [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates'); button.click();`,
   );
-  await until("missing release source error", async () =>
-    session.execute(`return Boolean(document.querySelector('[role="dialog"] [role="alert"]')?.textContent);`),
+  await until("update check failure notification", async () =>
+    hasText(await toastText(session), "The update manifest could not be checked"),
   );
   assert.equal(
     await session.execute(

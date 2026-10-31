@@ -660,10 +660,8 @@ mod tests {
                 let steps = delete.get_status(rusqlite::StatementStatus::VmStep);
                 assert!(steps < 512, "retirement took {steps} VM steps with {count} evidence children");
             }
-            for table in ["storage_record_captures"] {
-                let remaining: i64 = connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
-                assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
-            }
+            let remaining: i64 = connection.query_row("SELECT count(*) FROM storage_record_captures", [], |row| row.get(0)).unwrap();
+            assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
             assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
         }
     }
