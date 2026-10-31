@@ -49,6 +49,7 @@ pub(super) struct Context<'a> {
 pub(in crate::storage::sqlite) struct CachedBatch {
     path: std::path::PathBuf,
     index: ipc::BatchIndex,
+    projection: Option<Vec<usize>>,
     batch: arrow_array::RecordBatch,
 }
 
@@ -73,7 +74,7 @@ pub(super) fn indices(connection: &Connection, id: &str) -> Result<Vec<ipc::Batc
 }
 
 pub(super) fn entries(connection: &Connection, root: &Path, scan: &Scan) -> Result<Vec<(u64, TelemetryEntry)>> {
-    projected(connection, root, scan, |batch, row, _, contract| Ok(Some(ipc::telemetry_entry(batch, row, contract)?.1)))
+    projected(connection, root, scan, None, |batch, row, _, contract| Ok(Some(ipc::telemetry_entry(batch, row, contract)?.1)))
 }
 
 pub(super) fn numeric(
@@ -81,7 +82,14 @@ pub(super) fn numeric(
 ) -> Result<Vec<(u64, NumericRow)>> {
     use arrow_array::{Array, Float64Array, Int64Array, StructArray, UInt64Array};
     let mut scopes = std::collections::BTreeMap::new();
-    projected(connection, root, scan, |batch, row, _, _| {
+    let mut metadata = vec!["position", "at", "sequence", "timestamp"];
+    if *scope != Default::default() {
+        metadata.push("scope");
+    }
+    if scan.filters.iter().any(|(column, _)| *column == "item") {
+        metadata.push("sample_id");
+    }
+    projected(connection, root, scan, Some((&metadata, keys)), |batch, row, _, _| {
         if *scope != Default::default() {
             let encoded = ipc::metadata_text(batch, row, "scope")?;
             let matches = if let Some(matches) = scopes.get(encoded) {
@@ -131,7 +139,7 @@ pub(super) fn numeric(
 }
 
 fn projected<T>(
-    connection: &Connection, root: &Path, scan: &Scan,
+    connection: &Connection, root: &Path, scan: &Scan, columns: Option<(&[&str], &[String])>,
     mut project: impl FnMut(&arrow_array::RecordBatch, usize, u64, &TelemetryContract) -> Result<Option<T>>,
 ) -> Result<Vec<(u64, T)>> {
     let (start, end) = scan.source_window.map_or(scan.source_bounds, |(start, end)| (Some(start), Some(end)));
@@ -160,6 +168,7 @@ fn projected<T>(
     for (id, execution, contract) in selected {
         let contract: TelemetryContract = serde_json::from_str(&contract)?;
         let schema = ipc::contract_schema(&contract, execution.as_deref())?;
+        let projection = columns.map(|(metadata, keys)| ipc::Projection::new(schema.clone(), metadata, keys)).transpose()?;
         let mut sql = String::from(
             "SELECT offset,metadata_bytes,body_bytes,rows,sha256 FROM stream_batches WHERE file_id=? AND last_position>? AND first_position<=?",
         );
@@ -179,7 +188,13 @@ fn projected<T>(
         let mut count = 0;
         while let Some(row) = batches.next()? {
             let index = index(row)?;
-            let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema.clone(), &index, scan.metrics.as_deref())?;
+            let batch = read_batch(
+                &root.join(format!("telemetry/{id}.arrow")),
+                schema.clone(),
+                &index,
+                projection.as_ref(),
+                scan.metrics.as_deref(),
+            )?;
             let (positions, times) = ipc::row_keys(&batch)?;
             let first = positions.values().partition_point(|position| *position <= scan.page.after);
             let last = positions.values().partition_point(|position| *position <= scan.at);
@@ -228,7 +243,7 @@ pub(super) fn stored(connection: &Connection, root: &Path, scan: &Scan) -> Resul
     let history = super::super::saved(connection)?.history;
     let mut codecs = std::collections::BTreeMap::new();
     let mut bytes = 0;
-    let entries = projected(connection, root, scan, |batch, index, position, contract| {
+    let entries = projected(connection, root, scan, None, |batch, index, position, contract| {
         let (_, entry) = ipc::telemetry_entry(batch, index, contract)?;
         let schema = key(&entry)?;
         let cache_key = serde_json::to_string(&schema)?;
@@ -338,7 +353,7 @@ pub(super) fn latest(
             rows: catalog::unsigned(row, 6)?,
             sha256: catalog::digest(row, 8)?,
         };
-        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, Some(metrics))?;
+        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, None, Some(metrics))?;
         for row in (0..batch.num_rows()).rev() {
             let (position, time) = ipc::row_key(&batch, row)?;
             if position > at.sequence || latest.is_some_and(|latest| catalog::micros(latest).is_ok_and(|latest| time < latest)) {
@@ -406,7 +421,7 @@ pub(super) fn predecessors(
             rows: catalog::unsigned(row, 7)?,
             sha256: catalog::digest(row, 8)?,
         };
-        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, Some(metrics))?;
+        let batch = read_batch(&root.join(format!("telemetry/{id}.arrow")), schema, &index, None, Some(metrics))?;
         for row in (0..batch.num_rows()).rev() {
             let (position, time) = ipc::row_key(&batch, row)?;
             if position > at.sequence
@@ -454,25 +469,34 @@ pub(super) fn selected(entry: &TelemetryEntry, source: &harmos::storage::query::
 /* === Private Functions === */
 
 fn read_batch(
-    path: &Path, schema: arrow_schema::SchemaRef, index: &ipc::BatchIndex, metrics: Option<&super::super::super::ReadMetrics>,
+    path: &Path, schema: arrow_schema::SchemaRef, index: &ipc::BatchIndex, projection: Option<&ipc::Projection>,
+    metrics: Option<&super::super::super::ReadMetrics>,
 ) -> Result<arrow_array::RecordBatch> {
     if let Some(metrics) = metrics {
         let mut cached = metrics.telemetry_batch.lock().unwrap();
         if let Some(prior) = cached.as_ref()
             && prior.path == path
             && prior.index == *index
+            && prior.projection.as_deref() == projection.map(ipc::Projection::columns)
         {
             return Ok(prior.batch.clone());
         }
-        let batch = ipc::read_batch(path, schema, index)?;
+        let batch = match projection {
+            Some(projection) => ipc::read_projected_batch(path, index, projection)?,
+            None => ipc::read_batch(path, schema, index)?,
+        };
         *cached = Some(CachedBatch {
             path: path.to_owned(),
             index: index.clone(),
+            projection: projection.map(|projection| projection.columns().to_vec()),
             batch: batch.clone(),
         });
         Ok(batch)
     } else {
-        ipc::read_batch(path, schema, index)
+        match projection {
+            Some(projection) => ipc::read_projected_batch(path, index, projection),
+            None => ipc::read_batch(path, schema, index),
+        }
     }
 }
 
