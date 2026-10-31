@@ -152,7 +152,7 @@ pub struct Parameters {
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
 
-    #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
+    #[parameter(label = "Observation Duration", unit = "s", default = 0.02, min = SHORTEST_S)]
     pub duration_s: f64,
 
     #[parameter(
@@ -170,7 +170,7 @@ pub struct Parameters {
     #[parameter(label = "Attach reference.png from image directory", default = false)]
     pub attach_reference: bool,
 
-    #[parameter(label = "Pace samples in real time", default = true)]
+    #[parameter(label = "Pace samples in real time", default = false)]
     pub realtime: bool,
 
     #[parameter(

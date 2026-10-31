@@ -57,6 +57,7 @@ let failed = false;
 
 try {
   for (const name of selected) {
+    const started = performance.now();
     const report = join(scratch, `${name}.xml`);
     const extension = "mjs";
     const child = spawn(process.execPath, [`e2e/${name}.${extension}`, "--profile", options.profile, "--junit", report], {
@@ -64,6 +65,7 @@ try {
       windowsHide: true,
     });
     const [code] = await once(child, "exit");
+    process.stdout.write(`\nStory Timing: ${name} ${((performance.now() - started) / 1000).toFixed(3)} s\n`);
     failed ||= code !== 0;
     const document = await readFile(report, "utf8");
     suites.push(document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")));
