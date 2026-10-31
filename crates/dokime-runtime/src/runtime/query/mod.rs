@@ -29,6 +29,7 @@ pub(crate) mod records;
 mod reduction;
 pub(crate) mod request;
 pub(crate) mod runtime;
+pub mod selection;
 pub(crate) mod telemetry;
 
 /* === Re-Exports === */

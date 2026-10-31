@@ -69,3 +69,14 @@ access denial to PermissionDenied, incompatible/unavailable cuts to
 FailedPrecondition, budgets to ResourceExhausted, active deadlines to
 DeadlineExceeded, corruption to DataLoss and storage failure to Unavailable.
 Failure messages must omit storage paths, credentials and internal query text.
+
+Captured-field planning lives in
+`crates/dokime-runtime/src/runtime/query/selection/`. `Selection::records` and
+`Selection::samples` consume captured contracts and an immutable `QueryConfig`,
+validate versions, projection, predicates and UTC windows, and return a schema
+plus `required_fields`. Storage planning must select those versions and bind
+`FieldRef::Declared` to actual captured columns; envelope references have their
+own closed enum. The pure matcher accepts borrowed values and occurrence time,
+so it applies no ingestion defaults or implicit object traversal. It opens no
+storage reader and creates no query handler. Runtime scans and snapshot binding
+remain with tasks 1.4 onward.
