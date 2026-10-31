@@ -81,6 +81,10 @@ url = { workspace = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Local
+dokime-tracing = { workspace = true }
+
 # === Target Dependencies === #
 
 # === Test Targets === #

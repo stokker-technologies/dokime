@@ -141,6 +141,7 @@ fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn captures_share_demand() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -166,6 +167,7 @@ async fn captures_share_demand() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_capture_drains() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -188,6 +190,7 @@ async fn new_capture_drains() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stopped_scope_sampler() {
     let (_root, mut runtime_owner, runtime) = test_runtime().await;
@@ -211,6 +214,7 @@ async fn stopped_scope_sampler() {
     runtime_owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_plugin_stream() {
     use dokime_runtime::domains::evidence::TelemetrySelection;
@@ -236,6 +240,7 @@ async fn host_plugin_stream() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_observer_spins_down() {
     use dokime_runtime::domains::evidence::TelemetrySelection;
@@ -285,6 +290,7 @@ async fn host_observer_spins_down() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_publishers_required() {
     use crate::service_support::prelude::fixture_suite;

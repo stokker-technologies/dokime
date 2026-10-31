@@ -45,6 +45,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_lifecycle() {
     Box::pin(plugins::plugin_install_identity()).await;

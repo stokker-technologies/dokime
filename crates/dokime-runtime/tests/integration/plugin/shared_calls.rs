@@ -362,6 +362,7 @@ fn definition<A: Attach>(attach: &A, version: &str) -> dokime_runtime::harmos::p
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_calls_own_public() {
     let public = [Node::Leaf(WireDeclaration::of::<ReadPublic>())];
@@ -379,6 +380,7 @@ async fn template_calls_own_public() {
     native.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn own_public_call_cancels() {
     let native = opened().await;
@@ -430,6 +432,7 @@ async fn own_public_call_cancels() {
     native.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn template_host_operations_refused() {
     let host = [Node::Leaf(WireDeclaration::of::<ReadHost>())];
@@ -441,6 +444,7 @@ fn template_host_operations_refused() {
     assert!(required_by(<Probe as SidecarTemplate>::REQUIRED, <Owner as Declared>::REQUIRES, <Owner as Declared>::PROVIDES));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn consumer_requires_public() {
     assert!(required_by(<ConsumerProbe as SidecarTemplate>::REQUIRED, <Consumer as Declared>::REQUIRES, <Consumer as Declared>::PROVIDES));

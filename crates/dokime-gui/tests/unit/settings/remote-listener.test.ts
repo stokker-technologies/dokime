@@ -75,7 +75,7 @@ const SETTINGS: ListenerSettings = {
   certificateNames: ["lab-host", "192.168.1.20"],
 };
 
-const STOPPED: ListenerStatus = { settings: SETTINGS, keyConfigured: true, certificatePem: "-----BEGIN CERTIFICATE-----" };
+const STOPPED: ListenerStatus = { settings: SETTINGS, keyConfigured: true, certificatePem: "-----BEGIN CERTIFICATE-----", endpoints: [] };
 
 /* === Types === */
 
@@ -114,6 +114,31 @@ test("Unavailable Remote Settings Stay Inline Without Notifications", () => {
   assert.equal(notice.mock.calls.length, 0);
 });
 
+test("Export Endpoint Preview", () => {
+  fixture.session = {
+    identity: { generation: "fixture" },
+    snapshot: { connection: { backend: { methods: ["/dokime.v1.Remote/ReadListener"] } } },
+  };
+  const endpoints = [
+    { address: "bench-host" },
+    { address: "192.168.7.4", adapterName: "Wireless" },
+    { address: "169.254.23.41", adapterName: "Cable Ethernet" },
+  ];
+  fixture.query.isPending = false;
+  fixture.query.data = { ...STOPPED, endpoints };
+  const html = renderToStaticMarkup(createElement(RemoteSection, {}));
+  const list = html.match(/<ul aria-label="Export Endpoints"[^>]*>(.*?)<\/ul>/)?.[1];
+  assert.ok(list);
+  let previous = -1;
+  for (const endpoint of endpoints) {
+    const position = list.indexOf(endpoint.address);
+    assert.ok(position > previous);
+    previous = position;
+    if (endpoint.adapterName) assert.ok(list.includes(endpoint.adapterName));
+  }
+  assert.equal(fixture.invoke.mock.calls.length, 0);
+});
+
 test("enabling applies the host's settings at once and shows the running listener", async () => {
   const sent: ListenerSettings[] = [];
   const failures: string[] = [];
@@ -134,17 +159,23 @@ test("enabling applies the host's settings at once and shows the running listene
 
 test("a refused enable keeps the stopped state and surfaces the host error", async () => {
   const failures: string[] = [];
+  const reason = new Error("authentication_required");
+  const details: unknown[] = [];
   const next = await commitListener({
     status: STOPPED,
     change: { enabled: true },
     send: async () => {
-      throw new Error("authentication_required");
+      throw reason;
     },
-    fail: (message) => failures.push(message),
+    fail: (message, error) => {
+      failures.push(message);
+      details.push(error);
+    },
   });
   assert.equal(next, STOPPED);
   assert.equal(listenerRunning(next), false);
   assert.deepEqual(failures, ["authentication_required"]);
+  assert.deepEqual(details, [reason]);
 });
 
 test("saved intent without a bound address is not running", () => {

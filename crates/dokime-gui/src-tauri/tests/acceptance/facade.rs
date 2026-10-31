@@ -49,6 +49,7 @@ fn base64(bytes: &[u8]) -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn typescript_facade_bridge() {
     let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));

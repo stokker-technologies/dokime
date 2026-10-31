@@ -69,6 +69,7 @@ where
 {
     install_panic_hook();
     install_subscriber();
+    let _trace = dokime_tracing::process();
     let capacity = std::num::NonZeroUsize::new(128).expect("native invocation capacity is positive");
     crate::process::block_on(async move {
         let settings = crate::config::schema_defaults();

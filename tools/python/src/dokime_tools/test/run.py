@@ -29,7 +29,7 @@ from pathlib import Path
 from .. import temporary
 from ..build import paths, storage
 from ..process import spawn_flags
-from . import archive, nextest, policy, pytest, report, vitest
+from . import archive, nextest, policy, pytest, report, traces, vitest
 
 # Type Checking Imports
 
@@ -94,22 +94,34 @@ def test(
         environment["TEST_PROFILE"] = profile
         environment.pop("TEST_REPORT_DIR", None)
         if category == "system":
-            traces = report.native_directory(directory, report.TRACES / profile / paths.target() / key)
-            environment["TEST_REPORT_DIR"] = str(traces)
-        lane = _lane(
-            directory,
-            rules,
-            key,
-            category,
-            language,
-            project,
-            profile,
-            command,
-            cwd,
-            environment,
-            junit,
-            scratch,
-        )
+            story_reports = report.native_directory(directory, report.TRACES / profile / paths.target() / key)
+            environment["TEST_REPORT_DIR"] = str(story_reports)
+        trace_report = None
+        environment.pop("DOKIME_TEST_TRACE_DIR", None)
+        if category in ("integration", "acceptance", "system"):
+            trace_report = report.native_directory(directory, Path("target/test-reports") / key)
+            trace_directory = report.native_directory(directory, trace_report.relative_to(directory) / "traces")
+            shutil.rmtree(trace_directory)
+            trace_directory.mkdir()
+            environment["DOKIME_TEST_TRACE_DIR"] = str(trace_directory)
+        try:
+            lane = _lane(
+                directory,
+                rules,
+                key,
+                category,
+                language,
+                project,
+                profile,
+                command,
+                cwd,
+                environment,
+                junit,
+                scratch,
+            )
+        finally:
+            if trace_report is not None:
+                traces.summarize(trace_report, junit)
         lane["arguments"] = list(extra)
         return 0 if lane["outcome"] == "passed" else 1
 

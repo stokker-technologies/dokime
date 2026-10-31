@@ -130,6 +130,8 @@ The desktop's WebView stores notification history locally and reads it in bounde
 
 Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
+Click a toast or history entry, or focus it and press Enter or Space, to open its details. The dialog shows the full message, source, severity, absolute and relative time, and available failure reason, operation and request/invocation identifiers. Validation failures list each affected field and its reason. Causes appear with the root first; dependent startup consequences remain collapsed. Expand Technical Details for backend diagnostics or backtraces. Copy includes all details, including collapsed sections. Press Esc or Close to return to the notification. Set Secret and Open Plugin Settings remain separate actions.
+
 ## Native Remote Access
 
 Choose **Export Remote Access** in Settings → Remote Access. The native save
@@ -143,7 +145,9 @@ transfer it privately and revoke its client if it is lost. Raw keys never enter
 the WebView, logs or saved backend profiles. The host retains only verifiers.
 
 Endpoints are automatic: a specific bound address, or the hostname followed by
-real interface addresses in the listener address family, with private networks first. Virtual/VPN adapters are
+real interface addresses in the listener address family, with private networks first
+and IPv4 link-local addresses last. Remote Access shows these addresses with their
+adapter names before export. Virtual/VPN adapters are
 excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
 for a specific loopback bind carry **Same PC** in their generated label.
 The backend signs its listener leaf with a persistent CA, which the file pins.
@@ -169,12 +173,31 @@ Windows installation never needs administrator rights and does not change the
 firewall. On the computer exporting remote access, Settings → Remote Access checks
 Windows Firewall when the listener runs on a non-loopback address. If inbound access
 is blocked, **Allow In Firewall…** requests administrator approval to allow the app
-on **Private** networks once. Cancelled or refused approval leaves the app usable.
+on the listener's active **Private**, **Public** or domain networks. The notice
+identifies each adapter, network and profile. The inbound rule permits only this
+executable's TCP listener port, with peers restricted to the local subnet.
+Cancelled or refused approval leaves the app usable.
 Connecting to another backend only uses outbound access and needs no firewall rule.
 Disabling remote access attempts to remove this installation's rule without a UAC
 prompt; a standard user is told when cleanup needs an administrator. Per-user
 uninstall leaves any rule in place and never requests administrator access.
 On other platforms, permit the saved listener port through the host firewall.
+
+### Direct Cable Between Two PCs
+
+Connect the Ethernet cable and use a different address on each PC in the same
+subnet. Static addresses are recommended, for example `192.168.50.1/24` and
+`192.168.50.2/24`, without a gateway; choose a subnet unused by other adapters.
+Automatic IPv4 link-local addresses (`169.254.x.x`) also work once both adapters
+have acquired them. IPv6 link-local is excluded because it requires an interface
+zone identifier that remote files do not support.
+
+On the exporting PC, check the cable address and adapter name in Remote Access,
+then select **Export Remote Access**. Import the file on the second PC. A cable
+without a gateway may be classified as a Public unidentified network. If the
+firewall notice reports blocked access, optionally select **Allow In Firewall…**
+and approve the administrator prompt; the rule covers that profile for peers on
+the same subnet. Installation never changes firewall rules.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -1056,7 +1079,7 @@ replaced by the `sidecar` group.
 Default Windows NSIS installers use `currentUser` mode and request user-level
 execution. Installation and uninstallation never need administrator rights; setup
 does not add or remove firewall rules. Exposing remote access to other PCs may need
-an administrator to allow the private-network firewall rule once in Settings →
+an administrator to allow the listener's local-subnet firewall rule in Settings →
 Remote Access on the exporting computer.
 
 | Command | Purpose | Key Flags |

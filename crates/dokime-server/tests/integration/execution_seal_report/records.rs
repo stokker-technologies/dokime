@@ -157,6 +157,7 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn captured_record_watch() {
     tokio::time::timeout(Duration::from_secs(120), captured_watch()).await.unwrap();

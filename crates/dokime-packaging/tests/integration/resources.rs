@@ -39,6 +39,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn resources() {
     let root = std::env::current_dir().unwrap();

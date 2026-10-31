@@ -266,6 +266,7 @@ fn operation_ids(nodes: &[sdk::catalog::Node<sdk::harmos::operations::WireDeclar
 /* === Tests === */
 
 #[cfg(test)]
+#[dokime_tracing::trace_test]
 #[test]
 fn alias_compiles_operations() {
     // Renamed Facade Uses One Shared Codec For Every Domain Shape.

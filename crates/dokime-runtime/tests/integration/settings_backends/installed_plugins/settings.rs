@@ -234,6 +234,7 @@ fn settings_artifact() -> dokime_runtime::InstalledPlugin {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn non_admitted_settings() {
     let root = tempdir().unwrap();

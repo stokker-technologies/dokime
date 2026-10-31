@@ -225,6 +225,7 @@ fn defaults() -> SettingValues {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn section_folds_shows() {
     let catalog = BenchSettings::catalog();
@@ -234,6 +235,7 @@ fn section_folds_shows() {
     catalog.validate().expect("the declared catalog validates");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn field_type_required() {
     let catalog = BenchSettings::catalog();
@@ -261,6 +263,7 @@ fn field_type_required() {
             && field.provider.as_deref() == Some("bench.list_environments")));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn section_links_default() {
     assert_eq!(<Workspace as SettingsSection>::status_operation(), Some("bench.get_status"));
@@ -273,6 +276,7 @@ fn section_links_default() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn admitted_values_handed() {
     let mut saved = defaults();
@@ -299,6 +303,7 @@ fn admitted_values_handed() {
     assert_eq!(settings.secrets.token, None);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn value_outside_refused() {
     let mut saved = defaults();
@@ -309,6 +314,7 @@ fn value_outside_refused() {
     assert!(refusal.contains("page_limit"), "{refusal}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn settings_links_ids() {
     // Settings links use the IDs authored by the selected operation contracts.
@@ -319,6 +325,7 @@ fn settings_links_ids() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn saved_values_empty() {
     // Nobody saved a port, so the field is absent: discovery is the host's to

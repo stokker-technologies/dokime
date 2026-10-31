@@ -275,7 +275,10 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            let mut executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            if let Some(directory) = std::env::var_os("DOKIME_TEST_TRACE_DIR") {
+                executable = executable.variable("DOKIME_TEST_TRACE_DIR", directory);
+            }
             let resident = Resident::new(executable, handler);
             self.resident = Some(resident);
         }
@@ -542,6 +545,7 @@ async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, meth
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn inventory_matches_dispatch() {
     use harmos::Message;
@@ -633,6 +637,7 @@ async fn inventory_matches_dispatch() {
     bench.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn samples_keep_context() {
     use dokime::Value;

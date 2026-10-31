@@ -257,6 +257,7 @@ fn write_payload(id: u64, sequence: u64, slice: &[u8]) -> Vec<u8> {
     payload
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn upload_sink_completes() {
     let fixture = ScopedFixture::new().await;
@@ -294,6 +295,7 @@ async fn upload_sink_completes() {
     fixture.close().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn upload_refuses_gap() {
     let fixture = Fixture::new().await;
@@ -316,6 +318,7 @@ async fn upload_refuses_gap() {
     fixture.close().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn upload_owner_cancels() {
     let fixture = Fixture::new().await;
@@ -344,6 +347,7 @@ fn recording_files(dir: &std::path::Path) -> std::collections::HashSet<String> {
         .unwrap_or_default()
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn recording_refuses_missing_paths() {
     let fixture = Fixture::new().await;
@@ -362,6 +366,7 @@ async fn recording_refuses_missing_paths() {
     fixture.close().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn recording_cancel_deletes() {
     let fixture = Fixture::new().await;
@@ -392,6 +397,7 @@ async fn recording_cancel_deletes() {
     fixture.close().await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn upload_sink_opens() {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();

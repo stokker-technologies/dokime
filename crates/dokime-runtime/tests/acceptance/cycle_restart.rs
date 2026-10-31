@@ -130,6 +130,7 @@ fn adopted_cycle(value: &serde_json::Value) -> Option<&serde_json::Value> {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cycle_restart_child() {
     let Some(root) = std::env::var_os(ROOT) else {
@@ -169,6 +170,7 @@ async fn cycle_restart_child() {
         .expect("the selected backend phase must terminate the child process");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cycle_crash_recovery() {
     for (phase, status) in [("report", BEFORE_REPORT), ("adoption", BEFORE_ADOPTION)] {

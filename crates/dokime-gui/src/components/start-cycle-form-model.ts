@@ -12,6 +12,7 @@
 import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
 import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
+import type { NotificationFailure } from "@/lib/notification-details";
 
 /* === Types === */
 
@@ -35,6 +36,7 @@ export type ParameterRowState = {
 };
 
 export type FileRowState = {
+  failure?: NotificationFailure;
   name: string;
   path: string;
   uploading: boolean;

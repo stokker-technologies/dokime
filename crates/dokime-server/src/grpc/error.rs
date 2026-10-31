@@ -73,6 +73,14 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
 /* === Private Functions === */
 
 fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
+    let diagnostics = diagnostic
+        .span_trace
+        .iter()
+        .map(String::as_str)
+        .chain(std::iter::once(diagnostic.backtrace.as_str()))
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
     dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,
@@ -89,7 +97,28 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         stacktrace_attachment: None,
         trace_id: None,
         correlation_id: None,
+        diagnostics: (!diagnostics.is_empty()).then_some(diagnostics),
     }
 }
 
 /* === Tests === */
+
+#[test]
+fn captured_failure_retains_causes_and_technical_diagnostics() {
+    let diagnostic = Diagnostic {
+        message: "fixture-operation-failed".to_owned(),
+        chain: vec!["fixture-wrapper".to_owned(), "fixture-root".to_owned()],
+        location: "fixture.rs:42".to_owned(),
+        span_trace: vec!["fixture-span".to_owned()],
+        backtrace: "fixture-frame-1\nfixture-frame-2".to_owned(),
+    };
+    let detail = captured(&diagnostic);
+    let bytes = crate::grpc::transcode::Transcode::wire_bytes(&detail).expect("encode captured error");
+    assert_eq!(detail.message, diagnostic.message);
+    assert_eq!(detail.source.as_deref(), Some(diagnostic.location.as_str()));
+    assert_eq!(detail.cause_chain.iter().map(|cause| cause.message.as_str()).collect::<Vec<_>>(), diagnostic.chain);
+    let diagnostics = detail.diagnostics.as_deref().expect("technical diagnostics");
+    assert_eq!(diagnostics, "fixture-span\nfixture-frame-1\nfixture-frame-2");
+    assert!(bytes.windows(diagnostics.len()).any(|window| window == diagnostics.as_bytes()));
+    assert!(captured(&Diagnostic::default()).diagnostics.is_none());
+}

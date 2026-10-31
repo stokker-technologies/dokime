@@ -51,26 +51,31 @@ const SIZE: Sampling = Sampling {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn paged_evidence_settles() {
     sampling::paged_evidence_settles(SIZE).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn large_case_seals() {
     sampling::large_case_seals(SIZE).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn whole_capture_seals() {
     sampling::whole_capture_seals(SIZE).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn running_report_follows() {
     sampling::running_report_follows(SIZE).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn report_shows_progress() {
     sampling::report_shows_progress(SIZE).await;

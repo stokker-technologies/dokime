@@ -40,6 +40,7 @@ use plugin_host::collectors::wifi::WifiLink;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn rssi_long_conversion() {
     assert_eq!(WifiLink::rssi_dbm_from_query(&(-46_i32).to_ne_bytes()), Some(-46.0));

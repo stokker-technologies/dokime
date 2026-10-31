@@ -584,6 +584,7 @@ fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Syn
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn activation_starts_execution() {
     let probe = Arc::new(Probe::default());
@@ -630,6 +631,7 @@ async fn activation_starts_execution() {
     assert_eq!(probe.checks.load(Ordering::SeqCst), settled);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
@@ -648,6 +650,7 @@ async fn template_events_criterion() {
     assert_eq!(probe.starts.load(Ordering::SeqCst), 0, "a template run starts no plugin observer");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn observer_failure_event() {
     let probe = Arc::new(Probe::default());
@@ -664,6 +667,7 @@ async fn observer_failure_event() {
     assert!(!report.records::<SuiteObserved>().is_empty());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cancellation_drops_cleanup() {
     let probe = Arc::new(Probe::default());

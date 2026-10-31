@@ -79,6 +79,13 @@ impl State {
             certificate_pem: self.document.identity.as_ref().map(|identity| identity.certificate.clone()),
             key_configured: !self.document.clients.is_empty(),
             error: self.error.clone(),
+            endpoints: self
+                .server
+                .as_ref()
+                .map(|server| server.address())
+                .or_else(|| store::validate(&self.document.settings).ok())
+                .map(|address| store::host_endpoints(address, SERVER_REMOTE_NAMES as usize))
+                .unwrap_or_default(),
         }
     }
 }
@@ -150,7 +157,15 @@ impl Controller {
     async fn status(&self) -> RemoteListenerStatus {
         let mut status = self.state.lock().await.status();
         match self.runtime.read_application_settings().await {
-            Ok(snapshot) => status.settings = Some(snapshot.settings.listener),
+            Ok(snapshot) => {
+                if status.listening_address.is_none() {
+                    status.endpoints = store::validate(&snapshot.settings.listener)
+                        .ok()
+                        .map(|address| store::host_endpoints(address, SERVER_REMOTE_NAMES as usize))
+                        .unwrap_or_default();
+                }
+                status.settings = Some(snapshot.settings.listener);
+            }
             Err(error) => status.error = Some(error.to_string()),
         }
         status

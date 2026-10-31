@@ -239,6 +239,7 @@ pub(crate) async fn plugin_settings() {
     server.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn non_admitted_settings() {
     let (environment, server, client) = fixture().await;

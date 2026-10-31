@@ -371,6 +371,7 @@ async fn planned(handle: &RuntimeHandle) -> (TestCycleId, TestExecutionId) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_lifecycle() {
     for mode in [Mode::Pass, Mode::Fail, Mode::Cancel] {
@@ -457,6 +458,7 @@ async fn effect_lifecycle() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stop_shutdown_joins() {
     use futures_util::FutureExt;
@@ -509,6 +511,7 @@ async fn stop_shutdown_joins() {
     physical.runtime.lock().unwrap().take();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_resource_order() {
     let root = tempdir().unwrap();
@@ -536,6 +539,7 @@ async fn effect_resource_order() {
     physical.runtime.lock().unwrap().take();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn effect_recovery() {
     let root = tempdir().unwrap();

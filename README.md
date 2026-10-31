@@ -45,9 +45,12 @@ Settings. Export a `.dokime-remote` access file on the host and import or drop i
 on another desktop to connect. The desktop remembers that choice; operators do
 not need a source checkout. Windows installation needs no administrator rights;
 exposing remote access to other PCs may need an administrator to allow the app
-through Windows Firewall once on the exporting computer.
+through Windows Firewall on the exporting computer.
+Direct Ethernet cables support static or automatic IPv4 link-local addresses;
+see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
 
 #### Examples
 

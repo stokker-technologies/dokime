@@ -87,6 +87,7 @@ impl Observer<()> for Counter {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn configured_collection_cadence() {
     let intervals: &[(&str, Cadence, Duration)] = &[

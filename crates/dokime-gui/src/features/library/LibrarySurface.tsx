@@ -140,7 +140,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       {active.failed ? <NotificationMessage>Open cycles could not be read. Reconnect and try again.</NotificationMessage> : null}
 
       {suitesQuery.isError ? (
-        <NotificationMessage source="Library" title="Could Not Load Suites">
+        <NotificationMessage source="Library" title="Could Not Load Suites" error={suitesQuery.error}>
           {suitesQuery.error.message}
         </NotificationMessage>
       ) : null}
