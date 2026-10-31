@@ -460,6 +460,7 @@ async fn opened(observations: &Arc<Observations>) -> super::native::Native<dokim
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shared_within_between() {
     let first = Arc::new(Observations::default());
@@ -504,6 +505,7 @@ async fn shared_within_between() {
     assert_eq!(*second.run_numbers.lock().unwrap(), [1, 2]);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_scope_calls() {
     let observations = Arc::new(Observations::default());
@@ -555,6 +557,7 @@ async fn execution_scope_calls() {
     native.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shutdown_joins_cleanup() {
     let observations = Arc::new(Observations::default());
@@ -587,6 +590,7 @@ async fn shutdown_joins_cleanup() {
     assert_eq!(observations.events(), ["template initialized", "step", "cleanup finished"]);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unfinished_initialize_handles() {
     for cancel in [false, true] {
@@ -612,6 +616,7 @@ async fn unfinished_initialize_handles() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn harness_finalizes() {
     let observations = Arc::new(Observations::default());
@@ -622,6 +627,7 @@ async fn harness_finalizes() {
     assert_eq!(observations.events(), ["template initialized", "step", "cleanup finished"]);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn harness_files_directory() {
     let device = Device::open(&registered(&Arc::new(Observations::default())));
@@ -639,6 +645,7 @@ async fn harness_files_directory() {
 }
 
 // The harness deadline is time semantics: it elapses on the paused clock.
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn harness_timeout_up() {
     let observations = Arc::new(Observations::default());
@@ -655,6 +662,7 @@ async fn harness_timeout_up() {
     assert_eq!(events.last(), Some(&"cleanup finished"));
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn harness_refuses_opening() {
     // The template is resolved out of the declared suites, which is why the
@@ -672,6 +680,7 @@ async fn harness_refuses_opening() {
     assert!(observations.events().is_empty(), "nothing was opened, so nothing had to be released");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn harness_preserves_failure() {
     let observations = Arc::new(Observations::default());
@@ -684,6 +693,7 @@ async fn harness_preserves_failure() {
 }
 
 // The harness deadline is time semantics: it elapses on the paused clock.
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn harness_caller_settles() {
     let observations = Arc::new(Observations::default());
@@ -697,6 +707,7 @@ async fn harness_caller_settles() {
     observations.recorded("cleanup finished").await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn catalog_is_inert() {
     // A plugin whose preparation panics still exports its registration: the

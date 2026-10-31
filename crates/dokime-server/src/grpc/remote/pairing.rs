@@ -29,7 +29,7 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use super::{Controller, Error, store};
-use dokime::domain::model::remote::{CreatedPairing, PairedClient, PairedClientPage, PairingFile};
+use dokime::domain::model::remote::{CreatedPairing, PairedClient, PairedClientPage, PairingFile, RemoteEndpoint};
 
 /* === Constants === */
 
@@ -148,13 +148,11 @@ impl Controller {
         let identity = self.runtime.watch_state().latest().state().identity.node.node_id.to_string();
         let mut pairing = PairingFile {
             version: 1,
-            endpoints: store::host_names(server.address(), super::SERVER_REMOTE_NAMES as usize)
-                .into_iter()
-                .map(|name| {
-                    let host = if name.contains(':') { format!("[{name}]") } else { name };
-                    format!("{}://{host}:{}", if bound.tls.is_some() { "https" } else { "http" }, server.address().port())
-                })
-                .collect(),
+            endpoints: endpoints(
+                store::host_endpoints(server.address(), super::SERVER_REMOTE_NAMES as usize),
+                server.address().port(),
+                bound.tls.is_some(),
+            ),
             backend_identifier: identity,
             label,
             ca_certificate_pem: if bound.tls.is_some() {
@@ -290,6 +288,17 @@ impl Controller {
 }
 
 /* === Public Functions === */
+
+pub(super) fn endpoints(hosts: Vec<RemoteEndpoint>, port: u16, tls: bool) -> Vec<String> {
+    hosts
+        .into_iter()
+        .map(|endpoint| {
+            let name = endpoint.address;
+            let host = if name.contains(':') { format!("[{name}]") } else { name };
+            format!("{}://{host}:{port}", if tls { "https" } else { "http" })
+        })
+        .collect()
+}
 
 /* === Private Functions === */
 

@@ -63,8 +63,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 - Rust `dokime-domain::operations` declarations own the wire shape; do not
   maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings -- <compiler-messages.jsonl>` and `build:typescript`
-  select the build's `cargo-dokime` executable, export `bindings proto` and feed
+- `mise run prepare:generated` builds `cargo-dokime` and the server contract export
+  before any report or frontend compilation, exports `bindings proto` and feeds
   its descriptors to Buf. The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;
@@ -74,8 +74,10 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
   typed status out, one Tauri channel per stream, fenced by the connection
   generation. The bridge never decodes or dispatches per operation; keep it so.
-  The WebView holds no endpoint or credential; they never belong in status, logs,
-  profiles, persisted browser storage or report output.
+  Native connection handles and credentials stay outside the WebView. Listener
+  status may expose this host's advertised addresses and adapter names for the
+  export preview; keep that preview transient and out of logs, persisted browser
+  storage and report output. Connection credentials never belong in status or profiles.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
   artifact and recording bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
@@ -96,6 +98,15 @@ and filter controls remain usable. Preserve the case of unit symbols.
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.
   Secret Storage References lists declaring plugins, including inactive programs.
+- Toast content and history rows open the shared notification details dialog through
+  native buttons (Enter/Space); the existing dialog handles Esc and focus return.
+  History retains serializable failure context, including field problems, root-first
+  causes, operation/request/invocation identifiers and optional backend diagnostics.
+  RPC adapters decode standard Status envelopes with canonical generated domain
+  error schemas. The server preserves redacted span/backtrace text in the captured
+  error's optional diagnostics field. Technical Details is collapsed by default;
+  Copy includes the complete record. Existing startup remediation actions remain
+  independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
@@ -119,15 +130,23 @@ the backend or transport cause beside the reconnect status.
 The owned local backend's Remote Access section checks inbound Windows Firewall
 policy for a running non-loopback listener. **Allow In Firewall…** is the only
 action that requests elevation; its rule uses the applied organization label and
-allows the installed executable on Private networks. Outbound remote sessions
+allows the installed executable's TCP listener port on the served adapters'
+active profiles, including a Public unidentified cable network, restricted to
+local-subnet peers. Specific binds select only their adapter's profile and local
+address; wildcard binds select active adapters in the listener's address family.
+The notice names the affected adapters, networks and categories. Outbound remote sessions
 have no firewall action. Disabling remote access attempts owned-rule removal
 without prompting and reports skipped cleanup. Installers never manage rules.
 
 Settings → Remote Access exports `.dokime-remote` through the native save adapter
 in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
 the secret warning when stopped; running listeners export directly. Labels and
-all candidate endpoints come from native owners. Paired Clients permits rename.
-The file bytes and raw key stay native; the WebView receives only a saved path.
+all candidate endpoints come from native owners. `RemoteListenerStatus.endpoints`
+provides the same ordered addresses used by exports, with adapter names, for the
+pre-export list. Physical IPv4 link-local follows routable addresses; IPv6
+link-local remains excluded because remote origins have no zone-ID support.
+Paired Clients permits rename.
+The file bytes and raw key stay native; the export action returns only a saved path.
 
 Picker imports and window drops share `src-tauri/src/connection/registry.rs`:
 validate, save the profile/keyring association, then connect. Native import events

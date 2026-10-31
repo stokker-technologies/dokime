@@ -63,6 +63,7 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<dokime::domain::model::evide
                 stacktrace_attachment: optional(error.stacktrace_attachment.as_ref().map(|id| id.as_str()))?,
                 trace_id: optional(error.trace_id.as_ref().map(|id| id.as_str()))?,
                 correlation_id: optional(error.correlation_id.as_ref().map(|id| id.as_str()))?,
+                diagnostics: None,
             })
         })
         .transpose()?;

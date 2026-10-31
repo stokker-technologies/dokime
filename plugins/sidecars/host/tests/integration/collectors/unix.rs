@@ -74,6 +74,7 @@ wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn iw_link_parsing() {
     // HE 160 MHz Link Captured From A Live Association
@@ -101,6 +102,7 @@ fn iw_link_parsing() {
     assert_eq!(parse_iw_interfaces(IW_DEVICES), vec!["wlp5s0".to_owned()]);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn proc_wireless_level() {
     let link = WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlp5s0").expect("link");
@@ -111,6 +113,7 @@ fn proc_wireless_level() {
     assert_eq!(WifiLinkReport::parse_proc_wireless(PROC_WIRELESS, "wlan2"), None);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn nmcli_row_fields() {
     let row = NmcliWifiRow::parse("yes:Arcadia:A4\\:CE\\:DA\\:C0\\:83\\:F0:108:99:WPA2:wlp5s0").expect("row");

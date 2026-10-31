@@ -68,21 +68,41 @@ pub(crate) fn text(value: &str) -> String {
 /* === Private Functions === */
 
 fn is_redacted_evidence(value: &Value) -> bool {
-    if is_redacted_binding(value) {
-        return true;
-    }
-    let Some(fields) = value.as_object() else { return false };
-    fields.len() == 2
-        && fields.get("bindings").and_then(Value::as_object).is_some_and(|bindings| bindings.values().all(is_redacted_binding))
-        && fields.get("missing_required").and_then(Value::as_array).is_some_and(|names| names.iter().all(Value::is_string))
-}
-
-fn is_redacted_binding(value: &Value) -> bool {
-    let Some(fields) = value.as_object() else { return false };
-    fields.len() == 3
-        && fields.get("secret_id").is_some_and(Value::is_string)
-        && fields.get("backend").is_some_and(Value::is_string)
-        && fields.get("configured").is_some_and(Value::is_boolean)
+    let Some(entries) = value.as_array() else { return false };
+    entries.iter().all(|entry| {
+        let Some(fields) = entry.as_object() else { return false };
+        fields.len() == 2
+            && fields.get("identifier").is_some_and(Value::is_string)
+            && fields.get("available").is_some_and(Value::is_boolean)
+    })
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secret_availability_redaction() {
+        let availability = serde_json::json!([
+            {"identifier": "fixture.present", "available": true},
+            {"identifier": "fixture.missing", "available": false}
+        ]);
+        let mut value = serde_json::json!({"secrets": availability.clone(), "api_token": "fixture-secret"});
+        scrub(&mut value);
+        assert_eq!(value["secrets"], availability);
+        assert_eq!(value["api_token"], REDACTED);
+
+        for malformed in [
+            serde_json::json!(["fixture-secret"]),
+            serde_json::json!([{"identifier": "fixture.present", "available": true, "value": "fixture-secret"}]),
+            serde_json::json!([{"identifier": "fixture.present", "available": "fixture-secret"}]),
+            serde_json::json!([{"secret_id": "fixture.present", "backend": "fixture", "configured": true}]),
+        ] {
+            let mut value = serde_json::json!({"secrets": malformed});
+            scrub(&mut value);
+            assert_eq!(value["secrets"], REDACTED);
+        }
+    }
+}

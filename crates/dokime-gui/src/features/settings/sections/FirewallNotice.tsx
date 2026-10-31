@@ -52,14 +52,14 @@ export function FirewallNotice({ generation, listenerAddress, enabled }: Props) 
       <div className="grid gap-3 p-4">
         {required && (
           <p role="status" className="text-sm text-muted-foreground">
-            Other PCs can't reach this computer until Windows Firewall allows {label} on private networks. This needs an administrator.
+            Allow {label} through Windows Firewall for PCs on the same subnet. This needs an administrator.
           </p>
         )}
         {(message || query.data?.message || query.error) && (
           <p role="status" className="text-sm text-muted-foreground">
-            {query.data?.message ||
-              message ||
-              "Windows Firewall access could not be checked. Ask an administrator to check inbound access on private networks."}
+            {message ||
+              query.data?.message ||
+              "Windows Firewall access could not be checked. Ask an administrator to check inbound access on the listener's networks."}
           </p>
         )}
         {required && (
@@ -73,9 +73,10 @@ export function FirewallNotice({ generation, listenerAddress, enabled }: Props) 
                 .desktopFirewall(generation, true)
                 .then((status) => {
                   setMessage(
-                    status.required
-                      ? "Windows Firewall still blocks access. Use a private network and ask an administrator to check firewall policy."
-                      : "Windows Firewall allows remote access on private networks.",
+                    status.message ??
+                      (status.required
+                        ? "Windows Firewall still blocks access. Ask an administrator to check the listener's network policy."
+                        : "Windows Firewall allows remote access for PCs on the same subnet."),
                   );
                   void query.refetch();
                 })

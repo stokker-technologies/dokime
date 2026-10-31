@@ -35,6 +35,7 @@ WEB_ROOT = ROOT / "crates/dokime-gui"
 REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
 STAMP = ROOT / "target/report-template/inputs.sha256"
 INPUT_ROOTS = [
+    ROOT / "target/generated/typescript",
     WEB_ROOT / "src",
     WEB_ROOT / "report.html",
     WEB_ROOT / "vite.config.ts",

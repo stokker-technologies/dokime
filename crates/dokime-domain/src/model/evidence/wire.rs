@@ -94,6 +94,7 @@ pub struct CapturedRecordError {
     pub stacktrace_attachment: Option<String>,
     pub trace_id: Option<String>,
     pub correlation_id: Option<String>,
+    pub diagnostics: Option<String>,
 }
 
 #[harmos::message]

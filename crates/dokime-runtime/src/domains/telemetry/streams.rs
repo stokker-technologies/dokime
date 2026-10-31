@@ -296,7 +296,8 @@ impl RuntimeHandle {
             .iter()
             .filter(|sample| scope.is_none_or(|selected| sample.is_visible_in(selected)))
             .max_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| left.sequence.cmp(&right.sequence)));
-        let fingerprint = format!("host.system:{}:{}:{}", at.history.store, at.history.epoch, at.sequence);
+        let (sample, ordinal) = latest.map_or(("none", 0), |sample| (sample.sample_id.as_str(), sample.sequence));
+        let fingerprint = format!("host.system:{}:{}:{sample}:{ordinal}", at.history.store, at.history.epoch);
         read(latest, &fingerprint)
     }
 }

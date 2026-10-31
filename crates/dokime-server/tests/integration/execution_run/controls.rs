@@ -97,6 +97,9 @@ pub(crate) async fn cycle_edits_state() {
     completed(&owner.handle(), &mut client, &id).await;
     let first = attempts(&mut client, &id).await;
     assert_eq!(first.len(), 1);
+    let first_id = dokime::TestExecutionId::from_uuid(&first[0].execution_id).unwrap();
+    owner.handle().wait_execution_report(&first_id).await.unwrap();
+    let first = attempts(&mut client, &id).await;
     assert_eq!(
         client.unary::<contracts::execution::DeleteCase>(authenticated(case.clone())).await.unwrap_err().code(),
         Code::FailedPrecondition
@@ -129,6 +132,9 @@ pub(crate) async fn cycle_edits_state() {
     completed(&owner.handle(), &mut client, &id).await;
     let second = attempts(&mut client, &id).await;
     assert_eq!(second.len(), 2);
+    let second_id = dokime::TestExecutionId::from_uuid(&second[1].execution_id).unwrap();
+    owner.handle().wait_execution_report(&second_id).await.unwrap();
+    let second = attempts(&mut client, &id).await;
     assert_eq!(second[0], first[0]);
     assert_ne!(second[0].execution_id, second[1].execution_id);
 

@@ -44,6 +44,7 @@ use plugin_host::HostTelemetryStream;
 /* === Tests === */
 
 // Native Collection Reports Either Scanned Networks Or An Explicit Availability State.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_scan_rows() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiScan);
@@ -69,6 +70,7 @@ fn wifi_scan_rows() {
 }
 
 // A Link Sample States Whether The Host Is Associated.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_link_association() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiLink);
@@ -80,6 +82,7 @@ fn wifi_link_association() {
 }
 
 // A Missing Reply Is Loss, Never A Failed Collection.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_latency_loss() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiLatency);

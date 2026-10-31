@@ -88,6 +88,7 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import { traceSpan } from "./test-trace.mjs";
 import { ReportBrowser } from "./report-browser.ts";
 import { call } from "./native-rpc.mjs";
 
@@ -259,7 +260,11 @@ async function measured(category, name, run) {
   }
 }
 
-async function until(description, check, timeout = 120000, interval = 150) {
+function until(description, check, timeout = 120000, interval = 150) {
+  return traceSpan(description, "step", () => waitUntil(description, check, timeout, interval));
+}
+
+async function waitUntil(description, check, timeout, interval) {
   return measured("wait", description, async () => {
     const deadline = Date.now() + timeout;
     let last;
@@ -3847,10 +3852,13 @@ async function journey(name, run, reports = () => []) {
     return { ok: false };
   }
   try {
-    const value = await measured("scene-behavior", name, run);
-    for (const id of value?.executionIds ?? []) pendingReports.add(id);
-    for (const id of value?.unrun ?? []) pendingReports.delete(id);
-    await measured("reports", name, () => finalizeStoryReports(name, reports(value)));
+    const value = await traceSpan(name, "scene", async () => {
+      const result = await measured("scene-behavior", name, run);
+      for (const id of result?.executionIds ?? []) pendingReports.add(id);
+      for (const id of result?.unrun ?? []) pendingReports.delete(id);
+      await measured("reports", name, () => finalizeStoryReports(name, reports(result)));
+      return result;
+    });
     passedJourneys.push(name);
     results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");

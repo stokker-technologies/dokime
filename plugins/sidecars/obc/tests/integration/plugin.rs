@@ -43,6 +43,7 @@ use plugin_obc::ObcPlugin;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn resources_share_allocation() {
     use dokime::harmos::Lifecycle;
@@ -60,6 +61,7 @@ async fn resources_share_allocation() {
     assert!(weak.upgrade().is_none());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn executable_declares_routes() {
     // Workspace Feature Unification May Enable Host Implementations, But Only The Host Binary Declares That Sidecar.

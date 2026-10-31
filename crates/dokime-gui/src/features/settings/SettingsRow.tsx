@@ -33,6 +33,7 @@ type SettingsRowProps = {
   description?: ReactNode;
   /** A problem with this field, delivered through notifications. */
   error?: ReactNode;
+  failure?: unknown;
   htmlFor?: string;
   label: ReactNode;
   /** The autosave readout; see `SettingsFieldStatus`. */
@@ -41,7 +42,7 @@ type SettingsRowProps = {
 
 /* === Components === */
 
-export function SettingsRow({ children, className, control, description, error, htmlFor, label, status }: SettingsRowProps) {
+export function SettingsRow({ children, className, control, description, error, failure, htmlFor, label, status }: SettingsRowProps) {
   return (
     <div
       className={cn(
@@ -64,7 +65,7 @@ export function SettingsRow({ children, className, control, description, error, 
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{control ?? children}</div>
         </div>
         {status ? <div className="text-right">{status}</div> : null}
-        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={failure}>{error}</NotificationMessage> : null}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 // Third Party Imports
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,7 +51,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
   const [data, setData] = useState<Uint8Array | null>(null);
   const [preview, setPreview] = useState<SecretPreview | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function open(next: typeof mode) {
@@ -79,7 +80,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
     try {
       await work();
     } catch (failure) {
-      if (session.isCurrent()) setError(failure instanceof Error ? failure.message : "Secret transfer failed");
+      if (session.isCurrent()) setError(failure);
     } finally {
       if (session.isCurrent()) setBusy(false);
     }
@@ -143,7 +144,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
           <DialogHeader>
             <DialogTitle>{mode === "export" ? "Export Secrets" : "Import Secrets"}</DialogTitle>
           </DialogHeader>
-          {error && <NotificationMessage>{error}</NotificationMessage>}
+          {Boolean(error) && <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage>}
 
           {mode === "export" && (
             <form

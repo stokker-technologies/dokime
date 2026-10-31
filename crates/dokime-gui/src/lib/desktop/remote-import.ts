@@ -47,7 +47,7 @@ export function watchRemoteImports(owner: NativeSession): () => void {
   }).then(retain);
   void listen("desktop://remote-import-failed", (event) => {
     void owner.refresh();
-    toast.error("Remote Import Failed", { description: connectionError(event.payload) });
+    toast.error("Remote Import Failed", { description: connectionError(event.payload), error: event.payload });
   }).then(retain);
   return () => {
     disposed = true;

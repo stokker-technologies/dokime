@@ -176,6 +176,7 @@ function LiveDensityGroup() {
       {
         onError: (error) =>
           toast.error("Appearance Could Not Be Saved", {
+            error,
             description: applicationSettingsError(error),
           }),
       },
@@ -259,6 +260,7 @@ async function closeDesktopWindow(): Promise<void> {
     await getCurrentWindow().close();
   } catch (error) {
     toast.error("The Window Could Not Be Closed", {
+      error,
       description: error instanceof Error ? error.message : String(error),
     });
   }

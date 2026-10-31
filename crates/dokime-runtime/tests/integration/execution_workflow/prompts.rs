@@ -671,6 +671,8 @@ pub(crate) async fn answered_execution_question() {
     let id = asked.state().pending_prompt_projection()[0].prompt_id.clone();
     runtime.submit_prompt_response(id.clone(), "yes".into(), "operator".into(), BTreeMap::new(), true).await.unwrap();
     wait_for_run_settled(&runtime, &receipt.command_id).await;
+    let execution = cycle_snapshot(&runtime, &cycle).await.test_executions[0].test_execution_id.clone();
+    runtime.wait_execution_report(&execution).await.unwrap();
     let ended = cycle_snapshot(&runtime, &cycle).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Passed);
     assert!(ended.test_executions[0].saved.is_some());

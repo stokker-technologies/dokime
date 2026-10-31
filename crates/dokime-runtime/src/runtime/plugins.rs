@@ -892,6 +892,9 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         if executable.declaration() != declaration {
             return Err(operation(format!("extracted executable `{id}` has a different declaration than its verified bundle")));
         }
+        if let Some(directory) = std::env::var_os("DOKIME_TEST_TRACE_DIR") {
+            executable = executable.variable("DOKIME_TEST_TRACE_DIR", directory);
+        }
         if let Some(filter) = std::env::var_os(PLUGIN_LOG_VARIABLE) {
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
         }

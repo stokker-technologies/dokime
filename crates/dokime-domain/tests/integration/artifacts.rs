@@ -42,6 +42,7 @@ use model::artifacts::name::{self, InvalidName};
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[test]
 fn artifact_names_validate() {
     // Folders Are Implicit Path Segments

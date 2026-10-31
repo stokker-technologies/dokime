@@ -76,6 +76,7 @@ export function DesktopThemeProvider({ children }: { children: ReactNode }) {
             {
               onError: (error) =>
                 toast.error("Appearance Could Not Be Saved", {
+                  error,
                   description: applicationSettingsError(error),
                 }),
             },

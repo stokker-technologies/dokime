@@ -154,6 +154,7 @@ fn logged(report: &dokime_runtime::plugin::testing::Report) -> Vec<String> {
     report.log().iter().map(|entry| entry.message.clone()).collect()
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn declared_prompt_declaration() {
     let report = Harness::template(TEMPLATE).run::<PluginSuites>().await.expect("the run completes");
@@ -169,6 +170,7 @@ async fn declared_prompt_declaration() {
     assert!(logged.contains(&"custom note=3 samples looked right retries=None".to_owned()), "{logged:?}");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn answers_declared_constant() {
     let report = Harness::template(TEMPLATE)
@@ -196,6 +198,7 @@ async fn answers_declared_constant() {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn declaration_what_registers() {
     let definition = SignOff::definition();
@@ -221,6 +224,7 @@ fn declaration_what_registers() {
     assert_eq!(definition.fields[4].default, Some(dokime_runtime::Value::Array(vec![dokime_runtime::Value::from("slow")])));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn prompt_level_roundtrips() {
     // === Declared And Built Levels === //

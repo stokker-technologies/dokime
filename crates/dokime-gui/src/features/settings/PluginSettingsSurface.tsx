@@ -84,7 +84,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <NotificationMessage>{settings.error}</NotificationMessage>
+              <NotificationMessage error={settings.failure}>{settings.error}</NotificationMessage>
               <Button onClick={settings.retry} size="sm" variant="outline">
                 Try Again
               </Button>
@@ -118,7 +118,9 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
               <PluginDetailCard key={owner} pluginId={owner} />
             ))}
             {installation && !installation.active ? <PluginRestart /> : null}
-            {!section && pluginsQuery.isError ? <NotificationMessage>{pluginsQuery.error.message}</NotificationMessage> : null}
+            {!section && pluginsQuery.isError ? (
+              <NotificationMessage error={pluginsQuery.error}>{pluginsQuery.error.message}</NotificationMessage>
+            ) : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
             ) : pluginId || installation ? null : (
@@ -158,7 +160,7 @@ function PluginRestart() {
             <DialogTitle>Restart {brand.label}?</DialogTitle>
             <DialogDescription>Active work will stop and plugin resources will close before the application restarts.</DialogDescription>
           </DialogHeader>
-          {restart.isError ? <NotificationMessage>{restart.error.message}</NotificationMessage> : null}
+          {restart.isError ? <NotificationMessage error={restart.error}>{restart.error.message}</NotificationMessage> : null}
           <DialogFooter>
             <Button onClick={() => setOpen(false)} variant="outline">
               Later
@@ -192,7 +194,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <NotificationMessage>{detailQuery.error.message}</NotificationMessage>
+          <NotificationMessage error={detailQuery.error}>{detailQuery.error.message}</NotificationMessage>
         </SettingsRow>
       </SettingsCard>
     );

@@ -109,7 +109,11 @@ export function BackendsTable({
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage source="Backends" title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}>
+          <NotificationMessage
+            source="Backends"
+            title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
+            error={state.phase === "failed" ? state.error : error}
+          >
             {connectionFailure || preferencesError(error)}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
@@ -234,7 +238,7 @@ export function BackendsTable({
             </Button>
           </div>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}
@@ -403,7 +407,7 @@ function AddBackend({
             </div>
           </fieldset>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Added">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Added" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}

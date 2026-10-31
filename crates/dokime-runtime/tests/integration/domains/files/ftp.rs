@@ -140,6 +140,7 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() {
     let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;
@@ -199,6 +200,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_ftp_source() {
     let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;

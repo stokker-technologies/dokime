@@ -202,12 +202,12 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
             assert!(!bytes.windows(needle.len()).any(|window| window == needle), "{name} names {secret}");
         }
     }
-    // The binding is still there to read: redaction removed the material, not
-    // the evidence that a secret is configured.
+    // Availability Metadata Survives Without Secret Material.
     let settings: serde_json::Value = {
         let mut entry = zip.by_name("settings/artifacts/fixture_diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
+    assert_eq!(settings["secrets"][0]["identifier"], "fixture.token");
     assert_eq!(settings["secrets"][0]["available"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");

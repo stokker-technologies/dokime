@@ -53,6 +53,7 @@ use dokime_server::grpc::Config;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn watch_liveness() {
     let root = tempfile::tempdir().unwrap();

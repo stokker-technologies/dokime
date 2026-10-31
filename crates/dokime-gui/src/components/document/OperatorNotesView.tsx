@@ -160,7 +160,7 @@ function NoteEditor({
           <MarkdownText text={draft.markdown} />
         </div>
       )}
-      {failure ? <NotificationMessage>{failure.message}</NotificationMessage> : null}
+      {failure ? <NotificationMessage error={failure}>{failure.message}</NotificationMessage> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel

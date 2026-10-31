@@ -39,6 +39,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn active_socket_guard() {
     use plugin_host::host::{

@@ -41,16 +41,19 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn joined_capture_drains() {
     dokime_runtime::testing::joined_drains().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn early_log_stop() {
     dokime_runtime::testing::early_log_stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn retained_evidence() {
     dokime_runtime::testing::capture(2, 120);
