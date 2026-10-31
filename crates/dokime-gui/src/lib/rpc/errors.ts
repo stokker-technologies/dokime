@@ -3,6 +3,7 @@
 import type { ConnectionError } from "../desktop/connection";
 import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
 import type { RpcError } from "../desktop/rpc";
+import { rpcFailureDetails } from "./failure-details";
 
 const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {
   registry: "The saved backend profiles could not be read or updated.",
@@ -170,6 +171,12 @@ export function normalizeDeliveryError(error: unknown): unknown {
   const normalized = new Error(deliveryMessage(error));
   normalized.name = "NativeDeliveryError";
   Object.assign(normalized, { stage: error.stage, failure: error.failure });
+  Object.assign(normalized, {
+    notificationFailure:
+      error.failure.kind === "rpc"
+        ? { ...rpcFailureDetails(error.failure.detail, error.failure.detail.kind), operation: deliveryStageLabels[error.stage] }
+        : { reason: "local", operation: deliveryStageLabels[error.stage], causes: [error.failure.detail] },
+  });
   return normalized;
 }
 
@@ -180,6 +187,10 @@ export function normalizeRpcError(error: unknown): unknown {
   normalized.name = "NativeRpcError";
   Object.assign(normalized, {
     kind: error.kind,
+    notificationFailure: rpcFailureDetails(
+      error,
+      error.kind === "grpc" ? (grpcCodeNames[error.detail.code] ?? `Status ${error.detail.code}`) : error.kind,
+    ),
     ...("detail" in error ? { detail: error.detail } : {}),
   });
   return normalized;

@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,9 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
         {query.isPending ? <p>Loading executions…</p> : null}
-        {query.isError ? <NotificationMessage>Unable to load history: {query.error?.message}</NotificationMessage> : null}
+        {query.isError ? (
+          <NotificationMessage error={query.error}>Unable to load history: {query.error?.message}</NotificationMessage>
+        ) : null}
         {query.coverage && !query.coverage.discovery_complete ? (
           <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
         ) : null}
@@ -271,7 +274,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         Opening checkpoint…
       </p>
     );
-  if (query.isError) return <NotificationMessage>Unable to open checkpoint: {query.error.message}</NotificationMessage>;
+  if (query.isError) return <NotificationMessage error={query.error}>Unable to open checkpoint: {query.error.message}</NotificationMessage>;
   const resolvedCheckpoint = query.data.checkpoint ?? checkpoint;
   if (!resolvedCheckpoint) {
     return <NotificationMessage>Unable to open checkpoint: the checkpoint identity is missing.</NotificationMessage>;
@@ -324,7 +327,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
 function CycleReportActions({ cycleId }: { cycleId: string }) {
   const session = useNativeSession();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   async function openReport() {
     if (busy) {
@@ -335,7 +338,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
       setError(null);
       await openNativeReport(session.identity, { kind: "cycle_report", cycleId });
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(error);
     } finally {
       setBusy(false);
     }
@@ -347,7 +350,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+      {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
     </div>
   );
 }
