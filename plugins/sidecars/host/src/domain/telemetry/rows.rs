@@ -96,7 +96,7 @@ macro_rules! host_rows {
                 type Row = Self;
                 const ID: &'static str = $id;
                 const VERSION: u32 = 1;
-                const WINDOW: usize = 4096;
+                const WINDOW: usize = crate::settings::STREAM_WINDOW;
             }
             impl TelemetryStream for $stream {
                 const PUBLISHED: bool = false;

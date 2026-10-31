@@ -12,6 +12,7 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
+pub(crate) mod firewall;
 mod http;
 pub(crate) mod local;
 mod logging;

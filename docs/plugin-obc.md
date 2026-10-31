@@ -43,6 +43,22 @@ Shutdown powers it down. These operations control one demonstration device in
 the plugin's embedded runtime; charger executions continue to own separate
 devices. Manual operations are not recorded in execution evidence.
 
+## Host CPU Load Example
+
+`obc.checks.cpu_load` in `src/suites/checks/cpu_load.rs` demonstrates the
+host CPU load sequence. Install the host plugin beside OBC. The template requests
+50% total system CPU by default for `duration_s = 1.0`, starts the Public
+`host.cpu.load.hold` operation with `ctx.host().submit::<LoadHold>(request).await?`,
+waits and calls `.cancel().await?` for its summary. Scoped `submit` is the suite
+equivalent of the runtime invocation builder’s `.start()`.
+Target percent and hold duration are template parameters. Its subscription captures
+`host.cpu.load.control` evidence, including other-process load in percent feedback.
+
+The typed summary reports achieved mean, RMS error, duration and sample count;
+see [Plugins](plugins.md#closed-loop-cpu-load) for settings and measurement units.
+A dropped or forgotten handle is cancelled by Dokime's existing step/run sweep;
+no external-effect inverse is necessary for a live CPU worker.
+
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.

@@ -63,6 +63,7 @@ export function useSavePreferences(scope: SettingsScope) {
       }
       void client.invalidateQueries({ queryKey: ["settings", "application"] });
       void client.invalidateQueries({ queryKey: ["settings", "remote-listener"] });
+      void client.invalidateQueries({ queryKey: ["settings", "firewall"] });
       // A Local Backend Resolves Both Scopes To The Same Revision.
       void client.invalidateQueries({ queryKey: ["settings", "preferences"] });
     },
