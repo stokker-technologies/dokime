@@ -63,7 +63,8 @@ Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
 `cargo dokime installer` to package prebuilt binaries with an organization pack.
 `cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
-contains the complete workflow.
+contains the complete workflow, including
+[finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
 #### Examples
 

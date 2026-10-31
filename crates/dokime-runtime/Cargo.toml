@@ -50,6 +50,7 @@ native = [
   "dep:suppaftp",
   "dep:tokio-util",
   "dep:tonic",
+  "dep:tonic-types",
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
@@ -82,6 +83,7 @@ harmos-packaging = { workspace = true }
 # Error Handling
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
+tonic-types = { workspace = true, optional = true }
 
 # Logging
 tracing = { workspace = true }

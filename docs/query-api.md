@@ -3,13 +3,9 @@
 The finite query declarations are under `crates/dokime-operations/src/query/`;
 shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
-<<<<<<< HEAD
-Operation registration, record execution and generated clients remain pending.
-=======
-Record query execution is implemented under the same ownership.
-Operation registration, telemetry execution and generated clients remain pending.
->>>>>>> feat/query-api-records
-These declarations are not yet callable through transports.
+Record and telemetry query execution share that ownership.
+The five operations are callable through native and gRPC transports; generated
+contracts and high-level client integration follow their owning tasks.
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |
@@ -56,11 +52,7 @@ Int64/Uint64. No integer is converted to a floating value in raw results.
 are opaque, authenticated, bounded and scoped to the local retained store;
 they never grant access or imply terminal readiness. Continuations bind the
 snapshot, selection, projection/reduction and last scanned key, permitting only
-<<<<<<< HEAD
-page-budget changes. Token creation/validation uses the fixed-cut snapshot owner.
-=======
 page-budget changes. Token creation/validation uses the fixed-cut lifecycle below.
->>>>>>> feat/query-api-records
 
 `bucket: {every_nanos, aggregate}` requires a positive fixed interval and a
 count/sum/mean/min/max reducer. Buckets are epoch-aligned, clip inputs to the
@@ -88,11 +80,7 @@ plus `required_fields`. Storage planning must select those versions and bind
 `FieldRef::Declared` to actual captured columns; envelope references have their
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
-<<<<<<< HEAD
-storage reader and creates no query handler. Raw sample execution uses this prepared selection; record execution remains with its owner.
-=======
-storage reader. Record execution uses this planner; sample execution remains pending.
->>>>>>> feat/query-api-records
+storage reader. Both record and sample execution use this planner.
 
 ## Local History Storage
 
@@ -135,7 +123,7 @@ are sought from the catalog, one bounded page at a time.
 
 The local store persists one random signing key. Authenticated tokens survive
 restart while their exact data and contract capture remain available. A token
-never grants access; transport registration and access checks remain task 1.10.
+never grants access; each transport invocation rechecks the existing caller authorization.
 Expired, tampered, foreign-store, deleted and unavailable cuts fail explicitly.
 History projections and captured contracts survive retirement of superseded native
 object versions. Destructive file deletion advances a separate query generation
@@ -145,8 +133,7 @@ Continuations bind the canonical selection/projection/reduction and last scanned
 key. Changing row/byte sizes preserves the selection; changing predicates or
 projection does not. History and record handlers reserve response metadata and continuation
 bytes before admitting rows. No SQLite transaction, client lock, member vector
-<<<<<<< HEAD
-or result set is retained between pages. Raw sample and bucket execution consume evidence seek coordinates; record execution remains with its owner.
+or result set is retained between pages. Record, raw sample and bucket execution consume evidence seek coordinates.
 
 ## Arrow Sample Pages
 
@@ -204,8 +191,6 @@ buckets ordered by start and partition identity. Seek continuations bind the
 selection and reducer; each page rescans the fixed cut within its work budget,
 without retaining a transaction or sample history between calls. Schema,
 snapshot and the longest required continuation count against page byte limits.
-=======
-or result set is retained between pages. Arrow execution remains with its owning tasks.
 
 ## Finite Records And Follow
 
@@ -237,4 +222,48 @@ continuation after its last scanned occurrence. Follow that continuation until
 can change between calls. Schema, snapshot and continuation metadata count toward
 the page ceiling. An indivisible oversized row or metadata, work exhaustion,
 corruption or unavailable cut returns a typed failure, never a complete subset.
->>>>>>> feat/query-api-records
+
+## Transport Access And CLI Paging
+
+Native and gRPC calls use the runtime's five canonical handlers. Existing remote
+keys grant full product read access; native-only operations keep their separate
+restrictions. Catalog authorization runs on every call, including continuations.
+Paired-client revocation cancels an admitted read with PermissionDenied. Shared
+configured active/pending limits bound admission; cancellation drops the reader
+and its permits without starting, stopping or sealing any execution.
+
+Failures use the operation failure path with the declared status and a status
+envelope containing standard `ErrorInfo`: domain `dokime.query`, an uppercase
+canonical reason, and `metadata.query` containing the canonical JSON `Failure`
+from `model/query/error.rs`. This retains reason, operation, field, operator,
+snapshot and effective limit without a second error declaration.
+
+The generic CLI discovers the same protobuf JSON contract; no query parser or
+query command tree is required. Save `request.json` for a first cycle page:
+
+```json
+{"selection":{},"page":{"rows":1}}
+```
+
+```sh
+dokime operation call dokime.query.list_cycles --backend lab --input request.json --output page.json
+```
+
+The output is an event array. Its unary completion's `value` contains `rows`,
+`schema`, `snapshot`, `limits`, `next` and `complete`. When `next` is present,
+copy it unchanged into `page.after` in `next-request.json`, retaining the original
+selection. For example, substitute the actual returned token here:
+
+```json
+{"selection":{},"page":{"rows":1,"after":"RETURNED_NEXT_TOKEN"}}
+```
+
+```sh
+dokime operation call dokime.query.list_cycles --backend lab --input next-request.json --output next-page.json
+```
+
+Repeat until `complete=true` and no `next` is returned, including after empty
+pages. The continuation already binds the original snapshot. To start another
+compatible query at that cut, use `at: {"token": "RETURNED_SNAPSHOT_TOKEN"}` with
+the token from the completion's `snapshot`. `operation show` exposes each exact
+request shape; requests cannot supply timeouts or operation policy overrides.

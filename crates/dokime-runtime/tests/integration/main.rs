@@ -32,18 +32,15 @@ mod execution_seal_report;
 mod execution_workflow;
 mod plugin;
 mod plugin_store_leases;
-<<<<<<< HEAD
 mod query_buckets;
 mod query_samples;
 mod query_statistics;
 #[path = "../support/query_telemetry.rs"]
 mod query_telemetry;
-=======
 
 #[cfg(feature = "testing")]
 mod record_queries;
 
->>>>>>> feat/query-api-records
 mod runtime;
 mod runtime_queries;
 mod settings_backends;

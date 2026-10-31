@@ -1045,12 +1045,8 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 Finite-query settings are programmatic startup configuration under
 `crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
 `RuntimeConfig.query`. They are validated before opening storage and retained as
-<<<<<<< HEAD
-an immutable `RuntimeHandle::query_config()` snapshot. Transport registration remains pending.
-=======
-an immutable `RuntimeHandle::query_config()` snapshot. History and record query
-execution are implemented; transport registration and client integration remain pending.
->>>>>>> feat/query-api-records
+an immutable `RuntimeHandle::query_config()` snapshot. Runtime handlers serve
+history, record and telemetry queries through native and gRPC operation calls.
 These settings are not application preferences or request policy overrides.
 
 ```rust
@@ -1086,24 +1082,17 @@ above any of the five declared operation ceilings fail startup. Snapshot lifetim
 must fit an unsigned 64-bit nanosecond duration.
 
 Complexity and scan exhaustion fail explicitly; these defaults establish no latency
-<<<<<<< HEAD
-or throughput claim. Snapshot tokens are authenticated and finite Arrow scans account for admitted
-rows/bytes. Transport authorization and query admission remain with registration. The [query contracts](query-api.md) describe
-page and failure shapes.
-=======
-or throughput claim. Snapshot authentication and bounded record scan accounting
-are implemented; transport admission remains pending. The [query contracts](query-api.md)
-describe page and failure shapes and [finite records versus follow](query-api.md#finite-records-and-follow).
->>>>>>> feat/query-api-records
+or throughput claim. Snapshot tokens are authenticated, finite scans account for
+admitted rows/bytes, and runtime operation admission bounds active and waiting
+queries. The [query contracts](query-api.md) describe page/failure shapes and
+[finite records versus follow](query-api.md#finite-records-and-follow).
 
 ### Operations And Plugins
 
 The [Query API Foundations](query-api.md) describe the finite query declarations;
-<<<<<<< HEAD
-transport registration and client integration are still pending.
-=======
-history and record execution are implemented, while transport and client integration remain pending.
->>>>>>> feat/query-api-records
+the five operations share runtime handlers and existing read authorization.
+Use the generic operation command for [first and next pages](query-api.md#transport-access-and-cli-paging).
+High-level Python query readers remain pending their client slice.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 

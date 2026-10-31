@@ -86,6 +86,13 @@ pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryRead, RuntimeTelemetr
 
 /* === Structs === */
 
+// Trusted Local Call Context; Never Deserialized From A Request Or Query Token.
+#[derive(Clone, Debug)]
+pub struct Caller {
+    pub message_bytes: usize,
+    pub revoked: Option<tokio_util::sync::CancellationToken>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
