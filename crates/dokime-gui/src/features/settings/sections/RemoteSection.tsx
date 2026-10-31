@@ -106,7 +106,7 @@ function ConnectedRemoteSection({
   if (query.error || !query.data.settings) {
     return (
       <SettingsCard title="Remote Access">
-        <SettingsRow label="Remote Settings" error={message(query.error)}>
+        <SettingsRow label="Remote Settings" failure={query.error} error={message(query.error)}>
           <Button variant="outline" onClick={() => void query.refetch()}>
             Try Again
           </Button>
@@ -142,8 +142,8 @@ function ListenerControls({
     client.setQueryData(queryKey, updated);
     return updated;
   };
-  const fail = (title: string, description: string) => {
-    toast.error(title, { description });
+  const fail = (title: string, description: string, error?: unknown) => {
+    toast.error(title, { description, error });
     void client.invalidateQueries({ queryKey });
   };
   const run = async <T,>(work: () => Promise<T>): Promise<T> => {
@@ -161,7 +161,7 @@ function ListenerControls({
         status,
         change,
         send: async (request) => publish(await rpc.remoteUpdateListener(session.identity, { settings: request })),
-        fail: (description) => fail("Remote Access Change Failed", description),
+        fail: (description, error) => fail("Remote Access Change Failed", description, error),
       });
       return next !== status;
     });
@@ -180,7 +180,7 @@ function ListenerControls({
       } catch (error) {
         const reason = listenerError(error);
         setPairingError(reason);
-        fail("Remote Access File Not Saved", reason);
+        fail("Remote Access File Not Saved", reason, error);
         setClientsRevision((revision) => revision + 1);
       }
     });
@@ -217,7 +217,7 @@ function ListenerControls({
                   try {
                     publish(await rpc.remoteRegenerateCertificate(session.identity, { certificateNames: settings.certificateNames }));
                   } catch (error) {
-                    fail("Certificate Generation Failed", listenerError(error));
+                    fail("Certificate Generation Failed", listenerError(error), error);
                   }
                 })
               }
@@ -260,7 +260,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
   const [page, setPage] = useState<Page | null>(null);
   const [request, setRequest] = useState<{ cursor?: string }>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [renaming, setRenaming] = useState<Client | null>(null);
   const [name, setName] = useState("");
   useEffect(() => {
@@ -274,7 +274,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
         if (active && session.identity.isCurrent()) setPage(next);
       })
       .catch((failure: unknown) => {
-        if (active) setError(listenerError(failure));
+        if (active) setError(failure);
       })
       .finally(() => {
         if (active) setBusy(false);
@@ -291,7 +291,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
       if (!session.identity.isCurrent()) return;
       setRequest((value) => ({ ...value }));
     } catch (failure) {
-      setError(listenerError(failure));
+      setError(failure);
     } finally {
       setBusy(false);
     }
@@ -356,7 +356,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
                 setRenaming(null);
                 setRequest((value) => ({ ...value }));
               })
-              .catch((failure: unknown) => setError(listenerError(failure)))
+              .catch((failure: unknown) => setError(failure))
               .finally(() => setBusy(false));
           }}
         >
@@ -376,7 +376,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           </Button>
         </form>
       )}
-      {error && <NotificationMessage>{error}</NotificationMessage>}
+      {Boolean(error) && <NotificationMessage error={error}>{listenerError(error)}</NotificationMessage>}
       <div className="flex gap-2 p-4">
         <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>
           First Page

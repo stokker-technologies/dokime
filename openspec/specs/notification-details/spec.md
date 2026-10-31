@@ -1,4 +1,9 @@
-## ADDED Requirements
+# notification-details Specification
+
+## Purpose
+TBD - created by archiving change notification-details. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Accessible Notification Inspection
 

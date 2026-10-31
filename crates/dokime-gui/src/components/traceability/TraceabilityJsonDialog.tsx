@@ -59,6 +59,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
       await saveTraceabilityJson(json, filename, session?.identity ?? null);
     } catch (error) {
       toast.error("Could Not Download Traceability", {
+        error,
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {

@@ -90,7 +90,7 @@ type ViewerStatus =
   | { kind: "snapshot"; bytes: number; observed: number }
   | { kind: "finished"; bytes: number }
   | { kind: "abandoned"; bytes: number }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; failure?: unknown };
 
 /* === Private Functions === */
 
@@ -297,7 +297,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
 
     void run().catch((caught: unknown) => {
       if (!signal.aborted) {
-        setStatus({ kind: "error", message: describeReadError(caught) });
+        setStatus({ kind: "error", message: describeReadError(caught), failure: caught });
       }
     });
     return () => {
@@ -400,7 +400,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
           </div>
         </DialogHeader>
         <div className="grid min-h-0 gap-0">
-          {status.kind === "error" ? <NotificationMessage>{status.message}</NotificationMessage> : null}
+          {status.kind === "error" ? <NotificationMessage error={status.failure}>{status.message}</NotificationMessage> : null}
           <section
             ref={textRef}
             aria-label="Text File Contents"

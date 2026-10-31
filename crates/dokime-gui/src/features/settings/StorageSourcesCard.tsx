@@ -183,7 +183,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
             ) : null
           }
         >
-          <NotificationMessage>{error instanceof Error ? error.message : String(error)}</NotificationMessage>
+          <NotificationMessage error={error}>{error instanceof Error ? error.message : String(error)}</NotificationMessage>
         </SettingsRow>
       ) : null}
 

@@ -20,6 +20,7 @@ import { type ReactNode, useEffect, useId } from "react";
 
 // Local Imports
 import { notificationText, toast } from "@/lib/notifications";
+import type { NotificationFailure } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -27,17 +28,24 @@ import { notificationText, toast } from "@/lib/notifications";
 
 /* === Types === */
 
-type NotificationMessageProps = { children: ReactNode; title?: string; source?: string; tone?: "error" | "info" | "success" };
+type NotificationMessageProps = {
+  children: ReactNode;
+  title?: string;
+  source?: string;
+  tone?: "error" | "info" | "success";
+  failure?: NotificationFailure;
+  error?: unknown;
+};
 
 /* === Components === */
 
-export function NotificationMessage({ children, source, title, tone = "error" }: NotificationMessageProps) {
+export function NotificationMessage({ children, source, title, tone = "error", failure, error }: NotificationMessageProps) {
   const id = useId();
   const description = notificationText(children);
   const heading = title ?? (tone === "error" ? "Operation Failed" : "Status Updated");
   useEffect(() => {
-    if (description) toast[tone](heading, { description, id, source });
-  }, [description, heading, id, source, tone]);
+    if (description) toast[tone](heading, { description, id, source, failure, error });
+  }, [description, heading, id, source, tone, failure, error]);
   return null;
 }
 

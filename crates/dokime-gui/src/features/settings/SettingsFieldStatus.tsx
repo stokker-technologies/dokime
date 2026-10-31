@@ -29,6 +29,7 @@ export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps
   return (
     <span className="inline-flex min-h-5 items-center gap-2 text-xs">
       <NotificationMessage
+        error={state.kind === "error" ? state.failure : undefined}
         source="Settings"
         title={state.kind === "error" ? "Settings Could Not Save" : "Settings Updated"}
         tone={state.kind === "error" ? "error" : state.kind === "saved" ? "success" : "info"}

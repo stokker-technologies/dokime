@@ -33,6 +33,7 @@ import type {
 } from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
+import { operationIds } from "@/lib/rpc/generated/operations";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   CaseActions,
@@ -413,7 +414,20 @@ export function ensureNativeStartAccepted(reply: Wire<Awaited<ReturnType<typeof 
        `provider_identity_changed` — and without it the operator, and anyone
        reading a gate log, has prose and no way to tell two refusals apart. */
     const message = detail.code ? `${detail.code}: ${detail.message}` : detail.message;
-    throw new Error(issues ? `${message} (${issues})` : message);
+    const failure = new Error(issues ? `${message} (${issues})` : message);
+    Object.assign(failure, {
+      notificationFailure: {
+        reason: detail.code,
+        operation: "Execution.StartExecution",
+        operationId: operationIds["/dokime.v1.Execution/StartExecution"],
+        problems: detail.issues.map((issue) => ({
+          label: issue.path,
+          message: issue.message,
+          causes: issue.expected ? [`Expected: ${issue.expected}`] : undefined,
+        })),
+      },
+    });
+    throw failure;
   }
   throw new Error("The native backend returned no execution admission outcome.");
 }

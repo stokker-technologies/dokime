@@ -160,7 +160,7 @@ export function ParameterEditor({
                       </div>
                       <span className="size-6" />
                     </div>
-                    {row.error ? <NotificationMessage>{row.error}</NotificationMessage> : null}
+                    {row.error ? <NotificationMessage failure={row.failure}>{row.error}</NotificationMessage> : null}
                   </div>
                   <div className="justify-self-center">
                     {row.path !== (definition.default ?? "") || row.error ? (

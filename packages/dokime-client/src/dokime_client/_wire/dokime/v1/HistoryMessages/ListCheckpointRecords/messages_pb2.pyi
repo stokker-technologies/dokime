@@ -135,7 +135,7 @@ class Row10(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row14, _Mapping]] = ..., Trace: _Optional[_Union[Row15, _Mapping]] = ..., Debug: _Optional[_Union[Row16, _Mapping]] = ..., Info: _Optional[_Union[Row17, _Mapping]] = ..., Warn: _Optional[_Union[Row18, _Mapping]] = ..., Error: _Optional[_Union[Row19, _Mapping]] = ...) -> None: ...
 
 class Row11(_message.Message):
-    __slots__ = ("message", "code", "source", "cause_chain", "stacktrace_attachment", "trace_id", "correlation_id")
+    __slots__ = ("message", "code", "source", "cause_chain", "stacktrace_attachment", "trace_id", "correlation_id", "diagnostics")
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CODE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -143,6 +143,7 @@ class Row11(_message.Message):
     STACKTRACE_ATTACHMENT_FIELD_NUMBER: _ClassVar[int]
     TRACE_ID_FIELD_NUMBER: _ClassVar[int]
     CORRELATION_ID_FIELD_NUMBER: _ClassVar[int]
+    DIAGNOSTICS_FIELD_NUMBER: _ClassVar[int]
     message: str
     code: str
     source: str
@@ -150,7 +151,8 @@ class Row11(_message.Message):
     stacktrace_attachment: str
     trace_id: str
     correlation_id: str
-    def __init__(self, message: _Optional[str] = ..., code: _Optional[str] = ..., source: _Optional[str] = ..., cause_chain: _Optional[_Iterable[_Union[Row20, _Mapping]]] = ..., stacktrace_attachment: _Optional[str] = ..., trace_id: _Optional[str] = ..., correlation_id: _Optional[str] = ...) -> None: ...
+    diagnostics: str
+    def __init__(self, message: _Optional[str] = ..., code: _Optional[str] = ..., source: _Optional[str] = ..., cause_chain: _Optional[_Iterable[_Union[Row20, _Mapping]]] = ..., stacktrace_attachment: _Optional[str] = ..., trace_id: _Optional[str] = ..., correlation_id: _Optional[str] = ..., diagnostics: _Optional[str] = ...) -> None: ...
 
 class Row12(_message.Message):
     __slots__ = ("nodes",)
