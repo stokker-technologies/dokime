@@ -1700,8 +1700,8 @@ mise run prepare:bindings
 This task builds the contract generator and server export with the dev compiler
 profile, selects `cargo-dokime` from those compiler messages, exports Python from
 the server contracts and runs `bindings proto` before the TypeScript generator.
-The `prepare:generated` prerequisite of ordinary builds checks tracked clients
-for drift while preparing their message modules. Client descriptors and
+The `prepare:generated` prerequisite and the Product frontend build check tracked
+clients for drift while preparing their message modules. Client descriptors and
 fingerprints match the server export; application settings come from that same
 build-script export. Wheel and source-package installation use tracked files
 and need no Rust compiler.

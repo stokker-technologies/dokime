@@ -65,8 +65,9 @@ and filter controls remain usable. Preserve the case of unit symbols.
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
   together. The `prepare:generated` prerequisite checks those tracked clients,
-  builds `cargo-dokime` and the server export before report/frontend compilation,
+  builds `cargo-dokime` and the server export before report compilation,
   exports `bindings proto` and feeds its descriptors to the message generator.
+  The Product frontend build runs the same generation from the Product build's `cargo-dokime`.
   The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;

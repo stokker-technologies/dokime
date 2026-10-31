@@ -239,7 +239,7 @@ run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
 description = "Build Shipping Native Executables And Plugin Bundle"
-depends = ["prepare:report"]
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust --profile {{usage.profile}}"
 
@@ -264,7 +264,6 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]
 description = "Build The Desktop With Its Compiled Frontend"
-depends = ["prepare:generated"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
@@ -284,7 +283,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:typescript"]
 description = "Build The Generated GUI Client And Frontend"
-depends = ["prepare:generated"]
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
