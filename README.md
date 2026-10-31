@@ -43,7 +43,9 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. Export a `.dokime-remote` access file on the host and import or drop it
 on another desktop to connect. The desktop remembers that choice; operators do
-not need a source checkout.
+not need a source checkout. Windows installation needs no administrator rights;
+exposing remote access to other PCs may need an administrator to allow the app
+through Windows Firewall once on the exporting computer.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 
