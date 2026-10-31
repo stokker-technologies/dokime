@@ -54,6 +54,7 @@ def build(profile: str) -> list[str]:
         stdout=sys.stderr,
         stderr=sys.stderr,
     )
+    cargo.clippy(ROOT, arguments)
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(

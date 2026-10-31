@@ -53,6 +53,7 @@ if (response.error) throw new Error(response.error);
 const output = resolve(gui, "../../target/generated/typescript");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
+writeFileSync(resolve(output, "contracts.json"), readFileSync(resolve(root, "contracts.json")));
 writeFileSync(resolve(output, "application-settings.json"), readFileSync(resolve(settings, "application-settings.json")));
 writeFileSync(resolve(output, "application-settings.ts"), readFileSync(resolve(settings, "application-settings.ts")));
 const protocolSource = readFileSync(resolve(gui, "src-tauri/src/rpc/protocol.rs"), "utf8");
