@@ -9,7 +9,7 @@ Harmos owns startup classification: within one prepare pass, Runtime preparation
 - Harmos producer: ../harmos.wt/rootcause, branch fix/startup-error-root-causes; SDK report/carrier/classification, tests and guide.
 - Dokime consumer: runtime startup mapping and shared CLI/error Display, failure wire/view projection, native adapter, notifications/history, plugin card/settings, Secret Storage Add Secret dialog, focused Rust/frontend tests, embedded report resource, docs and README.
 - Reuse #114 editable forms and restart retry. Set Secret opens Secret Storage with the identifier prefilled; no stored-secret picker or new binding mechanism.
-- Generated clients follow the domain shape through existing generation tasks only. No hilti-hcl changes, committed local override, local-path lock resolution or dependency pin adoption.
+- Generated clients follow the domain shape through existing generation tasks only. No example-plugin changes, committed local override, local-path lock resolution or dependency pin adoption.
 
 ## Integration And Adoption
 

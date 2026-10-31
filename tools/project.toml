@@ -167,7 +167,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
+inputs = ["build#cli", "build#gui", "build#plugins", "build#clients", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:unit"

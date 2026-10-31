@@ -43,7 +43,9 @@ The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
 Settings. Export a `.dokime-remote` access file on the host and import or drop it
 on another desktop to connect. The desktop remembers that choice; operators do
-not need a source checkout.
+not need a source checkout. Windows installation needs no administrator rights;
+exposing remote access to other PCs may need an administrator to allow the app
+through Windows Firewall once on the exporting computer.
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
 
@@ -119,7 +121,7 @@ The same plugin uses `#[dokime::observer]` for its
 `#[dokime::criterion]` for its
 [pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
-Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
+Custom installers can declare `[installer] identifier = "com.example.testhub"` to
 keep their installation and storage separate from plain Dokime. They include
 plugins selected by version and feed name, plus external bundles from an
 organization pack or repeatable `cargo dokime installer package --plugin <path>`

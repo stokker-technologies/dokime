@@ -116,6 +116,69 @@ size come from host settings; the default window is half the CPU operation's att
 it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
+
+
+### Closed-Loop CPU Load
+
+The host plugin provides the Public request
+`plugin_host::host::cpu::load::LoadHold` (`host.cpu.load.hold`):
+
+```rust
+LoadHold { target: LoadTarget::Percent(60.0), threads: None }
+LoadHold { target: LoadTarget::Flops(1_000_000_000.0), threads: Some(2) }
+```
+
+Finite percent targets lie in `(0,100]`; finite FLOP/s targets are positive.
+`threads: Option<u32>` accepts `1..=logical_cores`; `None` selects all available logical cores. Percent
+control includes other processes and only adds missing host load. FLOP/s control
+counts this generator's work; the OS exposes no system-wide floating-point counter.
+Unreachable targets saturate at zero or full duty rather than claiming success.
+Existing `host.cpu.load.capacity_gflops` remains the sole startup capacity estimate;
+`LoadTarget::approximate_flops` and `approximate_percent` convert targets using it.
+The calibration and generator execute the same counted eight-accumulator FMA kernel.
+
+CPU sampling has one fixed-cadence owner. `host.system.collect`, `host.cpu.load`
+and control read its latest completed window, so consumer cadence cannot shorten
+CPU delta windows. Memory and other system probes remain collected on demand.
+
+`CpuLoadSettings` in `plugins/sidecars/host/src/settings.rs` owns all control
+timing and tuning beside the other host tunables. Plugin settings expose the CPU
+Load Control section:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `period_ms` | 250 | Controller period |
+| `sample_ms` | 250 | Shared CPU sampling period; at least the native sampler minimum |
+| `slice_ms` | 10 | Busy/sleep slice per worker |
+| `proportional_gain` | 0.5 | Proportional gain on normalized error |
+| `integral_gain` | 0.5 | Integral gain per second |
+| `integral_min`, `integral_max` | -1, 1 | Clamped integrator bounds |
+| `settlement_ms` | 2000 | Worker settlement budget |
+| `batch_iterations` | 4096 | Worker kernel iterations between stop checks |
+
+Sampling and slices must fit a controller period; settlement must cover a slice.
+The operation policy has no practical deadline and never retries. Its 60 s cancellation
+grace is defined beside the settings defaults; the settlement budget must fit that grace. Actual elapsed
+wall time determines counted FLOP/s and the duration-weighted mean and RMS error.
+The PI controller clamps duty to `[0,1]` and back-calculates integration on saturation.
+
+The distinct `host.cpu.load.control` stream carries the selected mode, nullable
+percent or FLOP/s target/measurement columns, duty and generator FLOP/s. Columns
+have structured units and bracketed labels such as `Target [%]` and
+`Generator [FLOP/s]`; existing estimated load uses `Estimated CPU Load [GFLOP/s]`.
+
+Use the runtime invocation builder’s `.start()`, hold, then `.cancel().await?` to stop and join, returning
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Dokime's step/run handle
+sweep cancels forgotten handles; native drop cleanup also stops and joins workers.
+No effect-journal inverse is needed: stopping restores CPU use and process death
+cannot leave generation running or persistent native state changed.
+
+`mean` and `error_rms` use the selected target's units; `samples` counts measured
+intervals, including the final partial interval. Cancellation during publication
+also settles the workers and returns the final summary. The OBC Checks template
+`obc.checks.cpu_load` demonstrates the complete consumer sequence using the
+step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
+
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
 `memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.

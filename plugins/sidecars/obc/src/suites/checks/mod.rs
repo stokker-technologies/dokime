@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+pub mod cpu_load;
 pub mod pulse;
 
 /* === Re-Exports === */
@@ -41,6 +42,7 @@ pub struct ObcChecks;
 #[dokime::catalog]
 pub enum Templates {
     Pulse(pulse::Pulse),
+    CpuLoad(cpu_load::CpuLoad),
 }
 
 /* === Traits === */

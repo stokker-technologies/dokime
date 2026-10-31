@@ -1559,9 +1559,9 @@ mod tests {
             operation: "harmos.initialize".into(),
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(received)),
         };
-        let admission = start_error("hcl", "HCL", &error);
-        assert_eq!(admission.plugin_id, "hcl");
-        assert_eq!(admission.plugin_name, "HCL");
+        let admission = start_error("example", "Example Plugin", &error);
+        assert_eq!(admission.plugin_id, "example");
+        assert_eq!(admission.plugin_name, "Example Plugin");
         assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
         assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
         let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
@@ -1584,9 +1584,9 @@ mod tests {
             operation: "harmos.initialize".into(),
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
         };
-        let admission = start_error("hcl", "HCL", &error);
-        assert_eq!(admission.plugin_id, "hcl");
-        assert_eq!(admission.plugin_name, "HCL");
+        let admission = start_error("example", "Example Plugin", &error);
+        assert_eq!(admission.plugin_id, "example");
+        assert_eq!(admission.plugin_name, "Example Plugin");
         assert!(admission.missing_secret.is_none());
         assert_eq!(harmos::domain::Failure::decode(&admission.carrier).unwrap(), failure);
     }
@@ -1629,7 +1629,7 @@ mod tests {
             operation: "harmos.initialize".into(),
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
         };
-        let admission = start_error("hcl", "hcl-plugin", &error);
+        let admission = start_error("example", "example-plugin", &error);
         let missing = crate::Error::UnavailableSecret("api_token".into()).to_string();
         assert!(admission.message.contains(&missing));
         assert!(admission.message.contains("equipment is offline"));
@@ -1644,7 +1644,7 @@ mod tests {
         assert_eq!(retained, failure);
         assert_eq!(harmos::operations::StartupReport::from_failure(&retained), Some(report));
         let runtime = Error::PluginStart {
-            plugin: "hcl".to_owned(),
+            plugin: "example".to_owned(),
             source: Box::new(error),
         };
         assert!(runtime.to_string().contains(&missing));
