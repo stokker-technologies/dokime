@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::error::{Failure, Reason};
 use crate::model::execution::result::CyclePhase;
-use crate::model::execution::wire::{ArchiveScope, ExecutionStatus};
+use crate::model::execution::wire::{ArchiveScope, CycleStatus, ExecutionStatus};
 use crate::model::identity::wire::Timestamp;
 
 /* === Constants === */
@@ -72,6 +72,9 @@ pub struct CycleSelection {
     pub phases: Vec<CyclePhase>,
     pub created_at: Option<Window>,
     pub archive: Option<ArchiveScope>,
+
+    #[serde(default)]
+    pub statuses: Vec<CycleStatus>,
 }
 
 #[harmos::message]

@@ -53,6 +53,65 @@ use dokime_domain::model::{
 /* === Tests === */
 
 #[tokio::test]
+async fn finite_cycle_status_and_running_count_keep_the_snapshot_cut() {
+    use dokime_domain::model::{
+        execution::{result::CyclePhase, wire::CycleStatus},
+        query::{page::PageRequest, selection::CycleSelection},
+    };
+    use dokime_operations::query::ListCycles;
+    let mut fixture = Fixture::new(|_| {}).await;
+    fixture.runtime.storage().flush().await.unwrap();
+    let mut request = ListCycles {
+        selection: CycleSelection {
+            cycle_ids: vec![fixture.cycle.to_string()],
+            phases: vec![CyclePhase::Active],
+            created_at: None,
+            archive: None,
+            statuses: vec![CycleStatus::Running, CycleStatus::Paused, CycleStatus::Stopping],
+        },
+        page: PageRequest { rows: Some(10), bytes: None, after: None },
+        at: None,
+    };
+    let admitted = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
+    assert_eq!(admitted.rows.len(), 1);
+    assert_eq!(admitted.rows[0].status, CycleStatus::Running);
+    // The Initial Durable Execution Revision Is Pending Until Its Next Checkpoint.
+    assert_eq!(admitted.rows[0].running_count, 0);
+    fixture.runtime.pause_execution(fixture.execution.clone(), Default::default()).await.unwrap();
+    let paused = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
+    assert_eq!(paused.rows[0].status, CycleStatus::Paused);
+    assert_eq!(paused.rows[0].running_count, 1);
+    request.at = Fixture::at(admitted.snapshot.as_ref().unwrap());
+    assert_eq!(fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap().rows, admitted.rows);
+    fixture.runtime.resume_execution(fixture.execution.clone(), Default::default()).await.unwrap();
+    request.at = Fixture::at(paused.snapshot.as_ref().unwrap());
+    assert_eq!(fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap().rows, paused.rows);
+    request.at = None;
+    let first = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
+    assert_eq!(first.rows[0].status, CycleStatus::Running);
+    assert_eq!(first.rows[0].running_count, 1);
+    request.at = Fixture::at(first.snapshot.as_ref().unwrap());
+
+    fixture.runtime.seal_cycle(fixture.cycle.clone(), Default::default()).await.unwrap();
+    fixture.runtime.storage().flush().await.unwrap();
+    let original = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
+    assert_eq!(original.rows, first.rows);
+    request.at = None;
+    assert!(fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap().rows.is_empty());
+    request.selection.statuses = vec![CycleStatus::Stopped];
+    request.selection.phases = vec![CyclePhase::Sealed];
+    let stopped = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
+    assert_eq!(stopped.rows.len(), 1);
+    assert_eq!(stopped.rows[0].status, CycleStatus::Stopped);
+    assert_eq!(stopped.rows[0].running_count, 0);
+    request.selection.phases = vec![CyclePhase::Active];
+    assert!(fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap().rows.is_empty());
+    request.selection.statuses = vec![CycleStatus::Unspecified];
+    assert_eq!(fixture.runtime.query_list_cycles(request, usize::MAX).await.unwrap_err().reason, Reason::InvalidSelection);
+    fixture.owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn finite_arrow_pages() {
     let mut fixture = Fixture::new(|_| {}).await;
     let big = (1u64 << 63) + 7;

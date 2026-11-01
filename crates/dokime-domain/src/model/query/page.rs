@@ -26,7 +26,7 @@ use crate::model::{
     evidence::wire::CapturedRecord,
     execution::{
         result::CyclePhase,
-        wire::{ExecutionStatus, ResultSummary},
+        wire::{CycleStatus, ExecutionStatus, ResultSummary},
     },
     history::wire::ExecutionAvailability,
     identity::wire::Timestamp,
@@ -84,6 +84,8 @@ pub struct CycleSummary {
     pub updated_at: Option<Timestamp>,
     pub execution_count: u64,
     pub archived: bool,
+    pub status: CycleStatus,
+    pub running_count: u64,
 }
 
 #[harmos::message]

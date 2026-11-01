@@ -69,6 +69,7 @@ pub(crate) fn cycles() -> ListCycles {
         selection: CycleSelection {
             cycle_ids: vec![],
             phases: vec![],
+            statuses: vec![],
             created_at: None,
             archive: None,
         },
@@ -111,6 +112,8 @@ async fn finite_query_transports_and_cli_pages() {
     }
     let first = client.unary::<ListCycles>(authenticated(cycles())).await.unwrap().into_inner();
     assert_eq!(first.rows.len(), 1);
+    assert_eq!(first.rows[0].status, dokime::domain::model::execution::wire::CycleStatus::Ready);
+    assert_eq!(first.rows[0].running_count, 0);
     assert!(!first.complete);
     let mut next = cycles();
     next.page.after = first.next.clone();
@@ -120,6 +123,21 @@ async fn finite_query_transports_and_cli_pages() {
     assert_ne!(first.rows[0].cycle_id, second.rows[0].cycle_id);
     assert!(second.complete);
     assert_eq!(first.snapshot, second.snapshot);
+    let mut filtered = cycles();
+    filtered.selection.statuses = vec![dokime::domain::model::execution::wire::CycleStatus::Running];
+    assert!(client.unary::<ListCycles>(authenticated(filtered.clone())).await.unwrap().into_inner().rows.is_empty());
+    filtered.selection.statuses.push(dokime::domain::model::execution::wire::CycleStatus::Ready);
+    filtered.at =
+        first.snapshot.as_ref().map(|snapshot| dokime::domain::model::query::snapshot::SnapshotRef::Token(snapshot.token.clone()));
+    let selected = client.unary::<ListCycles>(authenticated(filtered.clone())).await.unwrap().into_inner();
+    let native = handle.operations().call::<ListCycles>(filtered).await.unwrap();
+    assert_eq!(native.rows, selected.rows);
+    assert_eq!(selected.rows, first.rows);
+    let mut invalid = cycles();
+    invalid.selection.statuses = vec![dokime::domain::model::execution::wire::CycleStatus::Unspecified];
+    let error = client.unary::<ListCycles>(authenticated(invalid)).await.unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(detail(&error).reason, Reason::InvalidSelection);
     let mut capped = cycles();
     capped.page.bytes = Some(u64::MAX);
     let capped = client.unary::<ListCycles>(authenticated(capped)).await.unwrap().into_inner();

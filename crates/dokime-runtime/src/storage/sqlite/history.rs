@@ -83,6 +83,7 @@ pub struct Key {
     pub id: String,
 }
 
+#[derive(Clone)]
 pub(crate) struct Read {
     pub revision: i64,
     pub cut: Option<super::snapshots::Cut>,
@@ -205,6 +206,17 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
                 updated_at: Some(timestamp(&cycle.updated_at)?),
                 execution_count: cycle.execution_ids.len() as u64,
                 archived: false,
+                status: match cycle.lifecycle {
+                    result::CycleStatus::Ready => wire::CycleStatus::Ready,
+                    result::CycleStatus::Running => wire::CycleStatus::Running,
+                    result::CycleStatus::Paused => wire::CycleStatus::Paused,
+                    result::CycleStatus::Stopping => wire::CycleStatus::Stopping,
+                    result::CycleStatus::Completed => wire::CycleStatus::Completed,
+                    result::CycleStatus::Failed => wire::CycleStatus::Failed,
+                    result::CycleStatus::Blocked => wire::CycleStatus::Blocked,
+                    result::CycleStatus::Stopped => wire::CycleStatus::Stopped,
+                },
+                running_count: 0,
             };
             (
                 "cycle",
@@ -246,11 +258,26 @@ pub(crate) fn cycles(connection: &Connection, selection: &CycleSelection, read: 
     }
     alternatives(&mut plan, "id", &selection.cycle_ids);
     alternatives(&mut plan, "status", &selection.phases.iter().map(serde_json::to_string).collect::<Result<Vec<_>, _>>()?);
+    if !selection.statuses.is_empty() {
+        plan.sql
+            .push_str(&format!(" AND json_quote(json_extract(h.body,'$.status')) IN ({})", vec!["?"; selection.statuses.len()].join(",")));
+        plan.arguments
+            .extend(selection.statuses.iter().map(serde_json::to_string).collect::<Result<Vec<_>, _>>()?.into_iter().map(Value::Text));
+    }
     window(&mut plan, selection.created_at.as_ref());
     finish(&mut plan, read);
     page(connection, plan, read, |body, archived| {
         let mut row: CycleSummary = serde_json::from_slice(body)?;
         row.archived = archived;
+        // Count Latest Member Revisions At The Same Catalog And Metadata Cut.
+        let count_read = Read { after: None, ..read.clone() };
+        let mut count = self::plan("execution", Some(ArchiveScope::All), &count_read);
+        select_index(&mut count, "query_history_cycle");
+        alternatives(&mut count, "cycle", std::slice::from_ref(&row.cycle_id));
+        alternatives(&mut count, "status", &[serde_json::to_string(&wire::ExecutionStatus::Running)?]);
+        count.sql = count.sql.replacen("SELECT h.body,h.archived,h.missing,h.time,h.id", "SELECT COUNT(*)", 1);
+        let running: i64 = connection.query_row(&count.sql, rusqlite::params_from_iter(count.arguments), |row| row.get(0))?;
+        row.running_count = running as u64;
         Ok(row)
     })
 }

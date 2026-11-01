@@ -294,8 +294,13 @@ impl RuntimeHandle {
         if let Err(error) = self.request_storage.begin(receipt).await {
             return rejected_receipt(command_id, &context, accepted_at, unavailable_rejection(error.to_string()));
         }
+        let cycle_id = transaction.test_cycle_id.clone();
         match self.commit_keyed(RequestKey::new(format!("execution-request:{command_id}")), transaction).await {
             Ok(committed) => {
+                // Publish Admitted Work Before Dispatch So Durable Discovery Sees It.
+                if let Err(error) = self.execution_storage.save_cycle_header(cycle_id).await {
+                    tracing::error!(%error, "admitted cycle header could not be saved");
+                }
                 if self.state_read().run_queue.front() == Some(&command_id) {
                     job.submit(self.clone());
                 }
