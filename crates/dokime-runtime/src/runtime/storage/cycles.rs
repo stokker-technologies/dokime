@@ -67,7 +67,10 @@ impl ExecutionStorage {
             let Some(cycle) = selected else {
                 return Ok(());
             };
+            // Keep First Checkpoints Ahead Of Any New Mutable Owner And Its Final Seal.
+            let owners = storage.active.lock().await;
             let mut pending = Vec::new();
+            let mut owned = Vec::new();
             pending
                 .try_reserve_exact(cycle.test_executions.len())
                 .map_err(|_| harmos::Error::ResourceExhausted { resource: "cycle checkpoints" })?;
@@ -75,15 +78,15 @@ impl ExecutionStorage {
                 if execution.saved.is_some() {
                     continue;
                 }
-                if let Some(owner) = storage.acquisition(&execution.test_execution_id).await {
-                    if owner.lock().await.execution.saved.is_none() {
-                        storage.checkpoint_targets(&cycle, std::slice::from_ref(&execution.test_execution_id)).await?;
-                    }
+                if owners.contains_key(&execution.test_execution_id) {
+                    owned.push(execution.test_execution_id.clone());
                 } else {
                     pending.push(execution);
                 }
             }
             save_members(&storage.storage, &pending).await?;
+            drop(owners);
+            storage.checkpoint_targets(&cycle, &owned).await?;
             let header = native_cycle_view(cycle)?;
             let receipt = storage.storage.write_object(&header).await?;
             drop(header);
