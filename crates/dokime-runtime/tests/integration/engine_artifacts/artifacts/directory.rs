@@ -391,7 +391,7 @@ pub(crate) async fn one_name_refused() {
 
     assert_eq!(directories.directory("capture").unwrap(), path);
     assert_ne!(directories.directory("other").unwrap(), path);
-    for refused in ["", "..", "capture/../..", "/absolute", "back\\slash"] {
+    for refused in ["", "..", "capture/../..", "/absolute", "back\\slash", "CON.diag", "capture/NUL.hpl30"] {
         assert_eq!(
             directories.directory(refused).unwrap_err().kind(),
             io::ErrorKind::InvalidInput,
