@@ -90,6 +90,12 @@ export type CursorXAxis = {
 
 /* === Public Functions === */
 
+export function formatBooleanState(value: number | null | undefined): string {
+  if (value === 0) return "False";
+  if (value === 1) return "True";
+  return "--";
+}
+
 /**
  * The duration unit a plot's declared x column names, or `null` when the
  * column does not affirmatively name one.

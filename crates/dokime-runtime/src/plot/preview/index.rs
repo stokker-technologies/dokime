@@ -91,20 +91,32 @@ impl Batch {
     pub(crate) fn sample(
         &mut self, connection: &Connection, row: &harmos::storage::StoredRow, sample: &crate::telemetry::TelemetrySample,
     ) -> Result<(), Error> {
-        let Some(execution) = row.record.scope.as_ref() else { return Ok(()) };
         if !row.record.schema.id.as_str().starts_with("dokime.telemetry.") {
             return Ok(());
         }
-        self.load(connection, execution.as_str())?;
+        let owners: BTreeSet<_> =
+            sample.scope.iter().chain(&sample.captured_scopes).filter_map(|scope| scope.test_execution_id.as_ref()).collect();
+        for owner in owners {
+            self.load(connection, owner.as_str())?;
+        }
         for ((owner, _), (through, plan)) in &mut self.plans {
-            if owner != execution.as_str() || row.record.position.sequence <= *through {
+            if row.record.position.sequence <= *through {
                 continue;
             }
+            let Some(scope) = sample
+                .scope
+                .iter()
+                .chain(&sample.captured_scopes)
+                .find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == owner))
+            else {
+                continue;
+            };
             if !crate::plot::plot_streams(&plan.request).iter().any(|stream| crate::plot::stream_matches_alias(row.stream.as_str(), stream))
             {
                 continue;
             }
             let mut sample = sample.clone();
+            sample.scope = Some(scope.clone());
             for (key, value) in &plan.context {
                 sample.values.entry(key.clone()).or_insert_with(|| value.clone());
             }

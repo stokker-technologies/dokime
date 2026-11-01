@@ -53,22 +53,23 @@ export function TimeSeriesPlot({
       series={plot.series}
       stateDetail={plot.stateDetail}
       stateLabel={plot.stateLabel}
-      style={plot.style}
+      style={plot.booleanAxis ? "step" : plot.style}
       timeAxis={plot.timeAxis}
+      booleanAxis={plot.booleanAxis}
       title={plot.title}
       titleRepeated={plot.titleRepeated}
       unit={plot.unit}
       liveWindowS={plot.liveWindowS}
       viewportMode={viewportMode}
       xScale={plot.xScale}
-      yScale={plot.yScale}
+      yScale={plot.booleanAxis ? "linear" : plot.yScale}
       xFormat={plot.xFormat}
       xElapsedUnit={plot.xElapsedUnit}
       yFormat={plot.yFormat}
       runStartedAt={plot.runStartedAt}
       cycleStartedAt={plot.cycleStartedAt}
-      legend={{ summaries: plot.summaries ?? [], pending: plot.summaryPending ?? false }}
-      onViewportChange={zoom ? undefined : onViewportChange}
+      legend={plot.booleanAxis ? null : { summaries: plot.summaries ?? [], pending: plot.summaryPending ?? false }}
+      onViewportChange={zoom || plot.booleanAxis ? undefined : onViewportChange}
     />
   );
 }

@@ -30,7 +30,7 @@ export type PlotInteraction = {
 
 const PlotInteractionContext = createContext<PlotInteraction>({ zoom: false });
 
-export function PlotInteractionProvider({ children, zoom, syncKey }: PlotInteraction & { children: ReactNode }) {
+export function PlotInteractionProvider({ children, zoom, syncKey }: PlotInteraction & { children?: ReactNode }) {
   const value = useMemo(() => ({ zoom, syncKey }), [zoom, syncKey]);
   return <PlotInteractionContext.Provider value={value}>{children}</PlotInteractionContext.Provider>;
 }
