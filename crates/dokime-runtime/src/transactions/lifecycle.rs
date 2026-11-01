@@ -48,6 +48,9 @@ use dokime_domain::model::time::Timestamp;
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
+
+    #[serde(default)]
+    pub record_frontier: u64,
 }
 
 #[harmos::transaction(id = "dokime.runtime.identity.establish")]
@@ -421,6 +424,9 @@ impl Transaction<RuntimeState> for MarkRuntimeStarted {
     fn apply(&self, state: &mut RuntimeState) {
         state.session_id = self.session_id.clone();
         state.record_namespace = self.record_namespace.clone();
+        // Evidence Can Commit Beyond The Restored State Journal Before A Crash.
+        state.record_count = state.record_count.max(self.record_frontier);
+        state.records.through = state.records.through.max(self.record_frontier);
         state.shutting_down = false;
     }
 }
