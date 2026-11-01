@@ -125,6 +125,7 @@ impl Transaction<RuntimeState> for CreateCycle {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
         prepare_create_cycle(state, self).expect("checked cycle plan").1.collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

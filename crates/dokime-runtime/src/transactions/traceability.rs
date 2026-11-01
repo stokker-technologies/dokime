@@ -109,6 +109,10 @@ impl Transaction<RuntimeState> for SetCapturePhase {
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         check_capture_phase(state, self).map_err(|error| error.to_string())
     }
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, self.scope.test_cycle_id.as_ref(), out);
+    }
+
     fn apply(&self, state: &mut RuntimeState) {
         set_capture_phase(state, self).expect("checked capture phase");
     }
@@ -145,6 +149,7 @@ impl Transaction<RuntimeState> for UpdateExecutionPhase {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, self.scope.test_cycle_id.as_ref(), out);
         self.start_records(state).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

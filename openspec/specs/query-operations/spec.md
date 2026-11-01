@@ -81,7 +81,7 @@ Cycle query rows SHALL expose the declared cycle work status and running executi
 - **WHEN** native and remote callers query the same snapshot
 - **THEN** their cycle status and running count agree
 
-#### Scenario: Admitted Work Before A Running Checkpoint
-- **WHEN** the admitted cycle header is Running and the durable execution revision is still Pending
-- **THEN** discovery reports Running with a zero running count
-- **AND** a fresh query after a Running execution checkpoint counts that revision while the earlier snapshot remains unchanged
+#### Scenario: Running Work Before A Checkpoint
+- **WHEN** an execution commits its Running transition before its next checkpoint
+- **THEN** a fresh query reports the Running execution and its cycle has a running count of one
+- **AND** lifecycle projections commit with the state transition; later transitions and checkpoints preserve earlier query cuts

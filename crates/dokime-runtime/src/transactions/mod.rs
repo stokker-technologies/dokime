@@ -9,6 +9,8 @@
 
 /* === Modules === */
 
+pub(crate) mod history;
+
 pub mod archive;
 pub mod cycle;
 pub mod documents;

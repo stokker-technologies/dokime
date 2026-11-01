@@ -144,6 +144,12 @@ impl Transaction<RuntimeState> for PrepareAttempt {
         Ok(())
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.run_requests.get(&self.request_id).map(|request| &request.summary.cycle_id),
+            out,
+        );
         self.drafts(state).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

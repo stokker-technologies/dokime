@@ -75,8 +75,7 @@ async fn finite_cycle_status_and_running_count_keep_the_snapshot_cut() {
     let admitted = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
     assert_eq!(admitted.rows.len(), 1);
     assert_eq!(admitted.rows[0].status, CycleStatus::Running);
-    // The Initial Durable Execution Revision Is Pending Until Its Next Checkpoint.
-    assert_eq!(admitted.rows[0].running_count, 0);
+    assert_eq!(admitted.rows[0].running_count, 1);
     fixture.runtime.pause_execution(fixture.execution.clone(), Default::default()).await.unwrap();
     let paused = fixture.runtime.query_list_cycles(request.clone(), usize::MAX).await.unwrap();
     assert_eq!(paused.rows[0].status, CycleStatus::Paused);
