@@ -111,7 +111,7 @@ async fn distribution_identity() {
     #[cfg(windows)]
     let executable = executable_fixture();
     #[cfg(not(windows))]
-    let executable = std::env::current_exe().unwrap();
+    let executable = std::fs::canonicalize("/bin/true").unwrap();
     let mut files = std::collections::BTreeMap::new();
     for program in ["dokime", "dokime-gui"] {
         let name = format!("bin/{program}{suffix}");
