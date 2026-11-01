@@ -108,9 +108,24 @@ async fn batch_replacement_requests() {
     second.plot_id = Some("second".to_owned());
     let mut narrow = wifi_request(None, Some(2));
     narrow.plot_id = Some("narrow".to_owned());
+    let mut missing = first.clone();
+    missing.stream = "missing".to_owned();
 
     for mode in [RuntimePlotQueryMode::Replace, RuntimePlotQueryMode::Snapshot] {
+        let before = runtime.storage_read_counters().data_scan_rows;
+        let absent = runtime.query_plot_payloads(vec![missing.clone()], mode).await.unwrap();
+        assert!(absent[0].payload.series.iter().all(|series| series.raw_points == 0));
+        let catalog_work = runtime.storage_read_counters().data_scan_rows - before;
+        assert!(catalog_work > 0);
+        let before = runtime.storage_read_counters().data_scan_rows;
+        runtime.query_plot_payloads(vec![first.clone()], mode).await.unwrap();
+        let single_work = runtime.storage_read_counters().data_scan_rows - before;
+        let before = runtime.storage_read_counters().data_scan_rows;
+        runtime.query_plot_payloads(vec![narrow.clone()], mode).await.unwrap();
+        let narrow_work = runtime.storage_read_counters().data_scan_rows - before;
+        let before = runtime.storage_read_counters().data_scan_rows;
         let envelopes = runtime.query_plot_payloads(vec![first.clone(), narrow.clone(), second.clone()], mode).await.unwrap();
+        assert_eq!(runtime.storage_read_counters().data_scan_rows - before, single_work + narrow_work - catalog_work);
 
         assert_eq!(envelopes.iter().map(|envelope| envelope.plot_id.as_str()).collect::<Vec<_>>(), vec!["first", "narrow", "second"]);
         assert_eq!(envelopes[0].payload.series[0].raw_points, 4);
@@ -119,6 +134,17 @@ async fn batch_replacement_requests() {
         assert_eq!(envelopes[2].payload.series[0].raw_points, 4);
         assert_eq!(envelopes[0].payload.series, envelopes[2].payload.series);
         assert!(envelopes.iter().all(|envelope| envelope.revision == runtime.storage().cursor_saved().sequence));
+
+        let mut raw = first.clone();
+        raw.max_points = Some(0);
+        let before = runtime.storage_read_counters().data_scan_rows;
+        let original = runtime.query_plot_payloads(vec![raw.clone()], mode).await.unwrap();
+        let raw_work = runtime.storage_read_counters().data_scan_rows - before;
+        let before = runtime.storage_read_counters().data_scan_rows;
+        let mixed = runtime.query_plot_payloads(vec![raw, narrow.clone()], mode).await.unwrap();
+        assert_eq!(runtime.storage_read_counters().data_scan_rows - before, raw_work + narrow_work - catalog_work);
+        assert_eq!(mixed[0].payload.series, original[0].payload.series);
+        assert_eq!(mixed[1].payload.series, envelopes[1].payload.series);
     }
 }
 

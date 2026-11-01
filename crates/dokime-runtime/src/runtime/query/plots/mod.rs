@@ -224,14 +224,12 @@ async fn query_plot_payload(
     session: &crate::storage::Manager,
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
     let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
-        let mut schema_at = at.clone();
-        schema_at.sequence = schema_at.sequence.min(session.cursor_saved().sequence);
-        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &schema_at, None, runtime.schema_settings(), |id, _| {
-            id.strip_prefix("dokime.telemetry.") == Some(request.stream.as_str())
-        })
-        .await?;
-        if codecs.len() == 1 && crate::plot::stored::supports_codec(&request, &codecs[0]) {
-            let codec = &codecs[0];
+        let mut codecs = context
+            .codecs
+            .iter()
+            .filter(|codec| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") == Some(request.stream.as_str()));
+        let codec = codecs.next();
+        if let Some(codec) = codec.filter(|codec| codecs.next().is_none() && crate::plot::stored::supports_codec(&request, codec)) {
             let selection = TelemetrySelection {
                 streams: vec![
                     dokime_domain::model::identity::IdentifierPattern::new(request.stream.clone())
@@ -366,6 +364,7 @@ async fn query_spilled_plot(
             ..Default::default()
         };
         let options = crate::runtime::storage::telemetry::ReadOptions {
+            codecs: Some(&context.codecs),
             scan_limit: analysis.as_ref().map(|_| dokime_domain::model::analysis::MAX_SAMPLES as usize),
             window: request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
             sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
