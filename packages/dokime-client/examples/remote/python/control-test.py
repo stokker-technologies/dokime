@@ -37,6 +37,7 @@ PAIRING_FILE = Path("../lab.dokime-remote")
 TEMPLATE = "obc.checks.pulse"
 CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
+PARAMETERS = {"sample_count": SAMPLE_COUNT}
 EXECUTION_COUNT = 2
 WAIT_SECONDS = 60.0
 
@@ -75,7 +76,7 @@ async def run() -> int:
         try:
             # Materialize One Immutable Case; Each Execution Gets Its Own UUID.
             template = await client.template(TEMPLATE)
-            (test_case,) = await template.materialize(parameters={"sample_count": SAMPLE_COUNT})
+            (test_case,) = await template.materialize(parameters=PARAMETERS)
             first = Execution(test_case)
             second = Execution(test_case)
 

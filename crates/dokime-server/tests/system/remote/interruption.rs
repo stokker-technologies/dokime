@@ -92,6 +92,11 @@ enum Action {
     InterruptAt(Gate),
 }
 
+enum TerminalKey {
+    Interrupt,
+    ContinueBatch,
+}
+
 #[derive(Clone, Copy)]
 enum Boundary {
     Append,
@@ -385,9 +390,9 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     let executions = vec![execution_id.clone()];
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &execution_id);
     recovery_saved(&execution_file, &outcome_text);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled", "obc.pulse");
     assert_eq!(samples[&execution_id], 0, "the independent execution keeps Start queued");
-    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
+    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled", "obc.pulse");
 }
 
 async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
@@ -421,9 +426,9 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
 
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &executions[0]);
     recovery_saved(&execution_file, &outcome.text);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled", "obc.pulse");
     assert_eq!(samples[&executions[0]], 0, "the independent prompt kept this execution queued");
-    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
+    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled", "obc.pulse");
     assert!(!outcome.text.contains("Drained Evidence:"), "a cancelled queued capture cannot claim final observation");
 }
 
@@ -467,7 +472,20 @@ async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &
 
 async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     let directory = root.join("partial Python capture");
-    let command = super::configured_command("py", "test", endpoint, &directory, &[("SAMPLE_COUNT", "64"), ("EXECUTION_COUNT", "1")]).await;
+    // The Operator Prompt Holds The Second Half Until This Terminal Is Interrupted.
+    let command = super::configured_command(
+        "py",
+        "test",
+        endpoint,
+        &directory,
+        &[
+            ("TEMPLATE", "obc.charger.startup.sequence"),
+            ("PARAMETERS", r#"{"duration_s":0.064,"sample_interval_s":0.001}"#),
+            ("STREAMS", r#"["obc.charger.startup.samples"]"#),
+            ("EXECUTION_COUNT", "1"),
+        ],
+    )
+    .await;
     let command = terminal_command(command.as_std(), false);
     let selected = client.clone();
     let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::InterruptOnSample(selected))).await.unwrap();
@@ -485,10 +503,11 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
 
     let execution_file = directory.join("execution-1.zip");
     recovery_saved(&execution_file, &outcome.text);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled", "obc.charger.startup.samples");
     assert!(samples[&executions[0]] > 0 && samples[&executions[0]] < 64, "the saved bundle must retain a partial capture");
     let cycle_file = directory.join("cycle.zip");
-    let cycle_samples = super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
+    let cycle_samples =
+        super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled", "obc.charger.startup.samples");
     assert_eq!(samples, cycle_samples);
     assert!(!outcome.text.contains("Drained Evidence:"), "an interrupted listener cannot claim a completed final drain");
 }
@@ -535,6 +554,11 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
         terminal.cwd(command.get_current_dir().unwrap());
         terminal
     };
+    // Preserve The Calling Task's Resolved Environment Instead Of Rebuilding It From The Registry.
+    terminal.env_clear();
+    for (name, value) in std::env::vars_os() {
+        terminal.env(name, value);
+    }
     terminal.args(command.get_args());
     for (name, value) in command.get_envs() {
         match value {
@@ -661,15 +685,13 @@ fn read_terminal(
             match action.take().unwrap() {
                 Action::Interrupt(client) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
-                    writer.write_all(b"\x03")?;
-                    writer.flush()?;
+                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
                 }
                 Action::InterruptOnSample(client) => {
                     let id = execution.unwrap();
                     runtime.block_on(admitted(&client, id.clone()));
                     runtime.block_on(first_sample(&client, id));
-                    writer.write_all(b"\x03")?;
-                    writer.flush()?;
+                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
                 }
                 Action::Disconnect(client, disconnect) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
@@ -678,8 +700,7 @@ fn read_terminal(
                 Action::InterruptAt(gate) => {
                     let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(120), gate.reached.cancelled()).await };
                     runtime.block_on(waiting).map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
-                    writer.write_all(b"\x03")?;
-                    writer.flush()?;
+                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
                 }
             }
             triggered = true;
@@ -689,8 +710,7 @@ fn read_terminal(
             gate.released.cancel();
         }
         if !continued && text.contains("Terminate batch job (Y/N)? ") {
-            writer.write_all(b"N\r")?;
-            writer.flush()?;
+            terminal_key(&mut writer, &text, TerminalKey::ContinueBatch)?;
             eprintln!("Batch Termination Prompt Acknowledged");
             continued = true;
         }
@@ -701,10 +721,25 @@ fn read_terminal(
     Ok((text, triggered))
 }
 
+fn terminal_key(writer: &mut dyn Write, output: &str, key: TerminalKey) -> std::io::Result<()> {
+    let enabled = output.rfind("\x1b[?9001h");
+    let disabled = output.rfind("\x1b[?9001l");
+    let native = cfg!(windows) && enabled.is_some_and(|enabled| disabled.is_none_or(|disabled| enabled > disabled));
+    let bytes: &[u8] = match (key, native) {
+        (TerminalKey::Interrupt, false) => b"\x03",
+        (TerminalKey::ContinueBatch, false) => b"N\r",
+        // Native Key Events Carry Virtual Key, Scan Code, Character, Down/Up, Modifiers And Repeat Count.
+        (TerminalKey::Interrupt, true) => b"\x1b[17;29;0;1;8;1_\x1b[67;46;3;1;8;1_\x1b[67;46;3;0;8;1_\x1b[17;29;0;0;0;1_",
+        (TerminalKey::ContinueBatch, true) => b"\x1b[78;49;110;1;0;1_\x1b[78;49;110;0;0;1_\x1b[13;28;13;1;0;1_\x1b[13;28;13;0;0;1_",
+    };
+    writer.write_all(bytes)?;
+    writer.flush()
+}
+
 async fn first_sample(client: &Client, id: TestExecutionId) {
     // The Tutorial Prints Only After Draining; Observe Live Evidence Before Interrupting It.
     let execution = client.execution(id);
-    let samples = execution.samples(vec!["obc.pulse".into()], true, 64).unwrap();
+    let samples = execution.samples(vec!["obc.charger.startup.samples".into()], true, 64).unwrap();
     let waiting = async {
         while let Some(page) = samples.message().await.unwrap() {
             if !page.samples.is_empty() {

@@ -203,6 +203,8 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
                     "py" => {
                         let selected = if numeric {
                             value.clone()
+                        } else if matches!(*name, "PARAMETERS" | "STREAMS") {
+                            format!("json.loads({quoted})")
                         } else if value.is_empty() {
                             "None".into()
                         } else if matches!(*name, "ENDPOINT" | "CYCLE_LABEL" | "TEMPLATE" | "ANSWER") {
@@ -346,12 +348,12 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
     assert_eq!(actual, executions);
 
     let path = directory.join("cycle.zip");
-    let samples = archive(&path, cycle_id, &executions, CyclePhase::Sealed, "passed");
+    let samples = archive(&path, cycle_id, &executions, CyclePhase::Sealed, "passed", "obc.pulse");
     for (index, id) in identities(stdout, "Execution: ").iter().enumerate() {
         let name = if workflow == "test" { format!("execution-{}.zip", index + 1) } else { "execution.zip".to_owned() };
         let path = directory.join(name);
         let selected = std::slice::from_ref(id);
-        let captured = archive(&path, cycle_id, selected, CyclePhase::Active, "passed");
+        let captured = archive(&path, cycle_id, selected, CyclePhase::Active, "passed", "obc.pulse");
         assert_eq!(captured[id], samples[id]);
     }
 
@@ -417,7 +419,7 @@ fn identities(stdout: &str, prefix: &str) -> Vec<String> {
         .collect()
 }
 
-fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str) -> BTreeMap<String, u64> {
+fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str, stream: &str) -> BTreeMap<String, u64> {
     let file = std::fs::File::open(path).unwrap_or_else(|error| {
         let present = std::fs::read_dir(path.parent().unwrap())
             .map(|entries| entries.filter_map(|entry| Some(entry.ok()?.file_name())).collect::<Vec<_>>())
@@ -459,18 +461,18 @@ fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, s
     let actual: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
     assert_eq!(actual, executions);
 
-    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status, path))).collect()
+    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status, path, stream))).collect()
 }
 
-fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str, archive: &Path) -> u64 {
+fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str, archive: &Path, selected: &str) -> u64 {
     let status: String =
         database.query_row("SELECT status FROM executions WHERE execution_id=?1 AND cycle_id=?2", [id, cycle], |row| row.get(0)).unwrap();
     assert_eq!(status, expected, "execution {id} in {}", archive.display());
 
     let stream: Option<(String, i64)> = database
         .query_row(
-            "SELECT f.path,s.rows FROM streams s JOIN files f ON s.file_id=f.id WHERE s.execution_id=?1 AND s.stream_id='obc.pulse'",
-            [id],
+            "SELECT f.path,s.rows FROM streams s JOIN files f ON s.file_id=f.id WHERE s.execution_id=?1 AND s.stream_id=?2",
+            [id, selected],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
