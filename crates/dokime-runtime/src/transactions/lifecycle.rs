@@ -153,6 +153,7 @@ impl Transaction<RuntimeState> for BeginCycleSeal {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
         if state.cycles[&self.test_cycle_id].phase == dokime_domain::model::execution::result::CyclePhase::Active {
             self.prompts(state).0.collect(out);
         }
@@ -460,6 +461,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         Ok(())
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, None, out);
         self.prompts(state).0.collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

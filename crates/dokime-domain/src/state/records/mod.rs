@@ -13,6 +13,7 @@
 
 pub mod resources;
 pub mod set;
+pub mod work;
 
 /* === Re-Exports === */
 
@@ -58,6 +59,7 @@ pub struct CapturedRecord {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Records {
     Record(CapturedRecord),
+    Work(work::Work),
 }
 
 /* === Traits === */

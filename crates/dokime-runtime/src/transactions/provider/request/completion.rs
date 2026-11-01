@@ -89,6 +89,12 @@ impl Transaction<RuntimeState> for CompleteRun {
         Ok(())
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.run_requests.get(&self.request_id).map(|request| &request.summary.cycle_id),
+            out,
+        );
         if let Some(unsealed) = &self.unsealed
             && !state.run_requests[&self.request_id].summary.phase.terminal()
         {
@@ -238,6 +244,12 @@ impl Transaction<RuntimeState> for SettleRun {
         outcomes_settled(state, &self.request_id)
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.run_requests.get(&self.request_id).map(|request| &request.summary.cycle_id),
+            out,
+        );
         if state.run_requests[&self.request_id].completion_at.is_none() {
             CompleteRun {
                 request_id: self.request_id.clone(),

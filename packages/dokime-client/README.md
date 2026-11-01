@@ -445,9 +445,9 @@ async with DokimeClient.from_pairing("lab.dokime-remote") as client:
 Cycle summaries expose `CycleStatus` in `status` and an integer `running_count`;
 execution summaries expose `ExecutionStatus` in `status`. Named filters accept
 one enum or a sequence; existing lowercase string filters remain supported.
-These are durable snapshot values. `running_count` counts Running execution
-revisions at that cut; active work can have a zero count before its next checkpoint.
-Use cycle status for the busy check. Later checkpoints require a fresh query.
+These are fixed snapshot values. Lifecycle transitions commit their history
+projections with runtime state, so `running_count` includes Running executions
+without waiting for a checkpoint. Later transitions require a fresh query.
 Backends with older development cycle-query projections need a fresh storage root;
 preserve existing roots rather than resetting them.
 Enum `.value` strings are stable:

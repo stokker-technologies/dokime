@@ -113,7 +113,7 @@ async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
 This check observes a snapshot; another client can start afterward, and the
 backend still controls Start admission. `cycle.status` and `execution.status`
 are exported string enums; `cycle.running_count` counts Running execution revisions
-at the durable cut and can be zero before a running execution's next checkpoint.
+at the fixed cut, including committed transitions before the next checkpoint.
 Use the cycle status for busy refusal.
 See the [client guide](../../packages/dokime-client/README.md#typed-status-and-record-schemas)
 for stable status values and declared field types, labels and units. Schema
