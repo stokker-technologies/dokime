@@ -211,6 +211,7 @@ pub(crate) async fn shared_sha_identity() {
         };
         assert!(backend.save_mutations(store.batch(vec![append.clone()])).await.is_err());
         let reference = backend.finish_file(file, &position, 4, hash).await.unwrap();
+        assert_eq!(std::fs::read_dir(root.path().join("staging")).unwrap().count(), 1 - index);
         backend.save_mutations(store.batch(vec![append.clone()])).await.unwrap();
         for (window, length, generation) in [("past-end", 5, 1), ("future-owner", 4, 2)] {
             let mut invalid = append.clone();

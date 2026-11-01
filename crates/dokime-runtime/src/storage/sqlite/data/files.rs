@@ -201,7 +201,11 @@ impl State {
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
                 super::super::commit(transaction)?;
-                remove(&source)?;
+                // Installation Already Moved The Source Durably. Only Reusing
+                // Existing Content Leaves A Separate Staging File To Remove.
+                if present {
+                    remove(&source)?;
+                }
                 Ok(reference)
             })();
             Ok(result)
@@ -351,10 +355,15 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
             params![staging.id.as_str(), super::position(1), entry::encode(&checkpoint)?],
         )?;
     }
+    let (_, finished) = metadata_for(&transaction, &staging.id)?.ok_or(Error::Data("file staging disappeared"))?;
+    // The Staging Identity Belongs To The Same Creation Transaction.
+    let path = if finished.is_none() && finish_intent(&transaction, &staging.id)?.is_none() {
+        Some(staging_path(&transaction, root, &staging.id)?)
+    } else {
+        None
+    };
     super::super::commit(transaction)?;
-    let (_, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("file staging disappeared"))?;
-    if finished.is_none() && finish_intent(connection, &staging.id)?.is_none() {
-        let path = staging_path(connection, root, &staging.id)?;
+    if let Some(path) = path {
         harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
         regular(&path)?;
         OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
