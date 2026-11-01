@@ -185,7 +185,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, report previews, capture membership ranges, versioned history projections and query
+or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
 token identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
@@ -217,6 +217,8 @@ before ending; they do not poll a second live-sample history.
 The viewer defaults to 5 min and offers 1 min, 2 min, 5 min, 10 min, 30 min, 1 h
 and All for every plot in the view. Timed windows refresh automatically; All loads
 once and refreshes only when Refresh is pressed. Reports always cover all captured samples.
+All delivers each plot independently from bounded report previews, so one plot's
+failure leaves the others available. Markers follow the display point budget.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

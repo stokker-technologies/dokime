@@ -268,7 +268,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     Ok(())
 }
 
-pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
+pub(crate) fn saved(connection: &Connection) -> Result<SavedData, Error> {
     let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
     let mut rows = statement.query([])?;
     let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;

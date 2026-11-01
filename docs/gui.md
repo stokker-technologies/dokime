@@ -90,27 +90,34 @@ Reports always show the full captured range, render once and omit live controls.
 
 Refresh sits to the left of the window slider and updates every plot in the view.
 Timed windows keep their automatic watch; Refresh requests fresh snapshots
-immediately. All uses one finite `Plots.QuerySnapshots` batch on entry and one
-per button press, without polling, a plot watch or runtime-driven invalidation.
+immediately. All uses one finite `Plots.QuerySnapshots` request per plot on entry
+and per button press, without polling, a plot watch or runtime-driven invalidation.
+Each plot has its own response budget and deadline; completed plots appear while
+others load, and a failed plot leaves the other plots available.
 Visibility, zoom and document updates do not reload All; changed query settings
 apply at the next explicit refresh. There is no background GUI plot prefetch.
 The button shows progress and is disabled while refreshing. Updated hh:mm:ss
 shows the last successful refresh time; failures use Notifications and leave
-that time unchanged. Large All requests can take several seconds.
+that time unchanged.
 
 Live requests retain their display point budget for All (`src/plots/live-data.ts`).
-The backend reduces numeric plots with downsampling and histogram bins in
-`crates/dokime-runtime/src/plot/stored.rs`; complex plots use the disk-backed
-projection in `crates/dokime-runtime/src/plot/payload/spilled/`. These live paths
-still scan the selected raw history before reduction: `native_table` in
-`crates/dokime-runtime/src/plot/stored.rs` pages all selected numeric rows, and
-`query_spilled_plot` in `crates/dokime-runtime/src/runtime/query/plots/mod.rs`
-visits all selected saved samples when no analysis scan budget applies. All
-removes the time predicate, so work grows with run length despite bounded pages
-and output frames. Live queries do not use the incremental report checkpoints;
-multi-day query latency is therefore not bounded by the display point budget.
-Report checkpoints use bounded exact samples, time envelopes and occupancy grids
-in `crates/dokime-runtime/src/plot/preview.rs` and its `index.rs`.
+Declared All plots read the write-time report checkpoints in
+`crates/dokime-runtime/src/plot/preview.rs` and its `index.rs`. Their bounded exact
+samples, time envelopes and occupancy grids avoid repeated full-history scans.
+Checkpoints must match the plot inputs, scope and committed frontier.
+Current All reads capture the checkpoint and frontier in one SQLite snapshot;
+concurrent writes do not cause a raw-history fallback. Explicit historical cuts
+retain their requested frontier. Exact
+analyses refuse captures beyond the exact preview capacity. Markers share the
+display point budget. Exact zoom statistics are unavailable after a preview has
+reduced its raw samples. Timed windows retain their existing raw-query behavior.
+Numeric fields and plain same-stream field expressions use
+`crates/dokime-runtime/src/plot/stored.rs`; other raw projections use
+`crates/dokime-runtime/src/plot/payload/spilled/`. Field expressions with values
+outside the safe integer range retain the typed exact-statistics path.
+Ad hoc queries without a matching
+checkpoint, explicit unbounded queries and older historical frontiers still
+require raw evidence reads.
 
 Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the

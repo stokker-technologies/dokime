@@ -11,6 +11,7 @@
 
 pub(crate) mod analysis;
 mod context;
+mod previews;
 mod request;
 mod stream;
 
@@ -128,7 +129,9 @@ pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let at = runtime.storage().cursor_accepted();
-    query_plot_payloads_at(runtime, requests, mode, &at).await
+    let session = runtime.storage().clone();
+    let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, &at, &session).await?;
+    query_plot_payloads_with_context(&context, runtime, requests, mode, &at, &session, true).await
 }
 
 pub async fn query_plot_payloads_at(
@@ -136,7 +139,7 @@ pub async fn query_plot_payloads_at(
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, at, &session).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session).await
+    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session, false).await
 }
 
 pub async fn query_plot_stream_batches(
@@ -160,9 +163,33 @@ fn plot_payload_context<'a>(
 ) -> PlotPayloadContext<'a> {
     let column =
         |name: &str| -> Option<&TelemetryColumn> { contract?.columns.iter().find(|column| column.metadata.identifier.as_str() == name) };
-    let x_key = request.x_key.as_deref().unwrap_or("timestamp");
+    let x_key = request
+        .x_expression
+        .as_ref()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or(request.x_key.as_deref())
+        .unwrap_or("timestamp");
     let x_format = resolved_format(request.x_format.as_ref(), column(x_key));
-    let series_format = resolved_format(request.y_format.as_ref(), request.y_keys.first().and_then(|key| column(key)));
+    let y_key = request
+        .y_expressions
+        .first()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or_else(|| request.y_keys.first().map(String::as_str));
+    let series_format = resolved_format(request.y_format.as_ref(), y_key.and_then(column));
 
     PlotPayloadContext {
         default_max_points,
@@ -175,7 +202,7 @@ fn plot_payload_context<'a>(
 
 async fn query_plot_payloads_with_context(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, _mode: RuntimePlotQueryMode,
-    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager, current_previews: bool,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let mut completed = Vec::with_capacity(requests.len());
     let mut shared = Vec::<(String, harmos::storage::ReadBatch<PlotPayloadEnvelope>)>::new();
@@ -194,7 +221,10 @@ async fn query_plot_payloads_with_context(
             })?);
             continue;
         }
-        let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
+        let preview = previews::query(context, runtime, &request, at, current_previews).await?;
+        let payload = if preview.is_some() {
+            preview
+        } else if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
             let mut schema_at = at.clone();
             schema_at.sequence = schema_at.sequence.min(session.cursor_saved().sequence);
             let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &schema_at, None, runtime.schema_settings(), |id, _| {
@@ -240,7 +270,7 @@ async fn query_plot_payloads_with_context(
                         )
                         .await?
                     }
-                    None => finish_retained_plot_payload(
+                    None => Some(finish_retained_plot_payload(
                         project_retained_plot_payload(
                             &[],
                             crate::records::view::View::default(),
@@ -249,18 +279,22 @@ async fn query_plot_payloads_with_context(
                             &format,
                         )?,
                         &request,
-                    )?,
+                    )?),
                 };
-                let diagnostics = plot_payload_diagnostics(&payload);
-                Some(payload.try_map(|payload| {
-                    Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
-                        plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
-                        revision: at.sequence,
-                        payload,
-                        diagnostics,
-                        warnings: Vec::new(),
+                payload
+                    .map(|payload| {
+                        let diagnostics = plot_payload_diagnostics(&payload);
+                        payload.try_map(|payload| {
+                            Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
+                                plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
+                                revision: at.sequence,
+                                payload,
+                                diagnostics,
+                                warnings: Vec::new(),
+                            })
+                        })
                     })
-                })?)
+                    .transpose()?
             } else {
                 None
             }

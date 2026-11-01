@@ -83,6 +83,18 @@ pub(crate) fn frame(payload: ReadBatch<PlotPayload>, request: &PlotPayloadReques
 }
 
 pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest) -> Result<PlotPayload> {
+    if payload.max_points > 0 && payload.markers.len() > payload.max_points {
+        let mut selected = super::marker_indices(payload.markers.len(), payload.max_points).into_iter().peekable();
+        let mut index = 0;
+        payload.markers.retain(|_| {
+            let keep = selected.peek() == Some(&index);
+            if keep {
+                selected.next();
+            }
+            index += 1;
+            keep
+        });
+    }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
     for series in &mut payload.series {
         if let Some(selected) = indexes(&series.points, payload.max_points, request.technique, spectrum)? {
@@ -168,3 +180,39 @@ fn memory() -> crate::runtime::Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn marker_reduction() {
+        let request = PlotPayloadRequest::default();
+        let context = super::super::PlotPayloadContext {
+            default_max_points: 31,
+            x_format: None,
+            series_format: None,
+            run_started_at: None,
+            cycle_started_at: None,
+        };
+        let mut payload = project(&[], Default::default(), &request, "", &context).unwrap().as_ref().clone();
+        payload.markers = (0..31)
+            .map(|index| super::super::PlotMarker {
+                x: serde_json::json!(index),
+                label: index.to_string(),
+                record_type: "event".into(),
+                color: "blue".into(),
+            })
+            .collect();
+        for maximum in [1, 2, 7] {
+            let mut candidate = payload.clone();
+            candidate.max_points = maximum;
+            let reduced = frame_owned(candidate, &request).unwrap();
+            assert_eq!(reduced.markers.len(), maximum);
+            if maximum > 1 {
+                assert_eq!(reduced.markers.first().unwrap().x, serde_json::json!(0));
+                assert_eq!(reduced.markers.last().unwrap().x, serde_json::json!(30));
+            }
+        }
+    }
+}
