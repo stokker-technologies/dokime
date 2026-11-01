@@ -67,7 +67,6 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
     parameters: { case: undefined, execution: undefined },
     noteElapsedStart: plan?.test_cycle.started_at ?? null,
     plotWindow: plotWindow.option,
-    plotWindowOverridden: plotWindow.overridden,
     traceabilityExportName: null,
   });
   const pane = evidencePaneState({

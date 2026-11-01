@@ -20,7 +20,7 @@ import { test, vi } from "vitest";
 // Local Imports
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
-import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
+import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import { formatUnitLabel } from "@/lib/format";
 import {
   formatStatValue,
@@ -161,17 +161,36 @@ function histogram(fields: Record<string, unknown>): HistogramDeclaration {
 
 /* === Entry Point === */
 
-test("Configured Plot Windows Preserve Inheritance And All", () => {
-  const options = plotWindowOptions([17, 42]);
+test("Viewer Windows Start With All And Convert Presets", () => {
+  const options = plotWindowOptions([17, 42, 3_600]);
   assert.deepEqual(
     options.map((option) => option.value),
-    [undefined, 17, 42, null],
+    [null, 17, 42, 3_600],
   );
+  assert.equal(options.at(-1)?.label, "1 h");
   const structural = plotWindowOptions([]);
   assert.deepEqual(
     structural.map((option) => option.value),
-    [undefined, null],
+    [null],
   );
+});
+
+test("Window Control Keeps The View Selection And Is Absent From Reports", () => {
+  const selections: { index: number; value: number | null }[] = [];
+  function View({ live, selected = 0 }: { live: boolean; selected?: number }) {
+    const window = usePlotWindow();
+    if (window.index !== selected) window.choose(selected);
+    selections.push({ index: window.index, value: window.option.value });
+    return createElement(PlotWindowControl, { elapsedUnit: null, live, window });
+  }
+  const live = renderToStaticMarkup(createElement(View, { live: true }));
+  assert.match(live, /role="slider"/);
+  assert.deepEqual(selections.at(-1), { index: 0, value: null });
+  const selected = renderToStaticMarkup(createElement(View, { live: true, selected: 2 }));
+  assert.match(selected, /role="slider"/);
+  assert.equal(selections.at(-1)?.index, 2);
+  assert.equal(typeof selections.at(-1)?.value, "number");
+  assert.equal(renderToStaticMarkup(createElement(View, { live: false, selected: 2 })), "");
 });
 
 test("Empty Snapshot", () => {
@@ -338,19 +357,20 @@ test("Slider Selects Storage Query Range", () => {
     fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
     x: "timestamp",
     y: ["voltage"],
-    live_window_s: 60,
     display_points: 100,
   };
   const scope = { test_cycle_id: "cycle" };
-  const declared = plotRequestForDocumentPlot(plot, { scope });
-  const recent = plotRequestForDocumentPlot(plot, { scope, windowS: 10 });
-  const all = plotRequestForDocumentPlot(plot, { scope, windowS: null });
-  assert.equal(declared.windowS, 60);
-  assert.equal(recent.windowS, 10);
-  assert.equal(all.windowS, null);
-  assert.equal(all.maxPoints, recent.maxPoints);
-  assert.deepEqual(all.scope, scope);
-  assert.equal(plot.live_window_s, 60);
+  const plots = [plot, { ...plot, plot_id: "current", y: ["current"] }];
+  for (const definition of plots) {
+    const initial = plotRequestForDocumentPlot(definition, { scope });
+    assert.equal(initial.windowS, null);
+    for (const option of plotWindowOptions([60, 120])) {
+      const request = plotRequestForDocumentPlot(definition, { scope, windowS: option.value });
+      assert.equal(request.windowS, option.value);
+      assert.equal(request.maxPoints, initial.maxPoints);
+      assert.deepEqual(request.scope, scope);
+    }
+  }
 });
 test("Storage Query Snapshots", () => {
   const recent = hostFrame([100, 101], [[2, 3]], { windowS: 30 });

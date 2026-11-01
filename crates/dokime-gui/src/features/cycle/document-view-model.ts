@@ -69,7 +69,6 @@ export type DocumentSurfaceOptions = {
   parameters: DocumentViewOptions["parameters"];
   noteElapsedStart: string | null | undefined;
   plotWindow: PlotWindowOption;
-  plotWindowOverridden: boolean;
   traceabilityExportName?: TraceabilityExportName | null;
 };
 

@@ -79,7 +79,6 @@ pub fn plot_input_for_definition(
         marker_record_types: plot.marker_record_types.clone(),
         reference_lines: plot.reference_lines.clone(),
         reference_bands: plot.reference_bands.clone(),
-        live_window_s: plot.live_window_s,
         display_points: plot.display_points,
         downsample: plot.downsample,
         x_format: plot.x_format.clone(),

@@ -63,7 +63,7 @@ export type PlotCardSpec = {
   stateDetail?: string;
   contextSummary?: string;
   context?: Record<string, unknown>;
-  liveWindowS?: number | null;
+  windowS?: number | null;
   xFormat?: ValueFormat | null;
   /** Set when the x column declares a duration: the axis prints elapsed time. */
   xElapsedUnit?: string | null;

@@ -170,7 +170,6 @@ pub struct PlotPresentation {
     pub histogram: Option<PlotHistogramOptions>,
     pub reference_lines: Vec<PlotReferenceLine>,
     pub reference_bands: Vec<PlotReferenceBand>,
-    pub live_window_s: Option<f64>,
     pub x_format: Option<ValueFormat>,
     pub y_format: Option<ValueFormat>,
 

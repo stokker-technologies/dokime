@@ -214,7 +214,8 @@ Client sample following watches saved storage progress and resumes from delivere
 stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier
 before ending; they do not poll a second live-sample history.
 
-Plot Default uses each plot's authored window; All queries its full saved history.
+The viewer defaults to All and offers 1 min, 2 min, 5 min, 10 min, 30 min and 1 h
+windows for all live plots in the view. Reports always cover all captured samples.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

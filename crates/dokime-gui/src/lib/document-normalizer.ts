@@ -141,7 +141,6 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
       })),
       reference_lines: input.reference_lines,
       reference_bands: input.reference_bands,
-      live_window_s: input.live_window_s,
       display_points: input.display_points,
       downsample: input.downsample,
     });

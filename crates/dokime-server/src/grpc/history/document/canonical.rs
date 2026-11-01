@@ -88,9 +88,6 @@ pub(in crate::grpc) fn wire(
 pub(in crate::grpc) fn historical_plot(
     value: &dokime::document::PlotDefinition, scope: &dokime::domain::model::execution::RecordScope,
 ) -> Result<dokime::domain::model::documents::wire::DocumentPlotDefinition, Status> {
-    if let Some(window) = value.live_window_s {
-        finite(window, "live_window_s")?;
-    }
     let request = dokime::domain::model::plots::wire::PlotRequest {
         analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
         plot_id: Some(value.metadata.identifier.as_str().to_owned()),
@@ -114,7 +111,7 @@ pub(in crate::grpc) fn historical_plot(
         z_field: value.z_field.clone(),
         unit: value.unit.clone(),
         max_points: value.display_points.map(u64::from),
-        window_s: value.live_window_s,
+        window_s: None,
         scope: Some(canonical::scope(scope)?),
         technique: enums::downsample_technique(&value.downsample),
         summary_window: None,
@@ -127,7 +124,6 @@ pub(in crate::grpc) fn historical_plot(
         histogram: Some(histogram_options(&value.histogram)?),
         reference_lines: collect(value.reference_lines.iter().map(reference_line))?,
         reference_bands: collect(value.reference_bands.iter().map(reference_band))?,
-        live_window_s: value.live_window_s,
         x_format: value.x_format.as_ref().map(canonical::value_format),
         y_format: value.y_format.as_ref().map(canonical::value_format),
         x_axis,

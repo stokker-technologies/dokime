@@ -86,7 +86,7 @@ export function DocumentViewPresentation({
         {...shown}
         plotContextTelemetry={view.plotContextTelemetry}
         plotResetKey={options.plotWindow.label}
-        plotWindowS={options.plotWindowOverridden ? options.plotWindow.value : undefined}
+        plotWindowS={options.plotWindow.value}
         renderMode="live"
         scope={options.scope}
       />
