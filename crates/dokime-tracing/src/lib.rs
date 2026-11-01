@@ -258,13 +258,14 @@ fn open() -> std::io::Result<Option<Trace>> {
     std::fs::create_dir_all(directory)?;
     let executable = std::env::current_exe()?;
     let process = executable.file_stem().and_then(|name| name.to_str()).unwrap_or("process");
-    let path = directory.join(format!("{process}-{}.pftrace", std::process::id()));
-    let mut file = File::create(path)?;
+    let epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("system time");
+    let path = directory.join(format!("{process}-{}-{}.pftrace", std::process::id(), epoch.as_nanos()));
+    let mut file = File::options().write(true).create_new(true).open(path)?;
     file.write_all(b"{\"traceEvents\":[]}")?;
     let writer = Writer {
         file,
         started: Instant::now(),
-        epoch: SystemTime::now().duration_since(UNIX_EPOCH).expect("system time").as_secs_f64() * 1_000_000.0,
+        epoch: epoch.as_secs_f64() * 1_000_000.0,
         count: 0,
         next: 0,
         root: None,

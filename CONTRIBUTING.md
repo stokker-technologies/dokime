@@ -190,7 +190,9 @@ mise run test:rust:integration -- --select 'test(=retained_evidence::retained_ev
 
 Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
 `target/test-reports/<category>-<language>/traces/`. Native tests, desktop stories
-and inherited application/sidecar processes write `<process>-<pid>.pftrace` files.
+and inherited application/sidecar processes write `<process>-<pid>-<opened>.pftrace`
+files. The opening-time suffix and exclusive creation preserve earlier traces when
+the operating system reuses a process ID.
 Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
 Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
 Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or

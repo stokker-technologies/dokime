@@ -58,6 +58,7 @@ fn payload_free_export() {
     }
     let temporary = tempfile::tempdir().unwrap();
     let directory = std::env::var_os("DOKIME_TEST_TRACE_DIR").map(std::path::PathBuf::from).unwrap_or_else(|| temporary.path().to_owned());
+    let existing = std::fs::read_dir(&directory).unwrap().map(|entry| entry.unwrap().path()).collect::<std::collections::BTreeSet<_>>();
     let executable = std::env::current_exe().unwrap();
     let child = dokime_domain::process::command(&executable)
         .args(["--exact", "process_export::payload_free_export", "--nocapture"])
@@ -71,7 +72,18 @@ fn payload_free_export() {
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let process = executable.file_stem().unwrap().to_str().unwrap();
-    let text = std::fs::read_to_string(directory.join(format!("{process}-{pid}.pftrace"))).unwrap();
+    let prefix = format!("{process}-{pid}-");
+    let paths = std::fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            !existing.contains(path)
+                && path.file_name().unwrap().to_string_lossy().starts_with(&prefix)
+                && path.extension().is_some_and(|extension| extension == "pftrace")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 1);
+    let text = std::fs::read_to_string(&paths[0]).unwrap();
     assert!(!text.contains("fixture-private-payload"));
     let trace: serde_json::Value = serde_json::from_str(&text).unwrap();
     let events = trace["traceEvents"].as_array().unwrap();
