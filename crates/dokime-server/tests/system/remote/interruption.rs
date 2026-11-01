@@ -20,6 +20,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
+    sync::{Arc, Mutex},
 };
 
 // Third Party Imports
@@ -66,6 +67,14 @@ struct Outcome {
     success: bool,
     triggered: bool,
     text: String,
+}
+
+struct TerminalOutput {
+    text: String,
+    execution: Option<TestExecutionId>,
+    native_input: bool,
+    cancellation_requested: bool,
+    batch_prompt: bool,
 }
 
 struct Proxy {
@@ -590,9 +599,11 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let reader = pair.master.try_clone_reader().unwrap();
     let writer = pair.master.take_writer().unwrap();
     let marker = marker.to_owned();
+    let transcript = Arc::new(Mutex::new(Vec::new()));
+    let captured = transcript.clone();
     let mut killer = process.child.clone_killer();
     let read = std::thread::spawn(move || {
-        let result = read_terminal(reader, writer, &marker, action, runtime);
+        let result = read_terminal(reader, writer, &marker, action, runtime, captured);
         if result.is_err() {
             let _ = killer.kill();
         }
@@ -622,7 +633,11 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let joined = result.recv_timeout(std::time::Duration::from_secs(30));
     let (text, triggered) = match joined {
         Ok(joined) => joined.unwrap().unwrap(),
-        Err(_) => panic!("the remote script exceeded {SCRIPT_DEADLINE:?} and its terminal stayed open after the process tree was killed"),
+        Err(_) => {
+            let transcript = transcript.lock().unwrap();
+            let output = terminal_output(&transcript);
+            panic!("the terminal reader did not finish after script exit; watchdog expired: {expired}\n{}", output.text);
+        }
     };
     assert!(
         !expired,
@@ -648,6 +663,7 @@ fn kill_tree(root: u32) {
 
 fn read_terminal(
     mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>, marker: &str, action: Action, runtime: tokio::runtime::Handle,
+    transcript: Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<(String, bool)> {
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
@@ -665,6 +681,7 @@ fn read_terminal(
             Ok(count) => count,
         };
         bytes.extend_from_slice(&buffer[..count]);
+        transcript.lock().unwrap().extend_from_slice(&buffer[..count]);
         if bytes.len() > 4 * 1024 * 1024 {
             return Err(std::io::Error::other("remote script terminal output exceeded its budget"));
         }
@@ -674,24 +691,21 @@ fn read_terminal(
             writer.flush()?;
             cursors += 1;
         }
-        let text = String::from_utf8_lossy(&bytes);
-        let execution = text
-            .lines()
-            .filter_map(|line| line.strip_prefix("Execution: "))
-            .filter_map(|line| line.split_whitespace().next())
-            .find_map(|id| TestExecutionId::from_uuid(id).ok());
+        let output = terminal_output(&bytes);
+        let text = &output.text;
+        let execution = output.execution;
         let selected = execution.is_some() || gate.is_some();
         if !triggered && text.contains(marker) && selected {
             match action.take().unwrap() {
                 Action::Interrupt(client) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
-                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
+                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
                 }
                 Action::InterruptOnSample(client) => {
                     let id = execution.unwrap();
                     runtime.block_on(admitted(&client, id.clone()));
                     runtime.block_on(first_sample(&client, id));
-                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
+                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
                 }
                 Action::Disconnect(client, disconnect) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
@@ -700,31 +714,26 @@ fn read_terminal(
                 Action::InterruptAt(gate) => {
                     let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(120), gate.reached.cancelled()).await };
                     runtime.block_on(waiting).map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
-                    terminal_key(&mut writer, &text, TerminalKey::Interrupt)?;
+                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
                 }
             }
             triggered = true;
         }
-        let cancellation_requested = triggered && text.contains("Cancellation Requested");
+        let cancellation_requested = triggered && output.cancellation_requested;
         if cancellation_requested && let Some(gate) = &gate {
             gate.released.cancel();
         }
-        if !continued && text.contains("Terminate batch job (Y/N)? ") {
-            terminal_key(&mut writer, &text, TerminalKey::ContinueBatch)?;
+        if !continued && output.batch_prompt {
+            terminal_key(&mut writer, output.native_input, TerminalKey::ContinueBatch)?;
             eprintln!("Batch Termination Prompt Acknowledged");
             continued = true;
         }
     }
-    let text = String::from_utf8_lossy(&bytes);
-    let plain = anstream::adapter::strip_str(&text).to_string();
-    let text = plain.replace("\r\n", "\n");
-    Ok((text, triggered))
+    Ok((terminal_output(&bytes).text, triggered))
 }
 
-fn terminal_key(writer: &mut dyn Write, output: &str, key: TerminalKey) -> std::io::Result<()> {
-    let enabled = output.rfind("\x1b[?9001h");
-    let disabled = output.rfind("\x1b[?9001l");
-    let native = cfg!(windows) && enabled.is_some_and(|enabled| disabled.is_none_or(|disabled| enabled > disabled));
+fn terminal_key(writer: &mut dyn Write, native_input: bool, key: TerminalKey) -> std::io::Result<()> {
+    let native = cfg!(windows) && native_input;
     let bytes: &[u8] = match (key, native) {
         (TerminalKey::Interrupt, false) => b"\x03",
         (TerminalKey::ContinueBatch, false) => b"N\r",
@@ -734,6 +743,26 @@ fn terminal_key(writer: &mut dyn Write, output: &str, key: TerminalKey) -> std::
     };
     writer.write_all(bytes)?;
     writer.flush()
+}
+
+fn terminal_output(bytes: &[u8]) -> TerminalOutput {
+    let raw = String::from_utf8_lossy(bytes);
+    let plain = anstream::adapter::strip_str(&raw).to_string();
+    let text = plain.replace("\r\n", "\n");
+    let enabled = raw.rfind("\x1b[?9001h");
+    let disabled = raw.rfind("\x1b[?9001l");
+    let execution = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("Execution: "))
+        .filter_map(|line| line.split_whitespace().next())
+        .find_map(|id| TestExecutionId::from_uuid(id).ok());
+    TerminalOutput {
+        execution,
+        native_input: enabled.is_some_and(|enabled| disabled.is_none_or(|disabled| enabled > disabled)),
+        cancellation_requested: text.contains("Cancellation Requested"),
+        batch_prompt: text.contains("Terminate batch job (Y/N)?"),
+        text,
+    }
 }
 
 async fn first_sample(client: &Client, id: TestExecutionId) {
@@ -774,3 +803,20 @@ async fn admitted(client: &Client, id: TestExecutionId) {
 }
 
 /* === Tests === */
+
+#[test]
+fn terminal_protocol_preserves_identity_and_input_negotiation() {
+    let id = "1b7847e4-3351-4ea9-9f77-59c549da8de9";
+    let mut bytes = b"\x1b[?9001h\x1b[32mExecution: \x1b[0m".to_vec();
+    bytes.extend_from_slice(&id.as_bytes()[..12]);
+    assert!(terminal_output(&bytes).execution.is_none());
+    bytes.extend_from_slice(&id.as_bytes()[12..]);
+    bytes.extend_from_slice(b"\r\n\x1b[33mCancellation Requested\x1b[0m\r\nTerminate batch job (Y/N)?");
+    let output = terminal_output(&bytes);
+    assert_eq!(output.execution, Some(TestExecutionId::from_uuid(id).unwrap()));
+    assert!(output.native_input);
+    assert!(output.cancellation_requested);
+    assert!(output.batch_prompt);
+    bytes.extend_from_slice(b"\x1b[?9001l");
+    assert!(!terminal_output(&bytes).native_input);
+}
