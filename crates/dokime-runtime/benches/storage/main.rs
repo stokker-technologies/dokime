@@ -10,14 +10,11 @@
 /* === Modules === */
 
 mod contention;
-mod directories;
 mod files;
-mod filesystem;
 mod fixture;
 mod ingestion;
 mod metrics;
 mod query;
-mod transforms;
 mod waveforms;
 
 /* === Re-Exports === */
@@ -222,10 +219,7 @@ fn main() {
     group.finish();
     ingestion::run(&mut criterion, &executor);
     query::run(&mut criterion, &executor);
-    transforms::run(&mut criterion, &executor);
     files::run(&mut criterion, &executor);
-    filesystem::run(&mut criterion, &executor);
-    directories::run(&mut criterion, &executor);
     contention::run(&mut criterion, &executor);
     criterion.final_summary();
 }
