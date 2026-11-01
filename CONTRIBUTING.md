@@ -34,12 +34,13 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
-The report, frontend, desktop and TypeScript checks/tests depend on `prepare:generated`,
-which builds the contract generator and server export before generating their modules.
-Use `mise run prepare:generated -- --write` to refresh tracked Python and TypeScript clients;
-ordinary preparation checks them. Generation uses the dev compiler profile independently
-of the requested Product profile. CI lanes restore the matching Product modules and skip
-this producer instead of compiling again.
+The report and TypeScript checks/tests depend on `prepare:generated`, which builds the
+contract generator and server export with the dev compiler profile before generating their
+modules. Product builds compile against the committed report and generate the frontend's
+modules from their own `cargo-dokime`, so `mise run build:typescript` follows
+`mise run build:rust`. Use `mise run prepare:generated -- --write` to refresh tracked Python
+and TypeScript clients; ordinary preparation checks them. CI lanes restore the matching
+Product modules and skip this producer instead of compiling again.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package:rust`
