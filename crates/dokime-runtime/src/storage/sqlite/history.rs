@@ -109,6 +109,23 @@ pub(super) struct Plan {
 /* === Implementations === */
 
 impl State {
+    pub(crate) async fn history_cycle_case_count(&self, cycle: String) -> Result<u64, Error> {
+        self.read(move |connection| {
+            connection.query_row(
+                "SELECT COUNT(DISTINCT json_extract(h.body,'$.case_id')) FROM query_history h INDEXED BY query_history_cycle
+             WHERE h.kind='execution' AND h.cycle=?1 AND NOT EXISTS(
+                     SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
+                 AND EXISTS(SELECT 1 FROM query_members m WHERE m.cycle=?1 AND m.execution=h.id
+                     AND m.position=(SELECT c.position FROM query_history c WHERE c.kind='cycle' AND c.id=?1
+                         ORDER BY c.revision DESC LIMIT 1))",
+                [cycle],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .await
+        .map(|count| count as u64)
+    }
+
     pub(crate) async fn history_revision(&self) -> Result<i64, Error> {
         self.read(|connection| connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get(0))).await
     }

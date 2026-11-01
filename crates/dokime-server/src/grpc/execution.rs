@@ -50,8 +50,7 @@ use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::Error;
 use dokime::runtime::RuntimeState;
 use dokime::runtime::query::{
-    CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, case_projection, case_tally, cycle_page,
-    historical_case_projection, select_cycles,
+    CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, case_projection, case_tally, historical_case_projection,
 };
 
 /* === Constants === */
@@ -161,38 +160,46 @@ impl Serve<wire::ListExecutions> for Resources {
 impl Resources {
     async fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
         let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot))?;
         inspection_reply(self, value)
     }
 
     async fn list_cycles(&self, request: &wire::ListCycles) -> Result<dokime::domain::model::execution::wire::ListCyclesReply, Status> {
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
+        let snapshot = runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_cycle_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let filter = cycle_filter(request.filter.as_ref())?;
         let order = cycle_order(request.order.as_ref());
-        let selected = select_cycles(snapshot.state(), &filter, order);
         let after = if request.after_cycle_id.is_empty() {
             None
         } else {
             cycle_id(&request.after_cycle_id)?;
             Some(request.after_cycle_id.as_str())
         };
-        let (page, next_after_cycle_id) = cycle_page(&selected, after, limit).map_err(|error| match error {
-            CyclePageError::UnknownContinuation => Status::invalid_argument(error.to_string()),
-        })?;
+        let page = runtime.list_cycle_headers(snapshot.state(), &filter, order, after, limit).await.map_err(status)?;
 
-        let mut cycles = canonical::slots(page.len())?;
-        for cycle in page {
-            cycles.push(summary(snapshot.state(), cycle, cursor.clone())?);
+        let mut cycles = canonical::slots(page.cycles.len())?;
+        for entry in page.cycles {
+            let state = snapshot.state();
+            let tally =
+                if state.cycles.contains_key(&entry.cycle.test_cycle_id) { case_tally(state, &entry.cycle) } else { Default::default() };
+            let cycle = cycle_summary(
+                &entry.cycle,
+                entry.case_count,
+                tally,
+                state.archived_cycles.contains(&entry.cycle.test_cycle_id),
+                cursor.clone(),
+            )?;
+            cycles.push(cycle);
         }
         inspection_reply(
             self,
             dokime::domain::model::execution::wire::ListCyclesReply {
                 cycles,
-                next_after_cycle_id,
+                next_after_cycle_id: page.next,
                 cursor: Some(cursor),
             },
         )
@@ -200,7 +207,7 @@ impl Resources {
 
     async fn list_cases(&self, request: &wire::ListCases) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_case_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
@@ -212,7 +219,7 @@ impl Resources {
         &self, request: &wire::ListExecutions,
     ) -> Result<dokime::domain::model::execution::wire::ListExecutionsReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.watch_state().latest();
+        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_execution_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
         let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
@@ -289,6 +296,13 @@ pub(super) fn summary(
     state: &RuntimeState, cycle: &dokime::domain::model::execution::result::TestCycle, cursor: Cursor,
 ) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
     let tally = case_tally(state, cycle);
+    cycle_summary(cycle, state.cases_for_cycle(cycle).count() as u64, tally, state.archived_cycles.contains(&cycle.test_cycle_id), cursor)
+}
+
+fn cycle_summary(
+    cycle: &dokime::domain::model::execution::result::TestCycle, case_count: u64, tally: dokime::runtime::query::CaseTally, archived: bool,
+    cursor: Cursor,
+) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
     Ok(dokime::domain::model::execution::wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
         metadata: Some(canonical::metadata(&cycle.metadata)?),
@@ -303,9 +317,9 @@ pub(super) fn summary(
             CycleStatus::Blocked => dokime::domain::model::execution::wire::CycleStatus::Blocked,
             CycleStatus::Stopped => dokime::domain::model::execution::wire::CycleStatus::Stopped,
         },
-        archived: state.archived_cycles.contains(&cycle.test_cycle_id),
+        archived,
         sealed: cycle.saved.is_some(),
-        case_count: state.cases_for_cycle(cycle).count() as u64,
+        case_count,
         execution_count: cycle.execution_ids.len() as u64,
         continue_automatically: cycle.continue_automatically,
         observed_cursor: Some(cursor),

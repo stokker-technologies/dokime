@@ -30,6 +30,22 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+## Cycle Lists And Restart Recovery
+
+The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
+current live cycles and durable sealed cycle headers as one list, with the same
+filter, ordering and continuation rules. A live cycle supersedes its saved
+checkpoint; each cycle appears once. Recent cycles remain visible after starting
+another cycle or restarting the desktop. Archive selection applies to both sources.
+
+`state.json` and `state.jsonl` under the data root recover current work. Sealed
+cycles are retired from that state to keep checkpoints bounded; their durable
+history remains the source for subsequent reads. Startup marks unfinished
+executions Interrupted, records the restart reason, and closes admission to their
+cycles before accepting new work. Interrupted cycles report Stopped. Pending
+report finalization resumes from its frozen terminal header; a failed seal stays
+retryable without reporting Running.
+
 ## Keyboard Focus And Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
