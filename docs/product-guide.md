@@ -1157,6 +1157,9 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
+Generated projects lock tools for Linux x64 and Windows x64, matching the
+published native authoring executables.
+
 Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
 bundle. For a build system that already compiled the plugin, collect its Cargo
 JSON and metadata, then assemble those exact executables:
