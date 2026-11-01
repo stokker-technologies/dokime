@@ -111,6 +111,7 @@ export function ExecutionSections({
     parameters: { case: row.case.testCase?.parameters, execution: execution?.parameters },
     noteElapsedStart: started?.started_at ?? plan?.test_cycle.started_at ?? null,
     plotWindow: plotWindow.option,
+    plotRefresh: plotWindow.refresh,
     traceabilityExportName: plan ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal } : null,
   });
 

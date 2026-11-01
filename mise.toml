@@ -213,9 +213,12 @@ run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 [tasks."check:typescript:generated"]
 description = "Check The Generated TypeScript Client"
 depends = ["prepare:generated"]
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--source" help="Check freshly prepared bindings instead of staged Product artifacts"
+'''
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{% if not usage.source %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   "{{vars.tools}} dokime_tools.prepare.resources --check",
   "pnpm --dir crates/dokime-gui run typecheck",
   "pnpm --dir crates/dokime-gui exec biome lint --config-path=biome.json --vcs-use-ignore-file=false ../../target/generated/typescript",

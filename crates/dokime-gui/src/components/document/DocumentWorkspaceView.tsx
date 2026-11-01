@@ -108,6 +108,7 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
     plots: liveDocumentPlots,
     scope: props.scope,
     windowS: props.plotWindowS,
+    refresh: props.plotRefresh,
   });
 
   return (
