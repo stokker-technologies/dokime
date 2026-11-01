@@ -15,6 +15,7 @@
 import asyncio
 import json
 import sys
+import traceback
 from collections import Counter
 from pathlib import Path
 
@@ -217,4 +218,5 @@ if __name__ == "__main__":
         raise SystemExit(130)
     except (DokimeError, OSError, ValueError, TimeoutError, ExceptionGroup) as error:
         print(f"Workflow Incomplete: {error}. Inspect The Printed Identities Before Resubmitting", file=sys.stderr)
+        traceback.print_exception(error)
         raise SystemExit(1)
