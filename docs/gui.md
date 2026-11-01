@@ -67,10 +67,20 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
-The live viewer owns the time window for all plots in its view. All is the
-default; presets are 1 min, 2 min, 5 min, 10 min, 30 min and 1 h. Selection stays
-with that view across rerenders. Plot definitions carry no time window. Reports
-always show the full captured range and omit the window control.
+The live viewer owns the time window for all plots in its view. The options are
+1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
+stays with that view across rerenders. Plot definitions carry no time window.
+Reports always show the full captured range, render once and omit live controls.
+
+Refresh sits to the left of the window slider and updates every plot in the view.
+Timed windows keep their automatic watch; Refresh requests fresh snapshots
+immediately. All uses one finite `Plots.QuerySnapshots` batch on entry and one
+per button press, without polling, a plot watch or runtime-driven invalidation.
+Visibility, zoom and document updates do not reload All; changed query settings
+apply at the next explicit refresh. There is no background GUI plot prefetch.
+The button shows progress and is disabled while refreshing. Updated hh:mm:ss
+shows the last successful refresh time; failures use Notifications and leave
+that time unchanged. Large All requests can take several seconds.
 
 Live requests retain their display point budget for All (`src/plots/live-data.ts`).
 The backend reduces numeric plots with downsampling and histogram bins in
@@ -98,6 +108,10 @@ the captured column schema to select this presentation.
 
 ## Canonical Bindings And Transport
 
+- `mise run check:typescript:generated --source` checks locally prepared bindings
+  and GUI types. Without `--source`, the generated check restores staged Product
+  bindings for artifact validation. `mise run check:typescript` owns formatting
+  and lint.
 - Rust `dokime-operations` declarations own operation contracts and
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
