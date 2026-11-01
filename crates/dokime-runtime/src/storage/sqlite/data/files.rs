@@ -201,9 +201,9 @@ impl State {
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
                 super::super::commit(transaction)?;
-                // Installation Already Moved The Source Durably. Only Reusing
-                // Existing Content Leaves A Separate Staging File To Remove.
-                if present {
+                // Installation May Move Or Link The Source. Remove A Remaining
+                // Link; Reused Content Also Confirms Any Earlier Cleanup Retry.
+                if present || regular(&source)? {
                     remove(&source)?;
                 }
                 Ok(reference)
