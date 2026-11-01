@@ -38,7 +38,6 @@ pub use upload_artifact::UploadArtifact;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
@@ -73,42 +72,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for DownloadAppearanceAsset {
-    const PATH: &'static str = "/dokime.v1.Content/DownloadAppearanceAsset";
-}
-
-impl Endpoint for DownloadEvidence {
-    const PATH: &'static str = "/dokime.v1.Content/DownloadEvidence";
-}
-
-impl Endpoint for ListExecutionFiles {
-    const PATH: &'static str = "/dokime.v1.Content/ListExecutionFiles";
-}
-
-impl Endpoint for ReadExecutionFile {
-    const PATH: &'static str = "/dokime.v1.Content/ReadExecutionFile";
-}
-
-impl Endpoint for DownloadExecutionFile {
-    const PATH: &'static str = "/dokime.v1.Content/DownloadExecutionFile";
-}
-
-impl Endpoint for FollowExecutionFile {
-    const PATH: &'static str = "/dokime.v1.Content/FollowExecutionFile";
-}
-
-impl Endpoint for ListArtifacts {
-    const PATH: &'static str = "/dokime.v1.Content/ListArtifacts";
-}
-
-impl Endpoint for DownloadArtifact {
-    const PATH: &'static str = "/dokime.v1.Content/DownloadArtifact";
-}
-
-impl Endpoint for UploadArtifact {
-    const PATH: &'static str = "/dokime.v1.Content/UploadArtifact";
-}
 
 /* === Public Functions === */
 

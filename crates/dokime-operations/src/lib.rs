@@ -46,13 +46,9 @@ pub mod telemetry;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::catalog::Member;
-use harmos::catalog::Visitor;
 use harmos::operations::OperationDeclaration;
 use harmos::operations::OperationPolicy;
 use harmos::operations::RetryPolicy;
-use harmos::operations::WireDeclaration;
-use harmos::schema::Described;
 
 // Local Imports
 
@@ -80,19 +76,30 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 // Inside An `ORDINARY` Stop With Room To Save The Evidence; The Desktop And Server Stops Build On It.
 pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 
+// Operations A Remote Listener Never Serves: They Reach The Host's Filesystem, Screen,
+// Camera, Microphone Or Listener Settings. A Remote Call's Loopback Address Grants No Native Trust.
+pub const LOCAL_ONLY: &[&str] = &[
+    <files::FileWatch as OperationDeclaration>::ID,
+    <media::Screenshot as OperationDeclaration>::ID,
+    <media::Photo as OperationDeclaration>::ID,
+    <media::AudioRecording as OperationDeclaration>::ID,
+    <media::ScreenRecording as OperationDeclaration>::ID,
+    <media::CameraRecording as OperationDeclaration>::ID,
+    <remote::ReadListener as OperationDeclaration>::ID,
+    <remote::UpdateListener as OperationDeclaration>::ID,
+    <remote::CreatePairing as OperationDeclaration>::ID,
+    <remote::ListPairedClients as OperationDeclaration>::ID,
+    <remote::RevokePairedClient as OperationDeclaration>::ID,
+    <remote::ListSessions as OperationDeclaration>::ID,
+    <remote::RegenerateCertificate as OperationDeclaration>::ID,
+    <remote::RenamePairedClient as OperationDeclaration>::ID,
+];
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-
-pub struct Endpoints;
-
-pub struct Declaration {
-    pub path: &'static str,
-    pub local_only: bool,
-    pub wire: WireDeclaration,
-}
 
 /* === Enums === */
 
@@ -171,36 +178,18 @@ pub enum Operations {
 
 /* === Traits === */
 
-// Public Transport Binding And Its Native-Only Boundary.
-pub trait Endpoint: OperationDeclaration {
-    const PATH: &'static str;
-    // Native Listener Trust Never Comes From A Remote Call's Loopback Address.
-    const LOCAL_ONLY: bool = false;
-}
-
 /* === Implementations === */
 
-impl Endpoint for harmos::builtins::host::Catalog {
-    const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
-}
-
-impl Visitor for Endpoints {
-    type Entry = Declaration;
-}
-
-impl<O> Member<O> for Endpoints
-where
-    O: Endpoint,
-    O::Response: Described,
-{
-    const ENTRY: Declaration = Declaration {
-        path: O::PATH,
-        local_only: O::LOCAL_ONLY,
-        wire: WireDeclaration::of::<O>(),
-    };
-}
-
 /* === Public Functions === */
+
+/// The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
+pub fn path<O: OperationDeclaration>() -> String {
+    O::GRPC.expect("product operations declare their gRPC binding").path()
+}
+
+pub fn local_only(id: &str) -> bool {
+    LOCAL_ONLY.contains(&id)
+}
 
 /* === Private Functions === */
 

@@ -19,7 +19,6 @@
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result};
-use dokime_operations::Endpoint;
 use dokime_operations::catalog;
 
 /* === Constants === */
@@ -75,14 +74,14 @@ impl Client {
 
     async fn suite_page(&self, request: &catalog::ListSuites) -> Result<dokime_domain::model::catalog::wire::ListSuitesReply> {
         self.verify(true).await?;
-        let page = self.unary::<catalog::ListSuites>(catalog::ListSuites::PATH, request.clone()).await?;
+        let page = self.unary::<catalog::ListSuites>(request.clone()).await?;
         let page = super::transport::value(page)?;
         validate_page(&self.backend().epoch, request, &page)?;
         Ok(page)
     }
 
     async fn definition(&self, request: catalog::GetSuite) -> Result<dokime_domain::model::catalog::wire::SuiteDefinition> {
-        let reply = self.unary::<catalog::GetSuite>(catalog::GetSuite::PATH, request).await?;
+        let reply = self.unary::<catalog::GetSuite>(request).await?;
         super::transport::value(reply)
     }
 

@@ -26,7 +26,6 @@ pub use materialize_report::MaterializeReport;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::TRANSFER;
 
 use dokime_domain::model::reports::wire::*;
@@ -51,18 +50,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for MaterializeReport {
-    const PATH: &'static str = "/dokime.v1.Reports/MaterializeReport";
-}
-
-impl Endpoint for DownloadCycleReport {
-    const PATH: &'static str = "/dokime.v1.Reports/DownloadCycleReport";
-}
-
-impl Endpoint for DownloadExecutionReport {
-    const PATH: &'static str = "/dokime.v1.Reports/DownloadExecutionReport";
-}
 
 /* === Public Functions === */
 

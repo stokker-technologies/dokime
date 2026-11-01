@@ -28,7 +28,6 @@ pub use list_notes::ListNotes;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::ORDINARY;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 
@@ -57,22 +56,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListNotes {
-    const PATH: &'static str = "/dokime.v1.Notes/ListNotes";
-}
-
-impl Endpoint for CreateNote {
-    const PATH: &'static str = "/dokime.v1.Notes/CreateNote";
-}
-
-impl Endpoint for EditNote {
-    const PATH: &'static str = "/dokime.v1.Notes/EditNote";
-}
-
-impl Endpoint for ListHealth {
-    const PATH: &'static str = "/dokime.v1.Health/ListHealth";
-}
 
 /* === Public Functions === */
 

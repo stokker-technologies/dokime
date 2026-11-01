@@ -35,7 +35,7 @@ use tonic::{
     transport::{Identity, Server, ServerTlsConfig},
 };
 // Local Imports
-use dokime::client::contracts::{Endpoint, backend, plugins, runtime};
+use dokime::client::contracts::{backend, plugins, runtime};
 use dokime::client::secrets::{Error as SecretError, SecretStore};
 use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
@@ -151,10 +151,10 @@ impl Service {
                 "/dokime.v1.Backend/GetIdentity".into(),
                 "/dokime.v1.Backend/GetHealth".into(),
                 "/dokime.v1.Backend/GetAvailability".into(),
-                runtime::GetIdentity::PATH.into(),
-                runtime::GetHealth::PATH.into(),
+                "/dokime.v1.Runtime/GetIdentity".into(),
+                "/dokime.v1.Runtime/GetHealth".into(),
                 #[cfg(feature = "testing")]
-                dokime::client::contracts::content::DownloadArtifact::PATH.into(),
+                "/dokime.v1.Content/DownloadArtifact".into(),
             ],
             token: None,
             requests: Arc::default(),
@@ -414,10 +414,10 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                backend::GetIdentity::PATH => serve_unary::<backend::GetIdentity>(service, request).await,
-                backend::GetHealth::PATH => serve_unary::<backend::GetHealth>(service, request).await,
-                backend::GetAvailability::PATH => serve_unary::<backend::GetAvailability>(service, request).await,
-                backend::WatchLogs::PATH => {
+                "/dokime.v1.Backend/GetIdentity" => serve_unary::<backend::GetIdentity>(service, request).await,
+                "/dokime.v1.Backend/GetHealth" => serve_unary::<backend::GetHealth>(service, request).await,
+                "/dokime.v1.Backend/GetAvailability" => serve_unary::<backend::GetAvailability>(service, request).await,
+                "/dokime.v1.Backend/WatchLogs" => {
                     wire_codec::<backend::WatchLogs, dokime::harmos::operations::Response<LogEnvelope>>()
                         .server()
                         .server_streaming(Logs(service), request)
@@ -443,7 +443,7 @@ impl tonic::codegen::Service<HttpRequest> for PluginsService {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                plugins::Install::PATH => {
+                "/dokime.v1.Plugins/Install" => {
                     wire_codec::<UploadEnvelope, dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>>()
                         .server()
                         .client_streaming(Upload(service), request)
@@ -473,8 +473,8 @@ impl tonic::codegen::Service<HttpRequest> for RuntimeService {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                runtime::GetIdentity::PATH => serve_unary::<runtime::GetIdentity>(service, request).await,
-                runtime::GetHealth::PATH => serve_unary::<runtime::GetHealth>(service, request).await,
+                "/dokime.v1.Runtime/GetIdentity" => serve_unary::<runtime::GetIdentity>(service, request).await,
+                "/dokime.v1.Runtime/GetHealth" => serve_unary::<runtime::GetHealth>(service, request).await,
                 _ => Status::unimplemented("unused test route").into_http(),
             };
             Ok(response)
@@ -527,7 +527,7 @@ pub async fn server_health(endpoint: &str) -> model::backend::wire::BackendHealt
     let reply = client
         .unary(
             Request::new(dokime::harmos::operations::Response::new(backend::GetHealth {})),
-            tonic::codegen::http::uri::PathAndQuery::from_static(backend::GetHealth::PATH),
+            tonic::codegen::http::uri::PathAndQuery::from_static("/dokime.v1.Backend/GetHealth"),
             wire_codec::<model::backend::wire::BackendHealth, dokime::harmos::operations::Response<backend::GetHealth>>(),
         )
         .await

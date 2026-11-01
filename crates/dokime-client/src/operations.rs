@@ -36,8 +36,6 @@ const CATALOG_PAGE_BYTES: u64 = 4_194_304;
 const CATALOG_PAGE_ROWS: u64 = 64;
 const CATALOG_ROWS: u64 = 4_096;
 
-const CATALOG_PATH: &str = "/harmos.host.v1.Host/Catalog";
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -88,16 +86,13 @@ impl Client {
         let mut after = None;
         let mut bytes = 0usize;
         loop {
-            let request = self.unary::<Catalog>(
-                CATALOG_PATH,
-                Catalog {
-                    kind: CatalogKind::Operations,
-                    schema: None,
-                    after,
-                    rows: Some(page_rows),
-                    bytes: Some(page_bytes),
-                },
-            );
+            let request = self.unary::<Catalog>(Catalog {
+                kind: CatalogKind::Operations,
+                schema: None,
+                after,
+                rows: Some(page_rows),
+                bytes: Some(page_bytes),
+            });
             let page = match deadline {
                 Some(deadline) => tokio::time::timeout_at(deadline, request)
                     .await
@@ -143,25 +138,24 @@ impl Client {
     }
 
     pub async fn health(&self) -> ClientResult<StreamItem<Health>> {
-        self.unary::<GetHealth>(GetHealth::PATH, GetHealth {}).await
+        self.unary::<GetHealth>(GetHealth {}).await
     }
 
     pub async fn identity(&self) -> ClientResult<StreamItem<Identity>> {
-        self.unary::<GetIdentity>(GetIdentity::PATH, GetIdentity {}).await
+        self.unary::<GetIdentity>(GetIdentity {}).await
     }
 
-    pub(super) async fn unary<O>(&self, path: &'static str, message: O::Request) -> ClientResult<StreamItem<O::Response>>
+    pub(super) async fn unary<O>(&self, message: O::Request) -> ClientResult<StreamItem<O::Response>>
     where
         O: OperationDeclaration,
         O::Request: Sync,
         O::Response: Portable + MemorySize,
     {
-        self.require(path)?;
+        self.require(&dokime_operations::path::<O>())?;
         self.execute(async {
-            super::transport::unary::<O::Response, O::Request>(
+            super::transport::unary::<O>(
                 self.channel().map_err(|error| tonic::Status::cancelled(error.to_string()))?,
                 self.inner.authorization.as_ref(),
-                path,
                 message,
                 self.response_limit(),
                 self.request_limit(),

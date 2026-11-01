@@ -264,13 +264,13 @@ impl WireClient {
 
     pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O>) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
-        O: contracts::Endpoint,
+        O: dokime::harmos::operations::OperationDeclaration,
         O: dokime::harmos::domain::Portable + Sync,
         O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
     {
         let request = request.into_request().map(dokime::harmos::operations::Response::new);
         let codec = self.codec::<O::Response, O>()?;
-        let response = self.grpc().await?.unary(request, O::PATH.parse().unwrap(), codec).await?;
+        let response = self.grpc().await?.unary(request, dokime::operations::path::<O>().parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;
         Ok(tonic::Response::from_parts(metadata, value, extensions))
@@ -281,7 +281,7 @@ impl WireClient {
         &self, request: Request<O>, field: &str, unknown_variant: bool,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
-        O: contracts::Endpoint,
+        O: dokime::harmos::operations::OperationDeclaration,
         O: dokime::harmos::domain::Portable + dokime::harmos::schema::Described + Sync,
         O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
         E: dokime::harmos::schema::Described,
@@ -322,7 +322,7 @@ impl WireClient {
             bytes
         });
         let codec = WireBytes { codec: self.codec::<O::Response, ()>()? };
-        let response = self.grpc().await?.unary(request, O::PATH.parse().unwrap(), codec).await?;
+        let response = self.grpc().await?.unary(request, dokime::operations::path::<O>().parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;
         Ok(tonic::Response::from_parts(metadata, value, extensions))
@@ -332,7 +332,7 @@ impl WireClient {
         &self, request: impl tonic::IntoRequest<O>,
     ) -> Result<tonic::Response<WireStream<<O::Output as dokime::harmos::operations::Direction>::Item>>, tonic::Status>
     where
-        O: contracts::Endpoint,
+        O: dokime::harmos::operations::OperationDeclaration,
         O: dokime::harmos::domain::Portable + Sync,
         O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
         <O::Output as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
@@ -341,7 +341,7 @@ impl WireClient {
         use futures_util::StreamExt;
         let request = request.into_request().map(dokime::harmos::operations::Response::new);
         let codec = self.codec::<OutputEnvelope<<O::Output as dokime::harmos::operations::Direction>::Item, O::Response>, O>()?;
-        let response = self.grpc().await?.server_streaming(request, O::PATH.parse().unwrap(), codec).await?;
+        let response = self.grpc().await?.server_streaming(request, dokime::operations::path::<O>().parse().unwrap(), codec).await?;
         let (metadata, incoming, extensions) = response.into_parts();
         let frames = futures_util::stream::unfold(Some(incoming), |state| async move {
             let mut incoming = state?;
@@ -370,7 +370,7 @@ impl WireClient {
         &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as dokime::harmos::operations::Direction>::Item>,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
-        O: contracts::Endpoint,
+        O: dokime::harmos::operations::OperationDeclaration,
         O: dokime::harmos::domain::Portable + Sync + Default,
         O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
         <O::Input as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + Sync,
@@ -383,7 +383,7 @@ impl WireClient {
             opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))))
         });
         let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as dokime::harmos::operations::Direction>::Item>>()?;
-        let response = self.grpc().await?.client_streaming(request, O::PATH.parse().unwrap(), codec).await?;
+        let response = self.grpc().await?.client_streaming(request, dokime::operations::path::<O>().parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;
         Ok(tonic::Response::from_parts(metadata, value, extensions))

@@ -273,7 +273,7 @@ async fn recording(
 
 async fn recording_refusal<O>(client: &WireClient, request: O) -> tonic::Status
 where
-    O: contracts::Endpoint<Output = dokime::harmos::operations::Stream<model::media::wire::RecordingFrame>>,
+    O: dokime::harmos::operations::OperationDeclaration<Output = dokime::harmos::operations::Stream<model::media::wire::RecordingFrame>>,
     O: dokime::harmos::domain::Portable + Sync,
     O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
 {

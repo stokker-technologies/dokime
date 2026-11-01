@@ -32,7 +32,6 @@ pub use list_samples::ListSamples;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::ORDINARY;
 use dokime_domain::model::query::wire::*;
 use dokime_domain::model::query::{
@@ -67,10 +66,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for Aggregate {
-    const PATH: &'static str = "/dokime.v1.Query/Aggregate";
-}
 
 /* === Public Functions === */
 

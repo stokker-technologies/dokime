@@ -29,6 +29,7 @@ use tonic::{
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result, request, stream::Input};
+use dokime_operations::reports::{DownloadCycleReport, DownloadExecutionReport};
 
 /* === Constants === */
 
@@ -48,17 +49,15 @@ const ENCODE_BUFFER_BYTES: u64 = 8_192;
 /* === Implementations === */
 
 impl Client {
-    pub(super) async fn download<O>(
-        &self, path: &'static str, message: O::Request,
-    ) -> Result<ResponseStream<<O::Output as Direction>::Item>>
+    pub(super) async fn download<O>(&self, message: O::Request) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
         O: OperationDeclaration,
         O::Request: Sync,
         O::Response: Portable + MemorySize,
         <O::Output as Direction>::Item: Portable + MemorySize,
     {
-        self.require(path)?;
-        let report = matches!(path, "/dokime.v1.Reports/DownloadCycleReport" | "/dokime.v1.Reports/DownloadExecutionReport");
+        self.require(&dokime_operations::path::<O>())?;
+        let report = [DownloadCycleReport::ID, DownloadExecutionReport::ID].contains(&O::ID);
         let response_bytes = if report { self.response_limit().min(2_097_152) } else { self.response_limit() };
         let codec = codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O::Request>>(
             response_bytes,
@@ -72,11 +71,7 @@ impl Client {
                 client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
                 // A Stream Carries No Total Deadline: Opening Is Bounded Here, Each Later Frame By The Idle Deadline.
                 client
-                    .server_streaming(
-                        request(Response::new(message), self.inner.authorization.as_ref()),
-                        tonic::codegen::http::uri::PathAndQuery::from_static(path),
-                        codec,
-                    )
+                    .server_streaming(request(Response::new(message), self.inner.authorization.as_ref()), method::<O>(), codec)
                     .await
                     .map(tonic::Response::into_inner)
             })
@@ -109,7 +104,7 @@ impl Client {
         if report { ResponseStream::prefetched(self, frames, response_bytes) } else { ResponseStream::new(self, frames) }
     }
 
-    pub(super) async fn upload<O, S>(&self, path: &'static str, message: O::Request, items: S) -> Result<O::Response>
+    pub(super) async fn upload<O, S>(&self, message: O::Request, items: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
         O::Request: Sync,
@@ -117,25 +112,25 @@ impl Client {
         <O::Input as Direction>::Item: Portable + Sync,
         S: tokio_stream::Stream<Item = <O::Input as Direction>::Item> + Send + 'static,
     {
-        self.require(path)?;
+        self.require(&dokime_operations::path::<O>())?;
         let opening = stream::once(async move { Response::new(InputEnvelope::Request(message)) });
         let frames = opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))));
-        self.upload_frames::<O, _, _>(path, frames).await
+        self.upload_frames::<O, _, _>(frames).await
     }
 
-    pub(super) async fn upload_prepared<O, S>(&self, path: &'static str, message: O::Request, items: S) -> Result<O::Response>
+    pub(super) async fn upload_prepared<O, S>(&self, message: O::Request, items: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
         S: tokio_stream::Stream<Item = PreparedFrame> + Send + 'static,
     {
-        self.require(path)?;
+        self.require(&dokime_operations::path::<O>())?;
         let opening = harmos::grpc::prepare_input_request::<O>(&message, self.request_limit()).map_err(Error::Rpc)?;
         drop(message);
         let frames = stream::once(async move { opening }).chain(items);
-        self.upload_frames::<O, _, _>(path, frames).await
+        self.upload_frames::<O, _, _>(frames).await
     }
 
-    async fn upload_frames<O, E, S>(&self, path: &'static str, frames: S) -> Result<O::Response>
+    async fn upload_frames<O, E, S>(&self, frames: S) -> Result<O::Response>
     where
         O: OperationDeclaration,
         E: Encode<Transcoded> + Sync,
@@ -153,10 +148,7 @@ impl Client {
         let reply = call
             .execute(async {
                 client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                client
-                    .client_streaming(call.request(frames), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
-                    .await
-                    .map(tonic::Response::into_inner)
+                client.client_streaming(call.request(frames), method::<O>(), codec).await.map(tonic::Response::into_inner)
             })
             .await?;
         value(reply)
@@ -196,25 +188,29 @@ where
     .map_err(Error::Rpc)
 }
 
-pub(super) async fn unary<R, Q>(
-    channel: Channel, authorization: Option<&MetadataValue<Ascii>>, path: &'static str, message: Q, response_bytes: usize,
-    request_bytes: usize,
-) -> Result<StreamItem<R>>
+pub(super) async fn unary<O>(
+    channel: Channel, authorization: Option<&MetadataValue<Ascii>>, message: O::Request, response_bytes: usize, request_bytes: usize,
+) -> Result<StreamItem<O::Response>>
 where
-    R: Portable + MemorySize + 'static,
-    Q: Portable + Send + Sync + 'static,
+    O: OperationDeclaration,
+    O::Request: Send + Sync,
+    O::Response: Portable + MemorySize,
 {
-    let codec = codec::<R, Response<Q>>(response_bytes, request_bytes)?;
+    let codec = codec::<O::Response, Response<O::Request>>(response_bytes, request_bytes)?;
     let mut client = tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
     client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
     client
-        .unary(request(Response::new(message), authorization), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
+        .unary(request(Response::new(message), authorization), method::<O>(), codec)
         .await
         .map(tonic::Response::into_inner)
         .map_err(Error::Rpc)
 }
 
 /* === Private Functions === */
+
+fn method<O: OperationDeclaration>() -> tonic::codegen::http::uri::PathAndQuery {
+    tonic::codegen::http::uri::PathAndQuery::try_from(dokime_operations::path::<O>()).expect("validated gRPC bindings are URI paths")
+}
 
 // A Live Stream Fails Only When No Frame, Heartbeats Included, Arrives Within The Idle Deadline.
 async fn idle_frame<T>(idle: Option<std::time::Duration>, next: impl Future<Output = T>) -> std::result::Result<T, tonic::Status> {
