@@ -570,11 +570,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
        `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
        home has no Downloads folder and the command fails before it writes. */
     await writeFile(join(home, "config", "user-dirs.dirs"), `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`);
-    const settings = join(home, "config", "glib-2.0", "settings", "keyfile");
-    if (!existsSync(settings)) {
-      await mkdir(dirname(settings), { recursive: true });
-      await writeFile(settings, "[org/gtk/settings/file-chooser]\nlocation-mode='filename-entry'\nstartup-mode='cwd'\n");
-    }
   }
 
   const port = await unusedPort();
@@ -604,7 +599,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
             }
           : {
               GDK_BACKEND: "x11",
-              GSETTINGS_BACKEND: "keyfile",
               HOME: home,
               PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
               XDG_CACHE_HOME: join(home, "cache"),
@@ -4560,6 +4554,10 @@ for index in range(desktop.get_child_count()):
         if not buttons:
             break
         assert len(buttons) == 1, "The native picker exposes one ready action"
+        if action == "ready" and operation == "Open":
+            locations = [(node, index) for node in controls if node.get_action_iface() is not None for index in range(Atspi.Action.get_n_actions(node)) if Atspi.Action.get_name(node, index) == "show_location"]
+            assert len(locations) == 1, "The owned chooser exposes its location action"
+            assert Atspi.Action.do_action(*locations[0]), "The native location entry is shown"
         if action == "open":
             assert Atspi.Action.do_action(buttons[0], 0), "The Native File Action Is Activated Once"
     print(action)
