@@ -151,15 +151,15 @@ def windows(workspace):
         subprocess.run(["mise", "--version"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
 
     if os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" and ctypes.windll.shell32.IsUserAnAdmin():
-        scratch = str(Path(tempfile.gettempdir()).resolve() / "dokime-*")
         exclusions = [
             str(workspace),
             str(Path(os.environ.get("CARGO_TARGET_DIR", str(workspace / "target"))).resolve()),
             os.environ["CARGO_HOME"],
             os.environ["MISE_DATA_DIR"],
-            scratch,
-            scratch + r"\:{PathType:folder}",
         ]
+        for pattern in ("dokime-*", ".tmp*"):
+            scratch = str(Path(tempfile.gettempdir()).resolve() / pattern)
+            exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
         print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
         script = (
             "$paths = @("
