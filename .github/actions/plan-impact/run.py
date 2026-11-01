@@ -74,11 +74,17 @@ def select(plan: dict, paths: set[str] | None) -> set[str]:
             return full
         for rule in matching:
             selected.update(rule["jobs"])
+    return close(graph, selected)
+
+
+def close(graph: dict, selected: set[str]) -> set[str]:
+    """Add Every Dependency Of The Selected Jobs; An Unknown Job Selects Every Job."""
+    selected = set(selected)
     pending = list(selected)
     while pending:
         job = pending.pop()
         if job not in graph:
-            return full
+            return set(graph)
         for dependency in graph[job]:
             if dependency not in selected:
                 selected.add(dependency)
@@ -96,6 +102,9 @@ def main(plan: dict) -> None:
     target = os.environ.get("IMPACT_TARGET")
     paths = changed_paths(target) if target else None
     selected = select(plan, paths)
+    if os.environ.get("IMPACT_SCOPE") == "package":
+        # Pull Requests Already Ran The Suites On This Code; Rebuild, Package And Refresh The Shared Caches Only.
+        selected = close(plan["dependencies"], selected & {"build:rust:tests", "package:rust", "package:python"})
     if "document" in plan:
         document = plan["document"]
         original = [job for job in document.values() if isinstance(job, dict) and "stage" in job]
