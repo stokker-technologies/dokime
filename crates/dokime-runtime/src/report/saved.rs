@@ -567,7 +567,7 @@ mod tests {
 
     // The Published Payload Of A Fixed Input At Its Original Generator Version.
     const PAYLOAD_HUB: &str = r#""hub":{"generator":"dokime-runtime","name":"Dokime","version":"0.1.0"}"#;
-    const PAYLOAD_SHA256: &str = "283df04a8b0f49f21a02ea2760875b9887bdf3ee628a99b5476ae5fb53f27267";
+    const PAYLOAD_SHA256: &str = "cbcdd6309f1758caba6424e48edf01e8715dc52db13ffd5eb9064341391c1302";
 
     #[tokio::test]
     async fn report_digest_is_stable() {

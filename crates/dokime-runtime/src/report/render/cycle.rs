@@ -20,6 +20,7 @@ use std::{
 };
 
 // Third Party Imports
+use rusqlite::OptionalExtension;
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
@@ -164,7 +165,7 @@ impl Report<'_> {
                 streams.raw(first.stream.as_str(), |writer| {
                     let mut stream = output::Object::new(writer)?;
                     stream.field("stream", &first.stream.as_str())?;
-                    stream.field("spec", &None::<()>)?;
+                    stream.raw("spec", |writer| rows.spec(writer, first))?;
                     stream.field("summary", &BTreeMap::<(), ()>::new())?;
                     stream.raw("samples", |writer| {
                         writer.write_all(b"[")?;
@@ -238,6 +239,11 @@ impl MemberRows {
         for (ordinal, sample) in input.telemetry.iter().enumerate() {
             self.append("samples", member, ordinal, &telemetry::SampleValues(sample))?;
         }
+        for (stream, versions) in &captured.telemetry_contracts {
+            for (version, contract) in versions {
+                self.append(&format!("spec:{stream}"), member, *version as usize, &telemetry::Spec::new(contract))?;
+            }
+        }
         for ordinal in crate::report::previews::indices(captured.context.notes.len(), captured.report_defaults.table_rows as usize) {
             let note = &captured.context.notes[ordinal];
             self.append(
@@ -306,6 +312,18 @@ impl MemberRows {
             writer.write_all(bytes)
         })?;
         writer.write_all(b"]")
+    }
+
+    fn spec(&self, writer: &mut dyn Write, sample: &crate::report::cycle::Sample) -> io::Result<()> {
+        let member = i64::try_from(sample.member).map_err(io::Error::other)?;
+        let bytes: Option<Vec<u8>> = self
+            .connection
+            .prepare_cached("SELECT payload FROM rows WHERE section=?1 AND member=?2 AND ordinal=?3")
+            .map_err(io::Error::other)?
+            .query_row(rusqlite::params![format!("spec:{}", sample.stream), member, i64::from(sample.schema_version)], |row| row.get(0))
+            .optional()
+            .map_err(io::Error::other)?;
+        writer.write_all(bytes.as_deref().unwrap_or(b"null"))
     }
 
     fn row(&self, writer: &mut dyn Write, section: &str, member: usize, ordinal: usize) -> io::Result<()> {
@@ -550,8 +568,7 @@ impl Serialize for Telemetry<'_, '_> {
             remaining = rest;
             let returned = selection(count, self.0.report_defaults.plot_points as usize).count();
             let crate::report::html::Member::Captured(captured) = (self.0.read)(first.member).map_err(serde::ser::Error::custom)?;
-            let version = captured.input.telemetry.get(first.sample).map(|sample| sample.schema_version);
-            let contract = version.and_then(|version| captured.telemetry_contracts.get(&first.stream)?.get(&version));
+            let contract = captured.telemetry_contracts.get(&first.stream).and_then(|versions| versions.get(&first.schema_version));
             #[derive(Serialize)]
             struct Stream<'a, 'r> {
                 stream: &'a str,
