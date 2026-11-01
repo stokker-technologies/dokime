@@ -94,11 +94,11 @@ def test(profile: str) -> None:
                 stderr=sys.stderr,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-        candidate = json.dumps(str(product))
-        declaration = f'"github:stokker-technologies/dokime" = {{ path = {candidate} }}\n'
-        (plugin / "mise.local.toml").write_text(
-            f'[tasks.build.tools]\n{declaration}\n[tasks."package:rust".tools]\n{declaration}', encoding="utf-8", newline="\n"
-        )
+        # The Native Candidate Supplies The Authoring Tool; Other Tools Keep Their Locked Resolution.
+        environment["PATH"] = os.pathsep.join((str(tool.parent), environment.get("PATH", "")))
+        environment["MISE_DISABLE_TOOLS"] = ",".join(filter(None, (environment.get("MISE_DISABLE_TOOLS"), "github:stokker-technologies/dokime")))
+        if Path(shutil.which("cargo-dokime", path=environment["PATH"]) or "").resolve() != tool.resolve():
+            raise ValueError("the starter must use the candidate authoring tool")
 
         # Only The Disposable Consumer Uses The Current SDK Before Publication.
         manifest = plugin / "Cargo.toml"
