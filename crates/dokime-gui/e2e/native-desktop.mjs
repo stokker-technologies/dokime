@@ -4555,7 +4555,7 @@ for index in range(desktop.get_child_count()):
             break
         assert len(buttons) == 1, "The native picker exposes one ready action"
         if action == "ready" and operation == "Open":
-            locations = [(node, index) for node in controls if node.get_action_iface() is not None for index in range(Atspi.Action.get_n_actions(node)) if Atspi.Action.get_name(node, index) == "show_location"]
+            locations = [(node, index) for node in controls if node.get_action_iface() is not None for index in range(Atspi.Action.get_n_actions(node)) if Atspi.Action.get_action_name(node, index) == "show_location"]
             assert len(locations) == 1, "The owned chooser exposes its location action"
             assert Atspi.Action.do_action(*locations[0]), "The native location entry is shown"
         if action == "open":
