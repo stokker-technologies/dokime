@@ -57,9 +57,6 @@ impl TryFrom<&Metadata> for Row {
     type Error = Error;
 
     fn try_from(value: &Metadata) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("metadata encoding size overflow"));
-        }
         let mut tags = Vec::new();
         tags.try_reserve_exact(value.tags.len()).map_err(|_| Error::Invalid("metadata tag allocation failed"))?;
         tags.extend(value.tags.iter().map(String::as_str));
@@ -85,6 +82,9 @@ impl TryFrom<Row> for Metadata {
     type Error = Error;
 
     fn try_from(value: Row) -> Result<Self> {
+        for timestamp in [value.created_at.as_deref(), value.updated_at.as_deref()].into_iter().flatten() {
+            values::validate_datetime(timestamp)?;
+        }
         // Tags Remain In Authored Order
         let mut tags = Vec::new();
         tags.try_reserve_exact(value.tags.len()).map_err(|_| Error::Invalid("metadata tag allocation failed"))?;

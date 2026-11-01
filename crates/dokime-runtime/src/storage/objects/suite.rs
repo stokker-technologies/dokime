@@ -78,23 +78,11 @@ impl Suite {
         })
     }
 
-    fn projection_memory(&self) -> Result<usize> {
+    fn into_suite(self) -> Result<TestSuite> {
         let Self { suite_id, definition } = self;
         if suite_id.trim().is_empty() {
             return Err(Error::Invalid("suite registration ID is required"));
         }
-        let definition = definition.as_ref().ok_or(Error::Invalid("suite definition is missing"))?;
-        let peak = definition.projection_memory()?;
-        if peak == usize::MAX {
-            return Err(Error::Invalid("suite projection memory overflows"));
-        }
-        Ok(peak)
-    }
-
-    fn into_suite(self) -> Result<TestSuite> {
-        self.projection_memory()?;
-        let Self { suite_id, definition } = self;
-        drop(suite_id);
         definition.ok_or(Error::Invalid("suite definition is missing"))?.try_into()
     }
 }

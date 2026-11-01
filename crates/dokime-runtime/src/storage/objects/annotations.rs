@@ -20,7 +20,6 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
 use crate::storage::{Error, Result, records::ScopeRow};
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::health::HealthItem;
 use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
@@ -91,24 +90,6 @@ impl TryFrom<&TestRecordSet> for Set {
 }
 
 impl Set {
-    pub fn encoding_memory(source: &TestRecordSet) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>();
-        for value in source.health() {
-            bytes = bytes.saturating_add(Health::encoding_memory(value)?);
-        }
-        for value in source.notes() {
-            bytes = bytes.saturating_add(Note::encoding_memory(value)?);
-        }
-        Ok(bytes.saturating_add(source.capture_owner().map_or(0, |owner| owner.as_str().len())))
-    }
-
-    pub fn projection_memory(&self) -> usize {
-        self.health
-            .iter()
-            .fold(std::mem::size_of::<TestRecordSet>(), |bytes, health| bytes.saturating_add(health.projection_memory()))
-            .saturating_add(self.notes.iter().map(Note::projection_memory).sum::<usize>())
-    }
-
     pub fn restore_owned(self) -> Result<TestRecordSet> {
         let mut records = TestRecordSet::with_capacity(self.health.len(), self.notes.len());
         for note in self.notes {
@@ -151,48 +132,10 @@ impl<'de> serde::Deserialize<'de> for Set {
     }
 }
 
-impl Health {
-    pub fn encoding_memory(value: &HealthItem) -> Result<usize> {
-        value.observed_at.to_datetime()?;
-        let scope = ScopeRow::encoding_memory(&value.scope);
-        if scope == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        Ok([
-            value.health_item_id.as_str().len(),
-            value.observed_at.as_str().len(),
-            scope.saturating_sub(std::mem::size_of::<ScopeRow>()),
-            value.message.len(),
-            value.detail.as_deref().map_or(0, str::len),
-            severity(&value.severity).len(),
-        ]
-        .into_iter()
-        .fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> usize {
-        let scope = self.scope.projection_memory();
-        if scope == usize::MAX {
-            return usize::MAX;
-        }
-        [
-            self.health_item_id.capacity(),
-            self.observed_at.capacity(),
-            scope.saturating_sub(std::mem::size_of::<RecordScope>()),
-            self.message.capacity(),
-            self.detail.as_ref().map_or(0, String::capacity),
-        ]
-        .into_iter()
-        .fold(std::mem::size_of::<HealthItem>(), usize::saturating_add)
-    }
-}
-
 impl TryFrom<&HealthItem> for Health {
     type Error = Error;
     fn try_from(value: &HealthItem) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("annotation encoding memory overflow"));
-        }
+        value.observed_at.to_datetime()?;
         Ok(Self {
             health_item_id: value.health_item_id.as_str().to_owned(),
             observed_at: value.observed_at.as_str().to_owned(),
@@ -207,9 +150,6 @@ impl TryFrom<&HealthItem> for Health {
 impl TryFrom<Health> for HealthItem {
     type Error = Error;
     fn try_from(value: Health) -> Result<Self> {
-        if value.projection_memory() == usize::MAX {
-            return Err(Error::Invalid("annotation projection memory overflow"));
-        }
         OffsetDateTime::parse(&value.observed_at, &Rfc3339)?;
         Ok(Self {
             health_item_id: HealthItemId::from_uuid(value.health_item_id)?,
@@ -227,47 +167,10 @@ impl TryFrom<Health> for HealthItem {
     }
 }
 
-impl Note {
-    pub fn encoding_memory(value: &OperatorNote) -> Result<usize> {
-        value.created_at.to_datetime()?;
-        let scope = ScopeRow::encoding_memory(&value.scope);
-        if scope == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        Ok([
-            value.note_id.as_str().len(),
-            value.created_at.as_str().len(),
-            scope.saturating_sub(std::mem::size_of::<ScopeRow>()),
-            value.message.len(),
-            value.author.as_deref().map_or(0, str::len),
-        ]
-        .into_iter()
-        .fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> usize {
-        let scope = self.scope.projection_memory();
-        if scope == usize::MAX {
-            return usize::MAX;
-        }
-        [
-            self.note_id.capacity(),
-            self.created_at.capacity(),
-            scope.saturating_sub(std::mem::size_of::<RecordScope>()),
-            self.message.capacity(),
-            self.author.as_ref().map_or(0, String::capacity),
-        ]
-        .into_iter()
-        .fold(std::mem::size_of::<OperatorNote>(), usize::saturating_add)
-    }
-}
-
 impl TryFrom<&OperatorNote> for Note {
     type Error = Error;
     fn try_from(value: &OperatorNote) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("annotation encoding memory overflow"));
-        }
+        value.created_at.to_datetime()?;
         Ok(Self {
             note_id: value.note_id.as_str().to_owned(),
             created_at: value.created_at.as_str().to_owned(),
@@ -281,9 +184,6 @@ impl TryFrom<&OperatorNote> for Note {
 impl TryFrom<Note> for OperatorNote {
     type Error = Error;
     fn try_from(value: Note) -> Result<Self> {
-        if value.projection_memory() == usize::MAX {
-            return Err(Error::Invalid("annotation projection memory overflow"));
-        }
         OffsetDateTime::parse(&value.created_at, &Rfc3339)?;
         Ok(Self {
             note_id: NoteId::from_uuid(value.note_id)?,
@@ -314,7 +214,7 @@ mod tests {
     use super::*;
 
     fn annotations() -> Set {
-        let scope = ScopeRow::from(&RecordScope::default());
+        let scope = ScopeRow::from(&dokime_domain::model::execution::RecordScope::default());
         let note = Note {
             note_id: "00000000-0000-0000-0000-000000000001".into(),
             scope: scope.clone(),

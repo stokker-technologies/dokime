@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified, MemorySize,
+    DefinitionId, Identified,
     storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject},
 };
 
@@ -190,36 +190,6 @@ impl Cycle {
     pub fn from_view(source: &CycleView, ids: &[TestExecutionId]) -> Result<Self> {
         Self::from_input(&Input::view(source, ids)?)
     }
-
-    fn encoding_input(source: &Input<'_>) -> Result<usize> {
-        source.created_at.to_datetime()?;
-        source.updated_at.to_datetime()?;
-        if let Some(started) = &source.started_at {
-            started.to_datetime()?;
-        }
-        let fields = [
-            source.saved.as_ref().map(Seal::encoding_memory).transpose()?.unwrap_or(0),
-            source.test_cycle_id.as_str().len(),
-            source.session_id.as_ref().map_or(0, |id| id.as_str().len()),
-            metadata::Row::encoding_memory(source.metadata)?,
-            lifecycle_text(&source.lifecycle).len(),
-            source.created_at.as_str().len(),
-            source.started_at.as_ref().map_or(0, |time| time.as_str().len()),
-            source.updated_at.as_str().len(),
-            annotations::Set::encoding_memory(source.records)?,
-            source.result.as_ref().map_or(0, Summary::encoding_memory),
-            harmos::btree_map_memory::<&TestExecutionId, ()>(source.execution_ids.len()),
-            source.execution_ids.len().saturating_mul(std::mem::size_of::<String>()),
-        ];
-        if fields.contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
-        for id in source.execution_ids {
-            bytes = bytes.saturating_add(id.as_str().len());
-        }
-        Ok(bytes)
-    }
 }
 
 impl TryFrom<&TestCycle> for Cycle {
@@ -231,8 +201,10 @@ impl TryFrom<&TestCycle> for Cycle {
 
 impl Cycle {
     fn from_input(source: &Input<'_>) -> Result<Self> {
-        if Self::encoding_input(source)? == usize::MAX {
-            return Err(Error::Invalid("cycle encoding memory overflows"));
+        source.created_at.to_datetime()?;
+        source.updated_at.to_datetime()?;
+        if let Some(started) = &source.started_at {
+            started.to_datetime()?;
         }
         if let Some(saved) = &source.saved {
             saved.validate_membership(source.test_cycle_id, source.lifecycle, source.execution_ids.iter())?;
@@ -334,12 +306,6 @@ impl TryFrom<Cycle> for TestCycle {
     }
 }
 
-impl Summary {
-    pub(super) fn encoding_memory(value: &ResultSummary) -> usize {
-        std::mem::size_of::<Self>().saturating_add(result_status_text(&value.status).len())
-    }
-}
-
 impl From<&ResultSummary> for Summary {
     fn from(value: &ResultSummary) -> Self {
         Self {
@@ -374,33 +340,10 @@ impl TryFrom<Summary> for ResultSummary {
     }
 }
 
-impl Seal {
-    fn encoding_memory(value: &CycleSeal) -> Result<usize> {
-        value.sealed_at.to_datetime()?;
-        let fields = [
-            value.owner_node_id.as_str().len(),
-            value.evidence_through.memory_size(),
-            value.report.memory_size(),
-            value.dependencies_saved.memory_size(),
-            value.sealed_at.as_str().len(),
-        ];
-        if fields.contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
-        for revision in &value.executions {
-            bytes = bytes.saturating_add(super::execution::Revision::encoding_memory(revision)?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&CycleSeal> for Seal {
     type Error = Error;
     fn try_from(value: &CycleSeal) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("cycle seal encoding memory overflows"));
-        }
+        value.sealed_at.to_datetime()?;
         let mut executions = Vec::new();
         executions
             .try_reserve_exact(value.executions.len())
