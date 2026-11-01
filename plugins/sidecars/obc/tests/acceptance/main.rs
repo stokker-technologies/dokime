@@ -306,8 +306,10 @@ impl PluginLifecycle for Host {
     ) -> harmos::Result<()> {
         let PluginBackend::Sidecar(backend) = backend else { unreachable!() };
         let PluginArtifact::Sidecar { path, sha256, .. } = &definition.artifact else { unreachable!() };
-        let bytes = std::fs::read(path).unwrap();
-        assert_eq!(Sha256::digest(&bytes).as_slice(), sha256);
+        {
+            let bytes = std::fs::read(path).unwrap();
+            assert_eq!(Sha256::digest(&bytes).as_slice(), sha256);
+        }
         let executable = harmos::sidecar::Executable::at(path).unwrap();
         let inspected: std::collections::BTreeMap<_, _> =
             executable.declaration().operations.iter().map(|operation| (&operation.id, operation)).collect();
