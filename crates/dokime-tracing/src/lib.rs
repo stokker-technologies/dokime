@@ -26,7 +26,7 @@ use std::{
     fs::File,
     io::{Seek, SeekFrom, Write},
     path::Path,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, mpsc},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -65,25 +65,49 @@ struct State {
 }
 
 #[derive(Clone)]
-struct Trace(Arc<Mutex<Writer>>);
+struct Trace {
+    capture: Arc<Mutex<Capture>>,
+    output: mpsc::SyncSender<Output>,
+}
 
-struct Writer {
-    file: File,
+struct Capture {
     started: Instant,
     epoch: f64,
-    count: usize,
     next: u64,
     root: Option<u64>,
     spans: HashMap<u64, Span>,
-    error: Option<std::io::Error>,
+}
+
+struct Writer {
+    file: File,
+    count: usize,
+    bytes: Vec<u8>,
 }
 
 struct Span {
     id: u64,
     parent: Option<u64>,
     started: f64,
-    name: String,
+    name: &'static str,
     target: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct Event {
+    args: Links,
+    cat: &'static str,
+    dur: f64,
+    name: &'static str,
+    ph: &'static str,
+    pid: u32,
+    tid: u64,
+    ts: f64,
+}
+
+#[derive(serde::Serialize)]
+struct Links {
+    parent_id: Option<u64>,
+    span_id: u64,
 }
 
 pub struct Guard {
@@ -91,6 +115,11 @@ pub struct Guard {
 }
 
 /* === Enums === */
+
+enum Output {
+    Event(Event),
+    Flush(mpsc::Sender<std::io::Result<()>>),
+}
 
 /* === Traits === */
 
@@ -101,39 +130,67 @@ impl Drop for Guard {
         if let Some(root) = self.root.take()
             && let Some(trace) = STATE.get().and_then(|state| state.trace.as_ref())
         {
-            let mut writer = trace.0.lock().expect("trace writer poisoned");
-            writer.root = None;
-            if let Err(error) = writer.write(root) {
-                writer.error = Some(error);
-            }
+            let event = {
+                let mut capture = trace.capture.lock().expect("trace capture poisoned");
+                capture.root = None;
+                capture.complete(root)
+            };
+            trace.output.send(Output::Event(event)).expect("trace writer stopped");
         }
         flush();
     }
 }
 
-impl Writer {
+impl Capture {
     fn now(&self) -> f64 {
         self.epoch + self.started.elapsed().as_secs_f64() * 1_000_000.0
     }
 
-    fn write(&mut self, span: Span) -> std::io::Result<()> {
-        let event = serde_json::json!({
-            "ph": "X", "name": span.name, "cat": span.target,
-            "pid": std::process::id(), "tid": span.id,
-            "ts": span.started, "dur": self.now() - span.started,
-            "args": {"span_id": span.id, "parent_id": span.parent}
-        });
-        // Serialize Before File I/O, Keeping Each Span To One Native Write.
-        let mut bytes = Vec::new();
-        if self.count != 0 {
-            bytes.extend_from_slice(b",\n");
+    fn complete(&self, span: Span) -> Event {
+        Event {
+            args: Links { span_id: span.id, parent_id: span.parent },
+            cat: span.target,
+            dur: self.now() - span.started,
+            name: span.name,
+            ph: "X",
+            pid: std::process::id(),
+            tid: span.id,
+            ts: span.started,
         }
-        serde_json::to_writer(&mut bytes, &event)?;
-        bytes.extend_from_slice(b"]}");
+    }
+}
+
+impl Writer {
+    fn run(mut self, input: mpsc::Receiver<Output>) {
+        let mut failure = None;
+        for output in input {
+            match output {
+                Output::Event(event) => {
+                    if let Err(error) = self.write(event) {
+                        failure = Some(error);
+                    }
+                }
+                Output::Flush(reply) => {
+                    let flushed = self.file.flush();
+                    let result = failure.take().map_or(flushed, Err);
+                    let _ = reply.send(result);
+                }
+            }
+        }
+    }
+
+    fn write(&mut self, event: Event) -> std::io::Result<()> {
+        // Serialize Before File I/O, Keeping Each Span To One Native Write.
+        self.bytes.clear();
+        if self.count != 0 {
+            self.bytes.extend_from_slice(b",\n");
+        }
+        serde_json::to_writer(&mut self.bytes, &event)?;
+        self.bytes.extend_from_slice(b"]}");
 
         // Keep The File Valid Even If A Child Is Later Killed.
         self.file.seek(SeekFrom::End(-2))?;
-        self.file.write_all(&bytes)?;
+        self.file.write_all(&self.bytes)?;
         self.count += 1;
         Ok(())
     }
@@ -144,7 +201,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
-        let mut writer = self.0.lock().expect("trace writer poisoned");
+        let mut writer = self.capture.lock().expect("trace capture poisoned");
         writer.next += 1;
         let parent =
             attributes.parent().cloned().or_else(|| attributes.is_contextual().then(|| context.current_span().id().cloned()).flatten());
@@ -153,18 +210,19 @@ where
             id: writer.next,
             parent,
             started: writer.now(),
-            name: attributes.metadata().name().to_owned(),
+            name: attributes.metadata().name(),
             target: attributes.metadata().target(),
         };
         writer.spans.insert(id.into_u64(), span);
     }
 
     fn on_close(&self, id: Id, _context: Context<'_, S>) {
-        let mut writer = self.0.lock().expect("trace writer poisoned");
-        if let Some(span) = writer.spans.remove(&id.into_u64())
-            && let Err(error) = writer.write(span)
-        {
-            writer.error = Some(error);
+        let event = {
+            let mut capture = self.capture.lock().expect("trace capture poisoned");
+            capture.spans.remove(&id.into_u64()).map(|span| capture.complete(span))
+        };
+        if let Some(event) = event {
+            self.output.send(Output::Event(event)).expect("trace writer stopped");
         }
     }
 }
@@ -200,14 +258,14 @@ pub fn test(name: &'static str, logging: bool) -> Option<Guard> {
     let mut installed = INSTALL.lock().expect("trace installation poisoned");
     let trace = state().expect("open test trace").trace.as_ref().expect("trace directory is set");
     let root = {
-        let mut writer = trace.0.lock().expect("trace writer poisoned");
+        let mut writer = trace.capture.lock().expect("trace capture poisoned");
         writer.next += 1;
         writer.root = Some(writer.next);
         Span {
             id: writer.next,
             parent: None,
             started: writer.now(),
-            name: name.to_owned(),
+            name,
             target: "dokime_test",
         }
     };
@@ -219,11 +277,9 @@ pub fn test(name: &'static str, logging: bool) -> Option<Guard> {
 
 pub fn flush() {
     if let Some(trace) = STATE.get().and_then(|state| state.trace.as_ref()) {
-        let mut writer = trace.0.lock().expect("trace writer poisoned");
-        writer.file.flush().expect("flush test trace");
-        if let Some(error) = writer.error.take() {
-            panic!("write test trace: {error}");
-        }
+        let (reply, completed) = mpsc::channel();
+        trace.output.send(Output::Flush(reply)).expect("trace writer stopped");
+        completed.recv().expect("trace writer stopped before flush").expect("flush test trace");
     }
 }
 
@@ -262,17 +318,21 @@ fn open() -> std::io::Result<Option<Trace>> {
     let path = directory.join(format!("{process}-{}-{}.pftrace", std::process::id(), epoch.as_nanos()));
     let mut file = File::options().write(true).create_new(true).open(path)?;
     file.write_all(b"{\"traceEvents\":[]}")?;
-    let writer = Writer {
-        file,
+    // Bound Pending Metadata And Keep File I/O Off Instrumented Runtime Workers.
+    let (output, input) = mpsc::sync_channel(4096);
+    let writer = Writer { file, count: 0, bytes: Vec::new() };
+    std::thread::Builder::new().name("dokime-trace".into()).spawn(move || writer.run(input))?;
+    let capture = Capture {
         started: Instant::now(),
         epoch: epoch.as_secs_f64() * 1_000_000.0,
-        count: 0,
         next: 0,
         root: None,
         spans: HashMap::new(),
-        error: None,
     };
-    Ok(Some(Trace(Arc::new(Mutex::new(writer)))))
+    Ok(Some(Trace {
+        capture: Arc::new(Mutex::new(capture)),
+        output,
+    }))
 }
 
 /* === Tests === */

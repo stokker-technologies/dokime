@@ -57,6 +57,14 @@ pub(crate) async fn initialize(
     parts.record_source.begin(state_manager.applied());
     parts.record_source.initialize().await?;
 
+    // Primary Capture Can Be Durable Ahead Of Its Managed Recovery Group.
+    let through = parts.local_state.record_frontier().await?;
+    let recovered = state.read(|state| state.record_count).await?.value;
+    if through > recovered {
+        let recovered = crate::transactions::RecoverRecordFrontier { through };
+        state_manager.commit(recovered).await.map_err(reconciliation_error)?;
+    }
+
     let started = crate::transactions::MarkRuntimeStarted {
         session_id: parts.config.session_id.clone(),
         record_namespace: parts.record_namespace.clone(),

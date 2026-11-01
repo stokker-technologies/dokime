@@ -101,7 +101,6 @@ async fn execution_seal_report() {
     stage(run::stop_spares_sibling()).await;
     stage(run::cycle_spanning_group()).await;
     stage(run::group_continues_after_failure()).await;
-    stage(storage::execution_save_sealing()).await;
     stage(storage::terminal_capture_repaired()).await;
     stage(cancel::cancel_skips_unstarted()).await;
     stage(reboot::native_history_index()).await;
@@ -111,6 +110,12 @@ async fn execution_seal_report() {
     stage(report_publication::admitted_create_window()).await;
     stage(report_restart::persisted_cycle_restart()).await;
     stage(report_cancellation::stopped_report_boundary()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_file_save_sealing() {
+    stage(storage::execution_save_sealing()).await;
 }
 
 #[dokime_tracing::trace_test]

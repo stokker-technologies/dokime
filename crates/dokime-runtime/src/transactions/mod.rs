@@ -46,8 +46,8 @@ pub use invalidation::InvalidateExecutions;
 pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
     BeginCycleSeal, CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, FailReport, MarkRuntimeStarted,
-    RecoverInterruptedCycles, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization, RequestReportFinalization, SealCycle,
-    SealExecution, StageQueuedStop, StartShutdown,
+    RecoverInterruptedCycles, RecoverRecordFrontier, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization,
+    RequestReportFinalization, SealCycle, SealExecution, StageQueuedStop, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
@@ -117,6 +117,7 @@ pub enum Transactions {
     CreateOperatorNote(CreateOperatorNote),
     EditOperatorNote(EditOperatorNote),
     MarkRuntimeStarted(MarkRuntimeStarted),
+    RecoverRecordFrontier(RecoverRecordFrontier),
     RecoverInterruptedCycles(RecoverInterruptedCycles),
     SealCycle(SealCycle),
     SealExecution(SealExecution),

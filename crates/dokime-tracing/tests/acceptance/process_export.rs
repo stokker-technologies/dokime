@@ -54,6 +54,18 @@ fn payload_free_export() {
         let _child = child.enter();
         assert_eq!(tracing_error::SpanTrace::capture().status(), tracing_error::SpanTraceStatus::CAPTURED);
         tracing::info!(payload = "fixture-private-payload", "fixture-private-payload");
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                let parent = tracing::Span::current();
+                scope.spawn(move || {
+                    let _parent = parent.enter();
+                    for _ in 0..2048 {
+                        let burst = tracing::debug_span!("burst", payload = "fixture-private-payload");
+                        let _burst = burst.enter();
+                    }
+                });
+            }
+        });
         return;
     }
     let temporary = tempfile::tempdir().unwrap();
@@ -91,5 +103,10 @@ fn payload_free_export() {
     let child = events.iter().find(|event| event["name"] == "child").unwrap();
     assert_eq!(child["args"]["parent_id"], parent["args"]["span_id"]);
     assert!(child["dur"].as_f64().unwrap() <= parent["dur"].as_f64().unwrap());
+    let burst = events.iter().filter(|event| event["name"] == "burst").collect::<Vec<_>>();
+    assert_eq!(burst.len(), 4 * 2048, "flush retains every concurrently closed span");
+    let ids = burst.iter().map(|event| event["args"]["span_id"].as_u64().unwrap()).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(ids.len(), burst.len());
+    assert!(burst.iter().all(|event| event["args"]["parent_id"] == child["args"]["span_id"]));
     assert!(events.iter().any(|event| event["name"] == "acceptance::process_export::payload_free_export"));
 }

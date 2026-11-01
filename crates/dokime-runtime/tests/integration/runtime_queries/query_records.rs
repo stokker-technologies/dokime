@@ -68,6 +68,56 @@ async fn publish(handle: &RuntimeHandle) {
         .unwrap();
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn saved_record_frontier_precedes_new_admission() {
+    use dokime_runtime::storage::records::RecordRow;
+    use harmos::{Message, storage::RecordInput};
+
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    publish(&handle).await;
+    let reader = handle.captured_records();
+    let captured = reader.next(0, reader.frontier()).await.unwrap().unwrap();
+    let mut ahead = (*captured).clone();
+    drop(captured);
+    ahead.record_id = model::identity::RecordId::from_seed("saved-before-recovery");
+    ahead.ordinal = handle.watch_state().latest().state().record_count + 1;
+    ahead.sequence += 1;
+    let payload = RecordRow::from_entry(&ahead).unwrap().encode();
+    let epoch = handle.watch_state().latest().state().process_epoch().to_string();
+    // Primary Capture Can Be Saved Before Its Recovery Group Reaches Disk.
+    handle
+        .storage()
+        .write_records(vec![RecordInput {
+            schema: dokime_runtime::storage::records::schema(),
+            scope: Some(Identifier::new(epoch).unwrap()),
+            item: Identifier::new(ahead.record_id.to_string()).unwrap(),
+            source: None,
+            source_time: None,
+            payload,
+        }])
+        .await
+        .unwrap();
+    handle.storage().flush().await.unwrap();
+    drop(reader);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+
+    let mut reopened = runtime(root.path()).await;
+    let handle = reopened.handle();
+    assert!(handle.watch_state().latest().state().record_count >= ahead.ordinal);
+    publish(&handle).await;
+    handle.storage().flush().await.unwrap();
+    let records = handle.selected_records(RecordSelection::default()).await.unwrap();
+    let ordinals = records.iter().map(|record| record.ordinal).collect::<Vec<_>>();
+    assert_eq!(ordinals, [ahead.ordinal + 1, ahead.ordinal, ahead.ordinal - 1]);
+    drop(records);
+    drop(handle);
+    reopened.shutdown().await.unwrap();
+}
+
 async fn poison_capture(handle: &RuntimeHandle) {
     // Damage only this fixture's primary store. Projection refusal is healthy;
     // a physical persistence failure must instead close admission and readers.

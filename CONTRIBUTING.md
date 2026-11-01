@@ -193,6 +193,9 @@ Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
 and inherited application/sidecar processes write `<process>-<pid>-<opened>.pftrace`
 files. The opening-time suffix and exclusive creation preserve earlier traces when
 the operating system reuses a process ID.
+Span callbacks queue bounded metadata for a native writer thread. They keep file
+I/O off instrumented runtime workers; guard flushes drain the queue and report
+write failures. Every written prefix remains valid JSON if a child is killed.
 Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
 Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
 Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or

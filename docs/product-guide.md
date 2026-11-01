@@ -1754,7 +1754,9 @@ Files close before rename or deletion on Windows.
 This experimental storage layout keeps the v1 baseline and requires a fresh
 root for incompatible development data. Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
-restores saved frontiers without replaying device actions.
+restores saved frontiers without replaying device actions. Startup advances the
+record ordinal counter past saved primary records, including captures saved
+before their recovery journal group reached disk.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.
