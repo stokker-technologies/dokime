@@ -1298,6 +1298,10 @@ Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the ke
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
 
+Set a non-empty `GITHUB_TOKEN` (or `GH_TOKEN` as a fallback) to authenticate
+GitHub API lookups and raise the unauthenticated rate limit. Credentials are sent
+only to `api.github.com`, never to release asset hosts or other redirect destinations.
+
 The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
