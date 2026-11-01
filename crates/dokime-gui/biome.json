@@ -17,8 +17,7 @@
       "!src/generated/organization",
       "!src-tauri",
       "!!**/.stkr/templates",
-      "!!**/.stkr/templates/**",
-      "!!**/.*/**"
+      "!!**/.*"
     ]
   },
   "formatter": {
