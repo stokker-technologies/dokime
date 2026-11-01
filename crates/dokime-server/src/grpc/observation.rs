@@ -54,14 +54,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::GetRuntimeShell),
-    Operation1(wire::WatchRuntime),
-    Operation2(wire::WatchExecutionProgress),
-    Operation3(wire::GetTraceability),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -289,7 +281,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::WatchExecutionProgress>>(Host::<wire::WatchExecutionProgress>::new(served.clone()));
     setup.resource::<Host<wire::GetTraceability>>(Host::<wire::GetTraceability>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

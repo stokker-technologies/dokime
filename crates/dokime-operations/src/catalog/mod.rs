@@ -44,6 +44,9 @@ use dokime_domain::model::catalog::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetRecordSchema, GetSuite, GetTelemetrySchema, ListRecordSchemas, ListSuites, ListTelemetrySchemas);
+
 /* === Type Aliases === */
 
 /* === Structs === */

@@ -58,15 +58,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::ListDefinitions),
-    Operation1(wire::GetDefinition),
-    Operation2(wire::ListPending),
-    Operation3(wire::GetPrompt),
-    Operation4(wire::Respond),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -268,7 +259,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::GetPrompt>>(Host::<wire::GetPrompt>::new(served.clone()));
     setup.resource::<Host<wire::Respond>>(Host::<wire::Respond>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

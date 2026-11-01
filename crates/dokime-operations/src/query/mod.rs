@@ -48,6 +48,9 @@ use dokime_domain::model::query::{
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(Aggregate);
+
 /* === Type Aliases === */
 
 /* === Structs === */

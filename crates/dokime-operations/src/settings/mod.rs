@@ -45,6 +45,18 @@ use dokime_domain::model::values::wire::Value;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(
+    GetPluginSettings,
+    GetSettings,
+    ListStorageSources,
+    ReadApplicationSettings,
+    ReorderStorageSources,
+    SetStorageSourceEnabled,
+    UpdateApplicationSettings,
+    UpdatePluginSettings
+);
+
 /* === Type Aliases === */
 
 /* === Structs === */

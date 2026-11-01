@@ -44,11 +44,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::ListCheckpointRecords),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -82,7 +77,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<contract::ListCheckpointRecords>>(Host::<contract::ListCheckpointRecords>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

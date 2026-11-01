@@ -39,6 +39,9 @@ use dokime_domain::model::evidence::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetCapturedRecordSchema, ListRecords, WatchRecords);
+
 /* === Type Aliases === */
 
 /* === Structs === */

@@ -42,6 +42,9 @@ use dokime_domain::model::plugins::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetInstallation, Install, ListAdmittedPlugins, ListInstallations, Remove, SetEnabled);
+
 /* === Type Aliases === */
 
 /* === Structs === */

@@ -43,12 +43,6 @@ use dokime::runtime::Error;
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::SubmitExecutionCommand),
-    Operation1(wire::GetExecutionCommand),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -82,7 +76,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::SubmitExecutionCommand>>(Host::<wire::SubmitExecutionCommand>::new(served.clone()));
     setup.resource::<Host<wire::GetExecutionCommand>>(Host::<wire::GetExecutionCommand>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -86,6 +86,25 @@ impl Service {
         super::backend::prepare(setup, live, config.max_message_bytes(), runtime_config)?;
         let journal = config.trace_journal.clone().unwrap_or_else(|| crate::trace::Journal::new(crate::trace::Limits::default()));
         super::trace::prepare(setup, live, config.max_message_bytes(), journal)?;
+        setup.operations::<dokime::operations::appearance::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::backend::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::catalog::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::content::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::documents::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::evidence::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::execution::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::files::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::history::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::media::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::notes::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::observation::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::planning::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::plots::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::plugins::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::prompts::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::query::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::settings::Operations>(dokime::app::Lanes::Open);
+        setup.operations::<dokime::operations::telemetry::Operations>(dokime::app::Lanes::Open);
         Ok(())
     }
 

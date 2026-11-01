@@ -40,6 +40,9 @@ use dokime_domain::model::files::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(FileWatch, WatchFile, AwaitFileWatchArmed);
+
 /* === Type Aliases === */
 
 /* === Structs === */

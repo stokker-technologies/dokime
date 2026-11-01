@@ -38,6 +38,9 @@ use dokime_domain::model::notes::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(CreateNote, EditNote, ListHealth, ListNotes);
+
 /* === Type Aliases === */
 
 /* === Structs === */

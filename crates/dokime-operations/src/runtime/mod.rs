@@ -36,6 +36,9 @@ const POLICY: OperationPolicy = OperationPolicy {
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetHealth, GetIdentity);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -81,12 +84,3 @@ impl super::Endpoint for GetIdentity {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod hosted {
-    use super::*;
-
-    crate::hosted!(GetHealth, GetIdentity);
-}
