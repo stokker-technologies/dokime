@@ -15,12 +15,14 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 # Third Party Imports
 # Local Imports
 from .. import _wire
 from .._transport import Transport
+from ..errors import ProtocolError
 from ..models import ResultSummary
 from .evidence import cycle_records, execution_records, telemetry
 from .reader import QueryReader, QuerySettings, page_settings
@@ -36,8 +38,39 @@ from .selection import At, Time, Where, Window, predicates, snapshot_ref, window
 # === Types === #
 
 type Alternatives = str | Sequence[str] | None
+type CycleStatuses = CycleStatus | str | Sequence[CycleStatus | str] | None
+type ExecutionStatuses = ExecutionStatus | str | Sequence[ExecutionStatus | str] | None
 
 # === Classes === #
+
+
+class CycleStatus(StrEnum):
+    """Cycle Work Status With Stable Lowercase String Values."""
+
+    UNSPECIFIED = "unspecified"
+    READY = "ready"
+    RUNNING = "running"
+    PAUSED = "paused"
+    STOPPING = "stopping"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    STOPPED = "stopped"
+
+
+class ExecutionStatus(StrEnum):
+    """Execution Work Status With Stable Lowercase String Values."""
+
+    UNSPECIFIED = "unspecified"
+    INVALIDATED = "invalidated"
+    PENDING = "pending"
+    RUNNING = "running"
+    PASSED = "passed"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
+    SKIPPED = "skipped"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +80,7 @@ class ExecutionSummary:
     case_id: str
     template_id: str | None
     label: str | None
-    status: str
+    status: ExecutionStatus
     started_at: datetime | None
     finished_at: datetime | None
     result: ResultSummary | None
@@ -68,6 +101,8 @@ class CycleSummary:
     created_at: datetime | None
     updated_at: datetime | None
     execution_count: int
+    status: CycleStatus
+    running_count: int
     archived: bool
     _transport: Transport = field(repr=False, compare=False)
 
@@ -83,7 +118,7 @@ def executions(
     *,
     template: Alternatives = None,
     cycle: Alternatives = None,
-    status: Alternatives = None,
+    status: ExecutionStatuses = None,
     since: Time | None = None,
     until: Time | None = None,
     archive: str = "unarchived",
@@ -103,7 +138,7 @@ def executions(
             row.case_id,
             _optional(row, "template_id"),
             _optional(row, "label"),
-            _wire.enum_name(row.status),
+            _status(row.status, ExecutionStatus),
             _wire.timestamp(row, "started_at"),
             _wire.timestamp(row, "finished_at"),
             _wire.result(row.result) if row.HasField("result") else None,
@@ -123,6 +158,7 @@ def cycles(
     *,
     cycle: Alternatives = None,
     phase: Alternatives = None,
+    status: CycleStatuses = None,
     since: Time | None = None,
     until: Time | None = None,
     archive: str = "unarchived",
@@ -132,7 +168,7 @@ def cycles(
     page_rows: int | None = None,
     page_bytes: int | None = None,
 ) -> QueryReader[CycleSummary]:
-    selection = _selection("ListCycles", {"cycle_id": cycle, "phase": phase}, where, archive)
+    selection = _selection("ListCycles", {"cycle_id": cycle, "phase": phase, "status": status}, where, archive)
     selection["created_at"] = _bounds(since, until, between)
 
     def decode(row: Any) -> CycleSummary:
@@ -143,6 +179,8 @@ def cycles(
             _wire.timestamp(row, "created_at"),
             _wire.timestamp(row, "updated_at"),
             row.execution_count,
+            _status(row.status, CycleStatus),
+            row.running_count,
             row.archived,
             transport,
         )
@@ -152,6 +190,13 @@ def cycles(
 
 
 # === Private Functions === #
+
+
+def _status[T: StrEnum](value: Any, kind: type[T]) -> T:
+    try:
+        return kind(_wire.enum_name(value))
+    except (ValueError, ProtocolError):
+        raise ProtocolError("Unknown work status in discovery response") from None
 
 
 def _optional(row: Any, name: str) -> Any:
@@ -190,7 +235,7 @@ def _selection(method: str, named: dict[str, Alternatives], where: Where | None,
 
 def _alternatives(value: Any) -> tuple[str, ...]:
     values = (value,) if isinstance(value, str) else value
-    if not isinstance(values, (list, tuple)) or not values or any(not isinstance(item, str) or not item for item in values):
+    if not isinstance(values, Sequence) or not values or any(not isinstance(item, str) or not item for item in values):
         raise ValueError("History filters require a nonempty string or sequence of strings")
     return tuple(dict.fromkeys(values))
 

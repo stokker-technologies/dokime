@@ -13,7 +13,7 @@
 # Standard Library Imports
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
@@ -35,8 +35,9 @@ from .models import Backend, Suite
 from .models import Template as TemplateSummary
 from .planning import Template
 from .query import discovery
-from .query.discovery import Alternatives, CycleSummary, ExecutionSummary
+from .query.discovery import Alternatives, CycleStatuses, CycleSummary, ExecutionStatuses, ExecutionSummary
 from .query.reader import QueryReader, QuerySettings
+from .query.schemas import RecordSchema, record_schemas
 from .query.selection import At, Time, Where, Window
 
 # Type Checking Imports
@@ -146,7 +147,7 @@ class DokimeClient:
         *,
         template: Alternatives = None,
         cycle: Alternatives = None,
-        status: Alternatives = None,
+        status: ExecutionStatuses = None,
         since: Time | None = None,
         until: Time | None = None,
         archive: str = "unarchived",
@@ -178,6 +179,7 @@ class DokimeClient:
         *,
         cycle: Alternatives = None,
         phase: Alternatives = None,
+        status: CycleStatuses = None,
         since: Time | None = None,
         until: Time | None = None,
         archive: str = "unarchived",
@@ -193,6 +195,7 @@ class DokimeClient:
             self._query_settings,
             cycle=cycle,
             phase=phase,
+            status=status,
             since=since,
             until=until,
             archive=archive,
@@ -202,6 +205,10 @@ class DokimeClient:
             page_rows=page_rows,
             page_bytes=page_bytes,
         )
+
+    def record_schemas(self, *, page_rows: int = PAGE_ITEMS) -> AsyncGenerator[RecordSchema]:
+        """Discover Ordered Record Declarations Lazily With Catalog Revision Checks."""
+        return record_schemas(self._transport, page_rows=page_rows)
 
     async def connect(self) -> Backend:
         """Negotiate API identity and the operations available to the caller (also done lazily)."""

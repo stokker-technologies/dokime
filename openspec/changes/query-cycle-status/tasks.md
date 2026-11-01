@@ -8,4 +8,4 @@
 ## Validation And Delivery
 
 - [x] 2.1 Run Rust check, generated-client checks, focused Rust tests and strict OpenSpec validation; client change owns Python proof.
-- [ ] 2.2 Review and create the query commit followed by the client commit; do not push. Keep these owner-requested change artifacts for review.
+- [x] 2.2 Review and create the query commit followed by the client commit; do not push. Keep these owner-requested change artifacts for review.
