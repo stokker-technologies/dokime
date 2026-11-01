@@ -173,14 +173,15 @@ const LivePlotCard = memo(function LivePlotCard({
     return titleRepeated ? { ...marked, titleRepeated } : marked;
   }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
-  const actions =
-    onPlotSettingsChange && PlotSettingsButton ? (
-      <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)} />
-    ) : undefined;
-
   return (
     <div className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
-      {plotElement(plot, resetKey, viewportMode, actions)}
+      {onPlotSettingsChange && PlotSettingsButton ? (
+        <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}>
+          {(actions) => plotElement(plot, resetKey, viewportMode, actions)}
+        </PlotSettingsButton>
+      ) : (
+        plotElement(plot, resetKey, viewportMode)
+      )}
     </div>
   );
 });

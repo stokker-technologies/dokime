@@ -67,6 +67,9 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
+An open plot settings dialog retains its edit draft while incoming payloads replace
+the loading, chart or error presentation.
+
 The live viewer owns the time window for all plots in its view. The options are
 1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
 stays with that view across rerenders. Plot definitions carry no time window.
