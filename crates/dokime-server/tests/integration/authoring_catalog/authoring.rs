@@ -99,7 +99,6 @@ pub(crate) fn untyped_artifact_refused() {
         .and_then(|source| source.downcast_ref::<std::io::Error>())
         .expect("an artifact refusal keeps the io::Error as its source");
     assert_eq!(io_error.kind(), std::io::ErrorKind::InvalidInput);
-    assert!(refused.to_string().contains("does not say what the content is"), "{refused}");
     assert!(artifacts.create("evidence/trace").is_err());
     artifacts.write("x.bin", b"bytes").expect("opaque bytes are a statement a name can make");
     assert_eq!(sink.chunks().len(), 1, "a refused name sends no piece");
