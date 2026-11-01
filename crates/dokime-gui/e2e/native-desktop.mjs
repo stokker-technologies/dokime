@@ -837,8 +837,24 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     await session.click(element);
-    const text = `\uE009a\uE000\uE003${value}`;
-    await session.request("POST", `/element/${key}/value`, { text, value: [...text] });
+    await session.request("POST", "/actions", {
+      actions: [
+        {
+          type: "key",
+          id: "native-text",
+          actions: [
+            { type: "keyDown", value: WEBDRIVER_KEYS.Control },
+            { type: "keyDown", value: "a" },
+            { type: "keyUp", value: "a" },
+            { type: "keyUp", value: WEBDRIVER_KEYS.Control },
+            { type: "keyDown", value: WEBDRIVER_KEYS.Backspace },
+            { type: "keyUp", value: WEBDRIVER_KEYS.Backspace },
+          ],
+        },
+      ],
+    });
+    await session.request("DELETE", "/actions");
+    if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
   /**
