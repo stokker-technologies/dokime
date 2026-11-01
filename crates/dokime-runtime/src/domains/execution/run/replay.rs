@@ -196,17 +196,7 @@ async fn replay_stream(
                     received = ?receipt.map(|receipt| receipt.sample_id.as_str()), "replayed sample receipt differs");
                 return Err(failed("sample signal did not acknowledge its final row"));
             }
-            *replayed = context
-                .runtime
-                .local_storage
-                .acknowledge_sample(
-                    execution.test_execution_id.to_string(),
-                    contract.stream.to_string(),
-                    last.sample_id.to_string(),
-                    at.sequence,
-                )
-                .await
-                .map_err(failed)?;
+            *replayed = entries[end - 1].0;
             offset = end;
         }
     }

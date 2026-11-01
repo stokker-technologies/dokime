@@ -164,8 +164,13 @@ impl Store {
                 }
                 let mut stored_rows: u64 =
                     transaction.query_row("SELECT rows FROM streams WHERE file_id=?1", [&id], |row| catalog::unsigned(row, 0))?;
-                let batch_number: u64 = transaction
-                    .query_row("SELECT count(*) FROM stream_batches WHERE file_id=?1", [&id], |row| catalog::unsigned(row, 0))?;
+                let last_batch = transaction
+                    .query_row("SELECT batch FROM stream_batches WHERE file_id=?1 ORDER BY batch DESC LIMIT 1", [&id], |row| {
+                        catalog::unsigned(row, 0)
+                    })
+                    .optional()?;
+                let batch_number =
+                    last_batch.map_or(Ok(0), |last| last.checked_add(1).ok_or(Error::Invalid("telemetry batch number overflows")))?;
                 for (batch_number, chunk) in (batch_number..).zip(entries.chunks(self.settings.telemetry_rows.get())) {
                     let batch = ipc::record_batch(stream.schema.clone(), chunk)?;
                     #[cfg(test)]
@@ -204,6 +209,17 @@ impl Store {
                         first_position=CASE WHEN rows=0 THEN ?5 ELSE first_position END,last_position=?6 WHERE file_id=?1",
                         params![id, catalog::integer(index.rows)?, first_at, last_at, first_position, last_position],
                     )?;
+                    let mut identities = transaction.prepare_cached("INSERT INTO stream_samples VALUES (?1,?2,?3,?4,?5)")?;
+                    for (row, (positioned, entry)) in chunk.iter().enumerate() {
+                        identities.execute(params![
+                            entry.sample.sample_id.as_str(),
+                            position(*positioned),
+                            id,
+                            catalog::integer(batch_number)?,
+                            row as i64,
+                        ])?;
+                    }
+                    drop(identities);
                     let mut scopes: BTreeMap<String, (i64, i64)> = BTreeMap::new();
                     for ((_, entry), time) in chunk.iter().zip(times) {
                         let scope = serde_json::to_string(&entry.sample.scope.as_ref().map(crate::storage::records::ScopeRow::from))?;

@@ -230,6 +230,235 @@ impl Fixture {
 /* === Tests === */
 
 #[tokio::test]
+async fn acknowledgement_work() {
+    let fixture = Fixture::new(512).await;
+    for start in (1..=14_400).step_by(512) {
+        let points = (start..=(start + 511).min(14_400)).map(|index| (index, index as i64)).collect::<Vec<_>>();
+        let through = fixture.admit(&points).await;
+        fixture.storage.flush_until(&through).await.unwrap();
+    }
+    let through = fixture.storage.cursor_saved();
+    let mut work = Vec::new();
+    for chunks in [8, 16] {
+        let before = fixture.local.read_counters().data_scan_rows;
+        let started = std::time::Instant::now();
+        for chunk in 1..=chunks {
+            let index = chunk * 512;
+            let acknowledged = fixture
+                .local
+                .acknowledge_sample(
+                    fixture.execution.to_string(),
+                    "arrow.fixture".into(),
+                    TelemetrySampleId::from_seed(format!("arrow.sample.{index}")).to_string(),
+                    through.sequence,
+                )
+                .await
+                .unwrap();
+            assert_eq!(acknowledged, through.sequence - 14_400 + index);
+        }
+        let rows = fixture.local.read_counters().data_scan_rows - before;
+        eprintln!("acknowledgement: 4h at 1Hz, {chunks} chunks, {rows} Arrow rows examined, {:?}", started.elapsed());
+        work.push(rows);
+    }
+    assert_eq!(work, [0, 0], "identity lookup must never decode Arrow history");
+    let execution = fixture.execution.to_string();
+    let (scans, steps) = fixture
+        .local
+        .read(move |connection| {
+            let mut statement = connection.prepare(SAMPLE_POSITION)?;
+            for index in [512, 8192, 14_400] {
+                let sample = TelemetrySampleId::from_seed(format!("arrow.sample.{index}"));
+                let selected: String = statement
+                    .query_row(params![sample.as_str(), "arrow.fixture", position(through.sequence), execution], |row| row.get(0))?;
+                assert_eq!(sequence(&selected).unwrap(), through.sequence - 14_400 + index);
+            }
+            Ok((statement.get_status(rusqlite::StatementStatus::FullscanStep), statement.get_status(rusqlite::StatementStatus::VmStep)))
+        })
+        .await
+        .unwrap();
+    assert_eq!(scans, 0);
+    assert!(steps < 300, "identity lookup must bound SQLite work: {steps}");
+
+    let through = fixture.storage.cursor_saved();
+    let mut after = 0;
+    let before = fixture.local.read_counters().data_scan_rows;
+    let mut delivered = 0;
+    loop {
+        let mut selection = fixture.selection();
+        selection.after = after;
+        let entries = fixture
+            .local
+            .telemetry_read(
+                through.clone(),
+                selection,
+                ScanPage {
+                    after,
+                    rows: NonZeroUsize::new(512).unwrap(),
+                    bytes: NonZeroUsize::MAX,
+                },
+            )
+            .await
+            .unwrap();
+        let Some((last_position, last)) = entries.last() else { break };
+        let rows_before_ack = fixture.local.read_counters().data_scan_rows;
+        after = fixture
+            .local
+            .acknowledge_sample(fixture.execution.to_string(), "arrow.fixture".into(), last.sample.sample_id.to_string(), through.sequence)
+            .await
+            .unwrap();
+        assert_eq!(after, *last_position);
+        assert_eq!(fixture.local.read_counters().data_scan_rows, rows_before_ack);
+        delivered += entries.len();
+    }
+    assert_eq!(delivered, 14_400);
+    assert_eq!(fixture.local.read_counters().data_scan_rows - before, 14_400);
+    fixture.local.finalize_telemetry(fixture.execution.to_string()).await.unwrap();
+    let root = fixture.stop().await;
+    let fixture = Fixture::with_root(root, 512).await;
+    assert_eq!(
+        fixture
+            .local
+            .acknowledge_sample(
+                fixture.execution.to_string(),
+                "arrow.fixture".into(),
+                TelemetrySampleId::from_seed("arrow.sample.14400").to_string(),
+                through.sequence
+            )
+            .await
+            .unwrap(),
+        through.sequence
+    );
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn acknowledgement_scope() {
+    let fixture = Fixture::new(512).await;
+    let captured = TestExecutionId::from_seed("captured.execution");
+    let mut rows = Vec::new();
+    let mut entries = Vec::new();
+    for index in 1..=3 {
+        let (mut input, mut entry) = fixture.row(index, 4 - index as i64);
+        if index != 2 {
+            entry.sample.captured_scopes.push(RecordScope {
+                test_execution_id: Some(captured.clone()),
+                ..Default::default()
+            });
+        }
+        if index == 3 {
+            entry.sample.scope = None;
+            input.record.scope = None;
+        }
+        input.record.payload = fixture.codec.encode(&entry, usize::MAX).unwrap();
+        rows.push(input);
+        entries.push(entry);
+    }
+    let through = fixture.storage.write_stream(rows).await.unwrap();
+    fixture.local.stage_telemetry(fixture.storage.clone(), through.clone(), entries).await.unwrap();
+    fixture.storage.flush_until(&through).await.unwrap();
+
+    // Neither Identity Resolution Nor Snapshot Pinning Needs The Writer.
+    let writer = fixture.local.0.live.lock().await;
+    assert_eq!(fixture.local.data_saved().await.unwrap().sequence, through.sequence);
+    for (execution, index, frontier, expected) in [
+        (fixture.execution.to_string(), 1, through.sequence, Some(through.sequence - 2)),
+        (captured.to_string(), 1, through.sequence, Some(through.sequence - 2)),
+        (captured.to_string(), 3, through.sequence, Some(through.sequence)),
+        (fixture.execution.to_string(), 3, through.sequence, None),
+        (captured.to_string(), 2, through.sequence, None),
+        (captured.to_string(), 3, through.sequence - 1, None),
+        (TestExecutionId::from_seed("other.execution").to_string(), 1, through.sequence, None),
+    ] {
+        let result = fixture
+            .local
+            .acknowledge_sample(
+                execution,
+                "arrow.fixture".into(),
+                TelemetrySampleId::from_seed(format!("arrow.sample.{index}")).to_string(),
+                frontier,
+            )
+            .await;
+        assert_eq!(result.ok(), expected);
+    }
+    assert!(
+        fixture
+            .local
+            .acknowledge_sample(
+                captured.to_string(),
+                "other.stream".into(),
+                TelemetrySampleId::from_seed("arrow.sample.1").to_string(),
+                through.sequence
+            )
+            .await
+            .is_err()
+    );
+    drop(writer);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn read_failure_seals() {
+    let fixture = Fixture::new(512).await;
+    let through = fixture.admit(&[(1, 1)]).await;
+    fixture.storage.flush_until(&through).await.unwrap();
+    let owner = fixture.local.0.clone();
+    fixture.local.call(move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, None))).await.unwrap().unwrap();
+    let file: String =
+        fixture.local.read(|connection| connection.query_row("SELECT file_id FROM streams", [], |row| row.get(0))).await.unwrap();
+    let path = fixture.root.path().join(format!("telemetry/{file}.arrow"));
+    let held = path.with_extension("held");
+    std::fs::rename(&path, &held).unwrap();
+    let mut reader = fixture
+        .storage
+        .read_stream(harmos::storage::query::StreamRead {
+            at: through,
+            selection: fixture.selection(),
+        })
+        .await
+        .unwrap();
+    assert!(matches!(
+        reader.next().await,
+        Err(harmos::storage::Error::Backend {
+            kind: harmos::BackendFailure::Transient,
+            ..
+        })
+    ));
+    drop(reader);
+    std::fs::rename(&held, &path).unwrap();
+    assert!(fixture.storage.status().failure.is_none());
+    let through = fixture.admit(&[(2, 2)]).await;
+    fixture.storage.flush_until(&through).await.unwrap();
+    fixture.local.finalize_telemetry(fixture.execution.to_string()).await.unwrap();
+    let sealed = fixture
+        .local
+        .read(|connection| {
+            connection.query_row("SELECT rows,sealed FROM streams", [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
+        })
+        .await
+        .unwrap();
+    assert_eq!(sealed, (2, true));
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn refuses_unindexed_root() {
+    let fixture = Fixture::new(512).await;
+    let through = fixture.admit(&[(1, 1)]).await;
+    fixture.storage.flush_until(&through).await.unwrap();
+    let root = fixture.stop().await;
+    let connection = rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+    connection.execute_batch("DROP TABLE stream_samples").unwrap();
+    drop(connection);
+    assert!(matches!(State::open(root.path()).await, Err(Error::Incompatible(_))));
+    let connection = rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+    let retained: i64 = connection.query_row("SELECT rows FROM streams", [], |row| row.get(0)).unwrap();
+    assert_eq!(retained, 1);
+    let created: bool =
+        connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='stream_samples')", [], |row| row.get(0)).unwrap();
+    assert!(!created);
+}
+
+#[tokio::test]
 async fn stage_saved_tail() {
     let fixture = Fixture::new(2).await;
     let second = fixture.admit(&[(1, 10), (2, 20)]).await;
@@ -408,7 +637,7 @@ async fn catalog_failure_never_acknowledges_flushed_bytes_and_retry_is_exact() {
     fixture
         .local
         .call(|connection| {
-            connection.execute_batch("CREATE TRIGGER fail_batch BEFORE INSERT ON stream_batches BEGIN SELECT RAISE(ABORT,'injected'); END")
+            connection.execute_batch("CREATE TRIGGER fail_batch BEFORE INSERT ON stream_captures BEGIN SELECT RAISE(ABORT,'injected'); END")
         })
         .await
         .unwrap();
@@ -433,6 +662,19 @@ async fn catalog_failure_never_acknowledges_flushed_bytes_and_retry_is_exact() {
     fixture.storage.retry_transient_persistence();
     fixture.storage.flush_until(&through).await.unwrap();
     assert_eq!(fixture.read(&through, fixture.selection()).await.len(), 1);
+    assert_eq!(
+        fixture
+            .local
+            .acknowledge_sample(
+                fixture.execution.to_string(),
+                "arrow.fixture".into(),
+                TelemetrySampleId::from_seed("arrow.sample.1").to_string(),
+                through.sequence,
+            )
+            .await
+            .unwrap(),
+        through.sequence,
+    );
     assert_eq!(
         fixture
             .local
