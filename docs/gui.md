@@ -107,7 +107,8 @@ and filter controls remain usable. Preserve the case of unit symbols.
   causes, operation/request/invocation identifiers and optional backend diagnostics.
   RPC adapters decode standard Status envelopes with canonical generated domain
   error schemas. The server preserves redacted span/backtrace text in the captured
-  error's optional diagnostics field. Technical Details is collapsed by default;
+  error's optional diagnostics field, bounded to fit transport metadata limits.
+  Technical Details is collapsed by default;
   Copy includes the complete record. Existing startup remediation actions remain
   independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
