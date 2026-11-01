@@ -77,9 +77,14 @@ async fn poison_capture(handle: &RuntimeHandle) {
     let primary = handle.storage_root().join("local.sqlite");
     let connection = rusqlite::Connection::open(primary).unwrap();
     connection.execute_batch("DROP TABLE storage_data_entries").unwrap();
-    publish(handle).await;
-    // Admission is buffered. Force the damaged primary through its save barrier
-    // before asserting that the manager's failure reaches every reader.
+    // The Damaged Primary Can Close Admission Before This Publication Returns.
+    let _ = handle
+        .publish_product_record(
+            ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                .into_draft("fixture.product"),
+        )
+        .await;
+    // Force The Save Barrier Before Asserting The Failure Reaches Every Reader.
     let saved = handle.storage().flush().await;
     assert!(saved.is_err());
     assert!(handle.storage().status().failure.is_some());
