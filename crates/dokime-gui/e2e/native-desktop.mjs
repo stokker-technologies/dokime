@@ -154,6 +154,7 @@ const WEBDRIVER_KEYS = {
   Tab: "\uE004",
   Control: "\uE009",
   Backspace: "\uE003",
+  End: "\uE010",
 };
 
 /** Journey Filters Retain These Prerequisites Within Their Selected Workflow. */
@@ -403,7 +404,7 @@ async function promptHoverLabels() {
         clientY: bounds.top + bounds.height / 2,
       }),
     );
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await frameDrawn();
     const label = frame.querySelector("[role=tooltip]")?.textContent;
     if (label) labels.add(label);
     if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
@@ -2579,6 +2580,12 @@ async function cycleJourney(session, cycleId) {
     /\bPassed\b/,
     `Closing plot settings must leave the prompting re-run able to pass: ${normalize(rerunOutcome)}`,
   );
+  const plotWindow = await until("plot window control", () => session.find("css selector", '[role="slider"][aria-label$="Window"]'));
+  await session.execute("arguments[0].focus();", [plotWindow]);
+  await session.key("End");
+  await until("complete plot history selected", () =>
+    session.execute("return arguments[0].getAttribute('aria-valuenow') === arguments[0].getAttribute('aria-valuemax');", [plotWindow]),
+  );
   await until("prompt marker hover labels", async () => {
     const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
     assertPromptHovers(promptHovers);
@@ -3150,9 +3157,13 @@ async function remoteAccessJourney(recoveredReports) {
   /* Preferences Autosave Before The Listener Is Explicitly Restarted. */
   const settled = () =>
     until("remote settings settled", () =>
-      session.execute(
-        "return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled) && [...document.querySelectorAll('[role=status][data-state]')].every((status) => status.dataset.state === 'saved');",
-      ),
+      session.execute(`
+        const states = [...document.querySelectorAll('[data-state=saved], [data-state=saving], [data-state=error]')];
+        const restart = [...document.querySelectorAll('button')].find(button => button.innerText.trim() === 'Restart Listener');
+        return states.length > 0 && states.every(status => status.dataset.state === 'saved')
+          && [...document.querySelectorAll('input[id], button[role=switch]')].every(control => !control.disabled)
+          && restart && !restart.disabled;
+      `),
     );
   const toggle = async (label, checked) => {
     const control = await until(label, () =>
