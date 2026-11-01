@@ -90,6 +90,8 @@ function connected(generation = "8"): DesktopSessionSnapshot {
 
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
+  useCallback: (callback: unknown) => callback,
+  useMemo: (factory: () => unknown) => factory(),
   useState: (initial: unknown) => [
     fixture.states.length ? fixture.states.shift() : typeof initial === "function" ? initial() : initial,
     vi.fn(),
