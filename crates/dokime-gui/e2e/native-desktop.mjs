@@ -4529,10 +4529,10 @@ for index in range(desktop.get_child_count()):
         break
     controls = list(descendants(dialogs[0]))
     if action == "fill":
-        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_state_set().contains(Atspi.StateType.FOCUSED) and ready(node)]
+        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_editable_text_iface() is not None and ready(node)]
         if not fields:
             break
-        assert len(fields) == 1, "The native location entry has unique focus"
+        assert len(fields) == 1, "The native chooser has one visible editable location entry"
         field = fields[0]
         assert field.get_editable_text_iface() is not None, "The native location entry is editable"
         assert Atspi.EditableText.set_text_contents(field, path), "The native location entry accepts the path"
