@@ -837,25 +837,8 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     await session.click(element);
-    /* WebKit Holds Control Through ElementSendKeys' NULL, So Release It Through
-       Native Actions Before Sending Replacement Text To The Controlled Field. */
-    await session.request("POST", "/actions", {
-      actions: [
-        {
-          type: "key",
-          id: "keyboard",
-          actions: [
-            { type: "keyDown", value: WEBDRIVER_KEYS.Control },
-            { type: "keyDown", value: "a" },
-            { type: "keyUp", value: "a" },
-            { type: "keyUp", value: WEBDRIVER_KEYS.Control },
-          ],
-        },
-      ],
-    });
-    await session.request("DELETE", "/actions");
-    const replacement = value.length ? value : WEBDRIVER_KEYS.Backspace;
-    await session.request("POST", `/element/${key}/value`, { text: replacement, value: [...replacement] });
+    await session.request("POST", `/element/${key}/clear`, {});
+    if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
   /**
