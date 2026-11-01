@@ -67,7 +67,9 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
-Numeric time series and histograms show numeric statistics.
+Numeric time series and histograms show numeric statistics. XY scatter, XY line,
+XY interval, trajectory and heatmap plots omit the statistics block in both the
+desktop and report renderer. XY traces keep their ordinary legend.
 
 Time series of declared Boolean fields, including host `host.network.internet`,
 use a stepped state axis labeled **False** and **True**, without numeric statistics.

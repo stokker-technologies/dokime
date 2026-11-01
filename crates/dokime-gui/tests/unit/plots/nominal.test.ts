@@ -37,6 +37,10 @@ import {
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
+import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
+import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
@@ -515,12 +519,47 @@ test("Boolean State Plots", () => {
   assert.deepEqual(payload.cartesian?.series[0].y.map(formatBooleanState), ["False", "True", "--", "False"]);
   assert.equal(formatBooleanState(0.5), "--");
   for (const zoom of [false, true]) {
-    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom, children: createElement(TimeSeriesPlot, { plot }) }));
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, createElement(TimeSeriesPlot, { plot })));
     assert.match(html, /plot-follow/);
     assert.doesNotMatch(html, /<table\b/);
   }
   columns[0].value_type = "number";
   assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
+});
+
+test("Plot Statistics", () => {
+  const payload = hostFrame([0, 1, 2], [[2, 5, 11]], { keys: ["distance"] });
+  payload.summaries = [{ ...SUMMARIES[0], series_id: "distance" }];
+  const descriptor = {
+    plot_id: "distance",
+    title: "Distance",
+    stream: "pulse",
+    plot_type: "time_series",
+    x: "timestamp",
+    y: ["distance"],
+  } as DocumentViewPlot;
+  const plot = documentPlotSpec({ plot: descriptor, payload, title: descriptor.title, position: 0 });
+  const interval = {
+    ...plot,
+    analysis: {
+      kind: "sigma_interval" as const,
+      series: [{ key: "distance", raw_points: 3, bins: [{ x: 1, count: 3, mean: 6, lower: 2, upper: 11 }] }],
+    },
+  };
+  for (const zoom of [false, true]) {
+    const render = (child: ReturnType<typeof createElement>) =>
+      renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, child));
+    const time = render(createElement(TimeSeriesPlot, { plot }));
+    assert.match(time, /<thead\b/);
+    for (const Component of [XyScatterPlot, XyLinePlot, TrajectoryPlot]) {
+      const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
+      assert.match(xy, /plot-follow/);
+      assert.doesNotMatch(xy, /<table\b/);
+    }
+    const xy = render(createElement(XyIntervalPlot, { plot: interval }));
+    assert.match(xy, /plot-follow/);
+    assert.doesNotMatch(xy, /<table\b/);
+  }
 });
 
 test("Series Legend", () => {
