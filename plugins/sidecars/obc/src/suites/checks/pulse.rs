@@ -202,7 +202,6 @@ impl Pulse {
         // === Start Signal Capture === //
 
         ctx.publish(RunStarted {}).await;
-        ctx.resources().armed.store(true, Ordering::Release);
 
         Ok(())
     }
@@ -217,6 +216,7 @@ impl Pulse {
         let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
         let mut produced = ctx.resources().produced.subscribe();
+        ctx.resources().armed.store(true, Ordering::Release);
         produced.wait_for(|count| *count >= wanted).await.expect("the resources retain the sample counter");
 
         Ok(())
