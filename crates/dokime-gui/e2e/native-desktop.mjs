@@ -1033,7 +1033,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
         `);
       } catch (error) {
-        if (windows || !ownedShells.length || !/Session terminated without a reply/i.test(error.message)) throw error;
+        const closedBeforeReply = windows
+          ? /target frame detached|invalid session id|disconnected/i.test(error.message)
+          : ownedShells.length && /Session terminated without a reply/i.test(error.message);
+        if (!closedBeforeReply) throw error;
         closeReplyLost = true;
       }
       await until(
