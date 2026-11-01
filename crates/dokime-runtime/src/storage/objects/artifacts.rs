@@ -21,7 +21,6 @@
 use super::metadata;
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::storage::{Error, Result, records::ScopeRow};
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::UploadId;
@@ -69,51 +68,10 @@ struct Record {
 
 /* === Implementations === */
 
-impl Content {
-    pub(super) fn is_artifact(&self) -> bool {
-        self.kind == "artifact"
-    }
-
-    pub(super) fn encoding_memory(value: &ExecutionOutputContent) -> Result<usize> {
-        let ExecutionOutputContent::Artifact { record, metadata } = value else {
-            return Ok(std::mem::size_of::<Self>().saturating_add("file".len()));
-        };
-        let record = Record::encoding_memory(record)?;
-        let metadata = metadata::Row::encoding_memory(metadata)?;
-        if [record, metadata].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add("artifact".len())
-            .saturating_add(record.saturating_sub(std::mem::size_of::<Record>()))
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>())))
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        match (self.kind.as_str(), &self.record, &self.metadata) {
-            ("file", None, None) => Ok(std::mem::size_of::<ExecutionOutputContent>()),
-            ("artifact", Some(record), Some(metadata)) => {
-                let record = record.projection_memory()?;
-                let metadata = metadata.projection_memory()?;
-                if [record, metadata].contains(&usize::MAX) {
-                    return Ok(usize::MAX);
-                }
-                Ok(std::mem::size_of::<ExecutionOutputContent>()
-                    .saturating_add(record.saturating_sub(std::mem::size_of::<Box<ArtifactRecord>>()))
-                    .saturating_add(metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>())))
-            }
-            _ => Err(Error::Invalid("invalid saved output content descriptor")),
-        }
-    }
-}
-
 impl TryFrom<&ExecutionOutputContent> for Content {
     type Error = Error;
 
     fn try_from(value: &ExecutionOutputContent) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("saved output content encoding memory overflow"));
-        }
         match value {
             ExecutionOutputContent::File => Ok(Self {
                 kind: "file".into(),
@@ -133,9 +91,6 @@ impl TryFrom<Content> for ExecutionOutputContent {
     type Error = Error;
 
     fn try_from(value: Content) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("saved output content projection memory overflow"));
-        }
         match (value.kind.as_str(), value.record, value.metadata) {
             ("file", None, None) => Ok(Self::File),
             ("artifact", Some(record), Some(metadata)) => Ok(Self::Artifact {
@@ -147,51 +102,11 @@ impl TryFrom<Content> for ExecutionOutputContent {
     }
 }
 
-impl Record {
-    fn encoding_memory(value: &ArtifactRecord) -> Result<usize> {
-        value.created_at.to_datetime()?;
-        let scope = ScopeRow::encoding_memory(&value.scope);
-        if scope == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            value.artifact_id.as_str().len(),
-            value.upload_id.as_str().len(),
-            scope.saturating_sub(std::mem::size_of::<ScopeRow>()),
-            value.filename.len(),
-            value.content_type.as_deref().map_or(0, str::len),
-            value.sha256.as_deref().map_or(0, str::len),
-            status(&value.status).len(),
-            value.created_at.as_str().len(),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        let scope = self.scope.as_ref().ok_or(Error::Invalid("saved artifact scope is missing"))?.projection_memory();
-        if scope == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.artifact_id.capacity(),
-            self.upload_id.capacity(),
-            scope.saturating_sub(std::mem::size_of::<RecordScope>()),
-            self.filename.capacity(),
-            self.content_type.as_ref().map_or(0, String::capacity),
-            self.sha256.as_ref().map_or(0, String::capacity),
-            self.created_at.capacity(),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<ArtifactRecord>(), usize::saturating_add))
-    }
-}
-
 impl TryFrom<&ArtifactRecord> for Record {
     type Error = Error;
 
     fn try_from(value: &ArtifactRecord) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("saved artifact encoding memory overflow"));
-        }
+        value.created_at.to_datetime()?;
         Ok(Self {
             artifact_id: value.artifact_id.as_str().to_owned(),
             upload_id: value.upload_id.as_str().to_owned(),
@@ -210,9 +125,6 @@ impl TryFrom<Record> for ArtifactRecord {
     type Error = Error;
 
     fn try_from(value: Record) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("saved artifact projection memory overflow"));
-        }
         if [&value.artifact_id, &value.upload_id].into_iter().any(|id| id.bytes().any(|byte| byte.is_ascii_uppercase())) {
             return Err(Error::Invalid("noncanonical saved artifact identity"));
         }
