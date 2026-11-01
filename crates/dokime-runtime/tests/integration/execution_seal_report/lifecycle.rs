@@ -170,7 +170,7 @@ pub(crate) async fn rerun_fresh_started() {
 }
 
 pub(crate) async fn stop_archive_state() {
-    use dokime_runtime::runtime::query::cycles::{CycleFilter, CycleOrder, select_cycles};
+    use dokime_runtime::runtime::query::cycles::{CycleFilter, CycleOrder};
     use dokime_runtime::runtime::query::executions::ArchiveScope;
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
@@ -187,10 +187,16 @@ pub(crate) async fn stop_archive_state() {
         .await
         .unwrap();
     let test_cycle_id = start_cycle(&runtime, suite).await;
-    let listed = |scope: ArchiveScope| {
+    let listed = async |scope: ArchiveScope| {
         let snapshot = runtime.watch_state().latest();
         let filter = CycleFilter { archive: scope, ..CycleFilter::default() };
-        select_cycles(snapshot.state(), &filter, CycleOrder::default()).iter().any(|cycle| cycle.test_cycle_id == test_cycle_id)
+        runtime
+            .list_cycle_headers(snapshot.state(), &filter, CycleOrder::default(), None, 50)
+            .await
+            .unwrap()
+            .cycles
+            .iter()
+            .any(|entry| entry.cycle.test_cycle_id == test_cycle_id)
     };
 
     // A Cycle That Can Still Run Is Not Terminal, So It Cannot Be Archived
@@ -213,9 +219,9 @@ pub(crate) async fn stop_archive_state() {
     let archived = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(archived.lifecycle, CycleStatus::Stopped);
     assert_eq!(archived.test_executions, before.test_executions);
-    assert!(!listed(ArchiveScope::Unarchived));
-    assert!(listed(ArchiveScope::Archived));
-    assert!(listed(ArchiveScope::All));
+    assert!(!listed(ArchiveScope::Unarchived).await);
+    assert!(listed(ArchiveScope::Archived).await);
+    assert!(listed(ArchiveScope::All).await);
 
     // An Execution Archives On Its Own, And History Lists It Only When Asked
     let execution = archived.test_executions[0].test_execution_id.clone();
@@ -235,12 +241,12 @@ pub(crate) async fn stop_archive_state() {
     // Unarchive Restores Both Rows
     runtime.set_cycle_archived(test_cycle_id.clone(), false, CommandContext::default()).await.unwrap();
     runtime.set_execution_archived(execution.clone(), false, CommandContext::default()).await.unwrap();
-    assert!(listed(ArchiveScope::Unarchived));
+    assert!(listed(ArchiveScope::Unarchived).await);
     assert!(browse(ArchiveScope::Unarchived).await.iter().any(|entry| entry.metadata.execution_id == execution && !entry.archived));
 }
 
 pub(crate) async fn rename_admission_seal() {
-    use dokime_runtime::runtime::query::cycles::{CycleFilter, CycleOrder, select_cycles};
+    use dokime_runtime::runtime::query::cycles::{CycleFilter, CycleOrder};
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
@@ -298,8 +304,8 @@ pub(crate) async fn rename_admission_seal() {
     assert_ne!(cycle_after.1, cycle_before.1, "the cycle has a new revision");
     {
         let snapshot = runtime.watch_state().latest();
-        let listed = select_cycles(snapshot.state(), &CycleFilter::default(), CycleOrder::default());
-        let cycle = listed.iter().find(|cycle| cycle.test_cycle_id == test_cycle_id).unwrap();
+        let listed = runtime.list_cycle_headers(snapshot.state(), &CycleFilter::default(), CycleOrder::default(), None, 50).await.unwrap();
+        let cycle = &listed.cycles.iter().find(|entry| entry.cycle.test_cycle_id == test_cycle_id).unwrap().cycle;
         assert_eq!(cycle.metadata.label, "Charger Burn-In");
         assert_eq!(snapshot.state().cases_for_cycle(cycle).map(|case| case.metadata.label.as_str()).collect::<Vec<_>>(), ["Charger Soak"]);
     }

@@ -52,7 +52,9 @@ struct Page {
 pub(super) async fn list(
     service: &Resources, request: &wire::ListExecutionSteps,
 ) -> Result<execution_model::ListExecutionStepsReply, Status> {
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
+    let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
+        .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let page = page(&snapshot, &request.execution_id, request.limit, request.cursor.as_ref(), execution.steps.len())?;
     let mut budget = value::Budget::new()?;
