@@ -157,9 +157,11 @@ def windows(workspace):
             os.environ["CARGO_HOME"],
             os.environ["MISE_DATA_DIR"],
         ]
-        for pattern in ("dokime-*", ".tmp*"):
-            scratch = str(Path(tempfile.gettempdir()).resolve() / pattern)
-            exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
+        temporary_roots = native_temporary_paths()
+        for root in temporary_roots:
+            for pattern in ("dokime-*", ".tmp*"):
+                scratch = str(root / pattern)
+                exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
         print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
         script = (
             "$paths = @("
@@ -172,6 +174,37 @@ def windows(workspace):
         subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], check=True, stdout=sys.stderr, creationflags=spawn_flags()
         )
+        verify_temporary_exclusions(temporary_roots)
+
+
+def native_temporary_paths():
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = ctypes.windll.kernel32.GetTempPath2W(len(buffer), buffer)
+    if not length or length >= len(buffer):
+        raise OSError("native temporary directory lookup failed")
+    roots = (Path(buffer.value), Path(tempfile.gettempdir()))
+    return list(dict.fromkeys(candidate for root in roots for candidate in (root, root.resolve())))
+
+
+def verify_temporary_exclusions(roots):
+    scanner = Path(os.environ["ProgramFiles"]) / "Windows Defender/MpCmdRun.exe"
+    for root in roots:
+        for prefix in ("dokime-exclusion-", ".tmp"):
+            with (
+                tempfile.TemporaryDirectory(dir=root, prefix=prefix) as directory,
+                tempfile.NamedTemporaryFile(dir=root, prefix=prefix, delete_on_close=False) as file,
+            ):
+                file.close()
+                nested = Path(directory) / "probe.sqlite"
+                nested.write_bytes(b"")
+                for path in (Path(directory), nested, Path(file.name)):
+                    print(f"Native Scanner Check: {path}", flush=True)
+                    subprocess.run(
+                        [str(scanner), "-CheckExclusion", "-Path", str(path)],
+                        check=True,
+                        stdout=sys.stderr,
+                        creationflags=spawn_flags(),
+                    )
 
 
 def unix():
