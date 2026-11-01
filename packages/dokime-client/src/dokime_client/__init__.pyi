@@ -1011,9 +1011,11 @@ HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Messag
 from .client import Aggregate as Aggregate
 from .client import Bucket as Bucket
 from .client import BucketValue as BucketValue
+from .client import CycleStatus as CycleStatus
 from .client import CycleSummary as CycleSummary
 from .client import DokimeClient as DokimeClient
 from .client import EvidenceReader as EvidenceReader
+from .client import ExecutionStatus as ExecutionStatus
 from .client import ExecutionSummary as ExecutionSummary
 from .client import Predicate as Predicate
 from .client import QualityCounts as QualityCounts
@@ -1025,6 +1027,9 @@ from .client import QueryPage as QueryPage
 from .client import QueryReader as QueryReader
 from .client import QuerySettings as QuerySettings
 from .client import QuerySnapshotError as QuerySnapshotError
+from .client import RecordField as RecordField
+from .client import RecordSchema as RecordSchema
+from .client import RecordValueType as RecordValueType
 from .client import Statistic as Statistic
 from .client import Statistics as Statistics
 from .client import TelemetryReader as TelemetryReader

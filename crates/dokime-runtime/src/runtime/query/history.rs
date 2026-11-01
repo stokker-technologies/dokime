@@ -122,6 +122,10 @@ impl History {
         let operation = "dokime.query.list_cycles";
         self.config.bound(selection.cycle_ids.len(), self.config.limits().alternatives, "cycles", operation)?;
         self.config.bound(selection.phases.len(), self.config.limits().alternatives, "phases", operation)?;
+        self.config.bound(selection.statuses.len(), self.config.limits().alternatives, "statuses", operation)?;
+        if selection.statuses.contains(&dokime_domain::model::execution::wire::CycleStatus::Unspecified) {
+            return Err(Failure::new(Reason::InvalidSelection, operation, "Select a declared cycle status"));
+        }
         for id in &selection.cycle_ids {
             TestCycleId::from_uuid(id).map_err(|_| Failure::new(Reason::InvalidSelection, operation, "Invalid cycle identifier"))?;
         }

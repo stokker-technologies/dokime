@@ -56,10 +56,10 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 ## Query Retained Evidence
 
 ```python
-from dokime_client import Aggregate, DokimeClient, Predicate
+from dokime_client import Aggregate, DokimeClient, ExecutionStatus, Predicate
 
 async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
-    async for execution in client.executions(status="failed", since="2026-10-01"):
+    async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
         records = execution.query_records("example.event", where={"status": "failed"})
         async for record in records:
             print(record.to_json())
@@ -93,6 +93,32 @@ overflow and later page errors raise without returning a partial list. Early
 close/cancellation prevents another fetch and leaves backend execution running.
 `records.complete` reports consumption; page metadata retains server completeness,
 schema, limits and snapshot after closing. No dataframe dependency is needed.
+
+### Refuse When Busy And Discover Record Columns
+
+Before starting your own work, inspect typed cycle statuses:
+
+```python
+from dokime_client import CycleStatus, DokimeClient
+
+async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+    if busy:
+        raise RuntimeError("Backend has active work")
+    async for schema in client.record_schemas():
+        columns = [field.identifier for field in schema.fields]
+        print(schema.record_type, columns)
+```
+
+This check observes a snapshot; another client can start afterward, and the
+backend still controls Start admission. `cycle.status` and `execution.status`
+are exported string enums; `cycle.running_count` counts Running execution revisions
+at the durable cut and can be zero before a running execution's next checkpoint.
+Use the cycle status for busy refusal.
+See the [client guide](../../packages/dokime-client/README.md#typed-status-and-record-schemas)
+for stable status values and declared field types, labels and units. Schema
+discovery fetches catalog pages lazily and retains declared field order for CSV
+headers, including fields absent from observed records.
 
 ### Optional Dataframes
 

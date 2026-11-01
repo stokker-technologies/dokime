@@ -201,7 +201,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
     let database = root.path().join("catalog.sqlite");
     let id = TestCycleId::from_seed("query.cycle");
     let member = TestExecutionId::from_seed("query.execution");
-    let cycle = result::TestCycle {
+    let mut cycle = result::TestCycle {
         saved: None,
         test_cycle_id: id.clone(),
         session_id: None,
@@ -224,7 +224,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         },
         sequence: 1,
     };
-    let object = ObjectEntry {
+    let mut object = ObjectEntry {
         version: ObjectVersionToken::new(position.clone()),
         position,
         value: ObjectValue {
@@ -257,6 +257,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         &CycleSelection {
             cycle_ids: vec![],
             phases: vec![],
+            statuses: vec![],
             created_at: None,
             archive: None,
         },
@@ -264,5 +265,34 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
     )
     .unwrap();
     assert_eq!(selected.rows[0].execution_count, 1);
+    assert_eq!(selected.rows[0].status, wire::CycleStatus::Ready);
+    assert_eq!(selected.rows[0].running_count, 0);
     assert_eq!(connection.query_row("SELECT execution FROM query_members", [], |row| row.get::<_, String>(0)).unwrap(), member.to_string());
+
+    insert(&connection, member.as_str(), 2, Some(10), wire::ExecutionStatus::Running);
+    connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
+    cycle.lifecycle = result::CycleStatus::Running;
+    object.position.sequence = 3;
+    object.version = ObjectVersionToken::new(object.position.clone());
+    object.value.payload = crate::storage::objects::cycle::Cycle::try_from(&cycle).unwrap().encode();
+    index(&connection, &object).unwrap();
+    let selection = CycleSelection {
+        cycle_ids: vec![id.to_string()],
+        phases: vec![result::CyclePhase::Active],
+        statuses: vec![wire::CycleStatus::Running, wire::CycleStatus::Paused],
+        created_at: None,
+        archive: None,
+    };
+    let captured = cycles(&connection, &selection, &read(3)).unwrap();
+    assert_eq!(captured.rows[0].status, wire::CycleStatus::Running);
+    assert_eq!(captured.rows[0].running_count, 1);
+    insert(&connection, member.as_str(), 4, Some(10), wire::ExecutionStatus::Passed);
+    connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
+    assert_eq!(cycles(&connection, &selection, &read(3)).unwrap().rows, captured.rows);
+    assert_eq!(cycles(&connection, &selection, &read(4)).unwrap().rows[0].running_count, 0);
+    let sealed = CycleSelection {
+        phases: vec![result::CyclePhase::Sealed],
+        ..selection
+    };
+    assert!(cycles(&connection, &sealed, &read(4)).unwrap().rows.is_empty());
 }

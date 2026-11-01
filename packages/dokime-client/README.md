@@ -424,6 +424,56 @@ the server advertises effective limits. `at=` accepts a query snapshot or saved
 `Checkpoint`. These finite readers never follow, start, stop or seal work;
 existing `records()`/`samples()` and checkpoint APIs retain their behavior.
 
+## Typed Status And Record Schemas
+
+Use typed statuses to refuse a new run while the backend has active work:
+
+```python
+from dokime_client import CycleStatus, DokimeClient, ExecutionStatus
+
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+    if busy:
+        raise RuntimeError("Backend has active work")
+    async for execution in client.executions(status=ExecutionStatus.FAILED):
+        print(execution.id, execution.status)
+    async for schema in client.record_schemas():
+        columns = [field.identifier for field in schema.fields]
+        print(schema.record_type, columns)
+```
+
+Cycle summaries expose `CycleStatus` in `status` and an integer `running_count`;
+execution summaries expose `ExecutionStatus` in `status`. Named filters accept
+one enum or a sequence; existing lowercase string filters remain supported.
+These are durable snapshot values. `running_count` counts Running execution
+revisions at that cut; active work can have a zero count before its next checkpoint.
+Use cycle status for the busy check. Later checkpoints require a fresh query.
+Backends with older development cycle-query projections need a fresh storage root;
+preserve existing roots rather than resetting them.
+Enum `.value` strings are stable:
+
+| Enum | Members And Values |
+| --- | --- |
+| `CycleStatus` | `UNSPECIFIED="unspecified"`, `READY="ready"`, `RUNNING="running"`, `PAUSED="paused"`, `STOPPING="stopping"`, `COMPLETED="completed"`, `FAILED="failed"`, `BLOCKED="blocked"`, `STOPPED="stopped"` |
+| `ExecutionStatus` | `UNSPECIFIED="unspecified"`, `INVALIDATED="invalidated"`, `PENDING="pending"`, `RUNNING="running"`, `PASSED="passed"`, `FAILED="failed"`, `BLOCKED="blocked"`, `CANCELLED="cancelled"`, `INTERRUPTED="interrupted"`, `SKIPPED="skipped"` |
+
+`UNSPECIFIED` represents an unspecified returned status and cannot be used as a
+filter. The busy check observes a snapshot; concurrent clients may start afterward,
+and the backend still controls Start admission.
+
+`record_schemas(page_rows=100)` returns a lazy async iterator of exported
+`RecordSchema` objects with `record_type`, `schema_version`, optional `label` and
+an ordered tuple of `RecordField` objects. Fields expose `identifier`,
+`value_type: RecordValueType`, optional `label`, optional `unit` symbol, `required`
+and `nullable`. Literal identifiers, including dots, retain declaration order for
+CSV headers; columns are never inferred from observed values. These are current
+catalog declarations; query page metadata describes captured historical schemas.
+Catalog changes can abort discovery; closing the iterator stops further fetches.
+
+`RecordValueType` has stable lowercase values `unspecified`, `boolean`, `integer`,
+`number`, `text`, `file`, `object`, `array` and `datetime`, with uppercase member
+names. Object/array declarations describe the top-level field only.
+
 ## Optional Dataframes
 
 Given an execution handle or discovery summary, convert record or telemetry
