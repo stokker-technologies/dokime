@@ -15,6 +15,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -150,16 +151,22 @@ def windows(workspace):
         subprocess.run(["mise", "--version"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
 
     if os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" and ctypes.windll.shell32.IsUserAnAdmin():
+        scratch = str(Path(tempfile.gettempdir()).resolve() / "dokime-*")
         exclusions = [
             str(workspace),
             str(Path(os.environ.get("CARGO_TARGET_DIR", str(workspace / "target"))).resolve()),
             os.environ["CARGO_HOME"],
             os.environ["MISE_DATA_DIR"],
+            scratch,
+            scratch + r"\:{PathType:folder}",
         ]
+        print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
         script = (
-            "Add-MpPreference -ExclusionPath @("
+            "$paths = @("
             + ",".join("'" + path.replace("'", "''") + "'" for path in exclusions)
-            + ") -ErrorAction Stop"
+            + "); Add-MpPreference -ExclusionPath $paths -ErrorAction Stop; "
+            "$actual = (Get-MpPreference -ErrorAction Stop).ExclusionPath; "
+            "foreach ($path in $paths) { if ($actual -notcontains $path) { throw ('Native scanner exclusion was not applied: ' + $path) } }"
         )
         # Hosted Image Provisioning Is The Only Place That Changes Defender Policy.
         subprocess.run(
