@@ -111,7 +111,7 @@ retains the complete setup and runnable lifecycle examples.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158`)
+(currently pinned to revision `11f09eda9de2ccf0ceefb11a661b4f9876def741`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -186,7 +186,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities require a fresh storage root.
+token identities, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
