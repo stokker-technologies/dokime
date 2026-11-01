@@ -259,8 +259,7 @@ pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str
                                 "group": "Fixture",
                                 "style": "line",
                                 "x_scale": "linear",
-                                "y_scale": "linear",
-                                "live_window_s": 120.0
+                                "y_scale": "linear"
                             }
                         }
                     }, {

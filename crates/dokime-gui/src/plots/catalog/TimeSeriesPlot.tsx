@@ -59,7 +59,7 @@ export function TimeSeriesPlot({
       title={plot.title}
       titleRepeated={plot.titleRepeated}
       unit={plot.unit}
-      liveWindowS={plot.liveWindowS}
+      windowS={plot.windowS}
       viewportMode={viewportMode}
       xScale={plot.xScale}
       yScale={plot.booleanAxis ? "linear" : plot.yScale}

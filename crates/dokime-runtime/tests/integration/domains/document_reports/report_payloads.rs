@@ -351,7 +351,6 @@ fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotTy
         marker_record_types: Vec::new(),
         reference_lines: Vec::new(),
         reference_bands: Vec::new(),
-        live_window_s: Some(120.0),
         display_points: None,
         downsample: Default::default(),
         x_format: None,

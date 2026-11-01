@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import paths, storage
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output
@@ -53,6 +53,7 @@ MODULES = ROOT / "target/generated/typescript"
 
 def prepare(*, check: bool = True) -> None:
     """Build The Generator Independently Of The Frontend And Refresh Its Modules."""
+    storage.preflight(ROOT)
     messages = ROOT / "target/contracts/typescript/compiler.jsonl"
     messages.parent.mkdir(parents=True, exist_ok=True)
     arguments = ["--locked", "--profile", "dev", "-p", "cargo-dokime", "-p", "dokime-server"]

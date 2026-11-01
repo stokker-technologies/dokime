@@ -191,7 +191,6 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
       tolerance: band.tolerance ?? null,
       color: nonEmptyString(band.color) ?? "#60706a",
     })),
-    live_window_s: input.live_window_s ?? null,
     x_format: input.x_format ?? null,
     y_format: input.y_format ?? null,
     x_axis: input.x_axis ?? null,

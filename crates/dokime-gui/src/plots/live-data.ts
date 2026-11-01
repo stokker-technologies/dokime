@@ -90,10 +90,7 @@ export function useLivePlotPayloads({
   );
   const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
   const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
-  const scopeWindowKey = useMemo(
-    () => [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join("|"),
-    [scopeKey, windowS],
-  );
+  const scopeWindowKey = useMemo(() => [scopeKey, windowS ?? "all"].join("|"), [scopeKey, windowS]);
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
 
   const plotsRef = useRef(plots);
@@ -364,7 +361,7 @@ export function plotRequestForDocumentPlot(
     // render) instead of a server-downsampled frame.
     maxPoints: displayPointBudget(plot.display_points),
     technique: plot.downsample ?? "auto",
-    windowS: options.windowS === undefined ? plot.live_window_s : options.windowS,
+    windowS: options.windowS ?? null,
     summaryWindow: options.summaryWindow ?? null,
     scope: options.scope,
   };

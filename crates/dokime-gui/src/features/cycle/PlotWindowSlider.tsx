@@ -27,21 +27,20 @@ import { elapsedWindowLabel } from "@/plots/axis";
 
 /* === Constants === */
 
-const GUI_PLOT_WINDOW_PRESETS_S = [30, 60, 120, 300, 600, 1_800, 3_600];
+const GUI_PLOT_WINDOW_PRESETS_S = [60, 120, 300, 600, 1_800, 3_600];
 
 /* === Types === */
 
 export type PlotWindowOption = {
   label: string;
   detail: string;
-  value: number | null | undefined;
+  value: number | null;
 };
 
-/** The operator's plot window: the chosen option and whether they chose it. */
+/** The operator's plot window for one view. */
 export type PlotWindowState = {
   index: number;
   option: PlotWindowOption;
-  overridden: boolean;
   choose: (index: number) => void;
 };
 
@@ -101,18 +100,10 @@ export function PlotWindowSlider({
   );
 }
 
-/**
- * The plot window in the header of the plots it scales. A frozen plot shows
- * the window it was drawn with: saying so is honest, offering a slider that
- * changes nothing is not.
- */
+/** The live view's window control; reports always cover their full evidence cut. */
 export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: string | null; live: boolean; window: PlotWindowState }) {
   if (!live) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        {elapsedUnit ? "Elapsed window" : "Plot window"} {plotWindowValueLabel(window.option, elapsedUnit)}
-      </span>
-    );
+    return null;
   }
   return (
     <div className="w-56 xl:w-80">
@@ -135,7 +126,6 @@ export function usePlotWindow(): PlotWindowState {
     },
     index,
     option,
-    overridden: option.value !== undefined,
   };
 }
 
@@ -166,15 +156,11 @@ export function plotWindowDetail(option: PlotWindowOption, elapsedUnit: string |
 
 export function plotWindowOptions(presets: readonly number[]): [PlotWindowOption, ...PlotWindowOption[]] {
   const durations = presets.map((seconds) => {
-    const unit = seconds % 60 === 0 ? "min" : "s";
+    const unit = seconds % 3_600 === 0 ? "h" : seconds % 60 === 0 ? "min" : "s";
     const label = elapsedWindowLabel(seconds, unit);
     return { label, detail: `last ${label}`, value: seconds };
   });
-  return [
-    { label: "Plot Default", detail: "the window declared by each plot", value: undefined },
-    ...durations,
-    { label: "All", detail: "all stored samples", value: null },
-  ];
+  return [{ label: "All", detail: "all stored samples", value: null }, ...durations];
 }
 
 /* === Private Functions === */
