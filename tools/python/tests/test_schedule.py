@@ -129,6 +129,38 @@ class ScheduleTests(unittest.TestCase):
                         )
                 self.assertEqual(result["outcome"], expected)
 
+    def test_coverage_liveness_layers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "tools").mkdir()
+            (directory / "tools/project.toml").write_text("[conventions.testing.deadlines]\nunit = 30\nacceptance = 60\n", encoding="utf-8")
+            rules = run.policy.load(directory)
+            seconds = rules.deadline("unit", coverage=True) + 1
+            with run._scratch(directory, "coverage-python", "dev") as scratch:
+                junit = scratch / "junit.xml"
+                junit.write_text(
+                    f'<testsuite><testcase classname="tests.unit.client" name="overrun" time="{seconds}"/>'
+                    f'<testcase classname="tests.acceptance.backend" name="within_budget" time="{seconds}"/></testsuite>',
+                    encoding="utf-8",
+                )
+                with patch.object(run, "_execute", return_value=0):
+                    result = run._lane(
+                        directory,
+                        rules,
+                        "coverage-python",
+                        "coverage",
+                        "python",
+                        ".",
+                        "dev",
+                        [],
+                        directory,
+                        {run.COVERAGE_VARIABLE: "1"},
+                        junit,
+                        scratch,
+                    )
+            self.assertEqual((result["passed"], result["failed"]), (1, 1))
+            self.assertEqual(result["overruns"], ["tests.unit.client::overrun"])
+
     def test_aggregate_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()
