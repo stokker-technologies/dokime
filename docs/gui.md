@@ -59,6 +59,14 @@ HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
 
+## Telemetry Plots
+
+Live and frozen report plots retain samples from the selected execution,
+including shared streams captured by its leases. Authored stream aliases resolve
+to the captured producer streams. Running reports freeze one saved evidence cut;
+later samples stay outside that report. Plot previews remain bounded independently
+of raw evidence retention.
+
 ## Canonical Bindings And Transport
 
 - Rust `dokime-operations` declarations own operation contracts and
