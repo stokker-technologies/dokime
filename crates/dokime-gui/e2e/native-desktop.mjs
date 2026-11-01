@@ -569,6 +569,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
        `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
        home has no Downloads folder and the command fails before it writes. */
     await writeFile(join(home, "config", "user-dirs.dirs"), `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`);
+    const settings = join(home, "config", "glib-2.0", "settings", "keyfile");
+    if (!existsSync(settings)) {
+      await mkdir(dirname(settings), { recursive: true });
+      await writeFile(settings, "[org/gtk/settings/file-chooser]\nlocation-mode='filename-entry'\nstartup-mode='cwd'\n");
+    }
   }
 
   const port = await unusedPort();
@@ -598,6 +603,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
             }
           : {
               GDK_BACKEND: "x11",
+              GSETTINGS_BACKEND: "keyfile",
               HOME: home,
               PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
               XDG_CACHE_HOME: join(home, "cache"),
@@ -4556,7 +4562,6 @@ for index in range(desktop.get_child_count()):
         if (result.stdout.trim() !== action) return false;
         await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
         if (action === "ready") {
-          await run(["key", "--window", ids[0], "--clearmodifiers", "ctrl+l"]);
           picker.window = ids[0];
         } else if (action === "fill") {
           picker.entered = true;
