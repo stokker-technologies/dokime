@@ -1507,7 +1507,7 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Versioned local history projections, membership indexes
+fresh storage root. Versioned local history projections, membership and sample identity indexes
 and persistent query token identities are part of that layout; retained older
 roots are preserved and are not rebuilt in place. Finite history queries cover this local catalog only; merged browse
 discovery remains a separate API. Host payloads now use native repeated fields and framework
@@ -1807,8 +1807,17 @@ Recovery rebuilds an interrupted footer from batch headers and catalog checkpoin
 without decoding sample bytes.
 Files close before rename or deletion on Windows.
 
+Receiver receipts resolve sample identities through the saved SQLite batch index on
+a reader connection, including execution capture membership. Replayed chunks advance
+from their known saved positions after the receiver confirms the final sample.
+Acknowledgement never scans Arrow history or holds the storage writer.
+After an explicit retry saves every pending telemetry row, shutdown discards an
+earlier transient flush-task failure. Unsaved rows and nontransient failures still
+refuse storage close.
+
 This experimental storage layout keeps the v1 baseline and requires a fresh
-root for incompatible development data. Existing roots are never reset or
+root for incompatible development data, including roots without the sample identity index.
+Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
 restores saved frontiers without replaying device actions.
 
