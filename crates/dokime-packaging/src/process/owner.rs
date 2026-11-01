@@ -64,10 +64,6 @@ impl Child {
         self.child.inner_mut().wait()
     }
 
-    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.child.inner_mut().try_wait()
-    }
-
     pub async fn wait(&mut self) -> io::Result<ExitStatus> {
         let status = self.child.wait().await?;
         #[cfg(unix)]

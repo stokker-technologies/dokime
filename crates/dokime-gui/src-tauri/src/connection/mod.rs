@@ -60,7 +60,6 @@ struct SessionState {
 
 #[derive(Clone)]
 pub struct SessionLease {
-    generation: String,
     client: dokime::client::Client,
     cancellation: CancellationToken,
     preferences: Arc<Mutex<ClientPreferences>>,
@@ -246,7 +245,6 @@ impl ConnectionSession {
         .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
         let lease = SessionLease {
-            generation: generation.to_string(),
             client,
             cancellation,
             preferences: Arc::clone(&self.preferences),
@@ -314,10 +312,6 @@ impl SessionLease {
     pub(crate) fn client(&self) -> dokime::client::Client {
         let preferences = *self.preferences.lock().expect("client preferences poisoned");
         self.client.with_timeout(std::time::Duration::from_millis(preferences.request_timeout_ms))
-    }
-
-    pub fn generation(&self) -> &str {
-        &self.generation
     }
 
     pub(crate) async fn guard<T>(&self, future: impl Future<Output = T>) -> Result<T, ConnectionError> {

@@ -81,17 +81,6 @@ impl HostTelemetryStream {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::System => "Host System",
-            Self::Network => "Host Network",
-            Self::WifiLink => "Host WiFi Link",
-            Self::WifiScan => "Host WiFi Scan",
-            Self::WifiLatency => "Host WiFi Latency",
-            Self::Bluetooth => "Host Bluetooth",
-        }
-    }
-
     pub fn identifier(self) -> Identifier {
         identifier(self.as_str())
     }

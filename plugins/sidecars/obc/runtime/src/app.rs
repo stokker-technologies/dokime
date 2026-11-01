@@ -29,7 +29,6 @@ use crate::{Testbench, Transactions, error::LaunchError};
 pub type Origin = dokime::harmos::state::Origin<Testbench>;
 pub type Runtime = dokime::harmos::Runtime<ChargerBench>;
 pub type Handle = dokime::harmos::runtime::Handle<ChargerBench>;
-pub type State = dokime::harmos::state::ManagedState<ChargerBench>;
 
 /* === Structs === */
 
