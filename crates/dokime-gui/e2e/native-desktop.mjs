@@ -837,8 +837,8 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     await session.click(element);
-    await session.request("POST", `/element/${key}/clear`, {});
-    if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
+    const text = `\uE009a\uE000\uE003${value}`;
+    await session.request("POST", `/element/${key}/value`, { text, value: [...text] });
   };
 
   /**
