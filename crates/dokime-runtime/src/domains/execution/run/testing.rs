@@ -7,7 +7,7 @@
  * ***
  */
 
-// Per-Execution Drain Invocation Counts For Lifecycle Integration Stories.
+// Execution Lifecycle Gates And Drain Invocation Counts For Integration Stories.
 
 /* === Modules === */
 
@@ -28,6 +28,12 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 static REPORT_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
+
+static REPORT_WAIT_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
+
+static SEAL_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
+
+static CHECKPOINT_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
 
 static COUNTS: LazyLock<Mutex<BTreeMap<TestExecutionId, BTreeMap<&'static str, usize>>>> = LazyLock::new(Default::default);
 
@@ -83,6 +89,30 @@ pub(crate) async fn before_report(execution: &TestExecutionId) -> crate::runtime
     Ok(())
 }
 
+pub fn hold_report_wait(execution: &TestExecutionId) -> ReportGate {
+    hold(&REPORT_WAIT_GATES, execution)
+}
+
+pub fn hold_execution_seal(execution: &TestExecutionId) -> ReportGate {
+    hold(&SEAL_GATES, execution)
+}
+
+pub fn hold_execution_checkpoint(execution: &TestExecutionId) -> ReportGate {
+    hold(&CHECKPOINT_GATES, execution)
+}
+
+pub(crate) async fn before_report_wait(execution: &TestExecutionId) {
+    enter(&REPORT_WAIT_GATES, execution).await;
+}
+
+pub(crate) async fn before_seal_adoption(execution: &TestExecutionId) {
+    enter(&SEAL_GATES, execution).await;
+}
+
+pub(crate) async fn before_execution_checkpoint(execution: &TestExecutionId) {
+    enter(&CHECKPOINT_GATES, execution).await;
+}
+
 pub(crate) fn record(execution: &TestExecutionId, stage: &'static str) {
     *COUNTS.lock().unwrap().entry(execution.clone()).or_default().entry(stage).or_default() += 1;
 }
@@ -92,5 +122,23 @@ pub fn drain_counts(execution: &TestExecutionId) -> BTreeMap<&'static str, usize
 }
 
 /* === Private Functions === */
+
+fn hold(gates: &Mutex<BTreeMap<TestExecutionId, ReportGate>>, execution: &TestExecutionId) -> ReportGate {
+    let gate = ReportGate {
+        entered: tokio_util::sync::CancellationToken::new(),
+        release: tokio_util::sync::CancellationToken::new(),
+        fail: false,
+    };
+    gates.lock().unwrap().insert(execution.clone(), gate.clone());
+    gate
+}
+
+async fn enter(gates: &Mutex<BTreeMap<TestExecutionId, ReportGate>>, execution: &TestExecutionId) {
+    let gate = gates.lock().unwrap().remove(execution);
+    if let Some(gate) = gate {
+        gate.entered.cancel();
+        gate.release.cancelled().await;
+    }
+}
 
 /* === Tests === */

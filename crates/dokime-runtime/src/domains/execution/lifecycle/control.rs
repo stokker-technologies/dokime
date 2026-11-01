@@ -159,7 +159,7 @@ impl RuntimeHandle {
             .find(|execution| execution.test_execution_id == id)
             .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
         if execution.saved.is_none() {
-            self.queue_saved_execution(&cycle, execution).await?;
+            self.finish_saved_execution(&cycle, execution).await.map_err(report_not_saved)?;
         }
         if queued {
             let request = request.expect("queued request");
