@@ -70,7 +70,7 @@ pub(super) enum Input<'a> {
 impl<'a> Input<'a> {
     fn value(self, sample: &TelemetrySample) -> Option<f64> {
         match self {
-            Self::Field(field) => sample.values.get(field).and_then(payload::numeric_value),
+            Self::Field(field) => sample.values.get(field).and_then(payload::series_value),
             Self::Expression(expression) => payload::expression_numeric_value(sample, expression),
         }
     }

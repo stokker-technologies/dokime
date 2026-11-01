@@ -28,7 +28,7 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
-import { formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
+import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
@@ -88,6 +88,7 @@ type CartesianPlotProps = {
   xScale?: DocumentAxisScale;
   yScale?: DocumentAxisScale;
   timeAxis?: boolean;
+  booleanAxis?: boolean;
   colors?: string[];
   unit?: string | null;
   xFormat?: ValueFormat | null;
@@ -179,6 +180,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   xScale = "linear",
   yScale = "linear",
   timeAxis = true,
+  booleanAxis = false,
   colors = [],
   unit,
   xFormat = null,
@@ -252,6 +254,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     x: xFormat ?? null,
     xLabel,
     intervals,
+    booleanAxis,
     xElapsed: xElapsedUnit ?? null,
     y: yFormat ?? null,
     series: renderedSeries.map((item) => item.format ?? null),
@@ -353,11 +356,13 @@ export const CartesianPlot = memo(function CartesianPlot({
         : (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
             splits.map((split) => (split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr })));
     const yAxisValues: uPlot.Axis.Values = (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-      splits.map((split) => (split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr })));
+      splits.map((split) =>
+        booleanAxis ? formatBooleanState(split) : split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr }),
+      );
     const seriesLegendValue =
       (format: ValueFormat | null): uPlot.Series.Value =>
       (_plot, rawValue) =>
-        rawValue == null ? "--" : formatNumber(rawValue, format);
+        booleanAxis ? formatBooleanState(rawValue) : rawValue == null ? "--" : formatNumber(rawValue, format);
     const options: uPlot.Options = {
       ...chartSize(),
       mode: faceted ? 2 : 1,
@@ -463,8 +468,9 @@ export const CartesianPlot = memo(function CartesianPlot({
         y: {
           auto: true,
           distr: yScale === "log" ? 3 : 1,
-          range:
-            yReferenceValues.length || intervals
+          range: booleanAxis
+            ? () => [-0.1, 1.1]
+            : yReferenceValues.length || intervals
               ? (_plot, dataMin, dataMax) =>
                   paddedYRange(
                     dataMin,
@@ -496,6 +502,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           grid: { stroke: themeColors.border, width: 1 },
           size: (_plot, values) => yAxisGutter(values, plotFont),
           values: yAxisValues,
+          splits: booleanAxis ? () => [0, 1] : undefined,
         },
       ],
       series: [
@@ -647,6 +654,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     densePoints,
     style,
     timeAxis,
+    booleanAxis,
     uPlotConstructor,
     xScale,
     yScale,

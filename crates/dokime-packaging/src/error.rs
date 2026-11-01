@@ -37,6 +37,13 @@ pub enum Error {
     #[error("{0}")]
     Invalid(String),
 
+    #[error(
+        "GitHub API rate limit exceeded{limit_message}; setting GITHUB_TOKEN raises the limit{reset_message}",
+        limit_message = .limit.map(|limit| format!(" ({limit} requests)")).unwrap_or_default(),
+        reset_message = .reset.map(|reset| format!("; resets at {reset} (UTC epoch seconds)")).unwrap_or_default()
+    )]
+    GithubRateLimit { limit: Option<u64>, reset: Option<u64> },
+
     #[error("distribution digest mismatch: {member}")]
     DistributionDigest { member: String },
 

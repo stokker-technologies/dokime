@@ -978,12 +978,18 @@ bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 
-Time series and scatter plots list their traces in a statistics table beneath
+Numeric time series list their traces in a statistics table beneath
 the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
 freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
+Histograms retain their numeric statistics. XY plots, including scatter, line,
+interval and trajectory, omit the statistics block. Boolean time series such as
+host Internet Connectivity show a stepped False/True state trace instead of
+numeric statistics: false maps to 0, true to 1, and missing readings leave gaps.
+The declared Boolean schema and raw evidence remain unchanged in live views and
+frozen reports.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -1300,6 +1306,10 @@ Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
 Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
+
+Set a non-empty `GITHUB_TOKEN` (or `GH_TOKEN` as a fallback) to authenticate
+GitHub API lookups and raise the unauthenticated rate limit. Credentials are sent
+only to `api.github.com`, never to release asset hosts or other redirect destinations.
 
 The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and

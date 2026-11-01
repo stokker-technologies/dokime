@@ -104,7 +104,7 @@ impl Source<'_> {
 impl Input<'_> {
     fn value(self, sample: &TelemetrySample) -> Option<f64> {
         match self {
-            Self::Field(field) => sample.values.get(field).and_then(super::numeric_value),
+            Self::Field(field) => sample.values.get(field).and_then(super::series_value),
             Self::Expression(expression) => super::expression_numeric_value(sample, expression),
         }
     }

@@ -81,7 +81,7 @@ impl<'a> PlotSamples<'a> {
 
     fn iter(&self) -> impl Iterator<Item = &'a TelemetrySample> + Clone {
         self.telemetry.iter().filter(|sample| {
-            let selected = sample.stream.as_str() == self.request.stream
+            let selected = stream_matches_alias(sample.stream.as_str(), &self.request.stream)
                 && sample_matches_scope(sample, self.request.scope.as_ref())
                 && super::payload::sample_matches_filters(sample, &self.request.filters);
             let visible = self.cutoff.is_none_or(|cutoff| parse_timestamp(sample.timestamp.as_str()).is_none_or(|time| time >= cutoff));

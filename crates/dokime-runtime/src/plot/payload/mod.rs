@@ -418,6 +418,14 @@ pub(crate) fn numeric_value(value: &Value) -> Option<f64> {
     }
 }
 
+// Declared Boolean Fields Use A Stable State Axis; Missing Values Remain Gaps.
+pub(crate) fn series_value(value: &Value) -> Option<f64> {
+    match value {
+        Value::Bool(value) => Some(f64::from(u8::from(*value))),
+        _ => numeric_value(value),
+    }
+}
+
 pub(crate) fn parse_timestamp(value: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(value, &Rfc3339).ok()
 }
@@ -572,7 +580,7 @@ fn expression_x_input<'a>(sample: &'a TelemetrySample, expression: Option<&DataE
 fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<f64> {
     match &expression.source {
         DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
-            sample_value(sample, field).and_then(numeric_value)
+            sample_value(sample, field).and_then(series_value)
         }
         DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => {
             sample_value(sample, field).and_then(numeric_value)
