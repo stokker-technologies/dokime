@@ -144,7 +144,7 @@ impl State {
     }
 
     pub(crate) async fn data_saved(&self) -> Result<SavedData, Error> {
-        self.call(move |connection| Ok(saved(connection))).await?
+        self.read(move |connection| Ok(saved(connection))).await?
     }
 
     async fn data_write<T>(&self, root: std::path::PathBuf, batch: StorageBatch<T>) -> Result<SavedData, Error>

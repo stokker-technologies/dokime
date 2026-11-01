@@ -460,6 +460,25 @@ fn check_layout(connection: &Connection) -> Result<bool, Error> {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn saved_frontier_reads_the_committed_cut_while_the_writer_is_busy() {
+        let root = tempfile::tempdir().unwrap();
+        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
+        let initial = state.data_open(None).await.unwrap();
+        let mut writer = state.0.live.lock().await;
+        let transaction = writer.as_mut().unwrap().connection.transaction().unwrap();
+        transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [data::position(initial.sequence + 1)]).unwrap();
+
+        let saved = state.data_saved().await.unwrap();
+        assert_eq!(saved.history, initial.history);
+        assert_eq!(saved.sequence, initial.sequence);
+        assert_eq!(saved.retention_generation, initial.retention_generation);
+
+        transaction.rollback().unwrap();
+        drop(writer);
+        state.close().await.unwrap();
+    }
+
     // Every Reader Holds An Open Snapshot While The Writer Commits 100 Rows: The Commit
     // Never Waits For Them, And Each Held Snapshot Still Reads Its Original Cut.
     #[tokio::test]
