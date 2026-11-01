@@ -326,6 +326,9 @@ impl Startup {
         let watch = ctx
             .host()
             .submit(WatchFile {
+                recursive: false,
+                rules: Vec::new(),
+                maximum_files: None,
                 execution_id: None,
                 source: Some(FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {

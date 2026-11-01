@@ -152,6 +152,9 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let (port, proxy) = refusing_resume(port).await;
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench/device.log");
     let request = dokime_operations::files::WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(SECRET))) }),
         output: OUTPUT.to_owned(),

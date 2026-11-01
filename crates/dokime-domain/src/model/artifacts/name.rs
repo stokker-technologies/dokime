@@ -63,7 +63,20 @@ pub fn is_relative_path(path: &str) -> bool {
     if path.chars().any(char::is_control) || path.contains('\\') {
         return false;
     }
-    if path.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
+    if path.split('/').any(|segment| {
+        let stem = segment.split('.').next().unwrap_or_default().to_ascii_uppercase();
+        let device = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$")
+            || ["COM", "LPT"].iter().any(|prefix| {
+                stem.strip_prefix(prefix)
+                    .is_some_and(|suffix| matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"))
+            });
+        segment.is_empty()
+            || segment == "."
+            || segment == ".."
+            || segment.ends_with(['.', ' '])
+            || segment.contains([':', '<', '>', '"', '|', '?', '*'])
+            || device
+    }) {
         return false;
     }
     let drive = path.split('/').next().is_some_and(|first| first.len() == 2 && first.ends_with(':'));

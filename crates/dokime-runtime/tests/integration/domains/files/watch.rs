@@ -29,6 +29,7 @@ use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
 use dokime_runtime::runtime::Error;
+use sha2::Digest;
 use {
     dokime_operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload,
     model::files::wire::FtpWatchSource, model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker,
@@ -104,6 +105,9 @@ async fn failed_initial_admission_never_reports_armed() {
     seal(&mut watch).await;
 
     let single = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(local(&tree.path().join("one.log"))),
@@ -351,6 +355,9 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
     let log = tree.path().join("device.log");
     write(&log, b"before\n");
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource { payload: Some(local(&log)) }),
         output: OUTPUT.to_owned(),
@@ -451,6 +458,9 @@ async fn cancelled_source_wait() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(local(&tree.path().join("missing/device.log"))),
@@ -790,6 +800,9 @@ async fn watch_file_matchers() {
     let log = tree.path().join("device.log");
     write(&log, b"elapsed=0.5 locked=false\n");
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource { payload: Some(local(&log)) }),
         output: OUTPUT.to_owned(),
@@ -885,5 +898,131 @@ async fn watch_file_matchers() {
     assert_artifact(&record, "device.log", APPENDED);
     let content = bench.handle.read_artifact_content(&record.artifact_id, APPENDED.len()).await.unwrap().unwrap();
     assert_eq!(content.bytes, APPENDED);
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn recursive_step_watches() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("Logs/existing.log"), b"before\n");
+    write(&tree.path().join("Logs/old/day.log"), b"old\n");
+    let request = WatchFile {
+        recursive: true,
+        rules: vec![include("Logs/**/*.log")],
+        maximum_files: Some(4),
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+        output: "logs".into(),
+        artifact: None,
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let mut watch = bench.handle.open_watch_file(&request, None).await.unwrap();
+    let armed = poll(&mut watch).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { baseline } if baseline.len() == 2)));
+    append(&tree.path().join("Logs/existing.log"), b"after\n");
+    append(&tree.path().join("Logs/old/day.log"), b"tail\n");
+    write(&tree.path().join("Logs/next-day/new.log"), b"new\n");
+    write(&tree.path().join("Logs/next-day/ignored.zip"), b"ignored");
+    let records = sealed(&seal(&mut watch).await);
+    assert_eq!(records.len(), 3);
+    for (path, bytes) in
+        [("Logs/existing.log", b"after\n".as_slice()), ("Logs/old/day.log", b"tail\n"), ("Logs/next-day/new.log", b"new\n")]
+    {
+        let record = &records[path];
+        assert_eq!(record.filename, format!("logs/{path}"));
+        let digest = sha2::Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(record.sha256.as_deref(), Some(digest.as_str()));
+    }
+    write(&tree.path().join("bundle.zip"), b"old");
+    write(&tree.path().join("ignored.diag"), b"diagnostic");
+    let archives = WatchFile {
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::Mirror,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&archives, None).await.unwrap();
+    poll(&mut watch).await;
+    write(&tree.path().join("bundle.zip"), b"updated archive");
+    write(&tree.path().join("new/deep/archive.zip"), b"new archive");
+    write(&tree.path().join("new/deep/ignored.log"), b"ignored");
+    poll(&mut watch).await;
+    let records = sealed(&seal(&mut watch).await);
+    assert_eq!(records.len(), 3);
+    assert_eq!(records["bundle.zip"].filename, "logs/bundle.zip");
+    assert_eq!(records["bundle.zip"].size_bytes, 15);
+    assert_eq!(records["new/deep/archive.zip"].filename, "logs/new/deep/archive.zip");
+    for extension in ["diag", "hpl30"] {
+        let name = format!("capture.{extension}");
+        write(&tree.path().join(&name), b"snapshot");
+        let snapshot = WatchFile {
+            recursive: false,
+            rules: Vec::new(),
+            source: Some(FileWatchSource {
+                payload: Some(local(&tree.path().join(&name))),
+            }),
+            policy: FileWatchPolicy::SnapshotAtStart,
+            output: String::new(),
+            ..request.clone()
+        };
+        let mut watch = bench.handle.open_watch_file(&snapshot, None).await.unwrap();
+        let records = sealed(&poll(&mut watch).await);
+        assert_eq!(records[&name].filename, name);
+        assert_eq!(records[&name].size_bytes, 8);
+        assert_eq!(records[&name].content_type.as_deref(), Some("application/octet-stream"));
+        for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
+            let invalid = WatchFile {
+                artifact: Some(unsafe_name.into()),
+                ..snapshot.clone()
+            };
+            assert!(bench.handle.open_watch_file(&invalid, None).await.is_err(), "{unsafe_name}");
+        }
+    }
+    let capped = WatchFile {
+        maximum_files: Some(1),
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&capped, None).await.unwrap();
+    assert!(watch.poll(&mut Vec::new()).await.is_err());
+    seal(&mut watch).await;
+    let capped = WatchFile {
+        maximum_bytes: Some(20),
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::Mirror,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&capped, None).await.unwrap();
+    assert!(watch.poll(&mut Vec::new()).await.is_err());
+    seal(&mut watch).await;
+    // Nonrecursive directory discovery ignores deeper files even with a recursive glob.
+    let top = WatchFile {
+        recursive: false,
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::SnapshotAtStart,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&top, None).await.unwrap();
+    let records = sealed(&poll(&mut watch).await);
+    assert_eq!(records.keys().map(String::as_str).collect::<Vec<_>>(), ["bundle.zip"]);
+    write(&tree.path().join("Logs/status"), b"no extension");
+    let all = WatchFile {
+        rules: Vec::new(),
+        policy: FileWatchPolicy::SnapshotAtStart,
+        maximum_files: None,
+        ..request
+    };
+    let mut watch = bench.handle.open_watch_file(&all, None).await.unwrap();
+    let records = sealed(&poll(&mut watch).await);
+    assert!(records.contains_key("capture.hpl30"));
+    assert_eq!(records["Logs/status"].filename, "logs/Logs/status");
+    assert_eq!(records["Logs/status"].size_bytes, 12);
     bench.stop().await;
 }

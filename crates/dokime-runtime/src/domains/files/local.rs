@@ -36,7 +36,7 @@ use crate::runtime::Result;
 
 /* === Structs === */
 
-pub(in crate::domains::files) struct LocalSource {
+pub(crate) struct LocalSource {
     root: PathBuf,
     depth: usize,
 }
@@ -48,7 +48,7 @@ pub(in crate::domains::files) struct LocalSource {
 /* === Implementations === */
 
 impl LocalSource {
-    pub(super) async fn open(root: &str, wait: bool) -> Result<Self> {
+    pub(crate) async fn open(root: &str, wait: bool) -> Result<Self> {
         let path = Path::new(root);
         if !path.is_absolute() {
             return Err(invalid("a local watch root must be an absolute path"));
@@ -66,12 +66,12 @@ impl LocalSource {
         Ok(Self { root, depth: usize::MAX })
     }
 
-    pub(super) fn top_level(mut self) -> Self {
+    pub(crate) fn top_level(mut self) -> Self {
         self.depth = 1;
         self
     }
 
-    pub(super) async fn changes(&self, storage: &crate::storage::Manager) -> Option<harmos::storage::DirectoryWatcher> {
+    pub(crate) async fn changes(&self, storage: &crate::storage::Manager) -> Option<harmos::storage::DirectoryWatcher> {
         if !tokio::fs::metadata(&self.root).await.is_ok_and(|metadata| metadata.is_dir()) {
             return None;
         }
@@ -89,7 +89,7 @@ impl LocalSource {
         }
     }
 
-    pub(super) async fn scan(&self, matcher: &FileMatcher) -> Result<Listing> {
+    pub(crate) async fn scan(&self, matcher: &FileMatcher) -> Result<Listing> {
         let root = self.root.clone();
         let matcher = matcher.clone();
         let depth = self.depth;
@@ -97,7 +97,7 @@ impl LocalSource {
         tokio::task::spawn_blocking(move || walk(&root, depth, &matcher, scan_entries)).await?
     }
 
-    pub(super) async fn read_range(&self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File) -> Result<u64> {
+    pub(crate) async fn read_range(&self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File) -> Result<u64> {
         let path = self.root.join(relative);
         let mut file = tokio::fs::File::open(&path).await.map_err(|source| source_error(relative, source))?;
         file.seek(std::io::SeekFrom::Start(offset)).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;

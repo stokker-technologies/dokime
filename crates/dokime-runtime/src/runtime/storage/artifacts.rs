@@ -326,7 +326,7 @@ impl ExecutionStorage {
         }
         let id = crate::model::identity::new_id::<ArtifactId>();
         let owner = Arc::new(());
-        let filename = crate::exports::storage::paths::safe_artifact_path(&input.filename);
+        let filename = input.filename;
         let metadata = {
             let mut metadata =
                 Metadata::definition(Identifier::new(id.as_str()).map_err(error)?, &filename, None, std::iter::empty::<String>());
