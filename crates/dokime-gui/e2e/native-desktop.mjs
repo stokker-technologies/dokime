@@ -1735,27 +1735,38 @@ async function startCaseFromItsRow(session, fragment) {
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
-  await session.clickNamed("button", target.trigger);
-  await until("the row menu", () => session.find("css selector", "[role=menu]"), 120000);
-  await session.clickNamed("menuitem", "Start Execution");
-  await closeAnyMenu(session);
-  return until(
-    `the ${fragment} case to start`,
-    async () => {
-      const row = await session.execute(
-        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+  const started = async () => {
+    const row = await session.execute(
+      `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
           .find((candidate) => candidate.dataset.executionId === arguments[0])?.innerText ?? '';`,
-        [target.executionId],
-      );
-      return (
-        Boolean(row) &&
-        (row !== target.before ||
-          /Running|Waiting|Finalizing|Passed|Failed/.test(row) ||
-          /Execution Started/.test(await toastText(session)))
-      );
+      [target.executionId],
+    );
+    return Boolean(row) && (row !== target.before || /Running|Waiting|Finalizing|Passed|Failed/.test(row));
+  };
+  await until(
+    `the ${fragment} row start command`,
+    async () => {
+      // A Native Click Can Outlive Its Popup. Reconcile The Execution Before Opening It Again.
+      if (await started()) return true;
+      const item = await session.named("menuitem", "Start Execution").catch(() => null);
+      if (!item) {
+        const trigger = await session.named("button", target.trigger);
+        const expanded = await session.execute("return arguments[0].getAttribute('aria-expanded') === 'true'", [trigger]);
+        if (!expanded) await session.click(trigger);
+        return false;
+      }
+      try {
+        await session.click(item);
+        return true;
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return false;
+        throw failure;
+      }
     },
     120000,
-  ).catch(() => false);
+  );
+  await closeAnyMenu(session);
+  return until(`the ${fragment} case to start`, started, 120000).catch(() => false);
 }
 
 /** Press a menu trigger until its menu is up, and answer with the menu. */
