@@ -961,6 +961,7 @@ pub(crate) fn recovery_completed_outcomes() {
     invalidation.apply(&mut state);
     RecoverInterruptedCycles {
         at: dokime_runtime::model::time::now_utc(),
+        record_interruptions: true,
     }
     .apply(&mut state);
     let execution = &state.cycle_view(&cycle_id).unwrap().test_executions[0];
@@ -1336,7 +1337,16 @@ pub(crate) fn recovery_requires_request() {
     let (mut state, cycle_id) = admitted();
     let before = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     let at = dokime_runtime::model::time::now_utc();
-    RecoverInterruptedCycles { at: at.clone() }.apply(&mut state);
+    let previous: RecoverInterruptedCycles = serde_json::from_value(serde_json::json!({"at": at})).unwrap();
+    let mut replayed = state.clone();
+    let record_count = replayed.record_count;
+    previous.apply(&mut replayed);
+    assert_eq!(replayed.record_count, record_count, "replaying an earlier journal entry must not invent evidence");
+    RecoverInterruptedCycles {
+        at: at.clone(),
+        record_interruptions: true,
+    }
+    .apply(&mut state);
     let sealed = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     assert_eq!(sealed.status, ExecutionStatus::Interrupted);
     assert_eq!(sealed.snapshot, before.snapshot);
@@ -1394,6 +1404,7 @@ pub(crate) fn recovery_keeps_intent() {
     let before = request.clone();
     let mut source = state.cycles[&cycle_id].clone();
     source.lifecycle = CycleStatus::Completed;
+    source.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
     source.updated_at = completed_at;
     let intent = dokime_runtime::transactions::CycleReportFinalization {
         source,
@@ -1409,9 +1420,10 @@ pub(crate) fn recovery_keeps_intent() {
 
     RecoverInterruptedCycles {
         at: dokime_runtime::model::time::now_utc(),
+        record_interruptions: true,
     }
     .apply(&mut state);
-    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Running);
+    assert_eq!(state.cycles[&cycle_id], intent.source);
     let recovered = state.run_requests.values().next().unwrap();
     assert_eq!(recovered.summary.phase, RunPhase::Interrupted);
     assert_eq!(recovered.completion_at, before.completion_at);
@@ -1441,7 +1453,11 @@ pub(crate) fn recovery_seals_receipts() {
         request.summary.stop_requested = true;
         let before = request.clone();
         let at = dokime_runtime::model::time::now_utc();
-        RecoverInterruptedCycles { at: at.clone() }.apply(&mut state);
+        RecoverInterruptedCycles {
+            at: at.clone(),
+            record_interruptions: true,
+        }
+        .apply(&mut state);
         let after = state.run_requests.values().next().unwrap().clone();
         if phase.terminal() {
             assert_eq!(after, before);
@@ -1461,6 +1477,7 @@ pub(crate) fn recovery_seals_receipts() {
 
         RecoverInterruptedCycles {
             at: dokime_runtime::model::time::now_utc(),
+            record_interruptions: true,
         }
         .apply(&mut state);
         assert_eq!(state.run_requests.values().next().unwrap(), &after);

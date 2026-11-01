@@ -84,7 +84,7 @@ pub(crate) fn result(
 
 pub(super) async fn get_case(service: &Resources, request: &wire::GetCase) -> Result<execution_model::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
     let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
     let (ordinal, case) = cycle
         .cases()
@@ -109,7 +109,8 @@ pub(super) async fn get_case(service: &Resources, request: &wire::GetCase) -> Re
 }
 
 pub(super) async fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<execution_model::ExecutionDetail, Status> {
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
+    let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
 
     let summary = Some(execution_summary(snapshot.state(), execution, ordinal));
@@ -172,7 +173,8 @@ pub(super) async fn get_execution(service: &Resources, request: &wire::GetExecut
 pub(super) async fn list_execution_parameters(
     service: &Resources, request: &wire::ListExecutionParameters,
 ) -> Result<execution_model::ListMaterializedParametersReply, Status> {
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
+    let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let selected = match request.set {
         execution_model::ExecutionParameterSet::Inputs => execution.snapshot.parameters(),
@@ -220,7 +222,7 @@ pub(super) async fn list_case_parameters(
     service: &Resources, request: &wire::ListCaseParameters,
 ) -> Result<execution_model::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.watch_state().latest();
+    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
     let selection = execution_model::ParameterCursorSelection::PlannedCase(execution_model::PlannedCaseParameters {
         cycle_id: request.cycle_id.clone(),
         case_id: request.case_id.clone(),

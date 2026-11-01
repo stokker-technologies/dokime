@@ -730,7 +730,10 @@ impl Runtime {
         }
         if !self.handle.state_read().cycles.is_empty() {
             self.handle
-                .commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() })
+                .commit(crate::transactions::RecoverInterruptedCycles {
+                    at: crate::model::time::now_utc(),
+                    record_interruptions: true,
+                })
                 .await
                 .map_err(operation)?;
         }
@@ -748,7 +751,13 @@ impl Runtime {
             self.handle.record_startup_seal_failure(&cycle, &error).await;
         }
         // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
-        self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
+        self.handle
+            .commit(crate::transactions::RecoverInterruptedCycles {
+                at: crate::model::time::now_utc(),
+                record_interruptions: true,
+            })
+            .await
+            .map_err(operation)?;
         Ok(())
     }
 }

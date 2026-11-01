@@ -62,7 +62,10 @@ pub(crate) async fn initialize(
         record_namespace: parts.record_namespace.clone(),
     };
     state_manager.commit(started).await.map_err(reconciliation_error)?;
-    let recovered = crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() };
+    let recovered = crate::transactions::RecoverInterruptedCycles {
+        at: crate::model::time::now_utc(),
+        record_interruptions: true,
+    };
     state_manager.commit(recovered).await.map_err(reconciliation_error)?;
     parts.storage.flush().await?;
     parts.storage.flush_recovery().await?;

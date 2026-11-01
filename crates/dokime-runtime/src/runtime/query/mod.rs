@@ -46,7 +46,7 @@ pub use artifacts::{
     RuntimeExecutionFileRead, RuntimeExecutionFileRecord,
 };
 pub use cases::{CaseActions, CaseProjection, CaseStatus, CaseTally, case_projection, case_tally, historical_case_projection};
-pub use cycles::{CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, cycle_page, select_cycles};
+pub use cycles::{CycleFilter, CycleOrder, CycleOrderKey};
 pub use documents::{RuntimeDocumentFrame, RuntimeDocumentRecord, RuntimeResolvedDocumentFrame, RuntimeResolvedDocumentRead};
 pub use executions::{ExecutionControls, ExecutionFilter, ExecutionOrder, ExecutionOrderKey, execution_controls};
 pub use frame::{RuntimeListFrame, RuntimeOverviewFrame, RuntimeViewFrame, RuntimeViewPayload};
