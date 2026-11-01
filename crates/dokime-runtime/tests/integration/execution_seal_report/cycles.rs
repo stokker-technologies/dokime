@@ -949,6 +949,7 @@ pub(crate) fn recovery_completed_outcomes() {
     MarkRuntimeStarted {
         record_namespace: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
         session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
+        record_frontier: 0,
     }
     .apply(&mut state);
     assert_eq!(state.cycle_view(&cycle_id).unwrap().test_executions[0].status, ExecutionStatus::Running);
