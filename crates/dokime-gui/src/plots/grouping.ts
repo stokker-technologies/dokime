@@ -98,7 +98,7 @@ export function documentPlotSpec({
       ...(payload?.context ?? {}),
       ...(plotContext({ stream: plot.stream, plotType: plot.plot_type, telemetry }) ?? {}),
     },
-    liveWindowS: payload ? (payload.window_s ?? null) : (plot.live_window_s ?? null),
+    windowS: payload?.window_s ?? null,
     xFormat,
     xElapsedUnit: resolvedElapsedUnit(plot, xFormat),
     yFormat: plot.y_format ?? series[0]?.format ?? null,

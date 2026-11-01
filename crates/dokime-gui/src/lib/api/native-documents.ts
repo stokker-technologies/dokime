@@ -497,7 +497,6 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       label: band.label ?? null,
       color: band.color,
     })),
-    live_window_s: presentation?.liveWindowS ?? request.windowS ?? null,
     x_format: mapNativeValueFormat(presentation?.xFormat),
     y_format: mapNativeValueFormat(presentation?.yFormat),
     x_axis: mapNativePlotAxis(presentation?.xAxis, presentation?.xAxisUnit),

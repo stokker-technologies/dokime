@@ -95,7 +95,6 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
     parameters: { case: row?.case.testCase?.parameters, execution: execution?.parameters },
     noteElapsedStart: started?.started_at ?? plan.test_cycle.started_at ?? null,
     plotWindow: plotWindow.option,
-    plotWindowOverridden: plotWindow.overridden,
     traceabilityExportName: row ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal } : null,
   };
   const view = documentView(

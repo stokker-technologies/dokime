@@ -195,7 +195,6 @@ export type PlotDefinition = {
   marker_record_types?: string[];
   reference_lines?: ReferenceLine[];
   reference_bands?: ReferenceBand[];
-  live_window_s?: number | null;
   x_format?: ValueFormat | null;
   y_format?: ValueFormat | null;
   x_axis?: PlotAxisKind | null;
@@ -236,7 +235,6 @@ export type PlotInput = {
   marker_record_types: string[];
   reference_lines: ReferenceLine[];
   reference_bands: ReferenceBand[];
-  live_window_s: number | null;
   available_streams: Identifier[];
   marker_count: number;
   x_format?: ValueFormat | null;

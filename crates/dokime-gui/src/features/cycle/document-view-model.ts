@@ -36,7 +36,7 @@ import type {
   TraceabilitySnapshot,
 } from "@/lib/types";
 import { mergeParameterContexts, plotContextTelemetrySnapshot, uniqueArtifacts } from "./model-document";
-import type { PlotWindowOption } from "./PlotWindowSlider";
+import type { PlotRefreshState, PlotWindowOption } from "./PlotWindowSlider";
 import type { FrozenPlotPayloads } from "./snapshot-source";
 
 /* === Re-Exports === */
@@ -69,7 +69,7 @@ export type DocumentSurfaceOptions = {
   parameters: DocumentViewOptions["parameters"];
   noteElapsedStart: string | null | undefined;
   plotWindow: PlotWindowOption;
-  plotWindowOverridden: boolean;
+  plotRefresh?: PlotRefreshState;
   traceabilityExportName?: TraceabilityExportName | null;
 };
 

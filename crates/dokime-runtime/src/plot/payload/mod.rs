@@ -776,6 +776,53 @@ mod tests {
     use crate::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
     use dokime_domain::model::expressions::telemetry;
 
+    #[cfg(feature = "storage")]
+    #[test]
+    fn viewer_window_does_not_change_report_range() {
+        use dokime_domain::model::identity::Identifier;
+        use dokime_domain::model::time::Timestamp;
+
+        let mut plot = Plot::time_series("Voltage");
+        plot.stream = Some("fixture.voltage".into());
+        plot.y = vec!["voltage".into()];
+        let input = plot_input_for_definition(&plot, &[], 0, &DocumentSelection::default());
+        let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+        let samples = ["2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z", "2026-01-03T00:01:00Z"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, stamp)| {
+                let mut sample = TelemetrySample::new(
+                    crate::model::identity::new_id(),
+                    Identifier::new("fixture.voltage").unwrap(),
+                    index as u64,
+                    Timestamp::new(stamp),
+                    "fixture",
+                );
+                sample.values.insert("voltage".into(), Value::from(index as f64));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let context = PlotPayloadContext {
+            default_max_points: 100,
+            x_format: None,
+            series_format: None,
+            run_started_at: None,
+            cycle_started_at: None,
+        };
+        let values = |request: &PlotPayloadRequest| {
+            let payload =
+                project_retained_plot_payload(&samples, crate::records::view::View::default(), request, "2026-01-03T00:01:00Z", &context)
+                    .unwrap();
+            payload.series[0].points.iter().map(|point| point.y).collect::<Vec<_>>()
+        };
+
+        let live = plot_payload_request_for_descriptor(&descriptor, None, None, Some(120.0));
+        assert_eq!(values(&live), vec![Some(1.0), Some(2.0)]);
+        let report = plot_payload_request_for_descriptor(&descriptor, None, None, None);
+        assert_eq!(values(&report), vec![Some(0.0), Some(1.0), Some(2.0)]);
+        assert_eq!(values(&live), vec![Some(1.0), Some(2.0)]);
+    }
+
     #[test]
     fn analysis_fields_normalize_without_a_second_output_limit() {
         let fields = (0..33).map(|index| format!("field_{index}")).collect::<Vec<_>>();

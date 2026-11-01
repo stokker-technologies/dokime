@@ -297,9 +297,6 @@ pub struct PlotDefinition {
     #[serde(default)]
     pub reference_bands: Vec<ReferenceBand>,
 
-    #[serde(default = "default_live_window_s")]
-    pub live_window_s: Option<f64>,
-
     #[serde(default)]
     pub x_format: Option<ValueFormat>,
 
@@ -477,7 +474,6 @@ pub struct PlotInput {
     pub marker_record_types: Vec<String>,
     pub reference_lines: Vec<ReferenceLine>,
     pub reference_bands: Vec<ReferenceBand>,
-    pub live_window_s: Option<f64>,
 
     #[serde(default)]
     pub x_format: Option<ValueFormat>,
@@ -1644,7 +1640,6 @@ impl PlotDefinition {
             marker_record_types: Vec::new(),
             reference_lines: Vec::new(),
             reference_bands: Vec::new(),
-            live_window_s: default_live_window_s(),
             x_format: None,
             y_format: None,
             x_axis: None,
@@ -2281,10 +2276,6 @@ fn default_base_span() -> u8 {
 
 fn default_row_span() -> u8 {
     1
-}
-
-fn default_live_window_s() -> Option<f64> {
-    Some(120.0)
 }
 
 fn default_interval_bin_width() -> f64 {
