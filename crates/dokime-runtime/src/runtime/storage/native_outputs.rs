@@ -355,54 +355,18 @@ pub(super) async fn capture(acquisition: &mut Acquisition) -> Result<()> {
 }
 
 pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) -> Result<()> {
-    let mut capture_error = None;
-    for (path, source) in &mut acquisition.native_outputs {
-        if source.captured {
-            continue;
-        }
-        if finalizing && source.log.as_ref().is_some_and(|log| log.closed.is_none()) {
-            return Err(error("native log producer has not closed"));
-        }
-        let stream_state = source.log.as_ref().and_then(|log| log.closed).or(finalizing.then_some(SavedStreamState::Finalized));
-        if finalizing && source.production.is_some() {
-            if let Err(failure) = follow::capture(path, source, stream_state).await {
-                follow::interrupt(path, source).await?;
-                capture_error.get_or_insert(failure);
-            }
-            continue;
-        }
-        // Complete Original Frozen Production Before Inspecting Mutable Bytes Again
-        if source.pending.is_some() {
-            finish_snapshot(&acquisition.storage, path, source).await?;
-            if source.captured {
-                continue;
-            }
-        }
-        let session = acquisition.storage.clone();
-        let frozen = freeze(&session, source).await.inspect_err(
-            |error| tracing::warn!(output = path.as_str(), file = %source.file.path().display(), %error, "native output freeze failed"),
-        );
-        let frozen = match frozen {
-            Ok(frozen) => frozen,
-            Err(failure) if finalizing => {
-                interrupt_source(&acquisition.storage, &acquisition.execution_id, path, source).await?;
-                capture_error.get_or_insert(failure);
-                continue;
-            }
-            Err(failure) => return Err(failure),
-        };
-        let digest = *frozen.sha256();
-        if source.descriptor.as_ref().is_none_or(|previous| previous.file.sha256 != digest) {
-            let metadata = file_metadata(&acquisition.execution_id, path, Some(frozen.length()), Some(digest))?;
-            let mut pending = FrozenFile::with_state(FrozenSource::Snapshot(frozen), metadata, stream_state);
-            pending.session = Some(session);
-            source.pending = Some(pending);
-            finish_snapshot(&acquisition.storage, path, source).await?;
-        }
-        store_descriptor(path, source, stream_state)?;
-        source.captured = stream_state.is_some();
+    if finalizing
+        && acquisition.native_outputs.values().any(|source| !source.captured && source.log.as_ref().is_some_and(|log| log.closed.is_none()))
+    {
+        return Err(error("native log producer has not closed"));
     }
-    capture_error.map_or(Ok(()), Err)
+    // Independent Files Share The Storage Manager's Admission And Durable Write Batches.
+    let captures = acquisition
+        .native_outputs
+        .iter_mut()
+        .map(|(path, source)| snapshot_source(&acquisition.storage, &acquisition.execution_id, path, source, finalizing));
+    let results = futures_util::future::join_all(captures).await;
+    results.into_iter().find_map(Result::err).map_or(Ok(()), Err)
 }
 
 pub(super) async fn abandon(acquisition: &mut Acquisition) -> Result<()> {
@@ -415,6 +379,52 @@ pub(super) async fn abandon(acquisition: &mut Acquisition) -> Result<()> {
 }
 
 /* === Private Functions === */
+
+async fn snapshot_source(
+    storage: &Manager, execution: &TestExecutionId, path: &str, source: &mut NativeOutput, finalizing: bool,
+) -> Result<()> {
+    if source.captured {
+        return Ok(());
+    }
+    let stream_state = source.log.as_ref().and_then(|log| log.closed).or(finalizing.then_some(SavedStreamState::Finalized));
+    if finalizing && source.production.is_some() {
+        if let Err(failure) = follow::capture(path, source, stream_state).await {
+            follow::interrupt(path, source).await?;
+            return Err(failure);
+        }
+        return Ok(());
+    }
+    // Complete Original Frozen Production Before Inspecting Mutable Bytes Again.
+    if source.pending.is_some() {
+        finish_snapshot(storage, path, source).await?;
+        if source.captured {
+            return Ok(());
+        }
+    }
+    let session = storage.clone();
+    let frozen = freeze(&session, source)
+        .await
+        .inspect_err(|error| tracing::warn!(output = path, file = %source.file.path().display(), %error, "native output freeze failed"));
+    let frozen = match frozen {
+        Ok(frozen) => frozen,
+        Err(failure) if finalizing => {
+            interrupt_source(storage, execution, path, source).await?;
+            return Err(failure);
+        }
+        Err(failure) => return Err(failure),
+    };
+    let digest = *frozen.sha256();
+    if source.descriptor.as_ref().is_none_or(|previous| previous.file.sha256 != digest) {
+        let metadata = file_metadata(execution, path, Some(frozen.length()), Some(digest))?;
+        let mut pending = FrozenFile::with_state(FrozenSource::Snapshot(frozen), metadata, stream_state);
+        pending.session = Some(session);
+        source.pending = Some(pending);
+        finish_snapshot(storage, path, source).await?;
+    }
+    store_descriptor(path, source, stream_state)?;
+    source.captured = stream_state.is_some();
+    Ok(())
+}
 
 fn output_state(closed: Option<SavedStreamState>) -> ExecutionFileStreamState {
     match closed {
