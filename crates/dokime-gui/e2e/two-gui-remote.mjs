@@ -234,8 +234,11 @@ try {
   await b.dump("live-evidence", { records, samples });
   assert.equal(samples.samples.length, 2, "GUI B reads the two pre-inspection samples from GUI A's execution");
   await b.clickNamed("button", "Stop Execution");
-  await until("GUI A observes GUI B's stop without refresh", async () => /Stopped|Interrupted/.test(await a.text()));
-  const stopped = await call(a, "Execution", "GetExecution", { executionId });
+  const stopped = await until("GUI A observes GUI B's saved stop without refresh", async () => {
+    if (!/Stopped|Interrupted/.test(await a.text())) return null;
+    const snapshot = await call(a, "Execution", "GetExecution", { executionId });
+    return snapshot.summary.sealed ? snapshot : null;
+  });
   assert.ok("Cancelled" in stopped.summary.status || "Interrupted" in stopped.summary.status);
   await call(b, "Execution", "SealCycle", { cycleId: cycle.cycleId });
 

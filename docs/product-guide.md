@@ -1163,6 +1163,9 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
+Generated projects lock tools for Linux x64 and Windows x64, matching the
+published native authoring executables.
+
 Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
 bundle. For a build system that already compiled the plugin, collect its Cargo
 JSON and metadata, then assemble those exact executables:
@@ -1751,7 +1754,9 @@ Files close before rename or deletion on Windows.
 This experimental storage layout keeps the v1 baseline and requires a fresh
 root for incompatible development data. Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
-restores saved frontiers without replaying device actions.
+restores saved frontiers without replaying device actions. Startup advances the
+record ordinal counter past saved primary records, including captures saved
+before their recovery journal group reached disk.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.

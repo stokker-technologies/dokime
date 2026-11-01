@@ -276,7 +276,9 @@ async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
 
 #[tokio::test]
 async fn configured_time_flush_occurs_at_its_deadline() {
-    let fixture = Fixture::new(1024).await;
+    // Advance Only The Flush Clock; Filesystem Work Keeps Its Real Backend Clock.
+    let io = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let fixture = io.spawn(Fixture::new(1024)).await.unwrap();
     let before = fixture.storage.cursor_saved();
     let through = fixture.admit(&[(1, 10)]).await;
     tokio::time::pause();
@@ -291,6 +293,7 @@ async fn configured_time_flush_occurs_at_its_deadline() {
     fixture.saved(&through).await;
     assert_eq!(fixture.read(&through, fixture.selection()).await.len(), 1);
     fixture.finish().await;
+    io.shutdown_background();
 }
 
 #[tokio::test]

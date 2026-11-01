@@ -74,7 +74,7 @@ impl State {
     }
 
     pub async fn read_application_settings(&self) -> Result<SettingsSnapshot, Error> {
-        self.call(|connection| Ok(read_snapshot(connection))).await?
+        self.read(|connection| Ok(read_snapshot(connection))).await?
     }
 
     pub async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot, Error> {
@@ -112,7 +112,7 @@ impl State {
 
     #[cfg(feature = "native")]
     pub(crate) async fn read_application_metadata(&self) -> Result<ApplicationMetadata, Error> {
-        self.call(|connection| Ok(read_metadata(connection))).await?
+        self.read(|connection| Ok(read_metadata(connection))).await?
     }
 
     #[cfg(feature = "native")]

@@ -49,6 +49,9 @@ pub struct Streams {
 
     #[cfg(feature = "native")]
     flushing: Arc<std::sync::atomic::AtomicBool>,
+
+    #[cfg(feature = "native")]
+    runtime: Option<tokio::runtime::Handle>,
 }
 
 pub struct StreamSelection<'a, R> {
@@ -110,6 +113,9 @@ impl Streams {
             listening: crate::execution::listening_rows(1024),
             #[cfg(feature = "native")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+
+            #[cfg(feature = "native")]
+            runtime: tokio::runtime::Handle::try_current().ok(),
         }
     }
 
@@ -235,10 +241,11 @@ impl Streams {
     fn flush_later(&self) {
         #[cfg(feature = "native")]
         if self.sink.buffering()
-            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+            && let Some(runtime) = self.runtime.clone().or_else(|| tokio::runtime::Handle::try_current().ok())
             && !self.flushing.swap(true, std::sync::atomic::Ordering::AcqRel)
         {
             let streams = self.clone();
+            // Observer Runtimes End Before Execution Teardown Drains These Publications.
             runtime.spawn(async move {
                 tokio::task::yield_now().await;
                 streams.flushing.store(false, std::sync::atomic::Ordering::Release);
@@ -302,3 +309,61 @@ impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(all(test, feature = "native"))]
+mod tests {
+    use super::*;
+
+    struct BufferedSink {
+        pending: std::sync::Mutex<Vec<Vec<u8>>>,
+        delivered: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    }
+
+    impl SampleSink for BufferedSink {
+        fn publish<'a>(
+            &'a self, _: &'a Identifier, _: BTreeMap<String, Value>, payload: Option<Vec<u8>>,
+        ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
+            Box::pin(async move {
+                self.pending.lock().unwrap().push(payload.unwrap());
+                Ok(())
+            })
+        }
+
+        fn produced(&self, _: &str) -> u64 {
+            self.pending.lock().unwrap().len() as u64
+        }
+
+        fn buffering(&self) -> bool {
+            !self.pending.lock().unwrap().is_empty()
+        }
+
+        fn flush(&self) -> crate::transport::TransportFuture<'_, Result<(), (Identifier, String)>> {
+            Box::pin(async move {
+                for row in std::mem::take(&mut *self.pending.lock().unwrap()) {
+                    self.delivered.send(row).unwrap();
+                }
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn buffered_publication_survives_observer_runtime_shutdown() {
+        let (delivered, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let streams = Streams::new(Arc::new(BufferedSink { pending: Default::default(), delivered }));
+        let payload = vec![1, 2, 3];
+        let produced = payload.clone();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            runtime.block_on(async move {
+                let stream = Identifier::new("fixture.samples").unwrap();
+                streams.published_as(&stream, BTreeMap::new(), Some(produced), "fixture").await;
+            });
+            // The Observer Exits Before Its Queued Flush Can Run.
+        })
+        .join()
+        .unwrap();
+
+        assert_eq!(receiver.recv().await, Some(payload));
+    }
+}

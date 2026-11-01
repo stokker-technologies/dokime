@@ -86,7 +86,7 @@ impl State {
     }
 
     pub async fn sources(&self) -> Result<Vec<Source>, Error> {
-        self.call(|connection| sources(connection)).await
+        self.read(|connection| sources(connection)).await
     }
 
     pub async fn reorder_sources(&self, identifiers: Vec<String>) -> Result<(), Error> {

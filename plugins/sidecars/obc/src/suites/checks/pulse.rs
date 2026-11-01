@@ -61,6 +61,7 @@ pub struct Pulse;
 
 pub struct PulseResources {
     armed: AtomicBool,
+    sample_count: u64,
     produced: tokio::sync::watch::Sender<u64>,
 }
 
@@ -144,15 +145,6 @@ pub enum ObserverStreams {
 
 /* === Implementations === */
 
-impl Default for PulseResources {
-    fn default() -> Self {
-        Self {
-            armed: AtomicBool::new(false),
-            produced: tokio::sync::watch::Sender::new(0),
-        }
-    }
-}
-
 #[dokime::template(
     id = "obc.checks.pulse",
     label = LABEL,
@@ -167,10 +159,14 @@ impl Default for PulseResources {
     parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
 impl Pulse {
     async fn initialize(
-        _: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
+        parameters: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
-        let shared = PulseResources::default();
+        let shared = PulseResources {
+            armed: AtomicBool::new(false),
+            sample_count: parameters.sample_count,
+            produced: tokio::sync::watch::Sender::new(0),
+        };
         Ok((template, shared))
     }
 
@@ -206,7 +202,6 @@ impl Pulse {
         // === Start Signal Capture === //
 
         ctx.publish(RunStarted {}).await;
-        ctx.resources().armed.store(true, Ordering::Release);
 
         Ok(())
     }
@@ -221,8 +216,8 @@ impl Pulse {
         let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
         let mut produced = ctx.resources().produced.subscribe();
-        let started = *produced.borrow_and_update();
-        produced.wait_for(|count| count.saturating_sub(started) >= wanted).await.expect("the resources retain the sample counter");
+        ctx.resources().armed.store(true, Ordering::Release);
+        produced.wait_for(|count| *count >= wanted).await.expect("the resources retain the sample counter");
 
         Ok(())
     }
@@ -267,6 +262,9 @@ impl Pulse {
             value: pulse_value(index),
         })
         .await;
+        if index + 1 >= ctx.resources().sample_count {
+            ctx.resources().armed.store(false, Ordering::Release);
+        }
         ctx.resources().produced.send_replace(index + 1);
 
         Ok(())

@@ -28,6 +28,9 @@ use dokime::runtime::Error as HostError;
 /* === Constants === */
 
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
+// Binary Trailers Expand By 4/3; Leave Room In The Default 8 KiB Header Budget.
+const DETAIL_BYTES: usize = 4096;
+const DIAGNOSTIC_BYTES: usize = 2048;
 
 /* === Macros === */
 
@@ -53,7 +56,7 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
     let diagnostic = Diagnostic::capture(error).redacted();
     let code = status.code();
     let message = status.message().to_owned();
-    let envelope = tonic_types::Status {
+    let mut envelope = tonic_types::Status {
         code: code as i32,
         message: message.clone(),
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
@@ -67,13 +70,16 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
             .collect(),
     };
 
+    if envelope.encoded_len() > DETAIL_BYTES {
+        envelope.details.clear();
+    }
     Status::with_details(code, message, envelope.encode_to_vec().into())
 }
 
 /* === Private Functions === */
 
 fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
-    let diagnostics = diagnostic
+    let mut diagnostics = diagnostic
         .span_trace
         .iter()
         .map(String::as_str)
@@ -81,6 +87,10 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         .filter(|text| !text.is_empty())
         .collect::<Vec<_>>()
         .join("\n");
+    if diagnostics.len() > DIAGNOSTIC_BYTES {
+        diagnostics.truncate(diagnostics.floor_char_boundary(DIAGNOSTIC_BYTES));
+        diagnostics.push_str("\n[truncated]");
+    }
     dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,

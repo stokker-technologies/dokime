@@ -18,13 +18,13 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { onTestFinished, test, vi } from "vitest";
-
-// Local Imports
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
+// Local Imports
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
 import { formatUnitLabel } from "@/lib/format";
 import {
   formatStatValue,
@@ -40,12 +40,12 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
+import { CartesianPlot } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
-import { CartesianPlot } from "@/plots/CartesianPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -55,11 +55,12 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
-import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
 import { PlotInteractionProvider } from "@/plots/interaction";
+import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
+import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
 import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
@@ -195,8 +196,7 @@ function plotStream() {
 }
 
 async function mountPlotView() {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+  vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   refreshFixture.read.mockReset();
   refreshFixture.watch.mockReset();
@@ -299,6 +299,10 @@ vi.mock("@/lib/api/native-plots", async (original) => ({
   openNativePlotStream: refreshFixture.watch,
 }));
 vi.mock("@/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
+vi.mock("@/lib/application-settings", async (original) => {
+  const settings = await original<typeof import("@/lib/application-settings")>();
+  return { ...settings, useReportDefaults: () => settings.BUILT_IN_REPORT_DEFAULTS };
+});
 
 test("Window Presets", () => {
   const options = plotWindowOptions([17, 42, 3_600]);
@@ -1123,6 +1127,65 @@ test("Stream Errors Replace Retained Charts", () => {
   assert.match(html, /role="alert"/);
   assert.match(html, /Voltage channel disconnected/);
   assert.doesNotMatch(html, /Trace Statistics/);
+});
+
+test("Plot Edits Survive Presentation Changes", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const descriptor: DocumentViewPlot = {
+    plot_id: "pulse",
+    title: "Pulse",
+    stream: "pulse",
+    plot_type: "time_series",
+    style: "line",
+    x_scale: "linear",
+    y_scale: "linear",
+    x: "timestamp",
+    y: ["trace-0"],
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+  };
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+  const render = async (state = emptyLivePlotState()) => {
+    await act(async () =>
+      root.render(
+        createElement(
+          PlotSettingsEditorContext.Provider,
+          { value: PlotSettingsButton },
+          createElement(LivePlotGroupGrid, {
+            documentPlots: [descriptor],
+            liveStates: { pulse: state },
+            title: "Signals",
+            onPlotSettingsChange: async () => undefined,
+          }),
+        ),
+      ),
+    );
+  };
+  await render();
+  const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings For ']");
+  assert.ok(trigger);
+  await act(async () => trigger.click());
+  const input = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
+  assert.ok(input);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "2500");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const payload = hostFrame([0, 1], [[2, 3]]);
+  const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
+  const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  for (const state of [ready, failed, ready]) {
+    await render(state);
+    const current = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
+    assert.ok(current);
+    assert.equal(current.value, "2500");
+  }
 });
 
 test("Viewport Panning", () => {

@@ -154,6 +154,7 @@ const WEBDRIVER_KEYS = {
   Tab: "\uE004",
   Control: "\uE009",
   Backspace: "\uE003",
+  End: "\uE010",
 };
 
 /** Journey Filters Retain These Prerequisites Within Their Selected Workflow. */
@@ -403,7 +404,7 @@ async function promptHoverLabels() {
         clientY: bounds.top + bounds.height / 2,
       }),
     );
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await frameDrawn();
     const label = frame.querySelector("[role=tooltip]")?.textContent;
     if (label) labels.add(label);
     if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
@@ -836,25 +837,24 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     await session.click(element);
-    /* WebKit Holds Control Through ElementSendKeys' NULL, So Release It Through
-       Native Actions Before Sending Replacement Text To The Controlled Field. */
     await session.request("POST", "/actions", {
       actions: [
         {
           type: "key",
-          id: "keyboard",
+          id: "native-text",
           actions: [
             { type: "keyDown", value: WEBDRIVER_KEYS.Control },
             { type: "keyDown", value: "a" },
             { type: "keyUp", value: "a" },
             { type: "keyUp", value: WEBDRIVER_KEYS.Control },
+            { type: "keyDown", value: WEBDRIVER_KEYS.Backspace },
+            { type: "keyUp", value: WEBDRIVER_KEYS.Backspace },
           ],
         },
       ],
     });
     await session.request("DELETE", "/actions");
-    const replacement = value.length ? value : WEBDRIVER_KEYS.Backspace;
-    await session.request("POST", `/element/${key}/value`, { text: replacement, value: [...replacement] });
+    if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
   /**
@@ -1049,7 +1049,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
         `);
       } catch (error) {
-        if (windows || !ownedShells.length || !/Session terminated without a reply/i.test(error.message)) throw error;
+        const closedBeforeReply = windows
+          ? /target frame detached|invalid session id|disconnected/i.test(error.message)
+          : ownedShells.length && /Session terminated without a reply/i.test(error.message);
+        if (!closedBeforeReply) throw error;
         closeReplyLost = true;
       }
       await until(
@@ -1735,27 +1738,38 @@ async function startCaseFromItsRow(session, fragment) {
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
-  await session.clickNamed("button", target.trigger);
-  await until("the row menu", () => session.find("css selector", "[role=menu]"), 120000);
-  await session.clickNamed("menuitem", "Start Execution");
-  await closeAnyMenu(session);
-  return until(
-    `the ${fragment} case to start`,
-    async () => {
-      const row = await session.execute(
-        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+  const started = async () => {
+    const row = await session.execute(
+      `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
           .find((candidate) => candidate.dataset.executionId === arguments[0])?.innerText ?? '';`,
-        [target.executionId],
-      );
-      return (
-        Boolean(row) &&
-        (row !== target.before ||
-          /Running|Waiting|Finalizing|Passed|Failed/.test(row) ||
-          /Execution Started/.test(await toastText(session)))
-      );
+      [target.executionId],
+    );
+    return Boolean(row) && (row !== target.before || /Running|Waiting|Finalizing|Passed|Failed/.test(row));
+  };
+  await until(
+    `the ${fragment} row start command`,
+    async () => {
+      // A Native Click Can Outlive Its Popup. Reconcile The Execution Before Opening It Again.
+      if (await started()) return true;
+      const item = await session.named("menuitem", "Start Execution").catch(() => null);
+      if (!item) {
+        const trigger = await session.named("button", target.trigger);
+        const expanded = await session.execute("return arguments[0].getAttribute('aria-expanded') === 'true'", [trigger]);
+        if (!expanded) await session.click(trigger);
+        return false;
+      }
+      try {
+        await session.click(item);
+        return true;
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return false;
+        throw failure;
+      }
     },
     120000,
-  ).catch(() => false);
+  );
+  await closeAnyMenu(session);
+  return until(`the ${fragment} case to start`, started, 120000).catch(() => false);
 }
 
 /** Press a menu trigger until its menu is up, and answer with the menu. */
@@ -2562,6 +2576,12 @@ async function cycleJourney(session, cycleId) {
     /\bPassed\b/,
     `Closing plot settings must leave the prompting re-run able to pass: ${normalize(rerunOutcome)}`,
   );
+  const plotWindow = await until("plot window control", () => session.find("css selector", '[role="slider"][aria-label$="Window"]'));
+  await session.execute("arguments[0].focus();", [plotWindow]);
+  await session.key("End");
+  await until("complete plot history selected", () =>
+    session.execute("return arguments[0].getAttribute('aria-valuenow') === arguments[0].getAttribute('aria-valuemax');", [plotWindow]),
+  );
   await until("prompt marker hover labels", async () => {
     const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
     assertPromptHovers(promptHovers);
@@ -2983,7 +3003,10 @@ async function exportAvailability(session, enabled, kind = "cycle") {
 async function assertNodeDeliveries(session, trigger) {
   await openMenu(session, trigger);
   for (const name of ["Export Evidence", "Download Report"]) {
-    assert.ok(await session.named("menuitem", name, { enabled: false }), `${trigger} must name ${name}`);
+    assert.ok(
+      await until(`${trigger} offers ${name}`, () => session.named("menuitem", name, { enabled: false })),
+      `${trigger} must name ${name}`,
+    );
   }
   await session.key("Escape");
 }
@@ -3130,9 +3153,13 @@ async function remoteAccessJourney(recoveredReports) {
   /* Preferences Autosave Before The Listener Is Explicitly Restarted. */
   const settled = () =>
     until("remote settings settled", () =>
-      session.execute(
-        "return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled) && [...document.querySelectorAll('[role=status][data-state]')].every((status) => status.dataset.state === 'saved');",
-      ),
+      session.execute(`
+        const states = [...document.querySelectorAll('[data-state=saved], [data-state=saving], [data-state=error]')];
+        const restart = [...document.querySelectorAll('button')].find(button => button.innerText.trim() === 'Restart Listener');
+        return states.length > 0 && states.every(status => status.dataset.state === 'saved')
+          && [...document.querySelectorAll('input[id], button[role=switch]')].every(control => !control.disabled)
+          && restart && !restart.disabled;
+      `),
     );
   const toggle = async (label, checked) => {
     const control = await until(label, () =>
@@ -4515,10 +4542,10 @@ for index in range(desktop.get_child_count()):
         break
     controls = list(descendants(dialogs[0]))
     if action == "fill":
-        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_state_set().contains(Atspi.StateType.FOCUSED) and ready(node)]
+        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_editable_text_iface() is not None and ready(node)]
         if not fields:
             break
-        assert len(fields) == 1, "The native location entry has unique focus"
+        assert len(fields) == 1, "The native chooser has one visible editable location entry"
         field = fields[0]
         assert field.get_editable_text_iface() is not None, "The native location entry is editable"
         assert Atspi.EditableText.set_text_contents(field, path), "The native location entry accepts the path"
@@ -4529,6 +4556,10 @@ for index in range(desktop.get_child_count()):
         if not buttons:
             break
         assert len(buttons) == 1, "The native picker exposes one ready action"
+        if action == "ready" and operation == "Open":
+            locations = [(node, index) for node in controls if node.get_action_iface() is not None for index in range(Atspi.Action.get_n_actions(node)) if Atspi.Action.get_action_name(node, index) == "show_location"]
+            assert len(locations) == 1, "The owned chooser exposes its location action"
+            assert Atspi.Action.do_action(*locations[0]), "The native location entry is shown"
         if action == "open":
             assert Atspi.Action.do_action(buttons[0], 0), "The Native File Action Is Activated Once"
     print(action)
@@ -4542,7 +4573,6 @@ for index in range(desktop.get_child_count()):
         if (result.stdout.trim() !== action) return false;
         await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
         if (action === "ready") {
-          await run(["key", "--window", ids[0], "--clearmodifiers", "ctrl+l"]);
           picker.window = ids[0];
         } else if (action === "fill") {
           picker.entered = true;
@@ -4914,6 +4944,8 @@ async function startSecretService() {
   if (windows) return;
   const home = join(work, "secret-service");
   await mkdir(home, { recursive: true, mode: 0o700 });
+  process.env.XDG_RUNTIME_DIR = home;
+  delete process.env.AT_SPI_BUS_ADDRESS;
   secretBus = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], {
     detached: !windows,
     windowsHide: true,
@@ -4933,6 +4965,33 @@ async function startSecretService() {
     return address.includes("\n");
   });
   process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
+  const accessibility = await executeFile(
+    "dbus-send",
+    ["--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus.GetAddress"],
+    { windowsHide: true, timeout: 120000 },
+  );
+  const accessibilityAddress = accessibility.stdout.match(/\bstring "([^"]+)"/);
+  assert.ok(accessibilityAddress, "The private session owns an accessibility bus");
+  process.env.AT_SPI_BUS_ADDRESS = accessibilityAddress[1];
+  // Activated Registry Processes Must Use This Bus Too, Before Consulting The Shared Display.
+  await executeFile("dbus-update-activation-environment", ["AT_SPI_BUS_ADDRESS"], {
+    env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: process.env.AT_SPI_BUS_ADDRESS },
+    windowsHide: true,
+    timeout: 120000,
+  });
+  await executeFile(
+    "dbus-send",
+    [
+      `--bus=${process.env.AT_SPI_BUS_ADDRESS}`,
+      "--print-reply",
+      "--dest=org.freedesktop.DBus",
+      "/org/freedesktop/DBus",
+      "org.freedesktop.DBus.StartServiceByName",
+      "string:org.a11y.atspi.Registry",
+      "uint32:0",
+    ],
+    { windowsHide: true, timeout: 120000 },
+  );
   secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
     detached: !windows,

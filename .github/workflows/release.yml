@@ -9,6 +9,7 @@ name: Release
   push:
     tags:
     - v*
+    - '!v*-dev.*'
 permissions:
   contents: read
 env:

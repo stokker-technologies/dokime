@@ -130,7 +130,7 @@ impl Plan {
         let stop_failure = match execution.checkpoint().await {
             Ok(_) => None,
             Err(dokime::client::Error::Rpc(status)) if status.code() == dokime::client::RpcCode::NotFound => execution.stop().await.err(),
-            Err(error) => return Err(error.into()),
+            Err(error) => Some(error),
         };
         if let Some(error) = stop_failure {
             eprintln!("Execution Stop Was Not Confirmed: {error}. Resolving Through The Owned Cycle Seal.");
@@ -152,7 +152,6 @@ impl Plan {
                 continue;
             };
             let result = async {
-                execution.wait(None, None).await?;
                 let saved = execution.export(output.clone(), false).await?;
                 eprintln!("Execution Evidence Saved To {} (SHA-256 {})", saved.path.display(), saved.sha256);
                 Ok::<_, crate::Error>(())

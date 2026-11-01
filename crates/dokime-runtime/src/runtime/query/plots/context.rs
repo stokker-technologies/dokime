@@ -40,6 +40,7 @@ use dokime_domain::model::values::ValueFormat;
 pub(super) struct RuntimePlotEnvelopeContext {
     pub(super) generated_at: harmos::storage::ReadBatch<String>,
     pub(super) snapshot: crate::queries::RuntimeStateSnapshot,
+    pub(super) codecs: harmos::storage::ReadBatch<Vec<crate::storage::telemetry::TypedCodec>>,
     cycle_context: bool,
     traceability: Option<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>>,
 }
@@ -63,6 +64,15 @@ impl RuntimePlotEnvelopeContext {
         runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], snapshot: crate::queries::RuntimeStateSnapshot,
         at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
     ) -> crate::runtime::Result<Self> {
+        let streams = requests.iter().flat_map(super::request_telemetry_streams).map(Into::into).collect::<Vec<_>>();
+        let codecs = if streams.is_empty() {
+            harmos::storage::ReadBatch::new(Vec::new())
+        } else {
+            crate::runtime::storage::telemetry::saved_codecs(session, at, None, runtime.schema_settings(), |id, _| {
+                crate::storage::telemetry::selected_schema(id, &streams)
+            })
+            .await?
+        };
         let needs_dimension_context = requests.iter().any(request_needs_dimension_context);
         // Cycles are also what an `elapsed_since_run`/`elapsed_since_cycle`
         // format counts from, so a request declaring one needs them loaded
@@ -80,6 +90,7 @@ impl RuntimePlotEnvelopeContext {
         Ok(Self {
             generated_at,
             snapshot,
+            codecs,
             cycle_context: needs_cycles,
             traceability,
         })

@@ -670,6 +670,11 @@ impl ExecutionStorage {
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
                 }
+                // Native Publication Can Seal Before Managed State Adopts It.
+                // A Concurrent Checkpoint Must Keep That Durable Revision.
+                if acquisition.execution.saved.is_some() {
+                    return Ok(());
+                }
                 let observed = storage
                     .state_manager
                     .state()

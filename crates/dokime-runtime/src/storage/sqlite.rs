@@ -292,19 +292,20 @@ impl State {
         }
         let mut failure = None;
         for task in std::mem::take(&mut *self.0.telemetry_tasks.lock().await) {
-            let result = task.await.map_err(Error::from).flatten();
+            let result = task.await.map_err(Error::from)?;
             if let Err(error) = result {
                 failure.get_or_insert(error);
             }
         }
-        if let Some(error) = failure {
-            return Err(error);
-        }
+        // A Retry Can Save The Tail After A Background Flusher Has Reported Failure.
         if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
             let saved = self.data_saved().await?;
             let mut tail = self.0.telemetry_tail.lock().unwrap();
             tail.entries.retain(|position, _| *position > saved.sequence);
             if !tail.entries.is_empty() {
+                if let Some(error) = failure {
+                    return Err(error);
+                }
                 return Err(Error::Conflict("unflushed telemetry prevents closing"));
             }
         }
@@ -458,6 +459,40 @@ fn check_layout(connection: &Connection) -> Result<bool, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn metadata_reads_the_committed_cut_while_the_writer_is_busy() {
+        let root = tempfile::tempdir().unwrap();
+        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
+        let initial = state.data_open(None).await.unwrap();
+        state.initialize_settings().await.unwrap();
+        let settings = state.read_application_settings().await.unwrap();
+        let sources = state.sources().await.unwrap();
+        #[cfg(feature = "native")]
+        let metadata = state.read_application_metadata().await.unwrap();
+        let mut writer = state.0.live.lock().await;
+        let transaction = writer.as_mut().unwrap().connection.transaction().unwrap();
+        transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [data::position(initial.sequence + 1)]).unwrap();
+        transaction.execute("UPDATE application_settings SET revision=revision+1", []).unwrap();
+        transaction
+            .execute("INSERT INTO storage_sources SELECT 'pending','fixture',COALESCE(MAX(priority),-1)+1,1 FROM storage_sources", [])
+            .unwrap();
+        #[cfg(feature = "native")]
+        transaction.execute("DELETE FROM application_metadata WHERE id=1", []).unwrap();
+
+        let saved = state.data_saved().await.unwrap();
+        assert_eq!(saved.history, initial.history);
+        assert_eq!(saved.sequence, initial.sequence);
+        assert_eq!(saved.retention_generation, initial.retention_generation);
+        assert_eq!(state.read_application_settings().await.unwrap(), settings);
+        assert_eq!(state.sources().await.unwrap(), sources);
+        #[cfg(feature = "native")]
+        assert_eq!(state.read_application_metadata().await.unwrap(), metadata);
+
+        transaction.rollback().unwrap();
+        drop(writer);
+        state.close().await.unwrap();
+    }
 
     // Every Reader Holds An Open Snapshot While The Writer Commits 100 Rows: The Commit
     // Never Waits For Them, And Each Held Snapshot Still Reads Its Original Cut.

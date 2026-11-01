@@ -83,6 +83,9 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
+An open plot settings dialog retains its edit draft while incoming payloads replace
+the loading, chart or error presentation.
+
 The live viewer owns the time window for all plots in its view. The options are
 1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
 stays with that view across rerenders. Plot definitions carry no time window.
@@ -174,7 +177,8 @@ the captured column schema to select this presentation.
   causes, operation/request/invocation identifiers and optional backend diagnostics.
   RPC adapters decode standard Status envelopes with canonical generated domain
   error schemas. The server preserves redacted span/backtrace text in the captured
-  error's optional diagnostics field. Technical Details is collapsed by default;
+  error's optional diagnostics field, bounded to fit transport metadata limits.
+  Technical Details is collapsed by default;
   Copy includes the complete record. Existing startup remediation actions remain
   independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,

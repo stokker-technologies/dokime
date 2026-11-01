@@ -79,7 +79,7 @@ impl Host {
             .arg(root.join("application"))
             .arg("--plugins-root")
             .arg(root.join("plugins"))
-            .env("RUST_LOG", "off")
+            .env("RUST_LOG", "error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(diagnostics)
