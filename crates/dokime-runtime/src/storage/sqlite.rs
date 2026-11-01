@@ -467,16 +467,27 @@ mod tests {
         let initial = state.data_open(None).await.unwrap();
         state.initialize_settings().await.unwrap();
         let settings = state.read_application_settings().await.unwrap();
+        let sources = state.sources().await.unwrap();
+        #[cfg(feature = "native")]
+        let metadata = state.read_application_metadata().await.unwrap();
         let mut writer = state.0.live.lock().await;
         let transaction = writer.as_mut().unwrap().connection.transaction().unwrap();
         transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [data::position(initial.sequence + 1)]).unwrap();
         transaction.execute("UPDATE application_settings SET revision=revision+1", []).unwrap();
+        transaction
+            .execute("INSERT INTO storage_sources SELECT 'pending','fixture',COALESCE(MAX(priority),-1)+1,1 FROM storage_sources", [])
+            .unwrap();
+        #[cfg(feature = "native")]
+        transaction.execute("DELETE FROM application_metadata WHERE id=1", []).unwrap();
 
         let saved = state.data_saved().await.unwrap();
         assert_eq!(saved.history, initial.history);
         assert_eq!(saved.sequence, initial.sequence);
         assert_eq!(saved.retention_generation, initial.retention_generation);
         assert_eq!(state.read_application_settings().await.unwrap(), settings);
+        assert_eq!(state.sources().await.unwrap(), sources);
+        #[cfg(feature = "native")]
+        assert_eq!(state.read_application_metadata().await.unwrap(), metadata);
 
         transaction.rollback().unwrap();
         drop(writer);

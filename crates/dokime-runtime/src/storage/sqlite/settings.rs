@@ -112,7 +112,7 @@ impl State {
 
     #[cfg(feature = "native")]
     pub(crate) async fn read_application_metadata(&self) -> Result<ApplicationMetadata, Error> {
-        self.call(|connection| Ok(read_metadata(connection))).await?
+        self.read(|connection| Ok(read_metadata(connection))).await?
     }
 
     #[cfg(feature = "native")]
