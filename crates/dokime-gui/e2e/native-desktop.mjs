@@ -4946,6 +4946,25 @@ async function startSecretService() {
   const accessibilityAddress = accessibility.stdout.match(/\bstring "([^"]+)"/);
   assert.ok(accessibilityAddress, "The private session owns an accessibility bus");
   process.env.AT_SPI_BUS_ADDRESS = accessibilityAddress[1];
+  // Activated Registry Processes Must Use This Bus Too, Before Consulting The Shared Display.
+  await executeFile("dbus-update-activation-environment", ["AT_SPI_BUS_ADDRESS"], {
+    env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: process.env.AT_SPI_BUS_ADDRESS },
+    windowsHide: true,
+    timeout: 120000,
+  });
+  await executeFile(
+    "dbus-send",
+    [
+      `--bus=${process.env.AT_SPI_BUS_ADDRESS}`,
+      "--print-reply",
+      "--dest=org.freedesktop.DBus",
+      "/org/freedesktop/DBus",
+      "org.freedesktop.DBus.StartServiceByName",
+      "string:org.a11y.atspi.Registry",
+      "uint32:0",
+    ],
+    { windowsHide: true, timeout: 120000 },
+  );
   secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
     detached: !windows,
