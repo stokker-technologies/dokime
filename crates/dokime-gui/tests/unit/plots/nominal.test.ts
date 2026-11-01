@@ -195,8 +195,7 @@ function plotStream() {
 }
 
 async function mountPlotView() {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+  vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   refreshFixture.read.mockReset();
   refreshFixture.watch.mockReset();
