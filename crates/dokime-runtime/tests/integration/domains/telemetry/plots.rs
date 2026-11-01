@@ -106,14 +106,20 @@ async fn batch_replacement_requests() {
     first.plot_id = Some("first".to_owned());
     let mut second = wifi_request(None, Some(10));
     second.plot_id = Some("second".to_owned());
+    let mut narrow = wifi_request(None, Some(2));
+    narrow.plot_id = Some("narrow".to_owned());
 
-    let envelopes = runtime.query_plot_payloads(vec![first, second], RuntimePlotQueryMode::Replace).await.unwrap();
+    for mode in [RuntimePlotQueryMode::Replace, RuntimePlotQueryMode::Snapshot] {
+        let envelopes = runtime.query_plot_payloads(vec![first.clone(), narrow.clone(), second.clone()], mode).await.unwrap();
 
-    assert_eq!(envelopes.iter().map(|envelope| envelope.plot_id.as_str()).collect::<Vec<_>>(), vec!["first", "second"]);
-    assert_eq!(envelopes[0].payload.series[0].raw_points, 4);
-    assert_eq!(envelopes[1].payload.series[0].raw_points, 4);
-    assert_eq!(envelopes[0].payload.series, envelopes[1].payload.series);
-    assert_eq!(envelopes[1].revision, runtime.storage().cursor_saved().sequence);
+        assert_eq!(envelopes.iter().map(|envelope| envelope.plot_id.as_str()).collect::<Vec<_>>(), vec!["first", "narrow", "second"]);
+        assert_eq!(envelopes[0].payload.series[0].raw_points, 4);
+        assert_eq!(envelopes[1].payload.series[0].raw_points, 4);
+        assert_eq!(envelopes[1].payload.series[0].points.len(), 2);
+        assert_eq!(envelopes[2].payload.series[0].raw_points, 4);
+        assert_eq!(envelopes[0].payload.series, envelopes[2].payload.series);
+        assert!(envelopes.iter().all(|envelope| envelope.revision == runtime.storage().cursor_saved().sequence));
+    }
 }
 
 // a time series plot summarizes each series over the exact rows of its window,
