@@ -34,8 +34,9 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
-import { formatCursorX } from "@/plots/axis";
+import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
+import { formatBooleanState, formatCursorX } from "@/plots/axis";
+import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
@@ -47,6 +48,7 @@ import {
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
 import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { PlotInteractionProvider } from "@/plots/interaction";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
@@ -478,6 +480,47 @@ test("Histogram Axes", () => {
     unit: "A",
     format: { kind: "engineering", significant_digits: 3 },
   });
+});
+
+test("Boolean State Plots", () => {
+  const payload = hostFrame([0, 1, 2, 3], [[0, 1, null, 0]], { keys: ["internet"] });
+  payload.stream = "host.network";
+  const descriptor = {
+    plot_id: "connectivity",
+    title: "Internet Connectivity",
+    stream: "host.network",
+    plot_type: "time_series",
+    x: "timestamp",
+    y: ["internet"],
+  } as DocumentViewPlot;
+  const columns: TelemetryColumnSpec[] = [{ name: "internet", value_type: "boolean", role: "state", required: false }];
+  const telemetry = {
+    "host.network": {
+      stream: "host.network",
+      spec: {
+        stream: "host.network",
+        columns,
+        allow_extra_fields: false,
+      },
+      summary: {},
+      samples: [],
+      max_samples: 0,
+      total_samples: 4,
+      dropped_samples: 0,
+      updated_at: payload.generated_at,
+    },
+  };
+  const plot = documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 });
+  assert.equal(plot.booleanAxis, true);
+  assert.deepEqual(payload.cartesian?.series[0].y.map(formatBooleanState), ["False", "True", "--", "False"]);
+  assert.equal(formatBooleanState(0.5), "--");
+  for (const zoom of [false, true]) {
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom, children: createElement(TimeSeriesPlot, { plot }) }));
+    assert.match(html, /plot-follow/);
+    assert.doesNotMatch(html, /<table\b/);
+  }
+  columns[0].value_type = "number";
+  assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
 });
 
 test("Series Legend", () => {

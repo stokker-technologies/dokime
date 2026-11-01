@@ -53,6 +53,8 @@ export type PlotCardSpec = {
   /** A histogram's axes: the declared value on x, the host's count on y. */
   histogramAxes?: HistogramAxes | null;
   timeAxis: boolean;
+  /** Declared Boolean Fields: False = 0, True = 1, Null = A Gap. */
+  booleanAxis?: boolean;
   unit?: string | null;
   colors: string[];
   referenceLines: DocumentReferenceLine[];

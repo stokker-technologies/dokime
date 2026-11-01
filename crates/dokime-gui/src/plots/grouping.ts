@@ -80,6 +80,13 @@ export function documentPlotSpec({
           )
         : null,
     timeAxis: plot.plot_type === "time_series",
+    booleanAxis:
+      plot.plot_type === "time_series" &&
+      plot.y.length > 0 &&
+      !plot.y_expressions?.some((expression) => Array.isArray(expression.transforms) && expression.transforms.length > 0) &&
+      plot.y.every((field) =>
+        telemetry?.[plot.stream]?.spec?.columns.some((column) => column.name === field && column.value_type === "boolean"),
+      ),
     unit: plot.unit ?? commonUnit(series),
     colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
     referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),

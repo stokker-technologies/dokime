@@ -67,6 +67,14 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
+Numeric time series and histograms show numeric statistics.
+
+Time series of declared Boolean fields, including host `host.network.internet`,
+use a stepped state axis labeled **False** and **True**, without numeric statistics.
+The plot projection encodes false as 0 and true as 1; missing readings are gaps.
+Stored evidence retains its declared Boolean type. The live view and report use
+the captured column schema to select this presentation.
+
 ## Canonical Bindings And Transport
 
 - Rust `dokime-operations` declarations own operation contracts and
