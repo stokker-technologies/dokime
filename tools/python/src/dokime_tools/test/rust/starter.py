@@ -142,7 +142,6 @@ def test(profile: str) -> None:
             MISE_YES="1",
             CARGO_NET_OFFLINE="true",
             CARGO_HOME=str(scratch / "cargo-home"),
-            CARGO_TARGET_DIR=str(root / "target"),
         )
 
         # uv Owns Its Normal Lock And Cache Integrity; No Custom Wheel Hash Gate.
