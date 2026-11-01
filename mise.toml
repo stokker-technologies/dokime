@@ -148,7 +148,7 @@ run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else
 
 [tasks.lint]
 description = "Lint Every Language"
-depends = ["lint:python", "lint:typescript"]
+depends = ["lint:python", "lint:rust", "lint:typescript"]
 
 [tasks."lint:python"]
 description = "Lint Python"
@@ -165,6 +165,11 @@ run = [
   '{{vars.python}} ruff check tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
   '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
 ]
+
+[tasks."lint:rust"]
+description = "Lint Rust"
+run = "cargo clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}}"
+env = { CARGO_BUILD_WARNINGS = "deny" }
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
@@ -199,8 +204,7 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 
 [tasks."check:rust"]
 description = "Check Rust"
-depends = ["prepare:generated"]
-run = ["{{vars.tools}} dokime_tools.prepare.resources --check", { task = "format:rust --check" }, "cargo-machete --skip-target-dir"]
+run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
 description = "Check TypeScript"
@@ -212,6 +216,7 @@ depends = ["prepare:generated"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.prepare.resources --check",
   "pnpm --dir crates/dokime-gui run typecheck",
   "pnpm --dir crates/dokime-gui exec biome lint --config-path=biome.json --vcs-use-ignore-file=false ../../target/generated/typescript",
   "node crates/dokime-gui/tools/smoke.mjs",
