@@ -60,6 +60,7 @@ pub(crate) async fn initialize(
     let started = crate::transactions::MarkRuntimeStarted {
         session_id: parts.config.session_id.clone(),
         record_namespace: parts.record_namespace.clone(),
+        record_frontier: parts.local_state.record_frontier().await?,
     };
     state_manager.commit(started).await.map_err(reconciliation_error)?;
     let recovered = crate::transactions::RecoverInterruptedCycles {

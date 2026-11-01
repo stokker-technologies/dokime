@@ -74,6 +74,18 @@ pub(crate) struct ScopedRecord {
 /* === Implementations === */
 
 impl super::State {
+    pub(crate) async fn record_frontier(&self) -> Result<u64, Error> {
+        let ordinal = self
+            .read(|connection| {
+                connection.query_row("SELECT MAX(ordinal) FROM storage_record_visibility", [], |row| row.get::<_, Option<String>>(0))
+            })
+            .await?;
+        match ordinal {
+            Some(ordinal) => super::sequence(&ordinal),
+            None => Ok(0),
+        }
+    }
+
     pub(crate) async fn scoped_records(
         &self, at: StorageCursor, scope: crate::evidence_runtime::ScopeSelection, epoch: Option<String>, after_position: u64,
         after_sequence: u64, through_sequence: u64,
