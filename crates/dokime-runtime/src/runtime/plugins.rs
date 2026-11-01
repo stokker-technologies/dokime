@@ -42,9 +42,6 @@ use crate::{
 
 const PLUGIN_LOG_VARIABLE: &str = "DOKIME_PLUGIN_LOG";
 
-// Extraction Cache
-const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -91,13 +88,6 @@ struct ReadBundle {
     input: PluginBundle,
     bytes: Vec<u8>,
     content_digest: String,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-struct ExtractionMarker {
-    sha256: String,
-    size: u64,
-    mtime_unix_ms: i64,
 }
 
 /* === Enums === */
@@ -222,18 +212,12 @@ impl Runtime {
         let mut packages = Vec::new();
         for (prepared, input) in inputs.into_iter().enumerate() {
             progress.progress(prepared as u64, total);
-            let reuse = reusable_extraction(&extraction, &input);
-            let cached_digest = reuse.as_ref().and_then(|_| match &input.provenance {
-                PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
-                PluginProvenance::Configured => None,
-            });
             let prepared = match read_bundle(
                 input.clone(),
-                cached_digest.as_deref(),
                 usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
                     .expect("validated server plugin bundle limit fits native address space"),
             ) {
-                Ok(bundle) => prepare(bundle, &extraction, reuse, &self.handle).await,
+                Ok(bundle) => prepare(bundle, &extraction, &self.handle).await,
                 Err(error) => Err(error),
             };
             match prepared {
@@ -569,13 +553,8 @@ impl Runtime {
 
     pub async fn reload_plugin(&mut self, input: PluginBundle) -> Result<()> {
         let extraction = extraction_root(&self.handle.config());
-        // Development reload always re-reads and re-extracts: it exists
-        // specifically to pick up bytes that just changed. The extraction
-        // cache only ever applies to `Installed` bundles (see
-        // `reusable_extraction`), never to this path.
         let bundle = read_bundle(
             input,
-            None,
             usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
                 .expect("validated server plugin bundle limit fits native address space"),
         )?;
@@ -607,7 +586,7 @@ impl Runtime {
         {
             return Ok(());
         }
-        let candidate = prepare(bundle, &extraction, None, &self.handle).await?;
+        let candidate = prepare(bundle, &extraction, &self.handle).await?;
         let name = candidate.catalog.package.clone();
         if let Some(current) = self.plugins.get(&name)
             && !matches!(current.package.input.provenance, PluginProvenance::Configured)
@@ -826,12 +805,9 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
     Ok(paths.into_iter().map(PluginBundle::new).collect())
 }
 
-fn read_bundle(input: PluginBundle, cached_digest: Option<&str>, archive_bytes: usize) -> Result<ReadBundle> {
+fn read_bundle(input: PluginBundle, archive_bytes: usize) -> Result<ReadBundle> {
     let bytes = read_bounded(&input.path, archive_bytes).map_err(operation)?;
-    let content_digest = match cached_digest {
-        Some(digest) => digest.to_owned(),
-        None => digest(&bytes),
-    };
+    let content_digest = digest(&bytes);
     if let PluginProvenance::Installed { install_id, sha256, .. } = &input.provenance
         && content_digest != *sha256
     {
@@ -843,7 +819,7 @@ fn read_bundle(input: PluginBundle, cached_digest: Option<&str>, archive_bytes: 
     Ok(ReadBundle { input, bytes, content_digest })
 }
 
-async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<PathBuf>, handle: &super::RuntimeHandle) -> Result<Package> {
+async fn prepare(read: ReadBundle, extraction: &std::path::Path, handle: &super::RuntimeHandle) -> Result<Package> {
     let ReadBundle { input, bytes, content_digest } = read;
     let (bundle, metadata) = crate::plugins::inspect_with_archive_limit(
         &bytes,
@@ -857,19 +833,11 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         return Err(operation(format!("plugin `{}` configuration names unknown executable `{owner}`", input.path.display())));
     }
     let mut plugins = Vec::new();
-    let directory = match reuse {
-        Some(cached) => Extraction::Cached(cached),
-        None => {
-            let staged = bundle.extract(extraction).map_err(operation)?;
-            match &input.provenance {
-                PluginProvenance::Installed { install_id, .. } => {
-                    let target = extraction.join(install_id.to_string());
-                    persist_extraction(staged, &target, &input.path, &content_digest).map_err(operation)?;
-                    Extraction::Cached(target)
-                }
-                PluginProvenance::Configured => Extraction::Ephemeral(staged),
-            }
+    let directory = match &input.provenance {
+        PluginProvenance::Installed { .. } => {
+            Extraction::Cached(cached_extraction(&bundle, extraction, &content_digest).map_err(operation)?)
         }
+        PluginProvenance::Configured => Extraction::Ephemeral(bundle.extract(extraction).map_err(operation)?),
     };
     let mut programs = Vec::new();
     for file in selected {
@@ -936,59 +904,28 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
     })
 }
 
-fn reusable_extraction(extraction: &std::path::Path, input: &PluginBundle) -> Option<PathBuf> {
-    let PluginProvenance::Installed { install_id, sha256, .. } = &input.provenance else {
-        return None;
-    };
-    let target = extraction.join(install_id.to_string());
-    let marker_bytes = std::fs::read(target.join(EXTRACTION_MARKER_FILE)).ok()?;
-    let marker: ExtractionMarker = serde_json::from_slice(&marker_bytes).ok()?;
-    let stat = std::fs::metadata(&input.path).ok()?;
-    if !extraction_matches(&marker, sha256, stat.len(), mtime_unix_ms(&stat)?) {
-        return None;
+/// Extracts an installed bundle once per archive digest. The directory is
+/// renamed into place complete, so its presence means it is ready to reuse.
+fn cached_extraction(
+    bundle: &harmos_packaging::bundle::Bundle, extraction: &std::path::Path, content_digest: &str,
+) -> std::result::Result<PathBuf, harmos_packaging::Error> {
+    let target = extraction.join(content_digest);
+    if !target.is_dir() {
+        let staged = bundle.extract(extraction)?;
+        if let Err(error) = std::fs::rename(staged.path(), &target)
+            && !target.is_dir()
+        {
+            return Err(error.into());
+        }
     }
-    // A light existence check that the directory still looks intact, not a
-    // full re-validation -- that would defeat the point of trusting it.
-    target.join("manifest.json").is_file().then_some(target)
-}
-
-fn extraction_matches(marker: &ExtractionMarker, sha256: &str, size: u64, modified: i64) -> bool {
-    marker.sha256 == sha256 && marker.size == size && marker.mtime_unix_ms == modified
-}
-
-fn persist_extraction(
-    staged: tempfile::TempDir, target: &std::path::Path, bundle_path: &std::path::Path, content_digest: &str,
-) -> std::io::Result<()> {
-    if target.is_dir() {
-        // Leftover from an interrupted extraction under this same install_id;
-        // never legitimately reused directly, so it is cleared before the
-        // rename lands the new one in its place.
-        std::fs::remove_dir_all(target)?;
-    }
-    std::fs::rename(staged.path(), target)?;
-    let stat = std::fs::metadata(bundle_path)?;
-    let marker = ExtractionMarker {
-        sha256: content_digest.to_owned(),
-        size: stat.len(),
-        mtime_unix_ms: mtime_unix_ms(&stat).unwrap_or(0),
-    };
-    harmos::filesystem::publication::write(
-        &target.join(EXTRACTION_MARKER_FILE),
-        &serde_json::to_vec(&marker).map_err(std::io::Error::other)?,
-    )
-    .map_err(Into::into)
-}
-
-fn mtime_unix_ms(stat: &std::fs::Metadata) -> Option<i64> {
-    let elapsed = stat.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
-    i64::try_from(elapsed.as_millis()).ok()
+    Ok(target)
 }
 
 fn sweep_orphaned_extractions(extraction: &std::path::Path, inputs: &[PluginBundle]) {
     let live: BTreeSet<String> = inputs
         .iter()
         .filter_map(|input| match &input.provenance {
-            PluginProvenance::Installed { install_id, .. } => Some(install_id.to_string()),
+            PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
             PluginProvenance::Configured => None,
         })
         .collect();
@@ -1012,7 +949,7 @@ fn sweep_orphaned_extractions(extraction: &std::path::Path, inputs: &[PluginBund
 }
 
 fn orphaned_extraction(name: &str, live: &BTreeSet<String>) -> bool {
-    !live.contains(name) && uuid::Uuid::parse_str(name).is_ok()
+    !live.contains(name) && name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginDefinition>> {
