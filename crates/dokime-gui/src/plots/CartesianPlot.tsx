@@ -110,7 +110,7 @@ type CartesianPlotProps = {
   stateLabel?: string;
   stateDetail?: string;
   contextSummary?: string;
-  liveWindowS?: number | null;
+  windowS?: number | null;
   viewportMode?: PlotViewportMode;
   /**
    * Replaces the canvas legend with the trace statistics table: one clickable
@@ -196,7 +196,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   stateLabel,
   stateDetail,
   contextSummary,
-  liveWindowS = null,
+  windowS = null,
   viewportMode = "fit",
   legend = null,
   onViewportChange,
@@ -279,7 +279,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   // Structural, not per-sample: crossing the render limit switches the point
   // mark style, everything below it is a plain data update.
   const densePoints = renderedPointCount > POINT_MARK_RENDER_LIMIT;
-  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, liveWindowS), [backendCartesian, liveWindowS]);
+  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, windowS), [backendCartesian, windowS]);
 
   useEffect(() => {
     let cancelled = false;

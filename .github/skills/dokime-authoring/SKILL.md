@@ -14,6 +14,10 @@ Host `System::memory_used_gib()` and `System::memory_total_gib()` expose Memory 
 
 Steps contribute and edit traceability through `ctx.traceability()` using the document-style evidence pipeline; no traceability lifecycle hook exists. Criteria and documents read captured evidence only. Preserve collected evidence and the distinct `Invalidated` terminal outcome; a failed report publication never changes the execution verdict.
 
+Plot definitions declare their data and presentation, never a time window. The
+live viewer selects one window for all plots in the view, defaulting to All.
+Reports always include the full captured sample range with bounded previews.
+
 Secret declarations read shared Secret Storage identifiers directly: a field
 `api_token: dokime::plugin::Secret` requires the identifier `api_token`;
 `Option<Secret>` permits absence. No secret defaults, `from_environment`, saved

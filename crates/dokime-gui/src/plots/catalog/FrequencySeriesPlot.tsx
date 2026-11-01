@@ -47,7 +47,7 @@ export function FrequencySeriesPlot({
       timeAxis={false}
       title={plot.title}
       unit={plot.fft.level_unit === "linear" ? plot.unit : plot.fft.level_unit}
-      liveWindowS={plot.liveWindowS}
+      windowS={plot.windowS}
       viewportMode={viewportMode}
       xScale={plot.xScale}
       yScale={plot.yScale}

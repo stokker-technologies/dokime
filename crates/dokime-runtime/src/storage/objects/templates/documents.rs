@@ -325,8 +325,6 @@ pub(super) struct Plot {
     #[serde(default)]
     reference_bands: Vec<Band>,
     #[serde(default)]
-    live_window_s: Option<f64>,
-    #[serde(default)]
     display_points: Option<u32>,
     #[serde(default)]
     downsample: crate::document::DownsampleTechnique,
@@ -756,9 +754,6 @@ impl TryFrom<Section> for crate::document::DocumentSection {
 
 impl Plot {
     fn encoding_memory(value: &crate::document::PlotDefinition) -> Result<usize> {
-        if let Some(window) = value.live_window_s {
-            finite(window)?;
-        }
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
         let fft = Fft::encoding_memory(&value.fft)?;
         Interval::encoding_memory(&value.interval)?;
@@ -831,9 +826,6 @@ impl Plot {
         parse::<crate::document::AxisScale>(&self.y_scale, "invalid axis scale")?;
         self.fft.validate()?;
         self.interval.validate()?;
-        if let Some(window) = self.live_window_s {
-            finite(window)?;
-        }
         let metadata = self.metadata.as_ref().ok_or(Error::Invalid("plot metadata is missing"))?.projection_memory()?;
         let strings = [&self.stream, &self.x, &self.z_stream, &self.z_field, &self.series_by, &self.unit];
         let mut bytes = strings
@@ -929,7 +921,6 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             marker_record_types: super::copied_strings(&value.marker_record_types)?,
             reference_lines,
             reference_bands,
-            live_window_s: value.live_window_s,
             display_points: value.display_points,
             downsample: value.downsample,
             x_format: value.x_format.as_ref().map(Format::try_from).transpose()?,
@@ -996,7 +987,6 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
             marker_record_types: row.marker_record_types,
             reference_lines,
             reference_bands,
-            live_window_s: row.live_window_s,
             display_points: row.display_points,
             downsample: row.downsample,
             x_format: row.x_format.map(TryInto::try_into).transpose()?,

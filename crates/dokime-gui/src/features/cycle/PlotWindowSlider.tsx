@@ -13,12 +13,13 @@
 
 // Third Party Imports
 
-import { TimerReset } from "lucide-react";
+import { RefreshCw, TimerReset } from "lucide-react";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Local Imports
 
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
 import { elapsedWindowLabel } from "@/plots/axis";
@@ -27,22 +28,31 @@ import { elapsedWindowLabel } from "@/plots/axis";
 
 /* === Constants === */
 
-const GUI_PLOT_WINDOW_PRESETS_S = [30, 60, 120, 300, 600, 1_800, 3_600];
+const GUI_PLOT_WINDOW_PRESETS_S = [60, 120, 300, 600, 1_800, 3_600];
 
 /* === Types === */
 
 export type PlotWindowOption = {
   label: string;
   detail: string;
-  value: number | null | undefined;
+  value: number | null;
 };
 
-/** The operator's plot window: the chosen option and whether they chose it. */
+/** The operator's plot window for one view. */
 export type PlotWindowState = {
   index: number;
   option: PlotWindowOption;
-  overridden: boolean;
   choose: (index: number) => void;
+  refresh: PlotRefreshState;
+};
+
+/** Refresh ownership shared by a view's toolbar and its plot reader. */
+export type PlotRefreshState = {
+  key: number;
+  refreshing: boolean;
+  updatedAt: number | null;
+  request: () => void;
+  onChange: (status: { refreshing: boolean; updatedAt?: number | null }) => void;
 };
 
 /* === Components === */
@@ -101,22 +111,31 @@ export function PlotWindowSlider({
   );
 }
 
-/**
- * The plot window in the header of the plots it scales. A frozen plot shows
- * the window it was drawn with: saying so is honest, offering a slider that
- * changes nothing is not.
- */
+/** The live view's window control; reports always cover their full evidence cut. */
 export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: string | null; live: boolean; window: PlotWindowState }) {
   if (!live) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        {elapsedUnit ? "Elapsed window" : "Plot window"} {plotWindowValueLabel(window.option, elapsedUnit)}
-      </span>
-    );
+    return null;
   }
   return (
-    <div className="w-56 xl:w-80">
-      <PlotWindowSlider elapsedUnit={elapsedUnit} index={window.index} onIndexChange={window.choose} option={window.option} />
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      <Button
+        aria-busy={window.refresh.refreshing}
+        disabled={window.refresh.refreshing}
+        onClick={window.refresh.request}
+        size="sm"
+        variant="outline"
+      >
+        <RefreshCw className={window.refresh.refreshing ? "animate-spin" : undefined} size={14} />
+        {window.refresh.refreshing ? "Refreshing…" : "Refresh"}
+      </Button>
+      <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground" role="status">
+        {window.refresh.updatedAt === null
+          ? "Not Updated Yet"
+          : `Updated ${new Date(window.refresh.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}`}
+      </span>
+      <div className="w-56 xl:w-80">
+        <PlotWindowSlider elapsedUnit={elapsedUnit} index={window.index} onIndexChange={window.choose} option={window.option} />
+      </div>
     </div>
   );
 }
@@ -126,8 +145,21 @@ export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: 
 /** The plot window one document view scales its plots by. */
 export function usePlotWindow(): PlotWindowState {
   const options = usePlotWindowOptions();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => options.findIndex((option) => option.value === 300));
   const option = options[index] ?? options[0];
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [status, setStatus] = useState({ refreshing: false, updatedAt: null as number | null });
+  const refreshingRef = useRef(false);
+  const onChange = useCallback((next: { refreshing: boolean; updatedAt?: number | null }) => {
+    refreshingRef.current = next.refreshing;
+    setStatus((previous) => ({ ...previous, ...next }));
+  }, []);
+  const request = useCallback(() => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setStatus((previous) => ({ ...previous, refreshing: true }));
+    setRefreshKey((previous) => previous + 1);
+  }, []);
 
   return {
     choose: (next) => {
@@ -135,7 +167,7 @@ export function usePlotWindow(): PlotWindowState {
     },
     index,
     option,
-    overridden: option.value !== undefined,
+    refresh: { key: refreshKey, ...status, request, onChange },
   };
 }
 
@@ -166,15 +198,13 @@ export function plotWindowDetail(option: PlotWindowOption, elapsedUnit: string |
 
 export function plotWindowOptions(presets: readonly number[]): [PlotWindowOption, ...PlotWindowOption[]] {
   const durations = presets.map((seconds) => {
-    const unit = seconds % 60 === 0 ? "min" : "s";
+    const unit = seconds % 3_600 === 0 ? "h" : seconds % 60 === 0 ? "min" : "s";
     const label = elapsedWindowLabel(seconds, unit);
     return { label, detail: `last ${label}`, value: seconds };
   });
-  return [
-    { label: "Plot Default", detail: "the window declared by each plot", value: undefined },
-    ...durations,
-    { label: "All", detail: "all stored samples", value: null },
-  ];
+  const options: [PlotWindowOption, ...PlotWindowOption[]] = [{ label: "All", detail: "all stored samples", value: null }];
+  options.unshift(...durations);
+  return options;
 }
 
 /* === Private Functions === */

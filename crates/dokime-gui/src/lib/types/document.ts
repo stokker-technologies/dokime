@@ -112,7 +112,6 @@ export type DocumentViewPlot = {
   filters?: DocumentFilter[];
   reference_lines?: DocumentReferenceLine[];
   reference_bands?: DocumentReferenceBand[];
-  live_window_s?: number | null;
   x_format?: ValueFormat | null;
   y_format?: ValueFormat | null;
   /** Absent for a payload written before the axis was declared on the wire. */

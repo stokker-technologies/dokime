@@ -67,6 +67,35 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
+The live viewer owns the time window for all plots in its view. The options are
+1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
+stays with that view across rerenders. Plot definitions carry no time window.
+Reports always show the full captured range, render once and omit live controls.
+
+Refresh sits to the left of the window slider and updates every plot in the view.
+Timed windows keep their automatic watch; Refresh requests fresh snapshots
+immediately. All uses one finite `Plots.QuerySnapshots` batch on entry and one
+per button press, without polling, a plot watch or runtime-driven invalidation.
+Visibility, zoom and document updates do not reload All; changed query settings
+apply at the next explicit refresh. There is no background GUI plot prefetch.
+The button shows progress and is disabled while refreshing. Updated hh:mm:ss
+shows the last successful refresh time; failures use Notifications and leave
+that time unchanged. Large All requests can take several seconds.
+
+Live requests retain their display point budget for All (`src/plots/live-data.ts`).
+The backend reduces numeric plots with downsampling and histogram bins in
+`crates/dokime-runtime/src/plot/stored.rs`; complex plots use the disk-backed
+projection in `crates/dokime-runtime/src/plot/payload/spilled/`. These live paths
+still scan the selected raw history before reduction: `native_table` in
+`crates/dokime-runtime/src/plot/stored.rs` pages all selected numeric rows, and
+`query_spilled_plot` in `crates/dokime-runtime/src/runtime/query/plots/mod.rs`
+visits all selected saved samples when no analysis scan budget applies. All
+removes the time predicate, so work grows with run length despite bounded pages
+and output frames. Live queries do not use the incremental report checkpoints;
+multi-day query latency is therefore not bounded by the display point budget.
+Report checkpoints use bounded exact samples, time envelopes and occupancy grids
+in `crates/dokime-runtime/src/plot/preview.rs` and its `index.rs`.
+
 Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
@@ -79,6 +108,10 @@ the captured column schema to select this presentation.
 
 ## Canonical Bindings And Transport
 
+- `mise run check:typescript:generated --source` checks locally prepared bindings
+  and GUI types. Without `--source`, the generated check restores staged Product
+  bindings for artifact validation. `mise run check:typescript` owns formatting
+  and lint.
 - Rust `dokime-operations` declarations own operation contracts and
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
