@@ -111,3 +111,17 @@ async fn document_report_seal() {
     reports::report_save_receipt().await;
     reports::report_download_serves().await;
 }
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+#[cfg(feature = "testing")]
+async fn concurrent_seal_is_durable() {
+    reports::concurrent_seal_is_durable().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+#[cfg(feature = "testing")]
+async fn checkpoint_preserves_inflight_seal() {
+    reports::checkpoint_preserves_inflight_seal().await;
+}

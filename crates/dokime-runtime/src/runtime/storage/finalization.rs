@@ -253,6 +253,8 @@ impl RuntimeHandle {
     }
 
     pub async fn wait_execution_report(&self, id: &TestExecutionId) -> Result<()> {
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_report_wait(id).await;
         let mut watch = self.watch_state();
         let mut shutdown = self.shutdown_requested.subscribe();
         loop {
@@ -354,6 +356,8 @@ impl RuntimeHandle {
     pub(crate) async fn complete_report_publication(&self, id: &TestExecutionId) -> Result<()> {
         self.execution_storage.seal_final_report(id).await?;
         let seal = self.execution_storage.durable_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_seal_adoption(id).await;
         self.commit_admitted_seal(seal).await?;
         Ok(())
     }

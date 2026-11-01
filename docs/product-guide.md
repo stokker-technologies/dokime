@@ -347,8 +347,8 @@ dokime cycle seal CYCLE_UUID --backend lab --json
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
 returns a nonzero exit status after any earlier lines. `execution stop` stops
-the selected execution and halts its cycle's automatic continuation. Wait for
-its saved outcome before downloading evidence. To repeat a case, append a new
+the selected execution, halts its cycle's automatic continuation and waits for
+its durable seal before returning. To repeat a case, append a new
 execution identity and Start that attempt; earlier evidence remains unchanged.
 Cancelling an ordinary local wait leaves admitted backend work running.
 
@@ -1143,7 +1143,7 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime execution start` | Start one execution without waiting. | `--mode` |
 | `dokime execution run` | Start one execution and wait for its seal. | `--mode`, `--wait-seconds`, `--records`, `--samples` |
 | `dokime execution wait` | Wait for a durable outcome. | `--wait-seconds` |
-| `dokime execution stop` | Request that one execution stop. | `--json` |
+| `dokime execution stop` | Stop one execution and wait for its durable seal. | `--json` |
 | `dokime execution prompt next` | Wait for the next answerable prompt. | `--wait-seconds`, `--id-only`, `--id-file` |
 | `dokime execution prompt show` | Inspect one prompt. | `--json` |
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
@@ -1868,11 +1868,13 @@ frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
-Stop and Cancel close and drain evidence, then return while HTML publication runs
-in the background. Execution detail exposes report **Pending**, **Ready** or
+Stop closes and drains evidence, then waits for the execution's durable seal,
+joining report publication already in flight. A report failure fails Stop without
+changing the execution result. Cancel and natural completion publish HTML in the
+background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
-and Python `await execution.snapshot()` expose the same `report` field. A report failure never fails Stop or changes the execution result.
+and Python `await execution.snapshot()` expose the same `report` field.
 Execution-scoped sample follows drain the closed evidence frontier independently
 of HTML. Report download and evidence export wait for readiness and return publication
 failures. `cycle.save(...)` uses those same waits. Shutdown preserves pending

@@ -57,8 +57,9 @@ async fn report_background() {
         let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted);
         executor.wait_until_entered().await;
-        runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+        executor.release();
         gate.entered().await;
+        crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
         {
             let snapshot = runtime.watch_state().latest();
             assert!(snapshot.state().executions[&execution].finished_at.is_some());
@@ -80,15 +81,22 @@ async fn report_background() {
         let download = runtime.open_execution_report(&execution);
         tokio::pin!(download);
         assert!(futures_util::poll!(&mut download).is_pending());
+        let wait_gate = dokime_runtime::testing::hold_report_wait(&execution);
+        let stop = runtime.stop_execution(execution.clone(), CommandContext::default());
+        tokio::pin!(stop);
+        tokio::select! {
+            result = &mut stop => panic!("stop returned before report publication: {result:?}"),
+            _ = wait_gate.entered() => {}
+        }
+        wait_gate.release();
+        assert!(futures_util::poll!(&mut stop).is_pending());
         gate.release();
+        assert_eq!(stop.await.is_err(), fail);
         assert_eq!(runtime.wait_execution_report(&execution).await.is_err(), fail);
         assert_eq!(download.await.is_err(), fail);
-        // An Already-Settled Stop Never Becomes A Report Error.
+        // Repeating Stop Can Finish A Previously Failed Report.
         runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
-        if fail {
-            runtime.finish_execution_for_test(&execution).await.unwrap();
-            runtime.wait_execution_report(&execution).await.unwrap();
-        }
+        runtime.wait_execution_report(&execution).await.unwrap();
         owner.shutdown().await.unwrap();
     }
 
@@ -103,8 +111,9 @@ async fn report_background() {
     let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
-    runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    executor.release();
     gate.entered().await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
     owner.shutdown().await.unwrap();
     drop(runtime);
     drop(owner);

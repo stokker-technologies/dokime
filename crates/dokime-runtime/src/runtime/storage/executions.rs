@@ -664,11 +664,17 @@ impl ExecutionStorage {
             let storage = self.clone();
             let expected = members[id];
             validate_identity(&*owner.lock().await, expected)?;
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_execution_checkpoint(id).await;
             tokio::spawn(async move {
                 let mut acquisition = owner.lock().await;
                 // Settle The Original Admission Before Reading Any Newer Journal State
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
+                }
+                // Native Sealing Is Final Even Before The Journal Adopts Its Seal.
+                if acquisition.execution.saved.is_some() {
+                    return Ok(());
                 }
                 let observed = storage
                     .state_manager
