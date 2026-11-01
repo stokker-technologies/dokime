@@ -35,7 +35,7 @@ from dokime_tools.build import paths
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption("--build-profile", choices=("dev", "release"), default="dev")
+    parser.addoption("--build-profile", choices=("dev", "release"), default=os.environ.get("TEST_PROFILE", "dev"))
 
 
 @pytest.fixture(scope="session")

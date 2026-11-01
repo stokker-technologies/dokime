@@ -402,7 +402,8 @@ def _lane(
     text = junit.read_text(encoding="utf-8")
     package = Path(project).name if project != "." else directory.name
     found = report.cases(text, category, language, package)
-    deadlines = {(case.suite, case.name): _deadline(rules, language, case) for case in found}
+    factor = policy.COVERAGE_FACTOR if environment and environment.get(COVERAGE_VARIABLE) == "1" else 1
+    deadlines = {(case.suite, case.name): _deadline(rules, language, case) * factor for case in found}
     overruns = [
         f"{case.file}::{case.story}"
         for case in found

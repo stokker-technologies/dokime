@@ -107,6 +107,28 @@ class ScheduleTests(unittest.TestCase):
             self.assertEqual((directory / results["left"]["log"]).read_text().strip(), "left")
             self.assertEqual((directory / results["right"]["log"]).read_text().strip(), "right")
 
+    def test_instrumented_liveness_budget(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "tools").mkdir()
+            (directory / "tools/project.toml").write_text("", encoding="utf-8")
+            rules = run.policy.load(directory)
+            ordinary = rules.deadline("unit")
+            instrumented = rules.deadline("unit", coverage=True)
+            for environment, seconds, expected in (
+                ({}, (ordinary + instrumented) / 2, "failed"),
+                ({run.COVERAGE_VARIABLE: "1"}, (ordinary + instrumented) / 2, "passed"),
+                ({run.COVERAGE_VARIABLE: "1"}, instrumented + 1, "failed"),
+            ):
+                with run._scratch(directory, "unit-python", "dev") as scratch:
+                    junit = scratch / "junit.xml"
+                    junit.write_text(f'<testsuite name="fixture"><testcase name="passes" time="{seconds}"/></testsuite>', encoding="utf-8")
+                    with patch.object(run, "_execute", return_value=0):
+                        result = run._lane(
+                            directory, rules, "unit-python", "unit", "python", ".", "dev", [], directory, environment, junit, scratch
+                        )
+                self.assertEqual(result["outcome"], expected)
+
     def test_aggregate_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()

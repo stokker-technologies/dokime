@@ -58,7 +58,7 @@ PYTHONDONTWRITEBYTECODE = "1"
 rust_desktop_features = "tauri/custom-protocol"
 # The Host Plugin Builds Its Sidecar Only With Its Runtime; Its Definitions Need No Features.
 rust_plugin_features = "plugin-host/runtime"
-rust_release_features = "dokime/media-native"
+rust_release_features = "dokime-server/media-native"
 rust_extended_features = "dokime/fault-injection,dokime-server/fault-injection"
 python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
@@ -379,6 +379,7 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]
 description = "Test Integration Rust"
+depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--select <select>" help="Narrow The Nextest Filterset"
@@ -412,8 +413,13 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:coverage"]
 description = "Measure Rust Coverage Over Instrumented Lanes"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}"
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
+]
 
 [tasks."test:rust:extended"]
 description = "Run Optional Local Compatibility And Fault-Injection Stories"

@@ -179,11 +179,11 @@ inputs = ["build:python#python"]
 
 [[ci.jobs]]
 id = "test:python:acceptance"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
+inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:coverage"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
+inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
