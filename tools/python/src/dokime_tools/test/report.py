@@ -107,7 +107,7 @@ def cases(text: str, category: str, language: str, package: str) -> list[Case]:
         seconds = float(node.get("time") or 0)
         selected = category
         if language == "python" and category == "coverage":
-            parts = (node.get("file") or suite).replace("\\\\", "/").replace(".", "/").split("/")
+            parts = (node.get("file") or suite).replace("\\", "/").replace(".", "/").split("/")
             layers = [layer for layer in policy.CATEGORIES if layer in parts]
             if len(layers) != 1:
                 raise policy.TestError(f"native Python coverage report does not identify one test layer: {suite}::{name}")

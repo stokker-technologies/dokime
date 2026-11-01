@@ -140,7 +140,7 @@ class ScheduleTests(unittest.TestCase):
                 junit = scratch / "junit.xml"
                 junit.write_text(
                     f'<testsuite><testcase classname="tests.unit.client" name="overrun" time="{seconds}"/>'
-                    f'<testcase classname="tests.acceptance.backend" name="within_budget" time="{seconds}"/></testsuite>',
+                    f'<testcase classname="tests.acceptance.backend" file="tests\\acceptance\\test_backend.py" name="within_budget" time="{seconds}"/></testsuite>',
                     encoding="utf-8",
                 )
                 with patch.object(run, "_execute", return_value=0):
