@@ -56,6 +56,7 @@ pub(in crate::domains::files) struct FtpSource {
     endpoint: Endpoint,
     connection: Option<AsyncRustlsFtpStream>,
     listing: ListingCommand,
+    recursive: bool,
 }
 
 #[derive(Clone)]
@@ -91,12 +92,18 @@ impl FtpSource {
             endpoint,
             connection: None,
             listing: ListingCommand::Mlsd,
+            recursive: true,
         };
 
         // Fail Fast On An Unreachable Server Or Refused Login
         let connection = source.connection().await?;
         source.connection = Some(connection);
         Ok(source)
+    }
+
+    pub(super) fn top_level(mut self) -> Self {
+        self.recursive = false;
+        self
     }
 
     pub(super) async fn scan(&mut self, matcher: &FileMatcher) -> Result<Listing> {
@@ -120,7 +127,7 @@ impl FtpSource {
                     continue;
                 }
                 let relative = if directory.is_empty() { name.to_owned() } else { format!("{directory}/{name}") };
-                if listed.is_directory() {
+                if listed.is_directory() && self.recursive {
                     directories.push_back(relative);
                 } else if listed.is_file() && matcher.matches(&relative) {
                     listing.insert(

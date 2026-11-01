@@ -34,17 +34,17 @@ use crate::{runtime::Error, runtime::Result};
 /* === Type Aliases === */
 
 // Matched files by forward-slash path relative to the source root.
-pub(super) type Listing = BTreeMap<String, Entry>;
+pub(crate) type Listing = BTreeMap<String, Entry>;
 
 /* === Structs === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Entry {
-    pub(super) size: u64,
-    pub(super) modified: Option<SystemTime>,
+pub(crate) struct Entry {
+    pub(crate) size: u64,
+    pub(crate) modified: Option<SystemTime>,
     // Device and inode where the platform exposes them; a change means the
     // path now names a different file.
-    pub(super) identity: Option<(u64, u64)>,
+    pub(crate) identity: Option<(u64, u64)>,
 }
 
 /* === Enums === */
@@ -72,7 +72,7 @@ impl Source {
     pub(super) fn single_file(self) -> Self {
         match self {
             Self::Local(local) => Self::Local(local.top_level()),
-            ftp @ Self::Ftp(_) => ftp,
+            Self::Ftp(ftp) => Self::Ftp(Box::new(ftp.top_level())),
         }
     }
 
