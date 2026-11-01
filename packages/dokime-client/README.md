@@ -192,6 +192,8 @@ For explicit planning, interactive control and uncertain-admission recovery,
 `cycle.seal()` remain available. Materialization snapshots the definition and
 provider revision; append registers exact UUIDs atomically without starting work.
 Starts are idempotent by identity and mode; mutations are never blindly retried.
+`execution.stop()` waits for its durable execution seal, including any report
+publication already in flight; publication failures propagate to the caller.
 `execution.export(path)` and `cycle.export(path)` retain explicit `overwrite=True`.
 A sealed execution can export while its cycle remains Active; cycle exports
 require a durable seal. Downloads verify size, SHA-256 and final transport status

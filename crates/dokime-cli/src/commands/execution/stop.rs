@@ -7,7 +7,7 @@
  * ***
  */
 
-// Request Backend Execution Stop
+// Stop And Seal One Backend Execution
 
 /* === Modules === */
 
@@ -37,7 +37,7 @@ pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
 
-    #[arg(long, help = "Emit The Stop Reply As JSON; This Does Not Wait For Sealing.")]
+    #[arg(long, help = "Emit The Reply As JSON After Durable Sealing.")]
     json: bool,
 }
 
@@ -60,7 +60,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     if args.json {
         println!("{}", serde_json::json!({ "execution_id": args.execution_id, "observed_cursor": reply.observed_cursor }));
     } else {
-        println!("Stop Requested For Execution {}", args.execution_id);
+        println!("Execution {} Stopped And Sealed", args.execution_id);
     }
     Ok(())
 }

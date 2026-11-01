@@ -338,8 +338,8 @@ pub(crate) async fn permanent_finalization_settles() {
         .await
         .unwrap();
     assert!(runtime.wait_execution_report(&execution).await.is_err());
+    assert!(runtime.stop_execution(execution.clone(), CommandContext::default()).await.is_err());
     assert_eq!(runtime.watch_state().latest().state().executions[&execution].status, ExecutionStatus::Passed);
-    runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
     drop(watch);
     owner.shutdown().await.unwrap();
     drop(runtime);

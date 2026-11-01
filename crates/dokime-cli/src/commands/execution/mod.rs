@@ -51,7 +51,7 @@ pub(crate) enum Command {
     #[command(subcommand, about = "Discover, Inspect And Answer Prompts For One Execution.")]
     Prompt(prompt::Command),
 
-    #[command(about = "Request A Stop Of One Execution; Its Siblings Keep Running.")]
+    #[command(about = "Stop One Execution And Wait For Its Durable Seal; Its Siblings Keep Running.")]
     Stop(stop::Args),
 
     #[command(about = "Download A Sealed Execution's Evidence While Its Cycle May Stay Active.")]
