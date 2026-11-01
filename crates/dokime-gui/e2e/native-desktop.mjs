@@ -2983,7 +2983,10 @@ async function exportAvailability(session, enabled, kind = "cycle") {
 async function assertNodeDeliveries(session, trigger) {
   await openMenu(session, trigger);
   for (const name of ["Export Evidence", "Download Report"]) {
-    assert.ok(await session.named("menuitem", name, { enabled: false }), `${trigger} must name ${name}`);
+    assert.ok(
+      await until(`${trigger} offers ${name}`, () => session.named("menuitem", name, { enabled: false })),
+      `${trigger} must name ${name}`,
+    );
   }
   await session.key("Escape");
 }
@@ -4914,6 +4917,8 @@ async function startSecretService() {
   if (windows) return;
   const home = join(work, "secret-service");
   await mkdir(home, { recursive: true, mode: 0o700 });
+  process.env.XDG_RUNTIME_DIR = home;
+  delete process.env.AT_SPI_BUS_ADDRESS;
   secretBus = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], {
     detached: !windows,
     windowsHide: true,
@@ -4933,6 +4938,14 @@ async function startSecretService() {
     return address.includes("\n");
   });
   process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
+  const accessibility = await executeFile(
+    "dbus-send",
+    ["--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus.GetAddress"],
+    { windowsHide: true, timeout: 120000 },
+  );
+  const accessibilityAddress = accessibility.stdout.match(/\bstring "([^"]+)"/);
+  assert.ok(accessibilityAddress, "The private session owns an accessibility bus");
+  process.env.AT_SPI_BUS_ADDRESS = accessibilityAddress[1];
   secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
     detached: !windows,
