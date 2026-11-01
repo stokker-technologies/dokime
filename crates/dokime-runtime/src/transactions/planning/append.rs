@@ -60,6 +60,10 @@ impl Transaction<RuntimeState> for AppendExecutions {
         prepare(state, self).map(|_| ())
     }
 
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.cycle_id), out);
+    }
+
     fn apply(&self, state: &mut RuntimeState) {
         let cycle = prepare(state, self).expect("Harmos checked explicit execution append");
         state.replace_cycle(cycle).expect("appended executions have validated ownership");

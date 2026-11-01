@@ -123,6 +123,7 @@ impl Transaction<RuntimeState> for FinishProvider {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
         prepare_finish_provider(state, self).collect(out);
     }
 

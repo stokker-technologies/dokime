@@ -134,6 +134,12 @@ impl Transaction<RuntimeState> for CancelExecution {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.executions.get(&self.test_execution_id).map(|execution| &execution.test_cycle_id),
+            out,
+        );
         if self.admit(state).is_ok_and(|admission| admission != CancelAdmission::Cancelled) {
             self.drafts(state).collect(out);
         }
