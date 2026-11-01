@@ -191,7 +191,7 @@ impl State {
                         harmos::filesystem::publication::install(&source, &destination)?;
                     }
                     super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                } else if finished.is_none() {
+                } else if finished.is_none() && !published_content(connection, &reference)? {
                     // An Interrupted Install May Have Published Its Name Before Its Flush.
                     confirm_durability(&destination)?;
                 }
@@ -201,11 +201,7 @@ impl State {
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
                 super::super::commit(transaction)?;
-                // Installation May Move Or Link The Source. Remove A Remaining
-                // Link; Reused Content Also Confirms Any Earlier Cleanup Retry.
-                if present || regular(&source)? {
-                    remove(&source)?;
-                }
+                remove(&source)?;
                 Ok(reference)
             })();
             Ok(result)
@@ -552,6 +548,29 @@ pub(super) fn remove(path: &Path) -> Result<(), Error> {
 
 /* === Private Functions === */
 
+// A Finished Row Commits Only After Its Content Name Was Published Durably.
+// An Unfinished Intent Alone Does Not Establish That Proof.
+fn published_content(connection: &Connection, reference: &FileReference) -> Result<bool, Error> {
+    let hash = serde_json::to_string(&reference.sha256)?;
+    let id: Option<String> = connection
+        .query_row(
+            "SELECT id FROM storage_file_stages WHERE id<>?1
+                AND NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE storage_deleted_files.id=storage_file_stages.id)
+                AND json_extract(finished,'$.sha256')=?2 LIMIT 1",
+            params![reference.metadata.id.as_str(), hash],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(id) = id else { return Ok(false) };
+    let id = harmos::Identifier::new(id).map_err(|_| Error::Corrupt("invalid finished file identity"))?;
+    let (_, completed) = stored_metadata(connection, &id)?.ok_or(Error::Corrupt("finished file disappeared"))?;
+    let completed = completed.ok_or(Error::Corrupt("finished file has no publication"))?;
+    if completed.sha256 != reference.sha256 || completed.length != reference.length {
+        return Err(Error::Corrupt("shared finished file content differs"));
+    }
+    Ok(true)
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -561,6 +580,53 @@ fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn shared_content_requires_a_finished_live_owner() {
+        let root = tempfile::tempdir().unwrap();
+        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
+        let head = state.data_open(None).await.unwrap();
+        let metadata = |id: &str| FileMetadata {
+            id: harmos::Identifier::new(id).unwrap(),
+            scope: None,
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        };
+        let source = state.production_create(root.path().to_owned(), metadata("original")).await.unwrap();
+        state.production_create(root.path().to_owned(), metadata("reused")).await.unwrap();
+        let reference = FileReference {
+            metadata: metadata("reused"),
+            position: StorageCursor {
+                history: head.history.clone(),
+                sequence: 2,
+            },
+            length: 0,
+            sha256: Sha256::digest([]).into(),
+        };
+        let proven = async |reference: FileReference| {
+            state.call(move |connection| Ok(published_content(connection, &reference))).await.unwrap().unwrap()
+        };
+        assert!(!proven(reference.clone()).await);
+        state
+            .call(|connection| {
+                connection.execute_batch(
+                    "CREATE TEMP TRIGGER refuse_finish BEFORE UPDATE OF finished ON storage_file_stages
+                     BEGIN SELECT RAISE(ABORT,'injected publication failure'); END",
+                )
+            })
+            .await
+            .unwrap();
+        let at = StorageCursor { history: head.history, sequence: 1 };
+        assert!(state.data_finish_file(root.path().to_owned(), source.clone(), at.clone(), 0, reference.sha256).await.is_err());
+        assert!(!proven(reference.clone()).await);
+        state.call(|connection| connection.execute_batch("DROP TRIGGER refuse_finish")).await.unwrap();
+        state.data_finish_file(root.path().to_owned(), source.clone(), at, 0, reference.sha256).await.unwrap();
+        assert!(proven(reference.clone()).await);
+        state.production_delete(root.path().to_owned(), source).await.unwrap();
+        assert!(!proven(reference).await);
+        state.close().await.unwrap();
+    }
 
     #[test]
     fn cached_verification_rejects_changed_prefix_and_suffix() {
