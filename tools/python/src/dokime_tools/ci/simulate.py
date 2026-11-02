@@ -746,7 +746,8 @@ def _run_job(job: dict, candidate: Path, output: Path, cache: Path, identity: st
                         )
                     else:
                         lines.extend([f"printf '%s\\n' '{step_label}'", command])
-                    lines.extend(step_environment.commands(windows, sys.executable, str(Path(__file__).with_name("environment.py"))))
+                    helper = workspace / "tools/python/src/dokime_tools/ci/environment.py"
+                    lines.extend(step_environment.commands(windows, sys.executable, str(helper)))
                 script.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 shell = ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(script)] if windows else ["bash", str(script)]
                 status = stream(
@@ -870,7 +871,9 @@ def docker(
         archive.unlink()
         subprocess.run(["docker", "cp", str(script), name + ":/ci-simulation.sh"], check=True, capture_output=True)
         subprocess.run(
-            ["docker", "cp", str(Path(__file__).with_name("environment.py")), name + ":/ci-environment.py"], check=True, capture_output=True
+            ["docker", "cp", str(workspace / "tools/python/src/dokime_tools/ci/environment.py"), name + ":/ci-environment.py"],
+            check=True,
+            capture_output=True,
         )
         status = stream(["docker", "start", "--attach", name], workspace, None, f"unix/{job['key']}", log, job["minutes"] * 60, result)
         if status == 0:
