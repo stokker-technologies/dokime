@@ -60,7 +60,6 @@ struct SessionState {
 
 #[derive(Clone)]
 pub struct SessionLease {
-    generation: String,
     client: dokime::client::Client,
     cancellation: CancellationToken,
     preferences: Arc<Mutex<ClientPreferences>>,
@@ -195,6 +194,7 @@ impl ConnectionSession {
         }
         match result {
             Ok((lease, backend)) => {
+                state.snapshot.endpoint = Some(lease.client().endpoint().to_owned());
                 state.lease = Some(lease);
                 state.snapshot.backend = Some(backend);
                 state.snapshot.phase = ConnectionPhase::Connected;
@@ -215,6 +215,15 @@ impl ConnectionSession {
     ) -> Result<(SessionLease, BackendSnapshot), ConnectionError> {
         let (token, remember) = match secrets {
             ConnectionSecrets::None => (None, false),
+            ConnectionSecrets::Profile { credential } => {
+                let token = self
+                    .access_secrets(generation, &cancellation, move |store| {
+                        store.read(&credential).map_err(|_| ConnectionError::SecretsUnavailable)
+                    })
+                    .await?
+                    .ok_or(ConnectionError::SecretsUnavailable)?;
+                (Some(token), false)
+            }
             ConnectionSecrets::Saved => {
                 let endpoint = target.endpoint.clone();
                 let token = self
@@ -236,7 +245,6 @@ impl ConnectionSession {
         .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
         let lease = SessionLease {
-            generation: generation.to_string(),
             client,
             cancellation,
             preferences: Arc::clone(&self.preferences),
@@ -304,10 +312,6 @@ impl SessionLease {
     pub(crate) fn client(&self) -> dokime::client::Client {
         let preferences = *self.preferences.lock().expect("client preferences poisoned");
         self.client.with_timeout(std::time::Duration::from_millis(preferences.request_timeout_ms))
-    }
-
-    pub fn generation(&self) -> &str {
-        &self.generation
     }
 
     pub(crate) async fn guard<T>(&self, future: impl Future<Output = T>) -> Result<T, ConnectionError> {

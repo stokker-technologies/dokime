@@ -169,11 +169,11 @@ def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monk
         return SimpleNamespace()
 
     monkeypatch.setattr(plugins.subprocess, "run", run)
-    arguments = {"packages": plugins.FIXTURES} if fixture else {}
+    arguments = {"packages": ("fixture-second", "fixture-first")} if fixture else {}
     staged = plugins.prepare(tmp_path, tmp_path / "compiler.json", "dev", tool=tmp_path / "cargo-dokime", output=output, **arguments)
-    assert selected == (["plugin-obc"] if fixture else ["plugin-host"])
-    assert [path.name for path in staged] == (["plugin-obc.dokime"] if fixture else ["plugin-host.dokime"])
-    assert staged[0].read_bytes() == b"packaged executable"
+    assert selected == (["fixture-first", "fixture-second"] if fixture else ["plugin-host"])
+    assert [path.name for path in staged] == (["fixture-first.dokime", "fixture-second.dokime"] if fixture else ["plugin-host.dokime"])
+    assert all(path.read_bytes() == b"packaged executable" for path in staged)
 
 
 def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

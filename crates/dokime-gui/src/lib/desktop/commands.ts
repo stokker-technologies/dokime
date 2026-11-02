@@ -48,7 +48,9 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
 /* === Public Constants === */
 
 export const commands = {
-  desktopPairingCreate: (label: string, endpoint: string) => invoke<string | null>("desktop_pairing_create", { label, endpoint }),
+  desktopFirewall: (generation: string, allow = false) =>
+    invoke<{ required: boolean; message: string | null }>("desktop_firewall", { generation, allow }),
+  desktopPairingCreate: () => invoke<string | null>("desktop_pairing_create"),
   /** Secret-free native launch preferences. */
   desktopSessionLaunch: () => invoke<DesktopLaunch>("desktop_session_launch"),
   /** Select the native desktop backend. */

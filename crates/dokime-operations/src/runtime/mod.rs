@@ -33,7 +33,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
-pub const PACKAGE: &str = "dokime.v1";
 
 /* === Macros === */
 

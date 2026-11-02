@@ -50,9 +50,10 @@ use plugin_host::{
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn calibrated_cpu() {
-    let mut collector = SystemCollector::new().unwrap();
+    let mut collector = SystemCollector::new(plugin_host::HostOptions::default()).unwrap();
     collector.calibrate_cpu(POLICY.attempt_timeout / 2).unwrap();
     let load = collector.cpu_load().unwrap();
     assert!(load.capacity_gflops.is_finite() && load.capacity_gflops > 0.0);
@@ -66,6 +67,7 @@ fn calibrated_cpu() {
 }
 
 #[cfg(target_os = "windows")]
+#[dokime_tracing::trace_test]
 #[test]
 fn active_power_plan() {
     use plugin_host::host::power::{GetPlan, Plan, active_plan};

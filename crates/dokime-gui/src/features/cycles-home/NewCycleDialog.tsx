@@ -16,6 +16,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
+import { notificationMessage } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
@@ -38,7 +39,7 @@ type NewCycleDialogProps = {
 export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialogProps) {
   const create = useCreateCycleMutation();
   const [form, setForm] = useState<NewCycleForm>(() => initialNewCycleForm(new Date()));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   /* Every opening starts over, titled by the moment it opened. */
   useEffect(() => {
@@ -65,7 +66,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
       onOpenChange(false);
       onCreated(cycleId);
     } catch (failure: unknown) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(failure);
     }
   }
 
@@ -83,7 +84,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
           />
-          {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+          {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel

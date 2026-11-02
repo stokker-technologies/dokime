@@ -301,7 +301,7 @@ mod tests {
     }
     #[test]
     fn distribution_identifier() {
-        let text = "[installer]\nversion='1.2.3'\nidentifier='com.hilti.dokime'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let text = "[installer]\nversion='1.2.3'\nidentifier='com.example.testhub'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
         let mut manifest: Manifest = toml::from_str(text).unwrap();
         let compiled = super::super::distribution::Identity {
             identifier: "com.stokker.dokime".into(),
@@ -309,8 +309,8 @@ mod tests {
             updater_public_key: "trust".into(),
         };
         let identity = manifest.identity(&compiled).unwrap();
-        assert_eq!(identity.identifier, "com.hilti.dokime");
-        assert_eq!(identity.slug, "com-hilti-dokime");
+        assert_eq!(identity.identifier, "com.example.testhub");
+        assert_eq!(identity.slug, "com-example-testhub");
         assert_eq!(identity.updater_public_key, compiled.updater_public_key);
         manifest.installer.identifier = None;
         assert_eq!(manifest.identity(&compiled).unwrap().slug, "dokime");

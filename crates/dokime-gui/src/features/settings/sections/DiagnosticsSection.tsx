@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
-import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
+import { saveNativeDiagnosticsBundle } from "@/lib/api/native-document-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { bootOrganization, organizationPack } from "@/lib/brand";
 import { organizationPackError } from "@/lib/desktop/organization";
@@ -54,7 +54,11 @@ export function DiagnosticsSection() {
         <DiagnosticsBundleRow />
       </SettingsCard>
       <SettingsCard title="Runtime">
-        <SettingsRow label="Organization Pack" error={organizationPackError(bootOrganization.error, organizationPack !== null)}>
+        <SettingsRow
+          label="Organization Pack"
+          failure={bootOrganization.error}
+          error={organizationPackError(bootOrganization.error, organizationPack !== null)}
+        >
           <span className="text-sm text-muted-foreground">
             {organizationPack ? `${organizationPack.label} pack applied` : "Compiled brand"}
           </span>
@@ -106,6 +110,7 @@ export function DiagnosticsBundleRow() {
       });
     } catch (failure: unknown) {
       toast.error("The Diagnostics Bundle Could Not Be Saved", {
+        error: failure,
         description: failure instanceof Error ? failure.message : String(failure),
       });
     } finally {

@@ -1,17 +1,16 @@
+from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Mapping as _Mapping
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("label", "endpoint")
+    __slots__ = ("label",)
     LABEL_FIELD_NUMBER: _ClassVar[int]
-    ENDPOINT_FIELD_NUMBER: _ClassVar[int]
     label: str
-    endpoint: str
-    def __init__(self, label: _Optional[str] = ..., endpoint: _Optional[str] = ...) -> None: ...
+    def __init__(self, label: _Optional[str] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("client", "pairing")
@@ -34,20 +33,20 @@ class Row3(_message.Message):
     def __init__(self, identifier: _Optional[str] = ..., label: _Optional[str] = ..., created_at: _Optional[int] = ..., last_seen_at: _Optional[int] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("version", "endpoint", "backend_identifier", "label", "ca_certificate_pem", "access_key")
+    __slots__ = ("version", "endpoints", "backend_identifier", "label", "ca_certificate_pem", "access_key")
     VERSION_FIELD_NUMBER: _ClassVar[int]
-    ENDPOINT_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINTS_FIELD_NUMBER: _ClassVar[int]
     BACKEND_IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     CA_CERTIFICATE_PEM_FIELD_NUMBER: _ClassVar[int]
     ACCESS_KEY_FIELD_NUMBER: _ClassVar[int]
     version: int
-    endpoint: str
+    endpoints: _containers.RepeatedScalarFieldContainer[str]
     backend_identifier: str
     label: str
     ca_certificate_pem: str
     access_key: str
-    def __init__(self, version: _Optional[int] = ..., endpoint: _Optional[str] = ..., backend_identifier: _Optional[str] = ..., label: _Optional[str] = ..., ca_certificate_pem: _Optional[str] = ..., access_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, version: _Optional[int] = ..., endpoints: _Optional[_Iterable[str]] = ..., backend_identifier: _Optional[str] = ..., label: _Optional[str] = ..., ca_certificate_pem: _Optional[str] = ..., access_key: _Optional[str] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

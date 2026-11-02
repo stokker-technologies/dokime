@@ -20,7 +20,7 @@ pub mod trace;
 
 /* === Re-Exports === */
 
-pub use error::{Error, Result};
+pub use error::Error;
 
 /* === Imports === */
 

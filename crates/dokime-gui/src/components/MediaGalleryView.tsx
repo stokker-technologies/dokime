@@ -187,7 +187,9 @@ export function MediaGallerySurface({
                 ) : selectedArtifact.nativeTransfer && mediaBlobType(selectedArtifact) ? (
                   <div className="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                     {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <NotificationMessage>{preview?.errors[selectedArtifact.artifact_id]}</NotificationMessage>
+                      <NotificationMessage error={preview?.failures?.[selectedArtifact.artifact_id]}>
+                        {preview?.errors[selectedArtifact.artifact_id]}
+                      </NotificationMessage>
                     ) : (
                       <p>Loading media preview…</p>
                     )}
@@ -252,10 +254,10 @@ export function MediaGallerySurface({
                     </>
                   ) : null}
                   {nativeOpenError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage>{nativeOpenError.message}</NotificationMessage>
+                    <NotificationMessage error={nativeOpenError}>{nativeOpenError.message}</NotificationMessage>
                   ) : null}
                   {nativeDownloadError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage>{nativeDownloadError.message}</NotificationMessage>
+                    <NotificationMessage error={nativeDownloadError}>{nativeDownloadError.message}</NotificationMessage>
                   ) : null}
                 </div>
               </div>

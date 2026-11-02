@@ -50,6 +50,7 @@ async fn record_health(runtime: &RuntimeHandle, message: &str) -> dokime_runtime
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn runtime_queries() {
     commands::start_receipt_identity().await;

@@ -158,6 +158,7 @@ fn shared_stream_refusal(detail: &str) -> bool {
 }
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shared_stream_publishes() {
     let root = tempdir().unwrap();
@@ -218,6 +219,7 @@ async fn shared_stream_publishes() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shared_schema_refused() {
     let root = tempdir().unwrap();
@@ -237,6 +239,7 @@ async fn shared_schema_refused() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shared_owner_refused() {
     let root = tempdir().unwrap();

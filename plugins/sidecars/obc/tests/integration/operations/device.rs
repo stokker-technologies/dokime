@@ -45,6 +45,7 @@ use obc_runtime::{
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn manual_power_shared() {
     let runtime = app::launch(Testbench::default()).await.unwrap();
@@ -63,6 +64,7 @@ async fn manual_power_shared() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stopped_mutations_refused() {
     let runtime = app::launch(Testbench::default()).await.unwrap();
@@ -79,6 +81,7 @@ async fn stopped_mutations_refused() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn latched_fault_preserved() {
     let mut device = Device::default();

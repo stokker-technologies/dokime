@@ -71,9 +71,6 @@ impl DesktopSessionControl {
     pub fn remove_profile(&self, name: &str) -> Result<(), DesktopSessionError> {
         self.0.remove_profile(name)
     }
-    pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
-        self.0.disconnect().await
-    }
     pub fn status(&self) -> DesktopSessionSnapshot {
         self.0.status()
     }

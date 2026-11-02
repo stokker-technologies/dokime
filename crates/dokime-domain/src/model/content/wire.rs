@@ -72,6 +72,7 @@ pub struct ArtifactMetadata {
 
     pub state: ArtifactState,
     pub created_at: Option<Timestamp>,
+    pub error: Option<String>,
 }
 
 // One metadata frame, contiguous chunks bounded by the listener's configured
@@ -244,6 +245,7 @@ pub enum ArtifactState {
     Complete,
     Cancelled,
     Rejected,
+    Failed,
 }
 
 #[harmos::message]
@@ -285,7 +287,7 @@ pub enum ExecutionFileFollowFramePayload {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ArtifactFramePayload {
-    Metadata(ArtifactMetadata),
+    Metadata(Box<ArtifactMetadata>),
     Chunk(ArtifactChunk),
     Complete(ArtifactCompletion),
 }

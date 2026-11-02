@@ -137,6 +137,7 @@ pub(super) async fn roundtrip(environment: &support::TestEnvironment, client: &W
     assert!(reconnect.message().await.unwrap().is_none());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn scope_history_tail() {
     use model::backend::wire::{LogLevel, TraceScope};

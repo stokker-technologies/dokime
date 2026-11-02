@@ -33,7 +33,12 @@ use serde::{Deserialize, Serialize};
 pub struct Profile {
     pub identifier: String,
     pub label: String,
+    // Last successful endpoint, or the first candidate before initial connection.
     pub endpoint: String,
+
+    #[serde(default)]
+    pub endpoints: Vec<String>,
+
     pub expected_backend_id: Option<String>,
     pub ca_certificate_pem: Option<String>,
     pub secret: Secret,

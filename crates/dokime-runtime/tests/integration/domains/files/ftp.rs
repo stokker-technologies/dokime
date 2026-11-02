@@ -140,6 +140,7 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() {
     let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;
@@ -151,6 +152,9 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let (port, proxy) = refusing_resume(port).await;
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench/device.log");
     let request = dokime_operations::files::WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(SECRET))) }),
         output: OUTPUT.to_owned(),
@@ -158,7 +162,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
@@ -199,6 +203,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_ftp_source() {
     let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;

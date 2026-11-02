@@ -87,13 +87,24 @@ impl Decoder for RawDecoder {
 
 impl Client {
     pub async fn call_raw(&self, path: &str, request: Vec<u8>, deadline: Duration) -> Result<Vec<u8>> {
-        let (mut grpc, path) = self.raw_call(path, request.len())?;
-        let mut request = self.request(request);
-        request.set_timeout(deadline);
+        let (grpc, route) = self.raw_call(path, request.len())?;
         self.with_timeout(deadline)
-            .execute(async move {
-                grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                grpc.unary(request, path, RawCodec).await.map(tonic::Response::into_inner)
+            .execute(async {
+                super::transport::retry_unavailable(path, || {
+                    let mut grpc = grpc.clone();
+                    let route = route.clone();
+                    let mut request = self.request(request.clone());
+                    request.set_timeout(deadline);
+                    async move {
+                        grpc.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
+                        grpc.unary(request, route, RawCodec).await.map(tonic::Response::into_inner).map_err(Error::Rpc)
+                    }
+                })
+                .await
+                .map_err(|error| match error {
+                    Error::Rpc(status) => status,
+                    error => tonic::Status::internal(error.to_string()),
+                })
             })
             .await
     }

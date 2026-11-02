@@ -179,6 +179,11 @@ impl Directories {
         if self.watched.get(&name).is_some_and(|watched| watched.refused) {
             return;
         }
+        if let Err(error) = validated(&name) {
+            notes.push(format!("artifact name {name:?}: {error}; it stays in the directory"));
+            self.refuse(name);
+            return;
+        }
         // A file that vanished between the walk and the stat is skipped rather
         // than reported: a tool writing through a temporary name does that on
         // purpose, and what it leaves behind is what the sweep files.

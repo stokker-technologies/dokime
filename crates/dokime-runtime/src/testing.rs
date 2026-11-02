@@ -14,8 +14,11 @@
 /* === Re-Exports === */
 pub use crate::domains::execution::outputs::tail::testing::early_log_stop;
 pub use crate::domains::execution::run::logs::testing::logs;
-pub use crate::domains::execution::run::testing::{drain_counts, hold_report};
+pub use crate::domains::execution::run::testing::{
+    drain_counts, hold_execution_checkpoint, hold_execution_seal, hold_report, hold_report_wait,
+};
 pub use crate::execution::evidence_rows::testing::capture;
+pub use crate::runtime::query::records::RecordQueryFixture;
 
 pub use crate::runtime::storage::captures::testing::joined_drains;
 pub use crate::runtime::storage::telemetry::testing::telemetry;

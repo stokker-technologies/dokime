@@ -40,6 +40,7 @@ type Target = { id: string; url: string; type: string; webSocketDebuggerUrl: str
 
 export class ReportBrowser {
   private readonly tabs = new Set<string>();
+  private target: Target | undefined;
   private accepting = true;
   private readonly process: ChildProcess;
   private readonly debug: string;
@@ -101,10 +102,14 @@ export class ReportBrowser {
         assert.ok(path.endsWith(".html"), "the report opener accepts owned HTML reports");
         const url = pathToFileURL(path).href;
         const signal = AbortSignal.timeout(120000);
-        const created = await fetch(`${debug}/json/new?${encodeURIComponent(url)}`, { method: "PUT", signal });
-        assert.ok(created.ok);
-        const target = (await created.json()) as Target;
-        browser.tabs.add(target.id);
+        let target = browser.target;
+        if (!target) {
+          const created = await fetch(`${debug}/json/new?about:blank`, { method: "PUT", signal });
+          assert.ok(created.ok);
+          target = (await created.json()) as Target;
+          browser.target = target;
+          browser.tabs.add(target.id);
+        }
         await browser.mounted(target, url, signal);
         response.writeHead(204).end();
       } catch {
@@ -143,8 +148,12 @@ export class ReportBrowser {
     try {
       await once(socket, "open", { signal });
       const messages = on(socket, "message", { signal });
-      let sequence = 1;
-      socket.send(JSON.stringify({ id: sequence, method: "Page.enable" }));
+      let sequence = 3;
+      let loader: string | undefined;
+      const loaded = new Set<string>();
+      socket.send(JSON.stringify({ id: 1, method: "Page.enable" }));
+      socket.send(JSON.stringify({ id: 2, method: "Page.setLifecycleEventsEnabled", params: { enabled: true } }));
+      socket.send(JSON.stringify({ id: 3, method: "Page.navigate", params: { url } }));
       const evaluate = () => {
         socket.send(
           JSON.stringify({
@@ -174,10 +183,18 @@ export class ReportBrowser {
           }),
         );
       };
-      evaluate();
       for await (const [event] of messages) {
         const message = JSON.parse(event.data);
-        if (message.method === "Page.loadEventFired") evaluate();
+        if (message.id === 3) {
+          assert.ok(!message.error && message.result?.loaderId, "Report reopening starts a new document navigation");
+          loader = message.result.loaderId;
+          if (loaded.has(loader as string)) evaluate();
+          continue;
+        }
+        if (message.method === "Page.lifecycleEvent" && message.params.name === "load") {
+          loaded.add(message.params.loaderId);
+          if (loader === message.params.loaderId) evaluate();
+        }
         if (message.id !== sequence) continue;
         if (message.error?.message?.includes("context was destroyed")) continue;
         assert.ok(!message.error && !message.result?.exceptionDetails, JSON.stringify(message.error ?? message.result?.exceptionDetails));
@@ -190,6 +207,7 @@ export class ReportBrowser {
   }
 
   async closeTabs(): Promise<void> {
+    this.target = undefined;
     if (this.tabs.size) {
       const signal = AbortSignal.timeout(120000);
       const version = await fetch(`${this.debug}/json/version`, { signal }).then((response) => response.json());

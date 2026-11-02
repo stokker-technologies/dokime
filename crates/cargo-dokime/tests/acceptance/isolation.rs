@@ -65,6 +65,7 @@ fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn mise_ignores_machine_tools() {
     let parent = super::support::standalone_directory();

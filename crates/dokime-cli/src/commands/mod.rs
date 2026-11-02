@@ -92,11 +92,12 @@ pub(crate) fn configuration(command: &Command) -> crate::Result<dokime::config::
 }
 
 pub(crate) async fn run(command: Command, configuration: dokime::config::Config) -> crate::Result<()> {
+    let _trace = if matches!(&command, Command::Server(_)) { None } else { dokime::diagnostics::test_trace::process() };
     let preferences = dokime::domain::model::settings::application::ClientPreferences::default();
     let settings = &preferences;
     match command {
         Command::Status(args) => status::run(args, settings).await,
-        Command::Backend(command) => backend::run(command),
+        Command::Backend(command) => backend::run(command).await,
         Command::Cycle(command) => cycle::run(command, settings).await,
         Command::Execution(command) => execution::run(command, settings).await,
         Command::Catalog(command) => catalog::run(command, settings).await,

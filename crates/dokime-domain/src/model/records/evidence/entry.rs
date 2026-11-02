@@ -63,6 +63,12 @@ impl harmos::MemorySize for RecordEntry {
 }
 
 impl RecordEntry {
+    pub fn is_visible_in(&self, selected: &crate::model::execution::RecordScope) -> bool {
+        crate::model::execution::scope_visible_in(self.scope.as_ref(), selected)
+            || (selected.test_execution_id.is_some() || selected.test_cycle_id.is_some())
+                && self.captured_scopes.iter().any(|scope| scope.is_visible_in(selected))
+    }
+
     pub fn captured_scope(&self, owner: &crate::model::identity::TestExecutionId) -> Option<&crate::model::execution::RecordScope> {
         self.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(owner))
     }

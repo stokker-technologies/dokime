@@ -10,15 +10,15 @@
 // File watches: a local or FTP source polled during an execution, each matched
 // file spooled privately and sealed as one execution artifact through the
 // artifact upload path when the watch stops or the file vanishes. The
-// `WatchFile` operation runs the same watch over one file for a step, with its
+// `WatchFile` operation runs the same watch over a file or directory for a step, with its
 // line matchers.
 
 /* === Modules === */
 
 mod ftp;
-mod local;
+pub(crate) mod local;
 mod operation;
-mod source;
+pub(crate) mod source;
 mod watch;
 
 /* === Re-Exports === */
@@ -83,6 +83,7 @@ struct Settings {
     selection: Selection,
     wait_for_source: Option<Duration>,
     single: bool,
+    preserve_paths: bool,
     matcher: FileMatcher,
     lines: LineMatchers,
     poll_interval: Duration,
@@ -106,12 +107,12 @@ impl RuntimeHandle {
         FileWatch::open(self.clone(), settings, source).await
     }
 
-    // Opens a watch over the one file the request's source names: its parent
-    // is the root and its name the only rule.
+    // Opens a step watch over a directory, or over the parent and literal name
+    // of a single file when no directory options were requested.
     pub async fn open_watch_file(&self, request: &WatchFile, context_execution: Option<&str>) -> Result<FileWatch> {
-        let (source, file) = single_file(request.source.as_ref())?;
+        let (source, rules, single) = watch_file_source(request)?;
         if let Some(artifact) = &request.artifact
-            && !name::is_relative_path(artifact)
+            && name::validate(artifact).is_err()
         {
             return Err(invalid("the artifact must be a relative path with forward slashes"));
         }
@@ -119,17 +120,14 @@ impl RuntimeHandle {
             &FileWatchRequest {
                 execution_id: request.execution_id.clone(),
                 source: None,
-                rules: vec![FileRule {
-                    glob: literal(&file),
-                    action: FileRuleAction::Include,
-                }],
+                rules,
                 output: request.output.clone(),
                 policy: request.policy,
                 selection: request.selection,
                 wait_for_source_seconds: request.wait_for_source_seconds,
                 poll_interval_ms: request.poll_interval_ms,
                 maximum_seconds: request.maximum_seconds,
-                maximum_files: Some(1),
+                maximum_files: if single { Some(1) } else { request.maximum_files },
                 maximum_bytes: request.maximum_bytes,
             },
             context_execution,
@@ -144,7 +142,8 @@ impl RuntimeHandle {
             }
         }
         settings.artifact = request.artifact.clone();
-        settings.single = true;
+        settings.single = single;
+        settings.preserve_paths = !single;
         let matchers = 32;
         let pattern_bytes = 1024;
         let regex_bytes = 1 << 20;
@@ -154,8 +153,9 @@ impl RuntimeHandle {
         if !settings.lines.is_empty() && settings.policy != Policy::Stream {
             return Err(invalid("line matchers and markers need the Stream policy"));
         }
-        // The named file sits in its parent: no deeper entry can match it.
-        let source = self.watch_source(Some(&source), settings.wait_for_source.is_some()).await?.single_file();
+        // Limit Discovery Unless Recursion Was Requested
+        let source = self.watch_source(Some(&source), settings.wait_for_source.is_some()).await?;
+        let source = if request.recursive { source } else { source.single_file() };
         FileWatch::open(self.clone(), settings, source).await
     }
 
@@ -242,6 +242,7 @@ impl RuntimeHandle {
             selection: request.selection,
             wait_for_source,
             single: false,
+            preserve_paths: false,
             matcher,
             lines: LineMatchers::default(),
             poll_interval,
@@ -273,6 +274,35 @@ impl RuntimeHandle {
 
 fn invalid(message: impl Into<String>) -> Error {
     Error::validation(INVALID, message, Vec::new())
+}
+
+// One request normalization for native and harness paths.
+pub(crate) fn watch_file_source(request: &WatchFile) -> Result<(FileWatchSource, Vec<FileRule>, bool)> {
+    let single = !request.recursive && request.rules.is_empty();
+    if single {
+        let (source, file) = single_file(request.source.as_ref())?;
+        return Ok((
+            source,
+            vec![FileRule {
+                glob: literal(&file),
+                action: FileRuleAction::Include,
+            }],
+            true,
+        ));
+    }
+    if request.artifact.is_some() {
+        return Err(invalid("a directory watch uses output as its artifact prefix; artifact must be absent"));
+    }
+    let source = request.source.clone().ok_or_else(|| invalid("a file watch needs a local or FTP source"))?;
+    let rules = if request.rules.is_empty() {
+        vec![FileRule {
+            glob: "**".into(),
+            action: FileRuleAction::Include,
+        }]
+    } else {
+        request.rules.clone()
+    };
+    Ok((source, rules, false))
 }
 
 // Splits a source naming one file into the source over its parent and the

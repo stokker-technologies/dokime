@@ -13,18 +13,20 @@ class Row1(_message.Message):
     def __init__(self, certificate_names: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("settings", "listening_address", "certificate_pem", "key_configured", "error")
+    __slots__ = ("settings", "listening_address", "certificate_pem", "key_configured", "error", "endpoints")
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
     LISTENING_ADDRESS_FIELD_NUMBER: _ClassVar[int]
     CERTIFICATE_PEM_FIELD_NUMBER: _ClassVar[int]
     KEY_CONFIGURED_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINTS_FIELD_NUMBER: _ClassVar[int]
     settings: Row3
     listening_address: str
     certificate_pem: str
     key_configured: bool
     error: str
-    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., listening_address: _Optional[str] = ..., certificate_pem: _Optional[str] = ..., key_configured: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
+    endpoints: _containers.RepeatedCompositeFieldContainer[Row4]
+    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., listening_address: _Optional[str] = ..., certificate_pem: _Optional[str] = ..., key_configured: _Optional[bool] = ..., error: _Optional[str] = ..., endpoints: _Optional[_Iterable[_Union[Row4, _Mapping]]] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("enabled", "address", "tls_enabled", "authentication_enabled", "certificate_names")
@@ -39,6 +41,14 @@ class Row3(_message.Message):
     authentication_enabled: bool
     certificate_names: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, enabled: _Optional[bool] = ..., address: _Optional[str] = ..., tls_enabled: _Optional[bool] = ..., authentication_enabled: _Optional[bool] = ..., certificate_names: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class Row4(_message.Message):
+    __slots__ = ("address", "adapter_name")
+    ADDRESS_FIELD_NUMBER: _ClassVar[int]
+    ADAPTER_NAME_FIELD_NUMBER: _ClassVar[int]
+    address: str
+    adapter_name: str
+    def __init__(self, address: _Optional[str] = ..., adapter_name: _Optional[str] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

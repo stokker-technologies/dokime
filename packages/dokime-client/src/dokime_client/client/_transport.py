@@ -21,7 +21,7 @@ import ssl
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 # Third Party Imports
@@ -38,6 +38,8 @@ from .models import Backend
 from .secrets import _validate_key
 
 # Type Checking Imports
+if TYPE_CHECKING:
+    from .query.reader import QuerySettings
 
 # === Public Exports === #
 
@@ -59,6 +61,79 @@ PROJECTION_DEFINITIONS = 65536
 PROJECTION_WORK = 1048576
 
 
+READ_ONLY = frozenset(
+    (
+        "/dokime.v1.Appearance/GetAppearance",
+        "/dokime.v1.Backend/GetAvailability",
+        "/dokime.v1.Backend/GetHealth",
+        "/dokime.v1.Backend/GetIdentity",
+        "/dokime.v1.Catalog/GetRecordSchema",
+        "/dokime.v1.Catalog/GetSuite",
+        "/dokime.v1.Catalog/GetTelemetrySchema",
+        "/dokime.v1.Catalog/ListRecordSchemas",
+        "/dokime.v1.Catalog/ListSuites",
+        "/dokime.v1.Catalog/ListTelemetrySchemas",
+        "/dokime.v1.Content/ListArtifacts",
+        "/dokime.v1.Content/ListExecutionFiles",
+        "/dokime.v1.Content/ReadExecutionFile",
+        "/dokime.v1.Evidence/GetCapturedRecordSchema",
+        "/dokime.v1.Evidence/ListRecords",
+        "/dokime.v1.Execution/GetCase",
+        "/dokime.v1.Execution/GetCycle",
+        "/dokime.v1.Execution/GetExecution",
+        "/dokime.v1.Execution/GetExecutionCommand",
+        "/dokime.v1.Execution/ListCaseParameters",
+        "/dokime.v1.Execution/ListCases",
+        "/dokime.v1.Execution/ListCycles",
+        "/dokime.v1.Execution/ListExecutionParameters",
+        "/dokime.v1.Execution/ListExecutionSteps",
+        "/dokime.v1.Execution/ListExecutions",
+        "/dokime.v1.Health/ListHealth",
+        "/dokime.v1.History/BrowseCycles",
+        "/dokime.v1.History/BrowseExecutions",
+        "/dokime.v1.History/GetCheckpointContext",
+        "/dokime.v1.History/GetCheckpointDocument",
+        "/dokime.v1.History/GetCheckpointEvidence",
+        "/dokime.v1.History/GetExecutionCheckpoint",
+        "/dokime.v1.History/ListCheckpointRecords",
+        "/dokime.v1.History/ListCheckpointTelemetry",
+        "/dokime.v1.History/ReadCheckpointOutput",
+        "/dokime.v1.Notes/ListNotes",
+        "/dokime.v1.Observation/GetRuntimeShell",
+        "/dokime.v1.Observation/GetTraceability",
+        "/dokime.v1.Planning/MaterializeTemplate",
+        "/dokime.v1.Planning/PreviewSelection",
+        "/dokime.v1.Plots/ListAnalyses",
+        "/dokime.v1.Plots/QuerySnapshots",
+        "/dokime.v1.Plugins/GetInstallation",
+        "/dokime.v1.Plugins/ListAdmittedPlugins",
+        "/dokime.v1.Plugins/ListInstallations",
+        "/dokime.v1.Prompts/GetDefinition",
+        "/dokime.v1.Prompts/GetPrompt",
+        "/dokime.v1.Prompts/ListDefinitions",
+        "/dokime.v1.Prompts/ListPending",
+        "/dokime.v1.Query/Aggregate",
+        "/dokime.v1.Query/AggregateSamples",
+        "/dokime.v1.Query/ListCycles",
+        "/dokime.v1.Query/ListExecutions",
+        "/dokime.v1.Query/ListRecords",
+        "/dokime.v1.Query/ListSamples",
+        "/dokime.v1.Remote/ListPairedClients",
+        "/dokime.v1.Remote/ListSessions",
+        "/dokime.v1.Remote/ReadListener",
+        "/dokime.v1.Runtime/GetHealth",
+        "/dokime.v1.Runtime/GetIdentity",
+        "/dokime.v1.Secrets/List",
+        "/dokime.v1.Secrets/Preview",
+        "/dokime.v1.Settings/GetPluginSettings",
+        "/dokime.v1.Settings/GetSettings",
+        "/dokime.v1.Settings/ListStorageSources",
+        "/dokime.v1.Settings/ReadApplicationSettings",
+        "/dokime.v1.Telemetry/ListSamples",
+        "/harmos.host.v1.Host/Catalog",
+    )
+)
+
 # === Types === #
 
 # === Classes === #
@@ -74,8 +149,17 @@ class Transport:
         connect_timeout_ms: int,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
+        endpoints: tuple[str, ...] = (),
+        endpoint_stagger_ms: int | None = None,
     ) -> None:
         self._target, self._tls = _target(endpoint)
+        self._endpoint = endpoint
+        self._endpoints = tuple(dict.fromkeys((endpoint, *endpoints)))
+        if len(self._endpoints) > 32 or any(_target(item)[1] != self._tls for item in self._endpoints):
+            raise ValueError("invalid remote endpoint inventory")
+        if len(self._endpoints) > 1 and (type(endpoint_stagger_ms) is not int or not 0 < endpoint_stagger_ms <= MAXIMUM_TIMEOUT_MS):
+            raise ValueError("endpoint stagger must be a positive supported duration")
+        self._endpoint_stagger_ms = endpoint_stagger_ms
         _validate_key(token)
         if expected_backend_id is not None and (
             not expected_backend_id
@@ -110,6 +194,7 @@ class Transport:
         self._calls: set[Any] = set()
         self._readers: set[asyncio.Task] = set()
         self.closed = False
+        self.query_settings: QuerySettings | None = None
         self.backend: Backend | None = None
         self._request_limit = MAX_MESSAGE_BYTES
         self._response_limit = DISCOVERY_BYTES
@@ -123,6 +208,8 @@ class Transport:
                 raise ClientClosed("DokimeClient is closed")
             if self.backend is not None:
                 return self.backend
+            if len(self._endpoints) > 1:
+                return await self._race()
             options = (
                 ("grpc.max_send_message_length", MAX_MESSAGE_BYTES),
                 ("grpc.max_receive_message_length", MAX_MESSAGE_BYTES),
@@ -196,6 +283,54 @@ class Transport:
                 self._channel = None
                 raise
 
+    async def _race(self) -> Backend:
+        candidates = []
+        tasks = []
+        winner = None
+        token = self._metadata[0][1][len("Bearer ") :] if self._metadata else None
+        ordered = (self._endpoint, *(item for item in self._endpoints if item != self._endpoint))
+        assert self._endpoint_stagger_ms is not None
+        stagger = self._endpoint_stagger_ms
+
+        async def attempt(index: int, candidate: Transport) -> Transport:
+            await asyncio.sleep(index * stagger / 1000)
+            await candidate.connect()
+            return candidate
+
+        try:
+            for index, endpoint in enumerate(ordered):
+                candidate = Transport(
+                    endpoint,
+                    token,
+                    self.timeout,
+                    connect_timeout_ms=round(self.connect_timeout * 1000),
+                    expected_backend_id=self._expected_backend_id,
+                    ca_certificate_pem=self._ca.decode("utf-8") if self._ca else None,
+                )
+                candidates.append(candidate)
+                tasks.append(asyncio.create_task(attempt(index, candidate)))
+            failure: Exception = ProtocolError("no remote endpoint connected")
+            for completed in asyncio.as_completed(tasks):
+                try:
+                    winner = await completed
+                    break
+                except (RpcError, ProtocolError, OSError, TimeoutError) as error:
+                    failure = error
+            if winner is None:
+                raise failure
+            self._channel, winner._channel = winner._channel, None
+            self.backend = winner.backend
+            self._target, self._endpoint = winner._target, winner._endpoint
+            self._request_limit, self._response_limit = winner._request_limit, winner._response_limit
+            assert self.backend is not None
+            return self.backend
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*(candidate.close() for candidate in candidates))
+
     def _available(self, operation: Operation) -> None:
         if self.closed or self._channel is None:
             raise ClientClosed("DokimeClient is closed")
@@ -231,6 +366,15 @@ class Transport:
             raise BackendChanged("backend does not match the pairing identity")
 
     async def _invoke_operation(self, operation: Operation, request: Message) -> Message:
+        # Both Attempts Share The Existing Request Deadline And Frozen Input.
+        prepared = operation.request.FromString(self._request(request, operation.request))
+        try:
+            async with asyncio.timeout(self.timeout):
+                return await _retry_unavailable(operation.grpc_path, lambda: self._invoke_once(operation, prepared))
+        except TimeoutError as error:
+            raise RpcError("DEADLINE_EXCEEDED", "RPC deadline exceeded") from error
+
+    async def _invoke_once(self, operation: Operation, request: Message) -> Message:
         if operation.grpc_path != "/dokime.v1.Backend/GetIdentity":
             await self._verify_expected()
         self._available(operation)
@@ -644,13 +788,15 @@ class _Stream:
                 await self._credit.acquire()
                 item = await self._next()
                 await self._prefetch.put(item)
+        except StopAsyncIteration as end:
+            await self._prefetch.put(end)
         except asyncio.CancelledError:
             if self._transport.closed:
                 while not self._prefetch.empty():
                     self._prefetch.get_nowait()
                 self._prefetch.put_nowait(ClientClosed("DokimeClient is closed"))
             raise
-        except Exception as error:
+        except (RpcError, ProtocolError, OSError, TimeoutError) as error:
             await self._prefetch.put(error)
             raise
 
@@ -727,6 +873,16 @@ class _Stream:
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+async def _retry_unavailable(path, attempt):
+    try:
+        return await attempt()
+    except RpcError as error:
+        if error.code != "UNAVAILABLE" or path not in READ_ONLY:
+            raise
+    await asyncio.sleep(0.2)
+    return await attempt()
 
 
 def _stream_timeout(operation: Operation) -> float:

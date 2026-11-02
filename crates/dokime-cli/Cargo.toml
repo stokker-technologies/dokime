@@ -45,6 +45,7 @@ dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
 dokime-server = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true }
 
 # Error Handling
 
@@ -52,7 +53,6 @@ dokime-server = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true }
 uuid = { workspace = true }
 
 # Serialization
@@ -88,16 +88,18 @@ tokio = { workspace = true }
 [dev-dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
+dokime-tracing = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
-harmos-sdk = { workspace = true }
+base64 = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

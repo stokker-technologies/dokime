@@ -43,6 +43,7 @@ use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSecrets
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn switching_cancels_work() {
     let session = ConnectionSession::default();
@@ -80,6 +81,7 @@ async fn switching_cancels_work() {
     server_health(&second.endpoint).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn identity_is_consistent() {
     for fault in ["pin", "health", "availability", "api"] {
@@ -103,6 +105,7 @@ async fn identity_is_consistent() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn compatible_api_descriptor() {
     let mut service = Service::new("backend");
@@ -112,6 +115,7 @@ async fn compatible_api_descriptor() {
     assert_eq!(connected.backend.unwrap().descriptor_sha256, "07".repeat(32));
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn api_negotiation_availability() {
     let mut wrong_package = Service::new("backend");
@@ -137,6 +141,7 @@ async fn api_negotiation_availability() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn secrets_endpoint_bound() {
     let secrets = MemorySecrets::default();
@@ -169,6 +174,7 @@ async fn secrets_endpoint_bound() {
     assert_eq!(entries.lock().unwrap()[&first.endpoint], "private-token");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn transport_and_secrets() {
     let key = "fixture-access-key-012345678901234567890123456789";
@@ -205,6 +211,7 @@ async fn transport_and_secrets() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn negotiation_matches_fixture() {
     let scenarios: Vec<serde_json::Value> =
@@ -247,4 +254,79 @@ async fn negotiation_matches_fixture() {
             assert_eq!(result.unwrap_err(), expected, "{}", case["name"]);
         }
     }
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn remote_candidates_require_identity_and_pinned_ca() {
+    let gate = Arc::new(Gate::new());
+    let mut stalled = Service::new("expected");
+    stalled.gate = Some(gate.clone());
+    let stalled = Listener::start(stalled, true, Ipv4Addr::LOCALHOST).await;
+    let wrong = Listener::start(Service::new("wrong"), true, Ipv4Addr::LOCALHOST).await;
+    let good = Listener::start(Service::new("expected"), true, Ipv4Addr::LOCALHOST).await;
+    let other = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
+    let untrusted = Listener::start_with_identity(
+        Service::new("expected"),
+        Some((other.cert.pem(), other.signing_key.serialize_pem())),
+        Ipv4Addr::LOCALHOST,
+    )
+    .await;
+    let mut request = good.remote(true, None);
+    request.expected_backend_id = Some("expected".into());
+    if let ConnectionTarget::Remote { endpoint, endpoints, .. } = &mut request.target {
+        *endpoint = stalled.endpoint.clone();
+        *endpoints = vec![untrusted.endpoint.clone(), wrong.endpoint.clone(), good.endpoint.clone()];
+    }
+    let session = ConnectionSession::default();
+    let connected = session.connect(request).await.unwrap();
+    gate.entered.notified().await;
+    gate.release.add_permits(1);
+    assert_eq!(connected.endpoint.as_deref(), Some(good.endpoint.as_str()));
+    assert_eq!(connected.backend.unwrap().backend_id, "expected");
+    let mut request = wrong.remote(true, None);
+    request.expected_backend_id = Some("expected".into());
+    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::IdentityChanged);
+    assert!(session.connect(untrusted.remote(true, None)).await.is_err());
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn remote_file_import_uses_the_saved_keyring_entry() {
+    let token = "synthetic-remote-import-key-01234567890123456789";
+    let mut service = Service::new("imported-backend");
+    service.token = Some(token.into());
+    let server = Listener::start(service, true, Ipv4Addr::LOCALHOST).await;
+    let mut request = server.remote(true, None);
+    let ca = match &request.target {
+        ConnectionTarget::Remote { ca_certificate_pem, .. } => ca_certificate_pem.clone(),
+        _ => unreachable!(),
+    };
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("client.dokime-remote");
+    let pairing = model::remote::PairingFile {
+        version: 1,
+        endpoints: vec![server.endpoint.trim_end_matches('/').to_owned()],
+        backend_identifier: "imported-backend".into(),
+        label: "Imported Client".into(),
+        ca_certificate_pem: ca,
+        access_key: Some(token.into()),
+    };
+    std::fs::write(&file, serde_json::to_vec(&pairing).unwrap()).unwrap();
+    let pairing = dokime::client::pairing::read(&file).unwrap();
+    let secrets = MemorySecrets::default();
+    let entries = secrets.0.clone();
+    let store = dokime::client::profiles::Store::new(root.path().join("backends.json"));
+    let profile = store.import_pairing(&pairing, "imported", &secrets).unwrap();
+    let selected = dokime::client::profiles::selection(&profile).unwrap();
+    assert!(entries.lock().unwrap().contains_key(&selected.credential_key()));
+    assert!(!std::fs::read_to_string(store.path()).unwrap().contains(token));
+    request.secrets = ConnectionSecrets::Profile { credential: selected.credential_key() };
+    request.expected_backend_id = Some(pairing.backend_identifier);
+    let session = ConnectionSession::with_secrets(Arc::new(secrets));
+    let connected = session.connect(request).await.unwrap();
+    assert_eq!(connected.backend.as_ref().unwrap().backend_id, "imported-backend");
+    assert!(!serde_json::to_string(&connected).unwrap().contains(token));
+    store.remember_endpoint(&selected, connected.endpoint.as_deref().unwrap()).unwrap();
+    session.disconnect().unwrap();
 }

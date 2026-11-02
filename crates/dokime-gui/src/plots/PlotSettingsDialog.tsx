@@ -20,6 +20,7 @@
 
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
@@ -84,7 +85,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
   const [pointsRaw, setPointsRaw] = useState(plot.display_points == null ? "" : String(plot.display_points));
   const [technique, setTechnique] = useState<DocumentDownsampleTechnique>(plot.downsample ?? "auto");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const points = parseDisplayPoints(pointsRaw);
   const invalid = points === undefined;
 
@@ -97,7 +98,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
       await onSubmit({ display_points: points, downsample: technique });
       onClose();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(cause);
     } finally {
       setBusy(false);
     }
@@ -147,7 +148,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             ? `Enter between 1 and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
         </p>
-        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
 
         <DialogFooter>
           <DialogClose asChild>

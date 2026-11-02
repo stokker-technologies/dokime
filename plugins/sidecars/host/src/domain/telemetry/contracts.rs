@@ -42,7 +42,6 @@ macro_rules! host_contracts {
         pub fn host_telemetry_contract(
             stream: HostTelemetryStream,
         ) -> TelemetryContract {
-            let interval = stream.interval();
             match stream {
                 $(
                     HostTelemetryStream::$stream => TelemetryContract {
@@ -64,10 +63,7 @@ macro_rules! host_contracts {
                             ),*
                         ],
                         default_x: Some("timestamp".to_owned()),
-                        // The host declares its cadence the way every other
-                        // observer does, so a template that leases a host
-                        // stream never states one.
-                        interval: Some(interval),
+                        interval: None,
                         allow_extra_fields: true,
                         scalar: false,
                         validation_mode: None,

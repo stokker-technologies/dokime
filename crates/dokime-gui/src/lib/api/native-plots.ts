@@ -239,6 +239,23 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
   });
 }
 
+/** Read one finite batch without subscribing to subsequent runtime changes. */
+export async function fetchNativePlotPayloads(
+  session: SessionIdentity,
+  requests: readonly PlotPayloadRequestInput[],
+  options: NativePlotReadOptions = {},
+): Promise<NativePlotPayloadEnvelope[]> {
+  boundedRequestCount(requests.length, "Plots.QuerySnapshots");
+  ensureActive(session, options.signal);
+  try {
+    const response = await rpc.plotsQuerySnapshots(session, { requests: requests.map(toNativePlotRequest) });
+    ensureActive(session, options.signal);
+    return response.envelopes.map(mapNativePlotEnvelope);
+  } catch (error) {
+    throw normalizeCancellation(error, session, options.signal);
+  }
+}
+
 /**
  * Open the subscribed plot watch. Each request receives the server's
  * initial snapshots after subscription, so callers cannot miss a racing
@@ -587,7 +604,7 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     stream: payload.stream,
     x_key: payload.xKey,
     series_by: payload.seriesBy ?? null,
-    context: nativeValueObjectToJson(payload.context) as PlotPayload["context"],
+    context: nativeValueObjectToJson(payload.context),
     series: payload.series.map(mapNativePlotSeries),
     analysis: mapNativePlotAnalysis(payload.analysis),
     computed: mapNativeComputation(payload.computed),

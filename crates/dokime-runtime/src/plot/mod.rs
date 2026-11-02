@@ -10,6 +10,8 @@
 /* === Modules === */
 
 mod payload;
+#[cfg(feature = "storage")]
+pub(crate) mod preview;
 mod record_samples;
 mod record_timing;
 #[cfg(feature = "native")]
@@ -28,9 +30,9 @@ pub use payload::{
     plot_payload_request_for_descriptor,
 };
 pub(crate) use payload::{
-    PlotPayloadContext, canonical_plot_query, enrich_plot_samples_with_cycle_context, enrich_plot_samples_with_traceability_context,
-    parse_timestamp, plot_payload_diagnostics, plot_streams, plot_window_duration, resolved_format, sample_matches_scope,
-    stream_matches_alias,
+    PlotPayloadContext, canonical_plot_query, dimension_context_for_scope, enrich_plot_samples_with_cycle_context,
+    enrich_plot_samples_with_traceability_context, parse_timestamp, plot_payload_diagnostics, plot_streams, plot_window_duration,
+    resolved_format, sample_matches_filters, sample_matches_scope, stream_matches_alias,
 };
 pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 

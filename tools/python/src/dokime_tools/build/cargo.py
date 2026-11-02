@@ -40,7 +40,7 @@ from . import paths, storage
 
 def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     storage.preflight(directory)
-    # CI Product And Tests Producers Leave Clippy To Check / Rust, Whose lint:rust Covers Their Selections.
+    # CI Product And Tests Producers Leave Clippy To Check / Rust, Whose lint:rust Covers The Workspace Except The Desktop Crate.
     if os.environ.get("CHECK_CLIPPY") == "1":
         return
     selected = dict(os.environ if environment is None else environment, CARGO_BUILD_WARNINGS="deny")

@@ -82,15 +82,16 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 # Local
+dokime-tracing = { workspace = true }
 
 # Git
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-sdk = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

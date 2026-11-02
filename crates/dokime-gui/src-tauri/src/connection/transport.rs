@@ -44,7 +44,9 @@ impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
         let inner = match target {
             ConnectionTarget::Local { endpoint } => dokime::client::Target::local(endpoint),
-            ConnectionTarget::Remote { endpoint, ca_certificate_pem } => dokime::client::Target::remote(endpoint, ca_certificate_pem),
+            ConnectionTarget::Remote { endpoint, ca_certificate_pem, endpoints } => {
+                dokime::client::Target::remote(endpoint, ca_certificate_pem).and_then(|target| target.with_endpoints(&endpoints))
+            }
         }
         .map_err(ConnectionError::from)?;
         Ok(Self {
