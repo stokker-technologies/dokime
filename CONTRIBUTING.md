@@ -51,7 +51,24 @@ organization distributions and signing prerequisites.
 For coupled Harmos development, keep registry dependencies declared and place the
 local Cargo patch in an untracked `.cargo/config.toml`. Cargo applies it to every
 build, including the binding generator in `cargo-dokime`; remove the patch and pin
-the published dependency before delivery.
+the published dependency before a release. Git revision pins are allowed on dev
+and ordinary PRs into dev. Release PRs (`release/v*` into dev), tagging and
+publication reject resolved git dependencies, including transitive ones. Nightly
+reports pins as warnings and skips the crate publication dry run while retaining
+its other checks, builds, packages, suites and benchmarks.
+
+Dokime owns its workflows, composite actions and CI/release tooling. The Hub
+provides editable baselines; CI changes are authored and reviewed here. PRs run
+the selected suites. Pushes to dev select package dependencies (checks, Product
+and Tests compilation, and both native platforms' packages), skipping suites,
+fixture preparation and Release / Dry. Dev merges remain ungated.
+
+Dev Channel publishes only after a green dev build-and-package run supplies both
+platforms and the Python package. One serialized publisher drafts the channel,
+uploads and verifies every asset including SHA256SUMS, moves `dev-channel` once,
+then publishes the complete set. Downloads are temporarily unavailable while the
+channel is drafted; a failed upload leaves it drafted for the next successful
+publication instead of exposing incomplete downloads.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
@@ -305,6 +322,21 @@ data in source, fixtures, logs or screenshots.
 Contributions use the repository's [Apache-2.0 license](LICENSE). Release
 publication is a separate authorized workflow; ordinary candidate validation
 does not publish packages or create tags.
+
+Release reviews squash into dev. Before tagging or publishing, `release.yml`
+queries GitHub for the exact target SHA's latest dev push run, its successful
+`CI / Required` check, and any additional required contexts in main's ruleset.
+Missing or pending proof waits up to 30 minutes; failed proof refuses release.
+Rerun Release after repairing CI if the gate times out. The release flow tags
+that commit and fast-forwards main; its green release-review rehearsal and
+artifact checks remain required.
+
+The repository owner must configure an active branch ruleset targeting `main`
+with **Require Status Checks To Pass** and `CI / Required` from GitHub Actions.
+Retain protection against deletion and force pushes and the existing release
+identity's narrow fast-forward permission; do not give it a blanket ruleset
+bypass that would skip required status checks. Do not add this gate to dev.
+Workflow changes do not configure repository settings.
 
 ## Reporting Issues
 

@@ -257,6 +257,7 @@ inputs = []
 
 [[ci.jobs]]
 id = "release:publish:dry"
+pipelines = ["release", "nightly"]
 inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
