@@ -139,6 +139,7 @@ pub(crate) async fn read_samples(
             Ok(reader) => reader,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
                 reconnect = false;
+                tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
                 continue;
             }
             Err(error) => return Err(error),
@@ -173,6 +174,7 @@ pub(crate) async fn read_samples(
         if !result? {
             return Ok(());
         }
+        tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
     }
 }
 
@@ -192,36 +194,57 @@ where
     };
     let mut after = None;
     if let Some(completion) = completion {
-        let reader = client
-            .stream(contracts::evidence::WatchRecords {
-                selection: Some(selection.clone()),
-                after: None,
-            })
-            .await?;
         tokio::pin!(completion);
-        let result: Result<bool> = async {
-            loop {
-                let page = tokio::select! {
-                    outcome = &mut completion => {
-                        outcome?;
-                        break;
-                    }
-                    page = reader.message() => page?
-                        .ok_or_else(|| invalid("record reader ended before completion"))?,
-                };
-                validate_records(&patterns, &client.backend().epoch, &page, after.as_ref())?;
-                let scanned = page.scanned.clone();
-                if sender.send(Ok(page)).await.is_err() {
-                    return Ok(false);
+        let mut reconnect = true;
+        loop {
+            client.verify(true).await?;
+            let opened = client
+                .stream(contracts::evidence::WatchRecords {
+                    selection: Some(selection.clone()),
+                    after: after.clone(),
+                })
+                .await;
+            let reader = match opened {
+                Ok(reader) => reader,
+                Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                    reconnect = false;
+                    tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
+                    continue;
                 }
-                after = scanned;
+                Err(error) => return Err(error),
+            };
+            let result: Result<bool> = async {
+                loop {
+                    let page = tokio::select! {
+                        outcome = &mut completion => { outcome?; return Ok(false); }
+                        page = reader.message() => match page {
+                            Ok(Some(page)) => page,
+                            Ok(None) => return Err(invalid("record reader ended before completion")),
+                            Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                                reconnect = false;
+                                return Ok(true);
+                            }
+                            Err(error) => return Err(error),
+                        },
+                    };
+                    validate_records(&patterns, &client.backend().epoch, &page, after.as_ref())?;
+                    let scanned = page.scanned.clone();
+                    if sender.send(Ok(page)).await.is_err() {
+                        return Ok(false);
+                    }
+                    after = scanned;
+                    reconnect = true;
+                }
             }
-            Ok(true)
-        }
-        .await;
-        reader.close().await;
-        if !result? {
-            return Ok(());
+            .await;
+            reader.close().await;
+            if sender.is_closed() {
+                return Ok(());
+            }
+            if !result? {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
         }
     }
 

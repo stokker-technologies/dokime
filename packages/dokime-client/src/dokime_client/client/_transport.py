@@ -61,6 +61,79 @@ PROJECTION_DEFINITIONS = 65536
 PROJECTION_WORK = 1048576
 
 
+READ_ONLY = frozenset(
+    (
+        "/dokime.v1.Appearance/GetAppearance",
+        "/dokime.v1.Backend/GetAvailability",
+        "/dokime.v1.Backend/GetHealth",
+        "/dokime.v1.Backend/GetIdentity",
+        "/dokime.v1.Catalog/GetRecordSchema",
+        "/dokime.v1.Catalog/GetSuite",
+        "/dokime.v1.Catalog/GetTelemetrySchema",
+        "/dokime.v1.Catalog/ListRecordSchemas",
+        "/dokime.v1.Catalog/ListSuites",
+        "/dokime.v1.Catalog/ListTelemetrySchemas",
+        "/dokime.v1.Content/ListArtifacts",
+        "/dokime.v1.Content/ListExecutionFiles",
+        "/dokime.v1.Content/ReadExecutionFile",
+        "/dokime.v1.Evidence/GetCapturedRecordSchema",
+        "/dokime.v1.Evidence/ListRecords",
+        "/dokime.v1.Execution/GetCase",
+        "/dokime.v1.Execution/GetCycle",
+        "/dokime.v1.Execution/GetExecution",
+        "/dokime.v1.Execution/GetExecutionCommand",
+        "/dokime.v1.Execution/ListCaseParameters",
+        "/dokime.v1.Execution/ListCases",
+        "/dokime.v1.Execution/ListCycles",
+        "/dokime.v1.Execution/ListExecutionParameters",
+        "/dokime.v1.Execution/ListExecutionSteps",
+        "/dokime.v1.Execution/ListExecutions",
+        "/dokime.v1.Health/ListHealth",
+        "/dokime.v1.History/BrowseCycles",
+        "/dokime.v1.History/BrowseExecutions",
+        "/dokime.v1.History/GetCheckpointContext",
+        "/dokime.v1.History/GetCheckpointDocument",
+        "/dokime.v1.History/GetCheckpointEvidence",
+        "/dokime.v1.History/GetExecutionCheckpoint",
+        "/dokime.v1.History/ListCheckpointRecords",
+        "/dokime.v1.History/ListCheckpointTelemetry",
+        "/dokime.v1.History/ReadCheckpointOutput",
+        "/dokime.v1.Notes/ListNotes",
+        "/dokime.v1.Observation/GetRuntimeShell",
+        "/dokime.v1.Observation/GetTraceability",
+        "/dokime.v1.Planning/MaterializeTemplate",
+        "/dokime.v1.Planning/PreviewSelection",
+        "/dokime.v1.Plots/ListAnalyses",
+        "/dokime.v1.Plots/QuerySnapshots",
+        "/dokime.v1.Plugins/GetInstallation",
+        "/dokime.v1.Plugins/ListAdmittedPlugins",
+        "/dokime.v1.Plugins/ListInstallations",
+        "/dokime.v1.Prompts/GetDefinition",
+        "/dokime.v1.Prompts/GetPrompt",
+        "/dokime.v1.Prompts/ListDefinitions",
+        "/dokime.v1.Prompts/ListPending",
+        "/dokime.v1.Query/Aggregate",
+        "/dokime.v1.Query/AggregateSamples",
+        "/dokime.v1.Query/ListCycles",
+        "/dokime.v1.Query/ListExecutions",
+        "/dokime.v1.Query/ListRecords",
+        "/dokime.v1.Query/ListSamples",
+        "/dokime.v1.Remote/ListPairedClients",
+        "/dokime.v1.Remote/ListSessions",
+        "/dokime.v1.Remote/ReadListener",
+        "/dokime.v1.Runtime/GetHealth",
+        "/dokime.v1.Runtime/GetIdentity",
+        "/dokime.v1.Secrets/List",
+        "/dokime.v1.Secrets/Preview",
+        "/dokime.v1.Settings/GetPluginSettings",
+        "/dokime.v1.Settings/GetSettings",
+        "/dokime.v1.Settings/ListStorageSources",
+        "/dokime.v1.Settings/ReadApplicationSettings",
+        "/dokime.v1.Telemetry/ListSamples",
+        "/harmos.host.v1.Host/Catalog",
+    )
+)
+
 # === Types === #
 
 # === Classes === #
@@ -293,6 +366,15 @@ class Transport:
             raise BackendChanged("backend does not match the pairing identity")
 
     async def _invoke_operation(self, operation: Operation, request: Message) -> Message:
+        # Both Attempts Share The Existing Request Deadline And Frozen Input.
+        prepared = operation.request.FromString(self._request(request, operation.request))
+        try:
+            async with asyncio.timeout(self.timeout):
+                return await _retry_unavailable(operation.grpc_path, lambda: self._invoke_once(operation, prepared))
+        except TimeoutError as error:
+            raise RpcError("DEADLINE_EXCEEDED", "RPC deadline exceeded") from error
+
+    async def _invoke_once(self, operation: Operation, request: Message) -> Message:
         if operation.grpc_path != "/dokime.v1.Backend/GetIdentity":
             await self._verify_expected()
         self._available(operation)
@@ -791,6 +873,16 @@ class _Stream:
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+async def _retry_unavailable(path, attempt):
+    try:
+        return await attempt()
+    except RpcError as error:
+        if error.code != "UNAVAILABLE" or path not in READ_ONLY:
+            raise
+    await asyncio.sleep(0.2)
+    return await attempt()
 
 
 def _stream_timeout(operation: Operation) -> float:

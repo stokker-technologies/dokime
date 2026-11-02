@@ -12,8 +12,10 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 # Third Party Imports
 import pytest
@@ -21,7 +23,8 @@ import pytest
 from dokime_client.client import DokimeClient
 
 # Local Imports
-from dokime_client.client._transport import Transport
+from dokime_client.client._transport import Transport, _retry_unavailable
+from dokime_client.client.errors import RpcError
 from dokime_client.client.pairing import read
 
 # Type Checking Imports
@@ -75,6 +78,42 @@ def test_pairing_read_bound_and_utf8(tmp_path):
         path.write_bytes(data)
         with pytest.raises(ValueError):
             DokimeClient.from_pairing(path)
+
+
+@pytest.mark.parametrize(
+    "path,code,retried",
+    [
+        ("/dokime.v1.Backend/GetIdentity", "UNAVAILABLE", True),
+        ("/dokime.v1.Execution/StartExecution", "UNAVAILABLE", False),
+        ("/plugin.v1.Device/GetValue", "UNAVAILABLE", False),
+        ("/dokime.v1.Backend/GetIdentity", "PERMISSION_DENIED", False),
+    ],
+)
+def test_unavailable_safe_read_recovery(path, code, retried):
+    async def scenario():
+        attempt = AsyncMock(side_effect=[RpcError(code, "listener stopping"), "reply"])
+        if retried:
+            assert await _retry_unavailable(path, attempt) == "reply"
+        else:
+            with pytest.raises(RpcError):
+                await _retry_unavailable(path, attempt)
+        assert attempt.await_count == (2 if retried else 1)
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_retry_is_bounded_and_cancellable():
+    async def scenario():
+        attempt = AsyncMock(side_effect=RpcError("UNAVAILABLE", "stopping"))
+        with pytest.raises(RpcError):
+            await _retry_unavailable("/dokime.v1.Backend/GetIdentity", attempt)
+        assert attempt.await_count == 2
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(0.01):
+                await _retry_unavailable("/dokime.v1.Backend/GetIdentity", attempt)
+        assert attempt.await_count == 3
+
+    asyncio.run(scenario())
 
 
 # === Private Functions === #

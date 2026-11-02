@@ -49,6 +49,8 @@ pub(super) struct Controller {
     sessions: Arc<sessions::SessionLog>,
     state: Mutex<State>,
     clients: Arc<pairing::Registry>,
+    refresh_stop: tokio::sync::watch::Sender<bool>,
+    refresh_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 struct State {
@@ -91,9 +93,36 @@ impl State {
 }
 
 impl Controller {
-    pub(super) async fn start(&self) {
+    pub(super) async fn start(self: &Arc<Self>) {
+        let mut task = self.refresh_task.lock().await;
         let mut state = self.state.lock().await;
         state.closing = false;
+        if task.is_none() {
+            self.refresh_stop.send_replace(false);
+            let mut stopping = self.refresh_stop.subscribe();
+            let weak = Arc::downgrade(self);
+            let mut shutdown = self.runtime.watch_state();
+            *task = Some(tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                loop {
+                    tokio::select! {
+                        biased;
+                        _ = stopping.wait_for(|stopping| *stopping) => return,
+                        _ = shutdown.wait_until(|snapshot| snapshot.state().shutting_down) => return,
+                        _ = interval.tick() => {}
+                    }
+                    let Some(controller) = weak.upgrade() else { return };
+                    if let Err(error) = controller.apply(Change::Refresh).await {
+                        tracing::error!(%error, "remote certificate names could not be refreshed");
+                    }
+                    if let Err(error) = controller.flush_clients().await {
+                        tracing::error!(%error, "paired client timestamps could not be saved");
+                    }
+                }
+            }));
+        }
+        drop(task);
         if state.server.is_some() {
             return;
         }
@@ -137,6 +166,12 @@ impl Controller {
     }
 
     pub(super) async fn stop(&self) -> Result<(), Error> {
+        let mut task = self.refresh_task.lock().await;
+        self.refresh_stop.send_replace(true);
+        if let Some(task) = task.as_mut() {
+            task.await?;
+        }
+        task.take();
         self.flush_clients().await?;
         let mut state = self.state.lock().await;
         state.closing = true;
@@ -263,33 +298,50 @@ impl Controller {
             Change::Certificate(names) => {
                 candidate.settings.certificate_names = names;
                 let detected = store::host_names(store::validate(&candidate.settings)?, SERVER_REMOTE_NAMES as usize);
-                let mut names = detected;
-                for name in &candidate.settings.certificate_names {
-                    if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
-                        names.push(name.clone());
-                    }
-                }
+                let names = certificate_names(&candidate.settings.certificate_names, detected)?;
                 match &mut candidate.identity {
                     Some(identity) => identity.reissue(names)?,
                     None => candidate.identity = Some(store::Identity::generate(names)?),
                 }
             }
             Change::Refresh => {
-                if !candidate.settings.enabled {
+                if !candidate.settings.enabled && !listener_changed(&state.document.settings, &candidate.settings) {
                     return Ok(state.status());
                 }
                 let previous_names = candidate.identity.as_ref().map(|identity| identity.names.clone());
-                extend_identity(&mut candidate)?;
-                if previous_names == candidate.identity.as_ref().map(|identity| identity.names.clone()) {
+                refresh_identity(&mut candidate)?;
+                if previous_names == candidate.identity.as_ref().map(|identity| identity.names.clone())
+                    && !listener_changed(&state.document.settings, &candidate.settings)
+                    && state.server.is_some() == candidate.settings.enabled
+                {
                     return Ok(state.status());
                 }
             }
         }
         let next = self.config(&candidate)?;
+        let rebind =
+            listener_changed(&state.document.settings, &candidate.settings) || state.server.is_some() != candidate.settings.enabled;
         let previous = state.bound.clone();
         if let Err(error) = self.persist(&candidate, &state.document, snapshot).await {
             state.error = Some(error.to_string());
             return Err(error);
+        }
+        if !rebind {
+            if let (Some(server), Some(identity)) = (&state.server, next.as_ref().and_then(|config| config.tls.as_ref()))
+                && let Err(change) = server.reload_certificate(identity)
+            {
+                return match self.persist(&state.document, &candidate, self.runtime.read_application_settings().await?).await {
+                    Ok(()) => Err(change),
+                    Err(restoration) => Err(Error::RemoteRollback {
+                        change: Box::new(change),
+                        restoration: Box::new(restoration),
+                    }),
+                };
+            }
+            state.document = candidate;
+            state.bound = next;
+            state.error = None;
+            return Ok(state.status());
         }
         state.document = candidate.clone();
 
@@ -363,6 +415,8 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
         path,
         sessions,
         clients,
+        refresh_stop: tokio::sync::watch::channel(false).0,
+        refresh_task: Mutex::new(None),
         state: Mutex::new(State {
             document,
             server: None,
@@ -370,21 +424,6 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
             error: None,
             closing: false,
         }),
-    });
-    let weak = Arc::downgrade(&controller);
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            interval.tick().await;
-            let Some(controller) = weak.upgrade() else { return };
-            if let Err(error) = controller.change(Change::Refresh).await {
-                tracing::error!(%error, "remote certificate names could not be refreshed");
-            }
-            if let Err(error) = controller.flush_clients().await {
-                tracing::error!(%error, "paired client timestamps could not be saved");
-            }
-        }
     });
     Ok(controller)
 }
@@ -395,10 +434,25 @@ fn refresh_identity(document: &mut store::Document) -> Result<(), Error> {
     if !document.settings.tls_enabled {
         return Ok(());
     }
-    let mut names = store::host_names(store::validate(&document.settings)?, SERVER_REMOTE_NAMES as usize);
-    for name in &document.settings.certificate_names {
-        if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
-            names.push(name.clone());
+    let detected = store::host_names(store::validate(&document.settings)?, SERVER_REMOTE_NAMES as usize);
+    refresh_identity_for_names(document, detected)
+}
+
+fn refresh_identity_for_names(document: &mut store::Document, detected: Vec<String>) -> Result<(), Error> {
+    let required = certificate_names(&document.settings.certificate_names, detected)?;
+    if document
+        .identity
+        .as_ref()
+        .is_some_and(|identity| required.iter().all(|name| identity.names.iter().any(|covered| covered.eq_ignore_ascii_case(name))))
+    {
+        return Ok(());
+    }
+    let mut names = required;
+    if let Some(identity) = &document.identity {
+        for name in &identity.names {
+            if names.len() < SERVER_REMOTE_NAMES as usize && !names.iter().any(|covered| covered.eq_ignore_ascii_case(name)) {
+                names.push(name.clone());
+            }
         }
     }
     match &mut document.identity {
@@ -409,26 +463,24 @@ fn refresh_identity(document: &mut store::Document) -> Result<(), Error> {
     Ok(())
 }
 
-// Address Refreshes Only Add Names: A Wi-Fi Drop Or Reconnect Must Not Reissue The
-// Certificate, Because Applying A New One Rebinds The Listener And Fails In-Flight Calls.
-fn extend_identity(document: &mut store::Document) -> Result<(), Error> {
-    if !document.settings.tls_enabled {
-        return Ok(());
-    }
-    let Some(identity) = &mut document.identity else {
-        return refresh_identity(document);
-    };
-    let detected = store::host_names(store::validate(&document.settings)?, SERVER_REMOTE_NAMES as usize);
-    let mut names = identity.names.clone();
-    for name in detected.iter().chain(&document.settings.certificate_names) {
-        if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
+fn listener_changed(previous: &RemoteListenerSettings, next: &RemoteListenerSettings) -> bool {
+    previous.enabled != next.enabled
+        || previous.address != next.address
+        || previous.tls_enabled != next.tls_enabled
+        || previous.authentication_enabled != next.authentication_enabled
+}
+
+fn certificate_names(configured: &[String], advertised: Vec<String>) -> Result<Vec<String>, Error> {
+    let mut names: Vec<String> = Vec::new();
+    for name in configured.iter().chain(advertised.iter()) {
+        if !names.iter().any(|covered| covered.eq_ignore_ascii_case(name)) {
             names.push(name.clone());
         }
     }
-    if names != identity.names {
-        identity.reissue(names)?;
+    if names.len() > SERVER_REMOTE_NAMES as usize {
+        return Err(Error::Configuration("configured and advertised certificate names exceed the listener name limit"));
     }
-    Ok(())
+    Ok(names)
 }
 
 // Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
@@ -453,20 +505,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn address_refresh_keeps_names_of_vanished_addresses() {
+    fn refresh_preserves_covered_names_across_address_flaps_and_reordering() {
         let mut document = store::Document::initial();
         document.settings.tls_enabled = true;
-        document.identity = Some(store::Identity::generate(vec!["localhost".into()]).unwrap());
-        extend_identity(&mut document).unwrap();
-        let mut names = document.identity.as_ref().unwrap().names.clone();
-        names.push("192.0.2.50".into());
-        document.identity = Some(store::Identity::generate(names.clone()).unwrap());
+        document.settings.certificate_names = vec!["lab.example".into()];
+        let hosts = vec!["192.168.1.10".into(), "192.168.1.20".into()];
+        refresh_identity_for_names(&mut document, hosts.clone()).unwrap();
         let certificate = document.identity.as_ref().unwrap().certificate.clone();
-
-        extend_identity(&mut document).unwrap();
-
+        let names = document.identity.as_ref().unwrap().names.clone();
+        for detected in [vec![hosts[0].clone()], vec![hosts[1].clone(), hosts[0].clone()], hosts] {
+            refresh_identity_for_names(&mut document, detected).unwrap();
+            assert_eq!(document.identity.as_ref().unwrap().certificate, certificate);
+            assert_eq!(document.identity.as_ref().unwrap().names, names);
+        }
+        document.settings.certificate_names = vec!["LAB.EXAMPLE".into()];
+        refresh_identity_for_names(&mut document, vec!["192.168.1.10".into()]).unwrap();
+        assert_eq!(document.identity.as_ref().unwrap().certificate, certificate);
+        let ca = document.identity.as_ref().unwrap().ca_certificate.clone();
+        refresh_identity_for_names(&mut document, vec!["192.168.1.30".into()]).unwrap();
         let identity = document.identity.as_ref().unwrap();
-        assert_eq!(identity.names, names);
-        assert_eq!(identity.certificate, certificate);
+        assert_ne!(identity.certificate, certificate);
+        assert_eq!(identity.ca_certificate, ca);
+        assert!(identity.names.contains(&"192.168.1.10".into()));
+        document.settings.certificate_names.push("new.example".into());
+        refresh_identity_for_names(&mut document, vec!["192.168.1.30".into()]).unwrap();
+        assert!(document.identity.as_ref().unwrap().names.contains(&"new.example".into()));
+    }
+
+    #[test]
+    fn certificate_changes_do_not_require_rebinding() {
+        let previous = store::Document::initial().settings;
+        let mut next = previous.clone();
+        next.certificate_names.push("lab.example".into());
+        assert!(!listener_changed(&previous, &next));
+        next.address = "127.0.0.1:8765".into();
+        assert!(listener_changed(&previous, &next));
+        next = previous.clone();
+        next.tls_enabled = !previous.tls_enabled;
+        assert!(listener_changed(&previous, &next));
+        next = previous.clone();
+        next.authentication_enabled = !previous.authentication_enabled;
+        assert!(listener_changed(&previous, &next));
+        next = previous.clone();
+        next.enabled = !previous.enabled;
+        assert!(listener_changed(&previous, &next));
     }
 }
