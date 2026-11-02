@@ -92,10 +92,10 @@ uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
 ```
 
 ```python
-from dokime_client import DokimeClient
+from dokime_client import DokimeClient, ExecutionStatus
 
 async with DokimeClient.from_pairing("lab.dokime-remote") as client:
-    async for execution in client.executions(template="example.measurement", status="failed"):
+    async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
         async with execution.telemetry("example.stream", fields=["counter"]) as samples:
             frame = await samples.to_polars(max_rows=10_000)
             print(frame, samples.metadata, samples.complete)

@@ -82,6 +82,7 @@ struct State {
     waiting_since: tokio::time::Instant,
     armed_at: Option<tokio::time::Instant>,
     single: bool,
+    preserve_paths: bool,
     segments: BTreeMap<String, u64>,
     names: BTreeSet<String>,
     matcher: FileMatcher,
@@ -168,6 +169,7 @@ impl FileWatch {
                 waiting_since: tokio::time::Instant::now(),
                 armed_at: None,
                 single: settings.single,
+                preserve_paths: settings.preserve_paths,
                 segments: BTreeMap::new(),
                 names: BTreeSet::new(),
                 matcher: settings.matcher,
@@ -643,7 +645,12 @@ impl State {
         let artifact = tracked.artifact;
         let record = self
             .runtime
-            .upload_artifact_file(self.scope.clone(), &tracked.spool, artifact, media_type_for_path(path).map(str::to_owned))
+            .upload_artifact_file(
+                self.scope.clone(),
+                &tracked.spool,
+                artifact,
+                Some(media_type_for_path(path).unwrap_or("application/octet-stream").to_owned()),
+            )
             .await?;
         self.sealed.push(record.clone());
         *self.segments.entry(path.to_owned()).or_default() += 1;
@@ -660,7 +667,7 @@ impl State {
             None if self.output.is_empty() => path.to_owned(),
             None => format!("{}/{path}", self.output),
         };
-        let base = crate::exports::storage::paths::safe_artifact_path(&base);
+        let base = if self.preserve_paths { base } else { crate::exports::storage::paths::safe_artifact_path(&base) };
         match self.segments.get(path).copied().unwrap_or_default() {
             0 => base,
             segment => crate::files::segment_name(&base, segment + 1),

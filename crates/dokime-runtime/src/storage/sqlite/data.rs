@@ -455,6 +455,7 @@ where
             telemetry::catalog_file(&transaction, reference)?;
         }
         if let Borrowed::Record(row) = value {
+            super::history::work::index(&transaction, row)?;
             records::index(&transaction, row)?;
             plots.record(&transaction, row)?;
         }

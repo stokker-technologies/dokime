@@ -201,7 +201,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
     let database = root.path().join("catalog.sqlite");
     let id = TestCycleId::from_seed("query.cycle");
     let member = TestExecutionId::from_seed("query.execution");
-    let cycle = result::TestCycle {
+    let mut cycle = result::TestCycle {
         saved: None,
         test_cycle_id: id.clone(),
         session_id: None,
@@ -224,7 +224,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         },
         sequence: 1,
     };
-    let object = ObjectEntry {
+    let mut object = ObjectEntry {
         version: ObjectVersionToken::new(position.clone()),
         position,
         value: ObjectValue {
@@ -251,12 +251,13 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         transaction.commit().unwrap();
     }
     drop(connection);
-    let connection = Connection::open(&database).unwrap();
+    let mut connection = Connection::open(&database).unwrap();
     let selected = cycles(
         &connection,
         &CycleSelection {
             cycle_ids: vec![],
             phases: vec![],
+            statuses: vec![],
             created_at: None,
             archive: None,
         },
@@ -264,5 +265,80 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
     )
     .unwrap();
     assert_eq!(selected.rows[0].execution_count, 1);
+    assert_eq!(selected.rows[0].status, wire::CycleStatus::Ready);
+    assert_eq!(selected.rows[0].running_count, 0);
     assert_eq!(connection.query_row("SELECT execution FROM query_members", [], |row| row.get::<_, String>(0)).unwrap(), member.to_string());
+
+    insert(&connection, member.as_str(), 2, Some(10), wire::ExecutionStatus::Running);
+    connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
+    cycle.lifecycle = result::CycleStatus::Running;
+    object.position.sequence = 3;
+    object.version = ObjectVersionToken::new(object.position.clone());
+    object.value.payload = crate::storage::objects::cycle::Cycle::try_from(&cycle).unwrap().encode();
+    index(&connection, &object).unwrap();
+    let selection = CycleSelection {
+        cycle_ids: vec![id.to_string()],
+        phases: vec![result::CyclePhase::Active],
+        statuses: vec![wire::CycleStatus::Running, wire::CycleStatus::Paused],
+        created_at: None,
+        archive: None,
+    };
+    let captured = cycles(&connection, &selection, &read(3)).unwrap();
+    assert_eq!(captured.rows[0].status, wire::CycleStatus::Running);
+    assert_eq!(captured.rows[0].running_count, 1);
+    insert(&connection, member.as_str(), 4, Some(10), wire::ExecutionStatus::Passed);
+    connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
+    assert_eq!(cycles(&connection, &selection, &read(3)).unwrap().rows, captured.rows);
+    assert_eq!(cycles(&connection, &selection, &read(4)).unwrap().rows[0].running_count, 0);
+    let work = dokime_domain::state::records::work::Work {
+        executions: vec![dokime_domain::state::records::work::Execution {
+            id: member.clone(),
+            status: result::ExecutionStatus::Running,
+            started_at: Some(NativeTime::new("2026-10-01T00:00:01Z")),
+            finished_at: None,
+            result: None,
+        }],
+        cycles: vec![dokime_domain::state::records::work::Cycle {
+            id: id.clone(),
+            status: result::CycleStatus::Paused,
+        }],
+    };
+    let row = crate::storage::sqlite::history::work::Row { body: serde_json::to_vec(&work).unwrap() };
+    let record = harmos::storage::StoredRecord {
+        position: StorageCursor { sequence: 5, ..object.position.clone() },
+        schema: crate::storage::sqlite::history::work::schema(),
+        scope: None,
+        item: Identifier::new("work.fixture").unwrap(),
+        source: None,
+        source_time: None,
+        payload: row.encode(),
+    };
+    {
+        let transaction = connection.transaction().unwrap();
+        super::work::index(&transaction, &record).unwrap();
+    }
+    assert_eq!(cycles(&connection, &selection, &read(5)).unwrap().rows[0].running_count, 0);
+    {
+        let transaction = connection.transaction().unwrap();
+        super::work::index(&transaction, &record).unwrap();
+        transaction.commit().unwrap();
+    }
+    let paused = cycles(&connection, &selection, &read(6)).unwrap();
+    assert_eq!(paused.rows[0].status, wire::CycleStatus::Paused);
+    assert_eq!(paused.rows[0].running_count, 1);
+    assert_eq!(cycles(&connection, &selection, &read(3)).unwrap().rows, captured.rows);
+    // A Later Native Header Must Not Restore Its Older Running Status.
+    object.position.sequence = 6;
+    object.version = ObjectVersionToken::new(object.position.clone());
+    index(&connection, &object).unwrap();
+    assert_eq!(cycles(&connection, &selection, &read(7)).unwrap().rows[0].status, wire::CycleStatus::Paused);
+    let members: i64 = connection
+        .query_row("SELECT count(*) FROM query_members WHERE cycle=?1 AND position='0000000000000005'", [id.as_str()], |row| row.get(0))
+        .unwrap();
+    assert_eq!(members, 1);
+    let sealed = CycleSelection {
+        phases: vec![result::CyclePhase::Sealed],
+        ..selection
+    };
+    assert!(cycles(&connection, &sealed, &read(4)).unwrap().rows.is_empty());
 }

@@ -7,7 +7,7 @@
  * ***
  */
 
-// `WatchFile`, the step's file watch: one file watched for the calling step's
+// `WatchFile`, the step's file watch: files watched for the calling step's
 // execution until the instance is cancelled, the bound elapses or the
 // execution seals. It settles with what it sealed and the gaps it saw; a
 // cancelled watch seals what it captured through `stop`.

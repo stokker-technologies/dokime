@@ -126,6 +126,12 @@ impl RuntimeHandle {
                 if scope == Scope::History {
                     let _evidence = self.evidence_admission.lock().await;
                     let (contracts, journal, metadata) = self.query_capture_contracts(&scope, operation).await?;
+                    self.record_source.wait_through(&self.state_manager, journal).await.map_err(|_| unavailable(operation))?;
+                    let admitted = harmos::storage::StorageCursor {
+                        sequence: metadata,
+                        ..self.storage().cursor_accepted()
+                    };
+                    self.storage().flush_until(&admitted).await.map_err(|_| unavailable(operation))?;
                     let maximum = self.query_config().limits().schema_bytes as usize;
                     let retained = self.local_storage.query_telemetry_contracts(scope.clone(), metadata, maximum, operation).await?;
                     let contracts = merge_telemetry_contracts(&scope, &contracts, retained, maximum, operation)?;

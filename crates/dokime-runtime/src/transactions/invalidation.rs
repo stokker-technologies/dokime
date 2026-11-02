@@ -82,6 +82,7 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, None, out);
         self.prompts(state).0.collect(out);
     }
 

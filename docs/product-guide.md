@@ -881,6 +881,9 @@ let watch = ctx
                 root: self.log.to_string_lossy().into_owned(),
             })),
         }),
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         output: "charger".into(),
         artifact: Some("charger/device.log".into()),
         policy: FileWatchPolicy::Stream,
@@ -899,6 +902,62 @@ watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
 let captured = watch.cancel().await?.into_owned();
 ```
+
+For a directory source, set `recursive: true` or supply `rules`. Rules use the
+existing ordered `FileRule` include/exclude globs over forward-slash paths relative
+to the root; the last matching rule wins. Recursive discovery includes subfolders
+created after arming. Empty rules with recursion enabled include every file;
+`recursive: false` with rules scans only the root directory. Empty rules with
+recursion disabled retain the single-file behavior above.
+
+For example, a step can stream a vendor application's three log trees under
+`logs/<relative path>`, preserving directory and file names:
+
+```rust
+let request = WatchFile {
+    execution_id: None,
+    source: Some(FileWatchSource {
+        payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+            root: vendor_root.to_string_lossy().into_owned(),
+        })),
+    }),
+    output: "logs".into(),
+    artifact: None,
+    recursive: true,
+    rules: ["Logs/**", "Logs_SSI/**", "Logs_Instruments/**"]
+        .into_iter()
+        .map(|glob| FileRule { glob: glob.into(), action: FileRuleAction::Include })
+        .collect(),
+    policy: FileWatchPolicy::Stream,
+    selection: FileWatchSelection::All,
+    wait_for_source_seconds: None,
+    poll_interval_ms: Some(250),
+    maximum_seconds: None,
+    maximum_files: Some(128),
+    maximum_bytes: None,
+    matchers: Vec::new(),
+    markers: Vec::new(),
+};
+let watch = ctx.host().submit(request.clone()).await?;
+watch.armed().await?;
+// Run the vendor application, then seal its captured logs.
+let captured = watch.cancel().await?.into_owned();
+```
+
+Stream captures existing files from their arm-point length and later arrivals
+from byte zero. To mirror only ZIP archives anywhere below the same root,
+use `policy: FileWatchPolicy::Mirror` and
+`rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
+Directory watches require `artifact: None`; `output` is the artifact prefix.
+The file cap defaults to 64 (maximum 256), and the byte cap applies across all
+files and sealed segments. Polling uses the request interval or host settings.
+
+Single-file snapshots may use names such as `capture.diag` or `capture.hpl30`
+with `output: String::new()` to retain them at the artifact root. Unknown
+extensions use `application/octet-stream`. Artifact paths must be relative,
+use forward slashes and contain no traversal, absolute path, reserved device
+name or invalid portable filename segment. The harness uses the same local
+discovery, glob matching and artifact-name validation as the native host.
 
 `All` follows baseline files and later arrivals. `Latest` selects the newest
 baseline file by modification time, breaking ties by path, while `New` captures

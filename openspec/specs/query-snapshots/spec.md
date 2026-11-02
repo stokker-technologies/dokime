@@ -11,7 +11,7 @@ The first evidence query without `at` SHALL capture admitted evidence and corres
 #### Scenario: Capture Without Finalization
 - **WHEN** a live evidence query freezes context and its evidence frontier
 - **THEN** it needs no report publication, seal or provider stop, and a cycle cut freezes member revisions and membership
-- **AND** initial history queries capture already durable catalog revisions without flushing all running executions
+- **AND** initial history queries make their fixed committed journal/metadata frontier durable without checkpointing running executions
 
 #### Scenario: Live Queries During Writes
 - **WHEN** a first record page captures a running execution while sample batches, metadata updates and new records arrive

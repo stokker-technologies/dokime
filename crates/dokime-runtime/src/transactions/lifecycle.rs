@@ -48,6 +48,9 @@ use dokime_domain::model::time::Timestamp;
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
+
+    #[serde(default)]
+    pub record_frontier: u64,
 }
 
 #[harmos::transaction(id = "dokime.runtime.records.recover")]
@@ -70,6 +73,10 @@ pub struct StartShutdown;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
+
+    // Earlier Journal Entries Emitted No Execution Interruption Facts.
+    #[serde(default)]
+    pub record_interruptions: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -159,6 +166,7 @@ impl Transaction<RuntimeState> for BeginCycleSeal {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
         if state.cycles[&self.test_cycle_id].phase == dokime_domain::model::execution::result::CyclePhase::Active {
             self.prompts(state).0.collect(out);
         }
@@ -422,6 +430,9 @@ impl Transaction<RuntimeState> for MarkRuntimeStarted {
     fn apply(&self, state: &mut RuntimeState) {
         state.session_id = self.session_id.clone();
         state.record_namespace = self.record_namespace.clone();
+        // Evidence Can Commit Beyond The Restored State Journal Before A Crash.
+        state.record_count = state.record_count.max(self.record_frontier);
+        state.records.through = state.records.through.max(self.record_frontier);
         state.shutting_down = false;
     }
 }
@@ -464,11 +475,33 @@ impl Transaction<RuntimeState> for StartShutdown {
 }
 
 impl RecoverInterruptedCycles {
-    fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
+    fn settlements(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
         let mut records = Drafts::new(state);
         let settled = settle_prompts(state, &mut records, PromptSettlement::Interrupted, &self.at, |scope| {
             scope.test_cycle_id.is_some() || scope.test_execution_id.is_some()
         });
+        for execution in state.executions.values().filter(|execution| {
+            self.record_interruptions
+                && matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                && !state.cycle_report_finalizations.contains_key(&execution.test_cycle_id)
+        }) {
+            let scope = execution.capture_scope();
+            records.capture_scope(scope.clone());
+            records.draft(
+                crate::transactions::records::draft::BuiltinDraft {
+                    record_type: crate::records::BuiltinRecordType::TestExecutionInterrupted,
+                    source: "runtime".to_owned(),
+                    severity: crate::records::RecordSeverity::Warning,
+                    message: Some("Execution interrupted because the runtime restarted before completion.".to_owned()),
+                    details: std::collections::BTreeMap::from([
+                        ("reason".to_owned(), dokime_domain::model::values::Value::from("runtime_restarted")),
+                        ("test_execution_id".to_owned(), dokime_domain::model::values::Value::from(execution.test_execution_id.as_str())),
+                    ]),
+                    scope: Some(scope),
+                },
+                self.at.clone(),
+            );
+        }
         (records, settled)
     }
 }
@@ -479,10 +512,11 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         Ok(())
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
-        self.prompts(state).0.collect(out);
+        crate::transactions::history::collect(state, self, None, out);
+        self.settlements(state).0.collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
-        let (records, settled) = self.prompts(state);
+        let (records, settled) = self.settlements(state);
         records.apply(state);
         commit_settled_prompts(state, settled);
 
@@ -510,8 +544,9 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         for (id, cycle) in &mut state.cycles {
             // Startup Finishes These Containers Before Exposing New Admission.
             cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
-            if state.cycle_report_finalizations.contains_key(id) {
+            if let Some(intent) = state.cycle_report_finalizations.get(id) {
                 // Every Member Was Already Durable Before This Frozen Intent.
+                *cycle = intent.source.clone();
                 continue;
             }
             let mut interrupted = matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);

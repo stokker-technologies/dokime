@@ -21,7 +21,9 @@ use super::*;
 use dokime::client::contracts::history::BrowseExecutions;
 use dokime::client::contracts::history::DeleteExecution;
 use dokime::domain::model;
+use dokime::domains::ExecutionProviderTarget;
 use dokime::runtime::command::CommandContext;
+use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 
@@ -31,15 +33,57 @@ use dokime::runtime::command::CommandContext;
 
 /* === Structs === */
 
+struct RestartGate(Arc<Gate>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl ExecutionFixture for RestartGate {
+    fn run_cycle<'a>(
+        &'a self, context: ExecutionFixtureContext, cycle: &'a model::execution::result::CycleView, target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            for execution in &cycle.test_executions {
+                if execution.status == model::execution::result::ExecutionStatus::Pending {
+                    context
+                        .update_execution_phase(
+                            execution.scope.clone(),
+                            Identifier::new("fixture.phase").unwrap(),
+                            "Fixture Phase".to_owned(),
+                            "running".to_owned(),
+                        )
+                        .await
+                        .unwrap();
+                }
+            }
+            self.0.run_cycle(context, cycle, target).await
+        })
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn copy_cycle_files(source: &std::path::Path, destination: &std::path::Path) {
+    std::fs::create_dir_all(destination).unwrap();
+    for entry in std::fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let name = entry.file_name();
+        if matches!(name.to_str(), Some("local.lock" | "local.sqlite" | "local.sqlite-wal" | "local.sqlite-shm")) {
+            continue;
+        }
+        let target = destination.join(name);
+        if entry.file_type().unwrap().is_dir() {
+            copy_cycle_files(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
 
 async fn checkpoint_for(
     handle: &dokime::RuntimeHandle, history: &mut WireClient, execution_id: &str,
@@ -164,6 +208,227 @@ pub(crate) async fn deletion_validates_unsupported() {
 }
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[test]
+fn cycles_restart() {
+    use model::execution::{ExecutionMode, result::ResultStatus, wire::CycleStatus};
+
+    let root = tempfile::tempdir().unwrap();
+    let image = tempfile::tempdir().unwrap();
+    let (sealed, interrupted, execution) = {
+        let session = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        session.block_on(async {
+            let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+            let gate = Arc::new(Gate::default());
+            let mut owner = fixture_with_provider(root.path(), Arc::new(RestartGate(gate.clone())), &prepared).await;
+            let handle = owner.handle();
+            let suite = support::fixture_suite(&["passed", "passed"]);
+            support::register_fixture_execution(&handle, suite.clone()).await;
+            let sealed = support::cycle_with_cases(
+                &handle,
+                support::metadata("restart.sealed", "Completed Cycle"),
+                support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+            )
+            .await;
+            let removed = handle.watch_state().latest().state().cycle_view(&sealed).unwrap().test_executions[1].test_case_id.clone();
+            handle.delete_cycle_case(sealed.clone(), removed, Default::default()).await.unwrap();
+            let first = handle.watch_state().latest().state().cycles[&sealed].execution_ids[0].clone();
+            handle.start_execution(first, ExecutionMode::Automatic, Default::default()).await;
+            gate.started.notified().await;
+            gate.release.notify_one();
+            support::wait_for_cycle_outcome(&handle, &sealed, ResultStatus::Passed).await;
+            handle.seal_cycle(sealed.clone(), Default::default()).await.unwrap();
+
+            let interrupted = support::cycle_with_cases(
+                &handle,
+                support::metadata("restart.interrupted", "Interrupted Cycle"),
+                support::materialize_cases(suite.metadata.identifier.as_str(), &suite).into_iter().take(1).collect(),
+            )
+            .await;
+            let execution = handle.watch_state().latest().state().cycles[&interrupted].execution_ids[0].clone();
+            handle.start_execution(execution.clone(), ExecutionMode::Automatic, Default::default()).await;
+            gate.started.notified().await;
+            let before = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            assert_eq!(before.cycles.len(), 2, "starting another cycle preserves completed rows");
+            assert_eq!(
+                handle.watch_state().latest().state().executions[&execution].status,
+                model::execution::result::ExecutionStatus::Running
+            );
+            assert!(before.cycles.iter().any(|cycle| cycle.cycle_id == interrupted.as_str() && cycle.status == CycleStatus::Running));
+            handle.storage().flush().await.unwrap();
+            handle.storage().flush_recovery().await.unwrap();
+            // Freeze A Durable Running Image, Then Release The In-Process Storage Lease.
+            let database = dokime::storage::sqlite::rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+            database.execute("VACUUM INTO ?1", [image.path().join("local.sqlite").to_str().unwrap()]).unwrap();
+            drop(database);
+            copy_cycle_files(root.path(), image.path());
+            drop(handle);
+            owner.shutdown().await.unwrap();
+            (sealed, interrupted, execution)
+        })
+    };
+
+    // Reopen The Same Root At Its Pre-Shutdown Cut, As After An Abrupt Stop.
+    std::fs::remove_dir_all(root.path()).unwrap();
+    copy_cycle_files(image.path(), root.path());
+    std::fs::copy(image.path().join("local.sqlite"), root.path().join("local.sqlite")).unwrap();
+
+    for _ in 0..2 {
+        let session = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        session.block_on(async {
+            let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+            let mut owner = runtime(root.path(), &prepared).await;
+            let handle = owner.handle();
+            let listed = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            assert_eq!(listed.cycles.len(), 2);
+            let completed = listed.cycles.iter().find(|cycle| cycle.cycle_id == sealed.as_str()).unwrap();
+            assert_eq!(completed.phase, model::execution::result::CyclePhase::Sealed);
+            assert_eq!(completed.status, CycleStatus::Completed);
+            assert_eq!(completed.case_count, 1);
+            let stopped = listed.cycles.iter().find(|cycle| cycle.cycle_id == interrupted.as_str()).unwrap();
+            assert_eq!(stopped.phase, model::execution::result::CyclePhase::Sealed);
+            assert_eq!(stopped.status, CycleStatus::Stopped);
+            assert_eq!(stopped.running_count, 0);
+            let saved =
+                dokime::storage::objects::execution::read(handle.storage(), &execution, dokime::harmos::storage::ObjectVersion::Latest)
+                    .await
+                    .unwrap()
+                    .unwrap();
+            assert_eq!(saved.value.status, model::execution::result::ExecutionStatus::Interrupted);
+            assert!(saved.value.finished_at.is_some());
+            drop(saved);
+
+            let records = handle
+                .selected_records(dokime::domains::evidence::RecordSelection {
+                    record_types: vec![dokime::records::BuiltinRecordType::TestExecutionInterrupted.identifier()],
+                    scope: dokime::domains::evidence::ScopeSelection {
+                        test_execution_id: Some(execution.clone()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(records.len(), 1, "repeated recovery must not duplicate the interruption");
+            assert_eq!(records[0].record.details.get("reason"), Some(&dokime::Value::from("runtime_restarted")));
+            assert!(records[0].record.message.as_ref().is_some_and(|message| !message.is_empty()));
+
+            let first = handle
+                .operations()
+                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 1, ..Default::default() })
+                .await
+                .unwrap();
+            let second = handle
+                .operations()
+                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                    limit: 1,
+                    after_cycle_id: first.next_after_cycle_id.clone().unwrap(),
+                    cursor: first.cursor.clone(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(first.cycles.len(), 1);
+            assert_eq!(second.cycles.len(), 1);
+            assert_ne!(first.cycles[0].cycle_id, second.cycles[0].cycle_id);
+            assert!(second.next_after_cycle_id.is_none());
+
+            // Every Read Used By The Cycle Workspace Opens The Retired Container.
+            let cycle = handle
+                .operations()
+                .call::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: interrupted.to_string() })
+                .await
+                .unwrap();
+            assert_eq!(cycle.status, stopped.status);
+            assert_eq!(cycle.case_count, 1);
+            let cases = handle
+                .operations()
+                .call::<contracts::execution::ListCases>(contracts::execution::ListCases {
+                    cycle_id: interrupted.to_string(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(cases.cases.len(), 1);
+            assert_eq!(cases.cases[0].latest_execution_status, Some(model::execution::wire::ExecutionStatus::Interrupted));
+            let case_id = cases.cases[0].case_id.clone();
+            handle
+                .operations()
+                .call::<contracts::execution::GetCase>(contracts::execution::GetCase {
+                    cycle_id: interrupted.to_string(),
+                    case_id: case_id.clone(),
+                })
+                .await
+                .unwrap();
+            handle
+                .operations()
+                .call::<contracts::execution::ListCaseParameters>(contracts::execution::ListCaseParameters {
+                    cycle_id: interrupted.to_string(),
+                    case_id,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let executions = handle
+                .operations()
+                .call::<contracts::execution::ListExecutions>(contracts::execution::ListExecutions {
+                    cycle_id: interrupted.to_string(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(executions.executions.len(), 1);
+            assert!(executions.executions[0].sealed);
+            let detail = handle
+                .operations()
+                .call::<contracts::execution::GetExecution>(contracts::execution::GetExecution { execution_id: execution.to_string() })
+                .await
+                .unwrap();
+            assert_eq!(detail.summary.as_ref().unwrap().status, model::execution::wire::ExecutionStatus::Interrupted);
+            handle
+                .operations()
+                .call::<contracts::execution::ListExecutionParameters>(contracts::execution::ListExecutionParameters {
+                    execution_id: execution.to_string(),
+                    set: model::execution::wire::ExecutionParameterSet::Inputs,
+                    limit: 0,
+                    after_name: String::new(),
+                    cursor: None,
+                })
+                .await
+                .unwrap();
+            handle
+                .operations()
+                .call::<contracts::execution::ListExecutionSteps>(contracts::execution::ListExecutionSteps {
+                    execution_id: execution.to_string(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+
+            handle.set_cycle_archived(sealed.clone(), true, Default::default()).await.unwrap();
+            let visible = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            assert_eq!(visible.cycles.len(), 1);
+            assert_eq!(visible.cycles[0].cycle_id, interrupted.as_str());
+            let all = handle
+                .operations()
+                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                    filter: Some(model::execution::wire::CycleFilter {
+                        archive: Some(model::execution::wire::ArchiveScope::All),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(all.cycles.len(), 2);
+            assert!(all.cycles.iter().any(|cycle| cycle.cycle_id == sealed.as_str() && cycle.archived));
+            handle.set_cycle_archived(sealed.clone(), false, Default::default()).await.unwrap();
+            drop(handle);
+            owner.shutdown().await.unwrap();
+        });
+    }
+}
 
 pub(crate) async fn empty_cycles_retain_history() {
     use dokime::client::contracts::history::BrowseCycles;
