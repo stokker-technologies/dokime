@@ -279,7 +279,7 @@ impl Controller {
                     return Ok(state.status());
                 }
                 let previous_names = candidate.identity.as_ref().map(|identity| identity.names.clone());
-                refresh_identity(&mut candidate)?;
+                extend_identity(&mut candidate)?;
                 if previous_names == candidate.identity.as_ref().map(|identity| identity.names.clone()) {
                     return Ok(state.status());
                 }
@@ -409,6 +409,28 @@ fn refresh_identity(document: &mut store::Document) -> Result<(), Error> {
     Ok(())
 }
 
+// Address Refreshes Only Add Names: A Wi-Fi Drop Or Reconnect Must Not Reissue The
+// Certificate, Because Applying A New One Rebinds The Listener And Fails In-Flight Calls.
+fn extend_identity(document: &mut store::Document) -> Result<(), Error> {
+    if !document.settings.tls_enabled {
+        return Ok(());
+    }
+    let Some(identity) = &mut document.identity else {
+        return refresh_identity(document);
+    };
+    let detected = store::host_names(store::validate(&document.settings)?, SERVER_REMOTE_NAMES as usize);
+    let mut names = identity.names.clone();
+    for name in detected.iter().chain(&document.settings.certificate_names) {
+        if !names.contains(name) && names.len() < SERVER_REMOTE_NAMES as usize {
+            names.push(name.clone());
+        }
+    }
+    if names != identity.names {
+        identity.reissue(names)?;
+    }
+    Ok(())
+}
+
 // Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
 fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbeat: std::time::Duration) {
     tokio::spawn(async move {
@@ -425,3 +447,26 @@ fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbea
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn address_refresh_keeps_names_of_vanished_addresses() {
+        let mut document = store::Document::initial();
+        document.settings.tls_enabled = true;
+        document.identity = Some(store::Identity::generate(vec!["localhost".into()]).unwrap());
+        extend_identity(&mut document).unwrap();
+        let mut names = document.identity.as_ref().unwrap().names.clone();
+        names.push("192.0.2.50".into());
+        document.identity = Some(store::Identity::generate(names.clone()).unwrap());
+        let certificate = document.identity.as_ref().unwrap().certificate.clone();
+
+        extend_identity(&mut document).unwrap();
+
+        let identity = document.identity.as_ref().unwrap();
+        assert_eq!(identity.names, names);
+        assert_eq!(identity.certificate, certificate);
+    }
+}
