@@ -202,6 +202,8 @@ impl RuntimeHandle {
             self.resume_sampling(&quiescence).await;
             return Err(Error::Operation(error.to_string()));
         }
+        // Retire Physical Holds Even If A Later Report Or Request Save Fails.
+        self.stream_leases().release_executions(&execution_ids);
         // The admission token retains telemetry ordering and execution staging
         // ownership through the journal commit. No storage wait occurs under that
         // staging lock; capacity was made before committing Finish.

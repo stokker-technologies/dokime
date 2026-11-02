@@ -977,6 +977,11 @@ interval remains the fallback upper bound when notifications are unavailable;
 FTP watches use that interval. Execution sealing and cancellation wake watches
 independently of either source.
 
+A file whose artifact content cannot be captured is retained as a failed artifact
+with its error and no downloadable content. Reports list failed artifacts alongside
+the remaining evidence; the failure does not prevent Stop, provider completion or
+report saving. Storage failures outside artifact content capture still fail the save.
+
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
 Processes return their exit status; file watches finish capturing before replying.

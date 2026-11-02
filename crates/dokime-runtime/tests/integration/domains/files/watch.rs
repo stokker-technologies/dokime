@@ -1026,3 +1026,214 @@ async fn recursive_step_watches() {
     assert_eq!(records["Logs/status"].size_bytes, 12);
     bench.stop().await;
 }
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn capture_failure_isolated_during_stop() {
+    use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetrySample};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tracing_subscriber::{Layer, layer::SubscriberExt};
+
+    struct LeaseWarnings(Arc<AtomicUsize>);
+    impl<S: tracing::Subscriber> Layer<S> for LeaseWarnings {
+        fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+            if event.metadata().level() == &tracing::Level::WARN && event.metadata().target().ends_with("telemetry::leases") {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+    let warnings = Arc::new(AtomicUsize::new(0));
+    let subscriber = tracing_subscriber::registry().with(LeaseWarnings(warnings.clone()));
+    let _subscriber = tracing::subscriber::set_default(subscriber);
+    let stream = identifier("fixture.capture");
+    let contract = || {
+        let mut contract = minimal_tracking_contract();
+        contract.stream = stream.clone();
+        contract.metadata = metadata("fixture.capture", "Capture");
+        contract.interval = Some(dokime_runtime::DurationMillis(1000));
+        contract
+    };
+    let bench = Bench::start(|config, _| {
+        config.with_installed_plugins([dokime_runtime::InstalledPlugin {
+            source: "fixture.capture".into(),
+            enabled: true,
+            telemetry_contracts: vec![contract()],
+            ..Default::default()
+        }])
+    })
+    .await;
+    let execution = dokime_runtime::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let cycle_id = bench.handle.watch_state().latest().state().executions[&execution].test_cycle_id.clone();
+    let cycle = cycle_snapshot(&bench.handle, &cycle_id).await;
+    let scope = cycle.test_executions[0].scope.clone();
+    let held = bench
+        .handle
+        .lease_streams(
+            SamplingScope {
+                test_cycle_id: scope.test_cycle_id.as_ref().map(ToString::to_string),
+                test_case_id: scope.test_case_id.as_ref().map(ToString::to_string),
+                test_execution_id: Some(execution.to_string()),
+            },
+            std::slice::from_ref(&stream),
+            "fixture.reader",
+        )
+        .await
+        .unwrap();
+    let viewed = bench
+        .handle
+        .lease_streams(
+            SamplingScope {
+                test_cycle_id: None,
+                test_case_id: None,
+                test_execution_id: None,
+            },
+            std::slice::from_ref(&stream),
+            "fixture.viewer",
+        )
+        .await
+        .unwrap();
+
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("bad/app.log"), b"unavailable\n");
+    write(&tree.path().join("good/app.log"), b"retained\n");
+    write(&tree.path().join("example.diag"), b"snapshot\n");
+    bench.handle.inject_artifact_capture_failure(execution.clone(), format!("{OUTPUT}/bad/app.log"), std::io::ErrorKind::PermissionDenied);
+    let mut mirror = bench
+        .handle
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("**/*.log")], FileWatchPolicy::Mirror), None)
+        .await
+        .unwrap();
+    poll(&mut mirror).await;
+    let mut streaming = request(&bench.execution, local(tree.path()), vec![include("good/*.log")], FileWatchPolicy::Stream);
+    streaming.output = "stream".into();
+    let mut streaming = bench.handle.open_file_watch(&streaming, None).await.unwrap();
+    poll(&mut streaming).await;
+    append(&tree.path().join("good/app.log"), b"tail\n");
+    let mut snapshot = request(&bench.execution, local(tree.path()), vec![include("*.diag")], FileWatchPolicy::SnapshotAtStart);
+    snapshot.output = "prepare".into();
+    let mut snapshot = bench.handle.open_file_watch(&snapshot, None).await.unwrap();
+    poll(&mut snapshot).await;
+    let captures = tokio::spawn(async move {
+        let seal_mirror = async {
+            mirror.seal_requested().await;
+            seal(&mut mirror).await
+        };
+        let seal_stream = async {
+            streaming.seal_requested().await;
+            seal(&mut streaming).await
+        };
+        tokio::join!(seal_mirror, seal_stream)
+    });
+    let publish = |index| {
+        let mut sample = TelemetrySample::new(
+            dokime_runtime::model::identity::new_id(),
+            stream.clone(),
+            index,
+            dokime_runtime::model::time::now_utc(),
+            "fixture.capture",
+        );
+        sample.values.insert("elapsed_s".into(), dokime_runtime::Value::Number(index as f64));
+        sample.values.insert("target_locked".into(), dokime_runtime::Value::Bool(true));
+        let sample = typed_minimal_tracking_sample(sample);
+        TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream.clone(), vec![sample])
+    };
+    bench.handle.publish_telemetry_batch(publish(0)).await.unwrap();
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    captures.await.unwrap();
+    let idle = wait_for_cycle_idle(&bench.handle, &cycle.test_cycle_id, ResultStatus::Cancelled).await;
+    assert_eq!(idle.lifecycle, CycleStatus::Ready);
+    assert_eq!(idle.test_executions[0].status, ExecutionStatus::Cancelled);
+    assert!(idle.test_executions[0].saved.is_some());
+    let request = bench
+        .handle
+        .watch_state()
+        .latest()
+        .state()
+        .run_requests
+        .values()
+        .find(|request| request.selected_execution_ids.contains(&execution))
+        .unwrap()
+        .summary
+        .request_id
+        .clone();
+    assert!(bench.handle.run_request(&request).await.unwrap().unwrap().summary.phase.terminal());
+    for lease in &held {
+        assert!(!bench.handle.stream_lease_is_active(lease).await);
+    }
+    for index in 1..4 {
+        bench.handle.publish_telemetry_batch(publish(index)).await.unwrap();
+    }
+    for lease in &viewed {
+        assert!(bench.handle.stream_lease_is_active(lease).await);
+    }
+    assert_eq!(warnings.load(Ordering::SeqCst), 0);
+    assert!(
+        bench
+            .handle
+            .lease_streams(
+                SamplingScope {
+                    test_cycle_id: None,
+                    test_case_id: None,
+                    test_execution_id: Some(execution.to_string()),
+                },
+                std::slice::from_ref(&stream),
+                "fixture.reader"
+            )
+            .await
+            .is_err()
+    );
+
+    let records = bench.handle.artifacts().await.unwrap();
+    let failed = records.iter().find(|record| record.filename == format!("{OUTPUT}/bad/app.log")).unwrap();
+    assert_eq!(failed.status, ArtifactStatus::Failed);
+    assert!(failed.error.is_some());
+    let saved = idle.test_executions[0].saved.as_ref().unwrap();
+    saved.validate(&idle.test_executions[0]).unwrap();
+    let failed_output = saved
+        .source
+        .outputs
+        .iter()
+        .find(|output| {
+            matches!(&output.content,
+        dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } if record.artifact_id == failed.artifact_id)
+        })
+        .unwrap();
+    assert!(failed_output.file.is_none());
+    assert!(bench.handle.read_artifact_content(&failed.artifact_id, 1024).await.is_err());
+    for attach_content in [false, true] {
+        let mut invalid = failed_output.clone();
+        if attach_content {
+            invalid.file = saved.source.outputs.iter().find_map(|output| output.file.clone());
+        } else if let dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } = &mut invalid.content {
+            record.error = None;
+        }
+        assert!(dokime_domain::model::execution::saved::validate_outputs(&execution, &saved.dependencies_saved, &[invalid]).is_err());
+    }
+    let report = crate::service_support::reports::payload(bench.handle.storage(), &saved.report).await;
+    let artifact =
+        report["snapshot"]["artifacts"].as_array().unwrap().iter().find(|row| row["artifact_id"] == failed.artifact_id.as_str()).unwrap();
+    assert_eq!(artifact["description"].as_str(), failed.error.as_deref());
+    assert_eq!(artifact["href"], "");
+    for (filename, bytes) in [
+        ("capture/good/app.log", b"retained\ntail\n".as_slice()),
+        ("stream/good/app.log", b"tail\n".as_slice()),
+        ("prepare/example.diag", b"snapshot\n".as_slice()),
+    ] {
+        let artifact = records.iter().find(|record| record.filename == filename).unwrap();
+        assert_eq!(artifact.status, ArtifactStatus::Complete);
+        let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, bytes);
+    }
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    assert_eq!(bench.handle.artifacts().await.unwrap(), records);
+    assert_eq!(warnings.load(Ordering::SeqCst), 0);
+    let failed = failed.clone();
+    let Bench { _root: root, mut owner, handle, .. } = bench;
+    handle.release_stream_leases(viewed).await.unwrap();
+    drop((snapshot, handle));
+    owner.shutdown().await.unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    assert_eq!(handle.artifacts().await.unwrap().iter().find(|record| record.artifact_id == failed.artifact_id), Some(&failed));
+    assert!(handle.open_execution_report(&execution).await.is_ok());
+    owner.shutdown().await.unwrap();
+}

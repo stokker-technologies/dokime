@@ -158,7 +158,7 @@ impl Client {
                             return Err(Error::Invalid("download identity changed"));
                         }
                         let expected = Some((metadata.size_bytes, metadata.sha256.clone()));
-                        Frame::Header(metadata, expected)
+                        Frame::Header(*metadata, expected)
                     }
                     Payload::Chunk(chunk) => Frame::Chunk(chunk.offset, chunk.data),
                     Payload::Complete(done) => Frame::Complete(done.size_bytes, done.sha256),
@@ -213,7 +213,7 @@ impl Client {
                         if metadata.artifact_id != id || metadata.size_bytes != expected.0 || metadata.sha256 != expected.1 {
                             return Err(Error::Invalid("artifact identity or inventory changed"));
                         }
-                        Frame::Header(metadata, None)
+                        Frame::Header(*metadata, None)
                     }
                     Payload::Chunk(chunk) => Frame::Chunk(chunk.offset, chunk.data),
                     Payload::Complete(done) => {
