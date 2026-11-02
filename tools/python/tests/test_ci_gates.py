@@ -341,7 +341,20 @@ class ChannelTests(unittest.TestCase):
                 assets = []
                 operations = []
 
-                def document(settings, endpoint, method="GET", body=None, **kwargs):
+                def document(
+                    settings,
+                    endpoint,
+                    method="GET",
+                    body=None,
+                    *,
+                    operations=operations,
+                    tag=tag,
+                    sha=sha,
+                    release=release,
+                    assets=assets,
+                    files=files,
+                    **kwargs,
+                ):
                     operations.append((endpoint, method, body))
                     if endpoint == f"git/ref/tags/{tag}":
                         return None
@@ -364,7 +377,7 @@ class ChannelTests(unittest.TestCase):
                         return copy.deepcopy(release)
                     raise AssertionError((endpoint, method))
 
-                def request(settings, endpoint, method, data=None, **kwargs):
+                def request(settings, endpoint, method, data=None, *, release=release, fault=fault, assets=assets, **kwargs):
                     self.assertTrue(release["draft"])
                     self.assertEqual(method, "POST")
                     if fault == "upload":
@@ -381,7 +394,7 @@ class ChannelTests(unittest.TestCase):
                         }
                     )
 
-                def pages(settings, endpoint, **kwargs):
+                def pages(settings, endpoint, *, assets=assets, fault=fault, **kwargs):
                     if endpoint == "releases":
                         return []
                     self.assertEqual(endpoint, "releases/18/assets")
