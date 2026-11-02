@@ -54,7 +54,8 @@ impl dokime::harmos::Operation for super::Adapters {
     type Error = dokime::prelude::Refusal;
 
     async fn run(self, ctx: dokime::harmos::Context<'_, Self>) -> Result<dokime::harmos::Response<super::Snapshot>, Self::Error> {
-        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(snapshot);
+        let timeout = std::time::Duration::from_millis(ctx.resource::<crate::HostOptions>().timing.network_probe_timeout_ms);
+        let task = ctx.resource::<crate::Workers>().0.spawn_blocking(move || snapshot(timeout));
         let snapshot = dokime::plugin::refusal(dokime::plugin::refusal(task.await)?)?;
         Ok(dokime::harmos::Response::new(snapshot))
     }
@@ -62,9 +63,9 @@ impl dokime::harmos::Operation for super::Adapters {
 
 /* === Public Functions === */
 
-pub fn snapshot() -> crate::Result<Snapshot> {
+pub fn snapshot(timeout: std::time::Duration) -> crate::Result<Snapshot> {
     // u64 Storage Preserves The Native Structure's Alignment Across Buffer Resizes.
-    let deadline = std::time::Instant::now() + super::super::network::POLICY.attempt_timeout;
+    let deadline = std::time::Instant::now() + timeout;
     let flags = GAA_FLAG_INCLUDE_GATEWAYS | GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_ALL_INTERFACES;
     let mut bytes = 0;
     unsafe { GetAdaptersAddresses(u32::from(AF_UNSPEC.0), flags, None, None, &mut bytes) };

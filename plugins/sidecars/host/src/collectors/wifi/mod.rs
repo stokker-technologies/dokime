@@ -50,6 +50,9 @@ const WIFI_CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 const WIFI_CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
 const BITS_PER_MEGABIT: f64 = 1_000_000.0;
 const LOST_PERCENT: f64 = 100.0;
+const BITS_PER_BYTE: f64 = 8.0;
+// 2.4 GHz Channel Spacing Is 5 MHz; Overlap Falls To Zero Five Channels Away.
+const OVERLAP_CHANNEL_SPAN: f64 = 5.0;
 
 /* === Macros === */
 
@@ -112,15 +115,18 @@ impl WifiLinkCollector {
         ]);
         let adapter = self.read_link(&mut values);
         if let Some((received, sent)) = self.adapter_throughput(adapter.as_deref()) {
-            values.insert("wifi_rx_mbps".to_owned(), Value::from(received * 8.0 / BITS_PER_MEGABIT));
-            values.insert("wifi_tx_mbps".to_owned(), Value::from(sent * 8.0 / BITS_PER_MEGABIT));
+            values.insert("wifi_rx_mbps".to_owned(), Value::from(received * BITS_PER_BYTE / BITS_PER_MEGABIT));
+            values.insert("wifi_tx_mbps".to_owned(), Value::from(sent * BITS_PER_BYTE / BITS_PER_MEGABIT));
         }
         Ok(HostStreamSample::new(HostTelemetryStream::WifiLink, values))
     }
 
     fn adapter_throughput(&mut self, adapter: Option<&str>) -> Option<(f64, f64)> {
         let now = Instant::now();
-        let elapsed_s = now.duration_since(self.last_network_refresh).as_secs_f64().max(0.001);
+        let elapsed_s = now
+            .duration_since(self.last_network_refresh)
+            .as_secs_f64()
+            .max(Duration::from_millis(self.options.sampling.minimum_rate_window_ms).as_secs_f64());
         self.networks.refresh(true);
         self.last_network_refresh = now;
 
@@ -192,7 +198,7 @@ impl WifiScanCollector {
         let associated = report.networks.iter().find(|network| network.associated);
         let active_channel = associated.and_then(|network| network.channel);
         let active_ssid = associated.and_then(|network| network.ssid.clone());
-        let congestion = congestion(active_channel, &per_channel);
+        let congestion = congestion(active_channel, &per_channel, self.options.sampling.congestion_network_weight);
         let total = report.networks.len();
         let samples = report
             .networks
@@ -246,12 +252,12 @@ impl WifiLatencyCollector {
     pub fn collect(&mut self) -> Result<HostStreamSample> {
         self.sample_index += 1;
         let host =
-            self.options.latency_host.as_deref().map(str::trim).filter(|host| !host.is_empty()).unwrap_or(crate::config::LATENCY_HOST);
+            self.options.latency_host.as_deref().map(str::trim).filter(|host| !host.is_empty()).unwrap_or(crate::settings::LATENCY_HOST);
         let mut values = BTreeMap::from([
             ("sample_index".to_owned(), Value::Integer(self.sample_index as i64)),
             ("wifi_latency_host".to_owned(), Value::from(host)),
         ]);
-        match Self::round_trip_ms(host, echo_timeout()) {
+        match Self::round_trip_ms(host, &self.options) {
             Ok(Some(latency_ms)) => {
                 values.insert("probe_status".to_owned(), Value::from("ok"));
                 values.insert("wifi_latency_ms".to_owned(), Value::from(latency_ms));
@@ -283,13 +289,8 @@ pub(crate) fn wifi_channel_band(channel: u32) -> Option<String> {
 
 /* === Private Functions === */
 
-// An Echo Waits Half Its Collection's Bound, So A Lost Reply Yields A Loss Sample Rather Than A Timed-Out Collection.
-fn echo_timeout() -> Duration {
-    crate::host::wifi_latency::POLICY.attempt_timeout / 2
-}
-
 // Networks On The Associated Channel Plus Overlapping 2.4 GHz Neighbours, Weighted By Overlap, Scaled To 0-100.
-fn congestion(active_channel: Option<u32>, per_channel: &BTreeMap<u32, u32>) -> Congestion {
+fn congestion(active_channel: Option<u32>, per_channel: &BTreeMap<u32, u32>, network_weight: f64) -> Congestion {
     let Some(active_channel) = active_channel else {
         return Congestion { score: None, model: None };
     };
@@ -297,7 +298,7 @@ fn congestion(active_channel: Option<u32>, per_channel: &BTreeMap<u32, u32>) -> 
         per_channel.iter().map(|(channel, count)| f64::from(*count) * wifi_overlap_weight(active_channel, *channel)).sum::<f64>();
     let model = if matches!(active_channel, 1..=14) { WIFI_CONGESTION_MODEL_24_GHZ } else { WIFI_CONGESTION_MODEL_SAME_CHANNEL };
     Congestion {
-        score: Some((weighted * 10.0).min(100.0)),
+        score: Some((weighted * network_weight).min(LOST_PERCENT)),
         model: Some(model),
     }
 }
@@ -310,7 +311,7 @@ fn is_encoded_6ghz_channel(channel: u32) -> bool {
 fn wifi_overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
     if matches!(active_channel, 1..=14) {
         let distance = active_channel.abs_diff(scanned_channel) as f64;
-        (1.0 - distance / 5.0).max(0.0)
+        (1.0 - distance / OVERLAP_CHANNEL_SPAN).max(0.0)
     } else if active_channel == scanned_channel {
         1.0
     } else {
@@ -327,11 +328,13 @@ mod tests {
     #[test]
     fn congestion_weighs_overlapping_channels() {
         let per_channel = BTreeMap::from([(6, 2), (8, 1), (11, 4), (36, 3)]);
-        let congestion = congestion(Some(6), &per_channel);
+        let congestion = congestion(Some(6), &per_channel, crate::HostOptions::default().sampling.congestion_network_weight);
         assert_eq!(congestion.model, Some(WIFI_CONGESTION_MODEL_24_GHZ));
         // Channel 6 Counts Fully, Channel 8 At 0.6, Channel 11 Not At All.
         assert!((congestion.score.unwrap() - 26.0).abs() < 1e-9);
-        assert_eq!(super::congestion(None, &per_channel).score, None);
+        let configured = super::congestion(Some(6), &per_channel, 13.0);
+        assert!((configured.score.unwrap() - 33.8).abs() < 1e-9);
+        assert_eq!(super::congestion(None, &per_channel, crate::HostOptions::default().sampling.congestion_network_weight).score, None);
     }
 
     #[test]

@@ -99,101 +99,49 @@ def test_wait_awaits_seal() -> None:
     asyncio.run(scenario())
 
 
-def test_run_drains_callbacks() -> None:
+def test_terminal_iterators_drain() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
-            entered = asyncio.Event()
-            release = asyncio.Event()
-            records = []
-            samples = []
-
-            async def on_record(item: Any) -> None:
-                entered.set()
-                await release.wait()
-                records.append(item.id)
-
-            async def on_sample(item: Any) -> None:
-                samples.append(item.id)
-
-            running = asyncio.create_task(
-                handle.run(
-                    on_record=on_record,
-                    on_sample=on_sample,
-                    record_types=("missing.*", "fixture.*"),
-                    streams=("missing.*", "volt?ge"),
-                    poll_interval=0.005,
-                )
+            await handle.start()
+            records, samples = await asyncio.gather(
+                collect(handle.records("missing.*", "fixture.*", poll_interval=0.005)),
+                collect(handle.samples("missing.*", "volt?ge")),
             )
-            try:
-                # The Outcome Is Sealed While A Callback Still Holds Delivery
-                await entered.wait()
-                outcome = await handle.wait(poll_interval=0.005)
-                assert outcome.status == "passed"
-                assert not running.done()
-
-                release.set()
-                assert (await running) == outcome
-                assert records == ["event-1", "event-2"]
-                assert samples == ["sample-1", "sample-2"]
-                assert server.stop_calls == 0
-            finally:
-                release.set()
-                running.cancel()
-                await asyncio.gather(running, return_exceptions=True)
+            assert [item.id for item in records] == ["event-1", "event-2"]
+            assert [item.id for item in samples] == ["sample-1", "sample-2"]
+            assert handle.outcome.status == "passed"
+            assert await handle == handle.outcome
+            assert server.stop_calls == 0
 
     asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("pattern", ["", "fixture.[ab]", "fixture.{start,stop}", "^fixture.*$", "fixture/.*", "fixture.é"])
-def test_listener_start_refusal(pattern: str) -> None:
+def test_listener_filter_refusal(pattern: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
             with pytest.raises(ValueError, match="identifier globs"):
-                await handle.run(record_types=(pattern,))
+                await collect(handle.records(pattern))
             with pytest.raises(ValueError, match="identifier globs"):
-                await handle.run(streams=(pattern,))
+                await collect(handle.samples(pattern))
             assert server.run_calls == 0
             assert server.created == 0
 
     asyncio.run(scenario())
 
 
-def test_callback_failure_isolated() -> None:
-    async def scenario() -> None:
-        async with serve() as (server, client):
-            cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
-            (handle,) = cycle.executions
-
-            async def on_record(item: Any) -> None:
-                raise RuntimeError("callback failed")
-
-            with pytest.raises(ExceptionGroup) as failed:
-                await handle.run(
-                    on_record=on_record,
-                    poll_interval=0.005,
-                )
-            assert any(isinstance(error, RuntimeError) for error in failed.value.exceptions)
-            assert server.stop_calls == 0
-
-            outcome = await handle.wait(poll_interval=0.005)
-            assert outcome.status == "passed"
-            assert server.stop_calls == 0
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("patterns", [("x" * 4097,), ("valid",) * 65, "literal"])
+@pytest.mark.parametrize("patterns", [("x" * 4097,), ("valid",) * 65])
 def test_filter_vector_limits(patterns: Any) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             execution = await client.execution(EXECUTION_ID)
             with pytest.raises(ValueError):
-                await execution.run(record_types=patterns)
+                await collect(execution.records(*patterns))
             with pytest.raises(ValueError):
-                await execution.run(streams=patterns)
+                await collect(execution.samples(*patterns))
             assert server.run_calls == 0
 
     asyncio.run(scenario())
@@ -205,9 +153,9 @@ def test_invalid_deadlines(deadline: float) -> None:
         async with serve() as (server, client):
             execution = await client.execution(EXECUTION_ID)
             with pytest.raises(ValueError):
-                await execution.run(timeout=deadline)
+                await execution.wait(timeout=deadline)
             with pytest.raises(ValueError):
-                await execution.run(poll_interval=deadline)
+                await execution.wait(poll_interval=deadline)
             assert server.run_calls == 0
 
     asyncio.run(scenario())
@@ -269,7 +217,7 @@ def test_stop_evidence() -> None:
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
             run = run_cycle.executions[0]
             await run.start()
-            records_task = asyncio.create_task(collect(run.records(follow=True)))
+            records_task = asyncio.create_task(collect(run.records()))
             control = await client.execution(EXECUTION_ID)
             await control.stop()
             status = await run.wait(poll_interval=0.01)

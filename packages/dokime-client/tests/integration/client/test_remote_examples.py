@@ -91,7 +91,6 @@ def test_interrupted_submission(
     execution = SimpleNamespace(
         id=EXECUTION,
         start=AsyncMock(side_effect=asyncio.CancelledError),
-        run=AsyncMock(side_effect=asyncio.CancelledError),
         checkpoint=AsyncMock(return_value=None),
         stop=AsyncMock(),
         wait=AsyncMock(return_value=SimpleNamespace(status="cancelled")),
@@ -141,12 +140,7 @@ def test_interrupted_submission(
         assert [event[0] for event in cleanup.mock_calls] == ["stop", "seal", "wait", "execution_export", "cycle_export"]
 
     execution.stop.assert_awaited_once()
-    if script == "control-test":
-        execution.run.assert_awaited_once()
-        execution.start.assert_not_awaited()
-    else:
-        execution.start.assert_awaited_once()
-        execution.run.assert_not_awaited()
+    execution.start.assert_awaited_once()
     response = (tmp_path / "cycle.json").read_text(encoding="utf-8")
     assert json.loads(response) == {"cycle_id": CYCLE}
     client.create_cycle.assert_awaited_once()
@@ -195,8 +189,17 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     run = namespace["run"]
     monkeypatch.chdir(tmp_path)
     checkpoint = SimpleNamespace(execution_id=EXECUTION)
-    outcome = SimpleNamespace(status="failed", checkpoint=checkpoint)
-    execution = SimpleNamespace(id=EXECUTION, run=AsyncMock(return_value=outcome))
+    outcome = SimpleNamespace(status="failed", checkpoint=checkpoint, exit_code=1)
+
+    async def empty():
+        if False:
+            yield
+
+    class ExistingExecution(SimpleNamespace):
+        def __await__(self):
+            return self.wait().__await__()
+
+    execution = ExistingExecution(id=EXECUTION, start=AsyncMock(), records=empty, samples=empty, wait=AsyncMock(return_value=outcome))
     backend = SimpleNamespace(id="backend", epoch="epoch")
     client = SimpleNamespace(
         connect=AsyncMock(return_value=backend),
@@ -208,10 +211,9 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "EXECUTION_ID", EXECUTION)
 
-    assert asyncio.run(run()) == 0
+    assert asyncio.run(run()) == 1
     client.execution.assert_awaited_once_with(EXECUTION)
-    arguments = execution.run.await_args.kwargs
-    assert set(arguments) == {"on_record", "on_sample", "timeout"}
+    execution.start.assert_awaited_once_with()
     response = (tmp_path / "execution.json").read_text(encoding="utf-8")
     assert json.loads(response) == {
         "execution_id": EXECUTION,
@@ -241,20 +243,21 @@ def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         records=records,
         wait=AsyncMock(return_value=outcome),
     )
-    cycle = SimpleNamespace(id=CYCLE, append=AsyncMock(), seal=AsyncMock())
-    client = SimpleNamespace(
-        template=AsyncMock(return_value=SimpleNamespace(materialize=AsyncMock(return_value=(object(),)))),
-        create_cycle=AsyncMock(return_value=cycle),
-        close=AsyncMock(),
-    )
-    monkeypatch.setitem(main.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: client))
-    monkeypatch.setitem(main.__globals__, "Execution", MagicMock(return_value=execution))
+    cycle = SimpleNamespace(id=CYCLE, start=AsyncMock(return_value=execution), seal=AsyncMock())
+    owned = MagicMock()
+    owned.__aenter__ = AsyncMock(return_value=cycle)
+    owned.__aexit__ = AsyncMock(return_value=False)
+    client = SimpleNamespace(new_cycle=MagicMock(return_value=owned))
+    connection = MagicMock()
+    connection.__aenter__ = AsyncMock(return_value=client)
+    connection.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setitem(main.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
 
     asyncio.run(main())
-    cycle.append.assert_awaited_once_with([execution])
-    execution.start.assert_awaited_once_with()
-    cycle.seal.assert_awaited_once()
-    client.close.assert_awaited_once()
+    cycle.start.assert_awaited_once_with("obc.checks.pulse", sample_count=8)
+    execution.start.assert_not_awaited()
+    owned.__aexit__.assert_awaited_once()
+    connection.__aexit__.assert_awaited_once()
     response = (tmp_path / "summary.json").read_text(encoding="utf-8")
     summary = json.loads(response)
     assert summary["run"]["execution_id"] == EXECUTION

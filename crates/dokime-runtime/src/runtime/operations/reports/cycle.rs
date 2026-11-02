@@ -202,6 +202,14 @@ async fn current(
         };
         plans.push(plan);
     }
+    let requests = plans
+        .iter()
+        .filter_map(|plan| match plan {
+            Member::Captured(inspection, _) => Some(crate::report::materialize::evidence_request(inspection, false)),
+            _ => None,
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut evidence = ctx.storage.report_evidence(requests).await?.into_iter();
     drop(gate);
     let mut members = Vec::with_capacity(plans.len());
     let mut pending = FuturesOrdered::new();
@@ -211,13 +219,21 @@ async fn current(
         {
             members.push(member?);
         }
+        let snapshot = if matches!(&plan, Member::Captured(_, _)) { evidence.next() } else { None };
         pending.push_back(async move {
             Ok::<_, Error>(match plan {
                 Member::Planned(execution) => CycleMember::Planned(execution),
                 Member::Sealed(seal) => sealed_member(ctx, resources, &seal, at, progress).await?,
-                Member::Captured(inspection, _guard) => {
-                    CycleMember::capture(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)?
-                }
+                Member::Captured(inspection, _guard) => CycleMember::capture(
+                    crate::report::materialize::execution_with_evidence(
+                        ctx,
+                        &inspection,
+                        false,
+                        progress,
+                        snapshot.expect("captured member has evidence"),
+                    )
+                    .await?,
+                )?,
             })
         });
     }

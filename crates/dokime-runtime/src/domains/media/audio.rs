@@ -273,7 +273,13 @@ impl AudioRecording {
 
         // Supervise Until Finished, Discarded Or Sealed By The Execution
         let (seal_request, seal) = oneshot::channel();
-        let registration = runtime.execution_storage.captures.register(&execution, seal_request as SealRequest);
+        let registration = match runtime.execution_storage.captures.register(&execution, seal_request as SealRequest) {
+            Ok(registration) => registration,
+            Err(error) => {
+                recorder.close().await?;
+                return Err(error);
+            }
+        };
         let (command_sender, command) = oneshot::channel();
         let (outcome_sender, outcome) = oneshot::channel();
         tokio::spawn(

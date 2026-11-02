@@ -76,6 +76,7 @@ fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, Des
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shutdown_releases_store() {
     let root = tempfile::tempdir().unwrap();
@@ -99,6 +100,7 @@ async fn shutdown_releases_store() {
     replacement.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shutdown_retry_retains() {
     let root = tempfile::tempdir().unwrap();
@@ -134,6 +136,7 @@ async fn shutdown_retry_retains() {
     assert!(tokio::net::TcpStream::connect(address).await.is_err());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn blocked_store_recovers() {
     let root = tempfile::tempdir().unwrap();
@@ -147,6 +150,7 @@ async fn blocked_store_recovers() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn start_reports_phases() {
     let root = tempfile::tempdir().unwrap();
@@ -158,19 +162,33 @@ async fn start_reports_phases() {
     session.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn live_owner_refused() {
     let root = tempfile::tempdir().unwrap();
     let first = owner(root.path());
-    first.select(BackendSelection::OwnedLocal).await.unwrap();
+    let initial = first.select(BackendSelection::OwnedLocal).await.unwrap();
     let successor = owner(root.path());
-    assert!(matches!(successor.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::Startup { .. })));
+    let started = std::time::Instant::now();
+    let error = successor.select(BackendSelection::OwnedLocal).await.unwrap_err();
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "an occupied store must refuse without lease polling");
+    assert!(matches!(&error, DesktopSessionError::BackendRunning { root: data, .. } if data == &root.path().join("store")));
+    let serialized = serde_json::to_value(error).unwrap();
+    assert_eq!(serialized["kind"], "backend_running");
+    assert_eq!(serialized["root"], root.path().join("store").to_str().unwrap());
     assert_eq!(successor.status().ownership, BackendOwnership::None);
+    assert_eq!(successor.status().phase, None);
+    let attached = successor.select(attach(initial.connection.endpoint.clone().unwrap())).await.unwrap();
+    assert_eq!(attached.ownership, BackendOwnership::Attached);
+    assert_eq!(attached.connection.backend.as_ref().unwrap().backend_id, initial.connection.backend.as_ref().unwrap().backend_id);
+    successor.disconnect().await.unwrap();
+    assert_eq!(first.status().connection.generation, initial.connection.generation);
     first.shutdown().await.unwrap();
     successor.select(BackendSelection::OwnedLocal).await.unwrap();
     successor.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn failed_start_releases() {
     let root = tempfile::tempdir().unwrap();
@@ -191,6 +209,7 @@ async fn failed_start_releases() {
     replacement.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn overlapping_selection() {
     let root = tempfile::tempdir().unwrap();
@@ -208,6 +227,7 @@ async fn overlapping_selection() {
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn reset_restarts_backend() {
     let root = tempfile::tempdir().unwrap();

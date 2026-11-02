@@ -308,8 +308,11 @@ impl State {
             drop(rows);
             drop(statement);
             let transaction = connection.transaction()?;
+            transaction.execute("DELETE FROM artifacts WHERE file_id=?1", [file.id.as_str()])?;
+            transaction.execute("DELETE FROM files WHERE id=?1 AND kind!='telemetry'", [file.id.as_str()])?;
             let added = transaction.execute("INSERT OR IGNORE INTO storage_deleted_files VALUES (?1)",[file.id.as_str()])?;
             if added!=0 {
+                super::super::snapshots::invalidate(&transaction)?;
                 let mut head=saved(&transaction)?;
                 head.retention_generation=head.retention_generation.checked_add(1).ok_or(Error::Data("retention generation exhausted"))?;
                 transaction.execute("UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",params![position(head.retention_generation)])?;

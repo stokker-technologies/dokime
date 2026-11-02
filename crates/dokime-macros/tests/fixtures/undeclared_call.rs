@@ -22,6 +22,7 @@
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: sdk::harmos::operations::RetryPolicy::Never,
 };
 
@@ -129,18 +130,6 @@ impl sdk::harmos::Lifecycle for Plugin {
         setup.resource::<()>(owner.resources());
         sdk::execution::prepare::<Self, PluginSuites>(setup)?;
         Ok(owner)
-    }
-
-    async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
-        Ok(())
     }
 }
 

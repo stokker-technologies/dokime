@@ -53,16 +53,133 @@ there before running the scripts. uv creates a local `.venv/`; activation is
 unnecessary. Setup needs internet access for Python and locked dependencies or
 those inputs already in uv's cache. The remote PC needs no Rust compiler.
 
+## Query Retained Evidence
+
+```python
+from dokime_client import Aggregate, DokimeClient, ExecutionStatus, Predicate
+
+async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+    async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
+        records = execution.query_records("example.event", where={"status": "failed"})
+        async for record in records:
+            print(record.to_json())
+        async for bucket in execution.telemetry(
+            "example.wifi.link", fields=["rssi"],
+            where=[Predicate("rssi", "gte", -80)],
+            between=("2026-10-01", "2026-10-02"), at=records.snapshot,
+            every="1s", agg=Aggregate.mean(),
+        ):
+            print(bucket.start, bucket.fields)
+```
+
+Query factories are lazy and read one fixed cut of the connected backend's local
+retained evidence. Windows are `[start, end)` in UTC. Reusing `snapshot` keeps
+records and telemetry at the same compatible cut without waiting for a seal.
+Use `pages()` to inspect schema, effective limits and completeness, and
+`await reader.aclose()` when abandoning a reader. Existing `records()` and
+`samples()` still replay and follow through the execution seal. See the
+[client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
+for projection, version selection and cycle record queries.
+
+To materialize a finite result, close the reader through its async context:
+
+```python
+async with execution.query_records("example.event") as records:
+    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+```
+
+Omitted limits use finite client `QuerySettings` defaults. Row or decoded-byte
+overflow and later page errors raise without returning a partial list. Early
+close/cancellation prevents another fetch and leaves backend execution running.
+`records.complete` reports consumption; page metadata retains server completeness,
+schema, limits and snapshot after closing. No dataframe dependency is needed.
+
+### Refuse When Busy And Discover Record Columns
+
+Before starting your own work, inspect typed cycle statuses:
+
+```python
+from dokime_client import CycleStatus, DokimeClient
+
+async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+    if busy:
+        raise RuntimeError("Backend has active work")
+    async for schema in client.record_schemas():
+        columns = [field.identifier for field in schema.fields]
+        print(schema.record_type, columns)
+```
+
+This check observes a snapshot; another client can start afterward, and the
+backend still controls Start admission. `cycle.status` and `execution.status`
+are exported string enums; `cycle.running_count` counts Running execution revisions
+at the fixed cut, including committed transitions before the next checkpoint.
+Use the cycle status for busy refusal.
+See the [client guide](../../packages/dokime-client/README.md#typed-status-and-record-schemas)
+for stable status values and declared field types, labels and units. Schema
+discovery fetches catalog pages lazily and retains declared field order for CSV
+headers, including fields absent from observed records.
+
+### Optional Dataframes
+
+To add conversion to the copied tutorial project, select an extra on its matching
+wheel, then transfer the updated project and lock with that wheel:
+
+```sh
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra polars
+# Choose this instead for Pandas:
+uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra pandas
+uv sync --locked --python 3.13
+```
+
+Use the actual matching wheel version. Given an execution handle or summary:
+
+```python
+async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
+    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+    metadata = samples.metadata
+    assert metadata is not None
+    print(frame, metadata.schema, samples.snapshot, samples.complete)
+
+async with execution.query_records("example.event") as records:
+    frame = await records.to_pandas(max_rows=10_000)
+    print(frame.attrs["dokime"])
+```
+
+Only the selected helper imports its library. Missing extras raise
+`QueryDependencyError` before fetching. Both conversions enforce the same finite
+row/decoded-byte defaults as `collect`, preserve exact integers, nullable captured
+dtypes, literal field order and UTC nanoseconds, and fail atomically on limits or
+late page errors. Unsupported nested fields raise a field-specific
+`QueryConversionError`. See [dataframe types and metadata](../../packages/dokime-client/README.md#optional-dataframes).
+
+### Server Statistics
+
+For exact statistics on raw selected telemetry, use one awaited operation:
+
+```python
+stats = await execution.telemetry("example.wifi.link").aggregate(
+    "rssi", [Aggregate.mean(), Aggregate.percentile(95)],
+)
+print([(value.name, value.value) for value in stats.values])
+print(stats.quality_counts, stats.schema, stats.snapshot)
+```
+
+Omit `every`/`agg` for statistics. The facade uses existing `Aggregate` objects
+and computes on the server, preserving typed limit failures. Raw `client.call`
+continues to expose the generated request; the older catalog aggregate operation
+groups catalog rows and is separate from these telemetry statistics.
+
 ## Edit Connection Globals
 
 Open each `control-*.py` file and select the private pairing file:
 
 ```python
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 ```
 
 Run from `python/` so the path resolves. Each script constructs its client with
-`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies endpoint, expected
+`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies ordered endpoints, expected
 backend identity, CA and access key together. The client validates the file before
 connecting and checks TLS and backend identity before application calls.
 It retains the key only in its transport credentials.
@@ -113,7 +230,7 @@ OVERWRITE = False
 The story spells out two attempts of one materialized case. Set `EXECUTION_COUNT`
 to `1` to study only the first attempt or leave it at `2`; add explicit calls
 and evidence destinations to teach additional attempts.
-`WAIT_SECONDS` is each Run's positive deadline. Filters are case-sensitive
+`WAIT_SECONDS` is each execution's positive local deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
 for its supplied reader. Filters affect observation, not captured evidence.
@@ -122,21 +239,22 @@ for its supplied reader. Filters affect observation, not captured evidence.
 uv run --locked control-test.py
 ```
 
-Read the script from top to bottom. Its only coroutine, `run()`, lets Python
-await the client calls; there are no workflow helpers. It checks evidence
+Read the script from top to bottom. `run()` awaits the client calls and its
+local reader coroutines consume the evidence iterators. It checks evidence
 destinations, materializes one immutable case, constructs two attempts with
 separate execution UUIDs, creates a cycle and appends without starting hardware.
-The first explicit `first.run(...)` blocks until the saved outcome and reader
-drain. Client callbacks put records and samples into queues; the script then
-prints each returned item, `Saved Outcome:` and `Drained Evidence:`, and saves
-that attempt. The second explicit `second.run(...)` repeats those calls for the
-other attempt. Data-reading loops print observations, never dispatch steps.
+Each attempt starts explicitly. Independent async iterators consume its
+records and samples inside an `asyncio.TaskGroup`; awaiting the handle retrieves
+the saved outcome, and the task group waits for both final drains. The script
+then prints each item, `Saved Outcome:` and `Drained Evidence:`, and saves that
+attempt. The second attempt repeats this flow with its own execution identity.
+Data-reading loops print observations, never dispatch steps.
 
 The script saves `test-evidence/execution-1.zip`,
 `test-evidence/execution-2.zip` and the explicitly sealed
 `test-evidence/cycle.zip`. The default successful attempts each capture eight
-pulse samples. Saved outcomes are printed without aggregating them into a
-process exit status; exceptions still report a failed workflow. Set a fresh
+pulse samples. The process returns the largest execution exit code: 0 for passed, 1 for
+nonpassing and 130 for interrupted; exceptions report a failed workflow. Set a fresh
 `OUTPUT_DIRECTORY` before rerunning or explicitly
 choose `OVERWRITE = True` to replace bundle destinations atomically.
 
@@ -198,7 +316,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
-| `lab.dokime-pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
+| `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |

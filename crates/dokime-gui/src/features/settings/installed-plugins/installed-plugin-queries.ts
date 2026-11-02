@@ -20,7 +20,7 @@ import type { SettingValues } from "@/features/settings/installed-plugins/instal
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
-import { updateNativePluginSecret, updateNativePluginSettings } from "@/lib/api/native-settings";
+import { updateNativePluginSettings } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/lib/appearance";
 
 /* === Query Keys === */
@@ -72,24 +72,6 @@ export function useInstalledPluginSettingsMutation() {
         queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
         queryClient.invalidateQueries({ queryKey: appearanceQueryKey }),
-      ]);
-    },
-  });
-}
-
-export function useInstalledPluginSecretMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    gcTime: 0,
-    mutationFn: ({ secretId, pluginId, secret }: { secretId: string; pluginId: string; secret: string }) =>
-      updateNativePluginSecret(session.identity, pluginId, secretId, secret),
-    onSuccess: async (_settings, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
-        queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
-        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
       ]);
     },
   });

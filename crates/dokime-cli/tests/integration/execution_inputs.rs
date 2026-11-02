@@ -44,6 +44,7 @@ use dokime_cli::{Cli, Error};
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_inputs() {
     // Parse Execution And Cycle Requests.

@@ -124,6 +124,7 @@ impl Prepared {
         })
     }
 
+    #[tracing::instrument(name = "report.publication", skip_all)]
     pub async fn finish(&mut self) -> Result<StorageCursor> {
         let state = self.state();
         if state.schema_position.is_none() {

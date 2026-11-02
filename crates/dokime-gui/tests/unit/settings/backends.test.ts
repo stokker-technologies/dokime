@@ -180,6 +180,7 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
     identifier: "lab",
     label: "Lab",
     endpoint: "https://lab.local",
+    endpoints: ["https://lab.local"],
     expected_backend_id: "fixture",
     ca_certificate_pem: "fixture-ca",
     secret: "keyring" as const,
@@ -202,14 +203,11 @@ test("Pairing Commands Pass Only Identifiers And Saved Paths Across IPC", async 
   assert.equal(await preferencesCommands.desktopBackendImportPairing(null), null);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 
-  fixture.invoke.mockResolvedValueOnce("/private/Lab.dokime-pair");
-  assert.equal(await commands.desktopPairingCreate("Lab", "https://lab.local:8765"), "/private/Lab.dokime-pair");
-  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), [
-    "desktop_pairing_create",
-    { label: "Lab", endpoint: "https://lab.local:8765" },
-  ]);
+  fixture.invoke.mockResolvedValueOnce("/private/Lab.dokime-remote");
+  assert.equal(await commands.desktopPairingCreate(), "/private/Lab.dokime-remote");
+  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_pairing_create", undefined]);
   fixture.invoke.mockResolvedValueOnce(null);
-  assert.equal(await commands.desktopPairingCreate("Lab", "https://lab.local:8765"), null);
+  assert.equal(await commands.desktopPairingCreate(), null);
 });
 
 test("Startup Attempts The Saved Default Once And Exposes Failure Without Fallback", async () => {
@@ -272,6 +270,9 @@ test("Manual Backend Entry Accepts Only Unsecured Lab Origins And Distinct Ident
 
 type TestElementProps = {
   children?: ReactNode;
+  actions?: ReactNode;
+  failure?: ReactNode;
+  retry?: (profile: string | null) => void;
   tabIndex?: number;
   role?: string;
   value?: string;
@@ -318,10 +319,60 @@ test("Backend Loading Stays In The Status Indicator", () => {
   assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
 });
 
+test("Occupied Local Remains Usable", async () => {
+  const failure = { kind: "backend_running", root: "C:/fixture/data", message: "fixture lease refusal: C:/fixture/data" };
+  fixture.invoke.mockRejectedValueOnce(failure);
+  const owner = new NativeSession();
+  await owner.select({ kind: "owned_local" });
+  assert.deepEqual(owner.snapshot(), { phase: "failed", error: failure });
+  assert.equal(fixture.invoke.mock.calls.length, 1);
+
+  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
+    "@/app/native-session/ConnectionScreen",
+  );
+  const tree = ConnectionScreen({
+    launch: { target: null, expectedBackendId: null, localBackendAvailable: true, error: null },
+    launchError: failure,
+  });
+  const contents = descendants(tree);
+  const registry = contents.find((element) => element.type === BackendsTable);
+  assert.ok(registry);
+  assert.ok(isValidElement<{ children: string }>(registry.props.failure));
+  assert.equal(registry.props.failure.props.children, failure.message);
+  assert.ok(registry.props.retry);
+  registry.props.retry(null);
+  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
+  assert.ok(contents.some((element) => element.type === Button && element.props.children === "Settings"));
+
+  await owner.select({ kind: "profile", identifier: "lab" });
+  assert.equal(owner.snapshot().phase, "connected");
+});
+
 test("Backend Failure Replaces Loading With Notification Feedback", () => {
   const contents = descendants(BackendsTable({ failure: "fixture-failure" }));
   const notices = contents.filter((element) => element.type === NotificationMessage);
   assert.equal(notices.length, 1);
   assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
   assert.ok(Children.toArray(notices[0].props.children).includes("fixture-failure"));
+});
+
+test("Remote Import Starts From The Backend Toolbar", async () => {
+  const table = descendants(BackendsTable()).find((element) => element.props.actions);
+  assert.ok(table);
+  const action = descendants(table.props.actions).find((element) => element.type === Button && element.props.children === "Import Remote");
+  assert.ok(action);
+  fixture.invoke.mockResolvedValueOnce({ version: 1, default: null, profiles: [] });
+  await action.props.onClick?.();
+  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
+});
+
+test("Remote Import Refresh Retains The Native Connection Failure", async () => {
+  const snapshot = connected();
+  fixture.invoke.mockResolvedValueOnce({
+    ...snapshot,
+    connection: { ...snapshot.connection, phase: "failed", backend: null, error: { kind: "identity_changed" } },
+  });
+  const owner = new NativeSession();
+  await owner.refresh();
+  assert.deepEqual(owner.snapshot(), { phase: "failed", error: { kind: "identity_changed" } });
 });

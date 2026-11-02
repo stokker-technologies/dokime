@@ -41,7 +41,7 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 
 /* === Constants === */
 
-const LIVE_DISPLAY_POINTS: u32 = 1_500;
+pub const LIVE_DISPLAY_POINTS: u32 = 1_500;
 
 /* === Macros === */
 
@@ -89,7 +89,7 @@ pub async fn paged_evidence_settles(size: Sampling) {
     runtime.shutdown().await.unwrap();
 }
 
-// one case far larger than the display budget seals its whole series up to the cap.
+// A Large Case Seals A Bounded Envelope While Retaining Its Exact Summary.
 pub async fn large_case_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
@@ -101,20 +101,21 @@ pub async fn large_case_seals(size: Sampling) {
     let series = &payload["case_runs"][0]["plots"][PULSE_PLOT]["series"][0];
     let points = series["points"].as_array().expect("the sealed plot carries its points");
     assert!(size.rows > PULSE_DISPLAY_POINTS, "the series exceeds its declared display points");
-    assert_eq!(points.len(), size.rows as usize, "the sealed plot keeps every captured row for zooming");
+    assert!(points.len() <= PULSE_DISPLAY_POINTS as usize);
     assert_eq!(series["raw_points"], serde_json::json!(size.rows));
-    assert_eq!(series["downsampled"], serde_json::json!(false));
+    assert_eq!(series["downsampled"], serde_json::json!(true));
     assert_eq!(payload["case_runs"][0]["plots"][PULSE_PLOT]["max_points"], serde_json::json!(PULSE_DISPLAY_POINTS));
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
 
-// Whole-Capture Transforms Preserve Both Streams Across Small Storage Pages.
+// Whole-Capture Spectra Render Within The Exact Preview Cap And Keep Execution Scope.
 pub async fn whole_capture_seals(size: Sampling) {
     replay_diagnostics();
     let root = tempdir().unwrap();
     let behaviour = Behaviour::new(size.rows, size.spectrum_rows, false).artifacts(false);
     let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, Some(size.page_bytes)).await;
+    run_case(&handle, "spectrum.previous").await;
     let execution_id = run_case(&handle, "spectrum.whole").await;
     let html = super::native::report(&handle, &execution_id).await;
     let payload = super::reports::parse(&html);
@@ -125,11 +126,41 @@ pub async fn whole_capture_seals(size: Sampling) {
         serde_json::json!(size.rows),
         "the streamed plot was reduced from every pulse row"
     );
-    assert_eq!(
-        plots["fixture.checks.smoke.spectrum"]["series"][0]["raw_points"],
-        serde_json::json!(size.spectrum_rows),
-        "the whole-capture plot read every spectrum row across its pages"
-    );
+    let spectrum = &plots["fixture.checks.smoke.spectrum"];
+    let series = spectrum["series"].as_array().unwrap();
+    assert_eq!(series.len(), 1);
+    assert_eq!(series[0]["raw_points"], size.spectrum_rows, "only this execution's spectrum rows are transformed");
+    let points = series[0]["points"].as_array().unwrap();
+    #[cfg(not(feature = "fft"))]
+    {
+        assert!(points.is_empty(), "a build without FFT cannot emit frequency points");
+        assert_eq!(spectrum["analysis"]["kind"], "error");
+    }
+    #[cfg(feature = "fft")]
+    {
+        let cap = dokime_runtime::config::local_storage_defaults().previews.exact_points.get();
+        if size.spectrum_rows as usize > cap {
+            assert_eq!(spectrum["analysis"]["kind"], "error");
+        } else {
+            assert!(spectrum["analysis"].is_null(), "the exact capture supports FFT: {spectrum}");
+            assert_eq!(points.len(), size.spectrum_rows as usize / 2);
+            // The Repeated 0..15 Ramp Has Harmonics At Multiples Of Rate / 16.
+            for (index, point) in points.iter().enumerate() {
+                let bin = index + 1;
+                let harmonic_stride = size.spectrum_rows as usize / 16;
+                let amplitude = if bin == size.spectrum_rows as usize / 2 {
+                    0.5
+                } else if bin.is_multiple_of(harmonic_stride) {
+                    1.0 / (std::f64::consts::PI * (bin / harmonic_stride) as f64 / 16.0).sin()
+                } else {
+                    0.0
+                };
+                let frequency = bin as f64 * super::smoke::SPECTRUM_SAMPLE_RATE_HZ / f64::from(size.spectrum_rows);
+                assert!((point["x"].as_f64().unwrap() - frequency).abs() < 1e-9, "frequency bin {bin}: {point}");
+                assert!((point["y"].as_f64().unwrap() - amplitude).abs() < 1e-9, "amplitude bin {bin}: {point}");
+            }
+        }
+    }
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
@@ -480,10 +511,10 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize, row
     );
     let series = &plot["series"][0];
     assert_eq!(series["raw_points"], serde_json::json!(rows));
-    // The Report Keeps Every Captured Row; The Viewer Reduces To The Stated Budget.
+    // The Report Reads Durable Envelopes Within The Stated Display Budget.
     let points = series["points"].as_array().unwrap().len();
-    assert_eq!(points, rows as usize, "render {attempt} keeps the whole series under the cap");
-    assert_eq!(series["downsampled"], serde_json::json!(false));
+    assert!(points <= LIVE_DISPLAY_POINTS as usize, "render {attempt} exceeds its display budget");
+    assert_eq!(series["downsampled"], serde_json::json!(true));
     // The frozen summary covers every pulse row, 0 to n - 1, not the drawn
     // points: the numbers the live table shows over the same window.
     let summaries = plot["summaries"].as_array().unwrap();

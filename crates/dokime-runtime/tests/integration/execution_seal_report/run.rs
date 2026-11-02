@@ -304,7 +304,7 @@ pub(crate) async fn stop_spares_sibling() {
     // === Stop One Execution === //
 
     let stop = runtime.stop_execution(stopped_id.clone(), CommandContext::default()).await;
-    let during = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let during = super::published_cycle(&runtime, &test_cycle_id).await;
     let repeated = runtime.stop_execution(stopped_id.clone(), CommandContext::default()).await;
 
     assert!(stop.is_ok(), "{stop:?}");

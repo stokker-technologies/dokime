@@ -23,7 +23,6 @@ use tonic::Status;
 
 // Local Imports
 use super::chunked;
-use super::error::detailed;
 use super::value::canonical;
 use dokime::OpenedReport;
 use dokime::ReportOrigin;
@@ -201,12 +200,12 @@ fn report_failure(error: dokime::runtime::Error) -> Status {
     if let dokime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
-    let status = if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
-        Status::resource_exhausted(format!("report operation failed: {error}"))
+    tracing::error!(error = ?error, "report download failed");
+    if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
+        Status::resource_exhausted("There is not enough capacity to create this report. Try again after other report operations finish.")
     } else {
-        Status::failed_precondition(format!("report operation failed: {error}"))
-    };
-    detailed(status, &error)
+        Status::failed_precondition("The report could not be created or read. Try again; if the problem continues, collect diagnostics.")
+    }
 }
 
 fn report_identifier(value: &str) -> Result<Identifier, Status> {
@@ -227,6 +226,16 @@ fn required_identifier(value: &str) -> Result<Identifier, Status> {
 mod tests {
     use super::*;
     use crate::grpc::chunked::Frames as _;
+
+    #[test]
+    fn report_error_privacy() {
+        let detail = "private.storage.detail".to_owned();
+        let error = dokime::runtime::Error::Operation(detail.clone());
+        let status = report_failure(error);
+        assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+        assert!(!status.message().contains(&detail));
+        assert!(status.details().is_empty());
+    }
 
     #[test]
     fn report_chunks_fit_the_full_envelope() {

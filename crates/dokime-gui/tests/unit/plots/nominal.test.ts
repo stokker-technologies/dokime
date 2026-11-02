@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -13,15 +14,18 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { test, vi } from "vitest";
+import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { StatsSummaryTable } from "@/components/StatsSummaryTable";
-import { formatUnitLabel } from "@/lib/format";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import { plotWindowOptions } from "@/features/cycle/PlotWindowSlider";
+import { Connection } from "@/app/native-session/context";
+import type { ConnectedSession } from "@/app/native-session/session";
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
+import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { formatUnitLabel } from "@/lib/format";
 import {
   formatStatValue,
   formatSummaryValue,
@@ -34,8 +38,14 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
-import { formatCursorX } from "@/plots/axis";
+import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
+import { formatBooleanState, formatCursorX } from "@/plots/axis";
+import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
+import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
+import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { CartesianPlot } from "@/plots/CartesianPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -45,22 +55,26 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
+import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
+import { NativeApiLimitError } from "@/lib/api/native-values";
+import { PlotInteractionProvider } from "@/plots/interaction";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { lttbIndices, m4Indices, minMaxIndices, reduceIndices, windowIndices } from "@/plots/reduce";
+import { m4Indices, windowIndices } from "@/plots/reduce";
 import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
+import { readReportPayload } from "@/report/report-data";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
-/* The pulse suite: 100 ms cadence, sin(0.5 i), about 12.6 samples per period. */
-const PULSE_PERIOD_MS = 100;
-
 /* A 400 x 200 plot area over x in [0, 100] and y in [0, 50], y growing upward. */
 const AREA = { width: 400, height: 200 };
+
+const refreshFixture = vi.hoisted(() => ({ read: vi.fn(), watch: vi.fn(), notify: vi.fn() }));
 
 const TRACES = [
   { key: "voltage", label: "Voltage", color: "#3b82f6" },
@@ -99,16 +113,6 @@ const SUMMARIES = [
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function pulse(count: number, startS = 0) {
-  const x: number[] = [];
-  const y: number[] = [];
-  for (let index = 0; index < count; index += 1) {
-    x.push(startS + (index * PULSE_PERIOD_MS) / 1000);
-    y.push(Math.sin(0.5 * index));
-  }
-  return { x, y };
-}
 
 /* A host frame of aligned series on one x axis, as the stream decodes it. */
 function hostFrame(
@@ -164,101 +168,344 @@ function histogram(fields: Record<string, unknown>): HistogramDeclaration {
   return fields as HistogramDeclaration;
 }
 
+function plotStream() {
+  const messages: NativePlotStreamMessage[] = [];
+  let wake: (() => void) | undefined;
+  let ended = false;
+  return {
+    push(message: NativePlotStreamMessage) {
+      messages.push(message);
+      wake?.();
+    },
+    cancel: vi.fn(async () => {
+      ended = true;
+      wake?.();
+    }),
+    async *[Symbol.asyncIterator]() {
+      while (!ended) {
+        if (!messages.length)
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+        if (ended) return;
+        const message = messages.shift();
+        if (message) yield message;
+      }
+    },
+  };
+}
+
+async function mountPlotView() {
+  vi.useFakeTimers();
+  const animationFrame = vi
+    .spyOn(globalThis.window, "requestAnimationFrame")
+    .mockImplementation((callback) => globalThis.setTimeout(() => callback(0), 16) as unknown as number);
+  const cancelAnimationFrame = vi
+    .spyOn(globalThis.window, "cancelAnimationFrame")
+    .mockImplementation((handle) => globalThis.clearTimeout(handle));
+  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  refreshFixture.read.mockReset();
+  refreshFixture.watch.mockReset();
+  refreshFixture.notify.mockReset();
+  const streams: ReturnType<typeof plotStream>[] = [];
+  refreshFixture.watch.mockImplementation(async () => {
+    const stream = plotStream();
+    streams.push(stream);
+    return stream;
+  });
+  const plots = ["pulse", "current"].map(
+    (id): DocumentViewPlot => ({
+      plot_id: id,
+      title: id,
+      stream: "pulse",
+      plot_type: "time_series",
+      style: "line",
+      x_scale: "linear",
+      y_scale: "linear",
+      fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+      x: "timestamp",
+      y: [id],
+      display_points: 100,
+    }),
+  );
+  const scope = { test_cycle_id: "cycle" };
+  const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let window: ReturnType<typeof usePlotWindow>;
+  let states: ReturnType<typeof useLivePlotPayloads>;
+  let nextPlots = plots;
+  let nextScope = scope;
+  function View() {
+    window = usePlotWindow();
+    states = useLivePlotPayloads({
+      enabled: true,
+      plots: nextPlots,
+      scope: nextScope,
+      windowS: window.option.value,
+      refresh: window.refresh,
+    });
+    return createElement(PlotWindowControl, { live: true, elapsedUnit: null, window });
+  }
+  const render = async () => {
+    await act(async () => {
+      root.render(createElement(Connection.Provider, { value: session }, createElement(View)));
+    });
+  };
+  onTestFinished(async () => {
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+    useSummaryWindowStore.setState({ windows: {} });
+    animationFrame.mockRestore();
+    cancelAnimationFrame.mockRestore();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  await render();
+  return {
+    plots,
+    streams,
+    host,
+    window: () => window,
+    states: () => states,
+    button: () => host.querySelector("button") as HTMLButtonElement,
+    choose: async (index: number) => {
+      await act(async () => {
+        window.choose(index);
+      });
+    },
+    click: async () => {
+      await act(async () => {
+        (host.querySelector("button") as HTMLButtonElement).click();
+      });
+    },
+    advance: async (ms = 20) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    },
+    runtimeUpdate: async (updated = plots.map((plot) => ({ ...plot, display_points: 200 }))) => {
+      nextPlots = updated;
+      nextScope = { ...scope };
+      await render();
+    },
+  };
+}
+
+function snapshotEnvelopes(plots: DocumentViewPlot[]): NativePlotPayloadEnvelope[] {
+  return plots.map((plot) => ({ ...streamMessage("snapshot", 1, hostFrame([0, 1], [[2, 3]])), plot_id: plot.plot_id }));
+}
+
 /* === Entry Point === */
 
-test("Configured Plot Windows Preserve Inheritance And All", () => {
-  const options = plotWindowOptions([17, 42]);
+vi.mock("@/lib/api/native-plots", async (original) => ({
+  ...(await original<typeof import("@/lib/api/native-plots")>()),
+  fetchNativePlotPayloads: refreshFixture.read,
+  openNativePlotStream: refreshFixture.watch,
+}));
+vi.mock("@/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
+
+test("Window Presets", () => {
+  const options = plotWindowOptions([17, 42, 3_600]);
   assert.deepEqual(
     options.map((option) => option.value),
-    [undefined, 17, 42, null],
+    [17, 42, 3_600, null],
   );
+  assert.equal(options.at(-2)?.label, "1 h");
   const structural = plotWindowOptions([]);
   assert.deepEqual(
     structural.map((option) => option.value),
-    [undefined, null],
+    [null],
   );
 });
 
-test("LTTB Reduction", () => {
-  // LTTB Keeps The Ends, The Count, And Ascending Order
-  const long = pulse(1_200);
-  const kept = lttbIndices(long.x, long.y, 100);
-  assert.equal(kept.length, 100);
-  assert.equal(kept[0], 0);
-  assert.equal(kept.at(-1), 1_199);
-  assertAscending(kept);
-
-  // LTTB Returns Every Index When The Budget Is Not Exceeded
-  const short = pulse(10);
-  assert.deepEqual(
-    lttbIndices(short.x, short.y, 10),
-    Array.from({ length: 10 }, (_, index) => index),
-  );
-  assert.deepEqual(
-    lttbIndices(short.x, short.y, 2),
-    Array.from({ length: 10 }, (_, index) => index),
-  );
-
-  // LTTB Picks The Sample That Spans The Largest Triangle
-  /* Three buckets: the spike at index 1 beats its flat neighbours. */
-  assert.deepEqual(lttbIndices([0, 1, 2, 3, 4], [0, 10, 0, 0, 0], 3), [0, 1, 4]);
-
-  // LTTB Is Time-Aware: A Gap Does Not Collapse The Samples Around It
-  /* Two dense runs separated by a long silence; a count-based pick treats
-     them alike, a time-aware pick must keep both ends of the silence. */
-  const first = pulse(300, 0);
-  const second = pulse(300, 600);
-  const gapX = [...first.x, ...second.x];
-  const gapY = [...first.y, ...second.y];
-  const gapKept = lttbIndices(gapX, gapY, 60);
-  /* Buckets are equal spans of time, so the silence holds no picks. */
-  const keptX = gapKept.map((index) => gapX[index]);
-  assert.ok(
-    keptX.some((value) => value < 30),
-    "keeps samples before the gap",
-  );
-  assert.ok(
-    keptX.some((value) => value >= 600),
-    "keeps samples after the gap",
-  );
-  assert.ok(gapKept.length <= 60);
-  assertAscending(gapKept);
-
-  // LTTB Never Picks A Sample Without A Finite Y
-  const sparse = pulse(400);
-  const gapped = sparse.y.map((value, index) => (index % 7 === 3 ? null : value));
-  for (const index of lttbIndices(sparse.x, gapped, 50).slice(1, -1)) {
-    assert.notEqual(gapped[index], null, `picked a null at ${index}`);
+test("Window Selection", () => {
+  const selections: { index: number; value: number | null }[] = [];
+  function View({ live, selected }: { live: boolean; selected?: number }) {
+    const window = usePlotWindow();
+    if (selected !== undefined && window.index !== selected) window.choose(selected);
+    selections.push({ index: window.index, value: window.option.value });
+    return createElement(PlotWindowControl, { elapsedUnit: null, live, window });
   }
+  const live = renderToStaticMarkup(createElement(View, { live: true }));
+  assert.match(live, /role="slider"/);
+  assert.deepEqual(selections.at(-1), { index: 2, value: 300 });
+  const selected = renderToStaticMarkup(createElement(View, { live: true, selected: 6 }));
+  assert.match(selected, /role="slider"/);
+  assert.equal(selections.at(-1)?.index, 6);
+  assert.equal(selections.at(-1)?.value, null);
+  assert.equal(renderToStaticMarkup(createElement(View, { live: false, selected: 2 })), "");
+});
 
-  // Min/Max Keeps Each Bucket's Extrema In Index Order
-  /* count 4 is two equal spans of x holding four samples each. */
-  const ramp = [0, 1, 2, 3, 4, 5, 6, 7];
-  assert.deepEqual(minMaxIndices(ramp, [1, 5, 3, 0, 2, 9, 4, 4], 4), [1, 3, 4, 5]);
+test("Manual All Refresh", async () => {
+  const view = await mountPlotView();
+  assert.deepEqual(
+    refreshFixture.watch.mock.calls[0][1].map((request: { windowS: number }) => request.windowS),
+    [300, 300],
+  );
+  const pending = new Map<string, (envelopes: NativePlotPayloadEnvelope[]) => void>();
+  const complete = (envelopes: NativePlotPayloadEnvelope[]) => {
+    for (const envelope of envelopes) pending.get(envelope.plot_id)?.([envelope]);
+  };
+  refreshFixture.read.mockImplementation(
+    (_session, requests) =>
+      new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
+        pending.set(requests[0].plotId, resolve);
+      }),
+  );
+  await view.choose(6);
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.ok(refreshFixture.read.mock.calls.every((call) => call[1].length === 1));
+  assert.ok(refreshFixture.read.mock.calls[0][1].every((request: { windowS: number | null }) => request.windowS === null));
+  assert.equal(view.button().disabled, true);
+  assert.equal(view.button().getAttribute("aria-busy"), "true");
+  await view.click();
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots).slice(0, 1));
+  });
+  await view.advance();
+  assert.equal(view.states()[view.plots[0].plot_id].status, "live");
+  assert.equal(view.states()[view.plots[1].plot_id].status, "loading");
+  assert.equal(view.button().disabled, true);
+  const completedAt = Date.now();
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots).slice(1));
+  });
+  await view.advance();
+  assert.equal(view.button().disabled, false);
+  const firstTime = view.window().refresh.updatedAt;
+  assert.equal(firstTime, completedAt);
+  const label = view.host.querySelector('[role="status"]')?.textContent;
+  assert.match(label ?? "", /^Updated \d{2}:\d{2}:\d{2}$/);
+  await view.runtimeUpdate([]);
+  await view.runtimeUpdate();
+  await act(async () => {
+    useSummaryWindowStore.setState({ windows: { pulse: { from: 0, to: 1 } } });
+  });
+  Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await view.advance(60_000);
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(refreshFixture.watch.mock.calls.length, 1);
+  assert.equal(view.window().refresh.updatedAt, firstTime);
+  await view.click();
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.equal(view.button().disabled, true);
+  assert.ok(refreshFixture.read.mock.calls.slice(2).every((call) => call[1][0].maxPoints === 200));
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots));
+  });
+  await view.advance();
+  assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
+  assert.notEqual(view.host.querySelector('[role="status"]')?.textContent, label);
+  assert.equal(view.button().disabled, false);
+});
 
-  // Reduce Indices Honours The Technique Within The Budget
-  const { x, y } = pulse(500);
-  assert.equal(reduceIndices(x, [y], 500, "lttb"), null);
-  assert.equal(reduceIndices(x, [y], 100, "lttb")?.length, 100);
-  const stride = reduceIndices(x, [y], 100, "raw");
-  assert.ok(stride && stride.length <= 100 && stride[0] === 0 && stride.at(-1) === 499);
-  const envelope = reduceIndices(x, [y], 100, "min_max");
-  assert.ok(envelope && envelope.length <= 100);
+test("Timed Refresh", async () => {
+  const view = await mountPlotView();
+  assert.equal(view.button().disabled, true);
+  await act(async () => {
+    view.streams[0].push({ kind: "pending", plot_id: "pulse" });
+  });
+  assert.equal(view.button().disabled, true);
+  assert.equal(view.window().refresh.updatedAt, null);
+  const initial = snapshotEnvelopes(view.plots);
+  await act(async () => {
+    view.streams[0].push({ ...initial[0], kind: "snapshot" });
+  });
+  assert.equal(view.button().disabled, true);
+  await act(async () => {
+    view.streams[0].push({ ...initial[1], kind: "snapshot" });
+  });
+  await view.advance();
+  assert.equal(view.button().disabled, false);
+  const firstTime = view.window().refresh.updatedAt;
+  await view.advance(1_000);
+  await act(async () => {
+    for (const frame of initial) view.streams[0].push({ ...frame, revision: 2, kind: "replace", payload: hostFrame([2, 3], [[4, 5]]) });
+  });
+  await view.advance();
+  assert.equal(view.states().pulse.payload?.cartesian?.series[0].x[0], 2);
+  assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
+  await view.click();
+  assert.equal(view.button().disabled, true);
+  assert.equal(refreshFixture.watch.mock.calls.length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 0);
+  assert.equal(view.streams[0].cancel.mock.calls.length, 1);
+  await act(async () => {
+    for (const frame of initial) view.streams[1].push({ ...frame, kind: "snapshot" });
+  });
+  await view.advance();
+  assert.equal(view.button().disabled, false);
+  await view.choose(0);
+  assert.ok(refreshFixture.watch.mock.calls[2][1].every((request: { windowS: number }) => request.windowS === 60));
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
+  });
+  assert.equal(view.button().disabled, false);
+  assert.equal(refreshFixture.notify.mock.calls.length, 1);
+});
 
-  // Aligned Series Share One Union Of Picks
-  const inverted = y.map((value) => -value);
-  const shared = reduceIndices(x, [y, inverted], 100, "lttb");
-  assert.ok(shared && shared.length >= 100 && shared.length <= 200);
-  assertAscending(shared);
+test("Refresh Failure", async () => {
+  const view = await mountPlotView();
+  const snapshots = snapshotEnvelopes(view.plots);
+  refreshFixture.read.mockImplementation(async (_session, requests) =>
+    snapshots.filter((envelope) => envelope.plot_id === requests[0].plotId),
+  );
+  await view.choose(6);
+  const firstTime = view.window().refresh.updatedAt;
+  await view.runtimeUpdate();
+  refreshFixture.read.mockRejectedValueOnce(new NativeApiLimitError("Plots.QuerySnapshots", "plot response exceeds transport limit"));
+  await view.advance(1_000);
+  await view.click();
+  await view.advance();
+  assert.equal(view.button().disabled, false);
+  assert.equal(view.window().refresh.updatedAt, firstTime);
+  assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  assert.equal(view.states()[view.plots[0].plot_id].status, "error");
+  assert.equal(view.states()[view.plots[1].plot_id].status, "live");
+  await view.advance(60_000);
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  await view.click();
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
+  assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
+});
 
-  // Auto Switches To An Envelope Only Above Four Times The Display Budget
-  const autoX = Array.from({ length: 41 }, (_, index) => index);
-  const autoY = autoX.map((value) => Math.sin(value));
-  const budget = 10;
-  const moderateX = autoX.slice(0, 40);
-  const moderateY = autoY.slice(0, 40);
-  assert.deepEqual(reduceIndices(moderateX, [moderateY], budget, "auto"), reduceIndices(moderateX, [moderateY], budget, "lttb"));
-  assert.deepEqual(reduceIndices(autoX, [autoY], budget, "auto"), reduceIndices(autoX, [autoY], budget, "min_max"));
+test("Refresh Cancellation", async () => {
+  const view = await mountPlotView();
+  const pending: (() => void)[] = [];
+  refreshFixture.read.mockImplementation(
+    (_session, requests) =>
+      new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
+        pending.push(() => resolve(snapshotEnvelopes(view.plots).filter((envelope) => envelope.plot_id === requests[0].plotId)));
+      }),
+  );
+  await view.choose(6);
+  const signal = refreshFixture.read.mock.calls[0][2].signal as AbortSignal;
+  await view.choose(2);
+  assert.equal(signal.aborted, true);
+  await act(async () => {
+    for (const complete of pending) complete();
+  });
+  assert.equal(view.window().refresh.updatedAt, null);
+  assert.equal(view.button().disabled, true);
+  refreshFixture.read.mockImplementation(async (_session, requests) =>
+    snapshotEnvelopes(view.plots).filter((envelope) => envelope.plot_id === requests[0].plotId),
+  );
+  await view.choose(6);
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.equal(view.button().disabled, false);
 });
 
 test("Empty Snapshot", () => {
@@ -321,6 +568,12 @@ test("Window Resampling", () => {
 
   // Traces On One Axis Are Resampled Together
   const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
+  const fitted = windowIndices(x, [sine, cosine], null, columns, true);
+  assert.ok(fitted && fitted.length <= columns);
+  for (const trace of [sine, cosine]) {
+    assert.equal(Math.min(...fitted.map((index) => trace[index])), Math.min(...trace));
+    assert.equal(Math.max(...fitted.map((index) => trace[index])), Math.max(...trace));
+  }
   const both = windowIndices(x, [sine, cosine], zoom, columns);
   assert.ok(both);
   assert.ok(zoomed.every((index) => both.includes(index)));
@@ -419,19 +672,23 @@ test("Slider Selects Storage Query Range", () => {
     fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
     x: "timestamp",
     y: ["voltage"],
-    live_window_s: 60,
     display_points: 100,
   };
   const scope = { test_cycle_id: "cycle" };
-  const declared = plotRequestForDocumentPlot(plot, { scope });
-  const recent = plotRequestForDocumentPlot(plot, { scope, windowS: 10 });
-  const all = plotRequestForDocumentPlot(plot, { scope, windowS: null });
-  assert.equal(declared.windowS, 60);
-  assert.equal(recent.windowS, 10);
-  assert.equal(all.windowS, null);
-  assert.equal(all.maxPoints, recent.maxPoints);
-  assert.deepEqual(all.scope, scope);
-  assert.equal(plot.live_window_s, 60);
+  const plots = [plot, { ...plot, plot_id: "current", y: ["current"] }];
+  for (const definition of plots) {
+    const initial = plotRequestForDocumentPlot(definition, { scope });
+    assert.equal(initial.windowS, null);
+    for (const option of plotWindowOptions([60, 120])) {
+      const request = plotRequestForDocumentPlot(definition, { scope, windowS: option.value });
+      assert.equal(request.windowS, option.value);
+      assert.equal(request.maxPoints, initial.maxPoints);
+      assert.deepEqual(request.scope, scope);
+    }
+  }
+  const unbounded = { ...plot, display_points: 0 };
+  assert.ok((plotRequestForDocumentPlot(unbounded, { scope }).maxPoints ?? 0) > 0);
+  assert.equal(plotRequestForDocumentPlot(unbounded, { scope, windowS: 300 }).maxPoints, 0);
 });
 test("Storage Query Snapshots", () => {
   const recent = hostFrame([100, 101], [[2, 3]], { windowS: 30 });
@@ -565,6 +822,82 @@ test("Histogram Axes", () => {
     unit: "A",
     format: { kind: "engineering", significant_digits: 3 },
   });
+});
+
+test("Boolean State Plots", () => {
+  const payload = hostFrame([0, 1, 2, 3], [[0, 1, null, 0]], { keys: ["internet"] });
+  payload.stream = "host.network";
+  const descriptor = {
+    plot_id: "connectivity",
+    title: "Internet Connectivity",
+    stream: "host.network",
+    plot_type: "time_series",
+    x: "timestamp",
+    y: ["internet"],
+  } as DocumentViewPlot;
+  const columns: TelemetryColumnSpec[] = [{ name: "internet", value_type: "boolean", role: "state", required: false }];
+  const telemetry = {
+    "host.network": {
+      stream: "host.network",
+      spec: {
+        stream: "host.network",
+        columns,
+        allow_extra_fields: false,
+      },
+      summary: {},
+      samples: [],
+      max_samples: 0,
+      total_samples: 4,
+      dropped_samples: 0,
+      updated_at: payload.generated_at,
+    },
+  };
+  const plot = documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 });
+  assert.equal(plot.booleanAxis, true);
+  assert.deepEqual(payload.cartesian?.series[0].y.map(formatBooleanState), ["False", "True", "--", "False"]);
+  assert.equal(formatBooleanState(0.5), "--");
+  for (const zoom of [false, true]) {
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, createElement(TimeSeriesPlot, { plot })));
+    assert.match(html, /plot-follow/);
+    assert.doesNotMatch(html, /<table\b/);
+  }
+  columns[0].value_type = "number";
+  assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
+});
+
+test("Plot Statistics", () => {
+  const payload = hostFrame([0, 1, 2], [[2, 5, 11]], { keys: ["distance"] });
+  payload.summaries = [{ ...SUMMARIES[0], series_id: "distance" }];
+  const descriptor = {
+    plot_id: "distance",
+    title: "Distance",
+    stream: "pulse",
+    plot_type: "time_series",
+    x: "timestamp",
+    y: ["distance"],
+  } as DocumentViewPlot;
+  const plot = documentPlotSpec({ plot: descriptor, payload, title: descriptor.title, position: 0 });
+  const interval = {
+    ...plot,
+    analysis: {
+      kind: "sigma_interval" as const,
+      series: [{ key: "distance", raw_points: 3, bins: [{ x: 1, count: 3, mean: 6, lower: 2, upper: 11 }] }],
+    },
+  };
+  for (const zoom of [false, true]) {
+    const render = (child: ReturnType<typeof createElement>) =>
+      renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, child));
+    const time = render(createElement(TimeSeriesPlot, { plot }));
+    assert.match(time, /<thead\b/);
+    for (const Component of [XyScatterPlot, XyLinePlot, TrajectoryPlot]) {
+      const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
+      assert.match(xy, /plot-follow/);
+      assert.doesNotMatch(xy, /<table\b/);
+    }
+    const xy = render(createElement(XyIntervalPlot, { plot: interval }));
+    assert.match(xy, /plot-follow/);
+    assert.doesNotMatch(xy, /<table\b/);
+  }
 });
 
 test("Series Legend", () => {
@@ -914,4 +1247,74 @@ test("Declared Occupancy Context", () => {
   delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
   const absent = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
   assert.deepEqual(absent.context, {});
+});
+
+test("Bounded Report Envelopes", () => {
+  for (const values of [
+    [[3]],
+    [[3, -7]],
+    [
+      [3, -7, 11],
+      [9, null, 4],
+    ],
+  ]) {
+    const x = values[0].map((_, index) => 1_798_761_600 + index);
+    const payload = hostFrame(x, values);
+    const series = payload.series.map((series) => ({ ...series, unit: "dBm", raw_points: 20_000, downsampled: true }));
+    const html = renderToStaticMarkup(
+      createElement(CartesianPlot, {
+        title: "Signal",
+        series,
+        cartesian: payload.cartesian,
+        unit: "dBm",
+        contextSummary: "fixture-network / radio-2 / 6",
+      }),
+    );
+    assert.ok(html.includes("plot-follow"));
+    assert.ok(html.includes("[dBm]"));
+    assert.ok(html.includes("fixture-network / radio-2 / 6"));
+    const missingFrame = renderToStaticMarkup(createElement(CartesianPlot, { title: "Signal", series }));
+    assert.ok(!missingFrame.includes("plot-follow"));
+    assert.deepEqual(windowIndices(x, values, null, 640, true), null);
+  }
+});
+
+test("Report Metadata Subtitles", () => {
+  const captured = hostFrame([1, 2], [[-61, -59]]);
+  captured.context = {
+    wifi_ssid: { type: "text", value: "fixture-network" },
+    wifi_radio: { type: "text", value: "radio-2" },
+    wifi_channel: { type: "integer", value: "6" },
+  };
+  const textContent = JSON.stringify({ plots: { signal: captured }, case_runs: [{ plots: { signal: captured } }] });
+  vi.stubGlobal("document", { getElementById: () => ({ textContent }) });
+  let payload: PlotPayload;
+  try {
+    const report = readReportPayload();
+    payload = report.case_runs[0].plots.signal;
+    assert.deepEqual(payload.context, { wifi_ssid: "fixture-network", wifi_radio: "radio-2", wifi_channel: 6 });
+    assert.deepEqual(report.plots.signal.context, payload.context);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  const plot = {
+    plot_id: "fixture.rssi",
+    stream: "host.wifi.link",
+    title: "Wi-Fi RSSI",
+    plot_type: "time_series",
+    y: ["rssi"],
+  } as DocumentViewPlot;
+  const spec = documentPlotSpec({ plot, payload, plotPalette: [], position: 0, title: plot.title });
+  assert.ok(spec.contextSummary?.includes("fixture-network"));
+  assert.ok(spec.contextSummary?.includes("radio-2"));
+  const html = renderToStaticMarkup(
+    createElement(CartesianPlot, {
+      title: spec.title,
+      series: spec.series,
+      cartesian: spec.cartesian,
+      contextSummary: spec.contextSummary,
+    }),
+  );
+  assert.ok(html.includes("plot-follow"));
+  assert.ok(html.includes("fixture-network"));
 });

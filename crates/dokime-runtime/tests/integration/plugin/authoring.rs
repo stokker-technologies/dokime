@@ -50,6 +50,7 @@ pub(crate) mod catalog_lifecycle {
         CountedSuite(CountedSuite),
     }
 
+    #[dokime_tracing::trace_test]
     #[test]
     fn registration_inert_once() {
         use dokime_runtime::harmos::plugin::Contribution;
@@ -352,6 +353,7 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn attributed_functions_runs() {
     let execution = Workflow::<Pulse>::new(PULSE_SUITE_ID, "authoring-spike");
@@ -375,6 +377,7 @@ async fn attributed_functions_runs() {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn registration_phase_envelope() {
     let mut registrar = Registrar::new();
@@ -392,6 +395,7 @@ fn registration_phase_envelope() {
     assert_eq!(decoded.suites[0].suite.test_case_templates[0].test_case_template_id, Probe::template_id());
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn template_declares_operations() {
     assert_eq!(<Run<Pulse> as OperationDeclaration>::ID, format!("{PULSE_TEMPLATE_ID}.run"));
@@ -399,6 +403,7 @@ fn template_declares_operations() {
     assert_eq!(<Run<Pulse> as OperationDeclaration>::POLICY.timeout, dokime_runtime::transport::RUN_BOUND);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suite_declaration_contracts() {
     let definition = SpikeChecks::definition();
@@ -421,6 +426,7 @@ fn suite_declaration_contracts() {
     assert_eq!(definition.record_contracts[0].template_id, Some(Probe::template_id()));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn template_reference_scoped() {
     use dokime_runtime::definition::{TemplateIdentifierRefusal, template_identifier};
@@ -446,6 +452,7 @@ fn template_reference_scoped() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn one_step_phases() {
     let declaration = Probe::declaration();
@@ -453,6 +460,7 @@ fn one_step_phases() {
     assert_eq!(declaration.phases.iter().map(|phase| phase.metadata.identifier.as_str()).collect::<Vec<_>>(), ["start", "complete"]);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn step_reads_rustdoc() {
     let declaration = Probe::declaration();
@@ -464,6 +472,7 @@ fn step_reads_rustdoc() {
     assert_eq!(declaration.phases[1].metadata.description.as_deref(), Some("Disarm and report."));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn template_declaration_declares() {
     let declaration = Probe::declaration();
@@ -501,6 +510,7 @@ fn template_declaration_declares() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn obsolete_template_refused() {
     let current = serde_json::to_value(Probe::declaration()).unwrap();
@@ -512,6 +522,7 @@ fn obsolete_template_refused() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn second_suite_refused() {
     let mut registrar = Registrar::new();
@@ -522,6 +533,7 @@ fn second_suite_refused() {
     assert_eq!(refusal.to_string(), "registration namespace `dokime.suites` was declared more than once");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn criterion_method_decides() {
     let declaration = Pulse::declaration();
@@ -535,6 +547,7 @@ fn criterion_method_decides() {
     assert_eq!(declaration.criteria[0].metadata.label, "Rows Measured");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn stream_method_publishes() {
     let definition = PulseChecks::definition();

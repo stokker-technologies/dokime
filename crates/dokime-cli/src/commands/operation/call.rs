@@ -38,28 +38,28 @@ const INPUT_FRAMES: u64 = 4_096;
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Operation Identifier From `operation list`.")]
-    operation: String,
+    pub(crate) operation: String,
 
     #[arg(long, help = "Select The Discovered Provider Owner When More Than One Provider Exists.")]
-    owner: Option<String>,
+    pub(crate) owner: Option<String>,
 
     #[command(flatten)]
-    connection: crate::connection::Args,
+    pub(crate) connection: crate::connection::Args,
 
     #[arg(long, conflicts_with = "json", help = "Read Request JSON From This File; Defaults To An Empty Object.")]
-    input: Option<PathBuf>,
+    pub(crate) input: Option<PathBuf>,
 
     #[arg(long, conflicts_with = "input", help = "Supply Inline Request JSON.")]
-    json: Option<String>,
+    pub(crate) json: Option<String>,
 
-    #[arg(long, help = "Atomically Save All Response Events As One JSON Array After Successful Completion.")]
-    output: Option<PathBuf>,
+    #[arg(long, help = "Save Verified Download Bytes Or Other Response Events As A JSON Array.")]
+    pub(crate) output: Option<PathBuf>,
 
     #[arg(long, requires = "output", help = "Replace An Existing Regular Response File After Successful Completion.")]
-    overwrite: bool,
+    pub(crate) overwrite: bool,
 
     #[arg(long, help = "Read Input Stream Items As One JSON Value Per Line Within The Configured Input Limits.")]
-    input_stream_file: Option<PathBuf>,
+    pub(crate) input_stream_file: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -92,7 +92,13 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
         result = dispatch => result,
     };
     client.close_and_wait().await;
-    result?;
+    if let Some(download) = result? {
+        println!(
+            "{}",
+            serde_json::json!({"path": download.path, "size_bytes": download.size_bytes, "sha256": download.sha256, "metadata": download.metadata})
+        );
+        return Ok(());
+    }
     if let (Some(file), Some(destination)) = (staged, args.output) {
         let publication = if args.overwrite {
             dokime::harmos::filesystem::publication::replace(file.path(), &destination)
@@ -138,14 +144,42 @@ fn read_items(path: Option<&Path>, remaining: usize, maximum_frames: usize) -> c
 
 async fn dispatch(
     client: &dokime::client::Client, args: &Args, input: &[u8], items: Vec<Vec<u8>>, staged: &mut Option<tempfile::NamedTempFile>,
-) -> crate::Result<()> {
+) -> crate::Result<Option<dokime::client::Download<dokime::client::dynamic::JsonMessage>>> {
+    if let Some(destination) = &args.output {
+        let output = client
+            .call_operation_output(&args.operation, args.owner.as_deref(), input, items, destination.clone(), args.overwrite)
+            .await
+            .map_err(dispatch_error)?;
+        match output {
+            dokime::client::dynamic::FileOutput::Download(download) => return Ok(Some(download)),
+            dokime::client::dynamic::FileOutput::Json(stream) => {
+                let result =
+                    receive(&stream, staged, |event| matches!(event, dokime::client::dynamic::JsonEvent::Completion(_)), |event| event)
+                        .await;
+                stream.close().await;
+                return result.map(|()| None);
+            }
+        }
+    }
     let stream = client.call_operation(&args.operation, args.owner.as_deref(), input, items).await.map_err(dispatch_error)?;
-    let result = receive(&stream, staged).await;
+    let result = receive(
+        &stream,
+        staged,
+        |event| matches!(event, Event::Completion(_)),
+        |event| match event {
+            Event::Item(value) => serde_json::json!({"event": "item", "value": value}),
+            Event::Completion(value) => serde_json::json!({"event": "completion", "value": value}),
+        },
+    )
+    .await;
     stream.close().await;
-    result
+    result.map(|()| None)
 }
 
-async fn receive(stream: &dokime::client::ResponseStream<Event>, staged: &mut Option<tempfile::NamedTempFile>) -> crate::Result<()> {
+async fn receive<T: Send + 'static, S: serde::Serialize>(
+    stream: &dokime::client::ResponseStream<T>, staged: &mut Option<tempfile::NamedTempFile>, is_completion: fn(&T) -> bool,
+    render: fn(T) -> S,
+) -> crate::Result<()> {
     let mut first = true;
     let mut completed = false;
     if let Some(file) = staged.as_mut() {
@@ -157,11 +191,8 @@ async fn receive(stream: &dokime::client::ResponseStream<Event>, staged: &mut Op
             let source = crate::Error::Input("Operation continued after completion".into());
             return Err(crate::Error::OperationUncertain { source: Box::new(source) });
         }
-        completed = matches!(&event, Event::Completion(_));
-        let value = match event {
-            Event::Item(value) => serde_json::json!({"event": "item", "value": value}),
-            Event::Completion(value) => serde_json::json!({"event": "completion", "value": value}),
-        };
+        completed = is_completion(&event);
+        let value = render(event);
         if let Some(file) = staged.as_mut() {
             write_event(file, &value, &mut first).map_err(output_error)?;
             continue;
@@ -198,7 +229,7 @@ fn prepare_output(path: &Path, overwrite: bool) -> crate::Result<tempfile::Named
     Ok(tempfile::NamedTempFile::new_in(parent)?)
 }
 
-fn write_event(writer: &mut impl Write, value: &serde_json::Value, first: &mut bool) -> serde_json::Result<()> {
+fn write_event(writer: &mut impl Write, value: &impl serde::Serialize, first: &mut bool) -> serde_json::Result<()> {
     if !*first {
         writer.write_all(b",").map_err(serde_json::Error::io)?;
     }
@@ -211,7 +242,15 @@ fn output_error(error: impl Into<crate::Error>) -> crate::Error {
     crate::Error::OperationOutput { source: Box::new(error.into()) }
 }
 
-fn dispatch_error(error: dokime::client::operations::Error) -> crate::Error {
+fn dispatch_error(mut error: dokime::client::operations::Error) -> crate::Error {
+    if let dokime::client::operations::Error::Client(dokime::client::Error::Rpc(status)) = &error
+        && status.message() == "dynamic JSON exceeds byte ceiling"
+    {
+        error = dokime::client::Error::Rpc(dokime::client::RpcStatus::resource_exhausted(
+            "Response JSON exceeds its byte ceiling (bytes use base64); use --output <file> for downloads",
+        ))
+        .into();
+    }
     let uncertain = match &error {
         dokime::client::operations::Error::Client(dokime::client::Error::Rpc(status)) => matches!(
             status.code(),

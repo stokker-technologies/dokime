@@ -774,6 +774,8 @@ export function artifactStateLabel(state: ArtifactState | undefined): string {
       return "cancelled";
     case "Rejected":
       return "rejected";
+    case "Failed":
+      return "failed";
     default:
       return "unspecified";
   }

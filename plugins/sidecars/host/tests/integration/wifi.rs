@@ -44,6 +44,7 @@ use plugin_host::HostTelemetryStream;
 /* === Tests === */
 
 // Native Collection Reports Either Scanned Networks Or An Explicit Availability State.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_scan_rows() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiScan);
@@ -69,17 +70,26 @@ fn wifi_scan_rows() {
 }
 
 // A Link Sample States Whether The Host Is Associated.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_link_association() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiLink);
     validate_batch(&batch);
     let sample = &batch.samples[0];
-    if sample.values.get("probe_status") == Some(&Value::Text("ok".into())) {
+    let readable = matches!(sample.values.get("probe_status"), Some(Value::Text(status)) if status == "ok" || status == "partial");
+    let unknown = matches!(sample.values.get("wifi_state"), Some(Value::Text(state)) if state.starts_with("unknown_"));
+    if readable && !unknown {
         assert!(matches!(sample.values.get("associated"), Some(Value::Bool(_))));
+    }
+    if sample.values.get("probe_status") == Some(&Value::Text("partial".into())) {
+        for key in ["probe_error", "wifi_adapter", "wifi_state"] {
+            assert!(matches!(sample.values.get(key), Some(Value::Text(value)) if !value.is_empty()), "missing {key}");
+        }
     }
 }
 
 // A Missing Reply Is Loss, Never A Failed Collection.
+#[dokime_tracing::trace_test]
 #[test]
 fn wifi_latency_loss() {
     let batch = collect_required_native_batch(HostTelemetryStream::WifiLatency);

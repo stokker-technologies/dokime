@@ -177,7 +177,9 @@ impl ExecutionStorage {
         }
         let saved = self.storage.cursor_saved();
         for output in inputs.outputs.iter() {
-            if !saved.covers(&output.file.position)? {
+            if let Some(file) = &output.file
+                && !saved.covers(&file.position)?
+            {
                 return Err(invalid("captured report output is not durable"));
             }
         }
@@ -219,7 +221,7 @@ impl ExecutionStorage {
             severity: dokime_domain::model::execution::health::HealthSeverity::Info,
             message: "Report Evidence Provenance".into(),
             detail: Some(format!(
-                "Execution outcomes preserve recorded lifecycle state (capture {}). Chart samples use persisted evidence through storage cursor {}. Recorded verdicts may include outcomes whose raw samples were not retained at that boundary.",
+                "Execution outcomes preserve recorded lifecycle state (capture {}) captured at storage cursor {}. Recorded verdicts may include outcomes whose raw samples were not retained at that boundary.",
                 inputs.lifecycle_id, through.sequence,
             )),
             observed_at: captured_at.clone(),

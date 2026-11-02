@@ -5,6 +5,11 @@ own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
 test execution. The shared Python environment lives at repository-root `.venv/`.
 
+After changing Python dependencies, `mise run prepare --refresh-lock` refreshes
+the workspace `uv.lock` before the ordinary locked synchronization. The test group
+includes both optional dataframe libraries; focused tabular tests also block their
+imports to verify dependency-free iteration and missing-extra errors.
+
 The desktop GUI owns its web tooling under `crates/dokime-gui/`: Biome, the
 pnpm lock and the RPC generator in its `tools/`. Rust
 performance workloads live under the owning crate's `benches/`.
@@ -26,3 +31,15 @@ Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
 `check:python:generated` type-checks the client package after the build has
 verified its generated modules.
+
+`mise run build:rust:tests` packages the host and OBC fixture bundles from the
+Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
+Rust stories resolve those fixtures from the Tests export, so the archive owns
+the bundles its integration lane requires.
+
+## Focused Python Client Checks
+
+`mise run test:python:unit --select <expression>` checks current client source in
+the root environment without a staged wheel. A focused integration selection uses
+`mise run test:python:integration --select <expression>` and also checks source.
+Full Python unit and integration tasks retain their built-wheel input.

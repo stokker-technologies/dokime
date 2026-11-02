@@ -23,7 +23,6 @@ use dokime::domain::model;
 
 /* === Constants === */
 
-const PREPARATION_CASES: usize = 48;
 // Two Full Pages And A Partial One; Shutdown Seals A Durable Report Per Case.
 const PAGE_LIMIT: u32 = 4;
 const PAGED_CASES: u64 = 2 * PAGE_LIMIT as u64 + 1;
@@ -181,6 +180,7 @@ pub(crate) async fn large_cycles_order() {
     assert!(shutdown.is_ok(), "shutdown: {shutdown:?}; storage: {:?}", owner.handle().storage().status());
 }
 
+#[tracing::instrument(skip_all)]
 pub(crate) async fn queued_cycle_seals_every_member() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
@@ -197,7 +197,7 @@ pub(crate) async fn queued_cycle_seals_every_member() {
     parameter.value_type = dokime::ValueType::Integer;
     parameter.expression = dokime::definition::ParameterExpr::Range {
         start: 0,
-        stop: PREPARATION_CASES as i64 - 1,
+        stop: PAGED_CASES as i64 - 1,
         step: 1,
     };
     support::register_fixture_execution(&owner.handle(), suite).await;
@@ -229,17 +229,19 @@ pub(crate) async fn queued_cycle_seals_every_member() {
         None
     })
     .await;
-    assert_eq!(after.case_count, PREPARATION_CASES as u64);
-    assert_eq!(after.execution_count, PREPARATION_CASES as u64);
+    assert_eq!(after.case_count, PAGED_CASES);
+    assert_eq!(after.execution_count, PAGED_CASES);
     assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 1, "queued members never reached the provider");
     let mut request = contracts::execution::ListExecutions {
         cycle_id: id.clone(),
-        limit: 73,
+        limit: PAGE_LIMIT,
         ..Default::default()
     };
     let mut count = 0;
+    let mut pages = 0;
     loop {
         let page = client.unary::<contracts::execution::ListExecutions>(request.clone()).await.unwrap().into_inner();
+        pages += 1;
         for execution in &page.executions {
             assert!(matches!(
                 execution.status,
@@ -253,7 +255,8 @@ pub(crate) async fn queued_cycle_seals_every_member() {
         request.after_execution_id = next;
         request.cursor = page.cursor;
     }
-    assert_eq!(count, PREPARATION_CASES);
+    assert_eq!(count as u64, PAGED_CASES);
+    assert_eq!(pages, PAGED_CASES.div_ceil(PAGE_LIMIT as u64));
     gate.release.notify_one();
     let blocker = dokime::TestCycleId::from_uuid(blocker).unwrap();
     support::on_state_change(&owner.handle(), async || {

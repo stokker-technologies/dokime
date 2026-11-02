@@ -42,6 +42,7 @@ const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: BOUND,
     attempt_timeout: BOUND,
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: harmos::operations::RetryPolicy::Never,
 };
 
@@ -148,15 +149,6 @@ impl harmos::Lifecycle for Fixture {
         setup.resource::<Hosted<AwaitFileWatchArmed>>(Hosted::<AwaitFileWatchArmed>::new(hosting.clone()));
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
-    }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
     }
 }
 

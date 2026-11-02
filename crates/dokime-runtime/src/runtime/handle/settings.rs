@@ -21,7 +21,6 @@ use std::{collections::BTreeMap, time::Duration};
 // Local Imports
 use crate::InstalledPlugin;
 use crate::plugin::Configuration;
-use crate::settings::SecretReference;
 use crate::settings::SettingValues;
 use crate::settings::Settings;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result, secrets::SecretStore};
@@ -49,7 +48,7 @@ impl RuntimeHandle {
 
     async fn resolved_settings(&self, plugin: &InstalledPlugin) -> Result<(SettingValues, std::collections::BTreeSet<String>)> {
         self.plugin_preferences()
-            .read(&Identifier::new(&plugin.source).map_err(operation)?, &plugin.settings, &self.secret_store())
+            .read(&Identifier::new(&plugin.source).map_err(operation)?, &plugin.settings)
             .await
             .map(|resolved| (resolved.values, resolved.saved))
             .map_err(operation)
@@ -60,13 +59,13 @@ impl RuntimeHandle {
 
         apply_configured_settings(plugin, configured, &mut settings, &mut saved)?;
 
-        let secrets = self.resolve_secrets(&plugin.settings, &settings).await?;
+        let secrets = self.resolve_secrets(&plugin.settings).await?;
 
         Ok(Configuration { settings, secrets, saved })
     }
 
-    pub(crate) async fn resolve_secrets(&self, catalog: &Settings, values: &SettingValues) -> Result<BTreeMap<String, Option<String>>> {
-        resolved_secrets(catalog, values, &self.secret_store(), Duration::from_secs(5)).await
+    pub(crate) async fn resolve_secrets(&self, catalog: &Settings) -> Result<BTreeMap<String, Option<String>>> {
+        resolved_secrets(catalog, &self.secret_store(), Duration::from_secs(5)).await
     }
 }
 
@@ -74,23 +73,13 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-async fn resolved_secrets(
-    catalog: &Settings, values: &SettingValues, store: &SecretStore, timeout: Duration,
-) -> Result<BTreeMap<String, Option<String>>> {
+async fn resolved_secrets(catalog: &Settings, store: &SecretStore, timeout: Duration) -> Result<BTreeMap<String, Option<String>>> {
     let mut secrets = BTreeMap::new();
     for definition in catalog.secrets() {
-        let reference = values.get(&definition.id).map(SecretReference::try_from).transpose().map_err(operation)?;
-        let secret = match reference {
-            Some(SecretReference::Environment { variable }) => match std::env::var(&variable) {
-                Ok(value) => Some(value),
-                Err(std::env::VarError::NotPresent) => None,
-                Err(std::env::VarError::NotUnicode(_)) => {
-                    return Err(Error::Operation(format!("secret setting {:?} references a non-text environment value", definition.id)));
-                }
-            },
-            Some(SecretReference::StoredSecret { secret_id }) => read_stored_secret(store, &definition.id, &secret_id, timeout).await?,
-            None => None,
-        };
+        let secret = read_stored_secret(store, &definition.id, timeout).await?;
+        if definition.required && secret.is_none() {
+            return Err(crate::Error::UnavailableSecret(definition.id.clone()).into());
+        }
         secrets.insert(definition.id.clone(), secret);
     }
     Ok(secrets)
@@ -118,19 +107,17 @@ fn apply_configured_settings(
 #[tracing::instrument(
     level = "info",
     skip(secrets),
-    fields(setting_id = %setting_id, secret_id = %secret_id)
+    fields(secret_id = %secret_id)
 )]
-async fn read_stored_secret(secrets: &SecretStore, setting_id: &str, secret_id: &str, timeout: Duration) -> Result<Option<String>> {
+async fn read_stored_secret(secrets: &SecretStore, secret_id: &str, timeout: Duration) -> Result<Option<String>> {
     let secrets = secrets.clone();
     let secret_id = secret_id.to_owned();
     let read = secrets.get_secret(&secret_id);
     match tokio::time::timeout(timeout, read).await {
         Ok(Ok(secret)) => Ok(secret.map(|secret| secret.expose().to_owned())),
-        Ok(Err(_backend_error)) => {
-            Err(Error::Operation(format!("secret setting {setting_id:?} could not be resolved from secret storage")))
-        }
+        Ok(Err(_backend_error)) => Err(Error::Operation(format!("secret {secret_id:?} could not be resolved from secret storage"))),
         Err(_elapsed) => Err(Error::Operation(format!(
-            "secret setting {setting_id:?} could not be resolved from secret storage: \
+            "secret {secret_id:?} could not be resolved from secret storage: \
              timed out after {timeout:?}"
         ))),
     }

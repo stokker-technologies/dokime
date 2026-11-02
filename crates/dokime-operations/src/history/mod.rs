@@ -46,45 +46,13 @@ use super::Endpoint;
 use super::TRANSFER;
 use super::{MUTATION, ORDINARY};
 
-#[allow(unused_imports)]
-use dokime_domain::model::appearance::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::catalog::wire::*;
-
-#[allow(unused_imports)]
 use dokime_domain::model::content::wire::*;
 
-#[allow(unused_imports)]
-use dokime_domain::model::definition::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::documents::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::evidence::wire::*;
-
-#[allow(unused_imports)]
 use dokime_domain::model::execution::wire::*;
 
-#[allow(unused_imports)]
 use dokime_domain::model::execution::wire_checkpoint::*;
 
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::notes::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::plots::wire::*;
-
-#[allow(unused_imports)]
-use dokime_domain::model::prompts::wire::*;
-
 use dokime_domain::model::history::wire::*;
-#[allow(unused_imports)]
-use dokime_domain::model::telemetry::wire::*;
 
 /* === Constants === */
 

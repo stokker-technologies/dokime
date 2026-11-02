@@ -81,8 +81,15 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
     match endpoint {
         Some(endpoint) => {
             let remote = !endpoint.starts_with("http://");
-            let target =
-                if remote { ConnectionTarget::Remote { endpoint, ca_certificate_pem: None } } else { ConnectionTarget::Local { endpoint } };
+            let target = if remote {
+                ConnectionTarget::Remote {
+                    endpoint,
+                    ca_certificate_pem: None,
+                    endpoints: Vec::new(),
+                }
+            } else {
+                ConnectionTarget::Local { endpoint }
+            };
             crate::connection::ConnectionSession::validate_target(target.clone())
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
             Ok(Some(ConnectRequest {

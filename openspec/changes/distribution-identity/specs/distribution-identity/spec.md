@@ -8,8 +8,8 @@ A distribution SHALL declare its identifier in the installer manifest; packaging
 
 #### Scenario: Separate Branded Storage
 
-- **WHEN** a distribution declares `identifier = "com.hilti.dokime"` and is installed beside plain Dokime
-- **THEN** its application, data, plugins, logs and webview directories live under `com.hilti.dokime` and plain Dokime keeps `com.stokker.dokime`
+- **WHEN** a distribution declares `identifier = "com.example.testhub"` and is installed beside plain Dokime
+- **THEN** its application, data, plugins, logs and webview directories live under `com.example.testhub` and plain Dokime keeps `com.stokker.dokime`
 
 #### Scenario: Default Identity
 

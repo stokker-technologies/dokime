@@ -261,30 +261,6 @@ pub(in crate::grpc) fn cursor_failure(error: dokime::domain::model::execution::w
     Status::new(code, error.to_string())
 }
 
-pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
-    use schema::ValueFormatKind as Kind;
-    schema::ValueFormat {
-        kind: Some(match value {
-            ValueFormat::Normal { max_fraction_digits } => Kind::Normal(schema::NormalFormat {
-                max_fraction_digits: max_fraction_digits.map(u32::from),
-            }),
-            ValueFormat::Fixed { decimals } => Kind::Fixed(schema::FixedFormat { decimals: u32::from(*decimals) }),
-            ValueFormat::Scientific { significant_digits } => Kind::Scientific(schema::ScientificFormat {
-                significant_digits: u32::from(*significant_digits),
-            }),
-            ValueFormat::Engineering { significant_digits } => Kind::Engineering(schema::EngineeringFormat {
-                significant_digits: u32::from(*significant_digits),
-            }),
-            ValueFormat::SiPrefix { significant_digits } => Kind::SiPrefix(schema::SiPrefixFormat {
-                significant_digits: u32::from(*significant_digits),
-            }),
-            ValueFormat::AbsoluteTime { pattern } => Kind::AbsoluteTime(schema::AbsoluteTimeFormat { pattern: pattern.clone() }),
-            ValueFormat::ElapsedSinceRun { unit } => Kind::ElapsedSinceRun(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
-            ValueFormat::ElapsedSinceCycle { unit } => Kind::ElapsedSinceCycle(schema::ElapsedFormat { unit: elapsed_unit(unit) }),
-        }),
-    }
-}
-
 /* === Private Functions === */
 
 fn exact_text(value: &str) -> Result<String, Status> {

@@ -46,6 +46,7 @@ use std::sync::Arc;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn first_https_request() {
     let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();

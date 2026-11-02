@@ -10,7 +10,7 @@
 /* === Modules === */
 
 mod extraction;
-mod tail;
+pub(crate) mod tail;
 
 /* === Re-Exports === */
 

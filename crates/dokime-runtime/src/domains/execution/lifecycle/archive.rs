@@ -59,6 +59,7 @@ impl RuntimeHandle {
     }
 
     async fn commit_archive(&self, subject: ArchiveSubject, archived: bool, context: CommandContext) -> Result<(), Error> {
+        let _admission = self.evidence_admission.lock().await;
         let transaction = SetArchived { subject, archived };
         transaction.check(&self.state_read()).map_err(|message| Error::conflict("conflict", message))?;
         match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
@@ -66,6 +67,14 @@ impl RuntimeHandle {
             None => self.commit(transaction).await,
         }
         .map_err(|error| unavailable_rejection(error.to_string()))?;
+        let (cycles, executions) = {
+            let state = self.state_read();
+            (
+                state.archived_cycles.iter().map(ToString::to_string).collect(),
+                state.archived_executions.iter().map(ToString::to_string).collect(),
+            )
+        };
+        self.local_storage.history_archives(cycles, executions).await?;
         Ok(())
     }
 

@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
 
 // Local Imports
 
@@ -35,6 +35,7 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 pub(crate) struct LoggingGuards {
     pub journal: std::sync::Arc<dokime_server::trace::Journal>,
+    _trace: Option<dokime::diagnostics::test_trace::Guard>,
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
 }
@@ -70,10 +71,12 @@ pub(crate) fn init(directory: &Path, retained_files: usize) -> LoggingGuards {
         }
     }
 
-    // A second `init` in the same process never happens in production (only
-    // the real binary entrypoint calls this); tolerate it rather than panic
-    // the shell over an already-installed subscriber.
-    let _ = Registry::default().with(layers).try_init();
+    let installed = dokime::diagnostics::test_trace::configure(layers);
+    let trace = if std::env::var_os("DOKIME_TEST_TRACE_DIR").is_some() {
+        Some(installed.expect("install desktop subscriber"))
+    } else {
+        installed.ok()
+    };
 
     if let Some(path) = log_path {
         let _ = ACTIVE_LOG.set(path.clone());
@@ -82,6 +85,7 @@ pub(crate) fn init(directory: &Path, retained_files: usize) -> LoggingGuards {
 
     LoggingGuards {
         journal,
+        _trace: trace,
         _stderr: stderr_guard,
         _file: file_guard,
     }

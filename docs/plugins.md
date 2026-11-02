@@ -1,5 +1,20 @@
 # Dokime Plugins
 
+Startup failures appear in a desktop notification and in Settings › Plugins,
+with the bundle's display name and the underlying cause. The verified ordinary
+settings remain editable even when the plugin could not start. Secret declarations
+show their shared Secret Storage identifiers and availability read-only. Use
+**Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
+then restart Dokime or use the existing plugin Retry. There are no secret bindings
+or environment-variable sources. Notification history retains the settings link.
+
+A failed boot has one typed reason with the plugin identity, message and refusal
+code. Initialization failures also retain the encoded Harmos failure, including its kind,
+application refusal code, named context and source diagnostics. Plugin authors
+should return errors through `dokime::plugin::refusal` to preserve this context;
+missing secret access is classified by `MISSING_SECRET_CODE` and the
+`dokime.secret` field, without parsing diagnostic messages.
+
 `plugins/sidecars/host/` supplies the six host telemetry streams through the supervised
 plugin ingest boundary: `host.system`, `host.network` (with OS-reported
 `internet`), `host.wifi.link` (the current connection), `host.wifi.scan` (one row
@@ -7,11 +22,14 @@ per nearby network), `host.wifi.latency` (round trip and loss to the latency hos
 and `host.bluetooth`. Separate operation, stream and observer catalogs share
 the same declarations; each stream has its own demand-driven observer,
 which runs only while a lease holds that stream. Operation definitions own the
-policies and `HostTelemetryStream::interval()` owns the default cadences; Windows
-and Unix implementations are selected at module declarations. Windows probes use
-native APIs and start no processes. Its Collection settings retain the
+policies and `settings.rs` owns the configurable collection intervals and native probe settings; Windows
+and Unix implementations are selected at module declarations. Windows radio and
+network probes use native APIs; the system collector reads Git identity through
+a bounded Git subprocess. Its Collection settings retain the
 Wi-Fi/Bluetooth adapter selectors and latency host, plus the minimum interval
 between active Wi-Fi scans; a scan due sooner reports the cached network list.
+The [Host Settings](product-guide.md#host-settings) section lists native probe
+timings, collection intervals, refresh and sampling settings, plus static operation policies and replay windows.
 Empty adapter selectors use the native default. Native repeated fields
 carry lists; acquisition timestamps travel in framework publication metadata.
 `host.network` carries aggregate counters, `internet`, and the default-route
@@ -44,8 +62,11 @@ let request = RadioSet {
 `host::adapters::{AdapterKind, AdapterStatus}` for kind and status; identities,
 addresses and native power-plan IDs remain strings. Requests and inverse
 snapshots encode enum variants, with no legacy string aliases. Unknown native
-Wi-Fi or radio values return `plugin_host::Error::UnknownValue`; telemetry
-renders known Wi-Fi and Bluetooth states as text.
+radio-control values return `plugin_host::Error::UnknownValue`; telemetry
+renders known Wi-Fi and Bluetooth states as text. Unknown Windows Wi-Fi link
+values render as `unknown_<n>` while other fields remain available; see
+[Windows host telemetry](product-guide.md#host-telemetry) for partial
+samples and location permissions.
 It uses Windows.Devices.Radios or NetworkManager/BlueZ native switches.
 `host.network.adapter.set` takes `{ adapter_id, enabled, allow_disconnect: false }`;
 Windows uses quiet SetupAPI and refuses without administrator rights, without UAC.
@@ -93,11 +114,74 @@ The Public `host.cpu.load` query and `host.system` rows expose calibrated
 capacity and estimated load in GFLOP/s. At plugin start, a bounded kernel runs
 eight independent f64 fused multiply-add accumulators on each available logical
 CPU. Each FMA counts two operations; completed work divided by total wall time
-gives kernel-equivalent capacity. The kernel budget is half the CPU operation's
-attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
+gives kernel-equivalent capacity. The calibration window and deadline-check batch
+size come from host settings; the default window is half the CPU operation's attempt policy. Estimated load is capacity multiplied by OS utilization / 100;
 it is a workload-equivalent estimate, rather than a measured instruction count
 or the processor's theoretical peak. Calibration reflects the compiled kernel,
 current machine and power state at startup. The method is beside `CpuLoad`.
+
+
+### Closed-Loop CPU Load
+
+The host plugin provides the Public request
+`plugin_host::host::cpu::load::LoadHold` (`host.cpu.load.hold`):
+
+```rust
+LoadHold { target: LoadTarget::Percent(60.0), threads: None }
+LoadHold { target: LoadTarget::Flops(1_000_000_000.0), threads: Some(2) }
+```
+
+Finite percent targets lie in `(0,100]`; finite FLOP/s targets are positive.
+`threads: Option<u32>` accepts `1..=logical_cores`; `None` selects all available logical cores. Percent
+control includes other processes and only adds missing host load. FLOP/s control
+counts this generator's work; the OS exposes no system-wide floating-point counter.
+Unreachable targets saturate at zero or full duty rather than claiming success.
+Existing `host.cpu.load.capacity_gflops` remains the sole startup capacity estimate;
+`LoadTarget::approximate_flops` and `approximate_percent` convert targets using it.
+The calibration and generator execute the same counted eight-accumulator FMA kernel.
+
+CPU sampling has one fixed-cadence owner. `host.system.collect`, `host.cpu.load`
+and control read its latest completed window, so consumer cadence cannot shorten
+CPU delta windows. Memory and other system probes remain collected on demand.
+
+`CpuLoadSettings` in `plugins/sidecars/host/src/settings.rs` owns all control
+timing and tuning beside the other host tunables. Plugin settings expose the CPU
+Load Control section:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `period_ms` | 250 | Controller period |
+| `sample_ms` | 250 | Shared CPU sampling period; at least the native sampler minimum |
+| `slice_ms` | 10 | Busy/sleep slice per worker |
+| `proportional_gain` | 0.5 | Proportional gain on normalized error |
+| `integral_gain` | 0.5 | Integral gain per second |
+| `integral_min`, `integral_max` | -1, 1 | Clamped integrator bounds |
+| `settlement_ms` | 2000 | Worker settlement budget |
+| `batch_iterations` | 4096 | Worker kernel iterations between stop checks |
+
+Sampling and slices must fit a controller period; settlement must cover a slice.
+The operation policy has no practical deadline and never retries. Its 60 s cancellation
+grace is defined beside the settings defaults; the settlement budget must fit that grace. Actual elapsed
+wall time determines counted FLOP/s and the duration-weighted mean and RMS error.
+The PI controller clamps duty to `[0,1]` and back-calculates integration on saturation.
+
+The distinct `host.cpu.load.control` stream carries the selected mode, nullable
+percent or FLOP/s target/measurement columns, duty and generator FLOP/s. Columns
+have structured units and bracketed labels such as `Target [%]` and
+`Generator [FLOP/s]`; existing estimated load uses `Estimated CPU Load [GFLOP/s]`.
+
+Use the runtime invocation builder’s `.start()`, hold, then `.cancel().await?` to stop and join, returning
+`LoadSummary { target, mean, error_rms, duration_s, samples }`. Dokime's step/run handle
+sweep cancels forgotten handles; native drop cleanup also stops and joins workers.
+No effect-journal inverse is needed: stopping restores CPU use and process death
+cannot leave generation running or persistent native state changed.
+
+`mean` and `error_rms` use the selected target's units; `samples` counts measured
+intervals, including the final partial interval. Cancellation during publication
+also settles the workers and returns the final summary. The OBC Checks template
+`obc.checks.cpu_load` demonstrates the complete consumer sequence using the
+step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
+
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
 `memory_total_gib` (Memory Total [GiB]), with structured unit metadata `GiB`.
@@ -169,12 +253,18 @@ on plugin names. Bundle inspection and extraction happen before activation
 and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
-including the affected contract and the `plugin_contract_unavailable` or
-`plugin_contract_cycle` admission code.
+and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+Unavailable-contract reasons identify the owner and required contract; cycle
+reasons identify every involved plugin.
 
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
+
+Template runners stop cooperatively through `Signal<T>` with
+`ExecutionSignal.cancel = true`, retaining the run's final response and evidence.
+Cancelling the owning Harmos invocation aborts its child calls, including evidence
+delivery, so run policies retain immediate abort for that control path.
 
 `cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,

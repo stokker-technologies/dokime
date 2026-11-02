@@ -198,12 +198,19 @@ async fn fixture(mode: String) {
             tokio::time::pause();
             let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
             let ready = ready(pid.into());
-            let result = dokime_packaging::build::run(dokime_packaging::build::Options {
+            let build = dokime_packaging::build::run(dokime_packaging::build::Options {
                 cargo_timeout: Some(deadline()),
                 ..Default::default()
-            })
-            .await;
-            ready.await.unwrap();
+            });
+            tokio::pin!(build);
+            tokio::select! {
+                result = &mut build => panic!("build completed before descendant readiness: {result:?}"),
+                ready = ready => ready.unwrap(),
+            }
+            // Windows Pipe Reads Use Blocking Tasks, Which Inhibit Clock Auto-Advance.
+            // Cross The Timer Wheel's Rounded-Up Millisecond Boundary Explicitly.
+            tokio::time::advance(deadline() + Duration::from_millis(1)).await;
+            let result = build.await;
             assert!(matches!(result, Err(Error::Timeout(_))));
         }
         "parent" => {
@@ -227,6 +234,7 @@ async fn fixture(mode: String) {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn process() {
     if let Ok(mode) = std::env::var("DOKIME_PROCESS_TEST_MODE") {

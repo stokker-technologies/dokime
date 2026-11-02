@@ -283,13 +283,15 @@ impl PluginStore {
         Ok(())
     }
 
-    pub async fn record_boot(&self, id: Uuid, error: Option<String>) -> Result<(), PluginError> {
+    pub async fn record_boot(
+        &self, id: Uuid, failure: Option<dokime_domain::model::plugins::wire::PluginStartFailure>,
+    ) -> Result<(), PluginError> {
         self.settings
             .edit(move |document| {
                 let plugin = document.plugins.get_mut(&id).ok_or(PluginError::Unknown(id))?;
                 let at = crate::model::time::now_utc();
-                plugin.last_boot = Some(match error {
-                    Some(error) => PluginLastBoot::Failed { error, at },
+                plugin.last_boot = Some(match failure {
+                    Some(failure) => PluginLastBoot::Failed { failure, at },
                     None => PluginLastBoot::Loaded { at },
                 });
                 Ok(())
@@ -346,7 +348,18 @@ impl PluginStore {
                 }
                 for (id, error) in failures {
                     if let Some(plugin) = document.plugins.get_mut(&id) {
-                        plugin.last_boot = Some(PluginLastBoot::Failed { error, at: crate::model::time::now_utc() });
+                        plugin.last_boot = Some(PluginLastBoot::Failed {
+                            failure: dokime_domain::model::plugins::wire::PluginStartFailure {
+                                plugin_id: String::new(),
+                                plugin_name: id.to_string(),
+                                message: error,
+                                code: None,
+                                missing_secret: None,
+                                consequences: Vec::new(),
+                                carrier: Vec::new(),
+                            },
+                            at: crate::model::time::now_utc(),
+                        });
                     }
                 }
                 Ok(())
@@ -383,7 +396,7 @@ fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Op
         metadata,
         error,
         active: false,
-        boot_error: None,
+        boot_failed: false,
     }
 }
 

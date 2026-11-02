@@ -15,7 +15,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /* === Types === */
 
-export type AutosaveState = { kind: "error"; message: string } | { kind: "idle" } | { kind: "saved" } | { kind: "saving" };
+export type AutosaveState =
+  | { kind: "error"; message: string; failure?: unknown }
+  | { kind: "idle" }
+  | { kind: "saved" }
+  | { kind: "saving" };
 
 export type Autosave<T> = {
   /** Writes after the debounce; use for text and number inputs. */
@@ -44,7 +48,7 @@ export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (e
       async (value) => {
         await saveRef.current(value);
       },
-      (next) => setState(next.kind === "error" ? { ...next, message: message(new Error(next.message)) } : next),
+      (next) => setState(next.kind === "error" ? { ...next, message: message(next.failure ?? new Error(next.message)) } : next),
     );
   useEffect(() => () => writer.current?.flush(), []);
   const change = useCallback((value: T) => {
@@ -88,7 +92,7 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
     } catch (error) {
       pending ??= current;
       failed = true;
-      changed({ kind: "error", message: describeError(error) });
+      changed({ kind: "error", message: describeError(error), failure: error });
     } finally {
       writing = false;
       if (pending && ready && !failed) void drain();

@@ -180,6 +180,7 @@ export function CycleSidebarCasesView({
       .then(() => toast.success(outcome.done))
       .catch((error: unknown) =>
         toast.error(outcome.failed, {
+          error,
           description: error instanceof Error ? error.message : String(error),
         }),
       );

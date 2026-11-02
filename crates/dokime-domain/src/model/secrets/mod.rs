@@ -7,24 +7,21 @@
  * ***
  */
 
-// Host Secret Storage Metadata And Redacted Plugin Bindings.
+// Host Secret Storage Metadata And Declaration Availability.
 
 /* === Modules === */
 
-pub mod binding;
 pub mod catalog;
 pub mod transfer;
 
 /* === Re-Exports === */
-
-pub use binding::RedactedSecretBinding;
-pub use binding::SecretBackendKind;
 
 /* === Imports === */
 
 // Standard Library Imports
 
 // Third Party Imports
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 
@@ -35,6 +32,12 @@ pub use binding::SecretBackendKind;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SecretAvailability {
+    pub identifier: String,
+    pub available: bool,
+}
 
 /* === Enums === */
 

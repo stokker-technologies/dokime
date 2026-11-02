@@ -12,7 +12,7 @@ Complete the approved server composition simplification and CI repairs together.
 - Restore Cargo defaults and use the built-in test profile for Tests and matching Clippy, preserving graph artifact namespaces.
 - Consume the existing test archive for compiler-contract execution rather than rebuilding the GUI.
 - Run expensive generated-starter consumer compilation only through an explicit nightly test job; retain cheap scaffold tests ordinarily.
-- Complete the desktop lifecycle and backend-selection audit: retain shutdown ownership across retries, focus repeated launches per application root, and manage Local and saved remotes through the existing session owner and backend catalog.
+- Complete the desktop lifecycle and backend-selection audit: retain shutdown ownership across retries, allow independent desktop launches with actionable local-backend lease conflicts, and manage Local and saved remotes through the existing session owner and backend catalog.
 - Remove obsolete GUI projections, route compatibility and remembered-parameter compatibility. Unsupported stored formats fail explicitly without silent deletion or migration.
 - Align dependency features and TLS providers with their intended functionality, remove proven unused dependencies, and validate compatible dependency updates.
 

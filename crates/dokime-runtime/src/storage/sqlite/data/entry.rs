@@ -303,7 +303,7 @@ fn stream_header(value: &StoredRow) -> StoredRow<&[u8]> {
     }
 }
 
-fn stream_length(value: &StoredRow, maximum: usize) -> Result<usize, Error> {
+pub(super) fn stream_length(value: &StoredRow, maximum: usize) -> Result<usize, Error> {
     let header = check_size(&stream_header(value), maximum)?;
     u32::try_from(header).map_err(|_| Error::Data("SQLite stream header length overflows"))?;
     header

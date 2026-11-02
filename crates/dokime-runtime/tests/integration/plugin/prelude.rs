@@ -62,6 +62,7 @@ mod bare_attributes {
     const POLICY: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
     };
 
@@ -142,18 +143,6 @@ mod bare_attributes {
             };
             setup.resource::<()>(owner.resources());
             Ok(owner)
-        }
-
-        async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-            Ok(())
-        }
-
-        async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-            Ok(())
-        }
-
-        async fn cleanup(&mut self) -> Result<(), Refusal> {
-            Ok(())
         }
     }
 

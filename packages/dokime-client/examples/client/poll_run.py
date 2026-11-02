@@ -30,7 +30,7 @@ from dokime_client.client import DokimeClient, Execution, Value
 
 # === Constants === #
 
-PAIRING_FILE = Path("lab.dokime-pair")
+PAIRING_FILE = Path("lab.dokime-remote")
 CYCLE_LABEL = "Polling Demonstration"
 TEMPLATE = "obc.checks.pulse"
 PARAMETERS: dict[str, Value] = {"sample_count": 8}
@@ -53,11 +53,11 @@ async def poll(handle: Execution, interval: float) -> dict[str, object]:
     print("Reading Evidence...", file=sys.stderr, flush=True)
 
     async with asyncio.TaskGroup() as tasks:
-        tasks.create_task(count_samples(handle, samples, interval))
+        tasks.create_task(count_samples(handle, samples))
         tasks.create_task(count_records(handle, events))
         outcome = await handle.wait(poll_interval=interval)
 
-    # The Saved Outcome And Callback Drain Are Separate Guarantees.
+    # The Saved Outcome And Iterator Drain Are Separate Guarantees.
 
     return {
         "run": {
@@ -74,38 +74,27 @@ async def main() -> None:
     if not math.isfinite(POLL_INTERVAL) or POLL_INTERVAL <= 0:
         raise ValueError("POLL_INTERVAL must be finite and greater than zero")
 
-    client = DokimeClient.from_pairing(PAIRING_FILE)
-
-    try:
-        template = await client.template(TEMPLATE)
-        (test_case,) = await template.materialize(parameters=PARAMETERS)
-        handle = Execution(test_case)
-        cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
+    async with DokimeClient.from_pairing(PAIRING_FILE) as client, client.new_cycle(CYCLE_LABEL) as cycle:
+        handle = await cycle.start(TEMPLATE, **PARAMETERS)
+        if isinstance(handle, tuple):
+            raise TypeError("the polling example expects a single materialized case")
         print(f"Cycle: {cycle.id} Execution: {handle.id}", flush=True)
         Path("cycle.json").write_text(json.dumps({"cycle_id": cycle.id}, indent=2) + "\n", encoding="utf-8")
-        await cycle.append([handle])
-        await handle.start()
         summary = await poll(handle, POLL_INTERVAL)
-
-        print("Summary:", json.dumps(summary, indent=2, default=str), flush=True)
-        Path("summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
-        await cycle.seal()
-
-    finally:
-        # Disconnecting the client does not cancel the execution.
-        await client.close()
+        print("Summary:", json.dumps(summary, indent=2), flush=True)
+        Path("summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
 # Keep one iterator alive to retain cursors.
-async def count_samples(handle: Execution, counts: Counter[str], interval: float) -> None:
-    async with aclosing(handle.samples(follow=True, poll_interval=interval)) as reader:
+async def count_samples(handle: Execution, counts: Counter[str]) -> None:
+    async with aclosing(handle.samples()) as reader:
         async for sample in reader:
             counts[sample.stream] += 1
 
 
 # Summarize without printing individual records.
 async def count_records(handle: Execution, counts: Counter[str]) -> None:
-    async with aclosing(handle.records(follow=True)) as reader:
+    async with aclosing(handle.records()) as reader:
         async for record in reader:
             counts[record.type] += 1
 

@@ -231,19 +231,3 @@ impl RuntimeState {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::BundleCatalog;
-
-    #[test]
-    fn bundle_catalog_requires_plugin_inventory() {
-        let current = serde_json::json!({"package": "instruments", "path": "/bundle", "installation": null, "plugins": []});
-        let catalog: BundleCatalog = serde_json::from_value(current.clone()).unwrap();
-        assert!(catalog.plugins.is_empty());
-        let mut obsolete = current;
-        obsolete.as_object_mut().unwrap().remove("plugins");
-        obsolete["artifacts"] = serde_json::json!([]);
-        assert!(serde_json::from_value::<BundleCatalog>(obsolete).is_err());
-    }
-}

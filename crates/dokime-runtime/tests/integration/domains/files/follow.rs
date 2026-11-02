@@ -117,6 +117,7 @@ fn assert_abandoned(frame: &harmos::operations::Response<wire::ExecutionFileFoll
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn live_growth_resumes_one_identity_and_seals_exact_prefix() {
     use std::io::Write as _;
@@ -159,6 +160,7 @@ async fn live_growth_resumes_one_identity_and_seals_exact_prefix() {
     owner.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn follow_terminal_interleavings() {
     // Finished: The Last Bytes Reach The Viewer Before The Owner Seals.

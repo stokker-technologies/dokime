@@ -7,7 +7,7 @@
  * ***
  */
 
-// `WatchFile`, the step's file watch: one file watched for the calling step's
+// `WatchFile`, the step's file watch: files watched for the calling step's
 // execution until the instance is cancelled, the bound elapses or the
 // execution seals. It settles with what it sealed and the gaps it saw; a
 // cancelled watch seals what it captured through `stop`.
@@ -104,17 +104,23 @@ impl Watching {
         })
     }
 
-    async fn run(&mut self, request: WatchFile, scoped: Option<&str>) -> Result<WatchFileOutcome, Error> {
+    async fn run(&mut self, request: WatchFile, scoped: Option<&str>, ctx: &Context<'_, WatchFile>) -> Result<WatchFileOutcome, Error> {
         let runtime =
             self.resources.runtime.get().ok_or_else(|| Error::unavailable(super::UNREACHABLE, "the runtime is still starting"))?;
-        let watch = runtime.open_watch_file(&request, scoped).await?;
+        let watch = tokio::select! {
+            result = runtime.open_watch_file(&request, scoped) => result?,
+            () = ctx.cancelled() => return Err(Error::cancelled("file_watch_cancelled", "file watch was cancelled before it opened")),
+        };
         let watch = self.watch.insert(watch);
 
         // Poll Until Complete, Bounded, Or Sealed By The Execution
         let mut events = Vec::new();
         let mut gaps = Vec::new();
         loop {
-            let polled = watch.poll(&mut events).await;
+            let polled = tokio::select! {
+                result = watch.poll(&mut events) => result,
+                () = ctx.cancelled() => break,
+            };
             if let Err(source) = polled {
                 self.ready.send_replace(Some(Err(source.to_string())));
                 let sealed = watch.seal(&mut events).await;
@@ -139,8 +145,10 @@ impl Watching {
             }
             let pause = remaining.map_or(watch.poll_interval(), |remaining| remaining.min(watch.poll_interval()));
             tokio::select! {
-                () = watch.seal_requested() => break,
-                () = tokio::time::sleep(pause) => {}
+                sealed = watch.wait_for_poll(pause) => {
+                    if sealed { break; }
+                }
+                () = ctx.cancelled() => break,
             }
         }
 
@@ -148,6 +156,10 @@ impl Watching {
         let sealed = watch.seal(&mut events).await;
         collect_gaps(&mut events, &mut gaps);
         sealed?;
+        if ctx.cancellation_requested() && self.ready.borrow().is_none() {
+            self.watch = None;
+            return Err(Error::cancelled("file_watch_cancelled", "file watch was cancelled before capture was armed"));
+        }
         let artifacts = watch
             .sealed()
             .iter()
@@ -189,7 +201,7 @@ impl Serve<WatchFile> for Files {
             // A Step's Call Carries Its Execution
             let scoped = execution_of(ctx.call());
             let mut watching = Watching::register(&self.0, &ctx).map_err(status)?;
-            watching.run(request, scoped.as_deref()).await.map(Into::into).map_err(status)
+            watching.run(request, scoped.as_deref(), &ctx).await.map(Into::into).map_err(status)
         })
     }
 }

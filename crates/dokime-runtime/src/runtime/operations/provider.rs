@@ -199,9 +199,22 @@ impl ProviderInvocations {
 }
 
 impl Serve<RunProviderCycle> for ProviderInvocations {
-    fn serve<'a>(&'a self, request: RunProviderCycle, _: Context<'a, RunProviderCycle>) -> Served<'a, ()> {
+    fn serve<'a>(&'a self, request: RunProviderCycle, ctx: Context<'a, RunProviderCycle>) -> Served<'a, ()> {
         Box::pin(async move {
-            self.attend(&request.request_id).await?;
+            let attending = self.attend(&request.request_id);
+            tokio::pin!(attending);
+            tokio::select! {
+                biased;
+                result = &mut attending => result?,
+                () = ctx.cancelled() => {
+                    let cancellation = self.entries.lock().expect("provider invocation registry is healthy")
+                        .get(&request.request_id).map(|invocation| invocation.cancellation.clone());
+                    if let Some(cancellation) = cancellation {
+                        cancellation.send_replace(true);
+                    }
+                    attending.await?;
+                }
+            }
             Ok(().into())
         })
     }
@@ -303,11 +316,11 @@ impl ProviderCycleRequest {
                     let outcome = tokio::select! {
                         outcome = &mut handle => outcome,
                         _ = async { let _ = cancelled.wait_for(|cancelled| *cancelled).await; } => {
-                            handle.cancel();
+                            handle.request_cancel();
                             handle.await
                         }
                         _ = async { let _ = shutdown.wait_for(|requested| *requested).await; } => {
-                            handle.cancel();
+                            handle.request_cancel();
                             handle.await
                         }
                         _ = async {
@@ -315,7 +328,7 @@ impl ProviderCycleRequest {
                                 if changes.changed().await.is_err() { break; }
                             }
                         } => {
-                            handle.cancel();
+                            handle.request_cancel();
                             handle.await
                         }
                     };

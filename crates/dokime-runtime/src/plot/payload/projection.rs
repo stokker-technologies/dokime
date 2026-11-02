@@ -78,7 +78,7 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
             for sample in samples {
                 points.push(PlotPoint {
                     x: x_value(super::x_input(sample, x_key))?,
-                    y: sample.values.get(key).and_then(super::numeric_value),
+                    y: sample.values.get(key).and_then(super::series_value),
                     z: z.resolve(sample),
                 });
             }

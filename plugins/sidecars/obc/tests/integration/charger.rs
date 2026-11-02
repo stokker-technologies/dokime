@@ -45,6 +45,7 @@ use plugin_obc::{SOURCE, suites::steady};
 // Observer callbacks run on independent runtime threads, so the story keeps
 // the real clock: a paused one would spin the drain poll while they run.
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cleanup_drains_input() {
     let workflow = Workflow::<steady::Steady>::new(steady::STEADY_SUITE, SOURCE);

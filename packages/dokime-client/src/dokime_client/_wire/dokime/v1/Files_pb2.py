@@ -46,7 +46,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Files.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/FilesMessages/FileWatch/messages.proto\"\xa5\x01\n\x14\x46ilesFileWatchOutput\x12=\n\x04item\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row3H\x00R\x04item\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row2H\x00R\x08responseB\x07\n\x05value2`\n\x05\x46iles\x12W\n\tFileWatch\x12\'.dokime.v1.FilesMessages.FileWatch.Row1\x1a\x1f.dokime.v1.FilesFileWatchOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Files.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/FilesMessages/FileWatch/messages.proto\"\xa5\x01\n\x14\x46ilesFileWatchOutput\x12=\n\x04item\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row3H\x00R\x04item\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row2H\x00R\x08responseB\x07\n\x05value\"\x1c\n\x1a\x46ilesFileWatchCancellation\"\xe8\x01\n\x16\x46ilesFileWatchRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.FilesFileWatchCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.FilesFileWatchCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xa8\x01\n\x17\x46ilesFileWatchRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row2H\x00R\x08response\x12=\n\x04item\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row3H\x00R\x04itemB\x07\n\x05value2\xbb\x01\n\x05\x46iles\x12W\n\tFileWatch\x12\'.dokime.v1.FilesMessages.FileWatch.Row1\x1a\x1f.dokime.v1.FilesFileWatchOutput0\x01\x12Y\n\x0cRunFileWatch\x12!.dokime.v1.FilesFileWatchRunInput\x1a\".dokime.v1.FilesFileWatchRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -55,8 +55,14 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_FILESFILEWATCHOUTPUT']._serialized_start=127
   _globals['_FILESFILEWATCHOUTPUT']._serialized_end=292
-  _globals['_FILES']._serialized_start=294
-  _globals['_FILES']._serialized_end=390
+  _globals['_FILESFILEWATCHCANCELLATION']._serialized_start=294
+  _globals['_FILESFILEWATCHCANCELLATION']._serialized_end=322
+  _globals['_FILESFILEWATCHRUNINPUT']._serialized_start=325
+  _globals['_FILESFILEWATCHRUNINPUT']._serialized_end=557
+  _globals['_FILESFILEWATCHRUNOUTPUT']._serialized_start=560
+  _globals['_FILESFILEWATCHRUNOUTPUT']._serialized_end=728
+  _globals['_FILES']._serialized_start=731
+  _globals['_FILES']._serialized_end=918
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

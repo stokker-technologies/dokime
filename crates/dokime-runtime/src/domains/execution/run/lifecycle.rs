@@ -21,8 +21,8 @@
 
 // Local Imports
 use super::{
-    ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant, ProgressCleanup,
-    ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
+    CleanupStage, ExecutionCleanup, ExecutionFixtureContext, ExecutionSignal, Finalization, HostCapture, Identifier, Instant,
+    ProgressCleanup, ProviderExecutionFailure, StepLeaseBridge, TestExecution, close_record_subscriptions, failure, sampling_scope,
 };
 use crate::domains::telemetry::DeclaredLeases;
 use dokime_domain::model::execution::health::HealthSeverity;
@@ -71,32 +71,69 @@ impl Finalization {
     }
 
     pub(crate) async fn finish(&self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
-        let mut active = self.active.lock().await;
-        if let Some(cleanup) = active.as_mut() {
-            cleanup.finish(context).await?;
-        }
-        *active = None;
-        Ok(())
+        let finalization = self.clone();
+        let context = context.clone();
+        tokio::spawn(async move {
+            let mut active = finalization.active.lock().await;
+            if let Some(cleanup) = active.as_mut() {
+                cleanup.finish(&context).await?;
+            }
+            *active = None;
+            Ok(())
+        })
+        .await
+        .map_err(|error| failure("sidecar_cleanup", error.to_string()))?
     }
 }
 
 impl ExecutionCleanup {
     pub(super) async fn finish(&mut self, context: &ExecutionFixtureContext) -> Result<(), ProviderExecutionFailure> {
-        self.settle(context).await;
-        context.runtime.restore_effects(Some(self.execution.test_execution_id.as_str())).await.map_err(telemetry_failure)?;
+        if self.stage == CleanupStage::Settle {
+            self.settle(context).await;
+            self.stage = CleanupStage::Effects;
+        }
+        if self.stage == CleanupStage::Effects {
+            #[cfg(feature = "testing")]
+            super::testing::record(&self.execution.test_execution_id, "effects");
+            context.runtime.restore_effects(Some(self.execution.test_execution_id.as_str())).await.map_err(telemetry_failure)?;
+            self.stage = CleanupStage::Publications;
+        }
 
-        let publication_started = Instant::now();
-        tracing::debug!(execution_id = %self.execution.test_execution_id, "execution publication flush started");
-        context.runtime.flush_plugin_publications().await.map_err(telemetry_failure)?;
-        tracing::debug!(execution_id = %self.execution.test_execution_id,
+        if self.stage == CleanupStage::Publications {
+            #[cfg(feature = "testing")]
+            super::testing::record(&self.execution.test_execution_id, "publications");
+            let publication_started = Instant::now();
+            tracing::debug!(execution_id = %self.execution.test_execution_id, "execution publication flush started");
+            context.runtime.flush_plugin_publications().await.map_err(telemetry_failure)?;
+            tracing::debug!(execution_id = %self.execution.test_execution_id,
             elapsed_ms = publication_started.elapsed().as_millis() as u64, "execution publication flush settled");
-        close_record_subscriptions(context, &self.execution).await?;
-        self.session.prompts.lock().await.settle_on_cancel(context).await;
+            self.stage = CleanupStage::Records;
+        }
+        if self.stage == CleanupStage::Records {
+            #[cfg(feature = "testing")]
+            super::testing::record(&self.execution.test_execution_id, "records");
+            close_record_subscriptions(context, &self.execution).await?;
+            self.stage = CleanupStage::Prompts;
+        }
+        if self.stage == CleanupStage::Prompts {
+            self.session.prompts.lock().await.settle_on_cancel(context).await;
+            self.stage = CleanupStage::Steps;
+        }
 
         let capture_started = Instant::now();
         tracing::debug!(execution_id = %self.execution.test_execution_id, "execution capture release started");
-        self.session.step_leases.release_all(context).await?;
-        self.capture.release(context).await?;
+        if self.stage == CleanupStage::Steps {
+            #[cfg(feature = "testing")]
+            super::testing::record(&self.execution.test_execution_id, "step_leases");
+            self.session.step_leases.release_all(context).await?;
+            self.stage = CleanupStage::Capture;
+        }
+        if self.stage == CleanupStage::Capture {
+            #[cfg(feature = "testing")]
+            super::testing::record(&self.execution.test_execution_id, "capture_leases");
+            self.capture.release(context).await?;
+            self.stage = CleanupStage::Complete;
+        }
         tracing::debug!(execution_id = %self.execution.test_execution_id,
             elapsed_ms = capture_started.elapsed().as_millis() as u64, "execution capture release settled");
         Ok(())

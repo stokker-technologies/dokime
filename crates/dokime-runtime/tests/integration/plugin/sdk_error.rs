@@ -151,6 +151,7 @@ impl Boundary {
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn sdk_error_boundary() {
     let report = Harness::template(TEMPLATE)
@@ -166,7 +167,7 @@ async fn sdk_error_boundary() {
     let diagnostics = report.diagnostics();
     assert!(diagnostics.contains("caused by:"), "a chained dokime_runtime::Error renders more than its own message: {diagnostics}");
     assert!(
-        diagnostics.contains("must be a non-empty relative"),
+        diagnostics.contains(&dokime_runtime::artifacts::name::InvalidName::Length.to_string()),
         "the innermost cause — the io::Error `Artifacts::create` names — still renders: {diagnostics}"
     );
 }

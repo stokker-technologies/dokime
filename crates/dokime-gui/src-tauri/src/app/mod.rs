@@ -12,8 +12,8 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
+pub(crate) mod firewall;
 mod http;
-mod instance;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
@@ -98,16 +98,6 @@ fn start_tauri_app() -> tauri::Result<()> {
     let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
-    let instance = if launch.target.is_none() && launch.error.is_none() {
-        // Single-Instance Identity Remains Compiled For This Release.
-        let instance_paths = dokime::paths::ApplicationPaths::resolve_identifier(&context.config().identifier, None)?;
-        match tauri::async_runtime::block_on(instance::Instance::acquire(&instance_paths.root))? {
-            Some(instance) => Some(instance),
-            None => return Ok(()),
-        }
-    } else {
-        None
-    };
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
@@ -123,7 +113,38 @@ fn start_tauri_app() -> tauri::Result<()> {
         .manage(paths)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
-                window.state::<plugins::DroppedFiles>().record(window.label(), paths);
+                if window.label() == "main"
+                    && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "dokime-remote"))
+                {
+                    let app = window.app_handle().clone();
+                    let paths = paths.clone();
+                    tauri::async_runtime::spawn(async move {
+                        Box::pin(async move {
+                            use tauri::Emitter;
+                            let result = if paths.len() == 1 {
+                                crate::connection::registry::import_path(
+                                    &app,
+                                    &app.state::<crate::connection::registry::Registry>(),
+                                    &app.state::<crate::connection::ConnectionSession>(),
+                                    paths[0].clone(),
+                                    None,
+                                )
+                                .await
+                                .map(|_| ())
+                            } else {
+                                Err(crate::connection::ConnectionError::InvalidTarget {
+                                    message: "Drop exactly one .dokime-remote file".into(),
+                                })
+                            };
+                            if let Err(error) = result {
+                                let _ = app.emit("desktop://remote-import-failed", error);
+                            }
+                        })
+                        .await;
+                    });
+                } else {
+                    window.state::<plugins::DroppedFiles>().record(window.label(), paths);
+                }
             }
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 window.state::<crate::rpc::Bridge>().cancel_owner(window.label());
@@ -167,9 +188,6 @@ fn start_tauri_app() -> tauri::Result<()> {
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
             updates::setup(app)?;
             create_main_windows(app)?;
-            if let Some(instance) = instance {
-                app.manage(instance.start(app.handle().clone()));
-            }
             if shutdown_stdin {
                 let handle = app.handle().clone();
                 // A dedicated thread avoids retaining a blocking Tokio task on
@@ -196,6 +214,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
+        tauri::RunEvent::Exit => dokime::diagnostics::test_trace::flush(),
         tauri::RunEvent::WindowEvent {
             event: tauri::WindowEvent::CloseRequested { api, .. },
             ..

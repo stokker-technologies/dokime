@@ -238,7 +238,8 @@ impl MemberRows {
         for (ordinal, sample) in input.telemetry.iter().enumerate() {
             self.append("samples", member, ordinal, &telemetry::SampleValues(sample))?;
         }
-        for (ordinal, note) in captured.context.notes.iter().enumerate() {
+        for ordinal in crate::report::previews::indices(captured.context.notes.len(), captured.report_defaults.table_rows as usize) {
+            let note = &captured.context.notes[ordinal];
             self.append(
                 "notes",
                 member,
@@ -252,7 +253,8 @@ impl MemberRows {
                 },
             )?;
         }
-        for (ordinal, item) in captured.context.health.iter().enumerate() {
+        for ordinal in crate::report::previews::indices(captured.context.health.len(), captured.report_defaults.table_rows as usize) {
+            let item = &captured.context.health[ordinal];
             self.append(
                 "health",
                 member,
@@ -547,10 +549,13 @@ impl Serialize for Telemetry<'_, '_> {
             let (samples, rest) = remaining.split_at(count);
             remaining = rest;
             let returned = selection(count, self.0.report_defaults.plot_points as usize).count();
+            let crate::report::html::Member::Captured(captured) = (self.0.read)(first.member).map_err(serde::ser::Error::custom)?;
+            let version = captured.input.telemetry.get(first.sample).map(|sample| sample.schema_version);
+            let contract = version.and_then(|version| captured.telemetry_contracts.get(&first.stream)?.get(&version));
             #[derive(Serialize)]
             struct Stream<'a, 'r> {
                 stream: &'a str,
-                spec: Option<()>,
+                spec: Option<telemetry::Spec<'a>>,
                 summary: BTreeMap<(), ()>,
                 samples: Samples<'a, 'r>,
                 max_samples: usize,
@@ -563,7 +568,7 @@ impl Serialize for Telemetry<'_, '_> {
                 first.stream.as_str(),
                 &Stream {
                     stream: first.stream.as_str(),
-                    spec: None,
+                    spec: contract.map(telemetry::Spec::new),
                     summary: BTreeMap::new(),
                     samples: Samples(self.0, samples),
                     max_samples: self.0.report_defaults.plot_points as usize,

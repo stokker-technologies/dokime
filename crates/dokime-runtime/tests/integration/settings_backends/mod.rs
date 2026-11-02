@@ -47,14 +47,14 @@ pub(crate) mod secrets_transfer;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn settings_backends() {
     runtime_settings::live_status_answered().await;
     runtime_settings::dispatcher_alone_probe().await;
     runtime_settings::discovered_settings_until().await;
     runtime_settings::resolves_one_record().await;
-    runtime_settings::secret_references_file().await;
-    runtime_settings::stored_secret_bindings().await;
+    runtime_settings::shared_secret_identifiers().await;
     runtime_settings::source_settings_absent().await;
     runtime_settings::application_preferences_reopen_and_reject_stale_or_invalid_updates().await;
     config_application::explicit_root_local();
@@ -86,6 +86,7 @@ async fn settings_backends() {
     secrets_transfer::saved_file_roundtrip().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn settings_backends_concurrent() {
     identity::concurrent_creators_identity().await;

@@ -30,7 +30,7 @@ from dokime_tools.release import policy
 
 # === Constants === #
 
-FIXTURES = ("plugin-obc",)
+FIXTURES = ("plugin-host", "plugin-obc")
 
 # === Types === #
 

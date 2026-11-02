@@ -33,6 +33,7 @@ use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_millis(2_000),
     attempt_timeout: Duration::from_millis(2_000),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 

@@ -229,17 +229,21 @@ pub async fn rpc<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<Response, RpcError> {
-    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
-    let path = path(request.headers())?;
-    let deadline =
-        deadline(request.headers(), Duration::from_millis(DESKTOP_UNARY_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS))?;
-    // Unary calls wait for their budget: they are short, and a burst of
-    // queries must not fail because a few others are still in flight.
-    let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
-    let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
-    let client = context.client();
-    let response = context.execute(client.call_raw(path, payload.to_vec(), deadline)).await?;
-    context.reply_bytes(&response)
+    // Keep The Nested Client Future Off Tauri's Main-Thread Response Stack.
+    Box::pin(async move {
+        let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+        let path = path(request.headers())?;
+        let deadline =
+            deadline(request.headers(), Duration::from_millis(DESKTOP_UNARY_TIMEOUT_MS), Duration::from_millis(DESKTOP_STREAM_TIMEOUT_MS))?;
+        // Unary calls wait for their budget: they are short, and a burst of
+        // queries must not fail because a few others are still in flight.
+        let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
+        let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
+        let client = context.client();
+        let response = context.execute(client.call_raw(path, payload.to_vec(), deadline)).await?;
+        context.reply_bytes(&response)
+    })
+    .await
 }
 
 #[tauri::command]

@@ -22,9 +22,10 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use super::{error, owns_annotation, owns_projection};
+use super::error;
 use crate::RuntimeState;
 use crate::definition::TestCase;
+use crate::execution::context::captured::{owns_annotation, owns_projection};
 use crate::runtime::Result;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;

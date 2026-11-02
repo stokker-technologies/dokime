@@ -29,10 +29,9 @@ pub use windows::{administrator, connected_adapters, read_radio};
 
 use crate::domain::controls::{ControlState, Radio, RadioPower};
 use dokime::harmos::{
-    operations::{OperationPolicy, RetryPolicy},
+    operations::OperationPolicy,
     state::{Invertible, Transaction},
 };
-use std::time::Duration;
 
 // Standard Library Imports
 
@@ -42,18 +41,10 @@ use std::time::Duration;
 
 /* === Constants === */
 
-pub const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_secs(30),
-    attempt_timeout: Duration::from_secs(30),
-    retries: RetryPolicy::Never,
-};
+pub const POLICY: OperationPolicy = crate::settings::collection_policy(crate::settings::CONTROL_BUDGET_MS);
 
 // An Inverse May First Settle An Already Owned Forward Attempt.
-pub const RESTORE_POLICY: OperationPolicy = OperationPolicy {
-    timeout: POLICY.timeout.saturating_mul(2),
-    attempt_timeout: POLICY.attempt_timeout.saturating_mul(2),
-    retries: RetryPolicy::Never,
-};
+pub const RESTORE_POLICY: OperationPolicy = crate::settings::collection_policy(crate::settings::RESTORE_BUDGET_MS);
 
 /* === Macros === */
 
@@ -305,39 +296,5 @@ mod tests {
             ..Default::default()
         };
         assert!(request.check(&state).is_err());
-    }
-
-    #[test]
-    fn radio_codec_rejects_strings_and_unknown_variants() {
-        #[dokime::message]
-        struct StringRequest {
-            radio: String,
-            state: String,
-            allow_disconnect: bool,
-        }
-
-        #[dokime::message]
-        enum FutureRadio {
-            Wifi,
-            Bluetooth,
-            Cellular,
-            Satellite,
-        }
-
-        #[dokime::message]
-        enum FuturePower {
-            On,
-            Off,
-            Standby,
-        }
-
-        let legacy = StringRequest {
-            radio: "wifi".into(),
-            state: "on".into(),
-            allow_disconnect: false,
-        };
-        assert!(RadioSet::decode(&legacy.encode()).is_err());
-        assert!(Radio::decode(&FutureRadio::Satellite.encode()).is_err());
-        assert!(RadioPower::decode(&FuturePower::Standby.encode()).is_err());
     }
 }

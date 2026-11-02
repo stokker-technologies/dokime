@@ -50,7 +50,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Media.proto\x12\tdokime.v1\x1aIdokime_client/_wire/dokime/v1/MediaMessages/AudioRecording/messages.proto\x1aJdokime_client/_wire/dokime/v1/MediaMessages/CameraRecording/messages.proto\x1a@dokime_client/_wire/dokime/v1/MediaMessages/Photo/messages.proto\x1aJdokime_client/_wire/dokime/v1/MediaMessages/ScreenRecording/messages.proto\x1a\x45\x64okime_client/_wire/dokime/v1/MediaMessages/Screenshot/messages.proto\"\xb4\x01\n\x19MediaAudioRecordingOutput\x12\x42\n\x04item\x18\x01 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row3H\x00R\x04item\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row2H\x00R\x08responseB\x07\n\x05value\"\xb7\x01\n\x1aMediaCameraRecordingOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row2H\x00R\x08responseB\x07\n\x05value\"\xb7\x01\n\x1aMediaScreenRecordingOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row2H\x00R\x08responseB\x07\n\x05value2\xfa\x03\n\x05Media\x12\x66\n\x0e\x41udioRecording\x12,.dokime.v1.MediaMessages.AudioRecording.Row1\x1a$.dokime.v1.MediaAudioRecordingOutput0\x01\x12i\n\x0f\x43\x61meraRecording\x12-.dokime.v1.MediaMessages.CameraRecording.Row1\x1a%.dokime.v1.MediaCameraRecordingOutput0\x01\x12Q\n\x05Photo\x12#.dokime.v1.MediaMessages.Photo.Row1\x1a#.dokime.v1.MediaMessages.Photo.Row2\x12i\n\x0fScreenRecording\x12-.dokime.v1.MediaMessages.ScreenRecording.Row1\x1a%.dokime.v1.MediaScreenRecordingOutput0\x01\x12`\n\nScreenshot\x12(.dokime.v1.MediaMessages.Screenshot.Row1\x1a(.dokime.v1.MediaMessages.Screenshot.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Media.proto\x12\tdokime.v1\x1aIdokime_client/_wire/dokime/v1/MediaMessages/AudioRecording/messages.proto\x1aJdokime_client/_wire/dokime/v1/MediaMessages/CameraRecording/messages.proto\x1a@dokime_client/_wire/dokime/v1/MediaMessages/Photo/messages.proto\x1aJdokime_client/_wire/dokime/v1/MediaMessages/ScreenRecording/messages.proto\x1a\x45\x64okime_client/_wire/dokime/v1/MediaMessages/Screenshot/messages.proto\"\xb4\x01\n\x19MediaAudioRecordingOutput\x12\x42\n\x04item\x18\x01 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row3H\x00R\x04item\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row2H\x00R\x08responseB\x07\n\x05value\"!\n\x1fMediaAudioRecordingCancellation\"\xfc\x01\n\x1bMediaAudioRecordingRunInput\x12H\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row1H\x00R\x07request\x12\x44\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32*.dokime.v1.MediaAudioRecordingCancellationH\x00R\x06\x63\x61ncel\x12\x44\n\x06\x66inish\x18\x04 \x01(\x0b\x32*.dokime.v1.MediaAudioRecordingCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xb7\x01\n\x1cMediaAudioRecordingRunOutput\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row2H\x00R\x08response\x12\x42\n\x04item\x18\x01 \x01(\x0b\x32,.dokime.v1.MediaMessages.AudioRecording.Row3H\x00R\x04itemB\x07\n\x05value\"\xb7\x01\n\x1aMediaCameraRecordingOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row2H\x00R\x08responseB\x07\n\x05value\"\"\n MediaCameraRecordingCancellation\"\x80\x02\n\x1cMediaCameraRecordingRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.MediaCameraRecordingCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.MediaCameraRecordingCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xba\x01\n\x1dMediaCameraRecordingRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row2H\x00R\x08response\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.CameraRecording.Row3H\x00R\x04itemB\x07\n\x05value\"\x18\n\x16MediaPhotoCancellation\"\xd8\x01\n\x12MediaPhotoRunInput\x12?\n\x07request\x18\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row1H\x00R\x07request\x12;\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32!.dokime.v1.MediaPhotoCancellationH\x00R\x06\x63\x61ncel\x12;\n\x06\x66inish\x18\x04 \x01(\x0b\x32!.dokime.v1.MediaPhotoCancellationH\x00R\x06\x66inishB\x07\n\x05value\"a\n\x13MediaPhotoRunOutput\x12\x41\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row2H\x00R\x08responseB\x07\n\x05value\"\xb7\x01\n\x1aMediaScreenRecordingOutput\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row3H\x00R\x04item\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row2H\x00R\x08responseB\x07\n\x05value\"\"\n MediaScreenRecordingCancellation\"\x80\x02\n\x1cMediaScreenRecordingRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.MediaScreenRecordingCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.MediaScreenRecordingCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xba\x01\n\x1dMediaScreenRecordingRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row2H\x00R\x08response\x12\x43\n\x04item\x18\x01 \x01(\x0b\x32-.dokime.v1.MediaMessages.ScreenRecording.Row3H\x00R\x04itemB\x07\n\x05value\"\x1d\n\x1bMediaScreenshotCancellation\"\xec\x01\n\x17MediaScreenshotRunInput\x12\x44\n\x07request\x18\x01 \x01(\x0b\x32(.dokime.v1.MediaMessages.Screenshot.Row1H\x00R\x07request\x12@\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32&.dokime.v1.MediaScreenshotCancellationH\x00R\x06\x63\x61ncel\x12@\n\x06\x66inish\x18\x04 \x01(\x0b\x32&.dokime.v1.MediaScreenshotCancellationH\x00R\x06\x66inishB\x07\n\x05value\"k\n\x18MediaScreenshotRunOutput\x12\x46\n\x08response\x18\x02 \x01(\x0b\x32(.dokime.v1.MediaMessages.Screenshot.Row2H\x00R\x08responseB\x07\n\x05value2\xeb\x07\n\x05Media\x12\x66\n\x0e\x41udioRecording\x12,.dokime.v1.MediaMessages.AudioRecording.Row1\x1a$.dokime.v1.MediaAudioRecordingOutput0\x01\x12h\n\x11RunAudioRecording\x12&.dokime.v1.MediaAudioRecordingRunInput\x1a\'.dokime.v1.MediaAudioRecordingRunOutput(\x01\x30\x01\x12i\n\x0f\x43\x61meraRecording\x12-.dokime.v1.MediaMessages.CameraRecording.Row1\x1a%.dokime.v1.MediaCameraRecordingOutput0\x01\x12k\n\x12RunCameraRecording\x12\'.dokime.v1.MediaCameraRecordingRunInput\x1a(.dokime.v1.MediaCameraRecordingRunOutput(\x01\x30\x01\x12Q\n\x05Photo\x12#.dokime.v1.MediaMessages.Photo.Row1\x1a#.dokime.v1.MediaMessages.Photo.Row2\x12M\n\x08RunPhoto\x12\x1d.dokime.v1.MediaPhotoRunInput\x1a\x1e.dokime.v1.MediaPhotoRunOutput(\x01\x30\x01\x12i\n\x0fScreenRecording\x12-.dokime.v1.MediaMessages.ScreenRecording.Row1\x1a%.dokime.v1.MediaScreenRecordingOutput0\x01\x12k\n\x12RunScreenRecording\x12\'.dokime.v1.MediaScreenRecordingRunInput\x1a(.dokime.v1.MediaScreenRecordingRunOutput(\x01\x30\x01\x12`\n\nScreenshot\x12(.dokime.v1.MediaMessages.Screenshot.Row1\x1a(.dokime.v1.MediaMessages.Screenshot.Row2\x12\\\n\rRunScreenshot\x12\".dokime.v1.MediaScreenshotRunInput\x1a#.dokime.v1.MediaScreenshotRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -59,12 +59,42 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_MEDIAAUDIORECORDINGOUTPUT']._serialized_start=421
   _globals['_MEDIAAUDIORECORDINGOUTPUT']._serialized_end=601
-  _globals['_MEDIACAMERARECORDINGOUTPUT']._serialized_start=604
-  _globals['_MEDIACAMERARECORDINGOUTPUT']._serialized_end=787
-  _globals['_MEDIASCREENRECORDINGOUTPUT']._serialized_start=790
-  _globals['_MEDIASCREENRECORDINGOUTPUT']._serialized_end=973
-  _globals['_MEDIA']._serialized_start=976
-  _globals['_MEDIA']._serialized_end=1482
+  _globals['_MEDIAAUDIORECORDINGCANCELLATION']._serialized_start=603
+  _globals['_MEDIAAUDIORECORDINGCANCELLATION']._serialized_end=636
+  _globals['_MEDIAAUDIORECORDINGRUNINPUT']._serialized_start=639
+  _globals['_MEDIAAUDIORECORDINGRUNINPUT']._serialized_end=891
+  _globals['_MEDIAAUDIORECORDINGRUNOUTPUT']._serialized_start=894
+  _globals['_MEDIAAUDIORECORDINGRUNOUTPUT']._serialized_end=1077
+  _globals['_MEDIACAMERARECORDINGOUTPUT']._serialized_start=1080
+  _globals['_MEDIACAMERARECORDINGOUTPUT']._serialized_end=1263
+  _globals['_MEDIACAMERARECORDINGCANCELLATION']._serialized_start=1265
+  _globals['_MEDIACAMERARECORDINGCANCELLATION']._serialized_end=1299
+  _globals['_MEDIACAMERARECORDINGRUNINPUT']._serialized_start=1302
+  _globals['_MEDIACAMERARECORDINGRUNINPUT']._serialized_end=1558
+  _globals['_MEDIACAMERARECORDINGRUNOUTPUT']._serialized_start=1561
+  _globals['_MEDIACAMERARECORDINGRUNOUTPUT']._serialized_end=1747
+  _globals['_MEDIAPHOTOCANCELLATION']._serialized_start=1749
+  _globals['_MEDIAPHOTOCANCELLATION']._serialized_end=1773
+  _globals['_MEDIAPHOTORUNINPUT']._serialized_start=1776
+  _globals['_MEDIAPHOTORUNINPUT']._serialized_end=1992
+  _globals['_MEDIAPHOTORUNOUTPUT']._serialized_start=1994
+  _globals['_MEDIAPHOTORUNOUTPUT']._serialized_end=2091
+  _globals['_MEDIASCREENRECORDINGOUTPUT']._serialized_start=2094
+  _globals['_MEDIASCREENRECORDINGOUTPUT']._serialized_end=2277
+  _globals['_MEDIASCREENRECORDINGCANCELLATION']._serialized_start=2279
+  _globals['_MEDIASCREENRECORDINGCANCELLATION']._serialized_end=2313
+  _globals['_MEDIASCREENRECORDINGRUNINPUT']._serialized_start=2316
+  _globals['_MEDIASCREENRECORDINGRUNINPUT']._serialized_end=2572
+  _globals['_MEDIASCREENRECORDINGRUNOUTPUT']._serialized_start=2575
+  _globals['_MEDIASCREENRECORDINGRUNOUTPUT']._serialized_end=2761
+  _globals['_MEDIASCREENSHOTCANCELLATION']._serialized_start=2763
+  _globals['_MEDIASCREENSHOTCANCELLATION']._serialized_end=2792
+  _globals['_MEDIASCREENSHOTRUNINPUT']._serialized_start=2795
+  _globals['_MEDIASCREENSHOTRUNINPUT']._serialized_end=3031
+  _globals['_MEDIASCREENSHOTRUNOUTPUT']._serialized_start=3033
+  _globals['_MEDIASCREENSHOTRUNOUTPUT']._serialized_end=3140
+  _globals['_MEDIA']._serialized_start=3143
+  _globals['_MEDIA']._serialized_end=4146
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

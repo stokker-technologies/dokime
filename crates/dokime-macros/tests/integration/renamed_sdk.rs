@@ -44,6 +44,7 @@ use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Pu
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(120),
     attempt_timeout: std::time::Duration::from_secs(120),
+    cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
 
@@ -230,14 +231,6 @@ impl sdk::harmos::Lifecycle for Renamed {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), sdk::Refusal> {
         self.observers.take();
 
@@ -273,6 +266,7 @@ fn operation_ids(nodes: &[sdk::catalog::Node<sdk::harmos::operations::WireDeclar
 /* === Tests === */
 
 #[cfg(test)]
+#[dokime_tracing::trace_test]
 #[test]
 fn alias_compiles_operations() {
     // Renamed Facade Uses One Shared Codec For Every Domain Shape.

@@ -31,7 +31,7 @@ from dokime_client.client import Cycle, DokimeClient, DokimeError, Execution, Re
 # === Constants === #
 
 # Connection Parameters
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 
 # Case And Execution Parameters
 TEMPLATE = "obc.checks.pulse"
@@ -95,13 +95,20 @@ async def run() -> int:
             destination = OUTPUT_DIRECTORY / "execution-1.zip"
             records: asyncio.Queue[Record] = asyncio.Queue()
             samples: asyncio.Queue[Sample] = asyncio.Queue()
-            outcome = await first.run(
-                record_types=RECORD_TYPES,
-                streams=STREAMS,
-                on_record=records.put,
-                on_sample=samples.put,
-                timeout=WAIT_SECONDS,
-            )
+            await first.start()
+
+            async def read_records() -> None:
+                async for item in first.records(*RECORD_TYPES):
+                    records.put_nowait(item)
+
+            async def read_samples() -> None:
+                async for item in first.samples(*STREAMS):
+                    samples.put_nowait(item)
+
+            async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+                tasks.create_task(read_records())
+                tasks.create_task(read_samples())
+                outcome = await first
 
             # Print The Returned Observations In Order Within Each Reader.
             records_by_type: Counter[str] = Counter()
@@ -133,13 +140,20 @@ async def run() -> int:
                 destination = OUTPUT_DIRECTORY / "execution-2.zip"
                 records = asyncio.Queue()
                 samples = asyncio.Queue()
-                outcome = await second.run(
-                    record_types=RECORD_TYPES,
-                    streams=STREAMS,
-                    on_record=records.put,
-                    on_sample=samples.put,
-                    timeout=WAIT_SECONDS,
-                )
+                await second.start()
+
+                async def read_records() -> None:
+                    async for item in second.records(*RECORD_TYPES):
+                        records.put_nowait(item)
+
+                async def read_samples() -> None:
+                    async for item in second.samples(*STREAMS):
+                        samples.put_nowait(item)
+
+                async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+                    tasks.create_task(read_records())
+                    tasks.create_task(read_samples())
+                    outcome = await second
 
                 # Print The Returned Observations In Order Within Each Reader.
                 records_by_type = Counter()
@@ -169,7 +183,7 @@ async def run() -> int:
             await cycle.seal()
             saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
-            return 0
+            return max(item.outcome.exit_code for item in cycle.executions)
 
         except asyncio.CancelledError:
             # Recover Only This Script's Execution And Cycle

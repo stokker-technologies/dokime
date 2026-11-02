@@ -9,7 +9,16 @@
 
 /* === Modules === */
 
+#[path = "record_query.rs"]
+mod query;
+
+#[path = "record_projection.rs"]
+mod projection;
+
 /* === Re-Exports === */
+
+#[cfg(feature = "testing")]
+pub use query::RecordQueryFixture;
 
 /* === Imports === */
 
@@ -93,7 +102,12 @@ pub(crate) fn view_filter<'a>(
         let projected = captured.and_then(|captures| captures.captured_scope(record)).or(record.scope.as_ref());
         let visible = snapshot.state().executions.values().any(|execution| execution.records.captured_scope(record).is_some())
             || projected.is_none_or(|scope| scope.test_cycle_id.as_ref().is_none_or(|id| snapshot.state().cycles.contains_key(id)));
-        visible && selected.is_none_or(|scope| native_match(projected, scope))
+        visible
+            && selected.is_none_or(|scope| {
+                record.is_visible_in(scope)
+                    || captured
+                        .is_some_and(|captures| captures.captured_scope(record).is_some_and(|captured| native_match(Some(captured), scope)))
+            })
     }
 }
 

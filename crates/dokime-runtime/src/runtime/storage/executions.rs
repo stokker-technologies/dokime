@@ -64,12 +64,17 @@ pub(crate) struct TailStopPreparation {
 }
 
 pub(crate) struct ExecutionStorage {
+    pub(crate) preview_limits: crate::plot::preview::Limits,
     pub(crate) schema_settings: harmos::config::SchemaSettings,
     pub(crate) storage: Manager,
+    pub(crate) local: crate::storage::sqlite::State,
     pub(super) state_manager: StateManager,
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(crate) cycle_save: Arc<Mutex<()>>,
+    pub(crate) report_workers: Arc<tokio::sync::Semaphore>,
+    pub(crate) report_concurrency: std::num::NonZeroUsize,
+    pub(crate) report_jobs: Mutex<BTreeMap<TestExecutionId, tokio::task::JoinHandle<()>>>,
     pub(super) cycle_reports:
         Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
@@ -81,6 +86,9 @@ pub(crate) struct ExecutionStorage {
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) capture_failure: std::sync::Mutex<Option<Arc<Error>>>,
     pub(crate) captures: super::captures::Captures,
+
+    #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+    pub(super) artifact_faults: std::sync::Mutex<BTreeMap<(TestExecutionId, String), std::io::ErrorKind>>,
 
     #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
     pub(super) log_faults: std::sync::Mutex<BTreeMap<TestExecutionId, (usize, std::io::ErrorKind)>>,
@@ -229,24 +237,33 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn new(
-        storage: Manager, state_manager: StateManager, context_epoch: SessionId,
+        storage: Manager, local: crate::storage::sqlite::State, state_manager: StateManager, context_epoch: SessionId,
         brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>, schema_settings: harmos::config::SchemaSettings,
+        previews: crate::storage::sqlite::PreviewSettings,
     ) -> Result<Self> {
+        let report_concurrency = previews.report_concurrency;
         let captures = super::captures::Captures::new();
         Ok(Self {
+            preview_limits: previews.into(),
             schema_settings,
             storage,
+            local,
             state_manager,
             context_epoch,
             brand,
             cycle_save: Arc::new(Mutex::new(())),
             cycle_reports: Mutex::new(BTreeMap::new()),
+            report_jobs: Mutex::new(BTreeMap::new()),
+            report_workers: Arc::new(tokio::sync::Semaphore::new(report_concurrency.get())),
+            report_concurrency,
             active: Mutex::new(BTreeMap::new()),
             open_scopes: Default::default(),
             codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
             capture_failure: Default::default(),
             captures,
+            #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+            artifact_faults: std::sync::Mutex::new(BTreeMap::new()),
             #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
             log_faults: std::sync::Mutex::new(BTreeMap::new()),
         })
@@ -410,8 +427,10 @@ impl ExecutionStorage {
                 if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
             let outputs = if final_report { acquisition.settle_outputs().await? } else { acquisition.snapshot_outputs().await? };
             // A Final Report Seals Every Settled Output; Settlement May Follow The Evidence Cut.
-            let pending =
-                |output: &ExecutionOutput| -> harmos::Result<bool> { Ok(!final_report && !report_boundary.covers(&output.file.position)?) };
+            let pending = |output: &ExecutionOutput| -> harmos::Result<bool> {
+                Ok(!final_report
+                    && output.file.as_ref().map(|file| report_boundary.covers(&file.position)).transpose()?.is_some_and(|saved| !saved))
+            };
             let mut included_count = 0usize;
             let mut unavailable_count = 0usize;
             for output in outputs.iter() {
@@ -452,7 +471,11 @@ impl ExecutionStorage {
                 through: report_boundary,
             })
         };
-        tokio::spawn(operation).await.map_err(|source| Error::Join { source })?
+        let captured = tokio::spawn(operation).await.map_err(|source| Error::Join { source })??;
+        if final_report {
+            self.local.finalize_telemetry(captured.execution.test_execution_id.to_string()).await?;
+        }
+        Ok(captured)
     }
 
     pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {
@@ -648,11 +671,17 @@ impl ExecutionStorage {
             let storage = self.clone();
             let expected = members[id];
             validate_identity(&*owner.lock().await, expected)?;
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_execution_checkpoint(id).await;
             tokio::spawn(async move {
                 let mut acquisition = owner.lock().await;
                 // Settle The Original Admission Before Reading Any Newer Journal State
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
+                }
+                // Native Sealing Is Final Even Before The Journal Adopts Its Seal.
+                if acquisition.execution.saved.is_some() {
+                    return Ok(());
                 }
                 let observed = storage
                     .state_manager
@@ -702,6 +731,43 @@ impl ExecutionStorage {
             validate_existing(&*owner.lock().await, execution)?;
             return Ok(owner);
         }
+        let defaults = self.local.read_application_settings().await?.settings.report;
+        let (documents, contracts) = self
+            .state_manager
+            .state()
+            .read(|state| {
+                let brand = self.brand.read().expect("brand lock is healthy");
+                let captured = super::presentation::capture(state, cycle, execution, brand.as_ref())?;
+                Ok::<_, Error>((captured.context.execution_documents, state.telemetry_definitions.values().cloned().collect::<Vec<_>>()))
+            })
+            .await?
+            .value?;
+        let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+        let mut requests = Vec::new();
+        for mut document in documents.into_values() {
+            defaults.apply(&mut document);
+            for (body, filters) in document
+                .cards
+                .iter()
+                .map(|card| (&card.body, &card.filters))
+                .chain(document.sections.iter().flat_map(|section| section.cards.iter().map(|card| (&card.body, &card.filters))))
+            {
+                let crate::document::DocumentCardBody::Plot { plot } = body else { continue };
+                let mut input = crate::document::plot_input_for_definition(plot, &[], 0, &selection);
+                input.filters.extend(filters.clone());
+                let descriptor = crate::document::plot_descriptor_for_definition(input, plot.metadata.clone());
+                requests.push(crate::plot::plot_payload_request_for_descriptor(&descriptor, Some(execution.scope.clone()), None, None));
+            }
+        }
+        self.local
+            .register_plot_previews(
+                execution.test_execution_id.to_string(),
+                requests,
+                contracts,
+                self.preview_limits,
+                crate::plot::dimension_context_for_scope(execution),
+            )
+            .await?;
         let (frozen, execution_owner) = retained_execution(execution)?;
         let id = execution.test_execution_id.clone();
         let owner = Arc::new(Mutex::new(Acquisition {
@@ -793,6 +859,7 @@ fn validate_report(
     Ok(())
 }
 
+#[tracing::instrument(name = "report.publish_final", skip_all)]
 async fn publish_final(
     ctx: &crate::report::Scope, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
@@ -834,6 +901,7 @@ async fn publish_final(
     Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
 
+#[tracing::instrument(name = "report.seal_final", skip_all)]
 async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);

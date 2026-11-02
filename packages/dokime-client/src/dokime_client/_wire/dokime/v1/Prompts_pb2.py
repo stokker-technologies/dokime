@@ -50,15 +50,45 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Prompts.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/PromptsMessages/GetDefinition/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/PromptsMessages/GetPrompt/messages.proto\x1aLdokime_client/_wire/dokime/v1/PromptsMessages/ListDefinitions/messages.proto\x1aHdokime_client/_wire/dokime/v1/PromptsMessages/ListPending/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/PromptsMessages/Respond/messages.proto2\x96\x04\n\x07Prompts\x12m\n\rGetDefinition\x12-.dokime.v1.PromptsMessages.GetDefinition.Row1\x1a-.dokime.v1.PromptsMessages.GetDefinition.Row2\x12\x61\n\tGetPrompt\x12).dokime.v1.PromptsMessages.GetPrompt.Row1\x1a).dokime.v1.PromptsMessages.GetPrompt.Row2\x12s\n\x0fListDefinitions\x12/.dokime.v1.PromptsMessages.ListDefinitions.Row1\x1a/.dokime.v1.PromptsMessages.ListDefinitions.Row2\x12g\n\x0bListPending\x12+.dokime.v1.PromptsMessages.ListPending.Row1\x1a+.dokime.v1.PromptsMessages.ListPending.Row2\x12[\n\x07Respond\x12\'.dokime.v1.PromptsMessages.Respond.Row1\x1a\'.dokime.v1.PromptsMessages.Respond.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Prompts.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/PromptsMessages/GetDefinition/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/PromptsMessages/GetPrompt/messages.proto\x1aLdokime_client/_wire/dokime/v1/PromptsMessages/ListDefinitions/messages.proto\x1aHdokime_client/_wire/dokime/v1/PromptsMessages/ListPending/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/PromptsMessages/Respond/messages.proto\"\"\n PromptsGetDefinitionCancellation\"\x80\x02\n\x1cPromptsGetDefinitionRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.PromptsMessages.GetDefinition.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.PromptsGetDefinitionCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.PromptsGetDefinitionCancellationH\x00R\x06\x66inishB\x07\n\x05value\"u\n\x1dPromptsGetDefinitionRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.PromptsMessages.GetDefinition.Row2H\x00R\x08responseB\x07\n\x05value\"\x1e\n\x1cPromptsGetPromptCancellation\"\xf0\x01\n\x18PromptsGetPromptRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.PromptsMessages.GetPrompt.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.PromptsGetPromptCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.PromptsGetPromptCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19PromptsGetPromptRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.PromptsMessages.GetPrompt.Row2H\x00R\x08responseB\x07\n\x05value\"$\n\"PromptsListDefinitionsCancellation\"\x88\x02\n\x1ePromptsListDefinitionsRunInput\x12K\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.PromptsMessages.ListDefinitions.Row1H\x00R\x07request\x12G\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32-.dokime.v1.PromptsListDefinitionsCancellationH\x00R\x06\x63\x61ncel\x12G\n\x06\x66inish\x18\x04 \x01(\x0b\x32-.dokime.v1.PromptsListDefinitionsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"y\n\x1fPromptsListDefinitionsRunOutput\x12M\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.PromptsMessages.ListDefinitions.Row2H\x00R\x08responseB\x07\n\x05value\" \n\x1ePromptsListPendingCancellation\"\xf8\x01\n\x1aPromptsListPendingRunInput\x12G\n\x07request\x18\x01 \x01(\x0b\x32+.dokime.v1.PromptsMessages.ListPending.Row1H\x00R\x07request\x12\x43\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32).dokime.v1.PromptsListPendingCancellationH\x00R\x06\x63\x61ncel\x12\x43\n\x06\x66inish\x18\x04 \x01(\x0b\x32).dokime.v1.PromptsListPendingCancellationH\x00R\x06\x66inishB\x07\n\x05value\"q\n\x1bPromptsListPendingRunOutput\x12I\n\x08response\x18\x02 \x01(\x0b\x32+.dokime.v1.PromptsMessages.ListPending.Row2H\x00R\x08responseB\x07\n\x05value\"\x1c\n\x1aPromptsRespondCancellation\"\xe8\x01\n\x16PromptsRespondRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PromptsMessages.Respond.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.PromptsRespondCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.PromptsRespondCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17PromptsRespondRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.PromptsMessages.Respond.Row2H\x00R\x08responseB\x07\n\x05value2\x8f\x08\n\x07Prompts\x12m\n\rGetDefinition\x12-.dokime.v1.PromptsMessages.GetDefinition.Row1\x1a-.dokime.v1.PromptsMessages.GetDefinition.Row2\x12i\n\x10RunGetDefinition\x12\'.dokime.v1.PromptsGetDefinitionRunInput\x1a(.dokime.v1.PromptsGetDefinitionRunOutput(\x01\x30\x01\x12\x61\n\tGetPrompt\x12).dokime.v1.PromptsMessages.GetPrompt.Row1\x1a).dokime.v1.PromptsMessages.GetPrompt.Row2\x12]\n\x0cRunGetPrompt\x12#.dokime.v1.PromptsGetPromptRunInput\x1a$.dokime.v1.PromptsGetPromptRunOutput(\x01\x30\x01\x12s\n\x0fListDefinitions\x12/.dokime.v1.PromptsMessages.ListDefinitions.Row1\x1a/.dokime.v1.PromptsMessages.ListDefinitions.Row2\x12o\n\x12RunListDefinitions\x12).dokime.v1.PromptsListDefinitionsRunInput\x1a*.dokime.v1.PromptsListDefinitionsRunOutput(\x01\x30\x01\x12g\n\x0bListPending\x12+.dokime.v1.PromptsMessages.ListPending.Row1\x1a+.dokime.v1.PromptsMessages.ListPending.Row2\x12\x63\n\x0eRunListPending\x12%.dokime.v1.PromptsListPendingRunInput\x1a&.dokime.v1.PromptsListPendingRunOutput(\x01\x30\x01\x12[\n\x07Respond\x12\'.dokime.v1.PromptsMessages.Respond.Row1\x1a\'.dokime.v1.PromptsMessages.Respond.Row2\x12W\n\nRunRespond\x12!.dokime.v1.PromptsRespondRunInput\x1a\".dokime.v1.PromptsRespondRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Prompts_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PROMPTS']._serialized_start=429
-  _globals['_PROMPTS']._serialized_end=963
+  _globals['_PROMPTSGETDEFINITIONCANCELLATION']._serialized_start=428
+  _globals['_PROMPTSGETDEFINITIONCANCELLATION']._serialized_end=462
+  _globals['_PROMPTSGETDEFINITIONRUNINPUT']._serialized_start=465
+  _globals['_PROMPTSGETDEFINITIONRUNINPUT']._serialized_end=721
+  _globals['_PROMPTSGETDEFINITIONRUNOUTPUT']._serialized_start=723
+  _globals['_PROMPTSGETDEFINITIONRUNOUTPUT']._serialized_end=840
+  _globals['_PROMPTSGETPROMPTCANCELLATION']._serialized_start=842
+  _globals['_PROMPTSGETPROMPTCANCELLATION']._serialized_end=872
+  _globals['_PROMPTSGETPROMPTRUNINPUT']._serialized_start=875
+  _globals['_PROMPTSGETPROMPTRUNINPUT']._serialized_end=1115
+  _globals['_PROMPTSGETPROMPTRUNOUTPUT']._serialized_start=1117
+  _globals['_PROMPTSGETPROMPTRUNOUTPUT']._serialized_end=1226
+  _globals['_PROMPTSLISTDEFINITIONSCANCELLATION']._serialized_start=1228
+  _globals['_PROMPTSLISTDEFINITIONSCANCELLATION']._serialized_end=1264
+  _globals['_PROMPTSLISTDEFINITIONSRUNINPUT']._serialized_start=1267
+  _globals['_PROMPTSLISTDEFINITIONSRUNINPUT']._serialized_end=1531
+  _globals['_PROMPTSLISTDEFINITIONSRUNOUTPUT']._serialized_start=1533
+  _globals['_PROMPTSLISTDEFINITIONSRUNOUTPUT']._serialized_end=1654
+  _globals['_PROMPTSLISTPENDINGCANCELLATION']._serialized_start=1656
+  _globals['_PROMPTSLISTPENDINGCANCELLATION']._serialized_end=1688
+  _globals['_PROMPTSLISTPENDINGRUNINPUT']._serialized_start=1691
+  _globals['_PROMPTSLISTPENDINGRUNINPUT']._serialized_end=1939
+  _globals['_PROMPTSLISTPENDINGRUNOUTPUT']._serialized_start=1941
+  _globals['_PROMPTSLISTPENDINGRUNOUTPUT']._serialized_end=2054
+  _globals['_PROMPTSRESPONDCANCELLATION']._serialized_start=2056
+  _globals['_PROMPTSRESPONDCANCELLATION']._serialized_end=2084
+  _globals['_PROMPTSRESPONDRUNINPUT']._serialized_start=2087
+  _globals['_PROMPTSRESPONDRUNINPUT']._serialized_end=2319
+  _globals['_PROMPTSRESPONDRUNOUTPUT']._serialized_start=2321
+  _globals['_PROMPTSRESPONDRUNOUTPUT']._serialized_end=2426
+  _globals['_PROMPTS']._serialized_start=2429
+  _globals['_PROMPTS']._serialized_end=3468
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

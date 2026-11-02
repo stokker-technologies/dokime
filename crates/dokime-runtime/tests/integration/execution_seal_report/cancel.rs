@@ -69,7 +69,7 @@ pub(crate) async fn cancel_skips_unstarted() {
 
     let cancel = runtime.cancel_execution(ids[0].clone(), CommandContext::default()).await;
     let repeated = runtime.cancel_execution(ids[0].clone(), CommandContext::default()).await;
-    let cancelled_cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let cancelled_cycle = super::published_cycle(&runtime, &test_cycle_id).await;
     let evidence = runtime.evidence_snapshot().await.unwrap();
 
     assert!(cancel.is_ok(), "{cancel:?}");
@@ -98,7 +98,7 @@ pub(crate) async fn cancel_skips_unstarted() {
 
     let running = refusal_code(runtime.cancel_execution(ids[1].clone(), CommandContext::default()).await);
     let dequeued = runtime.cancel_execution(ids[2].clone(), CommandContext::default()).await;
-    let during = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let during = super::published_cycle(&runtime, &test_cycle_id).await;
     executor.release();
     wait_for_run_settled(&runtime, &started.command_id).await;
     let settled = cycle_snapshot(&runtime, &test_cycle_id).await;

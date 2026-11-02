@@ -14,3 +14,45 @@ class DocumentsCaptureCurrentDocumentOutput(_message.Message):
     item: _messages_pb2.Row3
     response: _messages_pb2.Row2
     def __init__(self, item: _Optional[_Union[_messages_pb2.Row3, _Mapping]] = ..., response: _Optional[_Union[_messages_pb2.Row2, _Mapping]] = ...) -> None: ...
+
+class DocumentsCaptureCurrentDocumentCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class DocumentsCaptureCurrentDocumentRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2.Row1
+    cancel: DocumentsCaptureCurrentDocumentCancellation
+    finish: DocumentsCaptureCurrentDocumentCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2.Row1, _Mapping]] = ..., cancel: _Optional[_Union[DocumentsCaptureCurrentDocumentCancellation, _Mapping]] = ..., finish: _Optional[_Union[DocumentsCaptureCurrentDocumentCancellation, _Mapping]] = ...) -> None: ...
+
+class DocumentsCaptureCurrentDocumentRunOutput(_message.Message):
+    __slots__ = ("response", "item")
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    ITEM_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2.Row2
+    item: _messages_pb2.Row3
+    def __init__(self, response: _Optional[_Union[_messages_pb2.Row2, _Mapping]] = ..., item: _Optional[_Union[_messages_pb2.Row3, _Mapping]] = ...) -> None: ...
+
+class DocumentsUpdatePlotSettingsCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class DocumentsUpdatePlotSettingsRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2_1.Row1
+    cancel: DocumentsUpdatePlotSettingsCancellation
+    finish: DocumentsUpdatePlotSettingsCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[DocumentsUpdatePlotSettingsCancellation, _Mapping]] = ..., finish: _Optional[_Union[DocumentsUpdatePlotSettingsCancellation, _Mapping]] = ...) -> None: ...
+
+class DocumentsUpdatePlotSettingsRunOutput(_message.Message):
+    __slots__ = ("response",)
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1.Row2, _Mapping]] = ...) -> None: ...

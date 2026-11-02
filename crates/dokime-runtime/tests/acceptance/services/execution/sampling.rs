@@ -28,7 +28,7 @@ use crate::service_support::sampling::{self, Sampling};
 const SIZE: Sampling = Sampling {
     paged_rows: 640,
     cases: 2,
-    rows: 2_000,
+    rows: sampling::LIVE_DISPLAY_POINTS + 1,
     spectrum_rows: 1_024,
     page_bytes: 64 * 1024,
 };
@@ -52,30 +52,35 @@ const SIZE: Sampling = Sampling {
 /* === Tests === */
 
 // Cases whose own stream spans many pages replay and seal independent of history.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn paged_evidence_settles() {
     sampling::paged_evidence_settles(SIZE).await;
 }
 
 // One case larger than its display points seals its whole series.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn large_case_seals() {
     sampling::large_case_seals(SIZE).await;
 }
 
 // Whole-capture transforms preserve both streams across small storage pages.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn whole_capture_seals() {
     sampling::whole_capture_seals(SIZE).await;
 }
 
 // A running report follows the live plot settings and the sealed report keeps them.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn running_report_follows() {
     sampling::running_report_follows(SIZE).await;
 }
 
 // Opening a running cycle's report shows on the state watch as one operation.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn report_shows_progress() {
     sampling::report_shows_progress(SIZE).await;

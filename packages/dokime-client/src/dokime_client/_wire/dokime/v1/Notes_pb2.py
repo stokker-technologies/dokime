@@ -48,15 +48,33 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Notes.proto\x12\tdokime.v1\x1a\x45\x64okime_client/_wire/dokime/v1/NotesMessages/CreateNote/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/NotesMessages/EditNote/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/NotesMessages/ListNotes/messages.proto2\xa4\x02\n\x05Notes\x12`\n\nCreateNote\x12(.dokime.v1.NotesMessages.CreateNote.Row1\x1a(.dokime.v1.NotesMessages.CreateNote.Row2\x12Z\n\x08\x45\x64itNote\x12&.dokime.v1.NotesMessages.EditNote.Row1\x1a&.dokime.v1.NotesMessages.EditNote.Row2\x12]\n\tListNotes\x12\'.dokime.v1.NotesMessages.ListNotes.Row1\x1a\'.dokime.v1.NotesMessages.ListNotes.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Notes.proto\x12\tdokime.v1\x1a\x45\x64okime_client/_wire/dokime/v1/NotesMessages/CreateNote/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/NotesMessages/EditNote/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/NotesMessages/ListNotes/messages.proto\"\x1d\n\x1bNotesCreateNoteCancellation\"\xec\x01\n\x17NotesCreateNoteRunInput\x12\x44\n\x07request\x18\x01 \x01(\x0b\x32(.dokime.v1.NotesMessages.CreateNote.Row1H\x00R\x07request\x12@\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32&.dokime.v1.NotesCreateNoteCancellationH\x00R\x06\x63\x61ncel\x12@\n\x06\x66inish\x18\x04 \x01(\x0b\x32&.dokime.v1.NotesCreateNoteCancellationH\x00R\x06\x66inishB\x07\n\x05value\"k\n\x18NotesCreateNoteRunOutput\x12\x46\n\x08response\x18\x02 \x01(\x0b\x32(.dokime.v1.NotesMessages.CreateNote.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19NotesEditNoteCancellation\"\xe4\x01\n\x15NotesEditNoteRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.NotesMessages.EditNote.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.NotesEditNoteCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.NotesEditNoteCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16NotesEditNoteRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.NotesMessages.EditNote.Row2H\x00R\x08responseB\x07\n\x05value\"\x1c\n\x1aNotesListNotesCancellation\"\xe8\x01\n\x16NotesListNotesRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.NotesMessages.ListNotes.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.NotesListNotesCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.NotesListNotesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17NotesListNotesRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.NotesMessages.ListNotes.Row2H\x00R\x08responseB\x07\n\x05value2\xb5\x04\n\x05Notes\x12`\n\nCreateNote\x12(.dokime.v1.NotesMessages.CreateNote.Row1\x1a(.dokime.v1.NotesMessages.CreateNote.Row2\x12\\\n\rRunCreateNote\x12\".dokime.v1.NotesCreateNoteRunInput\x1a#.dokime.v1.NotesCreateNoteRunOutput(\x01\x30\x01\x12Z\n\x08\x45\x64itNote\x12&.dokime.v1.NotesMessages.EditNote.Row1\x1a&.dokime.v1.NotesMessages.EditNote.Row2\x12V\n\x0bRunEditNote\x12 .dokime.v1.NotesEditNoteRunInput\x1a!.dokime.v1.NotesEditNoteRunOutput(\x01\x30\x01\x12]\n\tListNotes\x12\'.dokime.v1.NotesMessages.ListNotes.Row1\x1a\'.dokime.v1.NotesMessages.ListNotes.Row2\x12Y\n\x0cRunListNotes\x12!.dokime.v1.NotesListNotesRunInput\x1a\".dokime.v1.NotesListNotesRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Notes_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_NOTES']._serialized_start=267
-  _globals['_NOTES']._serialized_end=559
+  _globals['_NOTESCREATENOTECANCELLATION']._serialized_start=266
+  _globals['_NOTESCREATENOTECANCELLATION']._serialized_end=295
+  _globals['_NOTESCREATENOTERUNINPUT']._serialized_start=298
+  _globals['_NOTESCREATENOTERUNINPUT']._serialized_end=534
+  _globals['_NOTESCREATENOTERUNOUTPUT']._serialized_start=536
+  _globals['_NOTESCREATENOTERUNOUTPUT']._serialized_end=643
+  _globals['_NOTESEDITNOTECANCELLATION']._serialized_start=645
+  _globals['_NOTESEDITNOTECANCELLATION']._serialized_end=672
+  _globals['_NOTESEDITNOTERUNINPUT']._serialized_start=675
+  _globals['_NOTESEDITNOTERUNINPUT']._serialized_end=903
+  _globals['_NOTESEDITNOTERUNOUTPUT']._serialized_start=905
+  _globals['_NOTESEDITNOTERUNOUTPUT']._serialized_end=1008
+  _globals['_NOTESLISTNOTESCANCELLATION']._serialized_start=1010
+  _globals['_NOTESLISTNOTESCANCELLATION']._serialized_end=1038
+  _globals['_NOTESLISTNOTESRUNINPUT']._serialized_start=1041
+  _globals['_NOTESLISTNOTESRUNINPUT']._serialized_end=1273
+  _globals['_NOTESLISTNOTESRUNOUTPUT']._serialized_start=1275
+  _globals['_NOTESLISTNOTESRUNOUTPUT']._serialized_end=1380
+  _globals['_NOTES']._serialized_start=1383
+  _globals['_NOTES']._serialized_end=1948
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

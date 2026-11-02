@@ -206,6 +206,7 @@ def _contract(mode: str) -> dict:
             "policy": {
                 "timeout": {"secs": 30, "nanos": 0},
                 "attempt_timeout": {"secs": 30, "nanos": 0},
+                "cancellation_timeout": {"secs": 0, "nanos": 0},
                 "retries": "never",
                 "restart": "never",
             },

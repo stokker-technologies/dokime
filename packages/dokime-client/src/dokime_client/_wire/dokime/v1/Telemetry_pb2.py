@@ -47,17 +47,29 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Telemetry.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/TelemetryMessages/ListSamples/messages.proto\x1aKdokime_client/_wire/dokime/v1/TelemetryMessages/WatchSamples/messages.proto\"\xba\x01\n\x1bTelemetryWatchSamplesOutput\x12\x44\n\x04item\x18\x01 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row3H\x00R\x04item\x12L\n\x08response\x18\x02 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row2H\x00R\x08responseB\x07\n\x05value2\xe2\x01\n\tTelemetry\x12k\n\x0bListSamples\x12-.dokime.v1.TelemetryMessages.ListSamples.Row1\x1a-.dokime.v1.TelemetryMessages.ListSamples.Row2\x12h\n\x0cWatchSamples\x12..dokime.v1.TelemetryMessages.WatchSamples.Row1\x1a&.dokime.v1.TelemetryWatchSamplesOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/dokime/v1/Telemetry.proto\x12\tdokime.v1\x1aJdokime_client/_wire/dokime/v1/TelemetryMessages/ListSamples/messages.proto\x1aKdokime_client/_wire/dokime/v1/TelemetryMessages/WatchSamples/messages.proto\"\"\n TelemetryListSamplesCancellation\"\x80\x02\n\x1cTelemetryListSamplesRunInput\x12I\n\x07request\x18\x01 \x01(\x0b\x32-.dokime.v1.TelemetryMessages.ListSamples.Row1H\x00R\x07request\x12\x45\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32+.dokime.v1.TelemetryListSamplesCancellationH\x00R\x06\x63\x61ncel\x12\x45\n\x06\x66inish\x18\x04 \x01(\x0b\x32+.dokime.v1.TelemetryListSamplesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"u\n\x1dTelemetryListSamplesRunOutput\x12K\n\x08response\x18\x02 \x01(\x0b\x32-.dokime.v1.TelemetryMessages.ListSamples.Row2H\x00R\x08responseB\x07\n\x05value\"\xba\x01\n\x1bTelemetryWatchSamplesOutput\x12\x44\n\x04item\x18\x01 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row3H\x00R\x04item\x12L\n\x08response\x18\x02 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row2H\x00R\x08responseB\x07\n\x05value\"#\n!TelemetryWatchSamplesCancellation\"\x84\x02\n\x1dTelemetryWatchSamplesRunInput\x12J\n\x07request\x18\x01 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row1H\x00R\x07request\x12\x46\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32,.dokime.v1.TelemetryWatchSamplesCancellationH\x00R\x06\x63\x61ncel\x12\x46\n\x06\x66inish\x18\x04 \x01(\x0b\x32,.dokime.v1.TelemetryWatchSamplesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xbd\x01\n\x1eTelemetryWatchSamplesRunOutput\x12L\n\x08response\x18\x02 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row2H\x00R\x08response\x12\x44\n\x04item\x18\x01 \x01(\x0b\x32..dokime.v1.TelemetryMessages.WatchSamples.Row3H\x00R\x04itemB\x07\n\x05value2\xb7\x03\n\tTelemetry\x12k\n\x0bListSamples\x12-.dokime.v1.TelemetryMessages.ListSamples.Row1\x1a-.dokime.v1.TelemetryMessages.ListSamples.Row2\x12g\n\x0eRunListSamples\x12\'.dokime.v1.TelemetryListSamplesRunInput\x1a(.dokime.v1.TelemetryListSamplesRunOutput(\x01\x30\x01\x12h\n\x0cWatchSamples\x12..dokime.v1.TelemetryMessages.WatchSamples.Row1\x1a&.dokime.v1.TelemetryWatchSamplesOutput0\x01\x12j\n\x0fRunWatchSamples\x12(.dokime.v1.TelemetryWatchSamplesRunInput\x1a).dokime.v1.TelemetryWatchSamplesRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Telemetry_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_start=214
-  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_end=400
-  _globals['_TELEMETRY']._serialized_start=403
-  _globals['_TELEMETRY']._serialized_end=629
+  _globals['_TELEMETRYLISTSAMPLESCANCELLATION']._serialized_start=213
+  _globals['_TELEMETRYLISTSAMPLESCANCELLATION']._serialized_end=247
+  _globals['_TELEMETRYLISTSAMPLESRUNINPUT']._serialized_start=250
+  _globals['_TELEMETRYLISTSAMPLESRUNINPUT']._serialized_end=506
+  _globals['_TELEMETRYLISTSAMPLESRUNOUTPUT']._serialized_start=508
+  _globals['_TELEMETRYLISTSAMPLESRUNOUTPUT']._serialized_end=625
+  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_start=628
+  _globals['_TELEMETRYWATCHSAMPLESOUTPUT']._serialized_end=814
+  _globals['_TELEMETRYWATCHSAMPLESCANCELLATION']._serialized_start=816
+  _globals['_TELEMETRYWATCHSAMPLESCANCELLATION']._serialized_end=851
+  _globals['_TELEMETRYWATCHSAMPLESRUNINPUT']._serialized_start=854
+  _globals['_TELEMETRYWATCHSAMPLESRUNINPUT']._serialized_end=1114
+  _globals['_TELEMETRYWATCHSAMPLESRUNOUTPUT']._serialized_start=1117
+  _globals['_TELEMETRYWATCHSAMPLESRUNOUTPUT']._serialized_end=1306
+  _globals['_TELEMETRY']._serialized_start=1309
+  _globals['_TELEMETRY']._serialized_end=1748
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

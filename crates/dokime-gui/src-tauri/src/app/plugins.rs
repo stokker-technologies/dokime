@@ -96,21 +96,25 @@ pub async fn desktop_plugin_install_file<R: tauri::Runtime>(
     window: WebviewWindow<R>, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle<R>, generation: String,
     drop: bool, progress: Channel<InstallProgress>,
 ) -> Result<Option<String>, String> {
-    let lease = admit(&window, &state, &generation)?;
-    let path = if drop {
-        dropped.take(window.label())?
-    } else {
-        let Some(path) = lease.guard(pick_bundle(&app)).await.map_err(|error| format!("{error:?}"))?? else {
-            return Ok(None);
+    // Keep The Native Command Small Even When Called Outside The Bindings Adapter.
+    Box::pin(async move {
+        let lease = admit(&window, &state, &generation)?;
+        let path = if drop {
+            dropped.take(window.label())?
+        } else {
+            let Some(path) = lease.guard(pick_bundle(&app)).await.map_err(|error| format!("{error:?}"))?? else {
+                return Ok(None);
+            };
+            path
         };
-        path
-    };
 
-    let _ = progress.send(InstallProgress::Reading);
-    let reading = move || dokime::harmos::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
-    let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
-    let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
-    install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))
+        let _ = progress.send(InstallProgress::Reading);
+        let reading = move || dokime::harmos::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
+        let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
+        let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
+        install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))
+    })
+    .await
 }
 
 /* === Private Functions === */

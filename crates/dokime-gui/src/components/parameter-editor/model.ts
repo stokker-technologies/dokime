@@ -27,6 +27,7 @@ import {
 import type { ParameterOverrides } from "@/lib/desktop/settings";
 import { type ParseResult, parseParameterInput } from "@/lib/parameter-parser";
 import type { FileDefinition, ParameterDefinition, SuiteTemplateEntry } from "@/lib/types";
+import type { NotificationProblem } from "@/lib/notification-details";
 
 /* === Constants === */
 
@@ -184,13 +185,35 @@ export function acceptsExpressions(row: EditorParameterRow): boolean {
 
 /** The problems the operator must clear before Next is offered. */
 export function editorProblemCount(rows: EditorParameterRow[], fileRows: FileRowState[], fileDefinitions: FileDefinition[]): number {
-  return (
-    rows.filter((row) => !row.parsed.ok).length +
-    fileDefinitions.filter((definition) => {
-      const row = fileRows.find((candidate) => candidate.name === definition.name);
-      return Boolean(row?.error) || Boolean(row?.uploading) || (definition.required && !(row?.path.trim() || definition.default?.trim()));
-    }).length
+  return editorProblems(rows, fileRows, fileDefinitions).length;
+}
+
+/** Keep Field Identity And Causes Until Notification Delivery. */
+export function editorProblems(
+  rows: EditorParameterRow[],
+  fileRows: FileRowState[],
+  fileDefinitions: FileDefinition[],
+): NotificationProblem[] {
+  const problems: NotificationProblem[] = rows.flatMap((row) =>
+    row.parsed.ok ? [] : [{ label: row.definition.label || row.name, message: row.parsed.error }],
   );
+  for (const definition of fileDefinitions) {
+    const row = fileRows.find((candidate) => candidate.name === definition.name);
+    const message =
+      row?.error ||
+      (row?.uploading
+        ? "The file is still uploading."
+        : definition.required && !(row?.path.trim() || definition.default?.trim())
+          ? "A file is required."
+          : undefined);
+    if (message)
+      problems.push({
+        label: definition.label || definition.name,
+        message,
+        ...(row?.error && row.failure?.causes ? { causes: row.failure.causes } : {}),
+      });
+  }
+  return problems;
 }
 
 /**

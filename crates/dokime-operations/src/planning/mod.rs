@@ -29,8 +29,6 @@ pub use register_selection::RegisterSelection;
 use super::Endpoint;
 use super::{MUTATION, ORDINARY};
 
-#[allow(unused_imports)]
-use dokime_domain::model::identity::wire::*;
 use dokime_domain::model::planning::wire::*;
 
 /* === Constants === */

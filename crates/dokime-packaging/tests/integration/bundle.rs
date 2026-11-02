@@ -112,6 +112,7 @@ fn package(binary: &[u8], settings: &dokime::harmos::config::SchemaSettings) -> 
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn large_metadata_admitted() {
     let binary = metadata();
@@ -134,6 +135,7 @@ async fn large_metadata_admitted() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn metadata_budget_refused() {
     use std::num::NonZeroUsize;
@@ -161,6 +163,7 @@ fn metadata_budget_refused() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn bundle() {
     let root = tempfile::tempdir().unwrap();

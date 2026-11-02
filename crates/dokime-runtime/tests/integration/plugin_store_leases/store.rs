@@ -71,6 +71,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
     let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(120),
         attempt_timeout: std::time::Duration::from_secs(120),
+        cancellation_timeout: std::time::Duration::ZERO,
         retries: harmos::operations::RetryPolicy::Never,
     };
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
@@ -115,6 +116,40 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn boot_failure_persists_plugin_and_carrier() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let id = store.install(&bundle("fixture", "fixture", "1.0.0"), &[], &BTreeSet::new()).await.unwrap().installation.install_id;
+    let carrier = dokime_runtime::harmos::domain::Failure::new(dokime_runtime::harmos::operations::FailureKind::Permanent, "api_token")
+        .with_detail("dokime.secret", "api_token")
+        .encode();
+    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: "fixture".into(),
+        plugin_name: "Fixture".into(),
+        message: String::new(),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
+        missing_secret: Some("api_token".into()),
+        consequences: vec!["workflow is unavailable".into()],
+        carrier: carrier.clone(),
+    };
+    store.record_boot(id, Some(failure.clone())).await.unwrap();
+    database.close().await.unwrap();
+    let (reopened, database) = self::store(root.path()).await;
+    let row = reopened.get(id).await.unwrap();
+    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
+    assert_eq!(retained, failure);
+    assert_eq!(retained.plugin_id, "fixture");
+    assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
+    assert_eq!(
+        dokime_runtime::harmos::domain::Failure::decode(&retained.carrier).unwrap().code(),
+        dokime_runtime::harmos::operations::FailureKind::Permanent
+    );
+    database.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn schema_budget_installation() {
     use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
@@ -150,6 +185,7 @@ async fn schema_budget_installation() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_upgrades() {
     let root = tempfile::tempdir().unwrap();
@@ -208,9 +244,10 @@ async fn bundled_upgrades() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_sources_survive() {
-    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.hilti.testhub"] {
+    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
         let root = tempfile::tempdir().unwrap();
         let application = root.path().join(identifier);
         let plugins = application.join("plugins");
@@ -244,6 +281,7 @@ async fn bundled_sources_survive() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_distribution() {
     let root = tempfile::tempdir().unwrap();
@@ -251,7 +289,7 @@ async fn bundled_distribution() {
     let plugins = installer.path().join("plugins");
     fs::create_dir(&plugins).unwrap();
     let distribution = installer.path().join("installer.json");
-    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.hilti.dokime"}"#).unwrap();
+    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.example.testhub"}"#).unwrap();
     let bytes = bundle("organization-host", "host", "1.0.0");
     installer_metadata(&distribution, "1.0.0", &bytes);
     fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();

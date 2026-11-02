@@ -33,16 +33,16 @@ pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
 
-    #[arg(long, conflicts_with_all = ["label", "endpoint"], help = "Import A Version 1 Pairing File.")]
-    pairing: Option<std::path::PathBuf>,
+    #[arg(long, conflicts_with_all = ["label", "endpoint"], help = "Import A Version 1 Remote Access File.")]
+    remote: Option<std::path::PathBuf>,
 
-    #[arg(long, required_unless_present = "pairing", help = "Saved Backend Profile Identifier.")]
+    #[arg(long, required_unless_present = "remote", help = "Saved Backend Profile Identifier.")]
     identifier: Option<String>,
 
-    #[arg(long, required_unless_present = "pairing", help = "Human Backend Label.")]
+    #[arg(long, required_unless_present = "remote", help = "Human Backend Label.")]
     label: Option<String>,
 
-    #[arg(long, required_unless_present = "pairing", help = "Unsecured Lab HTTP Origin.")]
+    #[arg(long, required_unless_present = "remote", help = "Unsecured Lab HTTP Origin.")]
     endpoint: Option<String>,
 }
 
@@ -54,12 +54,18 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(super) fn run(args: Args) -> crate::Result<()> {
+pub(super) async fn run(args: Args) -> crate::Result<()> {
     let store = args.config.store()?;
-    if let Some(path) = args.pairing {
+    if let Some(path) = args.remote {
         let pairing = dokime::client::pairing::read(&path)?;
         let identifier = args.identifier.as_deref().unwrap_or(&pairing.backend_identifier);
-        store.import_pairing(&pairing, identifier, &dokime::client::secrets::KeyringStore)?;
+        let profile = store.import_pairing(&pairing, identifier, &dokime::client::secrets::KeyringStore)?;
+        let selected = dokime::client::profiles::selection(&profile)?;
+        let client =
+            dokime::client::Client::connect(selected.target.clone(), pairing.access_key.as_deref(), Some(&pairing.backend_identifier))
+                .await?;
+        store.remember_endpoint(&selected, client.endpoint())?;
+        client.close_and_wait().await;
         return Ok(());
     }
     let endpoint = args.endpoint.ok_or_else(|| crate::Error::Input("endpoint is required".into()))?;
@@ -70,6 +76,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         identifier: args.identifier.ok_or_else(|| crate::Error::Input("identifier is required".into()))?,
         label: args.label.ok_or_else(|| crate::Error::Input("label is required".into()))?,
         endpoint,
+        endpoints: Vec::new(),
         expected_backend_id: None,
         ca_certificate_pem: None,
         secret: Secret::None,

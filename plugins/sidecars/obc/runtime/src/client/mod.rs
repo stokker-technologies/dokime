@@ -44,10 +44,6 @@ impl Client {
         Self { handle }
     }
 
-    pub async fn ensure_ready(&self) -> Result<(), Error> {
-        if self.stopped().await? { Err(Error::Stopped) } else { Ok(()) }
-    }
-
     pub async fn stopped(&self) -> Result<bool, Error> {
         let state = self.handle.state.state();
         let stopped = state.read(|state| state.stopped).await?;

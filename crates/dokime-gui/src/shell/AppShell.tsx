@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 import { useRuntimeStream } from "@/app/live/use-runtime-stream";
+import { PluginStartNotifications } from "@/features/settings/plugins/plugin-queries";
 import { AppShellLayout, type FrozenShell } from "./AppShellLayout";
 import { ConsoleDrawer } from "./ConsoleDrawer";
 import { MenuBar } from "./MenuBar";
@@ -36,6 +37,7 @@ export function AppShell(props: AppShellProps) {
       }
       statusBar={frozen ? <StatusBar frozen={frozen} live={false} /> : <StatusBar />}
     >
+      {frozen ? null : <PluginStartNotifications />}
       {props.children}
     </AppShellLayout>
   );

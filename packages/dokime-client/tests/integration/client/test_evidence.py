@@ -66,8 +66,8 @@ def test_live_values() -> None:
 
             # Live Readers Follow Until The Run Completes
             following = asyncio.gather(
-                collect(run.records(follow=True)),
-                collect(run.samples(page_size=1, follow=True)),
+                collect(run.records()),
+                collect(run.samples(page_size=1)),
                 run.wait(poll_interval=0.01),
             )
             await server.records_parked.wait()
@@ -92,7 +92,7 @@ def test_sample_watch_reconnect() -> None:
             await execution.start()
             await execution.wait(poll_interval=0.01)
             server.interrupt_sample_watch = True
-            samples = await collect(execution.samples(follow=True, page_size=1))
+            samples = await collect(execution.samples(page_size=1))
             assert [sample.sequence for sample in samples] == [1, 2]
             assert any(cursor.get("voltage") == 1 for cursor in server.sent_cursors)
             assert server.stop_calls == 0
@@ -109,7 +109,7 @@ def test_replay_pages() -> None:
             await run.wait(poll_interval=0.01)
             records = await collect(run_cycle.records(record_types=["fixture.finished"], record_ids=["event-2"]))
             assert [r.id for r in records] == ["event-2"]
-            assert await collect(run.records(record_ids=["missing"], follow=True)) == []
+            assert await collect(run.records(record_ids=["missing"])) == []
             assert len(await collect(run_cycle.samples(page_size=1))) == 2
 
     asyncio.run(scenario())

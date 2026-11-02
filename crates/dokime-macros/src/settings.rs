@@ -30,7 +30,7 @@ use crate::arguments::Shape;
 /* === Constants === */
 
 const SECTION_ARGUMENTS: &[&str] = &["label", "description", "status"];
-const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "from_environment", "options", "discovered"];
+const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "options", "discovered"];
 const FIELD_FLAGS: &[&str] = &["secret"];
 const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64"];
 
@@ -60,7 +60,6 @@ struct FieldArguments {
     max: Option<Expr>,
     step: Option<Expr>,
     secret: bool,
-    from_environment: Option<Expr>,
     options: Option<Type>,
     discovered: Option<Type>,
     visible_when: Option<(Ident, Expr)>,
@@ -393,8 +392,8 @@ fn validate(name: &Ident, kind: Kind, shape: Shape, written: &FieldArguments, si
     if written.secret && !matches!(kind, Kind::Secret) {
         return Err(Error::new(name.span(), "a secret is declared by its type: write the field as `dokime::plugin::Secret`"));
     }
-    if written.from_environment.is_some() && !matches!(kind, Kind::Secret) {
-        return Err(Error::new(name.span(), "only a secret reads its default from the environment"));
+    if matches!(kind, Kind::Secret) && written.default.is_some() {
+        return Err(Error::new(name.span(), "a secret names its identifier in Secret Storage and has no default"));
     }
     if (written.min.is_some() || written.max.is_some() || written.step.is_some()) && !matches!(kind, Kind::Number) {
         return Err(Error::new(name.span(), format!("min, max and step bound a number, and this field declares {}", kind.named())));
@@ -403,7 +402,7 @@ fn validate(name: &Ident, kind: Kind, shape: Shape, written: &FieldArguments, si
         return Err(Error::new(name.span(), format!("`options = …` fills a choice, and this field declares {}", kind.named())));
     }
     if matches!(kind, Kind::Secret) && !matches!(shape, Shape::Required | Shape::Optional) {
-        return Err(Error::new(name.span(), "a secret is one binding: declare it as `Secret` or `Option<Secret>`"));
+        return Err(Error::new(name.span(), "declare a secret as `Secret` or `Option<Secret>`"));
     }
     // A plugin has to be able to initialize before discovery has ever run, so
     // what discovery fills in is a field the plugin can hold empty.
@@ -467,7 +466,6 @@ fn arguments(field: &syn::Field) -> Result<FieldArguments, Error> {
             "min" => written.min = Some(value),
             "max" => written.max = Some(value),
             "step" => written.step = Some(value),
-            "from_environment" => written.from_environment = Some(value),
             "options" | "discovered" => {
                 let linked = request(&value)?;
                 match name == "options" {
@@ -608,21 +606,11 @@ fn entry(field: &SettingDeclaration) -> Result<TokenStream, Error> {
             }
         }
         Kind::Secret => {
-            let default = match &field.written.from_environment {
-                Some(variable) => quote! {
-                    ::core::option::Option::Some(#sdk::settings::SecretReference::Environment {
-                        variable: ::std::string::ToString::to_string(#variable),
-                    })
-                },
-                None => quote!(::core::option::Option::None),
-            };
-
             quote! {
-                #sdk::settings::SettingsEntry::SecretReference(#sdk::settings::SecretSetting {
+                #sdk::settings::SettingsEntry::Secret(#sdk::settings::SecretSetting {
                     id: ::std::string::ToString::to_string(#identifier),
                     title: ::std::string::ToString::to_string(#label),
                     description: #described,
-                    default: #default,
                     required: #required,
                 })
             }
@@ -637,11 +625,11 @@ fn read(field: &SettingDeclaration) -> TokenStream {
     let name = &field.name;
     let identifier = &field.identifier;
     let leaf = &field.leaf;
-    // A secret never travels in the values: it is bound by the host and read
+    // A secret never travels in the values: the host reads its identifier from Secret Storage and read
     // out of the context, which is why the decode is handed both.
     if matches!(field.kind, Kind::Secret) {
         let read = match field.shape {
-            Shape::Optional => quote!(#sdk::plugin::settings::bound_secret(context, #identifier)),
+            Shape::Optional => quote!(#sdk::plugin::settings::optional_secret(context, #identifier)),
             _ => quote!(#sdk::plugin::settings::secret(context, #identifier)?),
         };
 

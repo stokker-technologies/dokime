@@ -8,6 +8,9 @@
  */
 
 /* === Modules === */
+mod aggregates;
+mod all_plots;
+mod connectivity;
 pub(crate) mod declared;
 pub(crate) mod plots;
 pub(crate) mod sampling;

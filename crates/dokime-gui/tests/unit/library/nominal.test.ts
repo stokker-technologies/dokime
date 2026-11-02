@@ -18,7 +18,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 // Local Imports
-import type { EditorParameterRow } from "@/components/parameter-editor/model";
+import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
+import type { FileDefinition, ParameterDefinition } from "@/lib/types";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
 import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/features/library/ActiveCycle";
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
@@ -78,6 +79,40 @@ function preview(...cases: Record<string, unknown>[]): Preview {
 }
 
 /* === Entry Point === */
+
+test("Template Problems Keep Each Field And Its Validation Cause", () => {
+  const definition = {
+    parameter_id: "voltage",
+    name: "voltage",
+    label: "Input Voltage",
+    value_type: "float",
+    required: true,
+    metadata: {},
+    values: [230],
+    choices: [],
+  } as ParameterDefinition;
+  const invalid = editorRow(definition, "invalid-voltage");
+  assert.equal(invalid.parsed.ok, false);
+  const files = [
+    { name: "input", label: "Input File", required: true },
+    { name: "capture", label: "Capture", required: false },
+    { name: "optional", required: false },
+  ] as FileDefinition[];
+  const fileRows = [{ name: "capture", path: "capture.bin", error: "fixture-upload-refused", uploading: false }];
+  const problems = editorProblems([invalid], fileRows, files);
+  assert.deepEqual(
+    problems.map((problem) => problem.label),
+    ["Input Voltage", "Input File", "Capture"],
+  );
+  assert.equal(problems[0].message, invalid.parsed.ok ? undefined : invalid.parsed.error);
+  assert.equal(problems[2].message, fileRows[0].error);
+  const corrected = editorRow(definition, "230");
+  const completeRows = [
+    { name: "input", path: "input.bin", error: null, uploading: false },
+    { ...fileRows[0], error: null },
+  ];
+  assert.deepEqual(editorProblems([corrected], completeRows, files), []);
+});
 
 test("Summary Skip", () => {
   // One Case At Its Registered Defaults Has Nothing To Review

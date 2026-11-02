@@ -35,7 +35,10 @@ macro_rules! native_adapter {
     };
     (async $name:ident ($($arg:ident: $ty:ty),* $(,)?) -> $ret:ty => $handler:path) => {
         #[tauri::command]
-        async fn $name($($arg: $ty),*) -> $ret { call_handler!(async, $handler, $($arg),*) }
+        async fn $name($($arg: $ty),*) -> $ret {
+            // Tauri Embeds This Future In Its Main-Thread Response Before Spawning.
+            Box::pin(async move { call_handler!(async, $handler, $($arg),*) }).await
+        }
     };
 }
 
@@ -45,13 +48,21 @@ macro_rules! native_commands {
         pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
             tauri::generate_handler![$($name),*]
         }
+        #[cfg(test)]
+        macro_rules! measure_commands {
+            () => { $(measure_command!($mode $name ($($ctx: $ctx_ty,)* $($arg: $ty),*));)* };
+        }
     };
 }
 
 native_commands! {
+    async desktop_firewall
+        [app: tauri::AppHandle, connection: tauri::State<'_, crate::connection::ConnectionSession>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (generation: String, allow: bool) -> Result<crate::app::firewall::FirewallStatus, String>
+        => crate::app::firewall::desktop_firewall;
     async desktop_pairing_create
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (label: String, endpoint: String) -> Result<Option<std::path::PathBuf>, crate::connection::ConnectionError>
+        () -> Result<Option<std::path::PathBuf>, crate::Error>
         => crate::app::desktop::desktop_pairing_create;
     async desktop_backend_import_pairing
         [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
@@ -74,7 +85,7 @@ native_commands! {
     async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_read;
-    async desktop_settings_update [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+    async desktop_settings_update [app: tauri::AppHandle, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (scope: dokime::domain::model::settings::application::SettingsScope, update: dokime::domain::model::settings::application::UpdateSettings)
         -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_update;
@@ -271,3 +282,27 @@ native_commands! {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn size<Args, F: std::future::Future>(_: impl FnOnce(Args) -> F) -> usize {
+        // Measure The Wry Future Type Without Opening Native Windows Or Polling It.
+        std::mem::size_of::<F>()
+    }
+
+    macro_rules! measure_command {
+        (sync $name:ident ($($arg:ident: $ty:ty),* $(,)?)) => {};
+        (async $name:ident ($($arg:ident: $ty:ty),* $(,)?)) => {
+            let bytes = size(|($($arg,)*): ($($ty,)*)| $name($($arg),*));
+            eprintln!("{}: {bytes} bytes", stringify!($name));
+            assert!(bytes <= 16 * 1024, "{} command future uses {bytes} bytes", stringify!($name));
+        };
+    }
+
+    #[test]
+    fn command_future_sizes() {
+        measure_commands!();
+    }
+}

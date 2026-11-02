@@ -11,8 +11,10 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
 from types import TracebackType
@@ -22,6 +24,7 @@ from typing import Any, Self
 from google.protobuf.message import Message
 
 # Local Imports
+from .._profiles import Profile
 from ..operation import Operation, ResponseStream
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
@@ -31,6 +34,11 @@ from .execution.request import _identity
 from .models import Backend, Suite
 from .models import Template as TemplateSummary
 from .planning import Template
+from .query import discovery
+from .query.discovery import Alternatives, CycleStatuses, CycleSummary, ExecutionStatuses, ExecutionSummary
+from .query.reader import QueryReader, QuerySettings
+from .query.schemas import RecordSchema, record_schemas
+from .query.selection import At, Time, Where, Window
 
 # Type Checking Imports
 
@@ -63,25 +71,43 @@ class DokimeClient:
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
         access_key: str | None = None,
+        endpoints: tuple[str, ...] = (),
+        query_settings: QuerySettings | None = None,
     ) -> None:
         preferences = preferences if preferences is not None else _client_preferences()
+        self._profile: tuple[Profile, Path] | None = None
+        self._query_settings = query_settings if query_settings is not None else QuerySettings()
         self._transport = Transport(
             endpoint,
             access_key,
             preferences.request_timeout_ms / 1000 if rpc_timeout is None else rpc_timeout,
             connect_timeout_ms=preferences.connect_timeout_ms,
+            endpoint_stagger_ms=preferences.endpoint_stagger_ms,
+            endpoints=endpoints,
             expected_backend_id=expected_backend_id,
             ca_certificate_pem=ca_certificate_pem,
         )
+        self._transport.query_settings = self._query_settings
 
     @classmethod
-    def from_pairing(cls, path: str | Path) -> Self:
+    def from_pairing(
+        cls,
+        path: str | Path,
+        *,
+        preferences: Message | None = None,
+        rpc_timeout: float | None = None,
+        query_settings: QuerySettings | None = None,
+    ) -> Self:
         """Read A Pairing Once; Verify Its Backend Identity On Connection"""
         from .pairing import read
 
         pairing = read(path)
         return cls(
-            pairing["endpoint"],
+            pairing["endpoints"][0],
+            preferences=preferences,
+            query_settings=query_settings,
+            rpc_timeout=rpc_timeout,
+            endpoints=tuple(pairing["endpoints"]),
             access_key=pairing["access_key"],
             expected_backend_id=pairing["backend_identifier"],
             ca_certificate_pem=pairing["ca_certificate_pem"],
@@ -95,26 +121,111 @@ class DokimeClient:
         path: str | Path | None = None,
         rpc_timeout: float | None = None,
         preferences: Message | None = None,
+        query_settings: QuerySettings | None = None,
     ) -> Self:
         """Read An Unsecured Profile Without Native Keyring Access"""
-        from .profiles import load
+        from .profiles import configuration_path, load
 
         preferences = preferences if preferences is not None else _client_preferences()
         profile = load(identifier, path=path)
         client = cls(
             profile.endpoint,
+            endpoints=profile.endpoints,
             rpc_timeout=rpc_timeout,
             preferences=preferences,
+            query_settings=query_settings,
             expected_backend_id=profile.expected_backend_id,
             ca_certificate_pem=profile.ca_certificate_pem,
         )
         if profile.secret == "keyring" and not client._transport._metadata:
             raise ValueError("This profile uses the native keyring; import its pairing with DokimeClient.from_pairing instead.")
+        client._profile = (profile, configuration_path(path))
         return client
+
+    def executions(
+        self,
+        *,
+        template: Alternatives = None,
+        cycle: Alternatives = None,
+        status: ExecutionStatuses = None,
+        since: Time | None = None,
+        until: Time | None = None,
+        archive: str = "unarchived",
+        where: Where | None = None,
+        between: Window | None = None,
+        at: At = None,
+        page_rows: int | None = None,
+        page_bytes: int | None = None,
+    ) -> QueryReader[ExecutionSummary]:
+        """Discover Captured Execution Summaries At One Finite Local Snapshot."""
+        return discovery.executions(
+            self._transport,
+            self._query_settings,
+            template=template,
+            cycle=cycle,
+            status=status,
+            since=since,
+            until=until,
+            archive=archive,
+            where=where,
+            between=between,
+            at=at,
+            page_rows=page_rows,
+            page_bytes=page_bytes,
+        )
+
+    def cycles(
+        self,
+        *,
+        cycle: Alternatives = None,
+        phase: Alternatives = None,
+        status: CycleStatuses = None,
+        since: Time | None = None,
+        until: Time | None = None,
+        archive: str = "unarchived",
+        where: Where | None = None,
+        between: Window | None = None,
+        at: At = None,
+        page_rows: int | None = None,
+        page_bytes: int | None = None,
+    ) -> QueryReader[CycleSummary]:
+        """Discover Captured Cycle Summaries Without Opening Owned Lifecycle Contexts."""
+        return discovery.cycles(
+            self._transport,
+            self._query_settings,
+            cycle=cycle,
+            phase=phase,
+            status=status,
+            since=since,
+            until=until,
+            archive=archive,
+            where=where,
+            between=between,
+            at=at,
+            page_rows=page_rows,
+            page_bytes=page_bytes,
+        )
+
+    def record_schemas(self, *, page_rows: int = PAGE_ITEMS) -> AsyncGenerator[RecordSchema]:
+        """Discover Ordered Record Declarations Lazily With Catalog Revision Checks."""
+        return record_schemas(self._transport, page_rows=page_rows)
 
     async def connect(self) -> Backend:
         """Negotiate API identity and the operations available to the caller (also done lazily)."""
-        return await self._transport.connect()
+        backend = await self._transport.connect()
+        if self._profile is not None:
+            from .profiles import remember_endpoint
+
+            try:
+                async with self._transport._lock:
+                    if self._profile is not None:
+                        profile, path = self._profile
+                        await asyncio.to_thread(remember_endpoint, profile, path, self._transport._endpoint)
+                        self._profile = None
+            except (OSError, ValueError):
+                await self._transport.close()
+                raise
+        return backend
 
     async def operations(self) -> tuple[DiscoveredOperation, ...]:
         """Discover Authorized Providers With gRPC Declarations, Including Installed Plugins"""
@@ -284,11 +395,30 @@ class DokimeClient:
             _identity(created.cycle_id)
         except ValueError as error:
             raise ProtocolError("created cycle identity is invalid") from error
-        return Cycle(created.cycle_id, self._transport, backend, ())
+        return Cycle(created.cycle_id, self._transport, backend, (), client=self)
+
+    @asynccontextmanager
+    async def new_cycle(
+        self,
+        label: str,
+        *,
+        description: str | None = None,
+        identifier: str | None = None,
+        continue_automatically: bool = False,
+    ) -> AsyncIterator[Cycle]:
+        """Create An Owned Cycle That Seals And Drains On Every Context Exit."""
+        cycle = await self.create_cycle(
+            label=label,
+            description=description,
+            identifier=identifier,
+            continue_automatically=continue_automatically,
+        )
+        async with cycle:
+            yield cycle
 
     async def cycle(self, cycle_id: str) -> Cycle:
         """Resolve a live cycle on the current backend."""
-        return await Cycle._bind(self._transport, cycle_id, await self.connect())
+        return await Cycle._bind(self._transport, cycle_id, await self.connect(), client=self)
 
     async def execution(self, execution_id: str) -> Execution:
         """Bind an existing native identity without lookup or device work."""
@@ -306,6 +436,7 @@ def _client_preferences() -> Message:
     defaults = json.loads(resource.read_text(encoding="utf-8"))
     request = _wire.request("Settings", "UpdateApplicationSettings")
     request.update.settings.client.connect_timeout_ms = defaults["client"]["connect_timeout_ms"]
+    request.update.settings.client.endpoint_stagger_ms = defaults["client"]["endpoint_stagger_ms"]
     request.update.settings.client.request_timeout_ms = defaults["client"]["request_timeout_ms"]
     return request.update.settings.client
 

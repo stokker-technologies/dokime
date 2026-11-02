@@ -25,8 +25,6 @@ use crate::RuntimeHandle;
 
 /* === Constants === */
 
-const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application startup.";
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -105,10 +103,7 @@ fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     // `record_boot` call along the way. So whenever `attempted == Some(false)`
     // is observable at all, `last_boot` necessarily holds *this* attempt's
     // outcome, never a stale one from an earlier process.
-    entry.boot_error = (attempted == Some(false)).then(|| match &entry.installation.last_boot {
-        Some(super::PluginLastBoot::Failed { error, .. }) => error.clone(),
-        _ => GENERIC_BOOT_ERROR.to_owned(),
-    });
+    entry.boot_failed = attempted == Some(false);
 }
 
 /* === Tests === */

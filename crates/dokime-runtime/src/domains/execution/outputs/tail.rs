@@ -9,6 +9,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -207,6 +210,8 @@ impl Resident<crate::app::Dokime> for LogTail {
         self.finish_opening().await?;
         self.settle_io().await?;
         if self.source_failure.is_none() && !self.drained {
+            // Stop Can Reach Cleanup Before The Resident's First Poll Opens Its Source.
+            self.open().await?;
             self.drain().await?;
         }
         drop(self.file.take());

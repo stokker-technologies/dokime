@@ -21,7 +21,7 @@ use harmos::Context;
 use tonic::Status;
 
 // Local Imports
-use crate::app::Lanes;
+use crate::app::{Lanes, LiveRuntime};
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::operations::secrets::{Export, Import, List, Lookup, Preview, Put, Remove};
 use crate::secrets::{Change, SecretStore, SecretStoreError, SecretValue};
@@ -35,6 +35,11 @@ use dokime_domain::model::secrets::transfer::{Archive, Preview as ImportPreview}
 /* === Type Aliases === */
 
 /* === Structs === */
+
+struct Resources {
+    store: SecretStore,
+    runtime: LiveRuntime,
+}
 
 /* === Enums === */
 
@@ -63,29 +68,29 @@ impl Serve<Lookup> for SecretStore {
     }
 }
 
-impl Serve<List> for SecretStore {
+impl Serve<List> for Resources {
     fn serve<'a>(&'a self, _: List, _: Context<'a, List>) -> Served<'a, Snapshot> {
         Box::pin(async move { Ok(self.snapshot(false).await?.into()) })
     }
 }
 
-impl Serve<Put> for SecretStore {
+impl Serve<Put> for Resources {
     fn serve<'a>(&'a self, request: Put, _: Context<'a, Put>) -> Served<'a, Snapshot> {
         Box::pin(async move {
             let change = Change {
                 metadata: request.metadata,
                 value: request.value.map(SecretValue::new),
             };
-            let cleanup = self.apply(vec![change], &[], request.generation).await?;
+            let cleanup = self.store.apply(vec![change], &[], request.generation).await?;
             Ok(self.snapshot(cleanup).await?.into())
         })
     }
 }
 
-impl Serve<Remove> for SecretStore {
+impl Serve<Remove> for Resources {
     fn serve<'a>(&'a self, request: Remove, _: Context<'a, Remove>) -> Served<'a, Snapshot> {
         Box::pin(async move {
-            let cleanup = self.apply(Vec::new(), &request.identifiers, request.generation).await?;
+            let cleanup = self.store.apply(Vec::new(), &request.identifiers, request.generation).await?;
             Ok(self.snapshot(cleanup).await?.into())
         })
     }
@@ -103,10 +108,10 @@ impl Serve<Preview> for SecretStore {
     }
 }
 
-impl Serve<Import> for SecretStore {
+impl Serve<Import> for Resources {
     fn serve<'a>(&'a self, request: Import, _: Context<'a, Import>) -> Served<'a, Snapshot> {
         Box::pin(async move {
-            let cleanup = self.import(&request.data, &request.choices, request.generation).await?;
+            let cleanup = self.store.import(&request.data, &request.choices, request.generation).await?;
             Ok(self.snapshot(cleanup).await?.into())
         })
     }
@@ -125,16 +130,40 @@ impl From<SecretStoreError> for Status {
     }
 }
 
+impl Resources {
+    async fn snapshot(&self, cleanup: bool) -> Result<Snapshot, Status> {
+        let runtime = crate::app::live_runtime(&self.runtime).await?;
+        let mut uses =
+            runtime.plugin_store().secret_declarations().await.map_err(|_| Status::unavailable("Plugin declarations are unavailable"))?;
+        for plugin in runtime.state_read().installed_plugins.values() {
+            for secret in plugin.settings.secrets() {
+                uses.entry(secret.id.clone()).or_default().push(plugin.source.clone());
+            }
+        }
+        for plugins in uses.values_mut() {
+            plugins.sort();
+            plugins.dedup();
+        }
+        self.store.snapshot(cleanup, uses).await.map_err(Into::into)
+    }
+}
+
 /* === Public Functions === */
 
-pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, store: Arc<SecretStore>) -> crate::runtime::Result<()> {
+pub(crate) fn prepare(
+    setup: &mut harmos::Setup<crate::app::Dokime>, store: Arc<SecretStore>, runtime: &LiveRuntime,
+) -> crate::runtime::Result<()> {
+    let resources = Arc::new(Resources {
+        store: (*store).clone(),
+        runtime: runtime.clone(),
+    });
     setup.resource::<Host<Lookup>>(Host::<Lookup>::new(store.clone()));
-    setup.resource::<Host<List>>(Host::<List>::new(store.clone()));
-    setup.resource::<Host<Put>>(Host::<Put>::new(store.clone()));
-    setup.resource::<Host<Remove>>(Host::<Remove>::new(store.clone()));
+    setup.resource::<Host<List>>(Host::<List>::new(resources.clone()));
+    setup.resource::<Host<Put>>(Host::<Put>::new(resources.clone()));
+    setup.resource::<Host<Remove>>(Host::<Remove>::new(resources.clone()));
     setup.resource::<Host<Export>>(Host::<Export>::new(store.clone()));
     setup.resource::<Host<Preview>>(Host::<Preview>::new(store.clone()));
-    setup.resource::<Host<Import>>(Host::<Import>::new(store));
+    setup.resource::<Host<Import>>(Host::<Import>::new(resources));
 
     setup.operations::<PreparedOperations>(Lanes::Open);
     Ok(())

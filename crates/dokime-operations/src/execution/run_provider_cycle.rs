@@ -24,7 +24,10 @@ use harmos::operations::OperationPolicy;
 /* === Constants === */
 
 // Bounds One Provider Cycle Run, Which Ends When Its Work Settles Or Is Cancelled.
-const PROVIDER: OperationPolicy = crate::policy(Duration::from_secs(86_400));
+const PROVIDER: OperationPolicy = OperationPolicy {
+    cancellation_timeout: crate::STOP_SETTLEMENT.timeout,
+    ..crate::policy(Duration::from_secs(86_400))
+};
 
 /* === Macros === */
 

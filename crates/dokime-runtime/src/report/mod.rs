@@ -17,6 +17,7 @@ mod html;
 pub mod input;
 pub(crate) mod materialize;
 mod output;
+mod previews;
 pub(crate) mod query;
 mod render;
 mod renderer;

@@ -58,7 +58,7 @@ export function XyIntervalPlot({
       timeAxis={false}
       title={plot.title}
       unit={plot.unit}
-      liveWindowS={plot.liveWindowS}
+      windowS={plot.windowS}
       viewportMode={viewportMode}
       xScale={plot.xScale}
       yScale={plot.yScale}

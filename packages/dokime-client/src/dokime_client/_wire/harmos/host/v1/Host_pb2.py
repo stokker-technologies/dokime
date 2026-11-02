@@ -46,15 +46,21 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/harmos/host/v1/Host.proto\x12\x0eharmos.host.v1\x1a\x46\x64okime_client/_wire/harmos/host/v1/HostMessages/Catalog/messages.proto2g\n\x04Host\x12_\n\x07\x43\x61talog\x12).harmos.host.v1.HostMessages.Catalog.Row1\x1a).harmos.host.v1.HostMessages.Catalog.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n-dokime_client/_wire/harmos/host/v1/Host.proto\x12\x0eharmos.host.v1\x1a\x46\x64okime_client/_wire/harmos/host/v1/HostMessages/Catalog/messages.proto\"\x19\n\x17HostCatalogCancellation\"\xeb\x01\n\x13HostCatalogRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).harmos.host.v1.HostMessages.Catalog.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.harmos.host.v1.HostCatalogCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.harmos.host.v1.HostCatalogCancellationH\x00R\x06\x66inishB\x07\n\x05value\"h\n\x14HostCatalogRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).harmos.host.v1.HostMessages.Catalog.Row2H\x00R\x08responseB\x07\n\x05value2\xc4\x01\n\x04Host\x12_\n\x07\x43\x61talog\x12).harmos.host.v1.HostMessages.Catalog.Row1\x1a).harmos.host.v1.HostMessages.Catalog.Row2\x12[\n\nRunCatalog\x12#.harmos.host.v1.HostCatalogRunInput\x1a$.harmos.host.v1.HostCatalogRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.harmos.host.v1.Host_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_HOST']._serialized_start=137
-  _globals['_HOST']._serialized_end=240
+  _globals['_HOSTCATALOGCANCELLATION']._serialized_start=137
+  _globals['_HOSTCATALOGCANCELLATION']._serialized_end=162
+  _globals['_HOSTCATALOGRUNINPUT']._serialized_start=165
+  _globals['_HOSTCATALOGRUNINPUT']._serialized_end=400
+  _globals['_HOSTCATALOGRUNOUTPUT']._serialized_start=402
+  _globals['_HOSTCATALOGRUNOUTPUT']._serialized_end=506
+  _globals['_HOST']._serialized_start=509
+  _globals['_HOST']._serialized_end=705
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

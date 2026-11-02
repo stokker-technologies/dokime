@@ -22,7 +22,7 @@ import type {
   Row11 as NativeTimestamp,
   Row19 as NativeValue,
 } from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as NativeScope } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+import type { Row2 as NativeExecutionDetail } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
 import type { Value as SerializedValue } from "@/lib/document-contracts";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
@@ -31,7 +31,7 @@ import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from
 type Value = Wire<NativeValue>;
 type Metadata = Wire<NativeMetadata>;
 type Timestamp = Wire<NativeTimestamp>;
-type EvidenceScope = Wire<NativeScope>;
+type EvidenceScope = NonNullable<Wire<NativeExecutionDetail>["scope"]>;
 type ValueType = Wire<NativeValueType>;
 type NativeValueFormat = Wire<NativeFormat>;
 type NativeElapsedUnit = Wire<NativeElapsed>;

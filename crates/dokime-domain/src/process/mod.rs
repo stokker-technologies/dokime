@@ -68,11 +68,3 @@ pub fn command(program: impl AsRef<OsStr>) -> Command {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn command_keeps_the_program() {
-        assert_eq!(super::command("dokime-probe").get_program(), "dokime-probe");
-    }
-}

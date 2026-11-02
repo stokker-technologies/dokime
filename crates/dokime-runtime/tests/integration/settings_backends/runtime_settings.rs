@@ -17,13 +17,13 @@
 use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
-use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, RedactedSecretBinding, SecretBackendKind, Value};
+use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, Value};
 // Local Imports
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::settings::RuntimeSettingsCardState;
 
-use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
-use dokime_runtime::settings::{SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea};
+use dokime_runtime::domains::installed_plugins::PluginSettingsUpdate;
+use dokime_runtime::settings::{SecretSetting, Settings, SettingsEntry, TextArea};
 
 /* === Constants === */
 
@@ -219,27 +219,22 @@ pub(crate) async fn resolves_one_record() {
                 required: true,
                 default: "default-workspace".into(),
             }),
-            SettingsEntry::SecretReference(SecretSetting {
+            SettingsEntry::Secret(SecretSetting {
                 id: "access_token".into(),
                 title: "Access token".into(),
                 description: None,
                 required: true,
-                default: None,
             }),
         ],
     };
     let mut artifact = installed_plugin("fabric");
     artifact.settings = settings;
     let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
-    handle.save_plugin_secret(&artifact_id, "access_token", PluginSecretUpdate { secret: "secret-token".into() }).await.unwrap();
     handle
         .save_plugin_settings(
             &artifact_id,
             PluginSettingsUpdate {
-                values: BTreeMap::from([
-                    ("workspace".into(), Value::from("team-prod")),
-                    ("access_token".into(), SecretReference::StoredSecret { secret_id: "fabric.access_token".into() }.into()),
-                ]),
+                values: BTreeMap::from([("workspace".into(), Value::from("team-prod"))]),
             },
         )
         .await
@@ -248,95 +243,23 @@ pub(crate) async fn resolves_one_record() {
     let resolved = handle.plugin_settings(&artifact_id).await.unwrap();
 
     assert_eq!(resolved.values["workspace"], Value::from("team-prod"));
-    assert_eq!(
-        resolved.secret_bindings.bindings["access_token"],
-        RedactedSecretBinding {
-            secret_id: "fabric.access_token".to_owned(),
-            backend: SecretBackendKind::OsKeyring,
-            configured: true
-        }
-    );
-    assert!(resolved.secret_bindings.missing_required.is_empty());
+    assert_eq!(resolved.secrets[0].identifier, "access_token");
+    assert!(!resolved.secrets[0].available);
     runtime.shutdown().await.unwrap();
 }
 
-// saves only references and rejects secret material without changing values.
-
-pub(crate) async fn secret_references_file() {
-    let id = Identifier::new("fixture").unwrap();
-    let catalog = Settings {
-        contributions: vec![
-            SettingsEntry::SecretReference(SecretSetting {
-                id: "token".into(),
-                title: "Token".into(),
-                description: None,
-                default: None,
-                required: true,
-            }),
-            SettingsEntry::TextArea(TextArea {
-                id: "name".into(),
-                title: "Name".into(),
-                description: None,
-                default: "default-name".into(),
-                required: true,
-            }),
-        ],
-    };
-    let mut artifact = installed_plugin("fixture");
-    artifact.settings = catalog;
-    let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
-    handle
-        .save_plugin_secret(
-            &id,
-            "token",
-            PluginSecretUpdate {
-                secret: "never-persist-plaintext-here".into(),
-            },
-        )
-        .await
-        .unwrap();
-    let resolved = handle.plugin_settings(&id).await.unwrap();
-    assert_eq!(resolved.values["name"], "default-name".into());
-    assert!(resolved.secret_bindings.missing_required.is_empty());
-    handle.save_plugin_settings(&id, PluginSettingsUpdate { values: resolved.values.clone() }).await.unwrap();
-    let saved = handle.plugin_settings(&id).await.unwrap();
-    assert!(!saved_metadata(&handle).contains("never-persist-plaintext-here"));
-    let mut invalid = resolved.values;
-    invalid.insert("token".into(), "never-persist-plaintext-here".into());
-    assert!(handle.save_plugin_settings(&id, PluginSettingsUpdate { values: invalid }).await.is_err());
-    assert_eq!(handle.plugin_settings(&id).await.unwrap().values, saved.values);
-    let environment = SettingValues::from([(
-        "token".into(),
-        SecretReference::Environment {
-            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into(),
-        }
-        .into(),
-    )]);
-    handle.save_plugin_settings(&id, PluginSettingsUpdate { values: environment }).await.unwrap();
-    let resolved = handle.plugin_settings(&id).await.unwrap();
-    assert_eq!(
-        SecretReference::try_from(&resolved.values["token"]).unwrap(),
-        SecretReference::Environment {
-            variable: "DOKIME_TEST_ABSENT_ENV_REFERENCE".into()
-        }
-    );
-    assert!(!saved_metadata(&handle).contains("never-persist-plaintext-here"));
-    runtime.shutdown().await.unwrap();
-}
-
-pub(crate) async fn stored_secret_bindings() {
+pub(crate) async fn shared_secret_identifiers() {
     use dokime_domain::model::secrets::catalog;
     use dokime_runtime::operations::secrets;
     let root = tempfile::tempdir().unwrap();
     let id = Identifier::new("zephyr").unwrap();
     let mut artifact = installed_plugin(id.as_str());
     artifact.settings = Settings {
-        contributions: vec![SettingsEntry::SecretReference(SecretSetting {
+        contributions: vec![SettingsEntry::Secret(SecretSetting {
             id: "api_token".into(),
             title: "API Token".into(),
             description: None,
             required: true,
-            default: None,
         })],
     };
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.secrets", "Secrets"))
@@ -347,7 +270,7 @@ pub(crate) async fn stored_secret_bindings() {
         .operations()
         .call::<secrets::Put>(secrets::Put {
             metadata: catalog::Metadata {
-                identifier: "zephyr.api_token".into(),
+                identifier: "api_token".into(),
                 label: "API Token".into(),
                 description: None,
             },
@@ -358,12 +281,13 @@ pub(crate) async fn stored_secret_bindings() {
         .unwrap();
     assert_eq!(snapshot.generation, 1);
     assert!(!serde_json::to_string(&*snapshot).unwrap().contains("secret-token"));
-    let value = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap();
+    let value = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
     assert_eq!(value.value.as_deref(), Some("secret-token"));
-    let reference = SecretReference::StoredSecret { secret_id: "zephyr.api_token".into() };
-    let values = BTreeMap::from([("api_token".into(), reference.into())]);
-    handle.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
-    assert!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required.is_empty());
+    let settings = handle.plugin_settings(&id).await.unwrap();
+    assert!(settings.values.is_empty());
+    assert_eq!(settings.secrets[0].identifier, "api_token");
+    assert!(settings.secrets[0].available);
+    assert_eq!(snapshot.entries[0].known_uses, ["zephyr"]);
 
     let replacement = secrets::Put {
         metadata: snapshot.entries[0].metadata.clone(),
@@ -372,7 +296,7 @@ pub(crate) async fn stored_secret_bindings() {
     };
     handle.operations().call::<secrets::Put>(replacement.clone()).await.unwrap();
     assert!(handle.operations().call::<secrets::Put>(replacement).await.is_err());
-    let fresh = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap();
+    let fresh = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
     assert_eq!(fresh.value.as_deref(), Some("replacement-token"));
     assert_eq!(value.value.as_deref(), Some("secret-token"));
     drop(handle);
@@ -382,25 +306,19 @@ pub(crate) async fn stored_secret_bindings() {
     let handle = reopened.handle();
     assert!(!saved_metadata(&handle).contains("secret-token"));
     assert_eq!(
-        handle
-            .operations()
-            .call::<secrets::Lookup>(secrets::Lookup { identifier: "zephyr.api_token".into() })
-            .await
-            .unwrap()
-            .value
-            .as_deref(),
+        handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap().value.as_deref(),
         Some("replacement-token")
     );
     handle
         .operations()
         .call::<secrets::Remove>(secrets::Remove {
-            identifiers: vec!["zephyr.api_token".into()],
+            identifiers: vec!["api_token".into()],
             generation: 2,
         })
         .await
         .unwrap();
-    assert!(handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.is_err());
-    assert_eq!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required, vec!["api_token"]);
+    assert!(handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.is_err());
+    assert!(!handle.plugin_settings(&id).await.unwrap().secrets[0].available);
     drop(handle);
     reopened.shutdown().await.unwrap();
 }

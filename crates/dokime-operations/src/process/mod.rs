@@ -31,6 +31,11 @@ use dokime_domain::model::process::wire::*;
 
 /* === Constants === */
 
+const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+    cancellation_timeout: crate::STOP_SETTLEMENT.timeout,
+    ..FOLLOW
+};
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -39,7 +44,7 @@ use dokime_domain::model::process::wire::*;
 
 // Shared, so a template reaches it through `ctx.host()` without listing it.
 #[harmos::operation(resources = [crate::hosting::Host<RunProcess>], response = ProcessExit, id = "dokime.process.run",
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Public)]
+        policy = POLICY, visibility = harmos::operations::Visibility::Public)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunProcess {
     pub program: String,

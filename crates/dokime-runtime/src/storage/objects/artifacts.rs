@@ -60,6 +60,7 @@ struct Record {
     size_bytes: u64,
     sha256: Option<String>,
     status: String,
+    error: Option<String>,
     created_at: String,
 }
 
@@ -162,6 +163,7 @@ impl Record {
             value.content_type.as_deref().map_or(0, str::len),
             value.sha256.as_deref().map_or(0, str::len),
             status(&value.status).len(),
+            value.error.as_deref().map_or(0, str::len),
             value.created_at.as_str().len(),
         ];
         Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
@@ -180,6 +182,7 @@ impl Record {
             self.content_type.as_ref().map_or(0, String::capacity),
             self.sha256.as_ref().map_or(0, String::capacity),
             self.created_at.capacity(),
+            self.error.as_ref().map_or(0, String::capacity),
         ];
         Ok(fields.into_iter().fold(std::mem::size_of::<ArtifactRecord>(), usize::saturating_add))
     }
@@ -201,6 +204,7 @@ impl TryFrom<&ArtifactRecord> for Record {
             size_bytes: value.size_bytes,
             sha256: value.sha256.as_deref().map(str::to_owned),
             status: status(&value.status).to_owned(),
+            error: value.error.clone(),
             created_at: value.created_at.as_str().to_owned(),
         })
     }
@@ -223,6 +227,7 @@ impl TryFrom<Record> for ArtifactRecord {
             "complete" => ArtifactStatus::Complete,
             "cancelled" => ArtifactStatus::Cancelled,
             "rejected" => ArtifactStatus::Rejected,
+            "failed" => ArtifactStatus::Failed,
             _ => return Err(Error::Invalid("invalid saved artifact status")),
         };
         Ok(Self {
@@ -234,6 +239,7 @@ impl TryFrom<Record> for ArtifactRecord {
             size_bytes: value.size_bytes,
             sha256: value.sha256,
             status,
+            error: value.error,
             created_at,
         })
     }
@@ -249,6 +255,7 @@ fn status(value: &ArtifactStatus) -> &'static str {
         ArtifactStatus::Complete => "complete",
         ArtifactStatus::Cancelled => "cancelled",
         ArtifactStatus::Rejected => "rejected",
+        ArtifactStatus::Failed => "failed",
     }
 }
 

@@ -48,7 +48,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aPdokime_client/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aTdokime_client/_wire/dokime/v1/ReportsMessages/DownloadExecutionReport/messages.proto\x1aNdokime_client/_wire/dokime/v1/ReportsMessages/MaterializeReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value\"\xd5\x01\n$ReportsDownloadExecutionReportOutput\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04item\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08responseB\x07\n\x05value2\x87\x03\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12\x85\x01\n\x17\x44ownloadExecutionReport\x12\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1\x1a/.dokime.v1.ReportsDownloadExecutionReportOutput0\x01\x12y\n\x11MaterializeReport\x12\x31.dokime.v1.ReportsMessages.MaterializeReport.Row1\x1a\x31.dokime.v1.ReportsMessages.MaterializeReport.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aPdokime_client/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aTdokime_client/_wire/dokime/v1/ReportsMessages/DownloadExecutionReport/messages.proto\x1aNdokime_client/_wire/dokime/v1/ReportsMessages/MaterializeReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value\"(\n&ReportsDownloadCycleReportCancellation\"\x98\x02\n\"ReportsDownloadCycleReportRunInput\x12O\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1H\x00R\x07request\x12K\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x31.dokime.v1.ReportsDownloadCycleReportCancellationH\x00R\x06\x63\x61ncel\x12K\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x31.dokime.v1.ReportsDownloadCycleReportCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xcc\x01\n#ReportsDownloadCycleReportRunOutput\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08response\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04itemB\x07\n\x05value\"\xd5\x01\n$ReportsDownloadExecutionReportOutput\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04item\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08responseB\x07\n\x05value\",\n*ReportsDownloadExecutionReportCancellation\"\xa8\x02\n&ReportsDownloadExecutionReportRunInput\x12S\n\x07request\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1H\x00R\x07request\x12O\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x35.dokime.v1.ReportsDownloadExecutionReportCancellationH\x00R\x06\x63\x61ncel\x12O\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x35.dokime.v1.ReportsDownloadExecutionReportCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xd8\x01\n\'ReportsDownloadExecutionReportRunOutput\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08response\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04itemB\x07\n\x05value\"&\n$ReportsMaterializeReportCancellation\"\x90\x02\n ReportsMaterializeReportRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.ReportsMessages.MaterializeReport.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.ReportsMaterializeReportCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.ReportsMaterializeReportCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!ReportsMaterializeReportRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.ReportsMessages.MaterializeReport.Row2H\x00R\x08responseB\x07\n\x05value2\x85\x06\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12{\n\x16RunDownloadCycleReport\x12-.dokime.v1.ReportsDownloadCycleReportRunInput\x1a..dokime.v1.ReportsDownloadCycleReportRunOutput(\x01\x30\x01\x12\x85\x01\n\x17\x44ownloadExecutionReport\x12\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1\x1a/.dokime.v1.ReportsDownloadExecutionReportOutput0\x01\x12\x87\x01\n\x1aRunDownloadExecutionReport\x12\x31.dokime.v1.ReportsDownloadExecutionReportRunInput\x1a\x32.dokime.v1.ReportsDownloadExecutionReportRunOutput(\x01\x30\x01\x12y\n\x11MaterializeReport\x12\x31.dokime.v1.ReportsMessages.MaterializeReport.Row1\x1a\x31.dokime.v1.ReportsMessages.MaterializeReport.Row2\x12u\n\x14RunMaterializeReport\x12+.dokime.v1.ReportsMaterializeReportRunInput\x1a,.dokime.v1.ReportsMaterializeReportRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -57,10 +57,28 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_start=307
   _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_end=508
-  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_start=511
-  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_end=724
-  _globals['_REPORTS']._serialized_start=727
-  _globals['_REPORTS']._serialized_end=1118
+  _globals['_REPORTSDOWNLOADCYCLEREPORTCANCELLATION']._serialized_start=510
+  _globals['_REPORTSDOWNLOADCYCLEREPORTCANCELLATION']._serialized_end=550
+  _globals['_REPORTSDOWNLOADCYCLEREPORTRUNINPUT']._serialized_start=553
+  _globals['_REPORTSDOWNLOADCYCLEREPORTRUNINPUT']._serialized_end=833
+  _globals['_REPORTSDOWNLOADCYCLEREPORTRUNOUTPUT']._serialized_start=836
+  _globals['_REPORTSDOWNLOADCYCLEREPORTRUNOUTPUT']._serialized_end=1040
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_start=1043
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_end=1256
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTCANCELLATION']._serialized_start=1258
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTCANCELLATION']._serialized_end=1302
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTRUNINPUT']._serialized_start=1305
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTRUNINPUT']._serialized_end=1601
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTRUNOUTPUT']._serialized_start=1604
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTRUNOUTPUT']._serialized_end=1820
+  _globals['_REPORTSMATERIALIZEREPORTCANCELLATION']._serialized_start=1822
+  _globals['_REPORTSMATERIALIZEREPORTCANCELLATION']._serialized_end=1860
+  _globals['_REPORTSMATERIALIZEREPORTRUNINPUT']._serialized_start=1863
+  _globals['_REPORTSMATERIALIZEREPORTRUNINPUT']._serialized_end=2135
+  _globals['_REPORTSMATERIALIZEREPORTRUNOUTPUT']._serialized_start=2137
+  _globals['_REPORTSMATERIALIZEREPORTRUNOUTPUT']._serialized_end=2262
+  _globals['_REPORTS']._serialized_start=2265
+  _globals['_REPORTS']._serialized_end=3038
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

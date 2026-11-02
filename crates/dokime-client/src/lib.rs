@@ -95,6 +95,7 @@ struct Inner {
     readers: TaskTracker,
     backend: Backend,
     expected_backend_id: Option<String>,
+    endpoint: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -164,6 +165,31 @@ impl Error {
 
 impl Client {
     pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
+        use futures_util::{StreamExt, stream::FuturesUnordered};
+        target.settings().validate().map_err(|_| Error::InvalidTarget { message: "Invalid client configuration." })?;
+        let stagger = Duration::from_millis(target.settings().endpoint_stagger_ms);
+        let mut attempts = FuturesUnordered::new();
+        for (index, candidate) in target.candidates().into_iter().enumerate() {
+            attempts.push(async move {
+                tokio::time::sleep(stagger.saturating_mul(index as u32)).await;
+                Self::connect_one(candidate, token, expected_id).await
+            });
+        }
+        let mut failure = Error::BackendUnavailable;
+        while let Some(result) = attempts.next().await {
+            match result {
+                Ok(client) => return Ok(client),
+                Err(error) => failure = error,
+            }
+        }
+        Err(failure)
+    }
+
+    pub fn endpoint(&self) -> &str {
+        &self.inner.endpoint
+    }
+
+    async fn connect_one(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
         let settings = *target.settings();
@@ -182,6 +208,7 @@ impl Client {
                 readers: TaskTracker::new(),
                 backend,
                 expected_backend_id: expected_id.map(str::to_owned),
+                endpoint: target.endpoint().to_owned(),
             }),
         })
     }

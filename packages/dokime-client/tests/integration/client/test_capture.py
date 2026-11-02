@@ -42,16 +42,9 @@ def test_saved_execution_evidence(tmp_path: Path) -> None:
         async with serve() as (backend, client):
             cycle = await prepare(client, parameters={"array": [1, 2], "voltage": 230})
             execution = cycle.executions[0]
-            records = []
-            samples = []
-
-            async def record_received(record) -> None:
-                records.append(record)
-
-            async def sample_received(sample) -> None:
-                samples.append(sample)
-
-            outcome = await execution.run(on_record=record_received, on_sample=sample_received)
+            await execution.start()
+            records, samples = await asyncio.gather(collect(execution.records()), collect(execution.samples()))
+            outcome = execution.outcome
             assert outcome.status == "passed"
             assert [record.type for record in records] == ["fixture.finished"]
             assert len(samples) == 2
@@ -102,7 +95,8 @@ def test_download_partial(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (_, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.executions[0].run()
+            await run_cycle.executions[0].start()
+            await run_cycle.executions[0]
             path = tmp_path / "report.html"
             partial = tmp_path / "report.html.part"
             path.write_text("previous report")
@@ -119,7 +113,8 @@ def test_cancelled_download(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.executions[0].run()
+            await run_cycle.executions[0].start()
+            await run_cycle.executions[0]
             backend.bad_report = "stall"
             path = tmp_path / "report.html"
             path.write_text("previous successful report")
@@ -144,7 +139,8 @@ def test_download_transfer(tmp_path: Path, failure: str) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.executions[0].run()
+            await run_cycle.executions[0].start()
+            await run_cycle.executions[0]
             backend.bad_report = failure
             path = tmp_path / "report.html"
             path.write_text("previous successful report")
@@ -173,7 +169,8 @@ def test_history_refused() -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.executions[0].run()
+            await run_cycle.executions[0].start()
+            await run_cycle.executions[0]
             (handle,) = run_cycle.executions
             point = await handle.checkpoint()
             assert point is not None

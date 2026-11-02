@@ -34,8 +34,8 @@ use dokime::transport::{
 };
 use harmos::Context;
 use harmos::plugin::{
-    PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority,
-    PluginLifecyclePhase, PluginManager, PluginScope, PluginTransition, Router,
+    PluginArtifact, PluginBackend, PluginDefinition, PluginDefinitions, PluginLifecycle, PluginLifecycleAuthority, PluginLifecyclePhase,
+    PluginManager, PluginScope, PluginTransition, Router,
 };
 use plugin_obc::ObcPlugin;
 
@@ -84,6 +84,17 @@ struct Bench {
     plugins: PluginManager<(), Backend, ()>,
     host: Host,
     declaration: harmos::plugin::inventory::Declaration,
+}
+
+// The Bench Requires The Host Plugin's CPU Load Hold. This Fixture Loads No Host Plugin, So It
+// Mirrors That Contract Under The Same Identifier, Fields And Policy And Refuses Every Hold.
+#[dokime::operation(id = "host.cpu.load.hold", response = plugin_host::host::cpu::load::LoadSummary,
+    policy = plugin_host::host::cpu::load::POLICY, visibility = Public,
+    operations = [dokime::harmos::builtins::streams::Publish])]
+#[derive(Clone, Debug, PartialEq)]
+struct LoadHold {
+    target: plugin_host::host::cpu::load::LoadTarget,
+    threads: Option<u32>,
 }
 
 /* === Enums === */
@@ -264,7 +275,10 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            let mut executable = harmos::sidecar::Executable::at(executable()).expect("OBC executable has a valid declaration");
+            if let Some(directory) = std::env::var_os("DOKIME_TEST_TRACE_DIR") {
+                executable = executable.variable("DOKIME_TEST_TRACE_DIR", directory);
+            }
             let resident = Resident::new(executable, handler);
             self.resident = Some(resident);
         }
@@ -378,35 +392,13 @@ impl PluginLifecycle for Host {
 impl Bench {
     async fn new() -> Self {
         let path = std::path::PathBuf::from(executable());
-        let bytes = std::fs::read(&path).unwrap();
-        let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
         let configuration = serde_json::to_vec(&dokime::plugin::Configuration::declared::<plugin_obc::BenchSettings>()).unwrap();
         let mut registrar = harmos::plugin::Registrar::new();
         <ObcPlugin as harmos::Plugin>::register(&mut registrar).unwrap();
-        let definition = PluginDefinition {
-            id: declaration.id.clone(),
-            version: declaration.version.clone(),
-            artifact: PluginArtifact::Sidecar {
-                path,
-                sha256: Sha256::digest(&bytes).into(),
-                arguments: Vec::new(),
-                directory: None,
-                environment: Default::default(),
-            },
-            configuration,
-            contributions: PluginContributions {
-                lifecycle: Some(declaration.contracts.lifecycle.clone()),
-                operations: declaration.operations.clone(),
-                wire_contracts: declaration.contracts.provides.clone(),
-                required_contracts: Some(declaration.contracts.requires.clone()),
-                streams: declaration.streams.clone(),
-                observers: declaration.observers.clone(),
-                listeners: declaration.listeners.clone(),
-                sections: declaration.sections.clone(),
-                registrations: registrar.finish(),
-            },
-            requires: Vec::new(),
-        };
+        let executable = harmos::sidecar::Executable::at(&path).unwrap();
+        let declaration = executable.declaration().clone();
+        let mut definition = PluginDefinition::sidecar(&executable, configuration).unwrap();
+        definition.contributions.registrations = registrar.finish();
         let definitions = PluginDefinitions::new([definition], []).unwrap();
         let hosting = Arc::new(Hosting {
             captures: Arc::default(),
@@ -484,6 +476,7 @@ enum HostOperations {
     Operation3(EvidenceBatch),
     Operation4(OperatorQuestion),
     Operation5(LeaseAsk),
+    Operation6(LoadHold),
     Publish(harmos::builtins::streams::Publish),
 }
 
@@ -509,14 +502,12 @@ impl harmos::Lifecycle for Fixture {
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
+}
+
+impl harmos::Operation for LoadHold {
+    type Error = dokime::prelude::Refusal;
+    async fn run(self, _: Context<'_, Self>) -> Result<harmos::Response<plugin_host::host::cpu::load::LoadSummary>, Self::Error> {
+        Err(dokime::prelude::Refusal::of("the test host holds no CPU load"))
     }
 }
 
@@ -554,6 +545,7 @@ async fn dispatch(operations: &harmos::operations::OperationManager<Lanes>, meth
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn inventory_matches_dispatch() {
     use harmos::Message;
@@ -645,6 +637,7 @@ async fn inventory_matches_dispatch() {
     bench.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn samples_keep_context() {
     use dokime::Value;

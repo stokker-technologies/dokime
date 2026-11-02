@@ -91,6 +91,7 @@ export function PluginsSection() {
       }
     } catch (error) {
       toast.error("Plugin Installation Failed", {
+        error,
         description: errorMessage(error, "The plugin could not be installed.") ?? undefined,
       });
     } finally {
@@ -116,6 +117,7 @@ export function PluginsSection() {
       <SettingsCard title="Plugins">
         <SettingsRow
           label="Organization Release Source"
+          failure={releaseMutation.error}
           description="Discover compatible plugins from the source selected under Updates."
           error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
         />
@@ -139,6 +141,7 @@ export function PluginsSection() {
         {restartPending ? (
           <SettingsRow
             label="Restart Required"
+            failure={restartMutation.error}
             description={`Restart ${brand.label} to apply pending plugin changes.`}
             error={restartMutation.isError ? errorMessage(restartMutation.error, `${brand.label} could not be restarted.`) : null}
           >
@@ -208,6 +211,7 @@ export function PluginsSection() {
                   onSuccess: () => setRestartPrompt(true),
                   onError: (error) =>
                     toast.error("Plugin Change Failed", {
+                      error,
                       description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
                     }),
                 },
@@ -230,6 +234,7 @@ export function PluginsSection() {
             <DialogDescription>Choose a .dokime bundle to verify and install.</DialogDescription>
           </DialogHeader>
           <PluginDropZone
+            failure={installMutation.error}
             disabled={installMutation.isPending}
             error={errorMessage(installMutation.error, "The plugin could not be installed.")}
             filename={uploadingFilename}
@@ -249,7 +254,9 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {restartMutation.isError ? (
-            <NotificationMessage>{errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}</NotificationMessage>
+            <NotificationMessage error={restartMutation.error}>
+              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
+            </NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestartPrompt(false)}>
@@ -282,7 +289,9 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <NotificationMessage>{errorMessage(removeMutation.error, "The plugin could not be removed.")}</NotificationMessage>
+            <NotificationMessage error={removeMutation.error}>
+              {errorMessage(removeMutation.error, "The plugin could not be removed.")}
+            </NotificationMessage>
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

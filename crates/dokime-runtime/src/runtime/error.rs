@@ -36,6 +36,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
+    #[error(transparent)]
+    Query(#[from] Box<dokime_domain::model::query::error::Failure>),
+
     #[error("interface lifecycle failed: {source}")]
     Hosting {
         #[source]
@@ -119,11 +122,22 @@ pub enum Error {
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),
 
+    #[error("The report could not be created from saved evidence. Try again; if the problem continues, collect diagnostics.")]
+    ReportUnavailable(#[source] Box<Error>),
+
     #[error("invalid checkpoint query: {0}")]
     InvalidCheckpointQuery(String),
 
     #[error("Plugin {plugin} could not initialize\n  Cause: {reason}")]
     PluginInitialization { plugin: String, reason: String },
+
+    #[error("{}", super::plugins::start_error(plugin, plugin, source))]
+    PluginStart {
+        plugin: String,
+
+        #[source]
+        source: Box<harmos::Error>,
+    },
 
     #[error("{0}")]
     Operation(String),
@@ -213,7 +227,11 @@ fn harmos_message(error: &harmos::Error) -> String {
     }
     if let harmos::Error::PluginLifecycle { source } = error {
         let failures = match source.as_ref() {
-            harmos::plugin::PluginFailure::Cleanup(failures) | harmos::plugin::PluginFailure::Start { cleanup: failures, .. } => failures,
+            harmos::plugin::PluginFailure::Cleanup(failures) => failures,
+            harmos::plugin::PluginFailure::Start { artifact, source, cleanup } => {
+                let _ = write!(message, "; plugin `{artifact}`: {}", harmos::domain::failure::Report(source));
+                cleanup
+            }
             _ => return message,
         };
         for failure in failures {

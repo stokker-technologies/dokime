@@ -35,7 +35,17 @@ required-features = ["runtime"]
 # Definitions (requests, responses, ids, policies, stream rows) build with no features;
 # `runtime` adds the operation implementations and their platform dependencies.
 default = []
-runtime = ["dep:libc", "dep:serde_json", "dep:starship-battery", "dep:sysinfo", "dep:tokio", "dep:tokio-util", "dep:windows", "dep:zbus"]
+runtime = [
+  "dep:libc",
+  "dep:serde_json",
+  "dep:starship-battery",
+  "dep:sysinfo",
+  "dep:tokio",
+  "dep:tokio-util",
+  "dep:tracing",
+  "dep:windows",
+  "dep:zbus",
+]
 
 # === Dependencies === #
 
@@ -50,6 +60,7 @@ dokime-domain = { version = "0.1.2", path = "../../../crates/dokime-domain" }
 thiserror = { workspace = true }
 
 # Logging
+tracing = { workspace = true, optional = true }
 
 # Utilities
 libc = { workspace = true, optional = true }
@@ -86,8 +97,10 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 
 [dev-dependencies]
 # Local
+dokime-tracing = { workspace = true }
 
 # Git
+harmos-sdk = { workspace = true }
 
 # Error Handling
 
@@ -107,6 +120,7 @@ tempfile = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
 

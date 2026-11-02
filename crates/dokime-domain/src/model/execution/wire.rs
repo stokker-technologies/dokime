@@ -20,16 +20,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 
-#[allow(unused_imports)]
 use crate::model::identity::wire::*;
 
-#[allow(unused_imports)]
-use crate::model::planning::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Constants === */
@@ -65,7 +61,7 @@ pub struct AppendCasesReply {
     pub execution_ids: Vec<String>,
 }
 
-// Server-side selection and ordering for the live cycle list.
+// Server-side selection and ordering for current and saved cycles.
 //
 // `text` matches a cycle's label, description and identifier
 // case-insensitively; an empty string selects everything. Repeated fields are
@@ -283,6 +279,7 @@ pub struct CaseDetail {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionDetail {
+    pub report: Option<crate::model::reports::wire::ReportProgress>,
     pub summary: Option<ExecutionSummary>,
     pub cycle_id: String,
     pub scope: Option<EvidenceScope>,

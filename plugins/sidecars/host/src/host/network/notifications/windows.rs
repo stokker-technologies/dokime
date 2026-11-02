@@ -67,8 +67,8 @@ struct Pending {
 /* === Implementations === */
 
 impl Notifications {
-    pub fn new() -> crate::Result<Self> {
-        let inventory = crate::host::adapters::snapshot()?;
+    pub fn new(timeout: std::time::Duration) -> crate::Result<Self> {
+        let inventory = crate::host::adapters::snapshot(timeout)?;
         let links = inventory
             .adapters
             .into_iter()

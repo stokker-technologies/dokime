@@ -49,19 +49,43 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n/dokime_client/_wire/dokime/v1/Observation.proto\x12\tdokime.v1\x1aPdokime_client/_wire/dokime/v1/ObservationMessages/GetRuntimeShell/messages.proto\x1aPdokime_client/_wire/dokime/v1/ObservationMessages/GetTraceability/messages.proto\x1aWdokime_client/_wire/dokime/v1/ObservationMessages/WatchExecutionProgress/messages.proto\x1aMdokime_client/_wire/dokime/v1/ObservationMessages/WatchRuntime/messages.proto\"\xde\x01\n\'ObservationWatchExecutionProgressOutput\x12P\n\x04item\x18\x01 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row3H\x00R\x04item\x12X\n\x08response\x18\x02 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row2H\x00R\x08responseB\x07\n\x05value\"\xc0\x01\n\x1dObservationWatchRuntimeOutput\x12\x46\n\x04item\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row3H\x00R\x04item\x12N\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row2H\x00R\x08responseB\x07\n\x05value2\x82\x04\n\x0bObservation\x12{\n\x0fGetRuntimeShell\x12\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row1\x1a\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row2\x12{\n\x0fGetTraceability\x12\x33.dokime.v1.ObservationMessages.GetTraceability.Row1\x1a\x33.dokime.v1.ObservationMessages.GetTraceability.Row2\x12\x8a\x01\n\x16WatchExecutionProgress\x12:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row1\x1a\x32.dokime.v1.ObservationWatchExecutionProgressOutput0\x01\x12l\n\x0cWatchRuntime\x12\x30.dokime.v1.ObservationMessages.WatchRuntime.Row1\x1a(.dokime.v1.ObservationWatchRuntimeOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n/dokime_client/_wire/dokime/v1/Observation.proto\x12\tdokime.v1\x1aPdokime_client/_wire/dokime/v1/ObservationMessages/GetRuntimeShell/messages.proto\x1aPdokime_client/_wire/dokime/v1/ObservationMessages/GetTraceability/messages.proto\x1aWdokime_client/_wire/dokime/v1/ObservationMessages/WatchExecutionProgress/messages.proto\x1aMdokime_client/_wire/dokime/v1/ObservationMessages/WatchRuntime/messages.proto\"(\n&ObservationGetRuntimeShellCancellation\"\x98\x02\n\"ObservationGetRuntimeShellRunInput\x12O\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row1H\x00R\x07request\x12K\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x31.dokime.v1.ObservationGetRuntimeShellCancellationH\x00R\x06\x63\x61ncel\x12K\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x31.dokime.v1.ObservationGetRuntimeShellCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x81\x01\n#ObservationGetRuntimeShellRunOutput\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row2H\x00R\x08responseB\x07\n\x05value\"(\n&ObservationGetTraceabilityCancellation\"\x98\x02\n\"ObservationGetTraceabilityRunInput\x12O\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ObservationMessages.GetTraceability.Row1H\x00R\x07request\x12K\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x31.dokime.v1.ObservationGetTraceabilityCancellationH\x00R\x06\x63\x61ncel\x12K\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x31.dokime.v1.ObservationGetTraceabilityCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x81\x01\n#ObservationGetTraceabilityRunOutput\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ObservationMessages.GetTraceability.Row2H\x00R\x08responseB\x07\n\x05value\"\xde\x01\n\'ObservationWatchExecutionProgressOutput\x12P\n\x04item\x18\x01 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row3H\x00R\x04item\x12X\n\x08response\x18\x02 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row2H\x00R\x08responseB\x07\n\x05value\"/\n-ObservationWatchExecutionProgressCancellation\"\xb4\x02\n)ObservationWatchExecutionProgressRunInput\x12V\n\x07request\x18\x01 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row1H\x00R\x07request\x12R\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x38.dokime.v1.ObservationWatchExecutionProgressCancellationH\x00R\x06\x63\x61ncel\x12R\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x38.dokime.v1.ObservationWatchExecutionProgressCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xe1\x01\n*ObservationWatchExecutionProgressRunOutput\x12X\n\x08response\x18\x02 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row2H\x00R\x08response\x12P\n\x04item\x18\x01 \x01(\x0b\x32:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row3H\x00R\x04itemB\x07\n\x05value\"\xc0\x01\n\x1dObservationWatchRuntimeOutput\x12\x46\n\x04item\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row3H\x00R\x04item\x12N\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row2H\x00R\x08responseB\x07\n\x05value\"%\n#ObservationWatchRuntimeCancellation\"\x8c\x02\n\x1fObservationWatchRuntimeRunInput\x12L\n\x07request\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row1H\x00R\x07request\x12H\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32..dokime.v1.ObservationWatchRuntimeCancellationH\x00R\x06\x63\x61ncel\x12H\n\x06\x66inish\x18\x04 \x01(\x0b\x32..dokime.v1.ObservationWatchRuntimeCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\xc3\x01\n ObservationWatchRuntimeRunOutput\x12N\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row2H\x00R\x08response\x12\x46\n\x04item\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row3H\x00R\x04itemB\x07\n\x05value2\xf3\x07\n\x0bObservation\x12{\n\x0fGetRuntimeShell\x12\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row1\x1a\x33.dokime.v1.ObservationMessages.GetRuntimeShell.Row2\x12w\n\x12RunGetRuntimeShell\x12-.dokime.v1.ObservationGetRuntimeShellRunInput\x1a..dokime.v1.ObservationGetRuntimeShellRunOutput(\x01\x30\x01\x12{\n\x0fGetTraceability\x12\x33.dokime.v1.ObservationMessages.GetTraceability.Row1\x1a\x33.dokime.v1.ObservationMessages.GetTraceability.Row2\x12w\n\x12RunGetTraceability\x12-.dokime.v1.ObservationGetTraceabilityRunInput\x1a..dokime.v1.ObservationGetTraceabilityRunOutput(\x01\x30\x01\x12\x8a\x01\n\x16WatchExecutionProgress\x12:.dokime.v1.ObservationMessages.WatchExecutionProgress.Row1\x1a\x32.dokime.v1.ObservationWatchExecutionProgressOutput0\x01\x12\x8c\x01\n\x19RunWatchExecutionProgress\x12\x34.dokime.v1.ObservationWatchExecutionProgressRunInput\x1a\x35.dokime.v1.ObservationWatchExecutionProgressRunOutput(\x01\x30\x01\x12l\n\x0cWatchRuntime\x12\x30.dokime.v1.ObservationMessages.WatchRuntime.Row1\x1a(.dokime.v1.ObservationWatchRuntimeOutput0\x01\x12n\n\x0fRunWatchRuntime\x12*.dokime.v1.ObservationWatchRuntimeRunInput\x1a+.dokime.v1.ObservationWatchRuntimeRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Observation_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSOUTPUT']._serialized_start=395
-  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSOUTPUT']._serialized_end=617
-  _globals['_OBSERVATIONWATCHRUNTIMEOUTPUT']._serialized_start=620
-  _globals['_OBSERVATIONWATCHRUNTIMEOUTPUT']._serialized_end=812
-  _globals['_OBSERVATION']._serialized_start=815
-  _globals['_OBSERVATION']._serialized_end=1329
+  _globals['_OBSERVATIONGETRUNTIMESHELLCANCELLATION']._serialized_start=394
+  _globals['_OBSERVATIONGETRUNTIMESHELLCANCELLATION']._serialized_end=434
+  _globals['_OBSERVATIONGETRUNTIMESHELLRUNINPUT']._serialized_start=437
+  _globals['_OBSERVATIONGETRUNTIMESHELLRUNINPUT']._serialized_end=717
+  _globals['_OBSERVATIONGETRUNTIMESHELLRUNOUTPUT']._serialized_start=720
+  _globals['_OBSERVATIONGETRUNTIMESHELLRUNOUTPUT']._serialized_end=849
+  _globals['_OBSERVATIONGETTRACEABILITYCANCELLATION']._serialized_start=851
+  _globals['_OBSERVATIONGETTRACEABILITYCANCELLATION']._serialized_end=891
+  _globals['_OBSERVATIONGETTRACEABILITYRUNINPUT']._serialized_start=894
+  _globals['_OBSERVATIONGETTRACEABILITYRUNINPUT']._serialized_end=1174
+  _globals['_OBSERVATIONGETTRACEABILITYRUNOUTPUT']._serialized_start=1177
+  _globals['_OBSERVATIONGETTRACEABILITYRUNOUTPUT']._serialized_end=1306
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSOUTPUT']._serialized_start=1309
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSOUTPUT']._serialized_end=1531
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSCANCELLATION']._serialized_start=1533
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSCANCELLATION']._serialized_end=1580
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSRUNINPUT']._serialized_start=1583
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSRUNINPUT']._serialized_end=1891
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSRUNOUTPUT']._serialized_start=1894
+  _globals['_OBSERVATIONWATCHEXECUTIONPROGRESSRUNOUTPUT']._serialized_end=2119
+  _globals['_OBSERVATIONWATCHRUNTIMEOUTPUT']._serialized_start=2122
+  _globals['_OBSERVATIONWATCHRUNTIMEOUTPUT']._serialized_end=2314
+  _globals['_OBSERVATIONWATCHRUNTIMECANCELLATION']._serialized_start=2316
+  _globals['_OBSERVATIONWATCHRUNTIMECANCELLATION']._serialized_end=2353
+  _globals['_OBSERVATIONWATCHRUNTIMERUNINPUT']._serialized_start=2356
+  _globals['_OBSERVATIONWATCHRUNTIMERUNINPUT']._serialized_end=2624
+  _globals['_OBSERVATIONWATCHRUNTIMERUNOUTPUT']._serialized_start=2627
+  _globals['_OBSERVATIONWATCHRUNTIMERUNOUTPUT']._serialized_end=2822
+  _globals['_OBSERVATION']._serialized_start=2825
+  _globals['_OBSERVATION']._serialized_end=3836
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

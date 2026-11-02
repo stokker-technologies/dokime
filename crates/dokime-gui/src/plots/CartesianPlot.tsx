@@ -28,7 +28,7 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
-import { formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
+import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
@@ -88,6 +88,7 @@ type CartesianPlotProps = {
   xScale?: DocumentAxisScale;
   yScale?: DocumentAxisScale;
   timeAxis?: boolean;
+  booleanAxis?: boolean;
   colors?: string[];
   unit?: string | null;
   xFormat?: ValueFormat | null;
@@ -109,7 +110,7 @@ type CartesianPlotProps = {
   stateLabel?: string;
   stateDetail?: string;
   contextSummary?: string;
-  liveWindowS?: number | null;
+  windowS?: number | null;
   viewportMode?: PlotViewportMode;
   /**
    * Replaces the canvas legend with the trace statistics table: one clickable
@@ -179,6 +180,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   xScale = "linear",
   yScale = "linear",
   timeAxis = true,
+  booleanAxis = false,
   colors = [],
   unit,
   xFormat = null,
@@ -194,7 +196,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   stateLabel,
   stateDetail,
   contextSummary,
-  liveWindowS = null,
+  windowS = null,
   viewportMode = "fit",
   legend = null,
   onViewportChange,
@@ -252,6 +254,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     x: xFormat ?? null,
     xLabel,
     intervals,
+    booleanAxis,
     xElapsed: xElapsedUnit ?? null,
     y: yFormat ?? null,
     series: renderedSeries.map((item) => item.format ?? null),
@@ -276,7 +279,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   // Structural, not per-sample: crossing the render limit switches the point
   // mark style, everything below it is a plain data update.
   const densePoints = renderedPointCount > POINT_MARK_RENDER_LIMIT;
-  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, liveWindowS), [backendCartesian, liveWindowS]);
+  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, windowS), [backendCartesian, windowS]);
 
   useEffect(() => {
     let cancelled = false;
@@ -353,11 +356,13 @@ export const CartesianPlot = memo(function CartesianPlot({
         : (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
             splits.map((split) => (split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr })));
     const yAxisValues: uPlot.Axis.Values = (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-      splits.map((split) => (split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr })));
+      splits.map((split) =>
+        booleanAxis ? formatBooleanState(split) : split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr }),
+      );
     const seriesLegendValue =
       (format: ValueFormat | null): uPlot.Series.Value =>
       (_plot, rawValue) =>
-        rawValue == null ? "--" : formatNumber(rawValue, format);
+        booleanAxis ? formatBooleanState(rawValue) : rawValue == null ? "--" : formatNumber(rawValue, format);
     const options: uPlot.Options = {
       ...chartSize(),
       mode: faceted ? 2 : 1,
@@ -375,7 +380,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             if (windowServes(drawnRef.current, range)) return;
             queueMicrotask(() => {
               if (plotRef.current !== plot) return;
-              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth), false);
+              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth, zoom), false);
               plot.setScale("x", range);
               const heldY = heldRangeRef.current?.y;
               if (heldY) plot.setScale("y", heldY);
@@ -463,8 +468,9 @@ export const CartesianPlot = memo(function CartesianPlot({
         y: {
           auto: true,
           distr: yScale === "log" ? 3 : 1,
-          range:
-            yReferenceValues.length || intervals
+          range: booleanAxis
+            ? () => [-0.1, 1.1]
+            : yReferenceValues.length || intervals
               ? (_plot, dataMin, dataMax) =>
                   paddedYRange(
                     dataMin,
@@ -496,6 +502,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           grid: { stroke: themeColors.border, width: 1 },
           size: (_plot, values) => yAxisGutter(values, plotFont),
           values: yAxisValues,
+          splits: booleanAxis ? () => [0, 1] : undefined,
         },
       ],
       series: [
@@ -538,7 +545,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     let plot: uPlot;
     try {
       drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
-      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root)), root);
+      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root), zoom), root);
     } catch (error) {
       setPlotLoadError(plotFailureMessage(error));
       return;
@@ -549,7 +556,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth), () =>
+      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth, zoom), () =>
         setLiveXScale(plot, liveXRange, xScale, timeAxis),
       );
     }
@@ -580,6 +587,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       }
       try {
         plot.setSize(nextSize);
+        if (zoom) plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
       } catch (error) {
         setPlotLoadError(plotFailureMessage(error));
       }
@@ -646,6 +654,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     densePoints,
     style,
     timeAxis,
+    booleanAxis,
     uPlotConstructor,
     xScale,
     yScale,
@@ -743,7 +752,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     updateFrameRef.current = window.requestAnimationFrame(() => {
       updateFrameRef.current = null;
       drawnRef.current.source = chartFrame.data;
-      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth);
+      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth, zoom);
       const resetChanged = resetKeyRef.current !== resetKey;
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
@@ -774,7 +783,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       viewportModeRef.current = viewportMode;
       dataSignatureRef.current = dataSignature;
     });
-  }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale]);
+  }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale, zoom]);
 
   const placeholder = displayError
     ? plotUnavailableText(displayError)
@@ -826,7 +835,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                   onViewportChangeRef.current?.(null);
                   const plot = plotRef.current;
                   if (plot && chartFrame) {
-                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth), true);
+                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth, zoom), true);
                     if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
                   }
                 }}
@@ -1095,7 +1104,7 @@ function isUsableSpan(min: number, max: number): boolean {
  * reduced to four samples per pixel column of a `columns`-wide plot and
  * recorded as what is now drawn. A faceted frame is drawn whole.
  */
-function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number): uPlot.AlignedData {
+function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
   const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
   drawn.range = range;
   if (!drawn.aligned) {
@@ -1104,7 +1113,7 @@ function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns:
   }
 
   const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
-  const indices = windowIndices(x, traces, range, columns);
+  const indices = windowIndices(x, traces, range, columns, fitPixels);
   drawn.everySample = indices === null;
   if (!indices) return source;
 

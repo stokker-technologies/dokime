@@ -21,6 +21,9 @@
     "plugin-install": "Installs and restarts plugins without creating an execution.",
     "organization": "Imports organization configuration without creating an execution.",
     "attachment": "Proves attachment ownership with an empty container.",
-    "distribution-identity": "Checks isolated distribution directories without admitting an execution."
+    "distribution-identity": "Checks isolated distribution directories without admitting an execution.",
+    "touch": "Revisits completed executions at touch density without producing reports.",
+    "cycles-home": "Browses and filters existing cycles without producing reports.",
+    "history": "Inspects existing checkpoints without producing reports."
   }
 }

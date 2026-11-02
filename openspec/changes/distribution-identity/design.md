@@ -9,7 +9,7 @@ Locked 2026-10-29; implementation scheduled.
 [installer]
 version = "0.1.0"
 organization = "organization"
-identifier = "com.hilti.dokime"     # storage + install identity for this distribution
+identifier = "com.example.testhub"     # storage + install identity for this distribution
 ```
 
 - Validated like a reverse-DNS application identifier; the slug used in file and package names derives from it.
@@ -20,7 +20,7 @@ identifier = "com.hilti.dokime"     # storage + install identity for this distri
 `cargo dokime installer package` writes `distribution.json` beside the installed executables:
 
 ```json
-{ "schema": 1, "identifier": "com.hilti.dokime" }
+{ "schema": 1, "identifier": "com.example.testhub" }
 ```
 
 It is hashed in `installer.json`, the verified installed-file inventory used by bundled-plugin startup (the previous full `distribution.json` role is removed). Absent identity file: the compiled identifier applies; invalid files fail startup.
@@ -47,4 +47,4 @@ The NSIS install folder and uninstall registry key, and the DEB/RPM package name
 
 ## Still Compiled (Out Of Scope)
 
-Deep-link scheme, single-instance key/lease (under the compiled application root), updater trust and code-signing identity remain per build. Two branded distributions of one build still share them; making those per-distribution is a separate decision.
+Deep-link scheme, updater trust and code-signing identity remain per build. Two branded distributions of one build still share those compiled mechanisms; making them per-distribution is a separate decision. Every desktop launch opens its own window without a desktop lease or focus forwarding; only the backend exclusively leases its resolved data folder.
