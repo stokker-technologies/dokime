@@ -81,7 +81,8 @@ pub(super) struct Upload {
     file: tokio::fs::File,
     closing: Option<ArtifactStatus>,
     pending: Option<FrozenFile>,
-    capture_error: Option<Error>,
+    // Only The Message Is Kept: Holding A Runtime Error Here Makes `Upload` Recursive For Send Checks.
+    capture_error: Option<String>,
     descriptor: Option<ExecutionOutput>,
     metadata: Metadata,
     record: ArtifactRecord,
@@ -272,7 +273,7 @@ impl RuntimeHandle {
             let owner = storage.acquisition(&upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
             let mut acquisition = owner.lock().await;
             let state = acquisition.artifacts.get_mut(&upload.id).ok_or_else(|| error("artifact upload is missing"))?;
-            state.capture_error = Some(source);
+            state.capture_error = Some(source.to_string());
             drop(acquisition);
             return upload.close_with(false, None).await;
         }
@@ -402,7 +403,7 @@ impl ExecutionStorage {
         let state = {
             let mut state = state;
             if let Some(kind) = self.artifact_faults.lock().unwrap().remove(&(execution.clone(), state.record.filename.clone())) {
-                state.capture_error = Some(source_error(std::io::Error::from(kind)));
+                state.capture_error = Some(source_error(std::io::Error::from(kind)).to_string());
             }
             state
         };
@@ -554,35 +555,45 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
     if upload.descriptor.is_some() {
         return Ok(());
     }
-    let captured = async {
-        if let Some(source) = upload.capture_error.take() {
-            return Err(source);
+    let (reference, status) = if let Some(message) = upload.capture_error.take() {
+        tracing::warn!(artifact = %upload.record.artifact_id, filename = %upload.record.filename, error = %message, "artifact capture failed");
+        upload.record.error = Some(message);
+        (None, ArtifactStatus::Failed)
+    } else {
+        let captured = async {
+            if upload.pending.is_none() {
+                // The Private File Is Frozen By The Execution Gate And Closing Decision
+                upload.file.set_len(upload.record.size_bytes).await.map_err(source_error)?;
+                upload.file.flush().await.map_err(source_error)?;
+                let file = upload.file.try_clone().await.map_err(source_error)?;
+                let metadata = FileMetadata {
+                    id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
+                    scope: upload
+                        .record
+                        .scope
+                        .test_execution_id
+                        .as_ref()
+                        .map(|id| Identifier::new(id.as_str()))
+                        .transpose()
+                        .map_err(error)?,
+                    media_type: upload.record.content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
+                    expected_length: Some(upload.record.size_bytes),
+                    expected_sha256: Some(upload.digest.clone().finalize().into()),
+                };
+                upload.pending = Some(FrozenFile::new(file, metadata));
+            }
+            upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await
         }
-        if upload.pending.is_none() {
-            // The Private File Is Frozen By The Execution Gate And Closing Decision
-            upload.file.set_len(upload.record.size_bytes).await.map_err(source_error)?;
-            upload.file.flush().await.map_err(source_error)?;
-            let file = upload.file.try_clone().await.map_err(source_error)?;
-            let metadata = FileMetadata {
-                id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
-                scope: upload.record.scope.test_execution_id.as_ref().map(|id| Identifier::new(id.as_str())).transpose().map_err(error)?,
-                media_type: upload.record.content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
-                expected_length: Some(upload.record.size_bytes),
-                expected_sha256: Some(upload.digest.clone().finalize().into()),
-            };
-            upload.pending = Some(FrozenFile::new(file, metadata));
+        .await;
+        match captured {
+            Ok(reference) => (Some(reference), status.clone()),
+            Err(source) if content_capture_failure(&source) => {
+                tracing::warn!(artifact = %upload.record.artifact_id, filename = %upload.record.filename, error = %source, "artifact capture failed");
+                upload.record.error = Some(source.to_string());
+                (None, ArtifactStatus::Failed)
+            }
+            Err(source) => return Err(source),
         }
-        upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await
-    }
-    .await;
-    let (reference, status) = match captured {
-        Ok(reference) => (Some(reference), status.clone()),
-        Err(source) if content_capture_failure(&source) => {
-            tracing::warn!(artifact = %upload.record.artifact_id, filename = %upload.record.filename, error = %source, "artifact capture failed");
-            upload.record.error = Some(source.to_string());
-            (None, ArtifactStatus::Failed)
-        }
-        Err(source) => return Err(source),
     };
     let mut record = upload.record.clone();
     record.status = status.clone();
