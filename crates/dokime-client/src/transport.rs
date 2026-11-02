@@ -206,11 +206,7 @@ where
             let mut client =
                 tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
             client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
-            client
-                .unary(request(message, authorization), method::<O>(), codec)
-                .await
-                .map(tonic::Response::into_inner)
-                .map_err(Error::Rpc)
+            client.unary(request(message, authorization), method::<O>(), codec).await.map(tonic::Response::into_inner).map_err(Error::Rpc)
         }
     })
     .await
