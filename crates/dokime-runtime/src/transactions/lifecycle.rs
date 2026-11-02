@@ -53,12 +53,6 @@ pub struct MarkRuntimeStarted {
     pub record_frontier: u64,
 }
 
-#[harmos::transaction(id = "dokime.runtime.records.recover")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RecoverRecordFrontier {
-    pub through: u64,
-}
-
 #[harmos::transaction(id = "dokime.runtime.identity.establish")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EstablishNodeIdentity {
@@ -434,19 +428,6 @@ impl Transaction<RuntimeState> for MarkRuntimeStarted {
         state.record_count = state.record_count.max(self.record_frontier);
         state.records.through = state.records.through.max(self.record_frontier);
         state.shutting_down = false;
-    }
-}
-
-impl Transaction<RuntimeState> for RecoverRecordFrontier {
-    type Error = String;
-
-    fn check(&self, _state: &RuntimeState) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn apply(&self, state: &mut RuntimeState) {
-        state.record_count = state.record_count.max(self.through);
-        state.records.through = state.records.through.max(self.through);
     }
 }
 
