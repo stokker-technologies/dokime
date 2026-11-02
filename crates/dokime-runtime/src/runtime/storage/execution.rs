@@ -206,7 +206,9 @@ impl ExecutionView {
             captured: Some(captured),
         };
         for output in inspection.outputs()? {
-            verify_file(inspection.read_file(&output.file, whole()).await?).await?;
+            if let Some(file) = &output.file {
+                verify_file(inspection.read_file(file, whole()).await?).await?;
+            }
         }
         Ok(inspection)
     }
@@ -332,11 +334,11 @@ impl ExecutionView {
     }
 
     pub async fn context_records(&self) -> Result<super::records::RecordReader> {
-        super::records::RecordReader::open(self, true).await
+        super::records::RecordReader::open(self).await
     }
 
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {
-        let owned = self.captured.as_ref().is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
+        let owned = self.captured.as_ref().is_some_and(|source| source.outputs.iter().any(|output| output.file.as_ref() == Some(file)))
             || self.execution().saved.as_ref().is_some_and(|seal| seal.files().any(|owned| owned == file));
         if !owned {
             return Err(Error::Storage(crate::storage::Error::Invalid("file is not an exact captured dependency of this execution")));

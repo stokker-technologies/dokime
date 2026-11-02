@@ -134,6 +134,12 @@ impl Transaction<RuntimeState> for ControlExecution {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.executions.get(&self.test_execution_id).map(|execution| &execution.test_cycle_id),
+            out,
+        );
         self.drafts(state).0.collect(out);
     }
 

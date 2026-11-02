@@ -41,6 +41,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn retained_evidence() {
     dokime_runtime::testing::capture(7, 1440);

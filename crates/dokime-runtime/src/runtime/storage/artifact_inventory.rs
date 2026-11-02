@@ -65,7 +65,8 @@ pub(super) async fn inspect(
     }
     // Observe All Completed Uploads Through One Logical Durability Boundary.
     // Native Finish Has Already Saved Each File's Immutable Bytes.
-    if let Some(through) = live.iter().map(|(_, output)| &output.file.position).max_by_key(|position| position.sequence)
+    if let Some(through) =
+        live.iter().filter_map(|(_, output)| output.file.as_ref().map(|file| &file.position)).max_by_key(|position| position.sequence)
         && !storage.storage.cursor_saved().covers(through)?
     {
         storage.storage.flush_until(through).await?;
@@ -87,7 +88,7 @@ pub(super) async fn inspect(
         }
     }
     for (id, output) in live {
-        if saved.covers(&output.file.position)?
+        if output.file.as_ref().map(|file| saved.covers(&file.position)).transpose()?.unwrap_or(true)
             && let ExecutionOutputContent::Artifact { record, .. } = &output.content
             && observe(&mut seen, &id, record)?
         {
@@ -156,7 +157,7 @@ pub(super) async fn records_at_in(
         }
     }
     for (id, output) in live.iter() {
-        if saved.covers(&output.file.position)?
+        if output.file.as_ref().map(|file| saved.covers(&file.position)).transpose()?.unwrap_or(true)
             && let ExecutionOutputContent::Artifact { record, .. } = &output.content
         {
             records = retain_record(records, id, record)?;

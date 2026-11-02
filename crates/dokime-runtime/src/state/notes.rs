@@ -313,6 +313,7 @@ mod tests {
         crate::transactions::MarkRuntimeStarted {
             session_id: state.session_id.clone(),
             record_namespace: SessionId::from_seed("notes-epoch"),
+            record_frontier: 0,
         }
         .apply(&mut state);
         let cycle_id = TestCycleId::from_seed("notes-cycle");
@@ -365,6 +366,7 @@ mod tests {
         crate::transactions::MarkRuntimeStarted {
             session_id: state.session_id.clone(),
             record_namespace: SessionId::from_seed("notes-restarted-epoch"),
+            record_frontier: 0,
         }
         .apply(&mut state);
         assert!(create.check(&state).unwrap_err().contains("epoch/actor"));

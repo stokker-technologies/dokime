@@ -266,14 +266,6 @@ impl dokime_runtime::harmos::Lifecycle for Bench {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         Ok(())
@@ -378,6 +370,7 @@ fn configured(settings: BTreeMap<String, dokime_runtime::Value>) -> Vec<u8> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn step_criterion_operation() {
     let reads = Arc::new(AtomicU64::new(0));
@@ -395,6 +388,7 @@ async fn step_criterion_operation() {
     assert!(reads.load(Ordering::SeqCst) >= 2, "the step and the criterion each reached the operation");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unanswered_operation_name() {
     let report = Harness::template(TEMPLATE)
@@ -407,6 +401,7 @@ async fn unanswered_operation_name() {
     assert!(report.diagnostics().contains("call_fixture.get_reading"), "{}", report.diagnostics());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_observer_operation() {
     let ticks = Arc::new(Mutex::new(Vec::new()));
@@ -439,6 +434,7 @@ async fn plugin_observer_operation() {
 }
 
 // The late operation outlives its policy deadline on the paused clock.
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn catalog_operations_policy() {
     let native = super::native::Native::initialize(

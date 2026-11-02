@@ -80,18 +80,25 @@ export function documentPlotSpec({
           )
         : null,
     timeAxis: plot.plot_type === "time_series",
+    booleanAxis:
+      plot.plot_type === "time_series" &&
+      plot.y.length > 0 &&
+      !plot.y_expressions?.some((expression) => Array.isArray(expression.transforms) && expression.transforms.length > 0) &&
+      plot.y.every((field) =>
+        telemetry?.[plot.stream]?.spec?.columns.some((column) => column.name === field && column.value_type === "boolean"),
+      ),
     unit: plot.unit ?? commonUnit(series),
     colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
     referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),
     referenceBands: plot.reference_bands ?? [],
     stateLabel: state.label,
     stateDetail: state.detail,
-    contextSummary: plotContextSummary({ stream: plot.stream, telemetry }),
+    contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
     context: {
       ...(payload?.context ?? {}),
       ...(plotContext({ stream: plot.stream, plotType: plot.plot_type, telemetry }) ?? {}),
     },
-    liveWindowS: payload ? (payload.window_s ?? null) : (plot.live_window_s ?? null),
+    windowS: payload?.window_s ?? null,
     xFormat,
     xElapsedUnit: resolvedElapsedUnit(plot, xFormat),
     yFormat: plot.y_format ?? series[0]?.format ?? null,
@@ -224,11 +231,13 @@ function plotContext({
 function plotContextSummary({
   stream,
   telemetry,
+  context,
 }: {
   stream: string;
   telemetry?: Record<string, TelemetryStream> | null;
+  context?: Record<string, unknown> | null;
 }): string | undefined {
-  const latest = latestSample(telemetry, stream);
+  const latest = latestSample(telemetry, stream) ?? context;
   if (!latest) {
     return undefined;
   }

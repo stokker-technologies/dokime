@@ -322,7 +322,7 @@ function mapArtifactMetadata(metadata: ArtifactMetadata, overrides?: NativeArtif
     media_type: contentType ?? null,
     content_kind: mapContentKind(contentType, filename),
     stream_state: mapArtifactState(metadata.state),
-    description: overrides?.description ?? null,
+    description: metadata.error ?? overrides?.description ?? null,
     size_bytes: safeNumber(metadata.sizeBytes, "Content.ArtifactMetadata size"),
     group_id: overrides?.groupId ?? "cycle-artifacts",
     group_label: overrides?.groupLabel ?? "Cycle Artifacts",
@@ -385,6 +385,7 @@ function mapArtifactState(state: ArtifactState): "static" | "streaming" | "final
       return "finalized";
     case "Cancelled":
     case "Rejected":
+    case "Failed":
       return "interrupted";
     default:
       return "static";

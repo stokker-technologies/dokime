@@ -1,6 +1,6 @@
 # CI Migration Specification
 ## Purpose
-Preserve Dokime's native validation, artifact ownership and protected delivery while adopting the shared Hub CI contract.
+Preserve Dokime's native validation, artifact ownership and protected delivery using editable Hub CI baselines. Dokime owns its CI workflows, actions and tooling.
 
 ## Agreed Migration Scope
 The user approved fixing migration-related convention findings, required canonical task/pin configuration and Hub false positives while deferring unrelated pre-existing cleanup. The broad convention audit remains failing; this migration does not claim otherwise. Deferred categories are skeleton/header and attributed-member spacing, test-domain mirroring and placement, existing identifier naming, Error module placement and test environment access, Rustdoc examples, dependency grouping outside the new executable crates, and unchanged Apache license text. Representative unchanged sources include cargo-dokime/src/cli.rs, runtime test service state modules and LICENSE-APACHE. Required CI, packaging and publication dry-run failures remain blocking.
@@ -9,7 +9,7 @@ Timed benchmarks are optional and explicitly deferred from migration and release
 
 ## Requirements
 ### Requirement: Adopt The Agreed Hub Contract
-The product SHALL migrate its authored tasks and configuration and canonically generated tooling/workflows to the locked Hub CI contracts while preserving required native platform coverage, artifact dependencies and release behavior.
+The product SHALL own its authored tasks, configuration, tooling and workflows after baseline rendering, preserving required native platform coverage, artifact dependencies and release behavior. Dokime's current dev and release gates are defined in the Dokime CI specification.
 
 #### Scenario: Candidate Delivery
 - **WHEN** complete source passes applicable local proof

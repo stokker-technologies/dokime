@@ -97,7 +97,7 @@ pub(crate) fn document_plot_definition(
 ) -> Result<dokime::domain::model::documents::wire::DocumentPlotDefinition, Status> {
     // The declared request, not the mapped query: the live watch sends it back
     // and the query maps it once, exactly as the report maps the descriptor.
-    let request = declared_plot_request(descriptor, Some(descriptor.input.scope.clone()), None, descriptor.input.live_window_s);
+    let request = declared_plot_request(descriptor, Some(descriptor.input.scope.clone()), None, None);
     Ok(dokime::domain::model::documents::wire::DocumentPlotDefinition {
         metadata: Some(canonical::metadata(&descriptor.metadata)?),
         request: Some(plot_request_wire(&request)?),
@@ -319,7 +319,6 @@ fn plot_presentation(input: &PlotInput) -> Result<dokime::domain::model::documen
         histogram: Some(plot_histogram_wire(&input.histogram)?),
         reference_lines: input.reference_lines.iter().map(plot_reference_line_wire).collect::<Result<_, _>>()?,
         reference_bands: input.reference_bands.iter().map(plot_reference_band_wire).collect::<Result<_, _>>()?,
-        live_window_s: input.live_window_s.map(|value| finite_duration(value, "plot live_window_s")).transpose()?,
         x_format: optional_format(input.x_format.as_ref()),
         y_format: optional_format(input.y_format.as_ref()),
         x_axis,

@@ -176,6 +176,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       )
       .catch((error: unknown) =>
         toast.error("The Report Could Not Be Opened", {
+          error,
           description: error instanceof Error ? error.message : String(error),
         }),
       );
@@ -202,6 +203,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       .then(() => toast.success(report.done))
       .catch((error: unknown) =>
         toast.error(report.failed, {
+          error,
           description: error instanceof Error ? error.message : String(error),
         }),
       );

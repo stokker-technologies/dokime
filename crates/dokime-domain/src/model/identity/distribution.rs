@@ -88,8 +88,8 @@ mod tests {
 
     #[test]
     fn safe_identity() {
-        let identity = DistributionIdentity::new("com.hilti.dokime").unwrap();
-        assert_eq!(identity.slug(), "com-hilti-dokime");
+        let identity = DistributionIdentity::new("com.example.testhub").unwrap();
+        assert_eq!(identity.slug(), "com-example-testhub");
         assert!(DistributionIdentity::new("com.3m.dokime").is_ok());
         for value in ["", "dokime", "../escape", "com..dokime", "com.-bad.app", "com.bad-.app", "Com.example.app", "com.example_app"] {
             assert!(DistributionIdentity::new(value).is_err(), "{value}");

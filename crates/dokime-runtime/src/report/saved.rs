@@ -298,7 +298,8 @@ impl PreparedExecutionReport {
         let (context, report) = ReportFile::capture(&html)?;
         if outputs
             .iter()
-            .any(|output| output.file.metadata.id == context.data.metadata.id || output.file.metadata.id == report.data.metadata.id)
+            .filter_map(|output| output.file.as_ref())
+            .any(|file| file.metadata.id == context.data.metadata.id || file.metadata.id == report.data.metadata.id)
         {
             return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }
@@ -567,7 +568,7 @@ mod tests {
 
     // The Published Payload Of A Fixed Input At Its Original Generator Version.
     const PAYLOAD_HUB: &str = r#""hub":{"generator":"dokime-runtime","name":"Dokime","version":"0.1.0"}"#;
-    const PAYLOAD_SHA256: &str = "8c4a6d2aa30cbc895613b8c9c1eeef0e5de409661abc65d95800cbb4197ccc12";
+    const PAYLOAD_SHA256: &str = "283df04a8b0f49f21a02ea2760875b9887bdf3ee628a99b5476ae5fb53f27267";
 
     #[tokio::test]
     async fn report_digest_is_stable() {

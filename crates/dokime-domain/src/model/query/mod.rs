@@ -9,6 +9,13 @@
 
 /* === Modules === */
 
+pub mod error;
+pub mod page;
+pub mod predicate;
+pub mod reduction;
+pub mod schema;
+pub mod selection;
+pub mod snapshot;
 pub mod wire;
 
 /* === Re-Exports === */

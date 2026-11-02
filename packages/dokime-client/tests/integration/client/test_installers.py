@@ -13,10 +13,12 @@
 # Standard Library Imports
 import hashlib
 import json
+import re
 import shutil
 import stat
 import zipfile
 from pathlib import Path
+from urllib.parse import unquote_to_bytes
 
 # Third Party Imports
 import pytest
@@ -81,7 +83,8 @@ def test_organization_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert json.loads(config.read_text()) == compiled
     assert not (assets / "generated").exists()
     stylesheet = (generated / "theme.css").read_text()
-    assert "data:font/woff2;base64," in stylesheet
+    fonts = re.findall(r'url\("data:font/woff2,([^\"]+)"\)', stylesheet)
+    assert sorted(unquote_to_bytes(font) for font in fonts) == sorted(path.read_bytes() for path in (assets / "fonts").glob("*.woff2"))
     assert 'url("fonts/' not in stylesheet
     assert "--brand-radius-sm: 0.0625rem" in stylesheet
 

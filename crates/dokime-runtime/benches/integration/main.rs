@@ -15,6 +15,7 @@
 mod capture;
 mod finalization;
 mod plots;
+mod telemetry;
 
 #[path = "../../tests/support/services/mod.rs"]
 #[allow(dead_code)]
@@ -33,7 +34,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark);
+criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

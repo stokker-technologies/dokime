@@ -67,6 +67,7 @@ fn state(output: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(path)
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn development_state_scoped() {
     let root = tempfile::tempdir().unwrap();
@@ -94,6 +95,7 @@ fn development_state_scoped() {
     assert!(!refusal(c).contains("Development data"));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn environment_precedence_ordered() {
     let root = tempfile::tempdir().unwrap();
@@ -122,6 +124,7 @@ fn environment_precedence_ordered() {
     assert!(refusal(c).contains("DOKIME_DEV_ROOT must not be empty"));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn environment_paths_validated() {
     let root = tempfile::tempdir().unwrap();

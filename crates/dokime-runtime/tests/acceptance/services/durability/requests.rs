@@ -42,6 +42,7 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn durable_requests_reopens() {
     if let Some(root) = std::env::var_os("DOKIME_RECEIPT_KILL_ROOT") {
@@ -71,6 +72,22 @@ async fn durable_requests_reopens() {
     assert_eq!(recovered.summary.provider_started_at, pending.summary.provider_started_at);
     assert_eq!(recovered.last_claim.as_ref().unwrap().execution_id, pending.last_claim.as_ref().unwrap().execution_id);
     assert!(recovered.summary.finished_at.is_some());
+    let selection = dokime_runtime::domains::evidence::RecordSelection {
+        scope: dokime_runtime::domains::evidence::ScopeSelection {
+            test_execution_id: Some(pending.last_claim.as_ref().unwrap().execution_id.clone()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut records = handle.selected_records(selection.clone()).await.unwrap();
+    records.sort_by_key(|record| record.ordinal);
+    assert!(records.windows(2).all(|pair| pair[0].ordinal < pair[1].ordinal));
+    let interruptions = records.iter().filter(|record| record.record_type.as_str() == "test.execution.interrupted").collect::<Vec<_>>();
+    assert_eq!(interruptions.len(), 1);
+    assert_eq!(
+        interruptions[0].scope.as_ref().unwrap().test_execution_id.as_ref(),
+        Some(&pending.last_claim.as_ref().unwrap().execution_id)
+    );
     drop(handle);
     runtime.shutdown().await.unwrap();
 
@@ -78,6 +95,9 @@ async fn durable_requests_reopens() {
     let reread = handle.run_request(&pending.summary.request_id).await.unwrap().unwrap();
     assert_eq!(reread.summary.phase, RunPhase::Interrupted);
     assert_eq!(reread.summary.finished_at, recovered.summary.finished_at);
+    let mut reread_records = handle.selected_records(selection).await.unwrap();
+    reread_records.sort_by_key(|record| record.ordinal);
+    assert_eq!(reread_records, records);
     drop(handle);
     runtime.shutdown().await.unwrap();
 

@@ -18,7 +18,7 @@
 // Standard Library Imports
 use std::{
     fs::File,
-    io::{self, Seek, SeekFrom, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     path::Path,
 };
 
@@ -146,6 +146,45 @@ impl Writer {
         Ok(())
     }
 
+    pub fn telemetry(
+        &mut self, path: &str, source: &crate::storage::sqlite::StreamFile, buffer_bytes: usize, budget: &mut InventoryBudget,
+    ) -> Result<()> {
+        self.start(path)?;
+        let mut file = File::open(&source.path)?;
+        let mut buffer = vec![0; buffer_bytes];
+        let mut hash = Sha256::new();
+        let mut size = 0_u64;
+        loop {
+            if self.cancellation.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let count = file.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            size = size
+                .checked_add(count as u64)
+                .filter(|size| *size <= source.size_bytes)
+                .ok_or(Error::Invalid("telemetry file grew after finalization"))?;
+            hash.update(&buffer[..count]);
+            self.zip.write_all(&buffer[..count])?;
+        }
+        let digest: [u8; 32] = hash.finalize().into();
+        if size != source.size_bytes || digest != source.sha256 {
+            return Err(Error::Invalid("telemetry file differs from catalog"));
+        }
+        let entry = Entry {
+            path: path.to_owned(),
+            size_bytes: size,
+            sha256: hex(&digest),
+            source: None,
+            relative_path: None,
+        };
+        budget.reserve(&entry)?;
+        self.entries.push(entry);
+        Ok(())
+    }
+
     pub async fn database(&mut self, reader: FileReader, budget: &mut InventoryBudget) -> Result<()> {
         self.start("evidence.sqlite")?;
         let (size_bytes, sha256) = copy(reader, &mut self.zip, &self.cancellation, super::MAX_EXPORT_BYTES).await?;
@@ -226,14 +265,14 @@ pub(super) async fn hash(reader: FileReader, cancellation: &CancellationToken, m
     copy(reader, &mut sink, cancellation, maximum).await
 }
 
-pub(super) fn output_path(execution: &str, index: usize, relative: &str) -> String {
-    let safe = super::super::storage::paths::safe_artifact_path(relative);
-    let filename = Path::new(safe.rsplit('/').next().unwrap_or("file"));
-    let stem = filename.file_stem().and_then(|value| value.to_str()).unwrap_or("file");
-    let stem = stem.chars().take(160).collect::<String>();
-    let suffix = filename.extension().and_then(|value| value.to_str()).map(|value| format!(".{value}")).unwrap_or_default();
-    // A Numeric Prefix Avoids Windows Device Names And Sanitization Collisions.
-    format!("files/{execution}/{index:06}-{stem}{suffix}")
+pub(super) fn output_path(execution: Option<&str>, relative: &str) -> Result<String> {
+    if relative.split('/').any(|part| matches!(part, "" | "." | "..") || part.contains(['\\', ':', '\0'])) {
+        return Err(Error::Invalid("artifact archive path is not a safe relative path"));
+    }
+    Ok(match execution {
+        Some(execution) => format!("executions/{execution}/artifacts/{relative}"),
+        None => format!("artifacts/{relative}"),
+    })
 }
 
 pub(super) fn hex(bytes: &[u8]) -> String {
@@ -276,13 +315,10 @@ mod tests {
 
     #[test]
     fn portable_output_names() {
-        assert_eq!(output_path("execution", 0, "sub/CON.txt"), "files/execution/000000-con.txt");
-        assert_ne!(output_path("execution", 0, "sub/A.txt"), output_path("execution", 1, "other/a.txt"));
-        let long = format!("{}.csv", "x".repeat(1000));
-        let path = output_path("execution", 9, &long);
-        assert!(path.ends_with(".csv"));
-        assert!(path.rsplit('/').next().unwrap().len() < 255);
-        assert_eq!(path.split('/').count(), 3);
-        assert!(!output_path("execution", 0, "../A?:b.csv").contains(".."));
+        assert_eq!(output_path(None, "sub/A.txt").unwrap(), "artifacts/sub/A.txt");
+        assert_eq!(output_path(Some("execution"), "sub/A.txt").unwrap(), "executions/execution/artifacts/sub/A.txt");
+        for path in ["../secret", "a/../../secret", "/absolute", "C:/secret", "a\\secret", "a//file"] {
+            assert!(output_path(None, path).is_err());
+        }
     }
 }

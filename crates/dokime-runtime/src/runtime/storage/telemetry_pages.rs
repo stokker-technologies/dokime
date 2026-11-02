@@ -46,12 +46,13 @@ use crate::{
 /* === Public Functions === */
 
 pub(crate) async fn read(
-    view: &ExecutionView, stream: &Identifier, query: ExecutionTelemetryQuery, settings: &harmos::config::SchemaSettings,
+    view: &ExecutionView, local: &crate::storage::sqlite::State, stream: &Identifier, query: ExecutionTelemetryQuery,
+    settings: &harmos::config::SchemaSettings,
 ) -> Result<harmos::storage::ReadBatch<ExecutionTelemetryPage>> {
     let limit = page_limit(query.limit)?;
     let after = Cursor::requested(query.after.as_deref())?;
     let view = view.snapshot().await?;
-    let mut reader = TelemetryReader::open_page(&view, stream, after, settings).await?;
+    let mut reader = TelemetryReader::open_page(&view, local, stream, after, settings).await?;
     view.revision()?;
 
     let header = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {

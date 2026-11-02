@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(crate) mod provider;
+pub(crate) mod query;
 pub(crate) mod reports;
 pub(crate) mod runtime;
 pub(crate) mod secrets;

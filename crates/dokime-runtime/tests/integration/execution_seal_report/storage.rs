@@ -124,10 +124,14 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(retained, expected);
     // Exercise Registration And Sealing Beyond The Former Private Source Cap.
     let additional_outputs = 257u32;
-    for index in 0..additional_outputs {
-        let target = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true).await.unwrap().unwrap();
-        std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
-    }
+    let outputs = (0..additional_outputs).map(|index| {
+        let registering = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true);
+        async move {
+            let target = registering.await.unwrap().unwrap();
+            std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
+        }
+    });
+    futures_util::future::join_all(outputs).await;
     executor.release();
     wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
@@ -334,8 +338,8 @@ pub(crate) async fn permanent_finalization_settles() {
         .await
         .unwrap();
     assert!(runtime.wait_execution_report(&execution).await.is_err());
+    assert!(runtime.stop_execution(execution.clone(), CommandContext::default()).await.is_err());
     assert_eq!(runtime.watch_state().latest().state().executions[&execution].status, ExecutionStatus::Passed);
-    runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
     drop(watch);
     owner.shutdown().await.unwrap();
     drop(runtime);

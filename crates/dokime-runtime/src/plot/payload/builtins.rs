@@ -250,6 +250,17 @@ impl Analysis for Fft {
 
 /* === Public Functions === */
 
+pub(crate) fn evaluate(id: &str, request: crate::analysis::Request) -> Result<Response, Error> {
+    match id {
+        Mean::ID => Operation::<Mean>::evaluate(request),
+        Lttb::ID => Operation::<Lttb>::evaluate(request),
+        Extrema::ID => Operation::<Extrema>::evaluate(request),
+        #[cfg(feature = "fft")]
+        Fft::ID => Operation::<Fft>::evaluate(request),
+        _ => Err(Error::Input(format!("Analysis {id} is unavailable in this build."))),
+    }
+}
+
 pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     let entries = <Operations as Catalog<Definitions>>::ENTRIES;
     #[cfg(feature = "fft")]

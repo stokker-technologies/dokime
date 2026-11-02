@@ -122,8 +122,10 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime::domain::model:
             ArtifactStatus::Complete => dokime::domain::model::content::wire::ArtifactState::Complete,
             ArtifactStatus::Cancelled => dokime::domain::model::content::wire::ArtifactState::Cancelled,
             ArtifactStatus::Rejected => dokime::domain::model::content::wire::ArtifactState::Rejected,
+            ArtifactStatus::Failed => dokime::domain::model::content::wire::ArtifactState::Failed,
             ArtifactStatus::Staged => return Err(invalid()),
         },
+        error: record.error.clone(),
         created_at: Some(dokime::domain::model::identity::wire::Timestamp {
             seconds: created.unix_timestamp(),
             nanos: created.nanosecond() as i32,
@@ -148,3 +150,29 @@ fn artifact_digest(record: &ArtifactRecord) -> Result<&str, Status> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_failure_metadata_preserves_error_and_terminal_state() {
+        let source = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let record = ArtifactRecord {
+            artifact_id: dokime::model::identity::new_id(),
+            upload_id: dokime::model::identity::new_id(),
+            scope: Default::default(),
+            filename: "app.log".into(),
+            content_type: Some("text/plain".into()),
+            size_bytes: 0,
+            sha256: Some("00".repeat(32)),
+            status: ArtifactStatus::Failed,
+            error: Some(source.to_string()),
+            created_at: dokime::model::time::now_utc(),
+        };
+        let projected = metadata(&record).unwrap();
+        assert!(matches!(projected.state, dokime::domain::model::content::wire::ArtifactState::Failed));
+        assert_eq!(projected.error, record.error);
+        assert_eq!(projected.artifact_id, record.artifact_id.as_str());
+    }
+}

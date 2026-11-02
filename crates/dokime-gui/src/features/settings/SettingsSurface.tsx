@@ -92,6 +92,7 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
               advanced={advanced}
               frame={frame}
               loadError={settings.error}
+              loadFailure={settings.failure}
               loading={settings.loading}
               retry={settings.retry}
               section={section}
@@ -107,6 +108,7 @@ function SectionContent({
   advanced,
   frame,
   loadError,
+  loadFailure,
   loading,
   retry,
   section,
@@ -114,6 +116,7 @@ function SectionContent({
   advanced: boolean;
   frame: RuntimeSettingsFrame | null;
   loadError: string | null;
+  loadFailure?: unknown;
   loading: boolean;
   retry: () => void;
   section: SettingsSectionId;
@@ -154,7 +157,7 @@ function SectionContent({
     return (
       <SettingsCard title="Settings">
         <div className="grid justify-items-start gap-3 px-4 py-3">
-          <NotificationMessage>{loadError}</NotificationMessage>
+          <NotificationMessage error={loadFailure}>{loadError}</NotificationMessage>
           <Button onClick={retry} variant="outline">
             Try Again
           </Button>

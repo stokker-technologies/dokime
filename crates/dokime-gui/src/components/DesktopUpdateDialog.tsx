@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 // Standard Library Imports
 // Third Party Imports
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
@@ -34,7 +35,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +49,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
         setError(next.error);
       })
       .catch((reason: unknown) => {
-        if (active) setError(String(reason));
+        if (active) setError(reason);
       });
     return () => {
       active = false;
@@ -61,7 +62,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
     try {
       await operation();
     } catch (reason) {
-      setError(String(reason));
+      setError(reason);
     } finally {
       setBusy(false);
     }
@@ -130,7 +131,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             ) : null}
           </div>
         ) : null}
-        {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
         <DialogFooter>
           <Button
             variant="outline"

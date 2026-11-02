@@ -50,6 +50,7 @@ export function PluginStartNotifications() {
         pluginSettings: entry.install_id,
         missingSecret: failure.missing_secret ?? undefined,
         consequences: failure.consequences,
+        failure: { reason: failure.code ?? undefined, operation: "Plugin Startup", causes: [failure.message] },
         action:
           failure.missing_secret || entry.metadata?.owners.length
             ? {

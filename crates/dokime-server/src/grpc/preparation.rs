@@ -90,6 +90,7 @@ pub(super) fn prepare(config: Config) -> Result<PreparedService, Error> {
             Box::pin(async move {
                 let (listeners, policy) = access.ok_or_else(|| hosting(Error::Configuration("server authorization was not prepared")))?;
                 authorization::activate(&runtime, listeners.clone(), policy).map_err(hosting)?;
+                super::query::activate(&runtime, config.max_message_bytes()).map_err(hosting)?;
                 let service = Service::activate(runtime, config, listeners).await.map_err(hosting)?;
                 *owner.write().await = Some(service);
                 Ok(())

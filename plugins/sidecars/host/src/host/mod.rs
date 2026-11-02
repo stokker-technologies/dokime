@@ -28,7 +28,7 @@ pub mod wifi_scan;
 /* === Re-Exports === */
 
 pub use bluetooth::Bluetooth;
-pub use catalog::Catalog;
+pub use catalog::{Catalog, Evidence};
 pub use network::Network;
 pub use system::System;
 pub use wifi_latency::WifiLatency;

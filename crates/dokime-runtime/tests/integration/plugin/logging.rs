@@ -87,6 +87,7 @@ impl Levels {
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn macros_format_context() {
     let report = Harness::template(TEMPLATE).run::<PluginSuites>().await.expect("the run completes");

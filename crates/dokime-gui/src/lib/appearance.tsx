@@ -96,7 +96,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     reportedOrganizationError = true;
     // After The Commit, So The Toaster Mounted In The Same Render Is Listening.
     const handle = window.setTimeout(
-      () => toast.error("Organization Pack Not Applied", { description: organizationPackError(error, organizationPack !== null) }),
+      () => toast.error("Organization Pack Not Applied", { description: organizationPackError(error, organizationPack !== null), error }),
       0,
     );
     return () => window.clearTimeout(handle);

@@ -91,7 +91,7 @@ pub(crate) fn request(
         policy,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_files: None,
         maximum_bytes: None,

@@ -71,38 +71,47 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
             path.unlink()
 
 
-def binaries(directory: Path, profile: str) -> dict[str, str]:
+def binaries(directory: Path, profile: str, extracted: Path | None = None) -> dict[str, str]:
     """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
-    path = require(directory, profile)
+    if extracted is not None:
+        metadata = json.loads((extracted / "target/nextest/binaries-metadata.json").read_text(encoding="utf-8"))
+        return {identity: entry["binary-name"] for identity, entry in metadata["rust-binaries"].items()}
     with temporary.directory() as listing:
-        extracted = listing / "extract"
-        extracted.mkdir()
-        command = [
-            "cargo",
-            "nextest",
-            "list",
-            "--archive-file",
-            str(path),
-            "--workspace-remap",
-            str(directory),
-            "--extract-to",
-            str(extracted),
-            "--list-type",
-            "binaries-only",
-            "--message-format",
-            "json",
-        ]
-        result = subprocess.run(
-            command,
-            creationflags=spawn_flags(),
-            cwd=directory,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode:
-            raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
-        return {identity: entry["binary-name"] for identity, entry in json.loads(result.stdout).get("rust-binaries", {}).items()}
+        extract(directory, profile, listing)
+        return binaries(directory, profile, listing)
+
+
+def extract(directory: Path, profile: str, destination: Path) -> None:
+    """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
+    path = require(directory, profile)
+    destination.mkdir(parents=True, exist_ok=True)
+    command = [
+        "cargo",
+        "nextest",
+        "list",
+        "--archive-file",
+        str(path),
+        "--workspace-remap",
+        str(directory),
+        "--extract-to",
+        str(destination),
+        "--list-type",
+        "binaries-only",
+        "--message-format",
+        "json",
+    ]
+    result = subprocess.run(command, creationflags=spawn_flags(), cwd=directory, capture_output=True, text=True, check=False)
+    if result.returncode:
+        raise policy.TestError(f"nextest could not extract test binaries: {result.stderr.strip()}")
+
+    # Manual Reuse Must Find The Archived Standard Library On The Consumer Machine.
+    metadata = destination / "target/nextest/binaries-metadata.json"
+    document = json.loads(metadata.read_text(encoding="utf-8"))
+    host = document["rust-build-meta"]["platforms"]["host"]
+    libdir = metadata.parent / "libdirs/host"
+    if libdir.is_dir() and host["libdir"]["status"] == "available":
+        host["libdir"]["path"] = str(libdir)
+    metadata.write_text(json.dumps(document), encoding="utf-8")
 
 
 def require(directory: Path, profile: str) -> Path:

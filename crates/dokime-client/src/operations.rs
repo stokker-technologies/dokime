@@ -68,6 +68,9 @@ pub enum Error {
     Catalog,
 
     #[error(transparent)]
+    Download(#[from] super::DownloadError),
+
+    #[error(transparent)]
     Client(#[from] ClientError),
 }
 

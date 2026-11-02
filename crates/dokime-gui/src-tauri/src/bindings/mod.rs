@@ -56,6 +56,10 @@ macro_rules! native_commands {
 }
 
 native_commands! {
+    async desktop_firewall
+        [app: tauri::AppHandle, connection: tauri::State<'_, crate::connection::ConnectionSession>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (generation: String, allow: bool) -> Result<crate::app::firewall::FirewallStatus, String>
+        => crate::app::firewall::desktop_firewall;
     async desktop_pairing_create
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
         () -> Result<Option<std::path::PathBuf>, crate::Error>
@@ -81,7 +85,7 @@ native_commands! {
     async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_read;
-    async desktop_settings_update [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+    async desktop_settings_update [app: tauri::AppHandle, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (scope: dokime::domain::model::settings::application::SettingsScope, update: dokime::domain::model::settings::application::UpdateSettings)
         -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
         => crate::app::preferences::desktop_settings_update;

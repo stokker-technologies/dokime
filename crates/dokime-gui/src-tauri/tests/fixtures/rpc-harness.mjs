@@ -147,7 +147,7 @@ export async function openHarness() {
   await compile(resolve(gui, "src/lib/rpc"), rpc);
   await compile(generated, canonical);
   // The transport's runtime imports outside `src/lib/rpc`; type-only imports erase.
-  for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping"]) {
+  for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping", "src/lib/notification-details"]) {
     const input = resolve(gui, `${module}.ts`);
     const output = resolve(temporary, `${module}.js`);
     mkdirSync(dirname(output), { recursive: true });

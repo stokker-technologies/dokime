@@ -37,6 +37,7 @@ type OrganizationPackViewProps = {
   presentation: OrganizationPackPresentation;
   /** A refused archive, delivered through notifications without replacing the current pack. */
   choiceError: string | null;
+  failure?: unknown;
   busy: boolean;
   choose: () => void;
   remove: () => void;
@@ -57,7 +58,7 @@ export function OrganizationPackRow() {
   const restart = useMutation({ mutationFn: commands.desktopRestart });
   if (!status.data) {
     return (
-      <SettingsRow label="Organization Pack" error={status.error ? message(status.error) : null}>
+      <SettingsRow label="Organization Pack" failure={status.error} error={status.error ? message(status.error) : null}>
         <span className="text-sm text-muted-foreground" role="status">
           {status.error ? "Unavailable" : "Reading the organization pack…"}
         </span>
@@ -66,6 +67,7 @@ export function OrganizationPackRow() {
   }
   return (
     <OrganizationPackView
+      failure={choose.error ?? remove.error ?? restart.error}
       presentation={organizationPackPresentation(status.data)}
       choiceError={
         choose.error ? message(choose.error) : remove.error ? message(remove.error) : restart.error ? message(restart.error) : null
@@ -78,9 +80,9 @@ export function OrganizationPackRow() {
   );
 }
 
-export function OrganizationPackView({ presentation, choiceError, busy, choose, remove, restart }: OrganizationPackViewProps) {
+export function OrganizationPackView({ presentation, choiceError, failure, busy, choose, remove, restart }: OrganizationPackViewProps) {
   return (
-    <SettingsRow label="Organization Pack" description={presentation.detail} error={choiceError ?? presentation.error}>
+    <SettingsRow label="Organization Pack" description={presentation.detail} failure={failure} error={choiceError ?? presentation.error}>
       <span className="min-w-0 text-sm font-medium" data-state={presentation.state}>
         {presentation.value}
       </span>

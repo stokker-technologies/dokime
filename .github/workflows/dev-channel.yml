@@ -19,7 +19,7 @@ jobs:
   publish:
     concurrency:
       group: dev-channel
-      cancel-in-progress: true
+      cancel-in-progress: false
     name: Dev Channel / Publish
     runs-on: ubuntu-latest
     timeout-minutes: 120

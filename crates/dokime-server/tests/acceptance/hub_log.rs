@@ -43,6 +43,7 @@ fn hub_log(root: &Path) -> std::path::PathBuf {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test(logging)]
 #[test]
 fn serve_writes_records() {
     let root = tempfile::tempdir().unwrap();
@@ -84,6 +85,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
     if std::env::var("DOKIME_LOG_TEST").as_deref() == Ok(name) {
         return true;
     }
+    let _trace = dokime_tracing::process();
     let test = format!("{}::{name}", module_path!().split_once("::").unwrap().1);
     let mut command = dokime::domain::process::command(std::env::current_exe().unwrap());
     command
@@ -105,6 +107,7 @@ fn isolated(name: &str, profile: Option<&str>) -> bool {
     false
 }
 
+#[dokime_tracing::trace_test(logging)]
 #[test]
 fn reopened_log_rotates() {
     if !isolated("reopened_log_rotates", None) {
@@ -128,6 +131,7 @@ fn reopened_log_rotates() {
     assert_eq!(std::fs::metadata(path.with_file_name("dokime.jsonl.1")).unwrap().len(), 32 * 1024 * 1024);
 }
 
+#[dokime_tracing::trace_test(logging)]
 #[test]
 fn plain_rolling_file() {
     if !isolated("plain_rolling_file", None) {
@@ -148,6 +152,7 @@ fn plain_rolling_file() {
 }
 
 #[cfg(debug_assertions)]
+#[dokime_tracing::trace_test(logging)]
 #[test]
 fn profiling_prunes_runs() {
     if !isolated("profiling_prunes_runs", Some("yes")) {

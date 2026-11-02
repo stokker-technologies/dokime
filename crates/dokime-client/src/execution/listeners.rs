@@ -139,6 +139,7 @@ pub(crate) async fn read_samples(
             Ok(reader) => reader,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
                 reconnect = false;
+                tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
                 continue;
             }
             Err(error) => return Err(error),
@@ -159,7 +160,7 @@ pub(crate) async fn read_samples(
                 if page.samples.len() > page_size as usize {
                     return Err(invalid("telemetry page exceeds the requested limit"));
                 }
-                validate_samples(&scope, &streams, &positions, &page)?;
+                validate_samples(&streams, &positions, &page)?;
                 let through = page.through_stream_cursors.clone();
                 if sender.send(Ok(page)).await.is_err() {
                     return Ok(false);
@@ -173,6 +174,7 @@ pub(crate) async fn read_samples(
         if !result? {
             return Ok(());
         }
+        tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
     }
 }
 
@@ -192,36 +194,57 @@ where
     };
     let mut after = None;
     if let Some(completion) = completion {
-        let reader = client
-            .stream(contracts::evidence::WatchRecords {
-                selection: Some(selection.clone()),
-                after: None,
-            })
-            .await?;
         tokio::pin!(completion);
-        let result: Result<bool> = async {
-            loop {
-                let page = tokio::select! {
-                    outcome = &mut completion => {
-                        outcome?;
-                        break;
-                    }
-                    page = reader.message() => page?
-                        .ok_or_else(|| invalid("record reader ended before completion"))?,
-                };
-                validate_records(&scope, &patterns, &client.backend().epoch, &page, after.as_ref())?;
-                let scanned = page.scanned.clone();
-                if sender.send(Ok(page)).await.is_err() {
-                    return Ok(false);
+        let mut reconnect = true;
+        loop {
+            client.verify(true).await?;
+            let opened = client
+                .stream(contracts::evidence::WatchRecords {
+                    selection: Some(selection.clone()),
+                    after: after.clone(),
+                })
+                .await;
+            let reader = match opened {
+                Ok(reader) => reader,
+                Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                    reconnect = false;
+                    tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
+                    continue;
                 }
-                after = scanned;
+                Err(error) => return Err(error),
+            };
+            let result: Result<bool> = async {
+                loop {
+                    let page = tokio::select! {
+                        outcome = &mut completion => { outcome?; return Ok(false); }
+                        page = reader.message() => match page {
+                            Ok(Some(page)) => page,
+                            Ok(None) => return Err(invalid("record reader ended before completion")),
+                            Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable && reconnect => {
+                                reconnect = false;
+                                return Ok(true);
+                            }
+                            Err(error) => return Err(error),
+                        },
+                    };
+                    validate_records(&patterns, &client.backend().epoch, &page, after.as_ref())?;
+                    let scanned = page.scanned.clone();
+                    if sender.send(Ok(page)).await.is_err() {
+                        return Ok(false);
+                    }
+                    after = scanned;
+                    reconnect = true;
+                }
             }
-            Ok(true)
-        }
-        .await;
-        reader.close().await;
-        if !result? {
-            return Ok(());
+            .await;
+            reader.close().await;
+            if sender.is_closed() {
+                return Ok(());
+            }
+            if !result? {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(REQUEST_POLL_MS)).await;
         }
     }
 
@@ -234,7 +257,7 @@ where
         latest: 0,
     };
     let mut page = client.call(request.clone()).await?;
-    validate_records(&scope, &patterns, &client.backend().epoch, &page, None)?;
+    validate_records(&patterns, &client.backend().epoch, &page, None)?;
     let frontier = page.through.clone();
     if let Some(after) = after {
         request.after = Some(after);
@@ -242,7 +265,7 @@ where
         page = client.call(request.clone()).await?;
     }
     loop {
-        validate_records(&scope, &patterns, &client.backend().epoch, &page, request.after.as_ref())?;
+        validate_records(&patterns, &client.backend().epoch, &page, request.after.as_ref())?;
         if page.through != frontier {
             return Err(invalid("record replay changed its fixed frontier"));
         }
@@ -274,8 +297,8 @@ fn record_scope(id: &TestExecutionId) -> dokime_domain::model::identity::wire::E
 }
 
 fn validate_records(
-    scope: &dokime_domain::model::identity::wire::EvidenceScope, patterns: &[IdentifierPattern], epoch: &str,
-    page: &dokime_domain::model::evidence::wire::RecordPage, after: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
+    patterns: &[IdentifierPattern], epoch: &str, page: &dokime_domain::model::evidence::wire::RecordPage,
+    after: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.scanned.as_ref())?;
     validate_observed_cursor(epoch, page.through.as_ref())?;
@@ -301,11 +324,7 @@ fn validate_records(
         if !patterns.is_empty() && !patterns.iter().any(|pattern| pattern.matches(&record.record_type)) {
             return Err(invalid("record type differs from the requested selection"));
         }
-        if record.scope.as_ref().is_none_or(|actual| {
-            scope.execution_id.as_ref().is_some_and(|id| actual.execution_id.as_ref() != Some(id))
-                || scope.cycle_id.as_ref().is_some_and(|id| actual.cycle_id.as_ref() != Some(id))
-        }) || record.sequence > scanned.position
-            || previous.is_some_and(|position| record.sequence <= position)
+        if record.record_id.is_empty() || record.sequence > scanned.position || previous.is_some_and(|position| record.sequence <= position)
         {
             return Err(invalid("record identity or journal position differs"));
         }
@@ -315,8 +334,7 @@ fn validate_records(
 }
 
 fn validate_samples(
-    scope: &dokime_domain::model::identity::wire::EvidenceScope, streams: &[String], positions: &HashMap<String, u64>,
-    page: &dokime_domain::model::telemetry::wire::TelemetrySamplesReply,
+    streams: &[String], positions: &HashMap<String, u64>, page: &dokime_domain::model::telemetry::wire::TelemetrySamplesReply,
 ) -> Result<()> {
     let patterns = validate_filters(streams)?;
     let selected = |identifier: &str| patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(identifier));
@@ -339,11 +357,7 @@ fn validate_samples(
         return Err(invalid("telemetry continuation did not advance"));
     }
     for sample in &page.samples {
-        if sample.scope.as_ref().is_none_or(|actual| {
-            scope.execution_id.as_ref().is_some_and(|id| actual.execution_id.as_ref() != Some(id))
-                || scope.cycle_id.as_ref().is_some_and(|id| actual.cycle_id.as_ref() != Some(id))
-        }) || !selected(&sample.stream)
-        {
+        if sample.sample_id.is_empty() || !selected(&sample.stream) {
             return Err(invalid("sample identity or native cursor differs"));
         }
     }
@@ -394,16 +408,19 @@ mod tests {
         };
         let positions = HashMap::new();
         for filters in [vec![], vec!["obc.*".into()], vec!["other.*".into(), "obc.run.?amples".into()]] {
-            validate_samples(&scope, &filters, &positions, &page).unwrap();
+            validate_samples(&filters, &positions, &page).unwrap();
         }
+        let mut observer = page.clone();
+        observer.samples[0].scope = None;
+        validate_samples(&["obc.*".into()], &positions, &observer).unwrap();
         for filters in [vec!["OBC.*".into()], vec!["obc.run.sample".into()], vec!["run.*".into()]] {
-            assert!(validate_samples(&scope, &filters, &positions, &page).is_err());
+            assert!(validate_samples(&filters, &positions, &page).is_err());
         }
         let positions = HashMap::from([(cursor, 4)]);
-        assert!(validate_samples(&scope, &["*".into()], &positions, &page).is_err());
+        assert!(validate_samples(&["*".into()], &positions, &page).is_err());
 
         let mut foreign = page;
         foreign.samples[0].stream = "other.run.samples".into();
-        assert!(validate_samples(&scope, &["obc.*".into()], &HashMap::new(), &foreign).is_err());
+        assert!(validate_samples(&["obc.*".into()], &HashMap::new(), &foreign).is_err());
     }
 }

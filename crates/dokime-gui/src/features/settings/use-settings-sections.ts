@@ -29,6 +29,7 @@ import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/set
 export type SettingsSectionsState = {
   /** The message to show when the frame could not be read; null otherwise. */
   error: string | null;
+  failure?: unknown;
   frame: RuntimeSettingsFrame | null;
   /** True only while the first read is in flight. */
   loading: boolean;
@@ -45,6 +46,7 @@ export function useSettingsSections(enabled = true): SettingsSectionsState {
 
   return {
     error: query.error instanceof Error ? query.error.message : query.isError ? "Settings could not be loaded." : null,
+    failure: query.error,
     frame,
     loading: enabled && query.isPending,
     retry: () => void query.refetch(),

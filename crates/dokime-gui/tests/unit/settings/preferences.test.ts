@@ -273,8 +273,13 @@ test("Autosave Blocks After Failure And Can Cancel Invalid Edits Or Flush On Nav
   vi.useFakeTimers();
   try {
     const states: string[] = [];
-    const write = vi.fn().mockRejectedValueOnce(new Error("conflict")).mockResolvedValue(undefined);
-    const writer = createDebouncedWriter(write, (state) => states.push(state.kind));
+    const failure = new Error("conflict", { cause: new Error("fixture-root") });
+    const write = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(undefined);
+    let retained: unknown;
+    const writer = createDebouncedWriter(write, (state) => {
+      states.push(state.kind);
+      if (state.kind === "error") retained = state.failure;
+    });
     writer.change(1);
     writer.cancel();
     await vi.advanceTimersByTimeAsync(100);
@@ -284,6 +289,7 @@ test("Autosave Blocks After Failure And Can Cancel Invalid Edits Or Flush On Nav
     await vi.advanceTimersByTimeAsync(0);
     assert.equal(write.mock.calls.length, 1);
     assert.equal(states.at(-1), "error");
+    assert.equal(retained, failure);
     writer.change(3);
     await vi.advanceTimersByTimeAsync(100);
     assert.equal(write.mock.calls.length, 1);

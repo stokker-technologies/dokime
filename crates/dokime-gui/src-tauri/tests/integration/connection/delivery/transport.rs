@@ -114,10 +114,11 @@ impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamIte
                     sha256: digest.clone(),
                     state: model::ArtifactState::Complete,
                     created_at: None,
+                    error: None,
                 };
                 let frame =
                     |payload| dokime::harmos::operations::Response::new(Envelope::Item(model::ArtifactFrame { payload: Some(payload) }));
-                if sender.send(Ok(frame(model::ArtifactFramePayload::Metadata(metadata)))).await.is_err() {
+                if sender.send(Ok(frame(model::ArtifactFramePayload::Metadata(Box::new(metadata))))).await.is_err() {
                     return;
                 }
                 for (index, chunk) in bytes.chunks(8192).enumerate() {

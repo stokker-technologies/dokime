@@ -43,6 +43,7 @@ use dokime_cli::{Cli, Error};
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn operation_inputs() {
     let application = tempfile::tempdir().unwrap();

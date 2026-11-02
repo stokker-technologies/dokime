@@ -10,7 +10,7 @@
 /* === Local Imports === */
 
 import { serializedValueObjectToJson } from "@/lib/api/native-values";
-import type { AnalysisSelection } from "@/lib/document-contracts";
+import type { AnalysisSelection, Value as SerializedValue } from "@/lib/document-contracts";
 import type { ReportPayload } from "@/lib/report-types";
 import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
 
@@ -98,7 +98,8 @@ type CapturedAnalysis = {
 function capturedPlots(plots?: Record<string, PlotPayload>): Record<string, PlotPayload> {
   return Object.fromEntries(
     Object.entries(plots ?? {}).map(([key, payload]) => {
-      if (!payload.computed) return [key, payload];
+      const context = serializedValueObjectToJson((payload.context ?? {}) as Record<string, SerializedValue>);
+      if (!payload.computed) return [key, { ...payload, context }];
       const captured = payload.computed as unknown as CapturedAnalysis;
       const computed: EvidenceAnalysisResult = {
         definition: {
@@ -137,7 +138,7 @@ function capturedPlots(plots?: Record<string, PlotPayload>): Record<string, Plot
           })),
         })),
       };
-      return [key, { ...payload, computed }];
+      return [key, { ...payload, context, computed }];
     }),
   );
 }

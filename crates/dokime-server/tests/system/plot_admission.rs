@@ -43,6 +43,7 @@ use crate::support::plots;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plot_admission() {
     plots::admission(plots::Admission {

@@ -514,27 +514,16 @@ pub(crate) async fn discovery_shares_independently() {
     native.close_and_wait().await;
     let availability =
         client.unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailability {}).await.unwrap().into_inner();
-    use prost::Message;
-    let descriptor = prost_types::FileDescriptorSet::decode(dokime_server::grpc::FILE_DESCRIPTOR_SET).unwrap();
-    let mut expected = descriptor
-        .file
-        .into_iter()
-        .flat_map(|file| {
-            let package = file.package.unwrap_or_default();
-            file.service.into_iter().flat_map(move |service| {
-                let name = format!("/{package}.{}", service.name.unwrap());
-                service.method.into_iter().map(move |method| format!("{name}/{}", method.name.unwrap()))
-            })
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    // Runtime Startup Also Registers The Shared Storage And Operation Lifecycle Catalogs.
+    // Availability Lists Registered Bindings, Including Shared Storage And Lifecycle Operations.
+    let operations = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>().unwrap();
     let storage = dokime::harmos::operations::Contracts::of::<dokime::harmos::builtins::storage::Storage>().unwrap();
     let lifecycle = dokime::harmos::operations::Contracts::of::<dokime::harmos::builtins::lifecycle::Lifecycle>().unwrap();
-    for contract in storage.into_iter().chain(lifecycle) {
-        if let Some(binding) = contract.grpc() {
-            expected.insert(binding.path());
-        }
-    }
+    let expected = operations
+        .into_iter()
+        .chain(storage)
+        .chain(lifecycle)
+        .filter_map(|contract| contract.grpc().map(|binding| binding.path()))
+        .collect::<std::collections::BTreeSet<_>>();
     let advertised = availability.methods.iter().cloned().collect::<std::collections::BTreeSet<_>>();
     assert_eq!(advertised.len(), availability.methods.len(), "duplicate advertised method");
     assert_eq!(advertised, expected);
@@ -654,5 +643,188 @@ pub(crate) async fn tls_listener_clients() {
         .unwrap();
     WireClient::new(channel).unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap();
     server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+pub(crate) async fn names_refresh_preserves_remote_stream() {
+    use std::io::Write as _;
+    let root = tempfile::tempdir().unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let handle = owner.handle();
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let native = connect(&server).await;
+    let status = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener {
+            settings: Some(model::remote::RemoteListenerSettings {
+                enabled: true,
+                address: "127.0.0.1:0".into(),
+                tls_enabled: true,
+                authentication_enabled: false,
+                certificate_names: vec!["localhost".into()],
+            }),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let address = status.listening_address.unwrap();
+    let certificate = status.certificate_pem.unwrap();
+    let pairing = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Stream Fixture".into() })
+        .await
+        .unwrap()
+        .into_inner()
+        .pairing;
+    let endpoint = Endpoint::from_shared(format!("https://{address}")).unwrap();
+    let ca = pairing.ca_certificate_pem.unwrap();
+    let channel = endpoint
+        .clone()
+        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&ca)))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let remote = WireClient::new(channel);
+    let log = root.path().join("application/logs/dokime.jsonl");
+    std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+    let before = br#"{"timestamp":"2026-09-30T14:22:33Z","level":"ERROR","target":"fixture","fields":{"message":"before reload"}}
+"#;
+    let after = br#"{"timestamp":"2026-09-30T14:22:34Z","level":"ERROR","target":"fixture","fields":{"message":"after reload"}}
+"#;
+    std::fs::write(&log, before).unwrap();
+    // Raw WireStream Has No Retry Or Resubscription To Hide A Transport Restart.
+    let mut stream = remote
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
+            min_level: model::backend::wire::LogLevel::Error,
+            replay_lines: 10,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(stream.message().await.unwrap().unwrap().message, "before reload");
+    let snapshot = handle.read_application_settings().await.unwrap();
+    let mut settings = snapshot.settings;
+    settings.listener.certificate_names.push("next.example".into());
+    handle
+        .update_application_settings(model::settings::wire::UpdateSettings {
+            expected_revision: snapshot.revision,
+            settings,
+        })
+        .await
+        .unwrap();
+    // Pairing Creation Uses The Same Change::Refresh As The Heartbeat.
+    native.unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Refreshed Fixture".into() }).await.unwrap();
+    let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
+    assert_eq!(status.listening_address.as_deref(), Some(address.as_str()));
+    assert_ne!(status.certificate_pem.as_deref(), Some(certificate.as_str()));
+    std::fs::OpenOptions::new().append(true).open(&log).unwrap().write_all(after).unwrap();
+    loop {
+        let frame = stream.message().await.unwrap().unwrap();
+        if frame.level != model::backend::wire::LogLevel::Unspecified {
+            assert_eq!(frame.message, "after reload");
+            break;
+        }
+    }
+    // A New Handshake Accepts The Added SAN Under The Original Pairing CA.
+    let fresh = endpoint
+        .tls_config(ClientTlsConfig::new().domain_name("next.example").ca_certificate(Certificate::from_pem(ca)))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    WireClient::new(fresh).unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+    drop(stream);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    server.shutdown().await.unwrap();
+}
+
+struct TransientIngress {
+    path: std::sync::Mutex<String>,
+    calls: std::sync::atomic::AtomicUsize,
+    failures: std::sync::atomic::AtomicUsize,
+}
+
+impl dokime::harmos::grpc::middleware::Middleware for TransientIngress {
+    fn enter<'a>(&'a self, call: &'a mut dokime::harmos::grpc::middleware::Invocation) -> dokime::harmos::grpc::middleware::Enter<'a> {
+        Box::pin(async move {
+            use std::sync::atomic::Ordering;
+            if call.path() != *self.path.lock().unwrap() {
+                return Ok(());
+            }
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.failures.try_update(Ordering::SeqCst, Ordering::SeqCst, |count| count.checked_sub(1)).is_ok() {
+                return Err(dokime::harmos::Error::NotReady { domain: "fixture listener" });
+            }
+            Ok(())
+        })
+    }
+}
+
+pub(crate) async fn client_retries_reads_without_replaying_mutations() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let root = tempfile::tempdir().unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let handle = owner.handle();
+    let ingress = Arc::new(TransientIngress {
+        path: std::sync::Mutex::new(String::new()),
+        calls: AtomicUsize::new(0),
+        failures: AtomicUsize::new(0),
+    });
+    handle.grpc().register_middleware(ingress.clone()).unwrap();
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let client =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), None, None).await.unwrap();
+    *ingress.path.lock().unwrap() = "/dokime.v1.Backend/GetIdentity".into();
+    ingress.failures.store(1, Ordering::SeqCst);
+    client.call(contracts::backend::GetIdentity {}).await.unwrap();
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
+    ingress.failures.store(1, Ordering::SeqCst);
+    client.call_raw("/dokime.v1.Backend/GetIdentity", Vec::new(), Duration::from_secs(5)).await.unwrap();
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
+    ingress.failures.store(1, Ordering::SeqCst);
+    let bounded = client.with_timeout(Duration::from_millis(10)).call(contracts::backend::GetIdentity {}).await;
+    assert!(matches!(bounded, Err(dokime::client::Error::Rpc(status)) if status.code() == Code::DeadlineExceeded));
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 1);
+    ingress.failures.store(2, Ordering::SeqCst);
+    assert!(
+        matches!(client.call(contracts::backend::GetIdentity {}).await, Err(dokime::client::Error::Rpc(status)) if status.code() == Code::Unavailable)
+    );
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
+    *ingress.path.lock().unwrap() = "/dokime.v1.Execution/StartExecution".into();
+    ingress.failures.store(1, Ordering::SeqCst);
+    let result = client
+        .call(contracts::execution::StartExecution {
+            execution_id: uuid::Uuid::now_v7().to_string(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        })
+        .await;
+    assert!(matches!(result, Err(dokime::client::Error::Rpc(status)) if status.code() == Code::Unavailable));
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 1);
+    *ingress.path.lock().unwrap() = String::new();
+    let suite = support::fixture_suite(&["passed"]);
+    support::register_fixture_progress_execution(&handle, suite.clone()).await;
+    let cases = support::materialize_cases("fixture.suite", &suite);
+    let cycle = support::cycle_with_cases(&handle, support::metadata("retry.cycle", "Retry Fixture"), cases).await;
+    let execution = client.cycle(cycle).executions().await.unwrap().remove(0);
+    *ingress.path.lock().unwrap() = "/dokime.v1.Telemetry/WatchSamples".into();
+    ingress.failures.store(1, Ordering::SeqCst);
+    let samples = execution.samples(Vec::new(), false, 10).unwrap();
+    samples.message().await.unwrap().unwrap();
+    samples.close().await;
+    assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
+    *ingress.path.lock().unwrap() = "/dokime.v1.Evidence/WatchRecords".into();
+    ingress.failures.store(1, Ordering::SeqCst);
+    let records = execution.records(Vec::new(), true, None).unwrap();
+    records.message().await.unwrap().unwrap();
+    records.close().await;
+    assert_eq!(ingress.calls.load(Ordering::SeqCst), 2);
+    client.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    drop(handle);
     owner.shutdown().await.unwrap();
 }

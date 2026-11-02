@@ -64,6 +64,7 @@ export type MediaArtifactCandidate = MediaGalleryArtifact & {
 
 export type MediaPreviewState = {
   errors: Record<string, string>;
+  failures?: Record<string, unknown>;
   retry(artifactId: string): void;
   urls: Record<string, string>;
 };

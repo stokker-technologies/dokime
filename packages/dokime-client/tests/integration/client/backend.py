@@ -85,6 +85,7 @@ class BackendFixture:
         self.execution_mode: Message | None = None
         self.deny_run = False
         self.records: list[Any] = []
+        self.record_captures: dict[str, list[tuple[str, str]]] = {}
         self.samples: list[Any] = []
         self.sample_page_size = 5000
         self.changed = asyncio.Event()
@@ -681,8 +682,7 @@ class BackendFixture:
             r
             for r in self.records[after:scanned]
             if (not selection.record_types or any(fnmatchcase(r.record_type, pattern) for pattern in selection.record_types))
-            and (not selection.scope.HasField("execution_id") or r.scope.execution_id == selection.scope.execution_id)
-            and (not selection.scope.HasField("cycle_id") or r.scope.cycle_id == selection.scope.cycle_id)
+            and self.record_selected(r, selection.scope)
         ]
         return _message(
             "Evidence",
@@ -709,6 +709,14 @@ class BackendFixture:
                 position=through,
             ),
             replay_complete=scanned == through,
+        )
+
+    def record_selected(self, record: Any, scope: Any) -> bool:
+        owners = [(record.scope.cycle_id, record.scope.execution_id), *self.record_captures.get(record.record_id, [])]
+        return any(
+            (not scope.HasField("execution_id") or execution == scope.execution_id)
+            and (not scope.HasField("cycle_id") or cycle == scope.cycle_id)
+            for cycle, execution in owners
         )
 
     async def ListRecords(self, request: Any, context: Any) -> Any:
