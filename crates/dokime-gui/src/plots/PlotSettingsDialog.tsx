@@ -26,7 +26,16 @@ import { notificationMessage } from "@/lib/notification-details";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -55,23 +64,16 @@ type PlotSettingsFormProps = Omit<PlotSettingsButtonProps, "children"> & {
 export function PlotSettingsButton({ children, plot, onSubmit }: PlotSettingsButtonProps) {
   const [open, setOpen] = useState(false);
   return (
-    <>
+    <Dialog open={open} onOpenChange={setOpen}>
       {children(
-        <Button
-          aria-label={`Plot Settings For ${plot.title}`}
-          onClick={() => setOpen(true)}
-          size="icon-sm"
-          title="Plot Settings"
-          type="button"
-          variant="ghost"
-        >
-          <Settings2 />
-        </Button>,
+        <DialogTrigger asChild>
+          <Button aria-label={`Plot Settings For ${plot.title}`} size="icon-sm" title="Plot Settings" type="button" variant="ghost">
+            <Settings2 />
+          </Button>
+        </DialogTrigger>,
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        {open ? <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} /> : null}
-      </Dialog>
-    </>
+      {open ? <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} /> : null}
+    </Dialog>
   );
 }
 

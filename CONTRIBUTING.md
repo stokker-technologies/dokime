@@ -110,7 +110,7 @@ concurrency group; each keeps its own public bootstrap and required platform leg
 
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/recovery (`native-desktop`), configuration/remote access (`desktop-configuration`), and two-desktop control on Windows and Linux.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/recovery (`native-desktop`), configuration/remote access (`desktop-configuration`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -170,9 +170,10 @@ which do not produce execution reports have explicit reasons in
 `crates/dokime-runtime/tests/support/system_reports.json`.
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
-selected journeys in JUnit. The default lane runs both walkthrough workflows
+selected journeys in JUnit. The default lane runs the walkthrough workflows
 with every maintained scene; each has its own fixture, JUnit result and enforced
-story budget.
+story budget. Owned-backend startup has its own storage root and story; it does
+not consume the attached configuration fixture's budget.
 The native harness logs scene totals and retains per-step timings in each story's
 `timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
 Categories distinguish launches, subprocesses, execution waits, polling, native
@@ -194,10 +195,13 @@ and inherited application/sidecar processes write `<process>-<pid>-<opened>.pftr
 files. The opening-time suffix and exclusive creation preserve earlier traces when
 the operating system reuses a process ID.
 Span callbacks queue bounded metadata for a native writer thread. They keep file
-I/O off instrumented runtime workers; guard flushes drain the queue and report
-write failures. Every written prefix remains valid JSON if a child is killed.
+I/O off instrumented runtime workers; it batches already queued spans into native
+writes. Guard flushes drain the queue and report write failures. Every written
+prefix remains valid JSON if a child is killed.
 Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
 Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
+`storage.sqlite.execute` measures the writer handler after queue admission, so
+its duration separates execution from waiting to acquire the writer.
 Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or
 `#[tokio::test]` on each Rust lane story, with `dokime-tracing` in the package's
 dev-dependencies. Stories which install application logging use

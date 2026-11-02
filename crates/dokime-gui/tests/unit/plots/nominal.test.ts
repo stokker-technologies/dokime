@@ -1215,6 +1215,12 @@ test("Plot Edits Survive Presentation Changes", async () => {
     assert.ok(current);
     assert.equal(current.value, "2500");
   }
+  const cancel = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(
+    (button) => button.textContent === "Cancel",
+  );
+  assert.ok(cancel);
+  await act(async () => cancel.click());
+  await vi.waitFor(() => assert.ok(document.activeElement === host.querySelector("button[aria-label^='Plot Settings For ']")));
 });
 
 test("Viewport Panning", () => {

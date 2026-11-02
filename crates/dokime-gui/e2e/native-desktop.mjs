@@ -162,6 +162,11 @@ const REQUIRED_JOURNEYS = new Set(["startup", "plugin-install", "library"]);
 
 /** Independent Workflows Share Only Their Connection And Catalog Prerequisites. */
 const workflows = {
+  ownership: {
+    title: "Desktop Owned Backend Lifecycle",
+    journeys: new Set(["owned-startup"]),
+    attached: false,
+  },
   execution: {
     title: "Desktop Execution And Recovery",
     journeys: new Set([
@@ -181,16 +186,7 @@ const workflows = {
   },
   configuration: {
     title: "Desktop Configuration And Access",
-    journeys: new Set([
-      "owned-startup",
-      "startup",
-      "plugin-install",
-      "idle",
-      "settings",
-      "distribution-identity",
-      "organization",
-      "remote-access",
-    ]),
+    journeys: new Set(["startup", "plugin-install", "idle", "settings", "distribution-identity", "organization", "remote-access"]),
   },
 };
 assert.ok(!options.workflow || Object.hasOwn(workflows, options.workflow), `Unknown desktop workflow: ${options.workflow}`);
@@ -695,29 +691,38 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     }
     return globalThis.__dokimeDom.revision;
   `);
-  session.waitForDom = (description, script, args = []) =>
+  session.waitForDom = (description, script, args = [], maximumWait) =>
     measured("dom-wait", description, async () => {
       const result = await session.executeAsync(
         `
       const args = arguments[0];
+      const maximumWait = arguments[1];
       const done = arguments[arguments.length - 1];
       const ready = () => {${script}};
       const observer = new MutationObserver(check);
+      let timer;
+      let finished = false;
+      function finish(result) {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        clearTimeout(timer);
+        done(result);
+      }
       function check() {
         try {
           const value = ready();
           if (!value) return;
-          observer.disconnect();
-          done({value});
+          finish({value});
         } catch (error) {
-          observer.disconnect();
-          done({failure: String(error)});
+          finish({failure: String(error)});
         }
       }
       observer.observe(document, {attributes: true, childList: true, characterData: true, subtree: true});
+      if (maximumWait != null) timer = setTimeout(() => finish({value: false}), maximumWait);
       check();
     `,
-        [args],
+        [args, maximumWait],
       );
       assert.equal(result.failure, undefined, result.failure);
       return result.value;
@@ -736,10 +741,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
    * control. A transient toast overlays the bottom of the page for a few
    * seconds, which is not a reason for the gate to fail the row beneath it.
    */
-  session.click = async (element) => {
+  session.click = async (element, { unobscured = false } = {}) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     const settled = await session.executeAsync(
       `const element = arguments[0];
+       const unobscured = arguments[1];
        const done = arguments[arguments.length - 1];
        const initial = element.getBoundingClientRect();
        if (initial.top < 0 || initial.left < 0 || initial.bottom > innerHeight || initial.right > innerWidth) {
@@ -750,12 +756,15 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
          if (!element.isConnected) return done(false);
          const rect = element.getBoundingClientRect();
          const position = [rect.x, rect.y, rect.width, rect.height].join(',');
-         if (position === previous && rect.width > 0 && rect.height > 0) return done(true);
+         if (position === previous && rect.width > 0 && rect.height > 0) {
+           const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+           return done(!unobscured || element.contains(target));
+         }
          previous = position;
          requestAnimationFrame(frame);
        }
        requestAnimationFrame(frame);`,
-      [element],
+      [element, unobscured],
     );
     assert.ok(settled, "The pointer target must remain mounted while scrolling settles");
     try {
@@ -805,26 +814,17 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       [element],
     );
   session.clickCss = async (selector) => {
-    const element = await until(selector, () => session.find("css selector", selector));
-    await until(`stable pointer target ${selector}`, () =>
-      session.executeAsync(
-        `const element = arguments[0];
-         const done = arguments[arguments.length - 1];
-         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
-         requestAnimationFrame(() => {
-           const before = element.getBoundingClientRect();
-           requestAnimationFrame(() => {
-             const after = element.getBoundingClientRect();
-             const target = document.elementFromPoint(after.left + after.width / 2, after.top + after.height / 2);
-             done(element.isConnected && after.width > 0 && after.height > 0
-               && Math.abs(before.top - after.top) < 1 && Math.abs(before.left - after.left) < 1
-               && element.contains(target));
-           });
-         });`,
-        [element],
-      ),
-    );
-    await session.click(element);
+    const result = await until(`stable pointer target ${selector}`, async () => {
+      const element = await session.find("css selector", selector);
+      try {
+        return { value: await session.click(element, { unobscured: true }) };
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return null;
+        return { failure };
+      }
+    });
+    if (result.failure) throw result.failure;
+    return result.value;
   };
   session.exists = async (role, name) => {
     try {
@@ -950,7 +950,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     `);
   /** The connected shell, which a full reload has to reach again. */
   session.connected = () =>
-    until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
+    until(
+      "connected shell",
+      () => session.waitForDom("connected navigation", "return Boolean(document.querySelector('nav[aria-label=Navigation]'));", [], 1000),
+      180000,
+    );
   session.load = async (url) => {
     const previousOrigin = await session.execute("return performance.timeOrigin;");
     await session.request("POST", "/url", { url });
@@ -4656,16 +4660,12 @@ for index in range(desktop.get_child_count()):
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
             # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
             if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
-              if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
-                # Replace The Selection In One Native Edit, Including Its EN_CHANGE Notification.
-                if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2); [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern System.IntPtr ReplaceSelection(System.IntPtr window, uint message, System.IntPtr wide, string text);' }
-                $edit = [System.IntPtr]$field.Current.NativeWindowHandle
-                if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Save Filename Box Has No Window Handle' }
-                [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
-                [void][DokimePicker.Input]::ReplaceSelection($edit, 0x00C2, [System.IntPtr]1, $env:DOKIME_PICKER_FILE)
-              } else {
-                $value.SetValue($env:DOKIME_PICKER_FILE)
-              }
+              # Replace The Selection In One Native Edit, Including Its EN_CHANGE Notification.
+              if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2); [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern System.IntPtr ReplaceSelection(System.IntPtr window, uint message, System.IntPtr wide, string text);' }
+              $edit = [System.IntPtr]$field.Current.NativeWindowHandle
+              if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Picker Filename Box Has No Window Handle' }
+              [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
+              [void][DokimePicker.Input]::ReplaceSelection($edit, 0x00C2, [System.IntPtr]1, $env:DOKIME_PICKER_FILE)
               [Console]::Error.WriteLine(('picker entered={0}' -f $value.Current.Value))
               if (![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
                 throw 'The Native Picker Filename Differs From The Requested File After Entry'
@@ -5062,6 +5062,7 @@ async function main() {
   await startSecretService();
   const owned = await journey("owned-startup", ownedStartupJourney, (scene) => scene.reports);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
+  if (workflow?.attached === false) return;
   timingScene = "attached-setup";
   await closeSession();
   backend = await startBackend(work, evidence, undefined, "backend", false);

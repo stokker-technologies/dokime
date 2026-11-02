@@ -38,7 +38,12 @@ const { values: options } = parseArgs({
     select: { type: "string" },
   },
 });
-const stories = ["native-desktop", "desktop-configuration", "two-gui-remote"];
+const workflows = {
+  "native-desktop": "execution",
+  "desktop-configuration": "configuration",
+  "desktop-ownership": "ownership",
+};
+const stories = [...Object.keys(workflows), "two-gui-remote"];
 const selected = options.select ? [options.select.replace(/^e2e[/\\]/, "").replace(/\.(mjs|js)$/, "")] : stories;
 for (const name of selected) assert.ok(stories.includes(name), `Unknown system story: ${name}`);
 const scratch = await mkdtemp(join(tmpdir(), "dokime-desktop-junit-"));
@@ -60,9 +65,8 @@ try {
     selected.map(async (name) => {
       const started = performance.now();
       const report = join(scratch, `${name}.xml`);
-      const script = name === "desktop-configuration" ? "native-desktop" : name;
-      const workflow =
-        name === "native-desktop" ? ["--workflow", "execution"] : name === "desktop-configuration" ? ["--workflow", "configuration"] : [];
+      const script = workflows[name] ? "native-desktop" : name;
+      const workflow = workflows[name] ? ["--workflow", workflows[name]] : [];
       const child = spawn(process.execPath, [`e2e/${script}.mjs`, "--profile", options.profile, "--junit", report, ...workflow], {
         stdio: "inherit",
         windowsHide: true,
