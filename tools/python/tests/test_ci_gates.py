@@ -192,7 +192,19 @@ class ChannelTests(unittest.TestCase):
                 tag_moves = []
                 published = []
 
-                def document(settings, endpoint, method="GET", body=None, **kwargs):
+                def document(
+                    settings,
+                    endpoint,
+                    method="GET",
+                    body=None,
+                    *,
+                    release=release,
+                    assets=assets,
+                    files=files,
+                    tag_moves=tag_moves,
+                    published=published,
+                    **kwargs,
+                ):
                     if endpoint.startswith("actions/"):
                         return {"workflow_runs": []}
                     if endpoint == "releases/tags/dev-channel":
@@ -211,13 +223,15 @@ class ChannelTests(unittest.TestCase):
                         return copy.deepcopy(release)
                     raise AssertionError((endpoint, method))
 
-                def request(settings, endpoint, method, data=None, **kwargs):
+                failure = [failing_upload]
+
+                def request(settings, endpoint, method, data=None, *, release=release, assets=assets, failure=failure, **kwargs):
                     self.assertTrue(release["draft"], "asset mutation exposed a partial public channel")
                     if method == "DELETE":
                         assets.clear()
                         return
                     name = endpoint.split("name=")[1]
-                    if name == failing_upload:
+                    if name == failure[0]:
                         raise policy.ToolError("upload interrupted")
                     assets.append(
                         {
@@ -229,7 +243,7 @@ class ChannelTests(unittest.TestCase):
                         }
                     )
 
-                def pages(settings, endpoint, **kwargs):
+                def pages(settings, endpoint, *, release=release, assets=assets, **kwargs):
                     return [copy.deepcopy(release)] if endpoint == "releases" else copy.deepcopy(assets)
 
                 with (
@@ -243,7 +257,7 @@ class ChannelTests(unittest.TestCase):
                         self.assertTrue(release["draft"])
                         self.assertEqual(tag_moves, [])
                         self.assertEqual(published, [])
-                        failing_upload = None
+                        failure[0] = None
                     dev_channel._github(directory, {}, files, "a" * 40, "7", "notes")
                 self.assertFalse(release["draft"])
                 self.assertEqual(tag_moves, ["a" * 40])
