@@ -123,6 +123,9 @@ order and meanings match the [Python examples](python.md):
 Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
 Its label, ordered endpoints, expected identity and persistent CA come from the remote file; the
 native client resolves its access key from the OS keyring.
+Profile import and removal run OS credential work on a native worker with the
+ordinary request budget. A deadline error reports that already-started OS work
+may still complete.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and
