@@ -101,7 +101,7 @@ pub struct ExecutionSource {
 pub struct ExecutionOutput {
     pub relative_path: String,
     pub created_at: Timestamp,
-    pub file: FileReference,
+    pub file: Option<FileReference>,
     pub stream_state: Option<SavedStreamState>,
     pub content: ExecutionOutputContent,
 }
@@ -170,6 +170,12 @@ impl harmos::MemorySize for SavedStreamState {
     }
 }
 
+impl ExecutionOutput {
+    pub fn file(&self) -> Result<&FileReference> {
+        self.file.as_ref().ok_or(SavedEvidenceError::Invalid("artifact content capture failed"))
+    }
+}
+
 impl ExecutionSource {
     pub fn validate(&self, id: &TestExecutionId) -> Result<()> {
         if &self.execution.execution_id != id || self.execution.position.sequence == 0 {
@@ -189,7 +195,7 @@ impl ExecutionSource {
         }
         // Settled Outputs Precede The Frozen Context, Not Necessarily The Evidence Cut.
         validate_outputs(id, &self.context.position, &self.outputs)?;
-        if self.outputs.iter().any(|output| output.file.metadata.id == self.context.metadata.id) {
+        if self.outputs.iter().filter_map(|output| output.file.as_ref()).any(|file| file.metadata.id == self.context.metadata.id) {
             return Err(SavedEvidenceError::Invalid("context reuses an output file identity"));
         }
         Ok(())
@@ -224,7 +230,7 @@ impl ExecutionSeal {
 
     pub fn files(&self) -> impl Iterator<Item = &FileReference> {
         std::iter::once(&self.source.context)
-            .chain(self.source.outputs.iter().map(|output| &output.file))
+            .chain(self.source.outputs.iter().filter_map(|output| output.file.as_ref()))
             .chain(std::iter::once(&self.report))
     }
 }
@@ -292,7 +298,7 @@ pub fn validate_outputs(id: &TestExecutionId, through: &StorageCursor, outputs: 
     for output in outputs {
         output.created_at.to_datetime()?;
         validate_output_path(&output.relative_path)?;
-        if !paths.insert(&output.relative_path) || !files.insert(output.file.metadata.id.as_str()) {
+        if !paths.insert(&output.relative_path) {
             return Err(SavedEvidenceError::Invalid("duplicate output identity"));
         }
         if let ExecutionOutputContent::Artifact { record, metadata } = &output.content {
@@ -301,27 +307,37 @@ pub fn validate_outputs(id: &TestExecutionId, through: &StorageCursor, outputs: 
                 || record.scope.test_execution_id.as_ref() != Some(id)
                 || metadata.identifier.as_str() != record.artifact_id.as_str()
                 || record.created_at != output.created_at
-                || record.size_bytes != output.file.length
                 || record.status == ArtifactStatus::Staged
-                || !artifact_digest_matches(record.sha256.as_deref(), &output.file.sha256)
             {
-                return Err(SavedEvidenceError::Invalid("saved artifact differs from its original owner or finished bytes"));
+                return Err(SavedEvidenceError::Invalid("saved artifact differs from its original owner"));
             }
-            let expected = match record.status {
-                ArtifactStatus::Complete => SavedStreamState::Finalized,
-                ArtifactStatus::Cancelled | ArtifactStatus::Rejected => SavedStreamState::Interrupted,
-                ArtifactStatus::Staged => {
-                    return Err(SavedEvidenceError::Invalid("saved artifact has not settled"));
+            if record.status == ArtifactStatus::Failed {
+                if output.file.is_some()
+                    || record.error.as_ref().is_none_or(|error| error.trim().is_empty())
+                    || output.stream_state != Some(SavedStreamState::Interrupted)
+                {
+                    return Err(SavedEvidenceError::Invalid("failed artifact must retain its error without content"));
                 }
-            };
-            if output.stream_state != Some(expected)
-                || output.file.metadata.media_type != record.content_type.as_deref().unwrap_or("application/octet-stream")
+                continue;
+            }
+            let file = output.file()?;
+            let expected =
+                if record.status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted };
+            if record.error.is_some()
+                || record.size_bytes != file.length
+                || !artifact_digest_matches(record.sha256.as_deref(), &file.sha256)
+                || output.stream_state != Some(expected)
+                || file.metadata.media_type != record.content_type.as_deref().unwrap_or("application/octet-stream")
             {
-                return Err(SavedEvidenceError::Invalid("saved artifact attribution differs from its output descriptor"));
+                return Err(SavedEvidenceError::Invalid("saved artifact attribution differs from its finished bytes"));
             }
         }
-        check_file(&output.file, id)?;
-        require_saved(through, &output.file.position)?;
+        let file = output.file()?;
+        if !files.insert(file.metadata.id.as_str()) {
+            return Err(SavedEvidenceError::Invalid("duplicate output file identity"));
+        }
+        check_file(file, id)?;
+        require_saved(through, &file.position)?;
     }
     Ok(())
 }

@@ -322,18 +322,20 @@ fn assemble(
         let output = &captured.outputs[index];
         if let ExecutionOutputContent::Artifact { record, .. } = &output.content {
             let mut href = String::with_capacity("outputs/".len().saturating_add(output.relative_path.len()));
-            href.push_str("outputs/");
-            href.push_str(&output.relative_path);
+            if output.file.is_some() {
+                href.push_str("outputs/");
+                href.push_str(&output.relative_path);
+            }
             artifact_links.push(ReportArtifactLink {
                 artifact_id: record.artifact_id.as_str().to_owned(),
                 label: record.filename.clone(),
                 href,
                 path: output.relative_path.clone(),
                 media_type: record.content_type.clone(),
-                description: None,
-                size_bytes: Some(output.file.length),
-                group_id: None,
-                group_label: None,
+                description: record.error.clone(),
+                size_bytes: output.file.as_ref().map(|file| file.length),
+                group_id: record.error.as_ref().map(|_| "failed-artifacts".into()),
+                group_label: record.error.as_ref().map(|_| "Failed Artifacts".into()),
                 scope: Some(record.scope.clone()),
             });
         }

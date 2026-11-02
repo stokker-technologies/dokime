@@ -304,8 +304,10 @@ async fn build(
         }
         for (index, output) in view.outputs()?.iter().enumerate() {
             let archive_path = archive::output_path(cycle.then_some(id), &output.relative_path)?;
-            let reader = view.read_file(&output.file, ByteRange { offset: 0, limit: None }).await?;
-            archive.stored_file(&archive_path, Some(&output.relative_path), output.file.clone(), reader, &mut budget).await?;
+            if let Some(file) = &output.file {
+                let reader = view.read_file(file, ByteRange { offset: 0, limit: None }).await?;
+                archive.stored_file(&archive_path, Some(&output.relative_path), file.clone(), reader, &mut budget).await?;
+            }
             database.output(id, index, &archive_path, output)?;
         }
         let report = &view.execution().saved.as_ref().ok_or(Error::Unsealed("execution"))?.report;

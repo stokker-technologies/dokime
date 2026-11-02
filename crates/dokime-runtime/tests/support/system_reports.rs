@@ -186,21 +186,22 @@ async fn save_execution(handle: &RuntimeHandle, id: &dokime_runtime::TestExecuti
         let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
             continue;
         };
+        let Some(file) = &output.file else { continue };
         dokime_runtime::validate_relative_output_path(&output.relative_path).unwrap();
         let destination = directory.join("outputs").join(&output.relative_path);
         std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
 
         use dokime_runtime::harmos::storage::{ByteRange, FileRead, FileSource};
         let request = FileRead {
-            source: FileSource::Stored(output.file.clone()),
+            source: FileSource::Stored(file.clone()),
             range: ByteRange { offset: 0, limit: None },
         };
         let reader = handle.storage().read_file(request).await.unwrap();
-        save_file(reader, &destination, &output.file).await;
+        save_file(reader, &destination, file).await;
 
         let artifact = Artifact {
-            size_bytes: output.file.length,
-            sha256: hex(&output.file.sha256),
+            size_bytes: file.length,
+            sha256: hex(&file.sha256),
         };
         assert!(artifacts.insert(record.artifact_id.to_string(), artifact).is_none());
     }
