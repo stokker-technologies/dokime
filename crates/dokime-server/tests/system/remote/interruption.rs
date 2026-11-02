@@ -362,6 +362,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
         Boundary::Append => ("append confirmation", "test"),
         Boundary::Start => ("start confirmation", "prompt"),
     };
+    eprintln!("Remote Interruption: {extension} {name}");
     let directory = root.join(format!("{extension} {name}"));
     let label = format!("Remote {extension} {name} {}", uuid::Uuid::now_v7());
     let gate = Gate {
@@ -405,6 +406,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
 }
 
 async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
+    eprintln!("Remote Interruption: {extension} {workflow}");
     let directory = root.join(format!("{extension} {workflow}"));
     let command = super::configured_command(extension, workflow, endpoint, &directory, &[("EXECUTION_COUNT", "1")]).await;
     let command = command.as_std();
@@ -442,6 +444,7 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
 }
 
 async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
+    eprintln!("Remote Disconnection: {extension} {workflow}");
     let proxy = Proxy::start(endpoint).await;
     let directory = root.join(format!("disconnected {extension} {workflow}"));
     let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &[("EXECUTION_COUNT", "1")]).await;
@@ -480,6 +483,7 @@ async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &
 }
 
 async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
+    eprintln!("Remote Interruption: Partial Capture");
     let directory = root.join("partial Python capture");
     // The Operator Prompt Holds The Second Half Until This Terminal Is Interrupted.
     let command = super::configured_command(

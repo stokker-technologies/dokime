@@ -983,39 +983,70 @@ fn run(id: &str) -> contracts::execution::GetCycle {
 
 /* === Tests === */
 
-// Registered execution runs: create, start, control, inspect, search, files, checkpoints and restart receipts.
+// Independent Stories Each Own Their Runtime, Listener And Storage Root.
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_run() {
-    // Each Branch Owns Its Runtime, Listener And Storage Root.
-    tokio::join!(
-        Box::pin(registered_create_definitions()),
-        Box::pin(stopping_running_unwind()),
-        Box::pin(runtime_shell_cursor()),
-        Box::pin(checkpoint_telemetry_queries()),
-        Box::pin(historical_checkpoint_content()),
-        Box::pin(invalid_admission_values()),
-        Box::pin(stalled_stream_execution()),
-        Box::pin(run_cycle_targets()),
-    );
+    Box::pin(registered_create_definitions()).await;
+    Box::pin(invalid_admission_values()).await;
+    Box::pin(run_cycle_targets()).await;
+    Box::pin(start::start_identity_survives()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_controls() {
+    Box::pin(stopping_running_unwind()).await;
     Box::pin(controls::cycle_edits_state()).await;
     Box::pin(controls::labels_rename_state()).await;
     Box::pin(documents_execution::running_execution_owners()).await;
-    // These Independent Roots Retain Every File And Pagination Assertion.
-    tokio::join!(Box::pin(files::live_file_rewrites()), Box::pin(pagination::queued_cycle_seals_every_member()),);
-    // The Paused-Clock Branch Owns Its Runtime Without Other Fixtures In Flight.
-    Box::pin(start::queued_run_outlives_the_idle_deadline()).await;
-    Box::pin(files::execution_file_buffer()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_reads() {
+    Box::pin(runtime_shell_cursor()).await;
+    Box::pin(checkpoint_telemetry_queries()).await;
+    Box::pin(historical_checkpoint_content()).await;
     Box::pin(inspection::inspection_separates_outputs()).await;
     Box::pin(inspection::planned_params_limit()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_streams() {
+    Box::pin(stalled_stream_execution()).await;
+    Box::pin(files::live_file_rewrites()).await;
+    Box::pin(files::execution_file_buffer()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_pagination() {
+    Box::pin(pagination::queued_cycle_seals_every_member()).await;
     Box::pin(pagination::large_cycles_order()).await;
+    Box::pin(search::cycle_search_once()).await;
+    Box::pin(search::listed_cases_page()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_requests() {
     Box::pin(requests::command_receipts_survive_restart()).await;
     Box::pin(requests::execution_admissions_restart()).await;
     Box::pin(requests::pairing_revocation_preserves_execution_receipts()).await;
     Box::pin(requests::invalid_execution_admission()).await;
-    Box::pin(search::cycle_search_once()).await;
-    Box::pin(search::listed_cases_page()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_idle() {
+    Box::pin(start::queued_run_outlives_the_idle_deadline()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_commands() {
     Box::pin(start::blocking_run_drains_and_preserves_work_after_callback_error()).await;
-    Box::pin(start::start_identity_survives()).await;
     Box::pin(steps::step_pages_selections()).await;
 }

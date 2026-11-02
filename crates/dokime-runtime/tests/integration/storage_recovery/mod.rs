@@ -53,12 +53,22 @@ async fn storage_recovery() {
     runtime_storage::artifacts::concurrent_log_bytes().await;
     runtime_storage::operations::storage_operations_view().await;
     runtime_storage::records::managed_records_spool().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn storage_recovery_requests() {
     runtime_storage::recovery::skipped_snapshot_recovery().await;
     runtime_storage::requests::prepared_start_refusal().await;
     runtime_storage::requests::receipt_initialize_storage().await;
     runtime_storage::requests::admitted_progress_stop().await;
     runtime_storage::requests::shutdown_settles_requests().await;
     runtime_storage::requests::queued_execution_request().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn storage_recovery_engine() {
     engine_storage::portable_records_identity().await;
     engine_storage::cancellation::cancellation().await;
     engine_storage::nominal::nominal().await;
@@ -67,6 +77,11 @@ async fn storage_recovery() {
     engine_storage::objects::cycles_reopen_producers().await;
     engine_storage::objects::executions_reopen_results().await;
     engine_storage::reports::report_publication_reopens().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn storage_recovery_sqlite_catalog() {
     engine_storage::sqlite::refuses_previous_data().await;
     engine_storage::sqlite::refuses_unversioned_schema().await;
     engine_storage::sqlite::preserves_unrelated_tables().await;
@@ -76,6 +91,11 @@ async fn storage_recovery() {
     engine_storage::sqlite::cancelled_caller_progress().await;
     engine_storage::sqlite::close_drains_clones().await;
     engine_storage::sqlite::catalog::source_order_restart().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn storage_recovery_sqlite_contract() {
     engine_storage::sqlite::contract::paged_records_ascend().await;
     engine_storage::sqlite::contract::retries_are_exact().await;
     engine_storage::sqlite::contract::batch_rollback_retries().await;
@@ -91,6 +111,11 @@ async fn storage_recovery() {
     engine_storage::sqlite::contract::file_digests_match().await;
     engine_storage::sqlite::contract::cancelled_read_isolated().await;
     engine_storage::sqlite::contract::close_releases_owner().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn storage_recovery_sqlite_production() {
     engine_storage::sqlite::production::file_retry_checks_entire_overlap_before_append().await;
     engine_storage::sqlite::production::checkpoint_recovery_fence().await;
     engine_storage::sqlite::production::shared_sha_identity().await;
