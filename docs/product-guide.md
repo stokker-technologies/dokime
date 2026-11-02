@@ -1490,9 +1490,29 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
+### Host Telemetry
+
 Host telemetry is supplied by `plugin-host.dokime` through plugin ingest. The runtime
 has no built-in host collector or implicit plugin seed. OBC is an explicit
 test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
+
+On Windows 11 24H2 and later, SSID/BSSID connection details and nearby-network
+queries require location permission. In **Settings → Privacy & Security → Location**,
+enable **Location Services** and **Let Desktop Apps Access Your Location** for the
+host plugin. See Microsoft's [Wi-Fi access and location changes](https://learn.microsoft.com/en-us/windows/win32/nativewifi/wi-fi-access-location-changes).
+If the current-connection query fails, `host.wifi.link` reports `probe_status=partial`
+and a `probe_error` containing the WLAN call and Win32 code; code 5 includes a
+location-permission hint. Adapter, interface state and readable RSSI still publish,
+and a connected interface remains associated even when its BSSID cannot be read.
+Unknown native state, authentication, cipher and PHY values appear as `unknown_<n>`
+without discarding other fields. Connection-query warnings log once per distinct
+code during the plugin process's lifetime.
+
+RSSI uses the native RSSI query, then the associated BSSID's cached BSS reading
+if that query fails or returns an invalid value. Both sources must be in
+−120…0 dBm; RSSI remains absent if neither is readable. Signal quality is never
+converted to dBm. Default adapter selection prefers a connected physical WLAN
+adapter over connected virtual adapters; an explicit adapter selector takes precedence.
 
 ## Cargo Features
 
