@@ -297,7 +297,7 @@ async fn query_plot_payload(
                     )
                     .await?
                 }
-                None => finish_retained_plot_payload(
+                None => Some(finish_retained_plot_payload(
                     project_retained_plot_payload(
                         &[],
                         crate::records::view::View::default(),
@@ -306,18 +306,22 @@ async fn query_plot_payload(
                         &format,
                     )?,
                     &request,
-                )?,
+                )?),
             };
-            let diagnostics = plot_payload_diagnostics(&payload);
-            Some(payload.try_map(|payload| {
-                Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
-                    plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
-                    revision: at.sequence,
-                    payload,
-                    diagnostics,
-                    warnings: Vec::new(),
+            payload
+                .map(|payload| {
+                    let diagnostics = plot_payload_diagnostics(&payload);
+                    payload.try_map(|payload| {
+                        Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
+                            plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
+                            revision: at.sequence,
+                            payload,
+                            diagnostics,
+                            warnings: Vec::new(),
+                        })
+                    })
                 })
-            })?)
+                .transpose()?
         } else {
             None
         }
