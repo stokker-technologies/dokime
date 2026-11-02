@@ -54,6 +54,14 @@ use crate::storage::{
 
 /* === Constants === */
 
+const SAMPLE_POSITION: &str = "
+SELECT i.position FROM stream_samples i JOIN streams s ON s.file_id=i.file_id
+WHERE i.sample_id=?1 AND s.stream=?2 AND i.position<=?3
+AND EXISTS(SELECT 1 FROM stream_captures c
+    WHERE c.execution=?4 AND c.file_id=i.file_id AND c.batch=i.batch
+    AND c.first_row<=i.batch_row AND c.first_row+c.rows>i.batch_row)
+ORDER BY i.position LIMIT 1";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -238,21 +246,17 @@ impl State {
     pub(crate) async fn acknowledge_sample(
         &self, execution: String, stream: String, sample_id: String, through: u64,
     ) -> Result<u64, Error> {
-        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        self.call(move |connection| Ok((|| {
-            let previous: Option<String> = connection.query_row("SELECT position FROM storage_sample_receipts WHERE execution=?1 AND stream=?2 AND sample_id=?3 AND position<=?4",
-                params![execution,stream,sample_id,position(through)], |row| row.get(0)).optional()?;
-            if let Some(previous) = previous { return sequence(&previous); }
-            let page = ScanPage { after: 0, rows: NonZeroUsize::new(1).unwrap(), bytes: NonZeroUsize::MAX };
-            let scan = Scan::new("stream",through,0,page).filter("execution",Some(execution.clone())).filter("stream",Some(stream.clone())).filter("item",Some(sample_id.clone()));
-            let rows = reader::entries(connection,&root,&scan)?;
-            let (selected,_) = rows.first().ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?;
-            let transaction = connection.transaction()?;
-            transaction.execute("INSERT INTO storage_sample_receipts VALUES (?1,?2,?3,?4) ON CONFLICT(execution,stream) DO UPDATE SET sample_id=excluded.sample_id,position=excluded.position",
-                params![execution,stream,sample_id,position(*selected)])?;
-            super::super::commit(transaction)?;
-            Ok(*selected)
-        })())).await?
+        self.read(move |connection| {
+            Ok((|| {
+                let selected: Option<String> = connection
+                    .prepare_cached(SAMPLE_POSITION)?
+                    .query_row(params![sample_id, stream, position(through), execution], |row| row.get(0))
+                    .optional()?;
+                let selected = selected.ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?;
+                sequence(&selected)
+            })())
+        })
+        .await?
     }
 
     pub(crate) async fn latest_telemetry_time(

@@ -144,7 +144,7 @@ impl State {
     }
 
     pub(crate) async fn data_saved(&self) -> Result<SavedData, Error> {
-        self.call(move |connection| Ok(saved(connection))).await?
+        self.read(move |connection| Ok(saved(connection))).await?
     }
 
     async fn data_write<T>(&self, root: std::path::PathBuf, batch: StorageBatch<T>) -> Result<SavedData, Error>
@@ -219,9 +219,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=7 FROM sqlite_master WHERE type='table' AND name IN
+            "SELECT count(*)=8 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
-                 'storage_numeric_summaries','storage_numeric_ranks','storage_report_previews')",
+                 'storage_numeric_summaries','storage_numeric_ranks','storage_report_previews','stream_samples')",
             [],
             |row| row.get(0),
         )?;
@@ -241,6 +241,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT file_id,execution,relative_path FROM artifacts LIMIT 0",
                 "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
                 "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
+                "SELECT sample_id,position,file_id,batch,batch_row FROM stream_samples LIMIT 0",
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
                 "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
                 "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
@@ -268,7 +269,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     Ok(())
 }
 
-pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
+pub(crate) fn saved(connection: &Connection) -> Result<SavedData, Error> {
     let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
     let mut rows = statement.query([])?;
     let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;
@@ -455,6 +456,7 @@ where
             telemetry::catalog_file(&transaction, reference)?;
         }
         if let Borrowed::Record(row) = value {
+            super::history::work::index(&transaction, row)?;
             records::index(&transaction, row)?;
             plots.record(&transaction, row)?;
         }

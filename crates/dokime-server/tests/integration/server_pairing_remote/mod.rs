@@ -57,6 +57,8 @@ async fn server_pairing_remote() {
     Box::pin(server::malformed_secrets_wire()).await;
     Box::pin(server::remote_requires_binding()).await;
     Box::pin(server::tls_listener_clients()).await;
+    Box::pin(server::names_refresh_preserves_remote_stream()).await;
+    Box::pin(server::client_retries_reads_without_replaying_mutations()).await;
     Box::pin(server::operations::response_publication_faults()).await;
     Box::pin(server::operations::response_unavailable_after_effect()).await;
 }

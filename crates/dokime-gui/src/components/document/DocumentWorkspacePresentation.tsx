@@ -19,6 +19,7 @@ import { type ReactNode, useCallback } from "react";
 
 /* === Local Imports === */
 
+import type { PlotRefreshState } from "@/features/cycle/PlotWindowSlider";
 import type { DocumentCardContentProps } from "@/components/document/DocumentSurfaceView";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
 import { type DocumentBlockChrome, DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
@@ -79,6 +80,7 @@ type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
   plotContextTelemetry: Record<string, TelemetryStream> | null;
   plotResetKey: string;
   plotWindowS?: number | null;
+  plotRefresh?: PlotRefreshState;
   renderMode: "live";
   scope: RecordScope | null;
 };

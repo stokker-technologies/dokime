@@ -60,9 +60,28 @@ pub(crate) fn project(
         if request.analysis.is_none() {
             payload.analysis = analyses::analyze(&mut [], request);
         }
+        let mut marker_count = 0;
+        read.records(false, |_, record| {
+            if request.marker_record_types.iter().any(|kind| kind == record.record_type.as_str())
+                && request.scope.as_ref().is_none_or(|scope| record.is_visible_in(scope))
+            {
+                marker_count += 1;
+            }
+            Ok(())
+        })?;
+        let maximum = if payload.max_points == 0 { marker_count } else { payload.max_points.min(marker_count) };
+        let mut selected = super::marker_indices(marker_count, maximum).into_iter().peekable();
+        let mut index = 0;
         read.records(false, |_, record| {
             let rows = std::slice::from_ref(&record);
-            payload.markers.extend(super::plot_markers(rows.into(), &request.marker_record_types, request.scope.as_ref()));
+            let markers = super::plot_markers(rows.into(), &request.marker_record_types, request.scope.as_ref(), 1);
+            if !markers.is_empty() {
+                if selected.peek() == Some(&index) {
+                    selected.next();
+                    payload.markers.extend(markers);
+                }
+                index += 1;
+            }
             Ok(())
         })?;
         if request.plot_type == Some(PlotType::WifiChannelOccupancy) {

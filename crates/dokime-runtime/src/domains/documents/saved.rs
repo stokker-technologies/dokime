@@ -104,14 +104,19 @@ impl SavedOutputs {
 
     pub(crate) fn entries(&self) -> Result<Vec<ExecutionFileEntry>> {
         let id = &self.revision.value.test_execution_id;
-        let mut entries = self.outputs().iter().map(|output| entry(id, output)).collect::<harmos::Result<Vec<_>>>()?;
+        let mut entries = self
+            .outputs()
+            .iter()
+            .filter(|output| output.file.is_some())
+            .map(|output| entry(id, output))
+            .collect::<harmos::Result<Vec<_>>>()?;
         entries.sort_unstable_by(|left, right| left.relative_path.cmp(&right.relative_path));
         Ok(entries)
     }
 
     pub(crate) fn file(self, path: &str) -> Result<Option<SavedOutputFile>> {
         validate_relative_output_path(path).map_err(crate::storage::Error::from)?;
-        let Some(index) = self.outputs().iter().position(|output| output.relative_path == path) else {
+        let Some(index) = self.outputs().iter().position(|output| output.relative_path == path && output.file.is_some()) else {
             return Ok(None);
         };
         Ok(Some(SavedOutputFile { outputs: self, index }))
@@ -135,12 +140,12 @@ impl SavedOutputFile {
     pub(crate) async fn window(&self, offset: u64, maximum: NonZeroUsize) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
         let maximum = maximum.get();
         let output = self.descriptor();
-        let offset = offset.min(output.file.length);
+        let offset = offset.min(output.file().map_err(crate::storage::Error::from)?.length);
         self.read(offset, maximum as u64).await
     }
 
     pub(crate) async fn snapshot(&self) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
-        self.read(0, self.descriptor().file.length).await
+        self.read(0, self.descriptor().file().map_err(crate::storage::Error::from)?.length).await
     }
 
     async fn read(&self, offset: u64, limit: u64) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
@@ -150,7 +155,7 @@ impl SavedOutputFile {
             .outputs
             .session
             .read_file(FileRead {
-                source: harmos::storage::FileSource::Stored(self.descriptor().file.clone()),
+                source: harmos::storage::FileSource::Stored(self.descriptor().file().map_err(crate::storage::Error::from)?.clone()),
                 range: ByteRange { offset, limit: Some(limit) },
             })
             .await?;
@@ -181,10 +186,13 @@ pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::R
     Ok(ExecutionFileEntry {
         artifact_id,
         relative_path: output.relative_path.clone(),
-        content_type: Some(output.file.metadata.media_type.clone()),
-        content_kind: ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&output.file.metadata.media_type)),
+        content_type: output.file.as_ref().map(|file| file.metadata.media_type.clone()),
+        content_kind: ExecutionFileContentKind::from_metadata(
+            &output.relative_path,
+            output.file.as_ref().map(|file| file.metadata.media_type.as_str()),
+        ),
         stream_state: state(output),
-        size_bytes: output.file.length,
+        size_bytes: output.file.as_ref().map_or(0, |file| file.length),
         updated_at: output.created_at.clone(),
     })
 }
@@ -201,11 +209,14 @@ fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
 fn window(output: &ExecutionOutput, offset: u64, bytes: Vec<u8>) -> ExecutionFileContent {
     ExecutionFileContent {
         relative_path: output.relative_path.clone(),
-        content_type: Some(output.file.metadata.media_type.clone()),
-        content_kind: ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&output.file.metadata.media_type)),
+        content_type: output.file.as_ref().map(|file| file.metadata.media_type.clone()),
+        content_kind: ExecutionFileContentKind::from_metadata(
+            &output.relative_path,
+            output.file.as_ref().map(|file| file.metadata.media_type.as_str()),
+        ),
         stream_state: state(output),
         offset,
-        size_bytes: output.file.length,
+        size_bytes: output.file.as_ref().map_or(0, |file| file.length),
         bytes,
     }
 }

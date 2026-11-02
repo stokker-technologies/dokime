@@ -27,7 +27,7 @@ use std::sync::{
 // Third Party Imports
 use futures_util::StreamExt;
 use harmos::{
-    Identifier, Message,
+    Identified, Identifier, Message,
     storage::{RecordInput, SchemaKey},
 };
 use tokio::sync::watch;
@@ -101,6 +101,11 @@ impl Source {
         let schema = harmos::schema::graph::Schema::from_declaration(records::RecordRow::DEFINITION, &self.schema_settings)
             .map_err(projection_error)?;
         let declared = self.storage.write_schema(self.schema.clone(), schema).await.map_err(Error::from)?;
+        self.storage.flush_until(&declared).await.map_err(Error::from)?;
+        let schema =
+            harmos::schema::graph::Schema::from_declaration(crate::storage::sqlite::history::work::Row::DEFINITION, &self.schema_settings)
+                .map_err(projection_error)?;
+        let declared = self.storage.write_schema(crate::storage::sqlite::history::work::schema(), schema).await.map_err(Error::from)?;
         self.storage.flush_until(&declared).await.map_err(Error::from)?;
         Ok(())
     }
@@ -180,6 +185,27 @@ impl harmos::storage::RecordProjection for Projection {
         );
         Box::pin(
             async move {
+                if envelope.id == dokime_domain::state::records::work::Work::definition().0 {
+                    let Some(dokime_domain::state::records::Records::Work(work)) =
+                        dokime_domain::state::records::Records::restore(&envelope.id, envelope.version, envelope.payload)
+                            .map_err(projection_error)?
+                    else {
+                        return Err(projection_error("unsupported work revision"));
+                    };
+                    let row = crate::storage::sqlite::history::work::Row {
+                        body: serde_json::to_vec(&work).map_err(projection_error)?,
+                    };
+                    return output
+                        .push(RecordInput {
+                            schema: crate::storage::sqlite::history::work::schema(),
+                            scope: Some(self.0.epoch.clone()),
+                            item: Identifier::new(format!("work-{}", envelope.position.0)).map_err(projection_error)?,
+                            source: None,
+                            source_time: None,
+                            payload: row.encode(),
+                        })
+                        .await;
+                }
                 let Some((item, payload)) = project(envelope)? else {
                     return Ok(());
                 };

@@ -106,7 +106,8 @@ impl ExecutionStorage {
         // Decide Captured Or Live Under The Owner Lock That Capture Settles Under.
         if output.captured {
             let descriptor = output.descriptor.as_ref().ok_or_else(|| error("captured output has no original descriptor"))?;
-            let reference = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::runtime::Error>(descriptor.file.clone()))?;
+            let reference = harmos::storage::ReadBatch::new(())
+                .try_map(|_| Ok::<_, crate::runtime::Error>(descriptor.file().map_err(crate::storage::Error::from)?.clone()))?;
             let interrupted = descriptor.stream_state == Some(SavedStreamState::Interrupted);
             return Ok(Some(NativeAdmission::Captured { reference, interrupted }));
         }
@@ -268,7 +269,7 @@ async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamSt
     let descriptor = ExecutionOutput {
         relative_path: path.to_owned(),
         created_at: output.created_at.clone(),
-        file: reference.clone(),
+        file: Some(reference.clone()),
         stream_state: state,
         content: ExecutionOutputContent::File,
     };

@@ -53,6 +53,10 @@ struct PlotRow {
 /* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+    if std::env::var_os("DOKIME_PLOT_ALL_MEASURE").is_some() {
+        executor.block_on(measure_all());
+        return;
+    }
     if std::env::var_os("DOKIME_PLOT_MEASURE").is_some() {
         executor.block_on(measure_queries());
         return;
@@ -91,6 +95,36 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
+async fn measure_all() {
+    let root = tempfile::tempdir().unwrap();
+    let exact = dokime_runtime::config::local_storage_defaults().previews.exact_points.get();
+    let fixture = crate::service_support::all_plots::AllPlots::new(root.path(), 14_400, 1, exact).await;
+    let at = fixture.runtime.storage().cursor_saved();
+    fixture.runtime.query_plot_payloads_at(Vec::new(), RuntimePlotQueryMode::Snapshot, &at).await.unwrap();
+    for window in [Some(300.0), None] {
+        let mut total = Duration::ZERO;
+        for request in fixture.requests(2000, window) {
+            let id = request.plot_id.clone().unwrap();
+            let before = fixture.runtime.storage_read_counters();
+            let started = Instant::now();
+            let result = fixture.runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+            let elapsed = started.elapsed();
+            total += elapsed;
+            let payload = &result[0].payload;
+            println!(
+                "{}",
+                serde_json::json!({"hours":4,"window":window,"plot":id,"ms":elapsed.as_secs_f64()*1e3,
+                "points":payload.series.iter().map(|series| series.points.len()).sum::<usize>(),
+                "raw":payload.series.iter().map(|series| series.raw_points).sum::<usize>(),
+                "series_json_bytes":serde_json::to_vec(&payload.series).unwrap().len(),
+                "scanned_rows":fixture.runtime.storage_read_counters().data_scan_rows-before.data_scan_rows})
+            );
+        }
+        println!("{}", serde_json::json!({"hours":4,"window":window,"sequential_pass_ms":total.as_secs_f64()*1e3}));
+    }
+    fixture.close().await;
+}
 
 async fn measure_queries() {
     let root = tempfile::tempdir().unwrap();

@@ -961,7 +961,7 @@ impl TryFrom<&dokime_domain::model::execution::saved::ExecutionOutput> for Outpu
         value.created_at.to_datetime()?;
         Ok(Self {
             relative_path: value.relative_path.as_str().to_owned(),
-            file: Some(value.file.clone()),
+            file: value.file.clone(),
             stream_state: saved_stream_state(value.stream_state).map(str::to_owned),
             content: Some(artifacts::Content::try_from(&value.content)?),
             created_at: value.created_at.as_str().to_owned(),
@@ -985,7 +985,7 @@ impl TryFrom<Output> for dokime_domain::model::execution::saved::ExecutionOutput
         Ok(Self {
             relative_path: row.relative_path,
             created_at: dokime_domain::model::time::Timestamp::new(row.created_at),
-            file: row.file.ok_or(Error::Invalid("execution output file is missing"))?,
+            file: row.file,
             stream_state,
             content: row.content.ok_or(Error::Invalid("saved output content descriptor is missing"))?.try_into()?,
         })

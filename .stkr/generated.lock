@@ -2,7 +2,7 @@
   "version": 1,
   "files": {
     ".claude/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
-    ".claude/skills/dokime-authoring/SKILL.md": "a6ae4b871b266833020606e822754d59c1a1c51f651c9509c55947365ebc154b",
+    ".claude/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
     ".claude/skills/dokime-authoring/references/plugins.md": "05a218de3055ef05bb218b8b62176721b46cf1b8c443841583a3ec2df9060202",
     ".claude/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".claude/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",
@@ -23,7 +23,7 @@
     ".github/actions/setup/run.py": "3d616a0f6d3cf66f9bcba9c70b445ef8d69950a680be97596254f16479df0a2c",
     ".github/renovate.json5": "9bcbd7257b2502274c89f3fdadc9ef8c20fbf8094b484637553ad883db6232fd",
     ".github/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
-    ".github/skills/dokime-authoring/SKILL.md": "a6ae4b871b266833020606e822754d59c1a1c51f651c9509c55947365ebc154b",
+    ".github/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
     ".github/skills/dokime-authoring/references/plugins.md": "05a218de3055ef05bb218b8b62176721b46cf1b8c443841583a3ec2df9060202",
     ".github/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".github/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",

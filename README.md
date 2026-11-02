@@ -92,10 +92,10 @@ uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
 ```
 
 ```python
-from dokime_client import DokimeClient
+from dokime_client import DokimeClient, ExecutionStatus
 
 async with DokimeClient.from_pairing("lab.dokime-remote") as client:
-    async for execution in client.executions(template="example.measurement", status="failed"):
+    async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
         async with execution.telemetry("example.stream", fields=["counter"]) as samples:
             frame = await samples.to_polars(max_rows=10_000)
             print(frame, samples.metadata, samples.complete)
@@ -111,7 +111,7 @@ retains the complete setup and runnable lifecycle examples.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158`)
+(currently pinned to revision `ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -185,8 +185,8 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, report previews, capture membership ranges, versioned history projections and query
-token identities require a fresh storage root.
+or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
+token identities, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
@@ -214,7 +214,11 @@ Client sample following watches saved storage progress and resumes from delivere
 stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier
 before ending; they do not poll a second live-sample history.
 
-Plot Default uses each plot's authored window; All queries its full saved history.
+The viewer defaults to 5 min and offers 1 min, 2 min, 5 min, 10 min, 30 min, 1 h
+and All for every plot in the view. Timed windows refresh automatically; All loads
+once and refreshes only when Refresh is pressed. Reports always cover all captured samples.
+All delivers each plot independently from bounded report previews, so one plot's
+failure leaves the others available. Markers follow the display point budget.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

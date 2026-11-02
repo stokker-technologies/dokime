@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -80,7 +80,7 @@ impl Batch {
             if let std::collections::btree_map::Entry::Vacant(entry) = self.plans.entry((execution, plot)) {
                 entry.insert((
                     u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?,
-                    serde_json::from_slice(&bytes)?,
+                    decode_plan(&bytes)?,
                 ));
             }
         }
@@ -91,20 +91,32 @@ impl Batch {
     pub(crate) fn sample(
         &mut self, connection: &Connection, row: &harmos::storage::StoredRow, sample: &crate::telemetry::TelemetrySample,
     ) -> Result<(), Error> {
-        let Some(execution) = row.record.scope.as_ref() else { return Ok(()) };
         if !row.record.schema.id.as_str().starts_with("dokime.telemetry.") {
             return Ok(());
         }
-        self.load(connection, execution.as_str())?;
+        let owners: BTreeSet<_> =
+            sample.scope.iter().chain(&sample.captured_scopes).filter_map(|scope| scope.test_execution_id.as_ref()).collect();
+        for owner in owners {
+            self.load(connection, owner.as_str())?;
+        }
         for ((owner, _), (through, plan)) in &mut self.plans {
-            if owner != execution.as_str() || row.record.position.sequence <= *through {
+            if row.record.position.sequence <= *through {
                 continue;
             }
+            let Some(scope) = sample
+                .scope
+                .iter()
+                .chain(&sample.captured_scopes)
+                .find(|scope| scope.test_execution_id.as_ref().is_some_and(|id| id.as_str() == owner))
+            else {
+                continue;
+            };
             if !crate::plot::plot_streams(&plan.request).iter().any(|stream| crate::plot::stream_matches_alias(row.stream.as_str(), stream))
             {
                 continue;
             }
             let mut sample = sample.clone();
+            sample.scope = Some(scope.clone());
             for (key, value) in &plan.context {
                 sample.values.entry(key.clone()).or_insert_with(|| value.clone());
             }
@@ -160,6 +172,56 @@ impl Batch {
 }
 
 impl State {
+    pub(crate) async fn live_plot_previews(
+        &self, executions: Vec<String>, request: PlotPayloadRequest, at: harmos::storage::StorageCursor, current: bool,
+    ) -> Result<Option<(PlotPayload, harmos::storage::StorageCursor)>, Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                let head = crate::storage::sqlite::data::saved(connection)?;
+                head.history.check(&at.history)?;
+                let through = if current {
+                    harmos::storage::StorageCursor {
+                        history: head.history,
+                        sequence: head.sequence,
+                    }
+                } else {
+                    at
+                };
+                let mut combined: Option<Checkpoint> = None;
+                let Some(plot) = &request.plot_id else { return Ok(None) };
+                let mut query =
+                    connection.prepare_cached("SELECT state FROM report_plot_previews WHERE execution=?1 AND plot=?2 AND through<=?3")?;
+                for execution in executions {
+                    let bytes: Option<Vec<u8>> =
+                        query.query_row(params![execution, plot, format!("{:016x}", through.sequence)], |row| row.get(0)).optional()?;
+                    let Some(bytes) = bytes else { return Ok(None) };
+                    let checkpoint = Checkpoint(decode_plan(&bytes)?);
+                    if !checkpoint.matches(&request) {
+                        return Ok(None);
+                    }
+                    if let Some(combined) = &mut combined {
+                        combined
+                            .0
+                            .preview
+                            .merge(checkpoint.0.preview, &request, combined.0.limits)
+                            .map_err(|error| Error::Catalog(error.to_string()))?;
+                    } else {
+                        combined = Some(checkpoint);
+                    }
+                }
+                combined
+                    .map(|checkpoint| {
+                        checkpoint
+                            .payload(&request, crate::model::time::now_utc().as_str(), (None, None))
+                            .map(|payload| (payload, through))
+                            .map_err(|error| Error::Catalog(error.to_string()))
+                    })
+                    .transpose()
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn register_plot_previews(
         &self, execution: String, requests: Vec<PlotPayloadRequest>, contracts: Vec<TelemetryContract>, limits: Limits,
         context: BTreeMap<String, dokime_domain::model::values::Value>,
@@ -196,11 +258,37 @@ impl State {
 }
 
 impl Checkpoint {
+    fn matches(&self, request: &PlotPayloadRequest) -> bool {
+        if !request.scope.as_ref().is_some_and(|scope| {
+            self.0.request.scope.as_ref().is_some_and(|saved| dokime_domain::model::execution::scope_visible_in(Some(saved), scope))
+        }) {
+            return false;
+        }
+        let shape = |request: &PlotPayloadRequest| {
+            // Both Inputs Have Already Undergone The One Query-Time Mapping.
+            let mut request = request.clone();
+            request.plot_id = None;
+            request.scope = None;
+            request.max_points = None;
+            request.summary_window = None;
+            request.technique = Default::default();
+            request.x_format = None;
+            request.y_format = None;
+            serde_json::to_value(request).ok()
+        };
+        shape(&self.0.request) == shape(request)
+    }
+
     pub(crate) fn payload(
         &self, request: &PlotPayloadRequest, generated_at: &str, epochs: (Option<&str>, Option<&str>),
     ) -> crate::runtime::Result<PlotPayload> {
         let mut saved = self.0.request.clone();
         saved.max_points = request.max_points;
+        saved.scope = request.scope.clone();
+        saved.summary_window = request.summary_window;
+        saved.technique = request.technique;
+        saved.x_format = request.x_format.clone().or(saved.x_format);
+        saved.y_format = request.y_format.clone().or(saved.y_format);
         let context = PlotPayloadContext {
             default_max_points: saved.max_points.unwrap_or(self.0.limits.exact_points),
             x_format: saved.x_format.as_ref(),
@@ -291,6 +379,14 @@ pub(crate) fn decorate(payload: &mut PlotPayload, contracts: &[TelemetryContract
 
 /* === Private Functions === */
 
+fn decode_plan(bytes: &[u8]) -> Result<Plan, Error> {
+    serde_json::from_slice(bytes).map_err(|error| {
+        Error::Incompatible(format!(
+            "Plot preview layout is incompatible; use a fresh storage root and preserve the existing evidence: {error}"
+        ))
+    })
+}
+
 // Checkpoints That Advanced Past The Cut Are Omitted So Their Plots Rebuild Through It.
 pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> Result<BTreeMap<String, Checkpoint>, Error> {
     let mut query = connection.prepare("SELECT plot,through,state FROM report_plot_previews WHERE execution=?1")?;
@@ -303,7 +399,7 @@ pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> 
             continue;
         }
         let bytes: Vec<u8> = row.get(2)?;
-        checkpoints.insert(row.get(0)?, Checkpoint(serde_json::from_slice(&bytes)?));
+        checkpoints.insert(row.get(0)?, Checkpoint(decode_plan(&bytes)?));
     }
     Ok(checkpoints)
 }
@@ -313,6 +409,35 @@ pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checkpoint_selection() {
+        let scope = dokime_domain::model::execution::RecordScope {
+            test_execution_id: Some(dokime_domain::model::identity::TestExecutionId::from_seed("selection")),
+            ..Default::default()
+        };
+        let request = PlotPayloadRequest {
+            scope: Some(scope),
+            y_keys: vec!["value".into()],
+            ..Default::default()
+        };
+        let checkpoint = Checkpoint(Plan {
+            request: request.clone(),
+            contracts: Vec::new(),
+            limits: crate::config::local_storage_defaults().previews.into(),
+            context: BTreeMap::new(),
+            preview: Preview::default(),
+        });
+        let mut changed = request.clone();
+        changed.max_points = Some(17);
+        changed.summary_window = Some(crate::plot::PlotWindow { from: 1.0, to: 2.0 });
+        assert!(checkpoint.matches(&changed));
+        changed.y_keys = vec!["other".into()];
+        assert!(!checkpoint.matches(&changed));
+        changed = request;
+        changed.scope.as_mut().unwrap().test_execution_id = Some(dokime_domain::model::identity::TestExecutionId::from_seed("other"));
+        assert!(!checkpoint.matches(&changed));
+    }
 
     #[test]
     fn frozen_checkpoint() {
@@ -336,5 +461,8 @@ mod tests {
         let current = checkpoints(&connection, "execution", 10).unwrap().remove("plot").unwrap();
         assert_eq!(current.0.preview.context, plan.preview.context);
         assert!(checkpoints(&connection, "other", 10).unwrap().is_empty());
+        let mut legacy = serde_json::to_value(&plan).unwrap();
+        legacy["preview"].as_object_mut().unwrap().remove("marker_records");
+        assert!(matches!(decode_plan(&serde_json::to_vec(&legacy).unwrap()), Err(Error::Incompatible(_))));
     }
 }

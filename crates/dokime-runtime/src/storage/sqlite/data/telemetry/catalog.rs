@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS stream_batches (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS stream_batch_time ON stream_batches(file_id,last_at,first_at);
 CREATE INDEX IF NOT EXISTS stream_batch_position ON stream_batches(file_id,last_position,first_position);
+CREATE TABLE IF NOT EXISTS stream_samples (
+    sample_id TEXT NOT NULL, position TEXT NOT NULL,
+    file_id TEXT NOT NULL, batch INTEGER NOT NULL, batch_row INTEGER NOT NULL,
+    PRIMARY KEY(sample_id,position),
+    FOREIGN KEY(file_id,batch) REFERENCES stream_batches(file_id,batch)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS stream_batch_scopes (
     file_id TEXT NOT NULL, batch INTEGER NOT NULL, scope TEXT NOT NULL,
     first_at INTEGER NOT NULL, last_at INTEGER NOT NULL,
@@ -79,10 +85,6 @@ CREATE TABLE IF NOT EXISTS stream_summaries (
     file_id TEXT NOT NULL REFERENCES streams(file_id), signal TEXT NOT NULL,
     count INTEGER NOT NULL, minimum REAL NOT NULL, maximum REAL NOT NULL, sum REAL NOT NULL,
     PRIMARY KEY(file_id,signal)
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_sample_receipts (
-    execution TEXT NOT NULL, stream TEXT NOT NULL, sample_id TEXT NOT NULL, position TEXT NOT NULL,
-    PRIMARY KEY(execution,stream)
 ) WITHOUT ROWID;
 ";
 

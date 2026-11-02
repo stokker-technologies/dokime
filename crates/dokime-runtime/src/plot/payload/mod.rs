@@ -202,7 +202,12 @@ fn payload_from_series(
         series,
         cartesian: None,
         analysis: None,
-        markers: plot_markers(records, &request.marker_record_types, request.scope.as_ref()),
+        markers: plot_markers(
+            records,
+            &request.marker_record_types,
+            request.scope.as_ref(),
+            request.max_points.unwrap_or(format_context.default_max_points),
+        ),
         max_points: request.max_points.unwrap_or(format_context.default_max_points),
         window_s: request.window_s,
         generated_at: generated_at.to_owned(),
@@ -418,6 +423,14 @@ pub(crate) fn numeric_value(value: &Value) -> Option<f64> {
     }
 }
 
+// Declared Boolean Fields Use A Stable State Axis; Missing Values Remain Gaps.
+pub(crate) fn series_value(value: &Value) -> Option<f64> {
+    match value {
+        Value::Bool(value) => Some(f64::from(u8::from(*value))),
+        _ => numeric_value(value),
+    }
+}
+
 pub(crate) fn parse_timestamp(value: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(value, &Rfc3339).ok()
 }
@@ -572,7 +585,7 @@ fn expression_x_input<'a>(sample: &'a TelemetrySample, expression: Option<&DataE
 fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<f64> {
     match &expression.source {
         DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
-            sample_value(sample, field).and_then(numeric_value)
+            sample_value(sample, field).and_then(series_value)
         }
         DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => {
             sample_value(sample, field).and_then(numeric_value)
@@ -681,7 +694,20 @@ fn value_contains(actual: &Value, expected: &Value) -> bool {
     }
 }
 
-fn plot_markers(records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>) -> Vec<PlotMarker> {
+pub(super) fn marker_indices(count: usize, maximum: usize) -> Vec<usize> {
+    if maximum == 0 || count <= maximum {
+        return (0..count).collect();
+    }
+    if maximum == 1 {
+        return vec![count - 1];
+    }
+    // Uniform Coverage Includes Both Ends Without Overflowing Native Indices.
+    (0..maximum).map(|index| ((index as u128 * (count - 1) as u128) / (maximum - 1) as u128) as usize).collect()
+}
+
+pub(super) fn plot_markers(
+    records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>, maximum: usize,
+) -> Vec<PlotMarker> {
     if marker_record_types.is_empty() {
         return Vec::new();
     }
@@ -689,15 +715,22 @@ fn plot_markers(records: crate::records::view::View<'_>, marker_record_types: &[
         .iter()
         .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
         .filter(|record| scope.is_none_or(|scope| record.is_visible_in(scope)));
-    let mut markers = Vec::with_capacity(selected.clone().count());
-    markers.extend(selected.map(|record| {
+    let count = selected.clone().count();
+    let maximum = if maximum == 0 { count } else { maximum.min(count) };
+    let mut indices = marker_indices(count, maximum).into_iter().peekable();
+    let mut markers = Vec::with_capacity(maximum);
+    markers.extend(selected.enumerate().filter_map(|(index, record)| {
+        if indices.peek() != Some(&index) {
+            return None;
+        }
+        indices.next();
         let record_type = record.record_type.as_str().to_owned();
-        PlotMarker {
+        Some(PlotMarker {
             x: JsonValue::String(record.timestamp.as_str().to_owned()),
             label: record.message.clone().unwrap_or_else(|| record_type.clone()),
             color: marker_color(&record_type),
             record_type,
-        }
+        })
     }));
     markers
 }
@@ -767,6 +800,53 @@ mod tests {
     use super::*;
     use crate::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
     use dokime_domain::model::expressions::telemetry;
+
+    #[cfg(feature = "storage")]
+    #[test]
+    fn viewer_window_does_not_change_report_range() {
+        use dokime_domain::model::identity::Identifier;
+        use dokime_domain::model::time::Timestamp;
+
+        let mut plot = Plot::time_series("Voltage");
+        plot.stream = Some("fixture.voltage".into());
+        plot.y = vec!["voltage".into()];
+        let input = plot_input_for_definition(&plot, &[], 0, &DocumentSelection::default());
+        let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+        let samples = ["2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z", "2026-01-03T00:01:00Z"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, stamp)| {
+                let mut sample = TelemetrySample::new(
+                    crate::model::identity::new_id(),
+                    Identifier::new("fixture.voltage").unwrap(),
+                    index as u64,
+                    Timestamp::new(stamp),
+                    "fixture",
+                );
+                sample.values.insert("voltage".into(), Value::from(index as f64));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let context = PlotPayloadContext {
+            default_max_points: 100,
+            x_format: None,
+            series_format: None,
+            run_started_at: None,
+            cycle_started_at: None,
+        };
+        let values = |request: &PlotPayloadRequest| {
+            let payload =
+                project_retained_plot_payload(&samples, crate::records::view::View::default(), request, "2026-01-03T00:01:00Z", &context)
+                    .unwrap();
+            payload.series[0].points.iter().map(|point| point.y).collect::<Vec<_>>()
+        };
+
+        let live = plot_payload_request_for_descriptor(&descriptor, None, None, Some(120.0));
+        assert_eq!(values(&live), vec![Some(1.0), Some(2.0)]);
+        let report = plot_payload_request_for_descriptor(&descriptor, None, None, None);
+        assert_eq!(values(&report), vec![Some(0.0), Some(1.0), Some(2.0)]);
+        assert_eq!(values(&live), vec![Some(1.0), Some(2.0)]);
+    }
 
     #[test]
     fn analysis_fields_normalize_without_a_second_output_limit() {

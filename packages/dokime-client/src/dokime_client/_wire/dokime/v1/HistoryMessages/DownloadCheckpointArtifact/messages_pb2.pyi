@@ -80,7 +80,7 @@ class Row10(_message.Message):
     def __init__(self, store: _Optional[str] = ..., epoch: _Optional[str] = ...) -> None: ...
 
 class Row11(_message.Message):
-    __slots__ = ("artifact_id", "upload_id", "scope", "filename", "content_type", "size_bytes", "sha256", "state", "created_at")
+    __slots__ = ("artifact_id", "upload_id", "scope", "filename", "content_type", "size_bytes", "sha256", "state", "created_at", "error")
     ARTIFACT_ID_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -90,6 +90,7 @@ class Row11(_message.Message):
     SHA256_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     artifact_id: str
     upload_id: str
     scope: Row14
@@ -99,7 +100,8 @@ class Row11(_message.Message):
     sha256: str
     state: Row15
     created_at: Row16
-    def __init__(self, artifact_id: _Optional[str] = ..., upload_id: _Optional[str] = ..., scope: _Optional[_Union[Row14, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., state: _Optional[_Union[Row15, _Mapping]] = ..., created_at: _Optional[_Union[Row16, _Mapping]] = ...) -> None: ...
+    error: str
+    def __init__(self, artifact_id: _Optional[str] = ..., upload_id: _Optional[str] = ..., scope: _Optional[_Union[Row14, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., state: _Optional[_Union[Row15, _Mapping]] = ..., created_at: _Optional[_Union[Row16, _Mapping]] = ..., error: _Optional[str] = ...) -> None: ...
 
 class Row12(_message.Message):
     __slots__ = ("offset", "data")
@@ -128,16 +130,18 @@ class Row14(_message.Message):
     def __init__(self, cycle_id: _Optional[str] = ..., case_id: _Optional[str] = ..., execution_id: _Optional[str] = ...) -> None: ...
 
 class Row15(_message.Message):
-    __slots__ = ("Unspecified", "Complete", "Cancelled", "Rejected")
+    __slots__ = ("Unspecified", "Complete", "Cancelled", "Rejected", "Failed")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     COMPLETE_FIELD_NUMBER: _ClassVar[int]
     CANCELLED_FIELD_NUMBER: _ClassVar[int]
     REJECTED_FIELD_NUMBER: _ClassVar[int]
+    FAILED_FIELD_NUMBER: _ClassVar[int]
     Unspecified: Row17
     Complete: Row18
     Cancelled: Row19
     Rejected: Row20
-    def __init__(self, Unspecified: _Optional[_Union[Row17, _Mapping]] = ..., Complete: _Optional[_Union[Row18, _Mapping]] = ..., Cancelled: _Optional[_Union[Row19, _Mapping]] = ..., Rejected: _Optional[_Union[Row20, _Mapping]] = ...) -> None: ...
+    Failed: Row21
+    def __init__(self, Unspecified: _Optional[_Union[Row17, _Mapping]] = ..., Complete: _Optional[_Union[Row18, _Mapping]] = ..., Cancelled: _Optional[_Union[Row19, _Mapping]] = ..., Rejected: _Optional[_Union[Row20, _Mapping]] = ..., Failed: _Optional[_Union[Row21, _Mapping]] = ...) -> None: ...
 
 class Row16(_message.Message):
     __slots__ = ("seconds", "nanos")
@@ -160,6 +164,10 @@ class Row19(_message.Message):
     def __init__(self) -> None: ...
 
 class Row20(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row21(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

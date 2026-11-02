@@ -46,12 +46,21 @@ use model::artifacts::name::{self, InvalidName};
 #[test]
 fn artifact_names_validate() {
     // Folders Are Implicit Path Segments
-    for accepted in ["photo.jpg", "upload/notes.txt", "screenshots/2026-10-13_21-48-05-123.png", "a/b/c/d.wav"] {
+    for accepted in
+        ["photo.jpg", "upload/notes.txt", "screenshots/2026-10-13_21-48-05-123.png", "a/b/c/d.wav", "capture.diag", "capture.hpl30"]
+    {
         assert_eq!(name::validate(accepted), Ok(()), "{accepted}");
     }
 
     // Escapes, Roots And Platform Separators Are Refused
     for refused in [
+        "CON.diag",
+        "logs/NUL.hpl30",
+        "aux/file.log",
+        "COM1.log",
+        "lpt9.diag",
+        "trailing./file.log",
+        "file:stream.diag",
         "../escape.bin",
         "upload/../escape.bin",
         "./photo.jpg",

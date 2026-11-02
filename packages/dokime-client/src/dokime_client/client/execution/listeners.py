@@ -57,35 +57,46 @@ async def read_records(
         done = asyncio.ensure_future(completion)
         reader = None
         pending = None
+        reconnect = True
         try:
-            reader = await transport.stream(
-                "Evidence",
-                "WatchRecords",
-                _wire.request("Evidence", "WatchRecords", selection=selection),
-            )
             while True:
-                pending = asyncio.create_task(anext(reader))
-                finished, _ = await asyncio.wait((done, pending), return_when=asyncio.FIRST_COMPLETED)
-                if done in finished:
-                    await done
-                    break
+                await transport.verify(backend, live=True)
                 try:
-                    page = pending.result()
-                except StopAsyncIteration as error:
-                    raise ProtocolError("record reader ended before completion") from error
-                _records(backend.epoch, page, after)
-                after = _wire.nested(
-                    "Evidence",
-                    "ListRecords",
-                    "after",
-                )
-                _wire.copy(after, page.scanned)
-                yield page
+                    reader = await transport.stream(
+                        "Evidence",
+                        "WatchRecords",
+                        _wire.request("Evidence", "WatchRecords", selection=selection, after=after),
+                    )
+                    while True:
+                        pending = asyncio.create_task(anext(reader))
+                        finished, _ = await asyncio.wait((done, pending), return_when=asyncio.FIRST_COMPLETED)
+                        if done in finished:
+                            await done
+                            break
+                        try:
+                            page = pending.result()
+                        except StopAsyncIteration as error:
+                            raise ProtocolError("record reader ended before completion") from error
+                        _records(backend.epoch, page, after)
+                        after = _wire.nested("Evidence", "ListRecords", "after")
+                        _wire.copy(after, page.scanned)
+                        yield page
+                        reconnect = True
+                    break
+                except RpcError as error:
+                    if error.code != "UNAVAILABLE" or not reconnect:
+                        raise
+                    reconnect = False
+                finally:
+                    if reader is not None:
+                        await reader.close()
+                        reader = None
+                await asyncio.sleep(0.2)
         finally:
             for task in (pending, done):
                 if task is not None:
                     task.cancel()
-                    with suppress(asyncio.CancelledError, StopAsyncIteration):
+                    with suppress(asyncio.CancelledError, StopAsyncIteration, RpcError):
                         await task
             if reader is not None:
                 await reader.close()
@@ -176,6 +187,7 @@ async def read_samples(
         finally:
             if reader is not None:
                 await reader.close()
+        await asyncio.sleep(0.2)
 
 
 def validate_patterns(patterns: Sequence[str]) -> None:

@@ -68,3 +68,20 @@ The existing `dokime operation call` command SHALL support the five canonical re
 #### Scenario: CLI Continuation
 - **WHEN** a caller invokes `dokime operation call dokime.query.list_records --input request.json --output page.json`
 - **THEN** the saved response contains the same typed rows and continuation metadata as the Python page interface
+
+### Requirement: Cycle Work At The Snapshot
+Cycle query rows SHALL expose the declared cycle work status and running execution count from the query cut. Status SHALL be captured from the cycle revision; running count SHALL count only Running member executions at that same cut. Existing phase and paging semantics SHALL remain unchanged.
+
+#### Scenario: Work Changes After Capture
+- **WHEN** cycle lifecycle or execution status changes after the first page
+- **THEN** continuation and snapshot reuse retain the captured status and running count
+- **AND** a fresh query observes the newer work state
+
+#### Scenario: Native And Remote Discovery
+- **WHEN** native and remote callers query the same snapshot
+- **THEN** their cycle status and running count agree
+
+#### Scenario: Running Work Before A Checkpoint
+- **WHEN** an execution commits its Running transition before its next checkpoint
+- **THEN** a fresh query reports the Running execution and its cycle has a running count of one
+- **AND** lifecycle projections commit with the state transition; later transitions and checkpoints preserve earlier query cuts

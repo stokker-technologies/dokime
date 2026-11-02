@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-mod call;
+pub(crate) mod call;
 mod list;
 mod show;
 

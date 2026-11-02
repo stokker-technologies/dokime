@@ -30,6 +30,22 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+## Cycle Lists And Restart Recovery
+
+The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
+current live cycles and durable sealed cycle headers as one list, with the same
+filter, ordering and continuation rules. A live cycle supersedes its saved
+checkpoint; each cycle appears once. Recent cycles remain visible after starting
+another cycle or restarting the desktop. Archive selection applies to both sources.
+
+`state.json` and `state.jsonl` under the data root recover current work. Sealed
+cycles are retired from that state to keep checkpoints bounded; their durable
+history remains the source for subsequent reads. Startup marks unfinished
+executions Interrupted, records the restart reason, and closes admission to their
+cycles before accepting new work. Interrupted cycles report Stopped. Pending
+report finalization resumes from its frozen terminal header; a failed seal stays
+retryable without reporting Running.
+
 ## Keyboard Focus And Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
@@ -59,8 +75,66 @@ HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
 
+## Telemetry Plots
+
+Live and frozen report plots retain samples from the selected execution,
+including shared streams captured by its leases. Authored stream aliases resolve
+to the captured producer streams. Running reports freeze one saved evidence cut;
+later samples stay outside that report. Plot previews remain bounded independently
+of raw evidence retention.
+
+The live viewer owns the time window for all plots in its view. The options are
+1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
+stays with that view across rerenders. Plot definitions carry no time window.
+Reports always show the full captured range, render once and omit live controls.
+
+Refresh sits to the left of the window slider and updates every plot in the view.
+Timed windows keep their automatic watch; Refresh requests fresh snapshots
+immediately. All uses one finite `Plots.QuerySnapshots` request per plot on entry
+and per button press, without polling, a plot watch or runtime-driven invalidation.
+Each plot has its own response budget and deadline; completed plots appear while
+others load, and a failed plot leaves the other plots available.
+Visibility, zoom and document updates do not reload All; changed query settings
+apply at the next explicit refresh. There is no background GUI plot prefetch.
+The button shows progress and is disabled while refreshing. Updated hh:mm:ss
+shows the last successful refresh time; failures use Notifications and leave
+that time unchanged.
+
+Live requests retain their display point budget for All (`src/plots/live-data.ts`).
+Declared All plots read the write-time report checkpoints in
+`crates/dokime-runtime/src/plot/preview.rs` and its `index.rs`. Their bounded exact
+samples, time envelopes and occupancy grids avoid repeated full-history scans.
+Checkpoints must match the plot inputs, scope and committed frontier.
+Current All reads capture the checkpoint and frontier in one SQLite snapshot;
+concurrent writes do not cause a raw-history fallback. Explicit historical cuts
+retain their requested frontier. Exact
+analyses refuse captures beyond the exact preview capacity. Markers share the
+display point budget. Exact zoom statistics are unavailable after a preview has
+reduced its raw samples. Timed windows retain their existing raw-query behavior.
+Numeric fields and plain same-stream field expressions use
+`crates/dokime-runtime/src/plot/stored.rs`; other raw projections use
+`crates/dokime-runtime/src/plot/payload/spilled/`. Field expressions with values
+outside the safe integer range retain the typed exact-statistics path.
+Ad hoc queries without a matching
+checkpoint, explicit unbounded queries and older historical frontiers still
+require raw evidence reads.
+
+Numeric time series and histograms show numeric statistics. XY scatter, XY line,
+XY interval, trajectory and heatmap plots omit the statistics block in both the
+desktop and report renderer. XY traces keep their ordinary legend.
+
+Time series of declared Boolean fields, including host `host.network.internet`,
+use a stepped state axis labeled **False** and **True**, without numeric statistics.
+The plot projection encodes false as 0 and true as 1; missing readings are gaps.
+Stored evidence retains its declared Boolean type. The live view and report use
+the captured column schema to select this presentation.
+
 ## Canonical Bindings And Transport
 
+- `mise run check:typescript:generated --source` checks locally prepared bindings
+  and GUI types. Without `--source`, the generated check restores staged Product
+  bindings for artifact validation. `mise run check:typescript` owns formatting
+  and lint.
 - Rust `dokime-operations` declarations own operation contracts and
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
@@ -107,7 +181,9 @@ and filter controls remain usable. Preserve the case of unit symbols.
   causes, operation/request/invocation identifiers and optional backend diagnostics.
   RPC adapters decode standard Status envelopes with canonical generated domain
   error schemas. The server preserves redacted span/backtrace text in the captured
-  error's optional diagnostics field. Technical Details is collapsed by default;
+  error's optional diagnostics field when it fits the bounded RPC status details.
+  Oversized technical text is omitted before the cause chain; the RPC code and
+  message remain available even when details cannot fit. Technical Details is collapsed by default;
   Copy includes the complete record. Existing startup remediation actions remain
   independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,

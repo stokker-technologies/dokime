@@ -212,10 +212,12 @@ impl Serve<contract::QuerySnapshots> for Resources {
             let epoch = runtime.process_epoch().as_str().to_owned();
             let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
             let at = runtime.storage().cursor_saved();
-            let native = runtime
-                .query_plot_payloads_at(requests.clone(), RuntimePlotQueryMode::Snapshot, &at)
-                .await
-                .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
+            let native = if requests.iter().all(|request| request.window_s.is_none()) {
+                runtime.query_plot_payloads(requests.clone(), RuntimePlotQueryMode::Snapshot).await
+            } else {
+                runtime.query_plot_payloads_at(requests.clone(), RuntimePlotQueryMode::Snapshot, &at).await
+            }
+            .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
             let count = native.len();
             let mut reply: Option<ReadBatch<dokime::domain::model::plots::wire::PlotSnapshotsReply>> = None;
             for value in native {

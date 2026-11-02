@@ -59,6 +59,7 @@ struct Record {
     size_bytes: u64,
     sha256: Option<String>,
     status: String,
+    error: Option<String>,
     created_at: String,
 }
 
@@ -116,6 +117,7 @@ impl TryFrom<&ArtifactRecord> for Record {
             size_bytes: value.size_bytes,
             sha256: value.sha256.as_deref().map(str::to_owned),
             status: status(&value.status).to_owned(),
+            error: value.error.clone(),
             created_at: value.created_at.as_str().to_owned(),
         })
     }
@@ -135,6 +137,7 @@ impl TryFrom<Record> for ArtifactRecord {
             "complete" => ArtifactStatus::Complete,
             "cancelled" => ArtifactStatus::Cancelled,
             "rejected" => ArtifactStatus::Rejected,
+            "failed" => ArtifactStatus::Failed,
             _ => return Err(Error::Invalid("invalid saved artifact status")),
         };
         Ok(Self {
@@ -146,6 +149,7 @@ impl TryFrom<Record> for ArtifactRecord {
             size_bytes: value.size_bytes,
             sha256: value.sha256,
             status,
+            error: value.error,
             created_at,
         })
     }
@@ -161,6 +165,7 @@ fn status(value: &ArtifactStatus) -> &'static str {
         ArtifactStatus::Complete => "complete",
         ArtifactStatus::Cancelled => "cancelled",
         ArtifactStatus::Rejected => "rejected",
+        ArtifactStatus::Failed => "failed",
     }
 }
 

@@ -539,6 +539,7 @@ fn artifact_text_field<'a>(artifact: &'a ArtifactRecord, name: &str) -> Option<&
             ArtifactStatus::Complete => "complete",
             ArtifactStatus::Cancelled => "cancelled",
             ArtifactStatus::Rejected => "rejected",
+            ArtifactStatus::Failed => "failed",
         }),
         _ => None,
     }

@@ -78,7 +78,9 @@ Candidates connect in parallel with the configured short stagger (250 ms by
 default). The first connection that verifies the pinned CA and backend identity
 wins; losing attempts are closed. Reconnects try that endpoint first. A client
 loaded with `from_profile` also saves its successful endpoint for later clients.
-The listener reissues leaves under the same persistent CA when addresses change.
+The listener reloads leaves in place under the same persistent CA when advertised
+or configured names are missing. Covered address flaps preserve the certificate
+and existing streams.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
@@ -192,6 +194,8 @@ For explicit planning, interactive control and uncertain-admission recovery,
 `cycle.seal()` remain available. Materialization snapshots the definition and
 provider revision; append registers exact UUIDs atomically without starting work.
 Starts are idempotent by identity and mode; mutations are never blindly retried.
+`execution.stop()` waits for its durable execution seal, including any report
+publication already in flight; publication failures propagate to the caller.
 `execution.export(path)` and `cycle.export(path)` retain explicit `overwrite=True`.
 A sealed execution can export while its cycle remains Active; cycle exports
 require a durable seal. Downloads verify size, SHA-256 and final transport status
@@ -423,6 +427,56 @@ Sparse empty pages may continue. `page_rows`/`page_bytes` request smaller pages;
 the server advertises effective limits. `at=` accepts a query snapshot or saved
 `Checkpoint`. These finite readers never follow, start, stop or seal work;
 existing `records()`/`samples()` and checkpoint APIs retain their behavior.
+
+## Typed Status And Record Schemas
+
+Use typed statuses to refuse a new run while the backend has active work:
+
+```python
+from dokime_client import CycleStatus, DokimeClient, ExecutionStatus
+
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+    if busy:
+        raise RuntimeError("Backend has active work")
+    async for execution in client.executions(status=ExecutionStatus.FAILED):
+        print(execution.id, execution.status)
+    async for schema in client.record_schemas():
+        columns = [field.identifier for field in schema.fields]
+        print(schema.record_type, columns)
+```
+
+Cycle summaries expose `CycleStatus` in `status` and an integer `running_count`;
+execution summaries expose `ExecutionStatus` in `status`. Named filters accept
+one enum or a sequence; existing lowercase string filters remain supported.
+These are fixed snapshot values. Lifecycle transitions commit their history
+projections with runtime state, so `running_count` includes Running executions
+without waiting for a checkpoint. Later transitions require a fresh query.
+Backends with older development cycle-query projections need a fresh storage root;
+preserve existing roots rather than resetting them.
+Enum `.value` strings are stable:
+
+| Enum | Members And Values |
+| --- | --- |
+| `CycleStatus` | `UNSPECIFIED="unspecified"`, `READY="ready"`, `RUNNING="running"`, `PAUSED="paused"`, `STOPPING="stopping"`, `COMPLETED="completed"`, `FAILED="failed"`, `BLOCKED="blocked"`, `STOPPED="stopped"` |
+| `ExecutionStatus` | `UNSPECIFIED="unspecified"`, `INVALIDATED="invalidated"`, `PENDING="pending"`, `RUNNING="running"`, `PASSED="passed"`, `FAILED="failed"`, `BLOCKED="blocked"`, `CANCELLED="cancelled"`, `INTERRUPTED="interrupted"`, `SKIPPED="skipped"` |
+
+`UNSPECIFIED` represents an unspecified returned status and cannot be used as a
+filter. The busy check observes a snapshot; concurrent clients may start afterward,
+and the backend still controls Start admission.
+
+`record_schemas(page_rows=100)` returns a lazy async iterator of exported
+`RecordSchema` objects with `record_type`, `schema_version`, optional `label` and
+an ordered tuple of `RecordField` objects. Fields expose `identifier`,
+`value_type: RecordValueType`, optional `label`, optional `unit` symbol, `required`
+and `nullable`. Literal identifiers, including dots, retain declaration order for
+CSV headers; columns are never inferred from observed values. These are current
+catalog declarations; query page metadata describes captured historical schemas.
+Catalog changes can abort discovery; closing the iterator stops further fetches.
+
+`RecordValueType` has stable lowercase values `unspecified`, `boolean`, `integer`,
+`number`, `text`, `file`, `object`, `array` and `datetime`, with uppercase member
+names. Object/array declarations describe the top-level field only.
 
 ## Optional Dataframes
 

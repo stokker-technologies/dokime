@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(crate) mod work;
+
 #[cfg(test)]
 #[path = "history_tests.rs"]
 mod tests;
@@ -83,6 +85,7 @@ pub struct Key {
     pub id: String,
 }
 
+#[derive(Clone)]
 pub(crate) struct Read {
     pub revision: i64,
     pub cut: Option<super::snapshots::Cut>,
@@ -108,6 +111,23 @@ pub(super) struct Plan {
 /* === Implementations === */
 
 impl State {
+    pub(crate) async fn history_cycle_case_count(&self, cycle: String) -> Result<u64, Error> {
+        self.read(move |connection| {
+            connection.query_row(
+                "SELECT COUNT(DISTINCT json_extract(h.body,'$.case_id')) FROM query_history h INDEXED BY query_history_cycle
+             WHERE h.kind='execution' AND h.cycle=?1 AND NOT EXISTS(
+                     SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
+                 AND EXISTS(SELECT 1 FROM query_members m WHERE m.cycle=?1 AND m.execution=h.id
+                     AND m.position=(SELECT c.position FROM query_history c WHERE c.kind='cycle' AND c.id=?1
+                         ORDER BY c.revision DESC LIMIT 1))",
+                [cycle],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .await
+        .map(|count| count as u64)
+    }
+
     pub(crate) async fn history_revision(&self) -> Result<i64, Error> {
         self.read(|connection| connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get(0))).await
     }
@@ -179,7 +199,8 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
             if execution.test_execution_id.as_str() != object.value.item.as_str() {
                 return Err(Error::Corrupt("history execution identity differs"));
             }
-            let summary = execution_summary(&execution)?;
+            let mut summary = execution_summary(&execution)?;
+            work::execution(connection, &mut summary)?;
             (
                 "execution",
                 summary.execution_id.clone(),
@@ -197,7 +218,7 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
                 return Err(Error::Corrupt("history cycle identity differs"));
             }
             members = cycle.execution_ids.iter().map(ToString::to_string).collect();
-            let summary = CycleSummary {
+            let mut summary = CycleSummary {
                 cycle_id: cycle.test_cycle_id.to_string(),
                 label: Some(cycle.metadata.label.clone()),
                 phase: cycle.phase,
@@ -205,7 +226,10 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
                 updated_at: Some(timestamp(&cycle.updated_at)?),
                 execution_count: cycle.execution_ids.len() as u64,
                 archived: false,
+                status: cycle_status(cycle.lifecycle),
+                running_count: 0,
             };
+            work::cycle(connection, &mut summary)?;
             (
                 "cycle",
                 summary.cycle_id.clone(),
@@ -246,11 +270,26 @@ pub(crate) fn cycles(connection: &Connection, selection: &CycleSelection, read: 
     }
     alternatives(&mut plan, "id", &selection.cycle_ids);
     alternatives(&mut plan, "status", &selection.phases.iter().map(serde_json::to_string).collect::<Result<Vec<_>, _>>()?);
+    if !selection.statuses.is_empty() {
+        plan.sql
+            .push_str(&format!(" AND json_quote(json_extract(h.body,'$.status')) IN ({})", vec!["?"; selection.statuses.len()].join(",")));
+        plan.arguments
+            .extend(selection.statuses.iter().map(serde_json::to_string).collect::<Result<Vec<_>, _>>()?.into_iter().map(Value::Text));
+    }
     window(&mut plan, selection.created_at.as_ref());
     finish(&mut plan, read);
     page(connection, plan, read, |body, archived| {
         let mut row: CycleSummary = serde_json::from_slice(body)?;
         row.archived = archived;
+        // Count Latest Member Revisions At The Same Catalog And Metadata Cut.
+        let count_read = Read { after: None, ..read.clone() };
+        let mut count = self::plan("execution", Some(ArchiveScope::All), &count_read);
+        select_index(&mut count, "query_history_cycle");
+        alternatives(&mut count, "cycle", std::slice::from_ref(&row.cycle_id));
+        alternatives(&mut count, "status", &[serde_json::to_string(&wire::ExecutionStatus::Running)?]);
+        count.sql = count.sql.replacen("SELECT h.body,h.archived,h.missing,h.time,h.id", "SELECT COUNT(*)", 1);
+        let running: i64 = connection.query_row(&count.sql, rusqlite::params_from_iter(count.arguments), |row| row.get(0))?;
+        row.running_count = running as u64;
         Ok(row)
     })
 }
@@ -305,30 +344,8 @@ fn time_key(time: Option<Timestamp>) -> Vec<u8> {
 }
 
 fn execution_summary(execution: &result::TestExecution) -> Result<ExecutionSummary, Error> {
-    let status = match execution.status {
-        result::ExecutionStatus::Invalidated => wire::ExecutionStatus::Invalidated,
-        result::ExecutionStatus::Pending => wire::ExecutionStatus::Pending,
-        result::ExecutionStatus::Running => wire::ExecutionStatus::Running,
-        result::ExecutionStatus::Passed => wire::ExecutionStatus::Passed,
-        result::ExecutionStatus::Failed => wire::ExecutionStatus::Failed,
-        result::ExecutionStatus::Blocked => wire::ExecutionStatus::Blocked,
-        result::ExecutionStatus::Cancelled => wire::ExecutionStatus::Cancelled,
-        result::ExecutionStatus::Interrupted => wire::ExecutionStatus::Interrupted,
-        result::ExecutionStatus::Skipped => wire::ExecutionStatus::Skipped,
-    };
-    let result = execution.result.as_ref().map(|result| wire::ResultSummary {
-        status: match result.status {
-            result::ResultStatus::Passed => wire::ResultStatus::Passed,
-            result::ResultStatus::Failed => wire::ResultStatus::Failed,
-            result::ResultStatus::Blocked => wire::ResultStatus::Blocked,
-            result::ResultStatus::Pending => wire::ResultStatus::Pending,
-            result::ResultStatus::Cancelled => wire::ResultStatus::Cancelled,
-        },
-        passed: result.passed,
-        failed: result.failed,
-        blocked: result.blocked,
-        skipped: result.skipped,
-    });
+    let status = execution_status(&execution.status);
+    let result = execution.result.as_ref().map(result_summary);
     Ok(ExecutionSummary {
         execution_id: execution.test_execution_id.to_string(),
         cycle_id: Some(execution.test_cycle_id.to_string()),
@@ -341,16 +358,72 @@ fn execution_summary(execution: &result::TestExecution) -> Result<ExecutionSumma
         result,
         checkpoint_available: execution.saved.is_some(),
         archived: false,
-        availability: if execution.saved.is_some() {
-            ExecutionAvailability::Stored
-        } else if status == wire::ExecutionStatus::Running {
-            ExecutionAvailability::Live
-        } else if status == wire::ExecutionStatus::Interrupted {
-            ExecutionAvailability::Interrupted
-        } else {
-            ExecutionAvailability::Uncheckpointed
-        },
+        availability: availability(execution.saved.is_some(), status),
     })
+}
+
+fn execution_status(status: &result::ExecutionStatus) -> wire::ExecutionStatus {
+    match status {
+        result::ExecutionStatus::Invalidated => wire::ExecutionStatus::Invalidated,
+        result::ExecutionStatus::Pending => wire::ExecutionStatus::Pending,
+        result::ExecutionStatus::Running => wire::ExecutionStatus::Running,
+        result::ExecutionStatus::Passed => wire::ExecutionStatus::Passed,
+        result::ExecutionStatus::Failed => wire::ExecutionStatus::Failed,
+        result::ExecutionStatus::Blocked => wire::ExecutionStatus::Blocked,
+        result::ExecutionStatus::Cancelled => wire::ExecutionStatus::Cancelled,
+        result::ExecutionStatus::Interrupted => wire::ExecutionStatus::Interrupted,
+        result::ExecutionStatus::Skipped => wire::ExecutionStatus::Skipped,
+    }
+}
+
+fn result_summary(result: &result::ResultSummary) -> wire::ResultSummary {
+    wire::ResultSummary {
+        status: match result.status {
+            result::ResultStatus::Passed => wire::ResultStatus::Passed,
+            result::ResultStatus::Failed => wire::ResultStatus::Failed,
+            result::ResultStatus::Blocked => wire::ResultStatus::Blocked,
+            result::ResultStatus::Pending => wire::ResultStatus::Pending,
+            result::ResultStatus::Cancelled => wire::ResultStatus::Cancelled,
+        },
+        passed: result.passed,
+        failed: result.failed,
+        blocked: result.blocked,
+        skipped: result.skipped,
+    }
+}
+
+fn cycle_status(status: result::CycleStatus) -> wire::CycleStatus {
+    match status {
+        result::CycleStatus::Ready => wire::CycleStatus::Ready,
+        result::CycleStatus::Running => wire::CycleStatus::Running,
+        result::CycleStatus::Paused => wire::CycleStatus::Paused,
+        result::CycleStatus::Stopping => wire::CycleStatus::Stopping,
+        result::CycleStatus::Completed => wire::CycleStatus::Completed,
+        result::CycleStatus::Failed => wire::CycleStatus::Failed,
+        result::CycleStatus::Blocked => wire::CycleStatus::Blocked,
+        result::CycleStatus::Stopped => wire::CycleStatus::Stopped,
+    }
+}
+
+fn availability(saved: bool, status: wire::ExecutionStatus) -> ExecutionAvailability {
+    if saved {
+        ExecutionAvailability::Stored
+    } else if status == wire::ExecutionStatus::Running {
+        ExecutionAvailability::Live
+    } else if status == wire::ExecutionStatus::Interrupted {
+        ExecutionAvailability::Interrupted
+    } else {
+        ExecutionAvailability::Uncheckpointed
+    }
+}
+
+fn execution_work(row: &mut ExecutionSummary, work: &dokime_domain::state::records::work::Execution) -> Result<(), Error> {
+    row.status = execution_status(&work.status);
+    row.started_at = work.started_at.as_ref().map(timestamp).transpose()?;
+    row.finished_at = work.finished_at.as_ref().map(timestamp).transpose()?;
+    row.result = work.result.as_ref().map(result_summary);
+    row.availability = availability(row.checkpoint_available, row.status);
+    Ok(())
 }
 
 fn plan(kind: &str, archive: Option<ArchiveScope>, read: &Read) -> Plan {

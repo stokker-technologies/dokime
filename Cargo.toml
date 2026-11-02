@@ -54,9 +54,9 @@ dokime-tracing = { version = "0.1.2", path = "crates/dokime-tracing" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "91b8b3a77c46f9da1dbf47cbe06ef9ebd1233158" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -100,6 +100,7 @@ hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
 prost = { version = "0.14.4" }
+prost-reflect = { version = "0.16.5", features = ["serde"] }
 prost-types = { version = "=0.14.4" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }

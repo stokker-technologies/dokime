@@ -22,10 +22,19 @@ from unittest.mock import AsyncMock
 import pytest
 
 # Local Imports
-from dokime_client import DokimeClient, Predicate, QueryError, QueryLimitError, QuerySettings, QuerySnapshotError
+from dokime_client import (
+    CycleStatus,
+    DokimeClient,
+    ExecutionStatus,
+    Predicate,
+    QueryError,
+    QueryLimitError,
+    QuerySettings,
+    QuerySnapshotError,
+)
 from dokime_client.client import _wire
 from dokime_client.client._contracts import operation
-from dokime_client.client.errors import RpcError
+from dokime_client.client.errors import ProtocolError, RpcError
 
 # Type Checking Imports
 
@@ -39,6 +48,130 @@ from dokime_client.client.errors import RpcError
 # === Classes === #
 
 # === Public Functions === #
+
+
+@pytest.mark.parametrize(
+    "branch,status",
+    [
+        ("Unspecified", ExecutionStatus.UNSPECIFIED),
+        ("Invalidated", ExecutionStatus.INVALIDATED),
+        ("Pending", ExecutionStatus.PENDING),
+        ("Running", ExecutionStatus.RUNNING),
+        ("Passed", ExecutionStatus.PASSED),
+        ("Failed", ExecutionStatus.FAILED),
+        ("Blocked", ExecutionStatus.BLOCKED),
+        ("Cancelled", ExecutionStatus.CANCELLED),
+        ("Interrupted", ExecutionStatus.INTERRUPTED),
+        ("Skipped", ExecutionStatus.SKIPPED),
+    ],
+)
+def test_query_discovery_execution_status(branch: str, status: ExecutionStatus, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        row = execution_row()
+        row["status"] = {branch: {}}
+        mock = AsyncMock(return_value=query_page("ListExecutions", [row]))
+        monkeypatch.setattr(client._transport, "call", mock)
+        reader = client.executions(status=status if status is not ExecutionStatus.UNSPECIFIED else None)
+        rows = [item async for item in reader]
+        assert rows[0].status is status
+        sent = mock.call_args.args[1].selection.statuses
+        assert [_wire.enum_name(item) for item in sent] == ([] if status is ExecutionStatus.UNSPECIFIED else [status.value])
+        await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_query_discovery_execution_enum_alternatives(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        mock = AsyncMock(return_value=query_page("ListExecutions", []))
+        monkeypatch.setattr(client._transport, "call", mock)
+        reader = client.executions(status=[ExecutionStatus.PENDING, ExecutionStatus.RUNNING, ExecutionStatus.PENDING])
+        assert [item async for item in reader] == []
+        sent = mock.call_args.args[1].selection.statuses
+        assert [_wire.enum_name(item) for item in sent] == ["pending", "running"]
+        await client.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "branch,status",
+    [
+        ("Unspecified", CycleStatus.UNSPECIFIED),
+        ("Ready", CycleStatus.READY),
+        ("Running", CycleStatus.RUNNING),
+        ("Paused", CycleStatus.PAUSED),
+        ("Stopping", CycleStatus.STOPPING),
+        ("Completed", CycleStatus.COMPLETED),
+        ("Failed", CycleStatus.FAILED),
+        ("Blocked", CycleStatus.BLOCKED),
+        ("Stopped", CycleStatus.STOPPED),
+    ],
+)
+def test_query_discovery_cycle_status(branch: str, status: CycleStatus, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        row = {"cycle_id": "cycle-1", "phase": {"Active": {}}, "status": {branch: {}}, "running_count": 2}
+        mock = AsyncMock(return_value=query_page("ListCycles", [row]))
+        monkeypatch.setattr(client._transport, "call", mock)
+        reader = client.cycles(status=status if status is not CycleStatus.UNSPECIFIED else None)
+        rows = [item async for item in reader]
+        assert rows[0].status is status and rows[0].running_count == 2
+        sent = mock.call_args.args[1].selection.statuses
+        assert [_wire.enum_name(item) for item in sent] == ([] if status is CycleStatus.UNSPECIFIED else [status.value])
+        await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_query_discovery_busy_cycle_filters(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        mock = AsyncMock(
+            side_effect=[
+                query_page(
+                    "ListCycles",
+                    [{"cycle_id": "cycle-1", "phase": {"Active": {}}, "status": {"Running": {}}, "running_count": 1}],
+                    after="next",
+                ),
+                query_page("ListCycles", [{"cycle_id": "cycle-2", "phase": {"Active": {}}, "status": {"Paused": {}}, "running_count": 0}]),
+            ]
+        )
+        monkeypatch.setattr(client._transport, "call", mock)
+        busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+        assert [(cycle.id, cycle.status, cycle.running_count) for cycle in busy] == [
+            ("cycle-1", CycleStatus.RUNNING, 1),
+            ("cycle-2", CycleStatus.PAUSED, 0),
+        ]
+        assert mock.call_args.args[1].at.Token.field_0 == "cut" and mock.call_args.args[1].page.after == "next"
+        assert [_wire.enum_name(item) for item in mock.call_args.args[1].selection.statuses] == ["running", "paused", "stopping"]
+        request = client.cycles(status=[CycleStatus.RUNNING, "paused"], where={"status": CycleStatus.PAUSED})._request
+        assert [_wire.enum_name(item) for item in request.selection.statuses] == ["paused"]
+        for status in (CycleStatus.UNSPECIFIED, "unknown"):
+            with pytest.raises(ValueError):
+                client.cycles(status=status)
+        await client.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("method", ["ListCycles", "ListExecutions"])
+def test_query_discovery_missing_status_is_private_error(method: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        client = DokimeClient()
+        row = {"cycle_id": "cycle-1", "phase": {"Active": {}}} if method == "ListCycles" else execution_row()
+        row.pop("status", None)
+        monkeypatch.setattr(client._transport, "call", AsyncMock(return_value=query_page(method, [row])))
+        reader = client.cycles() if method == "ListCycles" else client.executions()
+        with pytest.raises(ProtocolError) as caught:
+            await anext(reader.__aiter__())
+        assert all(internal not in str(caught.value).lower() for internal in ("harmos", "oneof", "whichoneof"))
+        assert caught.value.__cause__ is None
+        await client.close()
+
+    asyncio.run(scenario())
 
 
 def query_page(method: str, rows: list[dict[str, Any]], *, after: str | None = None, token: str = "cut") -> Any:
@@ -93,7 +226,7 @@ def test_query_discovery_lazy_filters_paging(monkeypatch: pytest.MonkeyPatch) ->
             await cast(Any, reader)
         rows = [row async for row in reader]
         assert [row.id for row in rows] == ["execution-1", "execution-2"]
-        assert rows[0].status == "failed" and not rows[0].checkpoint_available
+        assert rows[0].status is ExecutionStatus.FAILED and not rows[0].checkpoint_available
         assert requests[0].selection.template_ids == ["example.measurement"]
         assert [_wire.enum_name(item) for item in requests[0].selection.statuses] == ["failed", "passed"]
         assert requests[0].selection.started_at.end.seconds - requests[0].selection.started_at.start.seconds == 86400
@@ -110,7 +243,10 @@ def test_query_discovery_lazy_filters_paging(monkeypatch: pytest.MonkeyPatch) ->
 def test_query_discovery_cycles_snapshots_and_consumer(monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         client = DokimeClient()
-        reply = query_page("ListCycles", [{"cycle_id": "cycle-1", "phase": {"Active": {}}, "execution_count": 3}])
+        reply = query_page(
+            "ListCycles",
+            [{"cycle_id": "cycle-1", "phase": {"Active": {}}, "status": {"Running": {}}, "execution_count": 3, "running_count": 1}],
+        )
         call = AsyncMock(return_value=reply)
         monkeypatch.setattr(client._transport, "call", call)
         reader = client.cycles(phase="active", archive="all")
@@ -119,6 +255,7 @@ def test_query_discovery_cycles_snapshots_and_consumer(monkeypatch: pytest.Monke
             reader.__aiter__()
         page = await anext(pages)
         assert page.rows[0].phase == "active" and page.rows[0].execution_count == 3
+        assert page.rows[0].status is CycleStatus.RUNNING and page.rows[0].running_count == 1
         other = client.cycles(at=reader.snapshot)
         assert other._request.at.Token.field_0 == "cut"
         assert call.await_count == 1

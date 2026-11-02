@@ -99,6 +99,7 @@ harmos-sdk = { workspace = true }
 # Logging
 
 # Utilities
+base64 = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

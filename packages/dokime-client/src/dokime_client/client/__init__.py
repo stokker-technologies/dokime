@@ -53,7 +53,9 @@ from .models import Value as Value
 from .planning import Template as Template
 from .planning import TestCase as TestCase
 from .profiles import Profile as Profile
+from .query.discovery import CycleStatus as CycleStatus
 from .query.discovery import CycleSummary as CycleSummary
+from .query.discovery import ExecutionStatus as ExecutionStatus
 from .query.discovery import ExecutionSummary as ExecutionSummary
 from .query.errors import QueryConversionError as QueryConversionError
 from .query.errors import QueryDependencyError as QueryDependencyError
@@ -67,6 +69,9 @@ from .query.evidence import TelemetryReader as TelemetryReader
 from .query.reader import QueryPage as QueryPage
 from .query.reader import QueryReader as QueryReader
 from .query.reader import QuerySettings as QuerySettings
+from .query.schemas import RecordField as RecordField
+from .query.schemas import RecordSchema as RecordSchema
+from .query.schemas import RecordValueType as RecordValueType
 from .query.selection import Predicate as Predicate
 from .query.statistics import QualityCounts as QualityCounts
 from .query.statistics import Statistic as Statistic

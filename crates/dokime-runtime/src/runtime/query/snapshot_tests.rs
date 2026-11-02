@@ -359,6 +359,7 @@ async fn runtime_snapshot_pages_bind_selection_and_allow_size_changes_during_wri
         selection: CycleSelection {
             cycle_ids: vec![],
             phases: vec![],
+            statuses: vec![],
             created_at: None,
             archive: None,
         },

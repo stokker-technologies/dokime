@@ -27,6 +27,8 @@ use dokime::runtime::Error as HostError;
 
 /* === Constants === */
 
+// Leave Room For Base64 Encoding And Other HTTP/2 Trailers.
+const STATUS_DETAILS_BYTES: usize = 4_096;
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
 
 /* === Macros === */
@@ -53,21 +55,29 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
     let diagnostic = Diagnostic::capture(error).redacted();
     let code = status.code();
     let message = status.message().to_owned();
-    let envelope = tonic_types::Status {
-        code: code as i32,
-        message: message.clone(),
-        // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
-        details: crate::grpc::transcode::Transcode::wire_bytes(&captured(&diagnostic))
-            .ok()
-            .map(|value| prost_types::Any {
-                type_url: DETAIL_TYPE_URL.to_owned(),
-                value,
-            })
-            .into_iter()
-            .collect(),
-    };
-
-    Status::with_details(code, message, envelope.encode_to_vec().into())
+    let mut detail = captured(&diagnostic);
+    loop {
+        let envelope = tonic_types::Status {
+            code: code as i32,
+            message: message.clone(),
+            // A Detail The Transcoder Refuses Is Omitted; The Status Still Reaches The Caller.
+            details: crate::grpc::transcode::Transcode::wire_bytes(&detail)
+                .ok()
+                .map(|value| prost_types::Any {
+                    type_url: DETAIL_TYPE_URL.to_owned(),
+                    value,
+                })
+                .into_iter()
+                .collect(),
+        };
+        if envelope.encoded_len() <= STATUS_DETAILS_BYTES {
+            return Status::with_details(code, message, envelope.encode_to_vec().into());
+        }
+        // Optional Technical Text Must Not Hide The Original RPC Failure Behind A Transport Error.
+        if detail.diagnostics.take().is_none() {
+            return status;
+        }
+    }
 }
 
 /* === Private Functions === */

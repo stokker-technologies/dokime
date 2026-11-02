@@ -91,7 +91,7 @@ CREATE TABLE stream_summaries(file_id TEXT NOT NULL REFERENCES streams(file_id),
     minimum REAL NOT NULL,maximum REAL NOT NULL,sum REAL NOT NULL,PRIMARY KEY(file_id,signal)) STRICT;
 CREATE TABLE outputs(
     execution_id TEXT NOT NULL, ordinal INTEGER NOT NULL, relative_path TEXT NOT NULL,
-    archive_path TEXT NOT NULL, size_bytes ANY NOT NULL, sha256 TEXT NOT NULL, body_json TEXT NOT NULL,
+    archive_path TEXT, size_bytes ANY, sha256 TEXT, body_json TEXT NOT NULL,
     PRIMARY KEY(execution_id, ordinal)
 ) STRICT;
 "#;
@@ -398,13 +398,23 @@ impl Writer {
     pub fn output(
         &self, execution: &str, index: usize, archive: &str, value: &dokime_domain::model::execution::saved::ExecutionOutput,
     ) -> Result<()> {
-        self.file(&value.file, archive, "artifact")?;
-        self.connection
-            .execute("INSERT INTO artifacts VALUES (?1,?2,?3)", params![value.file.metadata.id.as_str(), execution, value.relative_path])?;
-        let sha256 = super::archive::hex(&value.file.sha256);
+        if let Some(file) = &value.file {
+            self.file(file, archive, "artifact")?;
+            self.connection
+                .execute("INSERT INTO artifacts VALUES (?1,?2,?3)", params![file.metadata.id.as_str(), execution, value.relative_path])?;
+        }
+        let sha256 = value.file.as_ref().map(|file| super::archive::hex(&file.sha256));
         self.connection.execute(
             "INSERT INTO outputs VALUES(?1,?2,?3,?4,?5,?6,?7)",
-            params![execution, ordinal(index as u64)?, &value.relative_path, archive, unsigned(value.file.length), sha256, json(value)?,],
+            params![
+                execution,
+                ordinal(index as u64)?,
+                &value.relative_path,
+                value.file.as_ref().map(|_| archive),
+                value.file.as_ref().map(|file| unsigned(file.length)),
+                sha256,
+                json(value)?,
+            ],
         )?;
         Ok(())
     }

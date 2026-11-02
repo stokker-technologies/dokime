@@ -242,7 +242,8 @@ pub(crate) fn available(connection: &Connection, cut: &Cut) -> Result<bool, Erro
 }
 
 pub(crate) fn object_frontier(connection: &Connection, cut: &Cut, id: &str) -> Result<Option<u64>, Error> {
-    let value:Option<String>=connection.query_row("SELECT position FROM query_history WHERE kind='execution' AND id=?1 AND revision<=?2 AND position<=?3 ORDER BY revision DESC LIMIT 1",params![id,cut.catalog,position(cut.metadata)],|row|row.get(0)).optional()?;
+    // Work Projections Share The Catalog Cut But Are Not Native Object Anchors.
+    let value:Option<String>=connection.query_row("SELECT position FROM storage_data_entries WHERE kind='object' AND schema_id='dokime.object.execution' AND item=?1 AND position<=?2 ORDER BY position DESC LIMIT 1",params![id,position(cut.metadata)],|row|row.get(0)).optional()?;
     value.as_deref().map(sequence).transpose()
 }
 

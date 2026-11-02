@@ -39,7 +39,7 @@ const SERVER_OUTPUT_STREAM_BYTES: u64 = 4_194_304;
 const SERVER_REQUEST_TIMEOUT_MS: u64 = 86_400_000;
 const SERVER_SHUTDOWN_TIMEOUT_MS: u64 = 5_000;
 const SERVER_STREAM_ITEMS: u64 = 1;
-const SERVER_TLS_TIMEOUT_MS: u64 = 10_000;
+pub(super) const SERVER_TLS_TIMEOUT_MS: u64 = 10_000;
 
 /* === Macros === */
 
@@ -49,8 +49,8 @@ const SERVER_TLS_TIMEOUT_MS: u64 = 10_000;
 
 #[derive(Clone)]
 pub struct TlsIdentity {
-    certificate: Vec<u8>,
-    private_key: Zeroizing<Vec<u8>>,
+    pub(super) certificate: Vec<u8>,
+    pub(super) private_key: Zeroizing<Vec<u8>>,
 }
 
 #[derive(Clone, Debug)]
@@ -81,10 +81,6 @@ impl TlsIdentity {
             certificate,
             private_key: Zeroizing::new(private_key),
         }
-    }
-
-    pub(crate) fn into_tonic(self) -> tonic::transport::Identity {
-        tonic::transport::Identity::from_pem(&self.certificate, self.private_key.as_slice())
     }
 }
 
@@ -140,7 +136,7 @@ impl Config {
         self
     }
 
-    pub(crate) fn into_listener_settings(mut self) -> Result<dokime::harmos::grpc::Settings, Error> {
+    pub(crate) fn into_listener_settings(self) -> Result<dokime::harmos::grpc::Settings, Error> {
         self.validate()?;
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
         let stream = dokime::harmos::operations::StreamSettings {
@@ -153,11 +149,6 @@ impl Config {
             items: stream.items,
             bytes: NonZeroUsize::new(SERVER_OUTPUT_STREAM_BYTES as usize).ok_or(Error::Configuration("message limit must be positive"))?,
         };
-        let tls = self.tls.take().map(|identity| {
-            // Preserve The Host's Chosen TLS Provider When One Is Already Installed.
-            let _ = rustls::crypto::ring::default_provider().install_default();
-            tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_millis(SERVER_TLS_TIMEOUT_MS))
-        });
         Ok(dokime::harmos::grpc::Settings {
             address: self.bind_addr,
             operations: dokime::harmos::grpc::server::Settings {
@@ -177,7 +168,7 @@ impl Config {
             reflection: false,
             web: false,
             allowed_origins: Vec::new(),
-            tls,
+            tls: None,
             connections: NonZeroUsize::new(SERVER_CONNECTIONS as usize).unwrap(),
             calls_per_connection: NonZeroUsize::new(SERVER_CALLS_PER_CONNECTION as usize).unwrap(),
             // Individual Operations Enforce Their Own Shorter Policies.

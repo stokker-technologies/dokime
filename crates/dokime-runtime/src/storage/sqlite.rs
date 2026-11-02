@@ -291,21 +291,28 @@ impl State {
             tail.changed.notify_one();
         }
         let mut failure = None;
+        let mut transient_failure = None;
         for task in std::mem::take(&mut *self.0.telemetry_tasks.lock().await) {
             let result = task.await.map_err(Error::from).flatten();
             if let Err(error) = result {
-                failure.get_or_insert(error);
+                if matches!(&error, Error::HarmosStorage(source) if source.backend_failure() == Some(harmos::BackendFailure::Transient)) {
+                    transient_failure.get_or_insert(error);
+                } else {
+                    failure.get_or_insert(error);
+                }
             }
         }
         if let Some(error) = failure {
             return Err(error);
         }
+        // A Retried Flush May Already Have Saved The Failed Task's Entire Tail.
+        // Only Durable Retirement Can Supersede A Transient Task Error.
         if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
             let saved = self.data_saved().await?;
             let mut tail = self.0.telemetry_tail.lock().unwrap();
             tail.entries.retain(|position, _| *position > saved.sequence);
             if !tail.entries.is_empty() {
-                return Err(Error::Conflict("unflushed telemetry prevents closing"));
+                return Err(transient_failure.unwrap_or(Error::Conflict("unflushed telemetry prevents closing")));
             }
         }
         self.0.closing.store(true, Ordering::Release);

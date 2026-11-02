@@ -90,12 +90,15 @@ They do not merge external adapters or other servers; the existing merged browse
 operations retain their separate conflict and discovery semantics.
 
 `storage/sqlite/history.rs` projects execution and cycle summaries in the same
-transaction as each authoritative native object write. Revision indexes support
+transaction as each authoritative native object write. Lifecycle transitions also
+emit work projections in their state journal transaction, so status filters and
+cycle running counts observe committed work before the next checkpoint. Native
+checkpoints retain the latest committed lifecycle projection. Revision indexes support
 exact template/status/cycle/archive filters and normalized UTC time/ID seeks.
 Later metadata and archive changes append projections; earlier catalog cuts
 keep their original membership, values and ordering. Cycle membership is indexed
-at the same revision. History capture reads already durable catalog state and
-does not flush all active executions.
+at the same revision. History capture flushes only the fixed admitted metadata
+frontier; it does not checkpoint active executions.
 
 Archive intent remains journal-owned. A successful archive mutation reconciles
 its catalog visibility atomically; startup repeats reconciliation before serving.
@@ -112,7 +115,7 @@ the existing admission gates. It drains records through that journal frontier
 and flushes the admitted evidence cursor. Later record readers must apply both
 the journal and physical frontiers; queued later records cannot enlarge the cut.
 A flush that saves newer work cannot enlarge the returned cut. History capture
-uses the already durable catalog without flushing active executions. Checkpoint
+flushes its fixed metadata frontier without checkpointing active executions. Checkpoint
 reuse keeps its original evidence boundary and separate metadata frontier.
 
 Snapshots bind the backend identity, local source, store/epoch, catalog revision,
