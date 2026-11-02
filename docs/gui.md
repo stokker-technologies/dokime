@@ -181,7 +181,9 @@ the captured column schema to select this presentation.
   causes, operation/request/invocation identifiers and optional backend diagnostics.
   RPC adapters decode standard Status envelopes with canonical generated domain
   error schemas. The server preserves redacted span/backtrace text in the captured
-  error's optional diagnostics field. Technical Details is collapsed by default;
+  error's optional diagnostics field when it fits the bounded RPC status details.
+  Oversized technical text is omitted before the cause chain; the RPC code and
+  message remain available even when details cannot fit. Technical Details is collapsed by default;
   Copy includes the complete record. Existing startup remediation actions remain
   independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,

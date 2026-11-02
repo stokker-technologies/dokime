@@ -11,6 +11,7 @@
 
 mod append;
 mod create;
+mod report;
 mod seal;
 
 /* === Re-Exports === */
@@ -35,6 +36,9 @@ mod seal;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
+    #[command(about = "Download An HTML Report For A Running Or Sealed Subject.")]
+    Report(report::Args),
+
     #[command(about = "Create An Empty Active Cycle.")]
     Create(create::Args),
 
@@ -56,6 +60,7 @@ pub(crate) enum Command {
 
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
+        Command::Report(args) => report::run(args, settings).await,
         Command::Create(args) => create::run(args, settings).await,
         Command::Append(args) => append::run(args, settings).await,
         Command::Seal(args) => seal::run(args, settings).await,

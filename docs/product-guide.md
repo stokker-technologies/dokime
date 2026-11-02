@@ -307,7 +307,9 @@ dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.j
 `--input` and `--json` are mutually exclusive request sources; omitting both
 sends `{}`. Inputs use the discovered contract's protobuf JSON shape. Streaming
 input is one item per line. Without `--output`, stdout emits one JSON item or
-completion event per line. A response file contains one JSON array of those
+completion event per line. Download streams with a header, byte chunks and a
+completion save verified raw bytes with `--output`; stdout prints a JSON download
+summary including header metadata. Other response files contain one JSON array of those
 events, including the final completion; a unary call has only that completion.
 
 Existing response files require `--overwrite`. Predictable output conflicts are
@@ -1144,7 +1146,9 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle report` | Download a running or sealed cycle's HTML report. | `--output`, `--overwrite`, `--identifier` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution report` | Download a running or sealed execution's HTML report. | `--output`, `--overwrite` |
 | `dokime execution start` | Start one execution without waiting. | `--mode` |
 | `dokime execution run` | Start one execution and wait for its seal. | `--mode`, `--wait-seconds`, `--records`, `--samples` |
 | `dokime execution wait` | Wait for a durable outcome. | `--wait-seconds` |
