@@ -42,9 +42,9 @@ pub struct Download<T> {
 struct Partial(Option<PathBuf>);
 
 #[derive(Clone, Copy)]
-struct Policy {
-    overwrite: bool,
-    maximum_bytes: u64,
+pub(super) struct Policy {
+    pub(super) overwrite: bool,
+    pub(super) maximum_bytes: u64,
 }
 
 /* === Enums === */
@@ -73,7 +73,7 @@ pub enum Error {
     Task(#[from] tokio::task::JoinError),
 }
 
-enum Frame<T> {
+pub(super) enum Frame<T> {
     Header(T, Option<(u64, String)>),
     Chunk(u64, Vec<u8>),
     Complete(u64, String),
@@ -324,7 +324,7 @@ async fn receive<T, M, F: std::future::Future<Output = super::Result<Option<T>>>
     receive_with(next, destination, frame, Policy { overwrite: true, maximum_bytes: u64::MAX }).await
 }
 
-async fn receive_with<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
+pub(super) async fn receive_with<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
     next: impl FnMut() -> F, destination: PathBuf, frame: impl Fn(T) -> Result<Frame<M>, Error>, policy: Policy,
 ) -> Result<Download<M>, Error> {
     let filename = destination.file_name().ok_or(Error::Invalid("destination has no filename"))?;
