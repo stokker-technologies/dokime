@@ -350,8 +350,11 @@ impl State {
         }
         // Acquire before spawning: a cancelled caller cannot leave a queued
         // older write that overtakes its retry or a subsequent transition.
+        let parent = tracing::Span::current();
         let mut live = self.0.live.clone().lock_owned().await;
         tokio::task::spawn_blocking(move || {
+            let _parent = parent.enter();
+            let _execute = tracing::debug_span!("storage.sqlite.execute").entered();
             let result = live.as_mut().ok_or(Error::Closed).and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
             drop(live);
             result

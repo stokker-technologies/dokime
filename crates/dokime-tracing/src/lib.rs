@@ -47,6 +47,7 @@ use tracing_subscriber::{
 /* === Constants === */
 
 const TRACE_DIRECTORY: &str = "DOKIME_TEST_TRACE_DIR";
+const QUEUED_EVENTS: usize = 4096;
 static STATE: OnceLock<State> = OnceLock::new();
 static INSTALL: Mutex<bool> = Mutex::new(false);
 
@@ -163,35 +164,48 @@ impl Capture {
 impl Writer {
     fn run(mut self, input: mpsc::Receiver<Output>) {
         let mut failure = None;
-        for output in input {
-            match output {
-                Output::Event(event) => {
-                    if let Err(error) = self.write(event) {
-                        failure = Some(error);
+        let mut events = Vec::new();
+        while let Ok(output) = input.recv() {
+            // Drain Only Already Queued Work, With The Same Bound As The Channel.
+            for output in std::iter::once(output).chain(input.try_iter().take(QUEUED_EVENTS - 1)) {
+                match output {
+                    Output::Event(event) => events.push(event),
+                    Output::Flush(reply) => {
+                        self.save(&mut events, &mut failure);
+                        let flushed = self.file.flush();
+                        let result = failure.take().map_or(flushed, Err);
+                        let _ = reply.send(result);
                     }
                 }
-                Output::Flush(reply) => {
-                    let flushed = self.file.flush();
-                    let result = failure.take().map_or(flushed, Err);
-                    let _ = reply.send(result);
-                }
             }
+            self.save(&mut events, &mut failure);
         }
     }
 
-    fn write(&mut self, event: Event) -> std::io::Result<()> {
-        // Serialize Before File I/O, Keeping Each Span To One Native Write.
-        self.bytes.clear();
-        if self.count != 0 {
-            self.bytes.extend_from_slice(b",\n");
+    fn save(&mut self, events: &mut Vec<Event>, failure: &mut Option<std::io::Error>) {
+        if events.is_empty() {
+            return;
         }
-        serde_json::to_writer(&mut self.bytes, &event)?;
+        if let Err(error) = self.write(events) {
+            *failure = Some(error);
+        }
+        events.clear();
+    }
+
+    fn write(&mut self, events: &[Event]) -> std::io::Result<()> {
+        self.bytes.clear();
+        for (index, event) in events.iter().enumerate() {
+            if self.count != 0 || index != 0 {
+                self.bytes.extend_from_slice(b",\n");
+            }
+            serde_json::to_writer(&mut self.bytes, event)?;
+        }
         self.bytes.extend_from_slice(b"]}");
 
-        // Keep The File Valid Even If A Child Is Later Killed.
+        // One Native Write Publishes A Valid JSON Prefix For The Whole Ready Batch.
         self.file.seek(SeekFrom::End(-2))?;
         self.file.write_all(&self.bytes)?;
-        self.count += 1;
+        self.count += events.len();
         Ok(())
     }
 }
@@ -319,7 +333,7 @@ fn open() -> std::io::Result<Option<Trace>> {
     let mut file = File::options().write(true).create_new(true).open(path)?;
     file.write_all(b"{\"traceEvents\":[]}")?;
     // Bound Pending Metadata And Keep File I/O Off Instrumented Runtime Workers.
-    let (output, input) = mpsc::sync_channel(4096);
+    let (output, input) = mpsc::sync_channel(QUEUED_EVENTS);
     let writer = Writer { file, count: 0, bytes: Vec::new() };
     std::thread::Builder::new().name("dokime-trace".into()).spawn(move || writer.run(input))?;
     let capture = Capture {
