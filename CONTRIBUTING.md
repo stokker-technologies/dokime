@@ -48,10 +48,11 @@ uses the built authoring tool to assemble and inspect it without recompiling;
 see [Native Installers](docs/product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
 
-For coupled Harmos development, keep registry dependencies declared and place the
-local Cargo patch in an untracked `.cargo/config.toml`. Cargo applies it to every
-build, including the binding generator in `cargo-dokime`; remove the patch and pin
-the published dependency before delivery.
+For coupled library development, place local Cargo patches in an untracked
+`.cargo/config.toml`. Cargo applies them to every build, including the binding
+generator in `cargo-dokime`; remove local patches before delivery. Exact Git
+revision pins are allowed on `dev`; release preparation requires dependencies
+that can be published.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
