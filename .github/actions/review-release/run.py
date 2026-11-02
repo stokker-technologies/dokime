@@ -123,6 +123,10 @@ def github_validation_run(runs, jobs_for):
 
 
 def lookup():
+    reference = os.environ.get("GITHUB_REF", "")
+    tag = reference.removeprefix("refs/tags/") if reference.startswith("refs/tags/") else os.environ.get("CI_COMMIT_TAG", "")
+    if tag and re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag) is None:
+        raise ValueError("release evidence requires a stable version tag")
     sha = command("git", "rev-parse", "HEAD")
     tree = command("git", "rev-parse", "HEAD^{tree}")
     if OID.fullmatch(tree) is None:
@@ -150,7 +154,6 @@ def lookup():
     if not same_tree(head, tree):
         raise ValueError("review tree differs")
     profile = "release" if branch.startswith("release/v") and os.environ.get("REVIEW_RELEASE") == "true" else "dev"
-    tag = os.environ.get("GITHUB_REF", "").startswith("refs/tags/") or bool(os.environ.get("CI_COMMIT_TAG"))
     if tag and profile != "release":
         raise ValueError("tag requires release-profile evidence")
     required = json.loads(os.environ.get("REVIEW_PACKAGES", "[]"))

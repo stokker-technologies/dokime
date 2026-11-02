@@ -5,11 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Publish Existing Dev Packages To The Fixed Dev Channel."""
+"""Publish Existing Dev Packages As Immutable Builds And A Rolling Channel."""
 
 # === Imports === #
 
 # Standard Library Imports
+import hashlib
 import json
 import os
 import re
@@ -31,6 +32,8 @@ from . import layout, policy, registry, run
 # === Constants === #
 
 TAG = "dev-channel"
+DEV_TAG = re.compile(rf"v{run.STABLE}-dev\.([0-9]{{14}})\.g[0-9a-f]{{8}}")
+WORKFLOW_MARKER = "<!-- dokime-dev-release: .github/workflows/dev-channel.yml -->"
 
 # === Types === #
 
@@ -45,6 +48,7 @@ def publish(directory: Path) -> None:
         raise policy.ToolError("release.dev_channel must opt in to channel publication")
     github = settings["provider"] == "github"
     if github:
+        _retention(settings)
         if os.environ.get("GITHUB_EVENT_NAME") != "workflow_run":
             raise policy.ToolError("dev channel requires a successful dev CI completion")
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]
@@ -68,19 +72,57 @@ def publish(directory: Path) -> None:
     endpoint = f"releases/tags/{TAG}" if github else f"releases/{TAG}"
     previous = _github_release(settings) if github else registry.document(settings, endpoint, channel=True)
     previous_notes = (previous or {}).get("body" if github else "description", "")
+    tag = _dev_tag(policy.policy(directory, "version")["value"], sha, datetime.now(UTC)) if github else TAG
+    content = _notes(directory, settings, sha, source_run, previous_notes, tag=tag)
     with policy.credential_free(settings, profile="dev"):
         run._refuse_overrides(directory)
-        content = _notes(directory, settings, sha, source_run, previous_notes)
         run.dry(directory, settings, profile="dev", require_all=True, release_notes=content)
     files = layout.uploads(directory, staged=True)
     notes = (directory / run.ASSETS / run.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
     if github:
-        _github(directory, settings, files, sha, identifier, notes)
+        _github(directory, settings, files, sha, identifier, notes, tag=tag)
     else:
         _gitlab(settings, files, sha, identifier, notes)
 
 
 # === Private Functions === #
+
+
+def _dev_tag(version: str, sha: str, timestamp: datetime) -> str:
+    if re.fullmatch(run.STABLE, version) is None or re.fullmatch(r"[0-9a-f]{40,64}", sha) is None:
+        raise policy.ToolError("dev build requires a workspace version and full commit SHA")
+    if timestamp.tzinfo is None:
+        raise policy.ToolError("dev build timestamp must include a timezone")
+    return f"v{version}-dev.{timestamp.astimezone(UTC):%Y%m%d%H%M%S}.g{sha[:8]}"
+
+
+def _retention(settings: dict) -> int:
+    keep = settings.get("dev_release_retention", 20)
+    if type(keep) is not int or keep < 1:
+        raise policy.ToolError("release.dev_release_retention must be a positive integer")
+    return keep
+
+
+def _retired(releases: list[dict], keep: int) -> list[dict]:
+    eligible = []
+    for release in releases:
+        match = DEV_TAG.fullmatch(release.get("tag_name", ""))
+        if (
+            match is None
+            or release.get("prerelease") is not True
+            or release.get("draft") is not False
+            or WORKFLOW_MARKER not in (release.get("body") or "").splitlines()
+            or release.get("author", {}).get("login") != "github-actions[bot]"
+            or release.get("author", {}).get("type") != "Bot"
+        ):
+            continue
+        try:
+            datetime.strptime(match[1], "%Y%m%d%H%M%S")
+        except ValueError:
+            continue
+        eligible.append((match[1], release["tag_name"], release))
+    eligible.sort(key=lambda item: item[:2], reverse=True)
+    return [release for _, _, release in eligible[keep:]]
 
 
 def _github_release(settings: dict) -> dict | None:
@@ -99,7 +141,7 @@ def _superseded(release: dict | None, identifier: str, field: str) -> bool:
     return previous is not None and int(previous[1]) > int(identifier)
 
 
-def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous: str) -> str:
+def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous: str, *, tag: str = TAG) -> str:
     github = settings["provider"] == "github"
     repository = (settings.get("repository") or os.environ.get("GITHUB_REPOSITORY")) if github else settings["project_id"]
     base = "https://github.com" if github else settings.get("api_url", "https://gitlab.com/api/v4").removesuffix("/api/v4")
@@ -108,13 +150,22 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
     subject = policy.execute(directory, ["git", "log", "-1", "--format=%s", sha], capture=True).strip().replace("|", "\\|")
     version = policy.policy(directory, "version")["value"]
     lines = [
-        "Rolling build of the `dev` branch, replaced automatically after merges. Not a release: unsigned, may change or break at any time.",
+        "Unsigned development build. APIs may change or break at any time.",
         "",
         "| | |",
         "|---|---|",
         f"| Commit | [`{sha[:8]}`]({commit}) {subject} |",
         f"| Version | {version} (dev) |",
     ]
+    if github:
+        reviews = registry.pages(settings, f"commits/{sha}/pulls", channel=True)
+        reviews = [
+            review
+            for review in reviews
+            if review.get("merge_commit_sha") == sha and review.get("merged_at") and review.get("base", {}).get("ref") == "dev"
+        ]
+        title = reviews[0]["title"].replace("|", "\\|") if len(reviews) == 1 else subject
+        lines.append(f"| PR | {title} |")
     manifest = directory / "Cargo.toml"
     if manifest.is_file():
         cargo = tomllib.loads(manifest.read_text(encoding="utf-8"))
@@ -146,7 +197,7 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
                 "",
                 "```toml",
                 f'[tools."github:{repository}"]',
-                'version = "dev-channel"',
+                f'version = "{tag}"',
                 "```",
                 "",
             ]
@@ -158,7 +209,7 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
                 "",
             ]
         )
-    dependency = settings["product"] + ' = { git = "' + project + '", branch = "dev" }'
+    dependency = settings["product"] + ' = { git = "' + project + '", rev = "' + sha + '" }'
     lines.extend(["Libraries through Cargo:", "", "```toml", dependency, "```", ""])
     previous_commit = re.search(r"/commit/([0-9a-f]{40,64})\)", previous)
     if previous_commit and previous_commit[1] != sha:
@@ -189,6 +240,8 @@ def _github(
     sha: str,
     identifier: str,
     notes: str,
+    *,
+    tag: str,
 ) -> None:
     latest = registry.document(
         settings,
@@ -203,6 +256,7 @@ def _github(
         return
     if release and release.get("immutable"):
         raise policy.ToolError("dev-channel assets are immutable; a rolling channel requires an existing mutable release")
+    _github_immutable(directory, settings, files, sha, tag, notes)
     if release is None:
         release = registry.document(
             settings,
@@ -225,32 +279,11 @@ def _github(
     assets = registry.pages(settings, f"{endpoint}/assets", channel=True)
     for asset in assets:
         registry.request(settings, f"releases/assets/{asset['id']}", "DELETE", channel=True)
-    for item in files:
-        path = policy.inside(directory, item["path"])
-        name = urllib.parse.quote(item["name"], safe="")
-        registry.request(
-            settings,
-            f"{endpoint}/assets?name={name}",
-            "POST",
-            path.read_bytes(),
-            binary=True,
-            upload=True,
-            channel=True,
-        )
-    uploaded = registry.pages(settings, f"{endpoint}/assets", channel=True)
-    actual = {asset["name"]: asset["size"] for asset in uploaded}
-    expected = {item["name"]: item["size"] for item in files}
-    if (len(uploaded) != len(files) or actual != expected or "SHA256SUMS" not in actual
-            or any(asset.get("state") != "uploaded" for asset in uploaded)):
-        raise policy.ToolError("dev channel upload inventory is incomplete; leaving it drafted")
-    for asset in uploaded:
-        expected_digest = next(item["sha256"] for item in files if item["name"] == asset["name"])
-        if asset.get("digest") not in (None, "sha256:" + expected_digest):
-            raise policy.ToolError("dev channel upload digest differs; leaving it drafted")
+    _github_upload(directory, settings, files, endpoint)
 
     # Move The Channel Once, Only After Every Platform And Checksum Is Uploaded.
-    tag = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
-    if tag is None:
+    reference = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
+    if reference is None:
         registry.document(settings, "git/refs", "POST", {"ref": f"refs/tags/{TAG}", "sha": sha}, channel=True)
     else:
         registry.document(settings, f"git/refs/tags/{TAG}", "PATCH", {"sha": sha, "force": True}, channel=True)
@@ -267,6 +300,72 @@ def _github(
         },
         channel=True,
     )
+    for retired in _retired(registry.pages(settings, "releases", channel=True), _retention(settings)):
+        registry.request(settings, f"releases/{retired['id']}", "DELETE", channel=True)
+        registry.request(settings, f"git/refs/tags/{retired['tag_name']}", "DELETE", channel=True)
+
+
+def _github_immutable(directory: Path, settings: dict, files: list[dict], sha: str, tag: str, notes: str) -> None:
+    if DEV_TAG.fullmatch(tag) is None:
+        raise policy.ToolError("invalid immutable dev tag")
+    existing = registry.document(settings, f"git/ref/tags/{tag}", channel=True)
+    releases = registry.pages(settings, "releases", channel=True)
+    if existing is not None or any(item.get("tag_name") == tag for item in releases):
+        raise policy.ToolError(f"immutable dev tag already exists: {tag}")
+    # Reserve The Tag Without Force Before Creating The Draft; Races Fail Closed.
+    registry.document(settings, "git/refs", "POST", {"ref": f"refs/tags/{tag}", "sha": sha}, channel=True)
+    release = registry.document(
+        settings,
+        "releases",
+        "POST",
+        {
+            "tag_name": tag,
+            "target_commitish": sha,
+            "name": tag,
+            "body": notes + "\n" + WORKFLOW_MARKER + "\n",
+            "prerelease": True,
+            "draft": True,
+            "make_latest": "false",
+        },
+        channel=True,
+    )
+    if not isinstance(release, dict) or release.get("draft") is not True or release.get("tag_name") != tag:
+        raise policy.ToolError("provider did not confirm the immutable dev draft")
+    endpoint = f"releases/{release['id']}"
+    _github_upload(directory, settings, files, endpoint)
+    registry.document(settings, endpoint, "PATCH", {"draft": False, "prerelease": True, "make_latest": "false"}, channel=True)
+
+
+def _github_upload(directory: Path, settings: dict, files: list[dict], endpoint: str) -> None:
+    for item in files:
+        path = policy.inside(directory, item["path"])
+        data = path.read_bytes()
+        if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
+            raise policy.ToolError("staged dev asset differs from its manifest")
+        name = urllib.parse.quote(item["name"], safe="")
+        registry.request(
+            settings,
+            f"{endpoint}/assets?name={name}",
+            "POST",
+            data,
+            binary=True,
+            upload=True,
+            channel=True,
+        )
+    uploaded = registry.pages(settings, f"{endpoint}/assets", channel=True)
+    actual = {asset["name"]: asset["size"] for asset in uploaded}
+    expected = {item["name"]: item["size"] for item in files}
+    if (
+        len(uploaded) != len(files)
+        or actual != expected
+        or "SHA256SUMS" not in actual
+        or any(asset.get("state") != "uploaded" for asset in uploaded)
+    ):
+        raise policy.ToolError("dev upload inventory is incomplete; leaving it drafted")
+    for asset in uploaded:
+        expected_digest = next(item["sha256"] for item in files if item["name"] == asset["name"])
+        if asset.get("digest") != "sha256:" + expected_digest:
+            raise policy.ToolError("dev upload digest differs; leaving it drafted")
 
 
 def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes: str) -> None:

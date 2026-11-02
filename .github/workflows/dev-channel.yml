@@ -10,6 +10,7 @@ name: Dev Channel
 permissions:
   contents: write
   actions: read
+  pull-requests: read
 env:
   PROFILE: dev
   RELEASE_PROFILE: dev
@@ -66,7 +67,7 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.artifacts extract --archive target/ci/package-dev-rust-unix.tar.zst
-    - name: Stage And Publish Dev Channel
+    - name: Publish Immutable Dev Build And Move Channel
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.release.dev_channel

@@ -349,6 +349,7 @@ platforms = ["unix", "windows"]
 [release]
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
 dev_channel = true
+dev_release_retention = 20
 lock_commands = [
   [
     "cargo",

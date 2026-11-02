@@ -64,11 +64,37 @@ and Tests compilation, and both native platforms' packages), skipping suites,
 fixture preparation and Release / Dry. Dev merges remain ungated.
 
 Dev Channel publishes only after a green dev build-and-package run supplies both
-platforms and the Python package. One serialized publisher drafts the channel,
-uploads and verifies every asset including SHA256SUMS, moves `dev-channel` once,
-then publishes the complete set. Downloads are temporarily unavailable while the
-channel is drafted; a failed upload leaves it drafted for the next successful
-publication instead of exposing incomplete downloads.
+platforms and the Python package. One serialized publisher first drafts a unique
+`v<workspace version>-dev.<UTC YYYYMMDDHHMMSS>.g<sha8>` pre-release targeting that
+commit, uploads and verifies every asset including SHA256SUMS, then publishes it
+as a pre-release without marking it latest. Existing immutable tags are never
+overwritten. The publisher then drafts, replaces and verifies the same channel
+assets, moves `dev-channel` once and publishes the complete set. Failed uploads
+leave the affected release drafted; channel downloads are temporarily unavailable
+while the channel is drafted.
+
+Pin both tools to the exact dev tag in mise, matching the Dokime git revision
+used by your project. For example, a Windows build of commit `01234567…`:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+cargo-dokime = "github:stokker-technologies/dokime"
+
+[tools]
+dokime = { version = "v0.1.2-dev.20261102120000.g01234567", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+cargo-dokime = { version = "v0.1.2-dev.20261102120000.g01234567", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+```
+
+Choose an actual tag from [pre-releases](https://github.com/stokker-technologies/dokime/releases).
+For Linux, use the matching `*-x86_64-unknown-linux-gnu.tar.gz` patterns.
+Archive filenames retain the workspace version; mise's version is the full dev
+tag. The newest 20 workflow-owned immutable dev pre-releases are retained,
+configured by `[release] dev_release_retention` in `tools/project.toml` (default
+20). Older eligible releases and their tags are deleted, so refresh pins before
+they leave that window. Stable releases, foreign dev releases and `dev-channel`
+are excluded. Dev tags do not trigger the stable Release workflow or qualify as
+stable release evidence; release CI and dependency gates still apply.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.

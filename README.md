@@ -163,7 +163,12 @@ public APIs and development storage formats may change. See the
 
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
-for archive selection and the release download inventory. Distributors use
+for archive selection and the release download inventory. To pin an immutable dev build in
+mise, set both tools' `version` to its full release tag, for example
+`version = "v0.1.2-dev.20261102120000.g01234567"`, matching your Dokime git revision.
+The newest 20 workflow-owned dev pre-releases are retained; see
+[Development Workflow](CONTRIBUTING.md#development-workflow) for complete mise
+examples and retention policy. Distributors use
 `dokime-distribution-<version>-<target>.zip`; shipping plugins share native
 `dokime-sidecars` archives described by `plugins.json` format 2.
 Custom installers select plugins through top-level `[[plugin]]` entries: set

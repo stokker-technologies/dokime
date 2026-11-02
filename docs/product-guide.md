@@ -32,8 +32,15 @@ members and member SHA-256 hashes. Future target-independent guests use
 `dokime-guests-<version>.zip`; guest execution is not currently admitted.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The dev-channel uses the same asset names and workspace version,
-omits unsigned `latest.json`, and identifies its source commit in release notes.
+downloads. Each published dev build has an immutable pre-release tagged
+`v<workspace version>-dev.<UTC YYYYMMDDHHMMSS>.g<sha8>`, followed by the moving
+`dev-channel`. Both have identical assets and SHA256SUMS, retain the workspace
+version in filenames, omit unsigned `latest.json`, and identify their source
+commit, PR title and CI run in release notes. For exact mise pins, use the full
+dev tag as `version` for both tools and match your Dokime dependency's git
+revision; see [Development Workflow](../CONTRIBUTING.md#development-workflow).
+The newest 20 workflow-owned immutable dev pre-releases are retained by default;
+older releases and their tags are deleted. Stable releases are unaffected.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
 
