@@ -52,6 +52,9 @@ type Resident = harmos::sidecar::Supervised<Fixture, harmos::sidecar::Executable
 
 struct Fixture;
 
+// Run and signal timeouts are the same for every template that keeps the default signal policy.
+struct AnyTemplate;
+
 struct Backend {
     services: harmos::operations::OperationManager<Lanes>,
     lease: Option<harmos::Running<harmos::operations::resident::Activation>>,
@@ -108,6 +111,11 @@ enum Lanes {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl dokime::execution::Served for AnyTemplate {
+    const RUN: &'static str = "";
+    const SIGNAL: &'static str = "";
+}
 
 impl dokime::__harmos::Application for Fixture {
     type Lanes = Lanes;
@@ -565,8 +573,8 @@ async fn inventory_matches_dispatch() {
         let signal = format!("{template}.signal");
         dispatch(&runtime.operations, &owned(&run), RunExecution::default().encode()).await;
         dispatch(&runtime.operations, &owned(&signal), ExecutionSignal::default().encode()).await;
-        served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
-        served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
+        served.push((run, <dokime::execution::Run<AnyTemplate> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
+        served.push((signal, <dokime::execution::Signal<AnyTemplate> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
     use plugin_obc::domain::operations::device::{ReadDevice, SetPower};
     use plugin_obc::domain::operations::{AskReadiness, GetStatus, ListConnections};
