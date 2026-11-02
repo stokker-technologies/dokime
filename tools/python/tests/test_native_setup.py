@@ -25,8 +25,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 # Third Party Imports
-
 # Local Imports
+from dokime_tools.ci import environment as step_environment
 
 # Type Checking Imports
 
@@ -43,6 +43,24 @@ SETUP = runpy.run_path(str(Path(__file__).resolve().parents[3] / ".github/action
 
 
 class NativeSetupTests(unittest.TestCase):
+    def test_setup_environment_round_trip_preserves_provider_guards(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = root / "step.env"
+            paths = root / "step.path"
+            paths.write_text("", encoding="utf-8")
+            values = SETUP["roots"]({"ImageOS": "native-fixture", "ImageVersion": "20261102"}, root / "workspace", root / "home")
+            with patch.dict(os.environ, {"GITHUB_ENV": str(environment)}), patch.dict(SETUP["EXPORTED"], {}, clear=True):
+                SETUP["export"](values)
+            self.assertEqual(step_environment.read(environment, paths, {}), values)
+            self.assertEqual(environment.read_text(encoding="utf-8"), "")
+
+            for name in ("GITHUB_WORKSPACE", "GITHUB_TOKEN", "RUNNER_OS", "RUNNER_TEMP", "NODE_OPTIONS"):
+                with self.subTest(name=name):
+                    environment.write_text(f"{name}=refused\n", encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        step_environment.read(environment, paths, {})
+
     def test_native_setup_preserves_native_and_python_temp_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
