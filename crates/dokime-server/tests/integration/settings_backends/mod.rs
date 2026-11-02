@@ -46,6 +46,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn settings_backends() {
     Box::pin(settings::frame_readable_probe()).await;

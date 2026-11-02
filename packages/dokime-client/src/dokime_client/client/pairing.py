@@ -47,6 +47,8 @@ PAIRING_BYTES = 1_048_576
 
 def read(path: str | Path) -> dict[str, Any]:
     source = Path(path)
+    if source.suffix != ".dokime-remote":
+        raise ValueError("remote access files require .dokime-remote")
     if not source.is_file():
         raise ValueError("pairing input must be a regular file")
     descriptor = os.open(source, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
@@ -60,12 +62,17 @@ def read(path: str | Path) -> dict[str, Any]:
         value = json.loads(data.decode("utf-8"), object_pairs_hook=_object)
     except (UnicodeError, json.JSONDecodeError):
         raise ValueError("invalid pairing JSON") from None
-    fields = {"version", "endpoint", "backend_identifier", "label", "ca_certificate_pem", "access_key"}
+    fields = {"version", "endpoints", "backend_identifier", "label", "ca_certificate_pem", "access_key"}
     value = _fields(value, fields, fields)
     if type(value["version"]) is not int or value["version"] != 1:
         raise ValueError("unsupported pairing version")
     identifier = value["backend_identifier"]
-    if not isinstance(identifier, str) or not identifier.strip() or len(identifier.encode("utf-8")) > 128:
+    if (
+        not isinstance(identifier, str)
+        or not identifier.strip()
+        or any(char.isspace() for char in identifier)
+        or len(identifier.encode("utf-8")) > 128
+    ):
         raise ValueError("invalid backend identity")
     if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in identifier):
         raise ValueError("invalid backend identity")
@@ -77,34 +84,39 @@ def read(path: str | Path) -> dict[str, Any]:
         or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)
     ):
         raise ValueError("invalid pairing label")
-    endpoint = value["endpoint"]
-    if not isinstance(endpoint, str) or not endpoint:
-        raise ValueError("invalid pairing endpoint")
-    _, tls = _target(endpoint)
-    origin = urlsplit(endpoint)
-    host = origin.hostname
-    if not host:
-        raise ValueError("invalid pairing endpoint host")
-    if origin.port is None or origin.port == 0 or origin.path or any(char in endpoint for char in ("%", "\\")):
-        raise ValueError("pairing endpoint requires an explicit port and no path")
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        if len(host) > 253 or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split(".")):
-            raise ValueError("invalid pairing endpoint host") from None
-    else:
-        if address.is_unspecified or address.is_multicast:
-            raise ValueError("pairing endpoint must be concrete")
-    ca = value["ca_certificate_pem"]
-    if tls:
-        if not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > 262_144:
-            raise ValueError("HTTPS pairing requires a CA certificate")
+    endpoints = value["endpoints"]
+    if not isinstance(endpoints, list) or not 1 <= len(endpoints) <= 32 or any(not isinstance(item, str) for item in endpoints):
+        raise ValueError("remote input requires between 1 and 32 endpoints")
+    if len(set(endpoints)) != len(endpoints):
+        raise ValueError("remote endpoints must be distinct")
+    for endpoint in endpoints:
+        if not isinstance(endpoint, str) or not endpoint or len(endpoint.encode("utf-8")) > 2048:
+            raise ValueError("invalid pairing endpoint")
+        _, tls = _target(endpoint)
+        origin = urlsplit(endpoint)
+        host = origin.hostname
+        if not host:
+            raise ValueError("invalid pairing endpoint host")
+        if origin.port is None or origin.port == 0 or origin.path or any(char in endpoint for char in ("%", "\\")):
+            raise ValueError("pairing endpoint requires an explicit port and no path")
         try:
-            ssl.create_default_context(cadata=ca)
-        except (ssl.SSLError, ValueError):
-            raise ValueError("invalid pairing CA certificate") from None
-    elif ca is not None:
-        raise ValueError("HTTP pairing cannot include a CA certificate")
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            if len(host) > 253 or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split(".")):
+                raise ValueError("invalid pairing endpoint host") from None
+        else:
+            if address.is_unspecified or address.is_multicast:
+                raise ValueError("pairing endpoint must be concrete")
+        ca = value["ca_certificate_pem"]
+        if tls:
+            if not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > 262_144:
+                raise ValueError("HTTPS pairing requires a CA certificate")
+            try:
+                ssl.create_default_context(cadata=ca)
+            except (ssl.SSLError, ValueError):
+                raise ValueError("invalid pairing CA certificate") from None
+        elif ca is not None:
+            raise ValueError("HTTP pairing cannot include a CA certificate")
     key = value["access_key"]
     _validate_key(key)
     return value

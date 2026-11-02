@@ -26,7 +26,6 @@ use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::execution::scope_visible_in;
 use dokime_domain::model::identity::TraceabilityId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilityEntry;
@@ -339,9 +338,10 @@ where
     I: IntoIterator<Item = &'a TelemetrySample>,
     I::IntoIter: DoubleEndedIterator,
 {
-    let sample = samples.into_iter().rev().find(|sample| {
-        sample.stream.as_str() == "host.system" && selected_scope.is_none_or(|scope| scope_visible_in(sample.scope.as_ref(), scope))
-    });
+    let sample = samples
+        .into_iter()
+        .rev()
+        .find(|sample| sample.stream.as_str() == "host.system" && selected_scope.is_none_or(|scope| sample.is_visible_in(scope)));
     let Some(sample) = sample else { return Ok(None) };
     super::payload::host_snapshot(&sample.values, &sample.scope.clone().unwrap_or_default(), &created_at)
 }
@@ -362,7 +362,7 @@ pub fn bounded_host_traceability_snapshot_from_sample(
 pub(crate) fn host_traceability_page_candidate(
     sample: &TelemetrySample, selected_scope: Option<&RecordScope>,
 ) -> Option<TraceabilityPageCandidate> {
-    if sample.stream.as_str() != "host.system" || selected_scope.is_some_and(|scope| !scope_visible_in(sample.scope.as_ref(), scope)) {
+    if sample.stream.as_str() != "host.system" || selected_scope.is_some_and(|scope| !sample.is_visible_in(scope)) {
         return None;
     }
 

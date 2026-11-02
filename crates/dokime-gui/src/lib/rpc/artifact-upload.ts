@@ -9,7 +9,7 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 import {
   type Row2 as ArtifactMetadata,
   Row2Schema as ArtifactMetadataSchema,
-  Row15Schema as UploadArtifactHeaderSchema,
+  Row16Schema as UploadArtifactHeaderSchema,
 } from "@generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb";
 import type { RpcError } from "../desktop/rpc";
 import type { Wire } from "./canonical";

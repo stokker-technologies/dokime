@@ -2,13 +2,13 @@
 
 ## Why
 
-Branded distributions reuse unchanged Dokime binaries, so every installation stores its data under the compiled Tauri identifier (`%LOCALAPPDATA%\com.stokker.dokime\…`). A company distribution (for example Hilti) therefore shares directories with plain Dokime and cannot be installed beside it. Organization packs override appearance only; `organization-installers` deliberately kept storage identity compiled.
+Branded distributions reuse unchanged Dokime binaries, so every installation stores its data under the compiled Tauri identifier (`%LOCALAPPDATA%\com.stokker.dokime\…`). A company distribution (for example Example Organization) therefore shares directories with plain Dokime and cannot be installed beside it. Organization packs override appearance only; `organization-installers` deliberately kept storage identity compiled.
 
 ## What Changes
 
 Locked by the owner on 2026-10-29; scheduled for implementation.
 
-- The distributor's installer manifest declares the distribution identifier (`[installer] identifier = "com.hilti.dokime"`). It becomes the installation's storage and install identity.
+- The distributor's installer manifest declares the distribution identifier (`[installer] identifier = "com.example.testhub"`). It becomes the installation's storage and install identity.
 - `cargo dokime installer package` writes the identifier into an installed distribution file beside the executable and uses it for the NSIS install folder and uninstall registry keys and for DEB/RPM package names.
 - The desktop resolves every directory from the installed distribution identity before anything else starts: application, data, plugins, logs and the WebView2 profile. CLI and server defaults use the same lookup.
 - Without a declared identifier, the compiled identifier applies (plain Dokime).

@@ -19,7 +19,7 @@
 
 // Third Party Imports
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 // Local Imports
 use crate::connection::{ConnectionSession, registry};
@@ -60,12 +60,20 @@ pub async fn desktop_settings_read(
 }
 
 pub async fn desktop_settings_update(
-    owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope, update: UpdateSettings,
+    app: AppHandle, owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
+    update: UpdateSettings,
 ) -> Result<SettingsSnapshot, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
     let current = client.call(ReadApplicationSettings {}).await.map_err(command_error)?;
     update.settings.validate_scope(&current.settings, scope).map_err(|message| SettingsCommandError::Validation { message })?;
     let saved = client.call(UpdateApplicationSettings { update }).await.map_err(command_error)?;
+    if current.settings.listener.enabled
+        && !saved.settings.listener.enabled
+        && matches!(owner.status().ownership, crate::native_session::BackendOwnership::OwnedLocal)
+        && let Err(error) = super::firewall::remove(app).await
+    {
+        tracing::warn!(%error, "Firewall cleanup could not complete");
+    }
     if matches!(scope, SettingsScope::Local) {
         connection.set_preferences(saved.settings.client);
     }

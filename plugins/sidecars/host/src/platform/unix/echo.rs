@@ -38,10 +38,19 @@ use std::time::Duration;
 
 // ping Waits For The Echo; Its Process Is Bounded By The Collection It Serves.
 // The Round Trip In Milliseconds, Or None When No Reply Arrived Within The Wait.
-pub fn round_trip_ms(host: &str, timeout: Duration) -> Result<Option<f64>, String> {
+pub fn round_trip_ms(host: &str, options: &crate::HostOptions) -> Result<Option<f64>, String> {
     let mut command = dokime_domain::process::command("ping");
-    command.args(["-c", "1", "-W", &timeout.as_secs().max(1).to_string(), host]);
-    let bound = crate::host::wifi_latency::POLICY.attempt_timeout;
+    let timeout = Duration::from_millis(options.timing.wifi_echo_timeout_ms);
+    command.args([
+        "-c",
+        "1",
+        "-W",
+        &timeout.as_millis().div_ceil(1_000).to_string(),
+        "-s",
+        &options.sampling.echo_payload_bytes.to_string(),
+        host,
+    ]);
+    let bound = Duration::from_millis(options.timing.wifi_latency_probe_timeout_ms);
     let output = crate::collectors::run_command_bounded(command, bound).map_err(|error| format!("ping command failed: {error}"))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

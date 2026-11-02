@@ -17,6 +17,7 @@ import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
+import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +30,7 @@ import {
   type NativeCheckpointSession,
   nativeRecordText,
 } from "@/lib/api/native-checkpoints";
-import { saveNativeDocument } from "@/lib/api/native-delivery";
+import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { nativeValueObjectToJson, timestampIso } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
@@ -85,7 +86,7 @@ export function CheckpointEvidence({ checkpoint }: Props) {
 function Failure({ error, retry }: { error: Error; retry: () => void }) {
   return (
     <div className="grid gap-2 text-sm">
-      <NotificationMessage source="Evidence" title="Evidence Could Not Load">
+      <NotificationMessage source="Evidence" title="Evidence Could Not Load" error={error}>
         {error.message}
       </NotificationMessage>
       <Button size="sm" variant="outline" className="justify-self-start" onClick={retry}>
@@ -270,7 +271,7 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
 
 function Download({ checkpoint, session, id, name }: SessionProps & { id: string; name: string }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   async function download() {
     setBusy(true);
     setError(null);
@@ -283,7 +284,7 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
         bytes: artifact.bytes,
       });
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(error);
     } finally {
       setBusy(false);
     }
@@ -299,7 +300,7 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
       >
         {busy ? "Downloading…" : name}
       </Button>
-      {error && <NotificationMessage>{error}</NotificationMessage>}
+      {Boolean(error) && <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage>}
     </div>
   );
 }

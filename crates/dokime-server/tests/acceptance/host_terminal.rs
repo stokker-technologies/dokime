@@ -245,6 +245,7 @@ async fn sigint_stops_host() {
 }
 
 // The host process: serve, stop on stdin close, refuse bad launch options, relaunch on one root and stop on SIGINT.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn host_terminal() {
     stdin_close_stops().await;

@@ -1598,7 +1598,7 @@ impl Output {
         Ok(std::mem::size_of::<Self>()
             .saturating_add(value.relative_path.len())
             .saturating_add(value.created_at.as_str().len())
-            .saturating_add(file.saturating_sub(std::mem::size_of::<FileReference>()))
+            .saturating_add(file.saturating_sub(std::mem::size_of::<Option<FileReference>>()))
             .saturating_add(saved_stream_state(value.stream_state).map_or(0, str::len))
             .saturating_add(content.saturating_sub(std::mem::size_of::<artifacts::Content>())))
     }
@@ -1613,7 +1613,7 @@ impl TryFrom<&dokime_domain::model::execution::saved::ExecutionOutput> for Outpu
         }
         Ok(Self {
             relative_path: value.relative_path.as_str().to_owned(),
-            file: Some(value.file.clone()),
+            file: value.file.clone(),
             stream_state: saved_stream_state(value.stream_state).map(str::to_owned),
             content: Some(artifacts::Content::try_from(&value.content)?),
             created_at: value.created_at.as_str().to_owned(),
@@ -1625,7 +1625,7 @@ impl Output {
     fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
         time::OffsetDateTime::parse(&self.created_at, &time::format_description::well_known::Rfc3339)?;
-        let file = self.file.as_ref().ok_or(Error::Invalid("execution output file is missing"))?;
+        let file = &self.file;
         let memory = file.memory_size();
         let content = self.content.as_ref().ok_or(Error::Invalid("saved output content descriptor is missing"))?.projection_memory()?;
         if [memory, content].contains(&usize::MAX) {
@@ -1657,7 +1657,7 @@ impl TryFrom<Output> for dokime_domain::model::execution::saved::ExecutionOutput
         Ok(Self {
             relative_path: row.relative_path,
             created_at: dokime_domain::model::time::Timestamp::new(row.created_at),
-            file: row.file.ok_or(Error::Invalid("execution output file is missing"))?,
+            file: row.file,
             stream_state,
             content: row.content.ok_or(Error::Invalid("saved output content descriptor is missing"))?.try_into()?,
         })

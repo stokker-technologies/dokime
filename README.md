@@ -41,9 +41,16 @@ operating conditions, and review the evidence behind each result.
 
 The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
-Settings. The desktop remembers that choice; operators do not need a source checkout.
+Settings. Export a `.dokime-remote` access file on the host and import or drop it
+on another desktop to connect. The desktop remembers that choice; operators do
+not need a source checkout. Windows installation needs no administrator rights;
+exposing remote access to other PCs may need an administrator to allow the app
+through Windows Firewall on the exporting computer.
+Direct Ethernet cables support static or automatic IPv4 link-local addresses;
+see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
 Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
 
 #### Examples
 
@@ -56,7 +63,8 @@ Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
 `cargo dokime installer` to package prebuilt binaries with an organization pack.
 `cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
-contains the complete workflow.
+contains the complete workflow, including
+[finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
 #### Examples
 
@@ -69,25 +77,41 @@ dokime operation list --backend lab
 ### Python
 
 The async Python client controls a running backend with owned cycle contexts,
-terminal evidence iterators and saved bundles with digest manifests. The distribution is `dokime-client`; imports use `dokime_client`.
+terminal evidence iterators and saved bundles with digest manifests. Lazy history
+and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
+bounded dataframes with captured types. The distribution is `dokime-client`; imports use `dokime_client`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
-Install the wheel from the same candidate as your backend:
+Install the wheel from the same candidate as your backend, selecting the optional
+extra for this dataframe example:
 
 ```sh
-uv add ./dokime_client-0.1.0-py3-none-any.whl
+uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
+```
+
+```python
+from dokime_client import DokimeClient, ExecutionStatus
+
+async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            print(frame, samples.metadata, samples.complete)
 ```
 
 The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles and execution APIs; the [runnable examples](docs/remote/python.md) retain their complete setup.
+backend profiles, [query limits and dataframe types](packages/dokime-client/README.md#optional-dataframes).
+The example requires the corresponding installed template and stream; finite
+queries never follow or change execution state. The [remote guide](docs/remote/python.md)
+retains the complete setup and runnable lifecycle examples.
 
 ### Rust
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `4e2669fa03cf5a123aa62de1aad0f042fb5cb381`)
+(currently pinned to revision `ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -117,7 +141,7 @@ The same plugin uses `#[dokime::observer]` for its
 `#[dokime::criterion]` for its
 [pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
 
-Custom installers can declare `[installer] identifier = "com.hilti.dokime"` to
+Custom installers can declare `[installer] identifier = "com.example.testhub"` to
 keep their installation and storage separate from plain Dokime. They include
 plugins selected by version and feed name, plus external bundles from an
 organization pack or repeatable `cargo dokime installer package --plugin <path>`
@@ -160,11 +184,12 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing older stream-row formats, earlier plugin identities,
-or evidence indexes without incremental numeric summaries and report previews require a fresh storage
-root. Dokime reports incompatible data and never resets an existing root.
+Development roots containing earlier telemetry layouts, plugin identities,
+or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
+token identities, or the indexed telemetry sample identities require a fresh storage root.
+Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 
-The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
+The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
 from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
@@ -181,7 +206,7 @@ and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
 Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
 for packaging, inspection and installation.
 
-Live plots display saved telemetry. The time-range slider filters storage queries:
+Live plots combine saved telemetry batches with the unflushed in-memory tail. The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 
@@ -189,7 +214,11 @@ Client sample following watches saved storage progress and resumes from delivere
 stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier
 before ending; they do not poll a second live-sample history.
 
-Plot Default uses each plot's authored window; All queries its full saved history.
+The viewer defaults to 5 min and offers 1 min, 2 min, 5 min, 10 min, 30 min, 1 h
+and All for every plot in the view. Timed windows refresh automatically; All loads
+once and refreshes only when Refresh is pressed. Reports always cover all captured samples.
+All delivers each plot independently from bounded report previews, so one plot's
+failure leaves the others available. Markers follow the display point budget.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

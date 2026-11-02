@@ -116,7 +116,9 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
         title="Recent Remote Sessions"
       />
       {query.error ? (
-        <NotificationMessage>{query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}</NotificationMessage>
+        <NotificationMessage error={query.error}>
+          {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
+        </NotificationMessage>
       ) : null}
     </SettingsCard>
   );

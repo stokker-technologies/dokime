@@ -44,6 +44,7 @@ const PHASE: &str = "fixture.sessions.stream";
 struct Probe {
     mode: Settlement,
     entered: tokio::sync::Notify,
+    row_received: tokio::sync::Notify,
     cancelled: tokio::sync::Notify,
     released: tokio::sync::watch::Sender<bool>,
     cancellation: tokio::sync::watch::Sender<bool>,
@@ -90,6 +91,7 @@ impl Probe {
         Self {
             mode,
             entered: tokio::sync::Notify::new(),
+            row_received: tokio::sync::Notify::new(),
             cancelled: tokio::sync::Notify::new(),
             released: tokio::sync::watch::Sender::new(false),
             cancellation: tokio::sync::watch::Sender::new(false),
@@ -111,6 +113,9 @@ impl Probe {
                 continue;
             }
             arrivals.push((stream, id));
+        }
+        if !arrivals.is_empty() {
+            self.row_received.notify_one();
         }
     }
 
@@ -154,6 +159,7 @@ impl Runnable for Probe {
             .map_err(Refusal::of)?;
             self.entered.notify_one();
             if self.mode == Settlement::LiveReplay {
+                self.row_received.notified().await;
                 let ended = TestStepAttempt {
                     attempt_id: start.attempt_id,
                     step_id: start.step_id,
@@ -663,11 +669,8 @@ pub(crate) async fn abandoned_admission_closes() {
 pub(crate) async fn live_replay_settles() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::LiveReplay));
-    let configuration = Provider(probe.clone()).configure(
-        config(root.path())
-            .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]),
-        root.path(),
-    );
+    let configuration =
+        Provider(probe.clone()).configure(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()]), root.path());
     let (mut owner, handle) = started(configuration).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     // A Viewer Keeps Host Collection Ticking After The Run's Own Measurement Closes.
@@ -695,6 +698,21 @@ pub(crate) async fn live_replay_settles() {
     assert!(!log.contains("did not acknowledge its final row"), "{log}");
     assert_eq!(execution.status, ExecutionStatus::Passed, "{log}");
     assert!(host_rows(&handle).await > 0, "host collection ran while the run held its lease");
+    let captured = handle
+        .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![identifier("host.system").into()],
+            scope: dokime_runtime::domains::evidence::ScopeSelection {
+                test_execution_id: Some(execution.test_execution_id.clone()),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(!captured.is_empty(), "the observer stream is retained under the execution's lease without a nominal cadence");
+    let leases = handle.stream_leases_for(&execution.scope).await;
+    assert_eq!(leases.len(), 1);
+    assert!(leases[0].closed_at.is_some());
     handle.release_stream_leases(viewing).await.unwrap();
     probe.runtime.lock().unwrap().take();
     drop(handle);
@@ -704,11 +722,8 @@ pub(crate) async fn live_replay_settles() {
 pub(crate) async fn provider_failure_releases() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Failure));
-    let configuration = Provider(probe.clone()).configure(
-        config(root.path())
-            .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]),
-        root.path(),
-    );
+    let configuration =
+        Provider(probe.clone()).configure(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()]), root.path());
     let (mut owner, handle) = started(configuration).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite)).await;

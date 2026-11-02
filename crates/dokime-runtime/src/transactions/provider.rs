@@ -102,6 +102,7 @@ impl Transaction<RuntimeState> for RunProvider {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
         request::queue_records(state, self).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

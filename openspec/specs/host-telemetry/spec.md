@@ -35,7 +35,7 @@ The host plugin SHALL publish `host.wifi.link`, `host.wifi.scan` and `host.wifi.
 
 #### Scenario: Latency Loss
 
-- **WHEN** the echo to the configured target receives no reply within half the latency collection bound
+- **WHEN** the echo receives no reply within the configured echo wait, whose default is half the latency collection bound
 - **THEN** the sample reports full loss instead of failing the collection
 
 ### Requirement: Internet Connectivity
@@ -78,3 +78,22 @@ The host plugin SHALL answer `host.network.adapters` with every adapter's identi
 
 - **WHEN** the default route moves to another adapter
 - **THEN** a default-route change event is published
+
+### Requirement: Host Native Probe Settings
+
+Host native probe tunables SHALL be declared through plugin settings in `settings.rs`, with validated bounds and defaults preserving current behavior. Settings SHALL resolve at plugin startup and apply on restart or Retry. Compile-time SDK declarations SHALL retain explicit centralized defaults until the SDK supports runtime configuration; unused editable settings SHALL NOT imply unsupported behavior.
+
+#### Scenario: Configured Bluetooth Cache Refresh
+
+- **WHEN** a configured deep-refresh interval has not elapsed
+- **THEN** the collector reuses its cached snapshot without probing again
+
+#### Scenario: Refresh Becomes Due
+
+- **WHEN** the configured deep-refresh interval elapses
+- **THEN** the collector probes again and updates its cache
+
+#### Scenario: Invalid Native Probe Setting
+
+- **WHEN** a saved timing is zero or exceeds its declared bound
+- **THEN** settings resolution refuses it before collector startup

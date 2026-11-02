@@ -14,8 +14,10 @@ import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "rea
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
+import type { PlotRefreshState } from "@/features/cycle/PlotWindowSlider";
+import { fetchNativePlotPayloads, type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
+import { toast } from "@/lib/notifications";
 import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
@@ -40,12 +42,14 @@ export function useLivePlotPayloads({
   enabled,
   plots,
   renderActive = true,
+  refresh,
   scope,
   windowS,
 }: {
   enabled: boolean;
   plots: DocumentViewPlot[];
   renderActive?: boolean;
+  refresh?: PlotRefreshState;
   scope: RecordScope | null;
   windowS?: number | null;
 }): LivePlotStateMap {
@@ -90,15 +94,22 @@ export function useLivePlotPayloads({
   );
   const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
   const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
-  const scopeWindowKey = useMemo(
-    () => [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join("|"),
-    [scopeKey, windowS],
-  );
+  const scopeWindowKey = useMemo(() => [scopeKey, windowS ?? "all"].join("|"), [scopeKey, windowS]);
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
 
-  const plotsRef = useRef(plots);
-  plotsRef.current = plots;
+  // All captures inputs only on entry or an explicit refresh. Neither a zoom,
+  // a new runtime document nor visibility changes may trigger a history scan.
+  const automatic = windowS != null;
+  const requestKey = automatic ? `${dataKey}|${summaryKey}` : scopeWindowKey;
+  const requestVisible = !automatic || pageVisible;
+  const refreshKey = refresh?.key ?? 0;
+  const onRefreshChange = refresh?.onChange;
+  const inputsRef = useRef({ plots, requestedSummaryWindows, dataKey, scopeWindowKey });
+  inputsRef.current = { plots, requestedSummaryWindows, dataKey, scopeWindowKey };
+  const requestInputs = useMemo(() => ({ ...inputsRef.current, key: `${requestKey}|${refreshKey}` }), [requestKey, refreshKey]);
+
   const dataKeyRef = useRef<string | null>(null);
+  const viewKeyRef = useRef<string | null>(null);
   const flushFrameRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
   const renderActiveRef = useRef(renderActive);
@@ -113,12 +124,15 @@ export function useLivePlotPayloads({
       setState(modelRef.current);
     };
     clearScheduledFlush(flushFrameRef, flushTimerRef);
-    const activePlots = plotsRef.current;
+    const { plots: activePlots, requestedSummaryWindows, dataKey, scopeWindowKey } = requestInputs;
     const dataChanged = dataKeyRef.current !== dataKey;
     dataKeyRef.current = dataKey;
+    const viewChanged = viewKeyRef.current !== scopeWindowKey;
+    viewKeyRef.current = scopeWindowKey;
 
     const testCycleId = requestScope?.test_cycle_id;
     if (!enabled || !testCycleId || activePlots.length === 0) {
+      onRefreshChange?.({ refreshing: false, updatedAt: null });
       commit((current) => {
         if (!testCycleId || activePlots.length === 0) {
           return {};
@@ -132,7 +146,8 @@ export function useLivePlotPayloads({
       });
       return;
     }
-    if (!pageVisible) {
+    if (!requestVisible) {
+      onRefreshChange?.({ refreshing: false });
       commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
@@ -161,6 +176,18 @@ export function useLivePlotPayloads({
     let releaseStream: (() => void) | undefined;
     let reopenTimer: number | null = null;
     let reopenDelayMs = RECONNECT_INITIAL_MS;
+    const received = new Set<string>();
+    let failed = false;
+    let awaitingRefresh = true;
+    onRefreshChange?.({ refreshing: true, ...(viewChanged ? { updatedAt: null } : {}) });
+
+    const reportFailure = (error: unknown) => {
+      received.clear();
+      awaitingRefresh = false;
+      onRefreshChange?.({ refreshing: false });
+      if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+      failed = true;
+    };
 
     // A new watch numbers its frames from its own origin.
     commit((current) =>
@@ -194,6 +221,23 @@ export function useLivePlotPayloads({
       // A frame of any kind proves the watch is healthy again.
       reopenDelayMs = RECONNECT_INITIAL_MS;
       modelRef.current = applyMessageById(modelRef.current, message);
+      const plotState = modelRef.current[message.plot_id];
+      if (plotState?.status === "error") {
+        const error = new Error(plotState.error ?? "Plot refresh failed.");
+        if (automatic) reportFailure(error);
+        else {
+          if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+          failed = true;
+        }
+      } else {
+        received.add(message.plot_id);
+        if (activePlots.every((plot) => received.has(plot.plot_id))) {
+          awaitingRefresh = false;
+          onRefreshChange?.({ refreshing: false, updatedAt: Date.now() });
+          received.clear();
+          failed = false;
+        }
+      }
       if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
         return;
       }
@@ -212,6 +256,8 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
+      if (awaitingRefresh) reportFailure(new Error("The plot stream ended before the view finished refreshing."));
+      onRefreshChange?.({ refreshing: false });
       commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
@@ -238,6 +284,7 @@ export function useLivePlotPayloads({
         return;
       }
       const terminal = error instanceof NativeApiLimitError;
+      reportFailure(error);
       console.error(`Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`);
       commit((current) =>
         Object.fromEntries(
@@ -309,7 +356,42 @@ export function useLivePlotPayloads({
       }
     };
 
-    void consumeStream();
+    const readSnapshot = async () => {
+      // Each plot owns one deadline and one transport response budget. Deliver
+      // completed plots immediately, even while another plot is still reading.
+      await Promise.all(
+        requests.map(async (request, index) => {
+          const plotId = activePlots[index].plot_id;
+          try {
+            const envelopes = await fetchNativePlotPayloads(nativeSession.identity, [request], { signal: controller.signal });
+            if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+            if (envelopes.length !== 1 || envelopes[0].plot_id !== plotId) {
+              throw new Error("The plot refresh returned an incomplete plot.");
+            }
+            enqueue({ ...envelopes[0], kind: "snapshot" });
+          } catch (error) {
+            if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
+            if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+            failed = true;
+            commit((current) => ({
+              ...current,
+              [plotId]: {
+                ...(current[plotId] ?? emptyLivePlotState()),
+                status: "error",
+                error: errorMessage(error),
+                summaryInFlight: false,
+              },
+            }));
+          }
+        }),
+      );
+      if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+      awaitingRefresh = false;
+      onRefreshChange?.({ refreshing: false, ...(!failed ? { updatedAt: Date.now() } : {}) });
+    };
+
+    if (automatic) void consumeStream();
+    else void readSnapshot();
 
     return () => {
       active = false;
@@ -323,7 +405,7 @@ export function useLivePlotPayloads({
       if (stream) void stream.cancel().catch(() => undefined);
       clearScheduledFlush(flushFrameRef, flushTimerRef);
     };
-  }, [dataKey, requestedSummaryWindows, requestScope?.test_cycle_id, enabled, requestScope, windowS, pageVisible, nativeSession]);
+  }, [requestInputs, onRefreshChange, enabled, requestScope, windowS, requestVisible, nativeSession, automatic]);
 
   return state;
 }
@@ -336,6 +418,7 @@ export function plotRequestForDocumentPlot(
     summaryWindow?: SummaryWindow | null;
   },
 ): PlotPayloadRequestInput {
+  const maximum = displayPointBudget(plot.display_points);
   return {
     plotId: plot.plot_id,
     stream: plot.stream,
@@ -358,13 +441,11 @@ export function plotRequestForDocumentPlot(
     zStream: plot.z_stream ?? undefined,
     zField: plot.z_field ?? undefined,
     unit: plot.unit ?? undefined,
-    // The display budget applies to EVERY window, including "All": the canvas
-    // cannot resolve more points than this, and an unbounded request made the
-    // full-range window ship every stored raw sample (slow payload, slow
-    // render) instead of a server-downsampled frame.
-    maxPoints: displayPointBudget(plot.display_points),
+    // All always has a finite display budget, including declarations asking
+    // for every raw sample. Timed windows keep their declared budget.
+    maxPoints: options.windowS == null && maximum === 0 ? DEFAULT_PLOT_MAX_POINTS : maximum,
     technique: plot.downsample ?? "auto",
-    windowS: options.windowS === undefined ? plot.live_window_s : options.windowS,
+    windowS: options.windowS ?? null,
     summaryWindow: options.summaryWindow ?? null,
     scope: options.scope,
   };
@@ -390,7 +471,7 @@ function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamM
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
-  return JSON.stringify(plotRequestForDocumentPlot(plot, { scope: null }));
+  return JSON.stringify({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });
 }
 
 function recordScopeKey(scope: RecordScope | null): string {

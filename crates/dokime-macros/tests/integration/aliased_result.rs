@@ -88,6 +88,7 @@ impl Probe {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn aliased_result_template() {
     let template = Probe::declaration();

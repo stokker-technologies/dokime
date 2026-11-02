@@ -31,6 +31,7 @@ diagnostics = ["dep:tracing-error"]
 # Local
 
 # Git
+harmos = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -39,7 +40,6 @@ thiserror = { workspace = true }
 tracing-error = { workspace = true, optional = true }
 
 # Utilities
-harmos = { workspace = true }
 semver = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
@@ -70,6 +70,38 @@ serde_json = { workspace = true }
 # === Build Dependencies === #
 
 # === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+dokime-tracing = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Target Dependencies === #
 

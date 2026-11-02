@@ -5,6 +5,7 @@ import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore 
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
+import { watchRemoteImports } from "@/lib/desktop/remote-import";
 import { watchStopping } from "@/lib/desktop/stopping";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
@@ -24,6 +25,7 @@ export function NativeSessionProvider({
   const [owner] = useState(() => supplied ?? new NativeSession());
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
   useEffect(() => watchStopping(), []);
+  useEffect(() => watchRemoteImports(owner), [owner]);
   useEffect(
     () => () => {
       void owner.disconnect();
@@ -91,7 +93,7 @@ function Connected({ session, children }: { session: ConnectedSession; children:
           {error ? (
             <main className="mx-auto max-w-xl space-y-4 p-8">
               <h1 className="font-heading text-2xl">Appearance Unavailable</h1>
-              <NotificationMessage>{connectionError(error)}</NotificationMessage>
+              <NotificationMessage error={error}>{connectionError(error)}</NotificationMessage>
               <div className="flex gap-3">
                 <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>
                 <Button variant="outline" onClick={() => void owner.disconnect()}>

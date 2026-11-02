@@ -23,7 +23,7 @@ use std::{
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
-use tonic::{Request, Status};
+use tonic::Status;
 
 // Local Imports
 use super::Error;
@@ -70,10 +70,6 @@ impl Principal {
 
     pub fn subject(&self) -> &str {
         &self.subject
-    }
-
-    pub fn of<T>(request: &Request<T>) -> Result<&Self, Status> {
-        request.extensions().get::<Self>().ok_or_else(|| Status::unauthenticated("authentication required"))
     }
 }
 

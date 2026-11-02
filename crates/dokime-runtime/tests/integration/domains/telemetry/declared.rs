@@ -171,18 +171,6 @@ impl dokime_runtime::harmos::Lifecycle for Declaring {
         dokime_runtime::execution::prepare::<Self, Suites>(setup)?;
         Ok(owner)
     }
-
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
-    }
 }
 
 impl Declaring {
@@ -196,6 +184,7 @@ impl Declaring {
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_declarations_register() {
     // The Plugin Grants The Shared Stream Once
@@ -240,6 +229,7 @@ async fn template_declarations_register() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn conflicting_record_refused() {
     let root = tempdir().unwrap();
@@ -262,6 +252,7 @@ async fn conflicting_record_refused() {
     runtime.shutdown().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn conflicting_prompt_refused() {
     let root = tempdir().unwrap();

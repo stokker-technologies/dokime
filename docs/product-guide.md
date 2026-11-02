@@ -80,6 +80,11 @@ suites—it is not a copy of one suite. A cycle is created explicitly, starts
 empty and grows as explicit execution attempts are appended. Appending never
 starts hardware; an execution is the Start/Stop unit.
 
+Execution and cycle record and sample queries include evidence they produced
+or captured. An observer row can belong to several executions through capture;
+its producer scope remains unchanged. SQLite capture links and Arrow batch
+ranges select that membership without storing additional sample payloads.
+
 Several cycles can stay **Active** at once, with one execution running across
 the server. Start admits an execution once by its durable identity. Optional
 server-owned ordered continuation can start the next unstarted member after
@@ -125,37 +130,74 @@ The desktop's WebView stores notification history locally and reads it in bounde
 
 Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
+Click a toast or history entry, or focus it and press Enter or Space, to open its details. The dialog shows the full message, source, severity, absolute and relative time, and available failure reason, operation and request/invocation identifiers. Validation failures list each affected field and its reason. Causes appear with the root first; dependent startup consequences remain collapsed. Expand Technical Details for backend diagnostics or backtraces. Copy includes all details, including collapsed sections. Press Esc or Close to return to the notification. Set Secret and Open Plugin Settings remain separate actions.
+
 ## Native Remote Access
 
-Settings → Remote Access owns the saved listener settings and explicit restart.
-Management is available only through the native local listener. TLS and
-access-key authentication are independent; disable either only in an isolated lab.
-Use a concrete reachable endpoint whose hostname or IP matches the certificate.
-Pairing Files prefills Reachable Endpoint from the saved listener's TLS setting,
-port and specific address, or its certificate names for a wildcard listener.
-Without TLS or certificate names, a wildcard listener suggests loopback for local clients.
-The listener's port appears beside the field, including for local Python clients.
-Review that the suggested address is reachable from the client. Rejected pairing
-requests show the host's concrete reason beside the endpoint and in Notifications.
+Choose **Export Remote Access** in Settings → Remote Access. The native save
+picker suggests a readable label and `.dokime-remote` filename. If the listener
+is off, one confirmation enables it on the saved port (8765 by default) and
+continues the export. The same confirmation warns that the file is secret.
+Rename its client later by selecting its label in **Paired Clients**.
 
-Choose **Create Pairing File**, enter a client label and advertised endpoint,
-and select a destination. Cancellation creates no key. Dokime saves one private
-`<label>.dokime-pair` file containing the endpoint, expected backend identifier,
-label, CA certificate and a new access key. Treat it as a secret: it grants full
-remote control. The raw key stays outside the WebView and is returned only once.
-The host persists its verifier, never the recoverable key. Failed file saves
-revoke the newly created client.
+Each file has an independent revocable key. Anyone holding it has full control;
+transfer it privately and revoke its client if it is lost. Raw keys never enter
+the WebView, logs or saved backend profiles. The host retains only verifiers.
 
-Each file has an independent key. **Paired Clients** lists labels, creation
-and last-seen times; **Revoke** rejects further calls and ends that client's
-active streams without affecting other clients. Create a new file to replace a
-lost one. An authentication-off lab pairing has no client record or revocation
-guarantee. Listener reconfiguration does not replay or stop admitted executions.
+Endpoints are automatic: a specific bound address, or the hostname followed by
+real interface addresses in the listener address family, with private networks first
+and IPv4 link-local addresses last. Remote Access shows these addresses with their
+adapter names before export. Virtual/VPN adapters are
+excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
+for a specific loopback bind carry **Same PC** in their generated label.
+The backend signs its listener leaf with a persistent CA, which the file pins.
+New interface addresses trigger a leaf reissue under that same CA, so existing
+files keep their trust. An old file still needs at least one reachable candidate,
+such as the hostname; export a new file if all its addresses become obsolete.
 
-Pairing files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
-`endpoint`, `backend_identifier`, `label`, `ca_certificate_pem` and `access_key`.
-Absent CA/key values are null. Unknown fields, invalid identities or PEM,
-wildcard endpoints and inconsistent TLS/CA combinations are rejected.
+Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
+`endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
+`ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
+unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
+origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
+and the old single `endpoint` format are unsupported. The remote security store
+also keeps format v1; old stores require a fresh application root and are never
+silently reset.
+
+Management remains available only through the native local listener. TLS and
+access-key authentication are independent advanced settings; disable either
+only in an isolated lab. Changing interface names or explicitly reissuing the
+leaf preserves its CA and existing access keys.
+
+Windows installation never needs administrator rights and does not change the
+firewall. On the computer exporting remote access, Settings → Remote Access checks
+Windows Firewall when the listener runs on a non-loopback address. If inbound access
+is blocked, **Allow In Firewall…** requests administrator approval to allow the app
+on the listener's active **Private**, **Public** or domain networks. The notice
+identifies each adapter, network and profile. The inbound rule permits only this
+executable's TCP listener port, with peers restricted to the local subnet.
+Cancelled or refused approval leaves the app usable.
+Connecting to another backend only uses outbound access and needs no firewall rule.
+Disabling remote access attempts to remove this installation's rule without a UAC
+prompt; a standard user is told when cleanup needs an administrator. Per-user
+uninstall leaves any rule in place and never requests administrator access.
+On other platforms, permit the saved listener port through the host firewall.
+
+### Direct Cable Between Two PCs
+
+Connect the Ethernet cable and use a different address on each PC in the same
+subnet. Static addresses are recommended, for example `192.168.50.1/24` and
+`192.168.50.2/24`, without a gateway; choose a subnet unused by other adapters.
+Automatic IPv4 link-local addresses (`169.254.x.x`) also work once both adapters
+have acquired them. IPv6 link-local is excluded because it requires an interface
+zone identifier that remote files do not support.
+
+On the exporting PC, check the cable address and adapter name in Remote Access,
+then select **Export Remote Access**. Import the file on the second PC. A cable
+without a gateway may be classified as a Public unidentified network. If the
+firewall notice reports blocked access, optionally select **Allow In Firewall…**
+and approve the administrator prompt; the rule covers that profile for peers on
+the same subnet. Installation never changes firewall rules.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -178,9 +220,9 @@ invocation use the current provider contract; rediscover after provider changes.
 The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
 
 Settings → Backends and the CLI share `backends.json`. Each profile has a
-machine **Identifier** and a human **Label**. Import a pairing file as the primary
-setup path. The native importer saves its key in the OS keyring and its CA and
-expected identity in the profile. Validation precedes mutation; a failed profile
+machine **Identifier** and a human **Label**. Choose **Import Remote**, or drop
+one `.dokime-remote` file onto the desktop window, as the primary setup path. The native importer saves its key in the OS keyring and its CA and
+expected identity and ordered endpoints in the profile, then connects. Validation precedes mutation; a failed profile
 save rolls back the newly created keyring entry. Duplicate identifiers are refused.
 
 The desktop tries its saved default once. An unavailable or mismatched backend
@@ -189,14 +231,15 @@ remove a profile; deleting the active profile disconnects it and clears its defa
 Profile editing and local appearance preferences remain available offline.
 
 ```sh
-dokime backend add --pairing lab.dokime-pair --identifier lab
+dokime backend add --remote lab.dokime-remote --identifier lab
 dokime backend use lab
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
 ```
 
-Omit `--identifier` to use the pairing's backend identifier. Manual entry is
+Omit `--identifier` to use the file's backend identifier. CLI remote import verifies
+the connection immediately; manual lab additions only save the profile. Manual entry is
 reserved for unsecured labs:
 
 ```sh
@@ -212,12 +255,12 @@ from pathlib import Path
 from dokime_client import DokimeClient
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.dokime-pair") as client:
-        async with client.new_cycle("Fraunhofer Lab Tracking") as cycle:
-            run = await cycle.start("hcl.demo.fraunhofer", duration_min=10)
-            async for record in run.records("hcl.tool.connected", "hcl.tool.disconnected"):
+    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+        async with client.new_cycle("Example Lab Tracking") as cycle:
+            run = await cycle.start("example.demo.tracking", duration_min=10)
+            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
                 print(record.type)
-        await cycle.save(Path("target/reports/fraunhofer") / run.id, report="cycle.summary")
+        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
         return run.outcome.exit_code
 
 raise SystemExit(asyncio.run(main()))
@@ -233,6 +276,14 @@ cancelled. A template expansion returns an ordered tuple of all execution handle
 `cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
 manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
 are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
+
+All clients try endpoint candidates in parallel with a short stagger configured
+by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
+against the pinned CA and expected backend identity can win. The profile remembers
+the last successful endpoint and tries it first next time. Other candidates keep
+their original order. A failed connection leaves the imported profile available
+for retry. Python `from_pairing` retains its successful endpoint for that client;
+`from_profile` also saves successful endpoint selection in the shared profile.
 
 The SDK retains the imported key only in its redacted client credentials.
 Every first connection and reconnect validates expected backend identity before
@@ -256,7 +307,9 @@ dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.j
 `--input` and `--json` are mutually exclusive request sources; omitting both
 sends `{}`. Inputs use the discovered contract's protobuf JSON shape. Streaming
 input is one item per line. Without `--output`, stdout emits one JSON item or
-completion event per line. A response file contains one JSON array of those
+completion event per line. Download streams with a header, byte chunks and a
+completion save verified raw bytes with `--output`; stdout prints a JSON download
+summary including header metadata. Other response files contain one JSON array of those
 events, including the final completion; a unary call has only that completion.
 
 Existing response files require `--overwrite`. Predictable output conflicts are
@@ -296,8 +349,8 @@ dokime cycle seal CYCLE_UUID --backend lab --json
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
 returns a nonzero exit status after any earlier lines. `execution stop` stops
-the selected execution and halts its cycle's automatic continuation. Wait for
-its saved outcome before downloading evidence. To repeat a case, append a new
+the selected execution, halts its cycle's automatic continuation and waits for
+its durable seal before returning. To repeat a case, append a new
 execution identity and Start that attempt; earlier evidence remains unchanged.
 Cancelling an ordinary local wait leaves admitted backend work running.
 
@@ -318,10 +371,20 @@ A sealed execution is exportable while its cycle stays Active. A cycle export
 requires its durable seal and includes every exact member revision. The ZIP
 contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
 reports. The manifest records source identities, revisions, row counts and
-payload checksums; SQLite exposes inputs, definitions, outcomes, records and
-typed stream columns. Query `streams` and `stream_columns` to find each stream's
-tables, field names and units. Wide streams use partitions joined by `m_row`.
-Canonical JSON retains nested values and unsigned integer identity.
+payload checksums. SQLite retains relational evidence and the `files`,
+`artifacts`, `streams` and `stream_summaries` catalogs. Telemetry is stored in
+ZSTD-compressed Arrow IPC files under `telemetry/<stream>.arrow`. Exports copy
+complete finalized files produced by the execution byte-for-byte. Captured rows
+from shared observer files are materialized from indexed ranges at the selected
+evidence frontier, excluding unrelated samples. Producer scopes stay unchanged.
+Each file contains typed `values` and
+`_storage` metadata. Timestamps use UTC microseconds. Arrow field metadata retains units,
+descriptions and stream identity; schema metadata identifies the execution, Dokime version and contract.
+
+Execution bundles place captured files under `artifacts/<relative path>`.
+Cycle bundles use `executions/<execution-id>/artifacts/` and
+`executions/<execution-id>/telemetry/`, with their saved cycle report in `reports/`.
+Telemetry is cataloged as a file and never appears as a captured artifact.
 
 Exports use saved storage snapshots and survive server restart. Missing
 required evidence fails the export. The server admits one export at a time,
@@ -357,12 +420,17 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
     "identifier": "lab",
     "label": "Lab PC",
     "endpoint": "https://dokime.example:8765",
+    "endpoints": ["https://dokime.example:8765", "https://192.168.1.50:8765"],
     "expected_backend_id": "BACKEND_ID",
     "ca_certificate_pem": null,
     "secret": "keyring"
   }]
 }
 ```
+
+`endpoints` preserves imported candidate order; `endpoint` is the last verified
+success, initially the first candidate. Manual profiles use an empty candidate
+list. The OS keyring association stays stable when the winning endpoint changes.
 
 Identifiers contain 1–128 ASCII letters, digits, dots, underscores or hyphens;
 `.` and `..` are refused. Labels are nonblank, control-free and at most 256 bytes.
@@ -431,13 +499,89 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
+#### Host Settings
+
+The host plugin declares its 20 settings in
+[`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
+Edit the host plugin form in **Settings → Plugins**, then use the existing
+Retry workflow or restart Dokime. Each startup resolves one settings snapshot.
+Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
+`1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
+the native default.
+
+| Probe Timing | Default | Allowed [ms] |
+| --- | ---: | ---: |
+| Network Inventory/Connectivity Timeout | 2,000 ms | 1–2,000 |
+| System Git Identity Timeout | 2,000 ms | 1–2,000 |
+| Existing CPU Calibration Window | 1,000 ms | 1–1,000 |
+| Unix Wi-Fi Link Command Timeout | 2,000 ms | 1–2,000 |
+| Unix Wi-Fi Scan Command Timeout | 12,000 ms | 1–12,000 |
+| Windows Active Wi-Fi Scan Window | 6,000 ms | 1–6,000 |
+| Unix Latency Process Timeout | 4,000 ms | 1–4,000 |
+| Echo Reply Timeout | 2,000 ms | 1–2,000 |
+| Unix Bluetooth D-Bus Method Timeout | 6,000 ms | 1–6,000 |
+| Bluetooth Deep Refresh Interval | 300,000 ms | 1–86,400,000 |
+| Unix Control D-Bus Method Timeout | 30,000 ms | 1–30,000 |
+| Windows Radio Settle Timeout | 15,000 ms | 1–15,000 |
+
+Sampling settings select the minimum throughput denominator (1 ms, allowed
+1–60,000 ms), congestion contribution (10 % per fully overlapping network,
+allowed 0.01–100), echo payload (32 bytes on Windows, 56 on Unix, allowed
+1–65,000 bytes), and existing calibration batch (4,096 iterations, allowed
+1–65,536). The active-scan minimum permits 1–3,600 s. Unix ping rounds the echo
+wait up to whole seconds; its independent process timeout still bounds it.
+Native Windows inventory calls remain synchronous and have no cancellable
+timeout API. Per-command and per-method waits do not replace the operation's
+overall deadline. Radio writes and inverse restoration use the same resolved
+native timing settings.
+
+Every stream's collection cadence is editable in **Collection Intervals**:
+
+| Stream | Default [ms] | Allowed [ms] |
+| --- | ---: | ---: |
+| System | 1,000 | 1–86,400,000 |
+| Network | 1,000 | 1–86,400,000 |
+| Wi-Fi Link | 1,000 | 1–86,400,000 |
+| Wi-Fi Scan | 60,000 | 1–86,400,000 |
+| Wi-Fi Latency | 10,000 | 1–86,400,000 |
+| Bluetooth | 5,000 | 1–86,400,000 |
+
+The producing observer resolves its cadence from the startup settings snapshot,
+overriding its declared initial interval. Both the declaration and settings default
+share one value in `settings.rs`. General process observers require
+`#[dokime::observer(interval_ms = …)]`; an optional synchronous
+`fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` overrides
+that default at activation.
+Consumers lease the stream without selecting its interval. Static schemas omit a
+nominal interval; demand comes from the owner's observer inventory. Minimum Scan
+Interval and Bluetooth Deep Refresh Interval independently protect native probes.
+An interval shorter than collection work does not overlap that observer's calls;
+missed ticks are skipped.
+
+Operation policies remain Harmos declarations: collection bounds are 2/2/2/12/4/6 s
+for system, network, link, scan, latency and Bluetooth; controls allow 30 s and
+restoration 60 s. These policies use no retries or cancellation grace. Making their
+timeout, attempt timeout, cancellation grace or retry/backoff policy configurable
+requires a separate Harmos operation-policy change. The 4,096-row publication
+window remains a static replay and notification-batch contract.
+
+Unit conversions, percent scales, native ABI layouts and enum discriminants,
+Wi-Fi channel/frequency mappings, congestion model identifiers, schema v1 and
+stream/operation identifiers retain their fixed meanings. CPU kernel arithmetic
+and accumulator layout define the existing calibration workload; its time
+window and batch size are settings. Windows ICMP reply storage follows the
+native API's required trailer layout. These are measurement or protocol
+definitions rather than deployment tunables.
+
+#### Ordinary Settings And Shared Secrets
+
 **Settings → Plugins** keeps ordinary plugin settings editable after startup
 fails. Its read-only **Required Secrets** list shows each declared identifier,
 whether it is required or optional, and whether it exists in Secret Storage.
 **Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
 Secret values are entered only in Secret Storage; the plugin settings form has no
 secret fields. Existing saved references are ignored on load without migrating
-values or changing storage v1. A stored identifier such as `hcl.api_token` does
+values or changing storage v1. A stored identifier such as `example.api_token` does
 not satisfy a declaration named `api_token`.
 
 Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
@@ -739,12 +883,15 @@ let watch = ctx
                 root: self.log.to_string_lossy().into_owned(),
             })),
         }),
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         output: "charger".into(),
         artifact: Some("charger/device.log".into()),
         policy: FileWatchPolicy::Stream,
         selection: FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(100),
+        poll_interval_ms: Some(FILE_POLL_MS),
         maximum_seconds: Some(1),
         maximum_bytes: None,
         matchers: vec![LineMatcher::publishing::<ChargerLog>(
@@ -755,8 +902,64 @@ let watch = ctx
     .await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
-let captured = watch.join().await?.into_owned();
+let captured = watch.cancel().await?.into_owned();
 ```
+
+For a directory source, set `recursive: true` or supply `rules`. Rules use the
+existing ordered `FileRule` include/exclude globs over forward-slash paths relative
+to the root; the last matching rule wins. Recursive discovery includes subfolders
+created after arming. Empty rules with recursion enabled include every file;
+`recursive: false` with rules scans only the root directory. Empty rules with
+recursion disabled retain the single-file behavior above.
+
+For example, a step can stream a vendor application's three log trees under
+`logs/<relative path>`, preserving directory and file names:
+
+```rust
+let request = WatchFile {
+    execution_id: None,
+    source: Some(FileWatchSource {
+        payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+            root: vendor_root.to_string_lossy().into_owned(),
+        })),
+    }),
+    output: "logs".into(),
+    artifact: None,
+    recursive: true,
+    rules: ["Logs/**", "Logs_SSI/**", "Logs_Instruments/**"]
+        .into_iter()
+        .map(|glob| FileRule { glob: glob.into(), action: FileRuleAction::Include })
+        .collect(),
+    policy: FileWatchPolicy::Stream,
+    selection: FileWatchSelection::All,
+    wait_for_source_seconds: None,
+    poll_interval_ms: Some(250),
+    maximum_seconds: None,
+    maximum_files: Some(128),
+    maximum_bytes: None,
+    matchers: Vec::new(),
+    markers: Vec::new(),
+};
+let watch = ctx.host().submit(request.clone()).await?;
+watch.armed().await?;
+// Run the vendor application, then seal its captured logs.
+let captured = watch.cancel().await?.into_owned();
+```
+
+Stream captures existing files from their arm-point length and later arrivals
+from byte zero. To mirror only ZIP archives anywhere below the same root,
+use `policy: FileWatchPolicy::Mirror` and
+`rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
+Directory watches require `artifact: None`; `output` is the artifact prefix.
+The file cap defaults to 64 (maximum 256), and the byte cap applies across all
+files and sealed segments. Polling uses the request interval or host settings.
+
+Single-file snapshots may use names such as `capture.diag` or `capture.hpl30`
+with `output: String::new()` to retain them at the artifact root. Unknown
+extensions use `application/octet-stream`. Artifact paths must be relative,
+use forward slashes and contain no traversal, absolute path, reserved device
+name or invalid portable filename segment. The harness uses the same local
+discovery, glob matching and artifact-name validation as the native host.
 
 `All` follows baseline files and later arrivals. `Latest` selects the newest
 baseline file by modification time, breaking ties by path, while `New` captures
@@ -768,6 +971,16 @@ Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
 file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
 access. Permission and invalid-path failures remain immediate.
+
+Local watches rescan on native directory notifications. The configured poll
+interval remains the fallback upper bound when notifications are unavailable;
+FTP watches use that interval. Execution sealing and cancellation wake watches
+independently of either source.
+
+A file whose artifact content cannot be captured is retained as a failed artifact
+with its error and no downloadable content. Reports list failed artifacts alongside
+the remaining evidence; the failure does not prevent Stop, provider completion or
+report saving. Storage failures outside artifact content capture still fail the save.
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
@@ -831,12 +1044,18 @@ bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 
-Time series and scatter plots list their traces in a statistics table beneath
+Numeric time series list their traces in a statistics table beneath
 the plot instead of a legend: count, min, max, mean, median, std, and rms of
 each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
 freezes the table with its plot. Compatible time axes within one plot group share cursor movement; trace visibility and zoom remain specific to each chart. Drag a box to zoom. Hold Shift while dragging, or use the middle mouse button, to pan the held viewport; time plots pan horizontally, and XY plots pan both axes. Double-click or use Follow / Reset Zoom to resume the default view. Zoom and pan reselect points from retained input for the new viewport.
+Histograms retain their numeric statistics. XY plots, including scatter, line,
+interval and trajectory, omit the statistics block. Boolean time series such as
+host Internet Connectivity show a stepped False/True state trace instead of
+numeric statistics: false maps to 0, true to 1, and missing readings leave gaps.
+The declared Boolean schema and raw evidence remain unchanged in live views and
+frozen reports.
 An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
 stream error replaces the displayed chart while retaining its last frame for recovery.
 
@@ -850,6 +1069,45 @@ boundary for report finalization. If publication fails, the recorded test
 verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
+
+## Finite Evidence Queries
+
+The Python client discovers executions and cycles in the connected backend's
+local retained history, then selects records or projected telemetry at one fixed
+snapshot. These reads never start, stop, seal or follow an execution. Existing
+`records()`/`samples()` still replay and follow through the execution seal.
+
+```python
+from dokime_client import DokimeClient
+
+async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async for execution in client.executions(template="example.measurement", status="failed"):
+        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
+            frame = await samples.to_polars(max_rows=10_000)
+            metadata = samples.metadata
+            assert metadata is not None
+            print(frame, metadata.schema, samples.snapshot, samples.complete)
+```
+
+The selected template/stream must be installed. Install the optional helper from
+the same matching wheel, for example
+`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
+The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
+
+Factories are lazy; `pages()` pulls on demand and exposes effective limits,
+captured schema, snapshot and completeness. Sparse empty pages can continue.
+`at=reader.snapshot` reuses a compatible cut after the first response; windows are
+half-open UTC intervals. Collections and dataframe helpers default to finite
+client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
+losing a later page raises without returning a partial materialization.
+Close abandoned readers with their async context or `aclose()`.
+
+The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
+Keep the returned continuation unchanged, including after an empty page, until
+`complete=true` with no continuation. The [remote Python guide](remote/python.md#query-retained-evidence)
+covers snapshot reuse, server statistics and optional wheel installs.
 
 ## CLI Reference
 
@@ -865,7 +1123,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--backend` |
-| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--pairing`, `--identifier`, `--label`, `--profiles-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage profiles; remote import also verifies the connection. | `--remote`, `--identifier`, `--label`, `--profiles-file` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 
@@ -888,17 +1146,72 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle report` | Download a running or sealed cycle's HTML report. | `--output`, `--overwrite`, `--identifier` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution report` | Download a running or sealed execution's HTML report. | `--output`, `--overwrite` |
 | `dokime execution start` | Start one execution without waiting. | `--mode` |
 | `dokime execution run` | Start one execution and wait for its seal. | `--mode`, `--wait-seconds`, `--records`, `--samples` |
 | `dokime execution wait` | Wait for a durable outcome. | `--wait-seconds` |
-| `dokime execution stop` | Request that one execution stop. | `--json` |
+| `dokime execution stop` | Stop one execution and wait for its durable seal. | `--json` |
 | `dokime execution prompt next` | Wait for the next answerable prompt. | `--wait-seconds`, `--id-only`, `--id-file` |
 | `dokime execution prompt show` | Inspect one prompt. | `--json` |
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
 | `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
 
+### Query Budgets
+
+Finite-query settings are programmatic startup configuration under
+`crates/dokime-runtime/src/config/query.rs`, supplied through `Config.query` or
+`RuntimeConfig.query`. They are validated before opening storage and retained as
+an immutable `RuntimeHandle::query_config()` snapshot. Runtime handlers serve
+history, record and telemetry queries through native and gRPC operation calls.
+These settings are not application preferences or request policy overrides.
+
+```rust
+let mut config = RuntimeConfig::new(storage_root, metadata);
+config.query.page_rows = 128;
+config.query.max_page_bytes = 512 * 1024;
+config.query.page_bytes = 256 * 1024;
+config.query.scanned_rows = 500_000;
+config.query.active_time = std::time::Duration::from_secs(3);
+```
+
+| Setting | Startup Default |
+| --- | --- |
+| Page Rows / Maximum Rows | 256 / storage response batch rows |
+| Page Bytes / Maximum Bytes | 1/8 storage response batch bytes / storage response batch bytes |
+| Working Bytes / Schema Bytes | storage response batch bytes / 1/8 batch bytes |
+| Scanned Rows / Bytes | 4,194,304 / 128 response batches |
+| Active Time / Admission Wait | 1/2 / 1/10 declared sample-query attempt ceiling |
+| Concurrency / Pending Requests | storage active / pending query ceilings |
+| Predicate Terms / IN Members | 64 / 256 |
+| Fields / Captured Versions / History Alternatives | 128 / 32 / 256 |
+| Partitions / Buckets / Aggregate Outputs | 64 / 4,096 / 64 |
+| Token Bytes / Snapshot Lifetime | 4,096 / 15 min |
+
+Composition clamps page ceilings to storage response budgets, concurrency/pending
+admission to storage capacity, working memory to schema preparation bytes, schema
+bytes to working/page budgets and fields to schema preparation work. Defaults are
+clamped with effective ceilings. A serving transport's message-byte budget further
+clamps each page; schema and metadata must fit that same budget. Callers may request
+smaller positive row/byte budgets. Zero budgets, unaddressable memory, defaults above
+configured page ceilings, admission waits above active time and active deadlines
+above any of the five declared operation ceilings fail startup. Snapshot lifetimes
+must fit an unsigned 64-bit nanosecond duration.
+
+Complexity and scan exhaustion fail explicitly; these defaults establish no latency
+or throughput claim. Snapshot tokens are authenticated, finite scans account for
+admitted rows/bytes, and runtime operation admission bounds active and waiting
+queries. The [query contracts](query-api.md) describe page/failure shapes and
+[finite records versus follow](query-api.md#finite-records-and-follow).
+
 ### Operations And Plugins
+
+The [Query API Foundations](query-api.md) describe the finite query declarations;
+the five operations share runtime handlers and existing read authorization.
+Use the generic operation command for [first and next pages](query-api.md#transport-access-and-cli-paging).
+Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
+over those same contracts.
 
 Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
 
@@ -934,6 +1247,12 @@ replaced by the `sidecar` group.
 
 ### Native Installers
 
+Default Windows NSIS installers use `currentUser` mode and request user-level
+execution. Installation and uninstallation never need administrator rights; setup
+does not add or remove firewall rules. Exposing remote access to other PCs may need
+an administrator to allow the listener's local-subnet firewall rule in Settings →
+Remote Access on the exporting computer.
+
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `cargo dokime installer package` | Assemble unchanged local or versioned release distributions. | `--manifest`, `--artifacts`, `--plugin` (repeatable), `--output`, `--format`, `--target`, `--sign`, `--json` |
@@ -949,7 +1268,7 @@ identifier, organization override and exact Dokime binary version/target. For ex
 ```toml
 [installer]
 version = "0.1.0"
-identifier = "com.hilti.dokime"
+identifier = "com.example.testhub"
 organization = "organization"
 formats = ["nsis"]
 
@@ -971,10 +1290,10 @@ selected distribution's organization defaults. On Linux, use `target = "x86_64-u
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
-`identifier` is a lowercase reverse-DNS identifier, such as `com.hilti.dokime`.
+`identifier` is a lowercase reverse-DNS identifier, such as `com.example.testhub`.
 It fixes the distribution's storage and install identity; omitting it uses the
 distribution's compiled identifier. Packaging writes `{ "schema": 1, "identifier":
-"com.hilti.dokime" }` to `distribution.json` beside the executables and hashes it
+"com.example.testhub" }` to `distribution.json` beside the executables and hashes it
 in `installer.json`, the inventory used for bundled-plugin startup
 reconciliation. A malformed or unreadable identity file fails startup; only an absent file falls back to the compiled identifier.
 
@@ -1052,6 +1371,10 @@ Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
 Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
+
+Set a non-empty `GITHUB_TOKEN` (or `GH_TOKEN` as a fallback) to authenticate
+GitHub API lookups and raise the unauthenticated rate limit. Credentials are sent
+only to `api.github.com`, never to release asset hosts or other redirect destinations.
 
 The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
@@ -1167,9 +1490,29 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
+### Host Telemetry
+
 Host telemetry is supplied by `plugin-host.dokime` through plugin ingest. The runtime
 has no built-in host collector or implicit plugin seed. OBC is an explicit
 test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
+
+On Windows 11 24H2 and later, SSID/BSSID connection details and nearby-network
+queries require location permission. In **Settings → Privacy & Security → Location**,
+enable **Location Services** and **Let Desktop Apps Access Your Location** for the
+host plugin. See Microsoft's [Wi-Fi access and location changes](https://learn.microsoft.com/en-us/windows/win32/nativewifi/wi-fi-access-location-changes).
+If the current-connection query fails, `host.wifi.link` reports `probe_status=partial`
+and a `probe_error` containing the WLAN call and Win32 code; code 5 includes a
+location-permission hint. Adapter, interface state and readable RSSI still publish,
+and a connected interface remains associated even when its BSSID cannot be read.
+Unknown native state, authentication, cipher and PHY values appear as `unknown_<n>`
+without discarding other fields. Connection-query warnings log once per distinct
+code during the plugin process's lifetime.
+
+RSSI uses the native RSSI query, then the associated BSSID's cached BSS reading
+if that query fails or returns an invalid value. Both sources must be in
+−120…0 dBm; RSSI remains absent if neither is readable. Signal quality is never
+converted to dBm. Default adapter selection prefers a connected physical WLAN
+adapter over connected virtual adapters; an explicit adapter selector takes precedence.
 
 ## Cargo Features
 
@@ -1193,7 +1536,10 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Host payloads now use native repeated fields and framework
+fresh storage root. Versioned local history projections, membership and sample identity indexes
+and persistent query token identities are part of that layout; retained older
+roots are preserved and are not rebuilt in place. Finite history queries cover this local catalog only; merged browse
+discovery remains a separate API. Host payloads now use native repeated fields and framework
 publication timestamps; the earlier wrapped host row layout also requires a fresh
 root. Schemas remain v1 during development. Existing data is never silently reset.
 
@@ -1441,14 +1787,22 @@ cargo dokime bindings proto --output target/contracts/proto
 
 The output contains `.proto` files, `descriptors.bin`, `contracts.json` and their manifest.
 
-The server contract producer generates the protobuf descriptors of every public operation;
-`mise run build` regenerates the Python package's contract files from them with
-`cargo dokime bindings python`, which wraps Harmos's Python exporter, and refuses a stale tracked
-copy. The desktop's TypeScript pipeline selects `cargo-dokime` from the same Cargo build's
-compiler messages and runs `bindings proto` before the Buf generator. Its protobuf modules,
-client and descriptor fingerprint match the server export. Application settings still come from
-that build-script export. Ordinary wheel and source-package
-installation uses the tracked files and needs no Rust compiler.
+The server contract producer generates descriptors from every canonical public
+operation. Regenerate all tracked Python/TypeScript contracts and catalog
+snapshots together through the task-owned compiler preflight:
+
+```sh
+mise run prepare:bindings
+```
+
+This task builds the contract generator and server export with the dev compiler
+profile, selects `cargo-dokime` from those compiler messages, exports Python from
+the server contracts and runs `bindings proto` before the TypeScript generator.
+The `prepare:generated` prerequisite and the Product frontend build check tracked
+clients for drift while preparing their message modules. Client descriptors and
+fingerprints match the server export; application settings come from that same
+build-script export. Wheel and source-package installation use tracked files
+and need no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
 client crosses one opaque IPC bridge into the shell, which forwards the
@@ -1464,10 +1818,37 @@ patched in the shell rather than framed by the WebView.
 
 ## Long-Running Evidence And Report Saves
 
-Telemetry and captured records persist as they arrive with bounded pending
-queues and durable acknowledgement. Plots query saved evidence in bounded pages;
-changing a display window never deletes raw evidence. Recovery restores saved
-frontiers without replaying device actions.
+Telemetry admission retains a bounded in-memory tail. A flush writes a
+ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
+and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
+with the unflushed tail; historical reads retain their requested saved frontier.
+Changing a display window never deletes raw evidence. Only flushed batches are
+durable; accepted tail rows can be lost in a crash.
+
+`RuntimeConfig.local_storage.telemetry_rows` and `telemetry_interval` configure
+row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
+five seconds. Explicit evidence barriers and shutdown also drain pending rows.
+Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
+session-scoped files for telemetry outside executions. Finalize writes only the
+footer from the retained batch descriptors. Capture ranges link executions and
+cycles to samples in their original producer files without duplicating payloads.
+Recovery rebuilds an interrupted footer from batch headers and catalog checkpoints
+without decoding sample bytes.
+Files close before rename or deletion on Windows.
+
+Receiver receipts resolve sample identities through the saved SQLite batch index on
+a reader connection, including execution capture membership. Replayed chunks advance
+from their known saved positions after the receiver confirms the final sample.
+Acknowledgement never scans Arrow history or holds the storage writer.
+After an explicit retry saves every pending telemetry row, shutdown discards an
+earlier transient flush-task failure. Unsaved rows and nontransient failures still
+refuse storage close.
+
+This experimental storage layout keeps the v1 baseline and requires a fresh
+root for incompatible development data, including roots without the sample identity index.
+Existing roots are never reset or
+silently deleted. Captured records keep their bounded durable queue and recovery
+restores saved frontiers without replaying device actions.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.
@@ -1486,11 +1867,13 @@ its raw samples. Plots render the resulting extrema envelope within their displa
 budget; extending a run coarsens time resolution while retaining peaks and dips.
 Tables show bounded first/last rows. Each report identifies its execution and
 saved evidence frontier; evidence paging and exported bundles retain the full data.
-Exact numeric summaries, including percentiles and the built-in mean analysis,
-read the incremental numeric indexes.
+Numeric summaries, including percentiles and the built-in mean analysis,
+use all samples through the incremental numeric indexes. Within-cap plot
+summaries preserve typed integers until the final numeric result.
 
 SQLite construction settings `RuntimeConfig.local_storage.previews` own
-`bucket_count`, `bucket_interval` and `report_concurrency`; application report
+`bucket_count`, `bucket_interval`, `exact_points`, `grid_columns`, `grid_rows`,
+`groups` and `report_concurrency`; application report
 settings own `table_rows`, `plot_points`, `source_bytes` and `value_depth`. Defaults are 256 buckets, a 1 ms starting interval, 32 rows at each
 end, four background renders and 2,000 display points. Each bucket contributes at most four points, and
 report plots merge buckets further when their authored display budget is smaller.
@@ -1501,19 +1884,35 @@ Document input/materialization defaults to 64 MiB and report value encoding to
 Lifecycle definitions, annotations and file inventories retain complete captured
 metadata; capture cost still scales with their cardinality, rather than sample history.
 
-Analyses without an exact incremental index are visibly unavailable in reports:
-FFT, LTTB analyses, filtered/grouped/transformed series, record-time correlations, repeated
-sections and non-time plots. Full evidence remains available for external analysis.
-A historical cut whose preview has advanced is refused instead of replaying raw
-history. Current reports use the saved frontier; final reports use the frozen cut.
+Plot-specific checkpoints apply filters and scopes before accumulating data. They
+keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
+extrema envelopes; XY scatter keeps paired coordinates in a density grid (64 by
+64 by default), re-binning occupied cells as extents grow. Each cell retains its
+sample count. Group counters and numeric moments update incrementally, and
+record durations retain the preceding matching record and telemetry context.
+`groups` bounds series and correlation keys (256 by default). Plots with fewer
+than four points render normally. Analyses that need more exact history than the
+configured cap identify their specific limitation. History-dependent repeated
+sections remain unavailable. Full evidence remains available for external analysis.
+Plot checkpoints commit with the telemetry batch that advances them. A historical
+cut whose plot checkpoint has advanced, and captures and plots without a
+plot-specific checkpoint, are reconstructed from bounded evidence pages through
+the requested cut; a historical cut whose field preview has advanced is refused.
+Running reports capture field previews, plot checkpoints, exact summaries and
+first/last rows in one committed storage snapshot, shared across active cycle
+members. They show an **As Of** time and the saved evidence frontier for that cut;
+ingestion can continue while the report renders. Final reports retain their exact
+frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
-Stop and Cancel close and drain evidence, then return while HTML publication runs
-in the background. Execution detail exposes report **Pending**, **Ready** or
+Stop closes and drains evidence, then waits for the execution's durable seal,
+joining report publication already in flight. A report failure fails Stop without
+changing the execution result. Cancel and natural completion publish HTML in the
+background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
-and Python `await execution.snapshot()` expose the same `report` field. A report failure never fails Stop or changes the execution result.
+and Python `await execution.snapshot()` expose the same `report` field.
 Execution-scoped sample follows drain the closed evidence frontier independently
 of HTML. Report download and evidence export wait for readiness and return publication
 failures. `cycle.save(...)` uses those same waits. Shutdown preserves pending
@@ -1540,3 +1939,30 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+## Remote Certificate Refresh
+
+The managed remote listener reloads its TLS leaf in place. Existing connections
+and streaming calls continue; new handshakes use the replacement certificate
+under the same persistent pairing CA. Only enabled state, bind address/port,
+TLS mode or authentication mode changes detach and rebind the listener.
+Explicit certificate regeneration also reloads in place.
+
+Automatic refresh requires coverage of `settings.certificate_names` and every
+eligible endpoint advertised by new `.dokime-remote` pairings. Already covered
+names are compared without order or DNS case; disappearing addresses and excluded
+virtual/transient interfaces do not reissue a certificate. Missing advertised or
+configured names cause reissue. Prior SANs are retained while there is room after
+required names, preventing a disappearing/reappearing interface from causing churn.
+Configured and currently advertised names must all fit the listener's name budget;
+excess required names are rejected instead of silently leaving pairings uncovered.
+The refresh task is stopped and joined before listener management closes admission.
+
+Rust and Python clients retry an explicitly known unary read once after
+`UNAVAILABLE`, with a short reconnect delay inside the existing request deadline.
+Unknown/plugin operations and mutations are never automatically replayed; a
+request identifier alone does not imply a server deduplication contract.
+Sample and record listeners can reconnect once between successfully delivered
+pages, preserving stream/journal cursors and checking the backend epoch. Raw
+streams expose failures to their caller because arbitrary streams have no generic
+resume contract. Non-transient failures and exhausted retries remain visible.

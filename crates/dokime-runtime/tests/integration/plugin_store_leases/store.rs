@@ -116,6 +116,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn boot_failure_persists_plugin_and_carrier() {
     let root = tempfile::tempdir().unwrap();
@@ -148,6 +149,7 @@ async fn boot_failure_persists_plugin_and_carrier() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn schema_budget_installation() {
     use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
@@ -183,6 +185,7 @@ async fn schema_budget_installation() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_upgrades() {
     let root = tempfile::tempdir().unwrap();
@@ -241,9 +244,10 @@ async fn bundled_upgrades() {
     database.close().await.unwrap();
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_sources_survive() {
-    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.hilti.testhub"] {
+    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
         let root = tempfile::tempdir().unwrap();
         let application = root.path().join(identifier);
         let plugins = application.join("plugins");
@@ -277,6 +281,7 @@ async fn bundled_sources_survive() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn bundled_distribution() {
     let root = tempfile::tempdir().unwrap();
@@ -284,7 +289,7 @@ async fn bundled_distribution() {
     let plugins = installer.path().join("plugins");
     fs::create_dir(&plugins).unwrap();
     let distribution = installer.path().join("installer.json");
-    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.hilti.dokime"}"#).unwrap();
+    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.example.testhub"}"#).unwrap();
     let bytes = bundle("organization-host", "host", "1.0.0");
     installer_metadata(&distribution, "1.0.0", &bytes);
     fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();

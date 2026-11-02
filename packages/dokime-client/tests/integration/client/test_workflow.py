@@ -17,9 +17,9 @@ import asyncio
 import pytest
 
 # Local Imports
-from dokime_client.client import ExecutionSubmissionUncertain
+from dokime_client.client import ExecutionEvidence, ExecutionSubmissionUncertain
 
-from .backend import EXECUTION_ID, collect, prepare
+from .backend import CYCLE_ID, EXECUTION_ID, collect, prepare
 from .capture_backend import serve
 
 # Type Checking Imports
@@ -104,6 +104,45 @@ def test_independent_observers() -> None:
             assert [record.type for record in await second] == ["fixture.finished"]
             assert (await execution.wait()).status == "passed"
             assert backend.run_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_captured_record_count() -> None:
+    async def scenario() -> None:
+        async with serve() as (backend, client):
+            backend.finish_gate.clear()
+            cycle = await prepare(client)
+            execution = cycle.executions[0]
+            await execution.start()
+            await backend.changed.wait()
+            backend.records.clear()
+            backend.samples.clear()
+            records_task = asyncio.create_task(collect(execution.records("example.target.lost")))
+            samples_task = asyncio.create_task(collect(execution.samples()))
+            await asyncio.sleep(0)
+            for _ in range(3):
+                backend.publish("lost")
+                record = backend.records[-1]
+                record.record_type = "example.target.lost"
+                record.ClearField("scope")
+                backend.samples[-1].ClearField("scope")
+                backend.record_captures[record.record_id] = [(CYCLE_ID, EXECUTION_ID)]
+            backend.phase = {"Completed": {}}
+            backend.terminal.set()
+            backend.sealed.set()
+
+            records = await records_task
+            assert len(records) == 3
+            assert len(await collect(cycle.records(record_types=["example.target.lost"]))) == 3
+            assert len(await samples_task) == 3
+            assert len(await collect(cycle.samples())) == 3
+            point = await execution.checkpoint()
+            assert point is not None
+            evidence = ExecutionEvidence(execution._transport, point, execution._backend)
+            saved = await collect(evidence.records())
+            assert sum(item.record.type == "example.target.lost" for item in saved) == 3
+            assert len(await collect(evidence.samples())) == 3
 
     asyncio.run(scenario())
 

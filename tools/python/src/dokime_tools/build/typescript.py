@@ -31,8 +31,10 @@ from dokime_tools.prepare import bindings, generated
 
 
 def build(profile: str) -> list[str]:
-    """Generate The GUI Message Modules From Protobuf And Build The Live Frontend."""
+    """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
     messages = configuration.messages(profile)
+    if not messages.is_file():
+        raise ValueError(f"missing Product compiler messages {messages}; run `mise run build:rust` first")
     bindings.generate(messages, check=True)
     generated.generate(messages, check=True)
     generated.stage(profile)

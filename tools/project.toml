@@ -167,7 +167,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
+inputs = ["build#cli", "build#gui", "build#plugins", "build#clients", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:unit"
@@ -257,6 +257,7 @@ inputs = []
 
 [[ci.jobs]]
 id = "release:publish:dry"
+pipelines = ["release", "nightly"]
 inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
@@ -289,7 +290,7 @@ platform = "unix"
 [conventions.testing.deadlines]
 acceptance = 900
 integration = 120
-system = 900
+system = 300
 unit = 120
 
 [conventions.testing.limits]

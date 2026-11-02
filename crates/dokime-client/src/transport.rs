@@ -204,17 +204,109 @@ where
     R: Portable + MemorySize + 'static,
     Q: Portable + Send + Sync + 'static,
 {
-    let codec = codec::<R, Response<Q>>(response_bytes, request_bytes)?;
-    let mut client = tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
-    client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
-    client
-        .unary(request(Response::new(message), authorization), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
-        .await
-        .map(tonic::Response::into_inner)
-        .map_err(Error::Rpc)
+    let message = Response::new(message);
+    retry_unavailable(path, || {
+        let message = message.clone();
+        let channel = channel.clone();
+        async move {
+            let codec = codec::<R, Response<Q>>(response_bytes, request_bytes)?;
+            let mut client =
+                tonic::client::Grpc::new(channel).max_decoding_message_size(response_bytes).max_encoding_message_size(request_bytes);
+            client.ready().await.map_err(|_| Error::Rpc(tonic::Status::unavailable("channel is not ready")))?;
+            client
+                .unary(request(message, authorization), tonic::codegen::http::uri::PathAndQuery::from_static(path), codec)
+                .await
+                .map(tonic::Response::into_inner)
+                .map_err(Error::Rpc)
+        }
+    })
+    .await
+}
+
+pub(super) async fn retry_unavailable<T, F: Future<Output = Result<T>>>(path: &str, mut attempt: impl FnMut() -> F) -> Result<T> {
+    let result = attempt().await;
+    if matches!(&result, Err(Error::Rpc(status)) if status.code() == tonic::Code::Unavailable) && read_only(path) {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        return attempt().await;
+    }
+    result
 }
 
 /* === Private Functions === */
+
+fn read_only(path: &str) -> bool {
+    matches!(
+        path,
+        "/dokime.v1.Appearance/GetAppearance"
+            | "/dokime.v1.Backend/GetAvailability"
+            | "/dokime.v1.Backend/GetHealth"
+            | "/dokime.v1.Backend/GetIdentity"
+            | "/dokime.v1.Catalog/GetRecordSchema"
+            | "/dokime.v1.Catalog/GetSuite"
+            | "/dokime.v1.Catalog/GetTelemetrySchema"
+            | "/dokime.v1.Catalog/ListRecordSchemas"
+            | "/dokime.v1.Catalog/ListSuites"
+            | "/dokime.v1.Catalog/ListTelemetrySchemas"
+            | "/dokime.v1.Content/ListArtifacts"
+            | "/dokime.v1.Content/ListExecutionFiles"
+            | "/dokime.v1.Content/ReadExecutionFile"
+            | "/dokime.v1.Evidence/GetCapturedRecordSchema"
+            | "/dokime.v1.Evidence/ListRecords"
+            | "/dokime.v1.Execution/GetCase"
+            | "/dokime.v1.Execution/GetCycle"
+            | "/dokime.v1.Execution/GetExecution"
+            | "/dokime.v1.Execution/GetExecutionCommand"
+            | "/dokime.v1.Execution/ListCaseParameters"
+            | "/dokime.v1.Execution/ListCases"
+            | "/dokime.v1.Execution/ListCycles"
+            | "/dokime.v1.Execution/ListExecutionParameters"
+            | "/dokime.v1.Execution/ListExecutionSteps"
+            | "/dokime.v1.Execution/ListExecutions"
+            | "/dokime.v1.Health/ListHealth"
+            | "/dokime.v1.History/BrowseCycles"
+            | "/dokime.v1.History/BrowseExecutions"
+            | "/dokime.v1.History/GetCheckpointContext"
+            | "/dokime.v1.History/GetCheckpointDocument"
+            | "/dokime.v1.History/GetCheckpointEvidence"
+            | "/dokime.v1.History/GetExecutionCheckpoint"
+            | "/dokime.v1.History/ListCheckpointRecords"
+            | "/dokime.v1.History/ListCheckpointTelemetry"
+            | "/dokime.v1.History/ReadCheckpointOutput"
+            | "/dokime.v1.Notes/ListNotes"
+            | "/dokime.v1.Observation/GetRuntimeShell"
+            | "/dokime.v1.Observation/GetTraceability"
+            | "/dokime.v1.Planning/MaterializeTemplate"
+            | "/dokime.v1.Planning/PreviewSelection"
+            | "/dokime.v1.Plots/ListAnalyses"
+            | "/dokime.v1.Plots/QuerySnapshots"
+            | "/dokime.v1.Plugins/GetInstallation"
+            | "/dokime.v1.Plugins/ListAdmittedPlugins"
+            | "/dokime.v1.Plugins/ListInstallations"
+            | "/dokime.v1.Prompts/GetDefinition"
+            | "/dokime.v1.Prompts/GetPrompt"
+            | "/dokime.v1.Prompts/ListDefinitions"
+            | "/dokime.v1.Prompts/ListPending"
+            | "/dokime.v1.Query/Aggregate"
+            | "/dokime.v1.Query/AggregateSamples"
+            | "/dokime.v1.Query/ListCycles"
+            | "/dokime.v1.Query/ListExecutions"
+            | "/dokime.v1.Query/ListRecords"
+            | "/dokime.v1.Query/ListSamples"
+            | "/dokime.v1.Remote/ListPairedClients"
+            | "/dokime.v1.Remote/ListSessions"
+            | "/dokime.v1.Remote/ReadListener"
+            | "/dokime.v1.Runtime/GetHealth"
+            | "/dokime.v1.Runtime/GetIdentity"
+            | "/dokime.v1.Secrets/List"
+            | "/dokime.v1.Secrets/Preview"
+            | "/dokime.v1.Settings/GetPluginSettings"
+            | "/dokime.v1.Settings/GetSettings"
+            | "/dokime.v1.Settings/ListStorageSources"
+            | "/dokime.v1.Settings/ReadApplicationSettings"
+            | "/dokime.v1.Telemetry/ListSamples"
+            | "/harmos.host.v1.Host/Catalog"
+    )
+}
 
 // A Live Stream Fails Only When No Frame, Heartbeats Included, Arrives Within The Idle Deadline.
 async fn idle_frame<T>(idle: Option<std::time::Duration>, next: impl Future<Output = T>) -> std::result::Result<T, tonic::Status> {

@@ -29,10 +29,9 @@ pub use windows::{administrator, connected_adapters, read_radio};
 
 use crate::domain::controls::{ControlState, Radio, RadioPower};
 use dokime::harmos::{
-    operations::{OperationPolicy, RetryPolicy},
+    operations::OperationPolicy,
     state::{Invertible, Transaction},
 };
-use std::time::Duration;
 
 // Standard Library Imports
 
@@ -42,20 +41,10 @@ use std::time::Duration;
 
 /* === Constants === */
 
-pub const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_secs(30),
-    attempt_timeout: Duration::from_secs(30),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: RetryPolicy::Never,
-};
+pub const POLICY: OperationPolicy = crate::settings::collection_policy(crate::settings::CONTROL_BUDGET_MS);
 
 // An Inverse May First Settle An Already Owned Forward Attempt.
-pub const RESTORE_POLICY: OperationPolicy = OperationPolicy {
-    timeout: POLICY.timeout.saturating_mul(2),
-    attempt_timeout: POLICY.attempt_timeout.saturating_mul(2),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: RetryPolicy::Never,
-};
+pub const RESTORE_POLICY: OperationPolicy = crate::settings::collection_policy(crate::settings::RESTORE_BUDGET_MS);
 
 /* === Macros === */
 

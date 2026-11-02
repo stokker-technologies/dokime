@@ -37,10 +37,14 @@ pub async fn finalize(client: &Client) {
         }),
         ..Default::default()
     };
-    let mut saved = 0;
     loop {
         let page = client.call(request.clone()).await.unwrap();
-        saved += save_page(client, &page.cycles, root.path()).await;
+        for cycle in page.cycles {
+            let cycle = client.cycle(dokime::TestCycleId::from_uuid(&cycle.cycle_id).unwrap());
+            if !cycle.executions().await.unwrap().is_empty() {
+                cycle.seal().await.unwrap();
+            }
+        }
 
         let Some(after) = page.next_after_cycle_id else {
             break;
@@ -49,38 +53,40 @@ pub async fn finalize(client: &Client) {
         request.cursor = page.cursor;
     }
 
+    // Startup Retires Sealed Cycles From Live State; Discover Their Executions Through History.
+    let mut request = contracts::history::BrowseExecutions {
+        limit: 100,
+        filter: Some(model::history::wire::ExecutionFilter {
+            archive: Some(model::execution::wire::ArchiveScope::All),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let mut saved = 0;
+    loop {
+        let page = client.call(request.clone()).await.unwrap();
+        for entry in page.entries {
+            assert!(entry.checkpoint.is_some(), "the execution has a saved seal");
+            let metadata = entry.metadata.unwrap();
+            let execution = client.execution(dokime::TestExecutionId::from_uuid(metadata.execution_id).unwrap());
+            save_execution(client, &execution, root.path()).await;
+            saved += 1;
+        }
+        let Some(after) = page.next_after_execution_id else {
+            break;
+        };
+        request.after_execution_id = after;
+    }
+
     assert!(saved > 0, "report-producing system story has no executions; exempt no-report stories centrally");
     eprintln!("reopened {saved} sealed execution reports with their artifacts over native RPC");
 }
 
 /* === Private Functions === */
-async fn save_page(client: &Client, cycles: &[model::execution::wire::CycleSummary], root: &Path) -> usize {
-    let mut saved = 0;
-    for cycle in cycles {
-        saved += save_cycle(client, cycle, root).await;
-    }
-    saved
-}
-
-async fn save_cycle(client: &Client, cycle: &model::execution::wire::CycleSummary, root: &Path) -> usize {
-    let cycle = client.cycle(dokime::TestCycleId::from_uuid(&cycle.cycle_id).unwrap());
-    let executions = cycle.executions().await.unwrap();
-    if executions.is_empty() {
-        return 0;
-    }
-    cycle.seal().await.unwrap();
-
-    let saved = executions.len();
-    for execution in executions {
-        save_execution(client, &execution, root).await;
-    }
-    saved
-}
-
 async fn save_execution(client: &Client, execution: &TestExecutionHandle, root: &Path) {
     let id = execution.id().to_string();
-    assert!(execution.snapshot().await.unwrap().summary.unwrap().sealed);
     let checkpoint = execution.checkpoint().await.unwrap();
+    assert!(execution.document_at(&checkpoint).await.unwrap().acquisition_finished);
     let evidence = client
         .call(contracts::history::GetCheckpointEvidence {
             checkpoint: Some(checkpoint.clone()),
@@ -139,7 +145,6 @@ async fn save_execution(client: &Client, execution: &TestExecutionHandle, root: 
     }
     super::system_reports::reopen(&path, &id, &artifacts);
     assert_eq!(execution.checkpoint().await.unwrap(), checkpoint);
-    assert!(execution.snapshot().await.unwrap().summary.unwrap().sealed);
 }
 
 /* === Tests === */

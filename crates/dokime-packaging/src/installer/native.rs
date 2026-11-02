@@ -236,6 +236,7 @@ pub fn assemble(
         installer_hooks: Some(hooks),
         installer_icon: Some(ico_path),
         sidebar_image: windows.then_some(sidebar),
+        install_mode: Default::default(), // CurrentUser; Keep Setup And Uninstall Unelevated.
         ..NsisSettings::default()
     });
     if !windows {
@@ -632,8 +633,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn default_setup_keeps_firewall_and_elevation_out_of_hooks() {
+        let nsis = NsisSettings::default();
+        let mode = serde_json::to_value(nsis.install_mode).unwrap();
+        let renderer = handlebars::Handlebars::new();
+        for manifest in [
+            "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\ntarget='x86_64-pc-windows-msvc'",
+            "[installer]\nversion='1.2.3'\nidentifier='com.example.test'\nformats=['nsis']\n[dokime]\ntarget='x86_64-pc-windows-msvc'",
+        ] {
+            let manifest: Manifest = toml::from_str(manifest).unwrap();
+            let data = serde_json::json!({ "install_mode": mode, "version": manifest.installer.version });
+            let script = renderer.render_template(include_str!("installer.nsi"), &data).unwrap();
+            let hooks = include_str!("hooks.nsh");
+            let definition = format!("!define INSTALLMODE \"{}\"", mode.as_str().unwrap());
+            assert!(script.contains(&definition));
+            let execution: Vec<_> = script.lines().map(str::trim).filter(|line| line.starts_with("RequestExecutionLevel")).collect();
+            assert_eq!(execution, ["RequestExecutionLevel user"]);
+            for forbidden in [
+                "FIREWALL",
+                "firewall.ps1",
+                "New-NetFirewallRule",
+                "-Verb RunAs",
+                "UAC::",
+                "RequestExecutionLevel admin",
+                "MULTIUSER_EXECUTIONLEVEL Highest",
+            ] {
+                assert!(!script.contains(forbidden), "script contains {forbidden}");
+                assert!(!hooks.contains(forbidden), "hooks contain {forbidden}");
+            }
+            assert!(hooks.contains("GetEnvironmentVariable('Path', 'User')"));
+        }
+    }
+
+    #[test]
     fn distribution_names() {
-        let label = "Hilti Test Hub";
+        let label = "Example Test Hub";
         let compiled = distribution::Identity {
             identifier: "com.stokker.dokime".into(),
             slug: "dokime".into(),
@@ -643,12 +677,13 @@ mod tests {
         let mut manifest: Manifest = toml::from_str(text).unwrap();
         let renderer = handlebars::Handlebars::new();
 
-        for identifier in [None, Some("com.hilti.dokime")] {
+        for identifier in [None, Some("com.example.testhub")] {
             manifest.installer.identifier = identifier.map(str::to_owned);
             let identity = manifest.identity(&compiled).unwrap();
             let windows = package_settings(&manifest, &identity, label, true);
             assert_eq!(windows.product_name, label);
-            let data = serde_json::json!({ "product_name": windows.product_name, "bundle_id": identity.identifier });
+            let data =
+                serde_json::json!({ "product_name": windows.product_name, "bundle_id": identity.identifier, "install_mode": "both" });
             let template = renderer.render_template(include_str!("installer.nsi"), &data).unwrap();
             assert!(template.contains(&format!("!define PRODUCTNAME \"{label}\"")));
             assert!(template.contains(&format!("!define BUNDLEID \"{}\"", identity.identifier)));

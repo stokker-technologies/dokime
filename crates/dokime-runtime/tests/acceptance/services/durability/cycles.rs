@@ -36,6 +36,7 @@ use super::*;
 
 /* === Private Functions === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn kill_recovers_cycle() {
     if std::env::var_os("DOKIME_RUNTIME_KILL_CHILD").is_some() {

@@ -205,8 +205,19 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     fn write_stream(&self, batch: StorageBatch<StoredRow>) -> StorageFuture<'_, StorageCursor> {
         Box::pin(async move {
-            let root = self.root.clone();
-            let cut = self.state.data_write(root, batch).await.map_err(|error| failure("write SQLite stream", error))?;
+            let mut cut = self.state.data_saved().await.map_err(|error| failure("read SQLite saved frontier", error))?;
+            let mut start = 0;
+            while start < batch.len() {
+                let arrow = batch.as_slice()[start].record.schema.id.as_str().starts_with("dokime.telemetry.");
+                let end = batch.as_slice()[start..]
+                    .iter()
+                    .position(|row| row.record.schema.id.as_str().starts_with("dokime.telemetry.") != arrow)
+                    .map_or(batch.len(), |length| start + length);
+                let selected = batch.slice(start..end);
+                cut = if arrow { self.state.arrow_write(selected).await } else { self.state.data_write(self.root.clone(), selected).await }
+                    .map_err(|error| failure("write SQLite stream", error))?;
+                start = end;
+            }
             Ok(StorageCursor {
                 history: cut.history,
                 sequence: cut.sequence,
@@ -332,6 +343,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     .filter("scope", selection.scope.as_ref().map(|value| key(value.as_str())).transpose()?)
                     .filter("item", selection.item.as_ref().map(|value| key(value.as_str())).transpose()?);
                 scan.source_window = selection.source_start.zip(selection.source_end);
+                scan.source_bounds = (selection.source_start, selection.source_end);
                 Ok(scan)
             },
             |entry| match entry {
@@ -355,6 +367,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     .filter("item", selection.item.as_ref().map(|value| key(value.as_str())).transpose()?)
                     .filter("stream", selection.stream.as_ref().map(|value| key(value.as_str())).transpose()?);
                 scan.source_window = selection.source_start.zip(selection.source_end);
+                scan.source_bounds = (selection.source_start, selection.source_end);
                 Ok(scan)
             },
             |entry| match entry {

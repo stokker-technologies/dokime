@@ -87,7 +87,7 @@ pub fn administrator() -> Result<bool> {
     Ok(member.as_bool())
 }
 
-pub fn read_radio(kind: Radio) -> Result<ControlState> {
+pub fn read_radio(kind: Radio, _timing: &crate::settings::Timing) -> Result<ControlState> {
     let _apartment = Apartment::new()?;
     let selector = NativeRadio::GetDeviceSelector().map_err(probe)?;
     let devices = DeviceInformation::FindAllAsyncAqsFilter(&selector).map_err(probe)?.join().map_err(probe)?;
@@ -128,9 +128,9 @@ pub fn read_adapter(id: &str) -> Result<ControlState> {
     })
 }
 
-pub fn apply(state: &ControlState, restoring: bool) -> Result<()> {
+pub fn apply(state: &ControlState, restoring: bool, timing: &crate::settings::Timing) -> Result<()> {
     if !state.radios.is_empty() {
-        let deadline = std::time::Instant::now() + super::POLICY.attempt_timeout / 2;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timing.radio_settle_timeout_ms);
         let _apartment = Apartment::new()?;
         let access = NativeRadio::RequestAccessAsync().map_err(probe)?.join().map_err(probe)?;
         if access != RadioAccessStatus::Allowed {
@@ -187,13 +187,13 @@ pub fn radio_affects(kind: Radio, adapter: &crate::host::adapters::Adapter) -> R
     Ok(row.PhysicalMediumType == NdisPhysicalMediumBluetooth)
 }
 
-pub fn connected_adapters(pid: u32) -> Result<Vec<String>> {
+pub fn connected_adapters(pid: u32, timing: &crate::settings::Timing) -> Result<Vec<String>> {
     let mut locals = BTreeSet::new();
     for family in [AF_INET, AF_INET6] {
         let mut size = 0;
         unsafe { GetExtendedTcpTable(None, &mut size, false, family.0.into(), TCP_TABLE_OWNER_PID_ALL, 0) };
         let mut buffer = vec![0u64; (size as usize).div_ceil(8)];
-        let deadline = std::time::Instant::now() + super::POLICY.attempt_timeout;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timing.control_probe_timeout_ms);
         loop {
             let code = unsafe {
                 GetExtendedTcpTable(Some(buffer.as_mut_ptr().cast()), &mut size, false, family.0.into(), TCP_TABLE_OWNER_PID_ALL, 0)
@@ -235,7 +235,7 @@ pub fn connected_adapters(pid: u32) -> Result<Vec<String>> {
             break;
         }
     }
-    let inventory = crate::host::adapters::snapshot()?;
+    let inventory = crate::host::adapters::snapshot(std::time::Duration::from_millis(timing.network_probe_timeout_ms))?;
     Ok(inventory
         .adapters
         .into_iter()
@@ -326,6 +326,7 @@ mod tests {
                 ..Default::default()
             },
             true,
+            &crate::HostOptions::default().timing,
         )
         .unwrap();
         assert_eq!(crate::host::power::active_plan().unwrap().id, prior.id);

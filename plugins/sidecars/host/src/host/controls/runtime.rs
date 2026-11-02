@@ -70,6 +70,7 @@ implementation!(Restore, Restore);
 /* === Structs === */
 
 pub struct State {
+    timing: crate::settings::Timing,
     owner: &'static str,
     gate: tokio::sync::Mutex<()>,
     host: std::sync::OnceLock<Supervisor>,
@@ -90,8 +91,9 @@ enum Change {
 /* === Implementations === */
 
 impl State {
-    pub(crate) fn new(owner: &'static str) -> Self {
+    pub(crate) fn new(owner: &'static str, timing: crate::settings::Timing) -> Self {
         Self {
+            timing,
             owner,
             gate: tokio::sync::Mutex::new(()),
             host: std::sync::OnceLock::new(),
@@ -113,7 +115,8 @@ impl State {
     async fn execute(&self, change: Change, host: Supervisor, workers: Arc<Workers>) -> Result<EffectResult> {
         let _gate = self.gate.lock().await;
         if let Change::Restore(restore) = change {
-            let task = workers.0.spawn_blocking(move || native::apply(&restore.state, true));
+            let timing = self.timing.clone();
+            let task = workers.0.spawn_blocking(move || native::apply(&restore.state, true, &timing));
             task.await.map_err(probe)??;
             return Ok(EffectResult { at: now() });
         }
@@ -122,8 +125,9 @@ impl State {
         }
         let environment = host.call::<ReadEnvironment>(ReadEnvironment {}).await.map_err(probe)?;
         let reading = change.clone();
+        let timing = self.timing.clone();
         let task = workers.0.spawn_blocking(move || match reading {
-            Change::Radio(request) => native::read_radio(request.radio),
+            Change::Radio(request) => native::read_radio(request.radio, &timing),
             Change::Adapter(request) => native::read_adapter(&request.adapter_id),
             Change::Plan(_) => crate::host::power::active_plan().map(|plan| ControlState {
                 power_plan: Some(plan.id),
@@ -176,7 +180,9 @@ impl State {
         if disabling {
             let pid = environment.backend_pid;
             let in_step = environment.in_step;
-            let task = workers.0.spawn_blocking(move || guard_connection(pid, radio, adapter.as_deref(), allow_disconnect, in_step));
+            let timing = self.timing.clone();
+            let task =
+                workers.0.spawn_blocking(move || guard_connection(pid, radio, adapter.as_deref(), allow_disconnect, in_step, &timing));
             task.await.map_err(probe)??;
         }
         let ticket = host
@@ -190,9 +196,11 @@ impl State {
             .map_err(probe)?
             .id
             .clone();
-        let task = workers.0.spawn_blocking(move || native::apply(&after, false));
+        let timing = self.timing.clone();
+        let task = workers.0.spawn_blocking(move || native::apply(&after, false, &timing));
         if let Err(error) = task.await.map_err(probe)? {
-            let task = workers.0.spawn_blocking(move || native::apply(&inverse.state, true));
+            let timing = self.timing.clone();
+            let task = workers.0.spawn_blocking(move || native::apply(&inverse.state, true, &timing));
             match task.await.map_err(probe)? {
                 Ok(()) => {
                     host.call::<ConfirmEffect>(ConfirmEffect { ticket, at: now(), restored: true }).await.map_err(probe)?;
@@ -217,12 +225,14 @@ pub fn require_administrator() -> Result<()> {
 }
 
 // The Caller Supplies Only A Backend-Verified Override, Never A Request Flag By Itself.
-pub fn guard_connection(pid: u32, radio: Option<Radio>, adapter: Option<&str>, allow_disconnect: bool, in_step: bool) -> Result<()> {
+pub fn guard_connection(
+    pid: u32, radio: Option<Radio>, adapter: Option<&str>, allow_disconnect: bool, in_step: bool, timing: &crate::settings::Timing,
+) -> Result<()> {
     if allow_disconnect && in_step {
         return Ok(());
     }
-    let active = native::connected_adapters(pid)?;
-    let adapters = crate::host::adapters::snapshot()?.adapters;
+    let active = native::connected_adapters(pid, timing)?;
+    let adapters = crate::host::adapters::snapshot(std::time::Duration::from_millis(timing.network_probe_timeout_ms))?.adapters;
     for entry in &adapters {
         if !active.contains(&entry.id) {
             continue;

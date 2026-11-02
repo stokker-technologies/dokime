@@ -73,7 +73,8 @@ export class NativeSession {
       const snapshot = await start();
       if (revision !== this.revision) return;
       const backend = snapshot.connection.backend;
-      if (snapshot.connection.phase !== "connected" || !backend) throw new Error("Native connection did not negotiate a backend");
+      if (snapshot.connection.phase !== "connected" || !backend)
+        throw snapshot.connection.error ?? new Error("Native connection did not negotiate a backend");
       const queryClient = createDokimeQueryClient();
       const disposers = new Set<() => void>();
       const session: ConnectedSession = {
@@ -113,6 +114,9 @@ export class NativeSession {
         this.publish({ phase: "failed", error });
       }
     }
+  }
+  async refresh(): Promise<void> {
+    await this.connect(() => commands.desktopSessionStatus(), false);
   }
   async disconnect(): Promise<void> {
     const revision = this.invalidate();

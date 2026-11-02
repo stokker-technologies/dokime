@@ -22,6 +22,10 @@ use std::{
 };
 
 // Third Party Imports
+use reqwest::{
+    StatusCode,
+    header::{AUTHORIZATION, HeaderMap, HeaderValue},
+};
 use serde::Deserialize;
 
 // Local Imports
@@ -210,7 +214,11 @@ impl Release {
 
 async fn fetch(client: &reqwest::Client, url: &reqwest::Url, maximum: usize, name: &str) -> Result<Vec<u8>, Error> {
     let terminal = dokime::terminal::Terminal::default();
-    let response = client.get(url.clone()).send().await.map_err(|error| Error::Invalid(error.to_string()))?;
+    let request = request(client, url, |name| std::env::var(name).ok())?;
+    let response = request.send().await.map_err(|error| Error::Invalid(error.to_string()))?;
+    if response.url().host_str() == Some("api.github.com") {
+        rate_limit(response.status(), response.headers())?;
+    }
     let mut response = response.error_for_status().map_err(|error| Error::Invalid(error.to_string()))?;
     if response.content_length().is_some_and(|length| length > maximum as u64) {
         return Err(Error::Invalid("release response exceeds its byte limit".into()));
@@ -227,6 +235,39 @@ async fn fetch(client: &reqwest::Client, url: &reqwest::Url, maximum: usize, nam
     Ok(bytes)
 }
 
+fn request(
+    client: &reqwest::Client, url: &reqwest::Url, mut variable: impl FnMut(&str) -> Option<String>,
+) -> Result<reqwest::RequestBuilder, Error> {
+    let request = client.get(url.clone());
+    if url.scheme() != "https" || url.host_str() != Some("api.github.com") {
+        return Ok(request);
+    }
+    let token =
+        variable("GITHUB_TOKEN").filter(|token| !token.is_empty()).or_else(|| variable("GH_TOKEN").filter(|token| !token.is_empty()));
+    let Some(token) = token else {
+        return Ok(request);
+    };
+    let mut authorization =
+        HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| Error::Invalid("invalid GitHub token header value".into()))?;
+    authorization.set_sensitive(true);
+    // Reqwest Strips Authorization On Cross-Host Redirects; Never Use Client Default Headers.
+    Ok(request.header(AUTHORIZATION, authorization))
+}
+
+fn rate_limit(status: StatusCode, headers: &HeaderMap) -> Result<(), Error> {
+    let exhausted = headers.get("x-ratelimit-remaining").is_some_and(|value| value == "0");
+    let limited =
+        status == StatusCode::TOO_MANY_REQUESTS || (status == StatusCode::FORBIDDEN && (exhausted || headers.contains_key("retry-after")));
+    if !limited {
+        return Ok(());
+    }
+    let number = |name: &str| headers.get(name).and_then(|value| value.to_str().ok()).and_then(|value| value.parse::<u64>().ok());
+    Err(Error::GithubRateLimit {
+        limit: number("x-ratelimit-limit"),
+        reset: number("x-ratelimit-reset"),
+    })
+}
+
 fn cache_root() -> Result<PathBuf, Error> {
     #[cfg(windows)]
     let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).map(|path| path.join("dokime/cache"));
@@ -241,3 +282,91 @@ fn cache_root() -> Result<PathBuf, Error> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn client() -> reqwest::Client {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        reqwest::Client::builder().build().unwrap()
+    }
+
+    #[test]
+    fn github_authentication() {
+        let client = client();
+        let url = reqwest::Url::parse("https://api.github.com/repos/example/project/releases/latest").unwrap();
+        for (github, gh, expected) in [
+            (Some("primary"), Some("fallback"), Some("Bearer primary")),
+            (None, Some("fallback"), Some("Bearer fallback")),
+            (Some(""), Some("fallback"), Some("Bearer fallback")),
+            (None, None, None),
+            (Some(""), Some(""), None),
+        ] {
+            let request =
+                request(&client, &url, |name| if name == "GITHUB_TOKEN" { github.map(str::to_owned) } else { gh.map(str::to_owned) })
+                    .unwrap()
+                    .build()
+                    .unwrap();
+            let authorization = request.headers().get(AUTHORIZATION);
+            assert_eq!(authorization.map(|value| value.to_str().unwrap()), expected);
+            if let Some(authorization) = authorization {
+                assert!(authorization.is_sensitive());
+                assert!(!format!("{request:?}").contains(github.filter(|value| !value.is_empty()).or(gh).unwrap()));
+            }
+        }
+    }
+
+    #[test]
+    fn host_isolation() {
+        let client = client();
+        for location in [
+            "https://objects.githubusercontent.com/asset",
+            "https://github.com/example/project/releases/download/v1/asset",
+            "https://api.github.com.example.com/asset",
+            "https://example.com/asset",
+            "http://api.github.com/asset",
+        ] {
+            let url = reqwest::Url::parse(location).unwrap();
+            let request = request(&client, &url, |_| Some("private-token".into())).unwrap().build().unwrap();
+            assert!(!request.headers().contains_key(AUTHORIZATION));
+        }
+    }
+
+    #[test]
+    fn token_redaction() {
+        let client = client();
+        let url = reqwest::Url::parse("https://api.github.com/").unwrap();
+        let token = "private-token\r\ninjected: value";
+        let error = request(&client, &url, |_| Some(token.into())).unwrap_err();
+        assert!(!error.to_string().contains("private-token"));
+        assert!(!format!("{error:?}").contains("private-token"));
+    }
+
+    #[test]
+    fn rate_limit_errors() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-remaining", HeaderValue::from_static("0"));
+        headers.insert("x-ratelimit-limit", HeaderValue::from_static("60"));
+        headers.insert("x-ratelimit-reset", HeaderValue::from_static("1793534400"));
+        for status in [StatusCode::FORBIDDEN, StatusCode::TOO_MANY_REQUESTS] {
+            let error = rate_limit(status, &headers).unwrap_err();
+            assert!(matches!(error, Error::GithubRateLimit { limit: Some(60), reset: Some(1793534400) }));
+            let message = error.to_string();
+            assert!(message.contains("GitHub API rate limit"));
+            assert!(message.contains("60 requests"));
+            assert!(message.contains("GITHUB_TOKEN raises the limit"));
+            assert!(message.contains("1793534400 (UTC epoch seconds)"));
+        }
+        assert!(rate_limit(StatusCode::OK, &headers).is_ok());
+        assert!(rate_limit(StatusCode::NOT_FOUND, &headers).is_ok());
+        let mut headers = HeaderMap::new();
+        assert!(rate_limit(StatusCode::FORBIDDEN, &headers).is_ok());
+        let error = rate_limit(StatusCode::TOO_MANY_REQUESTS, &headers).unwrap_err();
+        assert!(matches!(error, Error::GithubRateLimit { limit: None, reset: None }));
+        assert!(!error.to_string().contains("resets at"));
+        headers.insert("retry-after", HeaderValue::from_static("30"));
+        headers.insert("x-ratelimit-reset", HeaderValue::from_static("invalid"));
+        assert!(matches!(rate_limit(StatusCode::FORBIDDEN, &headers), Err(Error::GithubRateLimit { reset: None, .. })));
+    }
+}

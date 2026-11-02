@@ -13,8 +13,12 @@
 
 /* === Imports === */
 
+// Standard Library Imports
 use std::sync::{Mutex, PoisonError};
 
+// Third Party Imports
+
+// Local Imports
 use crate::execution::log::Level;
 use crate::transport::ExecutionTransport;
 use dokime_domain::model::traceability::{TraceabilityRow, TraceabilitySection, upsert_section, validate_section};

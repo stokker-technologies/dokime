@@ -53,6 +53,7 @@ pub(crate) use crate::service_support::prelude::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow() {
     workflow::interactive_commands_downstream().await;
@@ -82,6 +83,7 @@ async fn execution_workflow() {
 }
 
 // Cancellation And Settlement Cross The Native SDK Connection.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow_session() {
     session::cancellation_retains_verdict().await;
@@ -93,6 +95,7 @@ async fn execution_workflow_session() {
 }
 
 // Queue And Prompt Stages Drive Commands Through Their Own Runtime.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow_queue() {
     queue::container_request_outcomes().await;
@@ -116,6 +119,7 @@ async fn execution_workflow_queue() {
     prompts::answer_rules_commit().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn execution_workflow_pooled() {
     steps::harness_mirror_arms_before_rotation_and_retains_both_segments().await;
@@ -124,6 +128,7 @@ async fn execution_workflow_pooled() {
     workflow::artifact_backpressure().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_workflow_threaded() {
     authoring::resource_store_handle().await;
@@ -135,17 +140,20 @@ async fn execution_workflow_threaded() {
     session::live_replay_settles().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow_asking() {
     prompts::answered_execution_question().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_workflow_asking_threaded() {
     prompts::stopped_execution_question().await;
     prompts::stopped_cycle_question().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn execution_workflow_paused() {
     workflow::unacknowledged_invoke_callback().await;
@@ -156,6 +164,7 @@ async fn execution_workflow_paused() {
     workflow::callbacks::shutdown_joins_owners().await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn execution_workflow_sync() {
     workflow::signal_refuses_deliveries();

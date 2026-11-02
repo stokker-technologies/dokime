@@ -256,8 +256,6 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     for extension in extensions {
         Box::pin(scenario(client, endpoint, root, extension, "test")).await;
         Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
-        Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
-        Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
         if *extension != "py" {
             Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
             Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
@@ -270,6 +268,22 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     let saved = other_execution.wait(None, None).await.unwrap();
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
     Box::pin(partial_capture(client, endpoint, root)).await;
+}
+
+pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
+    std::fs::create_dir_all(root).unwrap();
+    let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
+    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
+    for extension in extensions {
+        Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
+        Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
+        let summary = other_execution.snapshot().await.unwrap();
+        assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script disconnect");
+        assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
+    }
+    other_cycle.seal().await.unwrap();
+    let saved = other_execution.wait(None, None).await.unwrap();
+    assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 }
 
 /* === Private Functions === */
@@ -345,7 +359,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     };
     let proxy = Proxy::with_gate(endpoint, Some(gate.clone())).await;
     let parameters = [("EXECUTION_COUNT", "1"), ("CYCLE_LABEL", label.as_str())];
-    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &parameters);
+    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &parameters).await;
     let command = terminal_command(command.as_std(), extension == "bat");
 
     // Ctrl+C Arrives Before Confirmation; Cleanup Must Reconcile Exact Membership.
@@ -378,7 +392,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
 
 async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
     let directory = root.join(format!("{extension} {workflow}"));
-    let command = super::configured_command(extension, workflow, endpoint, &directory, &[("EXECUTION_COUNT", "1")]);
+    let command = super::configured_command(extension, workflow, endpoint, &directory, &[("EXECUTION_COUNT", "1")]).await;
     let command = command.as_std();
     let command = terminal_command(command, extension == "bat");
     // The CLI announces a wait once its interrupt handler is armed. A Ctrl+C sent
@@ -416,7 +430,7 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
 async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
     let proxy = Proxy::start(endpoint).await;
     let directory = root.join(format!("disconnected {extension} {workflow}"));
-    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &[("EXECUTION_COUNT", "1")]);
+    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &[("EXECUTION_COUNT", "1")]).await;
     let command = terminal_command(command.as_std(), extension == "bat");
     let (disconnect, ready) = oneshot::channel();
     let selected = client.clone();
@@ -453,7 +467,7 @@ async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &
 
 async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     let directory = root.join("partial Python capture");
-    let command = super::configured_command("py", "test", endpoint, &directory, &[("SAMPLE_COUNT", "64"), ("EXECUTION_COUNT", "1")]);
+    let command = super::configured_command("py", "test", endpoint, &directory, &[("SAMPLE_COUNT", "64"), ("EXECUTION_COUNT", "1")]).await;
     let command = terminal_command(command.as_std(), false);
     let selected = client.clone();
     let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::InterruptOnSample(selected))).await.unwrap();

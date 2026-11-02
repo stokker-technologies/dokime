@@ -51,6 +51,7 @@ enum Target {
 
 pub(crate) enum Environment<'a> {
     Live(&'a RuntimeHandle),
+    Report(&'a crate::report::analysis::Resources),
 }
 
 /* === Traits === */
@@ -120,9 +121,9 @@ impl Prepared {
     }
 
     pub(crate) fn check_evidence(&self, telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> crate::runtime::Result<()> {
-        let samples = telemetry.iter().filter(|sample| {
-            sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-        });
+        let samples = telemetry
+            .iter()
+            .filter(|sample| sample.stream.as_str() == request.stream && crate::plot::sample_matches_scope(sample, request.scope.as_ref()));
         let first = samples.clone().next().ok_or_else(|| invalid("analysis has no retained raw samples"))?;
         if samples.clone().any(|sample| evidence_owner(sample.scope.as_ref()) != evidence_owner(first.scope.as_ref())) {
             return Err(invalid("analysis requires one evidence scope; narrow the selection"));
@@ -269,6 +270,19 @@ impl Prepared {
 impl Environment<'_> {
     async fn invoke(&self, target: &Target, operation: &str, request: Request) -> crate::runtime::Result<crate::analysis::Response> {
         match (self, target) {
+            (Self::Report(_), Target::Builtin) => {
+                let operation = operation.to_owned();
+                tokio::task::spawn_blocking(move || crate::plot::builtins::evaluate(&operation, request))
+                    .await?
+                    .map_err(|error| invalid(error.to_string()))
+            }
+            (Self::Report(resources), Target::Plugin { source, dispatcher }) => {
+                let current = resources
+                    .dispatcher(source)
+                    .filter(|current| Arc::ptr_eq(current, dispatcher))
+                    .ok_or_else(|| unavailable("analysis owner changed while its preview was selected"))?;
+                current.analyze(operation, request).await.map_err(|error| invalid(error.to_string()))
+            }
             // The runtime serves its built-in analyses as the host.
             (Self::Live(runtime), Target::Builtin) => {
                 let bytes = runtime.operations.call_encoded(&format!("host.{operation}"), request.encode()).await?;

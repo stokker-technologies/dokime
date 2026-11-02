@@ -52,6 +52,7 @@ impl Drop for Writer {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn evidence_durability() {
     if let Ok(phase) = std::env::var("DOKIME_EVIDENCE_CRASH_PHASE") {

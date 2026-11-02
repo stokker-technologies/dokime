@@ -219,6 +219,7 @@ def record(item: Message, maximum_depth: int) -> Record:
         related_sample_id=item.related_sample_id if item.HasField("related_sample_id") else None,
         related_stream_id=item.related_stream_id if item.HasField("related_stream_id") else None,
         related_artifact_id=item.related_artifact_id if item.HasField("related_artifact_id") else None,
+        received_at=timestamp(item, "received_at"),
     )
 
 

@@ -47,6 +47,8 @@ dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 dokime-server = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -57,8 +59,6 @@ tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
@@ -110,13 +110,13 @@ tauri-plugin-updater = { workspace = true, optional = true }
 dokime = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -146,15 +146,16 @@ tauri-build = { workspace = true, features = [] }
 # Local
 dokime = { path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
 dokime-runtime = { workspace = true, features = ["testing"] }
+dokime-tracing = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 

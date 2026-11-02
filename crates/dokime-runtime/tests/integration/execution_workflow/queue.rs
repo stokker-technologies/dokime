@@ -50,6 +50,8 @@ pub(crate) async fn container_request_outcomes() {
     let cycle = start_cycle(&runtime, suite.clone()).await;
     let failed = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &failed.command_id).await;
+    let execution = cycle_snapshot(&runtime, &cycle).await.test_executions[0].test_execution_id.clone();
+    runtime.wait_execution_report(&execution).await.unwrap();
     let original = cycle_snapshot(&runtime, &cycle).await.test_executions[0].clone();
     let case = materialized_case("provider:testdb:plt400.ract", Some(&suite), "later.passed", "Later Passed", "passed");
     runtime.append_fixture_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
@@ -94,6 +96,11 @@ pub(crate) async fn container_request_order() {
     }
     wait_for_cycle_outcome(&runtime, &first, ResultStatus::Passed).await;
     wait_for_cycle_outcome(&runtime, &other, ResultStatus::Passed).await;
+    for cycle in [&first, &other] {
+        for execution in cycle_snapshot(&runtime, cycle).await.test_executions {
+            runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+        }
+    }
     let first = cycle_snapshot(&runtime, &first).await;
     let other = cycle_snapshot(&runtime, &other).await;
     let members = &first.test_executions;
@@ -216,6 +223,8 @@ pub(crate) async fn duplicate_case_executions() {
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
+    runtime.wait_execution_report(&completed.test_executions[0].test_execution_id).await.unwrap();
+    let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
     let original = completed.test_executions[0].clone();
     let original_case = completed.cases().next().unwrap().clone();
     let original_case_id = original_case.test_case_id.clone();
@@ -236,6 +245,7 @@ pub(crate) async fn duplicate_case_executions() {
 
     let rerun = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &rerun.command_id).await;
+    runtime.wait_execution_report(&appended.test_execution_id).await.unwrap();
     let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(completed.lifecycle, CycleStatus::Ready);
     assert_eq!(completed.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
@@ -419,8 +429,7 @@ pub(crate) async fn execution_retry_receipt() {
     assert_eq!(duplicate.command_id, accepted.command_id);
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert_eq!(cycle.test_executions.len(), 3);
-    // The cycle fold follows execution sealing; the durable receipt also waits
-    // for the final cycle row to be published.
+    // Request Settlement Closes Evidence; Report Publication Settles Separately.
     wait_for_run_settled(&runtime, &accepted.command_id).await;
     let settled = runtime.run_request(&accepted.command_id).await.unwrap().unwrap();
     assert_eq!(settled.summary.phase, dokime_domain::model::execution::request::RunPhase::Completed);
@@ -429,6 +438,7 @@ pub(crate) async fn execution_retry_receipt() {
     assert_eq!(settled.summary.unstarted, 0);
     assert_eq!(runtime.start_execution(execution_id.clone(), mode, context.clone()).await.command_id, accepted.command_id);
     assert_eq!(cycle_snapshot(&runtime, &cycle_id).await.test_executions.len(), 3);
+    runtime.wait_execution_report(&execution_id).await.unwrap();
     let sealed_execution = cycle_snapshot(&runtime, &cycle_id).await.test_executions[0].clone();
     runtime.stop_execution(execution_id.clone(), CommandContext::default()).await.unwrap();
     let halted = cycle_snapshot(&runtime, &cycle_id).await;

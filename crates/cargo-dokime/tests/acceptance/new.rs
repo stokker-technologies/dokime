@@ -58,6 +58,7 @@ fn succeeded(output: Output) -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn standalone_scaffold_offline() {
     let root = support::standalone_directory();
@@ -113,6 +114,7 @@ fn standalone_scaffold_offline() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn workspace_scaffold_preserved() {
     for members in ["[]", "[\"plugins/*\"]", "[\"./plugins/*\"]"] {
@@ -138,6 +140,7 @@ fn workspace_scaffold_preserved() {
     }
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn excluded_scaffold_independent() {
     let root = tempfile::tempdir().unwrap();
@@ -150,6 +153,7 @@ fn excluded_scaffold_independent() {
     assert!(fs::read_to_string(root.path().join("plugins/private-demo/Cargo.toml")).unwrap().contains("[workspace]"));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn invalid_scaffold_refused() {
     let root = tempfile::tempdir().unwrap();
@@ -168,6 +172,7 @@ fn invalid_scaffold_refused() {
     assert_eq!(fs::read_to_string(root.path().join("Cargo.toml")).unwrap(), malformed);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn sidecar_commands_grouped() {
     let root = tempfile::tempdir().unwrap();

@@ -18,7 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
@@ -91,24 +91,42 @@ pub async fn desktop_backend_import_pairing(
     identifier: Option<String>,
 ) -> Result<Option<Document>, ConnectionError> {
     crate::app::desktop::ensure_main_window(&window).map_err(|message| ConnectionError::InvalidTarget { message })?;
-    let selected =
-        tokio::task::spawn_blocking(move || app.dialog().file().add_filter("Dokime Pairing File", &["dokime-pair"]).blocking_pick_file())
-            .await
-            .map_err(|_| ConnectionError::BackendUnavailable)?;
-    let Some(selected) = selected else { return Ok(None) };
-    let path = selected.into_path().map_err(|error| ConnectionError::Registry { message: error.to_string() })?;
-    let _serial = registry.serial.lock().await;
-    let _secrets = connection.secret_operations.lock().await;
-    let secrets = connection.secrets.clone();
-    tokio::task::spawn_blocking(move || {
-        let pairing = dokime::client::pairing::read(&path).map_err(persistence)?;
-        let identifier = identifier.as_deref().unwrap_or(&pairing.backend_identifier);
-        let store = Store::discover(None).map_err(persistence)?;
-        store.import_pairing(&pairing, identifier, secrets.as_ref()).map_err(persistence)?;
-        store.load().map(Some).map_err(persistence)
+    let picker = app.clone();
+    let selected = tokio::task::spawn_blocking(move || {
+        picker.dialog().file().add_filter("Dokime Remote Access File", &["dokime-remote"]).blocking_pick_file()
     })
     .await
-    .map_err(|_| ConnectionError::BackendUnavailable)?
+    .map_err(|_| ConnectionError::BackendUnavailable)?;
+    let Some(selected) = selected else { return Ok(None) };
+    let path = selected.into_path().map_err(|error| ConnectionError::Registry { message: error.to_string() })?;
+    import_path(&app, &registry, &connection, path, identifier)
+        .await
+        .inspect_err(|error| {
+            let _ = app.emit("desktop://remote-import-failed", error);
+        })
+        .map(Some)
+}
+
+pub async fn import_path(
+    app: &AppHandle, registry: &Registry, connection: &ConnectionSession, path: std::path::PathBuf, identifier: Option<String>,
+) -> Result<Document, ConnectionError> {
+    let identifier = {
+        let _serial = registry.serial.lock().await;
+        let _secrets = connection.secret_operations.lock().await;
+        let secrets = connection.secrets.clone();
+        tokio::task::spawn_blocking(move || {
+            let pairing = dokime::client::pairing::read(&path).map_err(persistence)?;
+            let identifier = identifier.as_deref().unwrap_or(&pairing.backend_identifier);
+            let store = Store::discover(None).map_err(persistence)?;
+            store.import_pairing(&pairing, identifier, secrets.as_ref()).map_err(persistence)?;
+            Ok::<_, ConnectionError>(identifier.to_owned())
+        })
+        .await
+        .map_err(|_| ConnectionError::BackendUnavailable)??
+    };
+    app.state::<DesktopSessionControl>().select(BackendSelection::Profile { identifier }).await.map_err(session_error)?;
+    let _ = app.emit("desktop://remote-imported", ());
+    load().await
 }
 
 pub async fn desktop_backend_remove(
@@ -147,12 +165,15 @@ pub async fn remember(connection: &ConnectionSession, generation: &str, profile:
     let generation = generation.to_owned();
     tokio::task::spawn_blocking(move || {
         let store = Store::discover(None).map_err(persistence)?;
+        let endpoint = connection.lease(&generation)?.client().endpoint().trim_end_matches('/').to_owned();
         connection.with_current(&generation, || {
             store
                 .update(|document| {
                     if dokime::client::profiles::get(document, &profile.identifier)? != &profile {
                         return Err(dokime::client::profiles::Error::Invalid("Backend changed during connection".into()));
                     }
+                    document.profiles.iter_mut().find(|saved| saved.identifier == profile.identifier).expect("checked profile").endpoint =
+                        endpoint;
                     document.default = Some(profile.identifier.clone());
                     Ok(())
                 })

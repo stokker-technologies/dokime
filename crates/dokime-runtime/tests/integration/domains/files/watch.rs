@@ -29,6 +29,7 @@ use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
 use dokime_runtime::runtime::Error;
+use sha2::Digest;
 use {
     dokime_operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload,
     model::files::wire::FtpWatchSource, model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker,
@@ -86,6 +87,7 @@ fn code(error: &Error) -> &str {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {
     let bench = Bench::start(|config, _| config).await;
@@ -103,6 +105,9 @@ async fn failed_initial_admission_never_reports_armed() {
     seal(&mut watch).await;
 
     let single = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(local(&tree.path().join("one.log"))),
@@ -112,22 +117,19 @@ async fn failed_initial_admission_never_reports_armed() {
         policy: FileWatchPolicy::Mirror,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: Some(1),
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let instance = operations.submit::<WatchFile>(single).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
     assert!(instance.join().await.is_err());
-    let readiness = bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready).await;
-    let failure = readiness.expect_err("failed hosted setup cannot report readiness success").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn source_wait_does_not_consume_the_capture_budget() {
     let bench = Bench::start(|config, _| config).await;
@@ -154,6 +156,7 @@ async fn source_wait_does_not_consume_the_capture_budget() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn empty_baseline_arms_before_the_producer() {
     let bench = Bench::start(|config, _| config).await;
@@ -172,6 +175,7 @@ async fn empty_baseline_arms_before_the_producer() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn latest_selects_by_mtime_then_path_and_follows_rotation() {
     let bench = Bench::start(|config, _| config).await;
@@ -202,6 +206,7 @@ async fn latest_selects_by_mtime_then_path_and_follows_rotation() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_ignores_baseline_and_captures_first_discoveries_from_zero() {
     let bench = Bench::start(|config, _| config).await;
@@ -223,6 +228,7 @@ async fn new_ignores_baseline_and_captures_first_discoveries_from_zero() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn new_with_empty_accessible_root_arms_despite_opt_in_source_wait() {
     let bench = Bench::start(|config, _| config).await;
@@ -241,6 +247,7 @@ async fn new_with_empty_accessible_root_arms_despite_opt_in_source_wait() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
     let bench = Bench::start(|config, _| config).await;
@@ -275,6 +282,7 @@ async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn source_wait_rejects_invalid_paths_and_permission_failures() {
     let bench = Bench::start(|config, _| config).await;
@@ -316,6 +324,7 @@ async fn source_wait_rejects_invalid_paths_and_permission_failures() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
     let bench = Bench::start(|config, _| config).await;
@@ -338,6 +347,7 @@ async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot() {
     let bench = Bench::start(|config, _| config).await;
@@ -345,6 +355,9 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
     let log = tree.path().join("device.log");
     write(&log, b"before\n");
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource { payload: Some(local(&log)) }),
         output: OUTPUT.to_owned(),
@@ -352,7 +365,7 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
@@ -387,6 +400,7 @@ async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot()
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
     let bench = Bench::start(|config, _| config).await;
@@ -414,6 +428,7 @@ async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn late_source_cannot_arm_after_the_wait_deadline() {
     let bench = Bench::start(|config, _| config).await;
@@ -437,11 +452,15 @@ async fn late_source_cannot_arm_after_the_wait_deadline() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
-async fn cancelled_wait_reports_failure_to_readiness_waiters() {
+async fn cancelled_source_wait() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource {
             payload: Some(local(&tree.path().join("missing/device.log"))),
@@ -451,28 +470,25 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: Some(30),
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let (operations, ticket) = ticketed(&bench);
+    let (operations, _) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
-    let ready = dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket };
+    watch.ready().await.unwrap();
     watch.request_cancel();
-    assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        bench.handle.operations().call::<dokime_operations::files::AwaitFileWatchArmed>(ready),
-    )
-    .await;
-    let failure = result.expect("readiness settles after cancellation").expect_err("a cancelled watch is never armed").to_string();
-    assert!(!failure.contains("was not registered"), "the ticket names this watch's readiness: {failure}");
+    let failure = watch.join().await.expect_err("the missing-source watch settles as cancelled");
+    let cancelled = matches!(&failure, harmos::Error::OperationRefused(harmos::Refusal::Cancelled))
+        || failure.failure().is_some_and(|cause| cause.code() == harmos::operations::FailureKind::Cancelled);
+    assert!(cancelled, "the missing-source watch retains a cancellation outcome: {failure:?}");
     bench.stop().await;
 }
 // Stream captures only bytes written after the start, follows rotation and
 // truncation with gaps, picks up new files, and seals vanished ones.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -546,6 +562,7 @@ async fn stream_local_tree() {
 
 // Mirror keeps each output equal to its source, refetching on a size or
 // modification-time change.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn mirror_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -586,6 +603,7 @@ async fn mirror_local_tree() {
 }
 
 // A snapshot copies each file once: at the start, or at the stop.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn snapshot_local_tree() {
     let bench = Bench::start(|config, _| config).await;
@@ -623,6 +641,7 @@ async fn snapshot_local_tree() {
 
 // Caps and malformed requests are refused explicitly; a capped watch still
 // seals what it captured.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn watch_refusals() {
     let bench = Bench::start(|config, _| config).await;
@@ -693,6 +712,7 @@ async fn watch_refusals() {
 // A failed refetch keeps the last whole copy: the output never holds a
 // partial or emptied file.
 #[cfg(unix)]
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn mirror_keeps_last() {
     use std::os::unix::fs::PermissionsExt;
@@ -728,6 +748,7 @@ async fn mirror_keeps_last() {
 }
 
 // Closing the execution seals its running watch into it first.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seals_watch() {
     let bench = Bench::start(|config, _| config).await;
@@ -770,6 +791,7 @@ async fn execution_seals_watch() {
 // The step's watch over one file, submitted as an operation: its matcher
 // publishes rows to the declared stream, its marker files a record, and its
 // artifact holds only what was written after the watch started.
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn watch_file_matchers() {
     const APPENDED: &[u8] = b"elapsed=1.5 locked=true\nWARN W42\nelapsed=2.5 locked=false\n";
@@ -778,6 +800,9 @@ async fn watch_file_matchers() {
     let log = tree.path().join("device.log");
     write(&log, b"elapsed=0.5 locked=false\n");
     let request = WatchFile {
+        recursive: false,
+        rules: Vec::new(),
+        maximum_files: None,
         execution_id: Some(bench.execution.clone()),
         source: Some(FileWatchSource { payload: Some(local(&log)) }),
         output: OUTPUT.to_owned(),
@@ -785,7 +810,7 @@ async fn watch_file_matchers() {
         policy: FileWatchPolicy::Stream,
         selection: model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
+        poll_interval_ms: None,
         maximum_seconds: None,
         maximum_bytes: None,
         matchers: vec![LineMatcher {
@@ -815,7 +840,9 @@ async fn watch_file_matchers() {
         .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
+    let mut records = bench.handle.subscribe_records();
     append(&log, APPENDED);
+    crate::service_support::waits::wait_for_subscription_record(&mut records, "tracking.fixture_warning").await;
     let outcome = watch.cancel().await.unwrap().into_owned();
     assert_eq!(
         outcome.artifacts,
@@ -872,4 +899,341 @@ async fn watch_file_matchers() {
     let content = bench.handle.read_artifact_content(&record.artifact_id, APPENDED.len()).await.unwrap().unwrap();
     assert_eq!(content.bytes, APPENDED);
     bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn recursive_step_watches() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("Logs/existing.log"), b"before\n");
+    write(&tree.path().join("Logs/old/day.log"), b"old\n");
+    let request = WatchFile {
+        recursive: true,
+        rules: vec![include("Logs/**/*.log")],
+        maximum_files: Some(4),
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+        output: "logs".into(),
+        artifact: None,
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let mut watch = bench.handle.open_watch_file(&request, None).await.unwrap();
+    let armed = poll(&mut watch).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { baseline } if baseline.len() == 2)));
+    append(&tree.path().join("Logs/existing.log"), b"after\n");
+    append(&tree.path().join("Logs/old/day.log"), b"tail\n");
+    write(&tree.path().join("Logs/next-day/new.log"), b"new\n");
+    write(&tree.path().join("Logs/next-day/ignored.zip"), b"ignored");
+    let records = sealed(&seal(&mut watch).await);
+    assert_eq!(records.len(), 3);
+    for (path, bytes) in
+        [("Logs/existing.log", b"after\n".as_slice()), ("Logs/old/day.log", b"tail\n"), ("Logs/next-day/new.log", b"new\n")]
+    {
+        let record = &records[path];
+        assert_eq!(record.filename, format!("logs/{path}"));
+        let digest = sha2::Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(record.sha256.as_deref(), Some(digest.as_str()));
+    }
+    write(&tree.path().join("bundle.zip"), b"old");
+    write(&tree.path().join("ignored.diag"), b"diagnostic");
+    let archives = WatchFile {
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::Mirror,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&archives, None).await.unwrap();
+    poll(&mut watch).await;
+    write(&tree.path().join("bundle.zip"), b"updated archive");
+    write(&tree.path().join("new/deep/archive.zip"), b"new archive");
+    write(&tree.path().join("new/deep/ignored.log"), b"ignored");
+    poll(&mut watch).await;
+    let records = sealed(&seal(&mut watch).await);
+    assert_eq!(records.len(), 3);
+    assert_eq!(records["bundle.zip"].filename, "logs/bundle.zip");
+    assert_eq!(records["bundle.zip"].size_bytes, 15);
+    assert_eq!(records["new/deep/archive.zip"].filename, "logs/new/deep/archive.zip");
+    for extension in ["diag", "hpl30"] {
+        let name = format!("capture.{extension}");
+        write(&tree.path().join(&name), b"snapshot");
+        let snapshot = WatchFile {
+            recursive: false,
+            rules: Vec::new(),
+            source: Some(FileWatchSource {
+                payload: Some(local(&tree.path().join(&name))),
+            }),
+            policy: FileWatchPolicy::SnapshotAtStart,
+            output: String::new(),
+            ..request.clone()
+        };
+        let mut watch = bench.handle.open_watch_file(&snapshot, None).await.unwrap();
+        let records = sealed(&poll(&mut watch).await);
+        assert_eq!(records[&name].filename, name);
+        assert_eq!(records[&name].size_bytes, 8);
+        assert_eq!(records[&name].content_type.as_deref(), Some("application/octet-stream"));
+        for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
+            let invalid = WatchFile {
+                artifact: Some(unsafe_name.into()),
+                ..snapshot.clone()
+            };
+            assert!(bench.handle.open_watch_file(&invalid, None).await.is_err(), "{unsafe_name}");
+        }
+    }
+    let capped = WatchFile {
+        maximum_files: Some(1),
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&capped, None).await.unwrap();
+    assert!(watch.poll(&mut Vec::new()).await.is_err());
+    seal(&mut watch).await;
+    let capped = WatchFile {
+        maximum_bytes: Some(20),
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::Mirror,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&capped, None).await.unwrap();
+    assert!(watch.poll(&mut Vec::new()).await.is_err());
+    seal(&mut watch).await;
+    // Nonrecursive directory discovery ignores deeper files even with a recursive glob.
+    let top = WatchFile {
+        recursive: false,
+        rules: vec![include("**/*.zip")],
+        policy: FileWatchPolicy::SnapshotAtStart,
+        ..request.clone()
+    };
+    let mut watch = bench.handle.open_watch_file(&top, None).await.unwrap();
+    let records = sealed(&poll(&mut watch).await);
+    assert_eq!(records.keys().map(String::as_str).collect::<Vec<_>>(), ["bundle.zip"]);
+    write(&tree.path().join("Logs/status"), b"no extension");
+    let all = WatchFile {
+        rules: Vec::new(),
+        policy: FileWatchPolicy::SnapshotAtStart,
+        maximum_files: None,
+        ..request
+    };
+    let mut watch = bench.handle.open_watch_file(&all, None).await.unwrap();
+    let records = sealed(&poll(&mut watch).await);
+    assert!(records.contains_key("capture.hpl30"));
+    assert_eq!(records["Logs/status"].filename, "logs/Logs/status");
+    assert_eq!(records["Logs/status"].size_bytes, 12);
+    bench.stop().await;
+}
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn capture_failure_isolated_during_stop() {
+    use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetrySample};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tracing_subscriber::{Layer, layer::SubscriberExt};
+
+    struct LeaseWarnings(Arc<AtomicUsize>);
+    impl<S: tracing::Subscriber> Layer<S> for LeaseWarnings {
+        fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+            if event.metadata().level() == &tracing::Level::WARN && event.metadata().target().ends_with("telemetry::leases") {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+    let warnings = Arc::new(AtomicUsize::new(0));
+    let subscriber = tracing_subscriber::registry().with(LeaseWarnings(warnings.clone()));
+    let _subscriber = tracing::subscriber::set_default(subscriber);
+    let stream = identifier("fixture.capture");
+    let contract = || {
+        let mut contract = minimal_tracking_contract();
+        contract.stream = stream.clone();
+        contract.metadata = metadata("fixture.capture", "Capture");
+        contract.interval = Some(dokime_runtime::DurationMillis(1000));
+        contract
+    };
+    let bench = Bench::start(|config, _| {
+        config.with_installed_plugins([dokime_runtime::InstalledPlugin {
+            source: "fixture.capture".into(),
+            enabled: true,
+            telemetry_contracts: vec![contract()],
+            ..Default::default()
+        }])
+    })
+    .await;
+    let execution = dokime_runtime::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let cycle_id = bench.handle.watch_state().latest().state().executions[&execution].test_cycle_id.clone();
+    let cycle = cycle_snapshot(&bench.handle, &cycle_id).await;
+    let scope = cycle.test_executions[0].scope.clone();
+    let held = bench
+        .handle
+        .lease_streams(
+            SamplingScope {
+                test_cycle_id: scope.test_cycle_id.as_ref().map(ToString::to_string),
+                test_case_id: scope.test_case_id.as_ref().map(ToString::to_string),
+                test_execution_id: Some(execution.to_string()),
+            },
+            std::slice::from_ref(&stream),
+            "fixture.reader",
+        )
+        .await
+        .unwrap();
+    let viewed = bench
+        .handle
+        .lease_streams(
+            SamplingScope {
+                test_cycle_id: None,
+                test_case_id: None,
+                test_execution_id: None,
+            },
+            std::slice::from_ref(&stream),
+            "fixture.viewer",
+        )
+        .await
+        .unwrap();
+
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("bad/app.log"), b"unavailable\n");
+    write(&tree.path().join("good/app.log"), b"retained\n");
+    write(&tree.path().join("example.diag"), b"snapshot\n");
+    bench.handle.inject_artifact_capture_failure(execution.clone(), format!("{OUTPUT}/bad/app.log"), std::io::ErrorKind::PermissionDenied);
+    let mut mirror = bench
+        .handle
+        .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("**/*.log")], FileWatchPolicy::Mirror), None)
+        .await
+        .unwrap();
+    poll(&mut mirror).await;
+    let mut streaming = request(&bench.execution, local(tree.path()), vec![include("good/*.log")], FileWatchPolicy::Stream);
+    streaming.output = "stream".into();
+    let mut streaming = bench.handle.open_file_watch(&streaming, None).await.unwrap();
+    poll(&mut streaming).await;
+    append(&tree.path().join("good/app.log"), b"tail\n");
+    let mut snapshot = request(&bench.execution, local(tree.path()), vec![include("*.diag")], FileWatchPolicy::SnapshotAtStart);
+    snapshot.output = "prepare".into();
+    let mut snapshot = bench.handle.open_file_watch(&snapshot, None).await.unwrap();
+    poll(&mut snapshot).await;
+    let captures = tokio::spawn(async move {
+        let seal_mirror = async {
+            mirror.seal_requested().await;
+            seal(&mut mirror).await
+        };
+        let seal_stream = async {
+            streaming.seal_requested().await;
+            seal(&mut streaming).await
+        };
+        tokio::join!(seal_mirror, seal_stream)
+    });
+    let publish = |index| {
+        let mut sample = TelemetrySample::new(
+            dokime_runtime::model::identity::new_id(),
+            stream.clone(),
+            index,
+            dokime_runtime::model::time::now_utc(),
+            "fixture.capture",
+        );
+        sample.values.insert("elapsed_s".into(), dokime_runtime::Value::Number(index as f64));
+        sample.values.insert("target_locked".into(), dokime_runtime::Value::Bool(true));
+        let sample = typed_minimal_tracking_sample(sample);
+        TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream.clone(), vec![sample])
+    };
+    bench.handle.publish_telemetry_batch(publish(0)).await.unwrap();
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    captures.await.unwrap();
+    let idle = wait_for_cycle_idle(&bench.handle, &cycle.test_cycle_id, ResultStatus::Cancelled).await;
+    assert_eq!(idle.lifecycle, CycleStatus::Ready);
+    assert_eq!(idle.test_executions[0].status, ExecutionStatus::Cancelled);
+    assert!(idle.test_executions[0].saved.is_some());
+    let request = bench
+        .handle
+        .watch_state()
+        .latest()
+        .state()
+        .run_requests
+        .values()
+        .find(|request| request.selected_execution_ids.contains(&execution))
+        .unwrap()
+        .summary
+        .request_id
+        .clone();
+    assert!(bench.handle.run_request(&request).await.unwrap().unwrap().summary.phase.terminal());
+    for lease in &held {
+        assert!(!bench.handle.stream_lease_is_active(lease).await);
+    }
+    for index in 1..4 {
+        bench.handle.publish_telemetry_batch(publish(index)).await.unwrap();
+    }
+    for lease in &viewed {
+        assert!(bench.handle.stream_lease_is_active(lease).await);
+    }
+    assert_eq!(warnings.load(Ordering::SeqCst), 0);
+    assert!(
+        bench
+            .handle
+            .lease_streams(
+                SamplingScope {
+                    test_cycle_id: None,
+                    test_case_id: None,
+                    test_execution_id: Some(execution.to_string()),
+                },
+                std::slice::from_ref(&stream),
+                "fixture.reader"
+            )
+            .await
+            .is_err()
+    );
+
+    let records = bench.handle.artifacts().await.unwrap();
+    let failed = records.iter().find(|record| record.filename == format!("{OUTPUT}/bad/app.log")).unwrap();
+    assert_eq!(failed.status, ArtifactStatus::Failed);
+    assert!(failed.error.is_some());
+    let saved = idle.test_executions[0].saved.as_ref().unwrap();
+    saved.validate(&idle.test_executions[0]).unwrap();
+    let failed_output = saved
+        .source
+        .outputs
+        .iter()
+        .find(|output| {
+            matches!(&output.content,
+        dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } if record.artifact_id == failed.artifact_id)
+        })
+        .unwrap();
+    assert!(failed_output.file.is_none());
+    assert!(bench.handle.read_artifact_content(&failed.artifact_id, 1024).await.is_err());
+    for attach_content in [false, true] {
+        let mut invalid = failed_output.clone();
+        if attach_content {
+            invalid.file = saved.source.outputs.iter().find_map(|output| output.file.clone());
+        } else if let dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } = &mut invalid.content {
+            record.error = None;
+        }
+        assert!(dokime_domain::model::execution::saved::validate_outputs(&execution, &saved.dependencies_saved, &[invalid]).is_err());
+    }
+    let report = crate::service_support::reports::payload(bench.handle.storage(), &saved.report).await;
+    let artifact =
+        report["snapshot"]["artifacts"].as_array().unwrap().iter().find(|row| row["artifact_id"] == failed.artifact_id.as_str()).unwrap();
+    assert_eq!(artifact["description"].as_str(), failed.error.as_deref());
+    assert_eq!(artifact["href"], "");
+    for (filename, bytes) in [
+        ("capture/good/app.log", b"retained\ntail\n".as_slice()),
+        ("stream/good/app.log", b"tail\n".as_slice()),
+        ("prepare/example.diag", b"snapshot\n".as_slice()),
+    ] {
+        let artifact = records.iter().find(|record| record.filename == filename).unwrap();
+        assert_eq!(artifact.status, ArtifactStatus::Complete);
+        let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, bytes);
+    }
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    assert_eq!(bench.handle.artifacts().await.unwrap(), records);
+    assert_eq!(warnings.load(Ordering::SeqCst), 0);
+    let failed = failed.clone();
+    let Bench { _root: root, mut owner, handle, .. } = bench;
+    handle.release_stream_leases(viewed).await.unwrap();
+    drop((snapshot, handle));
+    owner.shutdown().await.unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    assert_eq!(handle.artifacts().await.unwrap().iter().find(|record| record.artifact_id == failed.artifact_id), Some(&failed));
+    assert!(handle.open_execution_report(&execution).await.is_ok());
+    owner.shutdown().await.unwrap();
 }

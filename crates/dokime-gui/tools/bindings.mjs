@@ -21,6 +21,22 @@ if (!proto || !settings || (process.argv.length !== 4 && !(process.argv.length =
 const root = resolve(proto);
 const descriptor = readFileSync(resolve(root, "descriptors.bin"));
 const set = fromBinary(FileDescriptorSetSchema, descriptor);
+// The Standard Status Envelope Is Transport-Owned; Domain Details Stay In The Canonical Export.
+const statusDescriptor = resolve(root, "status.bin");
+const statusExport = spawnSync(
+  "protoc",
+  [
+    `--proto_path=${resolve(gui, "tools/proto")}`,
+    `--descriptor_set_out=${statusDescriptor}`,
+    "--include_imports",
+    "google/rpc/status.proto",
+  ],
+  { encoding: "utf8" },
+);
+if (statusExport.status !== 0) throw new Error(statusExport.stderr || "Status descriptor export failed");
+for (const file of fromBinary(FileDescriptorSetSchema, readFileSync(statusDescriptor)).file) {
+  if (!set.file.some((existing) => existing.name === file.name)) set.file.push(file);
+}
 const files = new Map(set.file.map((file) => [file.name, file]));
 const ordered = [];
 const active = new Set();
@@ -53,6 +69,7 @@ if (response.error) throw new Error(response.error);
 const output = resolve(gui, "../../target/generated/typescript");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
+writeFileSync(resolve(output, "contracts.json"), readFileSync(resolve(root, "contracts.json")));
 writeFileSync(resolve(output, "application-settings.json"), readFileSync(resolve(settings, "application-settings.json")));
 writeFileSync(resolve(output, "application-settings.ts"), readFileSync(resolve(settings, "application-settings.ts")));
 const protocolSource = readFileSync(resolve(gui, "src-tauri/src/rpc/protocol.rs"), "utf8");
@@ -126,7 +143,7 @@ function schema(type, alias, lines) {
 }
 function fieldType(type, name) {
   const owner = messages.get(type);
-  const field = owner?.message.field.find((field) => field.name === name);
+  const field = owner?.message.field.find((field) => field.name === name || field.jsonName === name);
   if (!field?.typeName) throw new Error(`Missing canonical ${type}.${name}`);
   return field.typeName;
 }
@@ -163,6 +180,36 @@ for (const file of set.file)
       );
     }
 emit(resolve(gui, "src/lib/rpc/generated/client.ts"), `${lines.join("\n")}\n`);
+// Follow The Canonical Response Fields Instead Of Duplicating Domain Error Schemas.
+function responseType(serviceName, methodName) {
+  const method = set.file
+    .flatMap((file) => file.service)
+    .find((service) => service.name === serviceName)
+    ?.method.find((method) => method.name === methodName);
+  if (!method) throw new Error(`Missing canonical ${serviceName}.${methodName}`);
+  return method.outputType;
+}
+const rejectionType = fieldType(fieldType(fieldType(responseType("Execution", "StartExecution"), "outcome"), "Rejected"), "field0");
+const capturedType = fieldType(fieldType(responseType("Evidence", "ListRecords"), "records"), "error");
+const errorLines = ["// Generated From Canonical Harmos Descriptors And The Standard Status Envelope. Do Not Edit."];
+for (const [type, alias] of [
+  [".google.rpc.Status", "StatusSchema"],
+  [rejectionType, "RejectionSchema"],
+  [capturedType, "CapturedRecordErrorSchema"],
+]) {
+  schema(type, alias, errorLines);
+  errorLines.push(`export { ${alias} };`);
+}
+emit(resolve(gui, "src/lib/rpc/generated/errors.ts"), `${errorLines.join("\n")}\n`);
+const operationIds = Object.fromEntries(
+  contracts
+    .filter((contract) => contract.grpc)
+    .map((contract) => [`/${contract.grpc.package}.${contract.grpc.service}/${contract.grpc.method}`, contract.operation.id]),
+);
+emit(
+  resolve(gui, "src/lib/rpc/generated/operations.ts"),
+  `// Generated From Canonical Harmos Descriptors. Do Not Edit.\nexport const operationIds: Record<string, string> = ${JSON.stringify(operationIds)};\n`,
+);
 emit(
   resolve(gui, "src/lib/rpc/generated/identity.ts"),
   `// Generated From Canonical Harmos Descriptors. Do Not Edit.\nexport const descriptorSha256 = "${createHash("sha256").update(descriptor).digest("hex")}";\n`,
