@@ -22,12 +22,6 @@ let listener = runtime.grpc().attach_with_certificate(settings, certificate.clon
 certificate.reload(next_certificate_pem, next_key_pem)?;
 ```
 
-The upstream candidate is Harmos `e84223966430b06cc12a38e1803f51571a026967` on
-`feat/grpc-reloadable-server-certificate`; it is committed locally and unpushed.
-Dokime development resolves all ten upstream packages through the excluded,
-untracked `.cargo/config.toml`. Its root manifest and committed lockfile retain
-`6fead92cb50911f2b4f68a92714ee782921c6a5c` as requested. Before final validation,
-the orchestrator must publish the Harmos candidate, verify the remote revision,
-pin all three root Harmos dependencies and the README revision, remove the local
-patch, and resolve/commit the lockfile against that published graph. Local proof
-with the patch establishes joint behavior, not readiness of the committed graph.
+The upstream change landed in Harmos as `ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370`;
+the three root Harmos dependencies, the README revision and the committed
+lockfile pin that revision.

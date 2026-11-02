@@ -512,9 +512,11 @@ mod tests {
         let hosts = vec!["192.168.1.10".into(), "192.168.1.20".into()];
         refresh_identity_for_names(&mut document, hosts.clone()).unwrap();
         let certificate = document.identity.as_ref().unwrap().certificate.clone();
+        let names = document.identity.as_ref().unwrap().names.clone();
         for detected in [vec![hosts[0].clone()], vec![hosts[1].clone(), hosts[0].clone()], hosts] {
             refresh_identity_for_names(&mut document, detected).unwrap();
             assert_eq!(document.identity.as_ref().unwrap().certificate, certificate);
+            assert_eq!(document.identity.as_ref().unwrap().names, names);
         }
         document.settings.certificate_names = vec!["LAB.EXAMPLE".into()];
         refresh_identity_for_names(&mut document, vec!["192.168.1.10".into()]).unwrap();

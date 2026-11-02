@@ -9,4 +9,4 @@
 
 - [x] 2.1 Run requested formatting/check/focused proof and release-profile server/CLI check plus one Rust integration lane.
 - [x] 2.2 Commit owned change without pushing.
-- [ ] 2.3 Orchestrator publishes Harmos, pins verified revision, removes local override and performs final validation.
+- [x] 2.3 Orchestrator publishes Harmos, pins verified revision, removes local override and performs final validation.
