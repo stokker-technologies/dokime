@@ -85,7 +85,7 @@ fn host_stream_row() {
                 Field::Integer("network_total_sent_bytes"),
             ],
         ),
-        (HostTelemetryStream::WifiLink, &["ok", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),
+        (HostTelemetryStream::WifiLink, &["ok", "partial", "unavailable", "unsupported", "error"], &[Field::Integer("sample_index")]),
         (HostTelemetryStream::WifiLatency, &["ok", "error"], &[Field::Integer("sample_index")]),
         (HostTelemetryStream::Bluetooth, &["ok", "stale", "unsupported", "error"], &[Field::Integer("sample_index")]),
     ];

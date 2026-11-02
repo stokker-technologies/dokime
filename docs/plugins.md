@@ -62,8 +62,11 @@ let request = RadioSet {
 `host::adapters::{AdapterKind, AdapterStatus}` for kind and status; identities,
 addresses and native power-plan IDs remain strings. Requests and inverse
 snapshots encode enum variants, with no legacy string aliases. Unknown native
-Wi-Fi or radio values return `plugin_host::Error::UnknownValue`; telemetry
-renders known Wi-Fi and Bluetooth states as text.
+radio-control values return `plugin_host::Error::UnknownValue`; telemetry
+renders known Wi-Fi and Bluetooth states as text. Unknown Windows Wi-Fi link
+values render as `unknown_<n>` while other fields remain available; see
+[Windows host telemetry](product-guide.md#host-telemetry) for partial
+samples and location permissions.
 It uses Windows.Devices.Radios or NetworkManager/BlueZ native switches.
 `host.network.adapter.set` takes `{ adapter_id, enabled, allow_disconnect: false }`;
 Windows uses quiet SetupAPI and refuses without administrator rights, without UAC.
