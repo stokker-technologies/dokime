@@ -78,7 +78,9 @@ Candidates connect in parallel with the configured short stagger (250 ms by
 default). The first connection that verifies the pinned CA and backend identity
 wins; losing attempts are closed. Reconnects try that endpoint first. A client
 loaded with `from_profile` also saves its successful endpoint for later clients.
-The listener reissues leaves under the same persistent CA when addresses change.
+The listener reloads leaves in place under the same persistent CA when advertised
+or configured names are missing. Covered address flaps preserve the certificate
+and existing streams.
 
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys

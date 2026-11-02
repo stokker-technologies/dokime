@@ -1939,3 +1939,30 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+## Remote Certificate Refresh
+
+The managed remote listener reloads its TLS leaf in place. Existing connections
+and streaming calls continue; new handshakes use the replacement certificate
+under the same persistent pairing CA. Only enabled state, bind address/port,
+TLS mode or authentication mode changes detach and rebind the listener.
+Explicit certificate regeneration also reloads in place.
+
+Automatic refresh requires coverage of `settings.certificate_names` and every
+eligible endpoint advertised by new `.dokime-remote` pairings. Already covered
+names are compared without order or DNS case; disappearing addresses and excluded
+virtual/transient interfaces do not reissue a certificate. Missing advertised or
+configured names cause reissue. Prior SANs are retained while there is room after
+required names, preventing a disappearing/reappearing interface from causing churn.
+Configured and currently advertised names must all fit the listener's name budget;
+excess required names are rejected instead of silently leaving pairings uncovered.
+The refresh task is stopped and joined before listener management closes admission.
+
+Rust and Python clients retry an explicitly known unary read once after
+`UNAVAILABLE`, with a short reconnect delay inside the existing request deadline.
+Unknown/plugin operations and mutations are never automatically replayed; a
+request identifier alone does not imply a server deduplication contract.
+Sample and record listeners can reconnect once between successfully delivered
+pages, preserving stream/journal cursors and checking the backend epoch. Raw
+streams expose failures to their caller because arbitrary streams have no generic
+resume contract. Non-transient failures and exhausted retries remain visible.
