@@ -81,6 +81,8 @@ pub(super) struct Upload {
     file: tokio::fs::File,
     closing: Option<ArtifactStatus>,
     pending: Option<FrozenFile>,
+    // Only The Message Is Kept: Holding A Runtime Error Here Makes `Upload` Recursive For Send Checks.
+    capture_error: Option<String>,
     descriptor: Option<ExecutionOutput>,
     metadata: Metadata,
     record: ArtifactRecord,
@@ -165,6 +167,9 @@ impl ArtifactUpload {
         operation.indeterminate();
         let closed = self.close_once(complete, sha256).await;
         match &closed {
+            Ok(record) if record.status == ArtifactStatus::Failed => {
+                operation.fail(record.error.as_deref().unwrap_or("artifact capture failed"))
+            }
             Ok(_) if complete => operation.finish(),
             Ok(_) => operation.fail("upload abandoned"),
             Err(error) => operation.fail(error),
@@ -215,8 +220,13 @@ impl RuntimeHandle {
         content_type: Option<String>,
     ) -> Result<ArtifactRecord> {
         let path = path.as_ref();
-        let file = tokio::fs::File::open(path).await.map_err(error)?;
-        let size_bytes = file.metadata().await.map_err(error)?.len();
+        let opened: Result<_> = async {
+            let file = tokio::fs::File::open(path).await.map_err(source_error)?;
+            let size_bytes = file.metadata().await.map_err(source_error)?.len();
+            Ok((file, size_bytes))
+        }
+        .await;
+        let size_bytes = opened.as_ref().map_or(0, |(_, size)| *size);
         let upload = self
             .begin_artifact_upload(ArtifactUploadInput {
                 scope,
@@ -227,24 +237,45 @@ impl RuntimeHandle {
             })
             .await?;
 
-        let session = self.storage().clone();
-        let source = file.try_clone().await.map_err(error)?.into_std().await;
-        let opened = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await;
-        let mut reader = opened.inspect_err(|error| tracing::warn!(path = %path.display(), %error, "artifact source read failed"))?;
-        while let Some(batch) = reader.next().await? {
-            // The Native Page Owner Survives The Spawned Append And Blocking Write.
-            upload
-                .send_chunk(Chunk {
-                    upload: upload.clone(),
-                    bytes: Bytes::Read(batch),
-                })
-                .await?;
-        }
+        let copied: Result<()> = async {
+            let (file, _) = opened?;
+            let session = self.storage().clone();
+            let source = file.try_clone().await.map_err(source_error)?.into_std().await;
+            let opened = session.read_opened_file(source, ByteRange { offset: 0, limit: Some(size_bytes) }).await;
+            let mut reader = opened?;
+            while let Some(batch) = reader.next().await? {
+                // The Native Page Owner Survives The Spawned Append And Blocking Write.
+                upload
+                    .send_chunk(Chunk {
+                        upload: upload.clone(),
+                        bytes: Bytes::Read(batch),
+                    })
+                    .await?;
+            }
 
-        let completed = reader.completion()?;
-        let observed_size = file.metadata().await.map_err(error)?.len();
-        if completed.bytes != size_bytes || observed_size != size_bytes {
-            return Err(error("artifact source length changed during upload"));
+            let completed = reader.completion()?;
+            let observed_size = file.metadata().await.map_err(source_error)?.len();
+            if completed.bytes != size_bytes || observed_size != size_bytes {
+                return Err(harmos::storage::Error::InvalidInput {
+                    field: "capture source",
+                    reason: "artifact source length changed during upload",
+                }
+                .into());
+            }
+            Ok(())
+        }
+        .await;
+        if let Err(source) = copied {
+            if !content_capture_failure(&source) {
+                return Err(source);
+            }
+            let storage = upload.storage.upgrade().ok_or(Error::ShuttingDown)?;
+            let owner = storage.acquisition(&upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
+            let mut acquisition = owner.lock().await;
+            let state = acquisition.artifacts.get_mut(&upload.id).ok_or_else(|| error("artifact upload is missing"))?;
+            state.capture_error = Some(source.to_string());
+            drop(acquisition);
+            return upload.close_with(false, None).await;
         }
         upload.finish().await
     }
@@ -291,6 +322,11 @@ impl RuntimeHandle {
         .map_err(error)
         .and_then(|begun| begun);
         operation.track(begun)
+    }
+
+    #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+    pub fn inject_artifact_capture_failure(&self, execution: TestExecutionId, filename: String, kind: std::io::ErrorKind) {
+        self.execution_storage.artifact_faults.lock().unwrap().insert((execution, filename), kind);
     }
 
     pub async fn finish_execution_for_test(&self, id: &TestExecutionId) -> Result<()> {
@@ -342,6 +378,7 @@ impl ExecutionStorage {
             size_bytes: 0,
             sha256: None,
             status: ArtifactStatus::Staged,
+            error: None,
             created_at: Timestamp::from_datetime(metadata.created_at.expect("runtime artifact creation time")),
         };
         let progress = Arc::new(UploadProgress {
@@ -353,6 +390,7 @@ impl ExecutionStorage {
             file: tokio::fs::File::from_std(tempfile::NamedTempFile::new().map_err(error)?.into_file()),
             closing: None,
             pending: None,
+            capture_error: None,
             descriptor: None,
             metadata,
             record,
@@ -360,6 +398,14 @@ impl ExecutionStorage {
             expected_digest: input.sha256.map(|value| value.to_ascii_lowercase()),
             digest: Sha256::new(),
             owner: Arc::downgrade(&owner),
+        };
+        #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+        let state = {
+            let mut state = state;
+            if let Some(kind) = self.artifact_faults.lock().unwrap().remove(&(execution.clone(), state.record.filename.clone())) {
+                state.capture_error = Some(source_error(std::io::Error::from(kind)).to_string());
+            }
+            state
         };
         acquisition.artifacts.insert(id.clone(), state);
         drop(acquisition);
@@ -475,7 +521,7 @@ async fn append(upload: &mut Upload, chunk: Chunk) -> Result<()> {
 }
 
 fn outcome(record: ArtifactRecord, complete: bool) -> Result<ArtifactRecord> {
-    if complete && record.status != ArtifactStatus::Complete {
+    if complete && !matches!(record.status, ArtifactStatus::Complete | ArtifactStatus::Failed) {
         return Err(error("artifact was cancelled or failed size/hash validation"));
     }
     Ok(record)
@@ -509,26 +555,46 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
     if upload.descriptor.is_some() {
         return Ok(());
     }
-    if upload.pending.is_none() {
-        // The Private File Is Frozen By The Execution Gate And Closing Decision
-        upload.file.set_len(upload.record.size_bytes).await.map_err(error)?;
-        upload.file.flush().await.map_err(error)?;
-        let file = upload.file.try_clone().await.map_err(error)?;
-        let media_type = upload.record.content_type.as_deref().unwrap_or("application/octet-stream");
-        let metadata = FileMetadata {
-            id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
-            scope: upload.record.scope.test_execution_id.as_ref().map(|id| Identifier::new(id.as_str())).transpose().map_err(error)?,
-            media_type: media_type.to_owned(),
-            expected_length: Some(upload.record.size_bytes),
-            expected_sha256: Some(upload.digest.clone().finalize().into()),
-        };
-        upload.pending = Some(FrozenFile::new(file, metadata));
-    }
-    // Name The Artifact Whose Capture Failed; The Storage Error Carries No Path.
-    let finished = upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await;
-    let artifact = upload.record.artifact_id.as_str();
-    let reference =
-        finished.inspect_err(|error| tracing::warn!(artifact, filename = %upload.record.filename, %error, "artifact capture failed"))?;
+    let (reference, status) = if let Some(message) = upload.capture_error.take() {
+        tracing::warn!(artifact = %upload.record.artifact_id, filename = %upload.record.filename, error = %message, "artifact capture failed");
+        upload.record.error = Some(message);
+        (None, ArtifactStatus::Failed)
+    } else {
+        let captured = async {
+            if upload.pending.is_none() {
+                // The Private File Is Frozen By The Execution Gate And Closing Decision
+                upload.file.set_len(upload.record.size_bytes).await.map_err(source_error)?;
+                upload.file.flush().await.map_err(source_error)?;
+                let file = upload.file.try_clone().await.map_err(source_error)?;
+                let metadata = FileMetadata {
+                    id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
+                    scope: upload
+                        .record
+                        .scope
+                        .test_execution_id
+                        .as_ref()
+                        .map(|id| Identifier::new(id.as_str()))
+                        .transpose()
+                        .map_err(error)?,
+                    media_type: upload.record.content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
+                    expected_length: Some(upload.record.size_bytes),
+                    expected_sha256: Some(upload.digest.clone().finalize().into()),
+                };
+                upload.pending = Some(FrozenFile::new(file, metadata));
+            }
+            upload.pending.as_mut().expect("original artifact producer retained").finish(storage).await
+        }
+        .await;
+        match captured {
+            Ok(reference) => (Some(reference), status.clone()),
+            Err(source) if content_capture_failure(&source) => {
+                tracing::warn!(artifact = %upload.record.artifact_id, filename = %upload.record.filename, error = %source, "artifact capture failed");
+                upload.record.error = Some(source.to_string());
+                (None, ArtifactStatus::Failed)
+            }
+            Err(source) => return Err(source),
+        }
+    };
     let mut record = upload.record.clone();
     record.status = status.clone();
     let relative_path = format!("{UPLOAD_PREFIX}{}/{}", record.artifact_id.as_str(), record.filename);
@@ -536,13 +602,13 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
         relative_path,
         created_at: record.created_at.clone(),
         file: reference,
-        stream_state: Some(if *status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted }),
+        stream_state: Some(if status == ArtifactStatus::Complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted }),
         content: ExecutionOutputContent::Artifact {
             record: Box::new(record),
             metadata: upload.metadata.clone(),
         },
     };
-    // A Refused Descriptor Retains The Original Finished Handle For Retry
+    // The Descriptor Owns The Capture Outcome; Report And Provider Retries Never Recapture It
     upload.record.status = status.clone();
     upload.descriptor = Some(descriptor);
     upload.pending = None;
@@ -571,8 +637,42 @@ fn validate_digest(value: &str) -> Result<()> {
     Ok(())
 }
 
+fn source_error(source: std::io::Error) -> Error {
+    harmos::storage::Error::backend("artifact source", harmos::storage::BackendFailure::Permanent, source).into()
+}
+
+fn content_capture_failure(source: &Error) -> bool {
+    // These Native Errors Belong To Reading The Capture Source, Never To Publishing Stored Files Or Descriptors.
+    matches!(
+        source,
+        Error::HarmosStorage(harmos::storage::Error::Backend {
+            operation: "local filesystem" | "artifact source",
+            ..
+        }) | Error::HarmosStorage(harmos::storage::Error::InvalidInput {
+            field: "opened file" | "capture source" | "local file",
+            ..
+        })
+    )
+}
+
 fn error(problem: impl ToString) -> Error {
     Error::Operation(format!("artifact storage: {}", problem.to_string()))
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_failure_degrades_only_source_content_errors() {
+        let denied = || std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(content_capture_failure(&source_error(denied())));
+        let source = harmos::storage::Error::backend("local filesystem", harmos::storage::BackendFailure::Permanent, denied()).into();
+        assert!(content_capture_failure(&source));
+        let catalog = harmos::storage::Error::backend("write files", harmos::storage::BackendFailure::Permanent, denied()).into();
+        assert!(!content_capture_failure(&catalog));
+        assert!(!content_capture_failure(&Error::ShuttingDown));
+    }
+}

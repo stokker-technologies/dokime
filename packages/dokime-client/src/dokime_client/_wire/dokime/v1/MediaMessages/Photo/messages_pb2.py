@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n@dokime_client/_wire/dokime/v1/MediaMessages/Photo/messages.proto\x12\x1d\x64okime.v1.MediaMessages.Photo\"\x84\x01\n\x04Row1\x12=\n\x05scope\x18\xe1\x96\xac\xf1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row3R\x05scope\x12\x1f\n\x06\x63\x61mera\x18\xdb\xd7\xfa\xf5\x01 \x01(\rH\x00R\x06\x63\x61mera\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_515812315\"\xb9\x03\n\x04Row2\x12#\n\x0b\x61rtifact_id\x18\x98\xf2\xc5\x8d\x01 \x01(\tR\nartifactId\x12\x1e\n\tupload_id\x18\xb7\x96\x84{ \x01(\tR\x08uploadId\x12=\n\x05scope\x18\xe1\x96\xac\xf1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row3R\x05scope\x12\x1e\n\x08\x66ilename\x18\xda\xa2\xc4\xf8\x01 \x01(\tR\x08\x66ilename\x12*\n\x0c\x63ontent_type\x18\xde\xbe\x97\x9d\x01 \x01(\tH\x00R\x0b\x63ontentType\x88\x01\x01\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\x12=\n\x05state\x18\x9a\x85\xc5\xc1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row4R\x05state\x12\x46\n\ncreated_at\x18\xf4\xa5\xe2\xb9\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row5R\tcreatedAtB\x1c\n\x1a_harmos_presence_329637726\"\xd1\x01\n\x04Row3\x12\"\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tH\x00R\x07\x63ycleId\x88\x01\x01\x12 \n\x07\x63\x61se_id\x18\xb4\x9d\x9e\xf6\x01 \x01(\tH\x01R\x06\x63\x61seId\x88\x01\x01\x12)\n\x0c\x65xecution_id\x18\x95\xe9\xa6X \x01(\tH\x02R\x0b\x65xecutionId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_389404079B\x1c\n\x1a_harmos_presence_516394676B\x1c\n\x1a_harmos_presence_185185429\"\xba\x02\n\x04Row4\x12J\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row6H\x00R\x0bUnspecified\x12\x44\n\x08\x43omplete\x18\xc6\xe2\xba\x14 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row7H\x00R\x08\x43omplete\x12\x46\n\tCancelled\x18\xb2\xc2\xac\x31 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row8H\x00R\tCancelled\x12\x45\n\x08Rejected\x18\xaf\xbf\xc3\x82\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row9H\x00R\x08RejectedB\x11\n\x0f_harmos_variant\"<\n\x04Row5\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"\x06\n\x04Row6\"\x06\n\x04Row7\"\x06\n\x04Row8\"\x06\n\x04Row9\"\x86\x01\n\x04Row0\x12=\n\x07request\x18\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row1R\x07request\x12?\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n@dokime_client/_wire/dokime/v1/MediaMessages/Photo/messages.proto\x12\x1d\x64okime.v1.MediaMessages.Photo\"\x84\x01\n\x04Row1\x12=\n\x05scope\x18\xe1\x96\xac\xf1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row3R\x05scope\x12\x1f\n\x06\x63\x61mera\x18\xdb\xd7\xfa\xf5\x01 \x01(\rH\x00R\x06\x63\x61mera\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_515812315\"\xf4\x03\n\x04Row2\x12#\n\x0b\x61rtifact_id\x18\x98\xf2\xc5\x8d\x01 \x01(\tR\nartifactId\x12\x1e\n\tupload_id\x18\xb7\x96\x84{ \x01(\tR\x08uploadId\x12=\n\x05scope\x18\xe1\x96\xac\xf1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row3R\x05scope\x12\x1e\n\x08\x66ilename\x18\xda\xa2\xc4\xf8\x01 \x01(\tR\x08\x66ilename\x12*\n\x0c\x63ontent_type\x18\xde\xbe\x97\x9d\x01 \x01(\tH\x00R\x0b\x63ontentType\x88\x01\x01\x12 \n\nsize_bytes\x18\xc2\x8d\x8dh \x01(\x04R\tsizeBytes\x12\x1a\n\x06sha256\x18\x87\x93\xd1\xe6\x01 \x01(\tR\x06sha256\x12=\n\x05state\x18\x9a\x85\xc5\xc1\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row4R\x05state\x12\x46\n\ncreated_at\x18\xf4\xa5\xe2\xb9\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row5R\tcreatedAt\x12\x1c\n\x05\x65rror\x18\xa3\x9e\xc6\x0c \x01(\tH\x01R\x05\x65rror\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_329637726B\x1b\n\x19_harmos_presence_26316579\"\xd1\x01\n\x04Row3\x12\"\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tH\x00R\x07\x63ycleId\x88\x01\x01\x12 \n\x07\x63\x61se_id\x18\xb4\x9d\x9e\xf6\x01 \x01(\tH\x01R\x06\x63\x61seId\x88\x01\x01\x12)\n\x0c\x65xecution_id\x18\x95\xe9\xa6X \x01(\tH\x02R\x0b\x65xecutionId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_389404079B\x1c\n\x1a_harmos_presence_516394676B\x1c\n\x1a_harmos_presence_185185429\"\xfe\x02\n\x04Row4\x12J\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row6H\x00R\x0bUnspecified\x12\x44\n\x08\x43omplete\x18\xc6\xe2\xba\x14 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row7H\x00R\x08\x43omplete\x12\x46\n\tCancelled\x18\xb2\xc2\xac\x31 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row8H\x00R\tCancelled\x12\x45\n\x08Rejected\x18\xaf\xbf\xc3\x82\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row9H\x00R\x08Rejected\x12\x42\n\x06\x46\x61iled\x18\x8f\x9f\xe7\xab\x01 \x01(\x0b\x32$.dokime.v1.MediaMessages.Photo.Row10H\x00R\x06\x46\x61iledB\x11\n\x0f_harmos_variant\"<\n\x04Row5\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"\x06\n\x04Row6\"\x06\n\x04Row7\"\x06\n\x04Row8\"\x06\n\x04Row9\"\x07\n\x05Row10\"\x86\x01\n\x04Row0\x12=\n\x07request\x18\x01 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row1R\x07request\x12?\n\x08response\x18\x02 \x01(\x0b\x32#.dokime.v1.MediaMessages.Photo.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -55,23 +55,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW1']._serialized_start=100
   _globals['_ROW1']._serialized_end=232
   _globals['_ROW2']._serialized_start=235
-  _globals['_ROW2']._serialized_end=676
-  _globals['_ROW3']._serialized_start=679
-  _globals['_ROW3']._serialized_end=888
-  _globals['_ROW4']._serialized_start=891
-  _globals['_ROW4']._serialized_end=1205
-  _globals['_ROW5']._serialized_start=1207
-  _globals['_ROW5']._serialized_end=1267
-  _globals['_ROW6']._serialized_start=1269
-  _globals['_ROW6']._serialized_end=1275
-  _globals['_ROW7']._serialized_start=1277
-  _globals['_ROW7']._serialized_end=1283
-  _globals['_ROW8']._serialized_start=1285
-  _globals['_ROW8']._serialized_end=1291
-  _globals['_ROW9']._serialized_start=1293
-  _globals['_ROW9']._serialized_end=1299
-  _globals['_ROW0']._serialized_start=1302
-  _globals['_ROW0']._serialized_end=1436
+  _globals['_ROW2']._serialized_end=735
+  _globals['_ROW3']._serialized_start=738
+  _globals['_ROW3']._serialized_end=947
+  _globals['_ROW4']._serialized_start=950
+  _globals['_ROW4']._serialized_end=1332
+  _globals['_ROW5']._serialized_start=1334
+  _globals['_ROW5']._serialized_end=1394
+  _globals['_ROW6']._serialized_start=1396
+  _globals['_ROW6']._serialized_end=1402
+  _globals['_ROW7']._serialized_start=1404
+  _globals['_ROW7']._serialized_end=1410
+  _globals['_ROW8']._serialized_start=1412
+  _globals['_ROW8']._serialized_end=1418
+  _globals['_ROW9']._serialized_start=1420
+  _globals['_ROW9']._serialized_end=1426
+  _globals['_ROW10']._serialized_start=1428
+  _globals['_ROW10']._serialized_end=1435
+  _globals['_ROW0']._serialized_start=1438
+  _globals['_ROW0']._serialized_end=1572
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

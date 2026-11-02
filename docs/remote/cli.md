@@ -225,6 +225,38 @@ SQLite catalogs and verify manifest checksums.
 An execution bundle saved before the cycle is sealed records an Active cycle;
 the final cycle bundle includes all members and its sealed phase.
 
+## Download HTML Reports
+
+Download a report for a running or sealed execution, or a cycle:
+
+```sh
+dokime execution report <execution-id> --backend lab --output execution.html
+dokime cycle report <cycle-id> --backend lab --output cycle.html
+```
+
+Cycle reports default to `cycle.summary`; use `--identifier` to select another
+report identifier. Running reports describe the saved evidence frontier at the
+requested cut; sealed reports retain their final cut. Downloading does not stop
+or rerun an execution.
+
+The discoverable operation form uses the same verified download path:
+
+```sh
+dokime operation call dokime.reports.download_execution_report --backend lab --json '{"execution_id":"<execution-id>"}' --output execution.html
+dokime operation call dokime.reports.download_cycle_report --backend lab --json '{"cycle_id":"<cycle-id>","identifier":"cycle.summary"}' --output cycle.html
+```
+
+For header/chunk/complete download streams, `--output` writes raw chunk bytes
+with bounded memory, verifies contiguous offsets, final size, SHA-256 and final
+RPC status, then publishes atomically. Stdout contains a JSON summary with `path`,
+`size_bytes`, `sha256` and header `metadata`. Existing files require `--overwrite`;
+a failed or interrupted download preserves them and removes partial output.
+Other operations continue to save ordered JSON event arrays. Byte fields on
+stdout use base64 within the JSON byte ceiling; larger responses require
+`--output` for chunked downloads. Other byte-bearing responses keep base64 JSON
+within the ceiling, written directly to the JSON output file; larger responses
+without a chunked download protocol require a typed client.
+
 ## Interruption And Recovery
 
 Append, Start, blocking run, execution wait/export and prompt discovery,

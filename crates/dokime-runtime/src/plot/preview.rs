@@ -62,6 +62,14 @@ pub(crate) struct Preview {
     series: BTreeMap<String, Trace>,
     pub context: BTreeMap<String, Value>,
     pub reason: Option<String>,
+
+    marker_records: Vec<RecordEntry>,
+
+    marker_count: usize,
+
+    marker_stride: usize,
+
+    last_marker: Option<RecordEntry>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,7 +96,7 @@ struct Cell {
     count: u64,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 struct Moments {
     count: usize,
     scale: f64,
@@ -118,6 +126,79 @@ impl From<crate::storage::sqlite::PreviewSettings> for Limits {
 }
 
 impl Preview {
+    pub(crate) fn merge(&mut self, other: Self, request: &PlotPayloadRequest, limits: Limits) -> Result<()> {
+        self.marker_records.extend(self.last_marker.take());
+        self.marker_records.extend(other.marker_records);
+        self.marker_records.extend(other.last_marker);
+        self.marker_records.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
+        self.marker_records.dedup_by(|left, right| left.record_id == right.record_id);
+        self.last_marker = self.marker_records.last().cloned();
+        if self.marker_records.len() > limits.exact_points {
+            let mut selected = super::payload::marker_indices(self.marker_records.len(), limits.exact_points).into_iter().peekable();
+            let mut index = 0;
+            self.marker_records.retain(|_| {
+                let keep = selected.peek() == Some(&index);
+                if keep {
+                    selected.next();
+                }
+                index += 1;
+                keep
+            });
+        }
+        self.reduced |= other.reduced;
+        self.samples.extend(other.samples);
+        self.records.extend(other.records);
+        self.bound(limits);
+        if self.reduced {
+            self.samples.clear();
+            self.records.clear();
+        }
+        self.context.extend(other.context);
+        self.reason = self.reason.take().or(other.reason);
+        for (key, other) in other.series {
+            let Some(trace) = self.series.get_mut(&key) else {
+                if self.series.len() >= limits.groups {
+                    self.reason = Some("The plot has more series than the configured preview group limit.".into());
+                    break;
+                }
+                self.series.insert(key, other);
+                continue;
+            };
+            if matches!(request.plot_type, Some(PlotType::XyScatter | PlotType::Trajectory | PlotType::XyValueHeatmap))
+                && trace.count + other.count > limits.exact_points
+            {
+                for point in trace.exact.iter().chain(&other.exact) {
+                    if let (Some(x), Some(y)) = (axis(point), point.y) {
+                        trace.grid.push(Cell { x, y, count: 1 }, limits);
+                    }
+                }
+            }
+            for cell in other.grid.cells.values() {
+                trace.grid.push(*cell, limits);
+            }
+            for bucket in other.envelope.buckets.values() {
+                for mut point in bucket.points() {
+                    point.position = point.position.saturating_add(trace.count as u64);
+                    trace.envelope.push(point, limits.buckets)?;
+                }
+            }
+            trace.count += other.count;
+            trace.moments.merge(other.moments);
+            trace.exact.extend(other.exact);
+            if trace.count > limits.exact_points {
+                trace.exact.clear();
+            }
+            for (key, (x, moments)) in other.groups {
+                if !trace.groups.contains_key(&key) && trace.groups.len() >= limits.groups {
+                    self.reason = Some("The plot has more count groups than the configured preview group limit.".into());
+                    break;
+                }
+                trace.groups.entry(key).and_modify(|(_, current)| current.merge(moments.clone())).or_insert((x, moments));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn sample(&mut self, mut sample: TelemetrySample, request: &PlotPayloadRequest, limits: Limits) -> Result<()> {
         if !super::sample_matches_scope(&sample, request.scope.as_ref()) {
             return Ok(());
@@ -165,6 +246,12 @@ impl Preview {
         if request.scope.as_ref().is_some_and(|scope| !record.is_visible_in(scope)) {
             return Ok(());
         }
+        if request.marker_record_types.iter().any(|kind| kind == record.record_type.as_str()) {
+            self.marker(record.clone(), limits);
+        }
+        if !relevant {
+            return Ok(());
+        }
         if !self.reduced {
             self.records.push(record.clone());
             self.bound(limits);
@@ -197,6 +284,24 @@ impl Preview {
         self.previous_samples.insert(key.clone(), self.latest.values().cloned().collect());
         self.previous.insert(key, record);
         Ok(())
+    }
+
+    fn marker(&mut self, record: RecordEntry, limits: Limits) {
+        self.marker_stride = self.marker_stride.max(1);
+        if self.marker_count.is_multiple_of(self.marker_stride) {
+            self.marker_records.push(record.clone());
+        }
+        self.marker_count = self.marker_count.saturating_add(1);
+        self.last_marker = Some(record);
+        if self.marker_records.len() > limits.exact_points.max(1) {
+            let mut index = 0;
+            self.marker_records.retain(|_| {
+                let keep = index % 2 == 0;
+                index += 1;
+                keep
+            });
+            self.marker_stride = self.marker_stride.saturating_mul(2);
+        }
     }
 
     fn bound(&mut self, limits: Limits) {
@@ -306,6 +411,20 @@ impl Preview {
         let raw = if self.reduced { self.latest.values().cloned().collect::<Vec<_>>() } else { self.samples.clone() };
         let records = if self.reduced { &[][..] } else { &self.records[..] };
         let mut payload = super::project_retained_plot_payload(&raw, records.into(), request, generated_at, context)?.as_ref().clone();
+        let mut markers = self.marker_records.clone();
+        if let Some(last) = &self.last_marker
+            && markers.last().is_none_or(|record| record.record_id != last.record_id)
+        {
+            markers.push(last.clone());
+        }
+        if !markers.is_empty() {
+            payload.markers = super::payload::plot_markers(
+                markers.as_slice().into(),
+                &request.marker_record_types,
+                request.scope.as_ref(),
+                payload.max_points,
+            );
+        }
         if self.reduced {
             payload.series.clear();
             for trace in self.series.values() {
@@ -380,6 +499,7 @@ impl Preview {
                 payload.analysis = Some(super::PlotAnalysis::Error {
                     message: format!("{} needs more exact samples than the configured preview limit.", selection.id),
                 });
+                return super::finish_plot_frame(payload, request);
             }
             return Ok(payload);
         }
@@ -392,7 +512,7 @@ impl Preview {
         {
             self.exact_summaries(&mut payload, request)?;
         }
-        if self.reduced && aggregate(request).is_none() {
+        if self.reduced && aggregate(request).is_none() && request.summary_window.is_none() {
             for summary in &mut payload.summaries {
                 if let Some(trace) = self.series.get(&summary.series_id) {
                     summary.count = trace.count;
@@ -405,11 +525,20 @@ impl Preview {
                 }
             }
         }
+        if self.reduced && request.summary_window.is_some() {
+            // A Whole-Capture Envelope Cannot Supply Exact Statistics For A New Subrange.
+            payload.summaries.clear();
+        }
         if let Some(reason) = &self.reason {
             payload.analysis = Some(super::PlotAnalysis::Error { message: reason.clone() });
-        } else if self.reduced && matches!(request.plot_type, Some(PlotType::FrequencySeries)) {
+        } else if self.reduced
+            && matches!(
+                request.plot_type,
+                Some(PlotType::FrequencySeries | PlotType::Histogram | PlotType::BoxSummary | PlotType::XyInterval)
+            )
+        {
             payload.analysis = Some(super::PlotAnalysis::Error {
-                message: "The frequency analysis needs more exact samples than the configured preview limit.".into(),
+                message: "This analysis needs more exact samples than the configured preview limit.".into(),
             });
         }
         Ok(payload)
@@ -475,6 +604,24 @@ impl Preview {
 }
 
 impl Moments {
+    fn merge(&mut self, other: Self) {
+        if other.count == 0 {
+            return;
+        }
+        if self.count == 0 {
+            *self = other;
+            return;
+        }
+        let scale = self.scale.max(other.scale);
+        let factor = |value| if scale == 0.0 { 0.0 } else { value / scale };
+        self.sum = self.sum * factor(self.scale) + other.sum * factor(other.scale);
+        self.squares = self.squares * factor(self.scale).powi(2) + other.squares * factor(other.scale).powi(2);
+        self.scale = scale;
+        self.count += other.count;
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+    }
+
     fn push(&mut self, value: f64) {
         self.count += 1;
         let scale = self.scale.max(value.abs());
@@ -662,6 +809,84 @@ mod tests {
                 limits(),
             )
             .unwrap()
+    }
+
+    #[test]
+    fn exact_analysis() {
+        for plot_type in [PlotType::Histogram, PlotType::BoxSummary] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(plot_type),
+                y_keys: vec!["northing".into()],
+                max_points: Some(3),
+                ..Default::default()
+            };
+            let mut preview = Preview::default();
+            for index in 0..4 {
+                preview.sample(sample(index, index as f64, index as f64), &request, limits()).unwrap();
+            }
+            assert!(!matches!(payload(&preview, &request).analysis, Some(super::super::PlotAnalysis::Error { .. })));
+            preview.sample(sample(4, 4.0, 4.0), &request, limits()).unwrap();
+            assert!(matches!(payload(&preview, &request).analysis, Some(super::super::PlotAnalysis::Error { .. })));
+            let mut selected = request.clone();
+            selected.max_points = Some(1);
+            selected.analysis = Some(crate::analysis::Selection {
+                id: "dokime.analysis.mean".into(),
+                version: 1,
+                parameters: Default::default(),
+            });
+            let refused = payload(&preview, &selected);
+            assert!(matches!(refused.analysis, Some(super::super::PlotAnalysis::Error { .. })));
+            assert!(refused.series.iter().all(|series| series.points.len() <= selected.max_points.unwrap()));
+        }
+    }
+
+    #[test]
+    fn marker_budget() {
+        let mut preview = Preview::default();
+        let mut request = PlotPayloadRequest {
+            marker_record_types: vec!["connected".into()],
+            ..Default::default()
+        };
+        for index in 0..123 {
+            preview.record(event(index, index as i64, "connected"), &request, limits()).unwrap();
+        }
+        assert!(preview.marker_records.len() <= limits().exact_points);
+        for maximum in [1, 2, 3, 17] {
+            request.max_points = Some(maximum);
+            let result = payload(&preview, &request);
+            assert!(!result.markers.is_empty());
+            assert!(result.markers.len() <= maximum);
+            if maximum > 1 {
+                assert_eq!(result.markers.first().unwrap().x, serde_json::json!("1970-01-01T00:00:00Z"));
+                assert_eq!(result.markers.last().unwrap().x, serde_json::json!("1970-01-01T00:02:02Z"));
+            }
+        }
+    }
+
+    #[test]
+    fn merged_history() {
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(),
+            y_keys: vec!["northing".into()],
+            plot_type: Some(PlotType::TimeSeries),
+            max_points: Some(3),
+            ..Default::default()
+        };
+        let mut left = Preview::default();
+        let mut right = Preview::default();
+        for index in 0..20 {
+            let target = if index < 10 { &mut left } else { &mut right };
+            target.sample(sample(index, index as f64, index as f64), &request, limits()).unwrap();
+        }
+        left.merge(right, &request, limits()).unwrap();
+        let result = payload(&left, &request);
+        assert_eq!(result.series[0].raw_points, 20);
+        assert!(result.series[0].points.len() <= 3);
+        assert!((result.summaries[0].mean.unwrap() - 9.5).abs() < 1e-12);
+        assert_eq!(result.summaries[0].min, Some(0.0));
+        assert_eq!(result.summaries[0].max, Some(19.0));
+        assert!(result.series[0].points.iter().all(|point| point.x.is_string()));
     }
 
     #[test]

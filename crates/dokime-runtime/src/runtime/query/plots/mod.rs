@@ -11,6 +11,7 @@
 
 pub(crate) mod analysis;
 mod context;
+mod previews;
 mod request;
 mod stream;
 
@@ -128,7 +129,9 @@ pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let at = runtime.storage().cursor_accepted();
-    query_plot_payloads_at(runtime, requests, mode, &at).await
+    let session = runtime.storage().clone();
+    let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, &at, &session).await?;
+    query_plot_payloads_with_context(&context, runtime, requests, mode, &at, &session, true).await
 }
 
 pub async fn query_plot_payloads_at(
@@ -136,7 +139,7 @@ pub async fn query_plot_payloads_at(
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, at, &session).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session).await
+    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session, false).await
 }
 
 pub async fn query_plot_stream_batches(
@@ -160,9 +163,33 @@ fn plot_payload_context<'a>(
 ) -> PlotPayloadContext<'a> {
     let column =
         |name: &str| -> Option<&TelemetryColumn> { contract?.columns.iter().find(|column| column.metadata.identifier.as_str() == name) };
-    let x_key = request.x_key.as_deref().unwrap_or("timestamp");
+    let x_key = request
+        .x_expression
+        .as_ref()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or(request.x_key.as_deref())
+        .unwrap_or("timestamp");
     let x_format = resolved_format(request.x_format.as_ref(), column(x_key));
-    let series_format = resolved_format(request.y_format.as_ref(), request.y_keys.first().and_then(|key| column(key)));
+    let y_key = request
+        .y_expressions
+        .first()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or_else(|| request.y_keys.first().map(String::as_str));
+    let series_format = resolved_format(request.y_format.as_ref(), y_key.and_then(column));
 
     PlotPayloadContext {
         default_max_points,
@@ -175,7 +202,7 @@ fn plot_payload_context<'a>(
 
 async fn query_plot_payloads_with_context(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, _mode: RuntimePlotQueryMode,
-    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager, current_previews: bool,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let mut unique = Vec::new();
     let mut keys = Vec::new();
@@ -201,7 +228,7 @@ async fn query_plot_payloads_with_context(
         remaining[index] += 1;
         projections.push((index, id));
     }
-    let work = unique.into_iter().map(|request| query_plot_payload(context, runtime, request, at, session));
+    let work = unique.into_iter().map(|request| query_plot_payload(context, runtime, request, at, session, current_previews));
     let mut queried = futures_util::future::try_join_all(work).await?.into_iter().map(Some).collect::<Vec<_>>();
     let mut completed = Vec::with_capacity(projections.len());
     for (index, id) in projections {
@@ -221,8 +248,11 @@ async fn query_plot_payloads_with_context(
 
 async fn query_plot_payload(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
-    session: &crate::storage::Manager,
+    session: &crate::storage::Manager, current_previews: bool,
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
+    if let Some(preview) = previews::query(context, runtime, &request, at, current_previews).await? {
+        return Ok(preview);
+    }
     let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
         let mut codecs = context
             .codecs

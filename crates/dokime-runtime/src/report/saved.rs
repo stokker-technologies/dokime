@@ -298,7 +298,8 @@ impl PreparedExecutionReport {
         let (context, report) = ReportFile::capture(&html)?;
         if outputs
             .iter()
-            .any(|output| output.file.metadata.id == context.data.metadata.id || output.file.metadata.id == report.data.metadata.id)
+            .filter_map(|output| output.file.as_ref())
+            .any(|file| file.metadata.id == context.data.metadata.id || file.metadata.id == report.data.metadata.id)
         {
             return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }

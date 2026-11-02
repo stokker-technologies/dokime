@@ -39,16 +39,18 @@ impl WifiLinkCollector {
     pub(super) fn read_link(&self, values: &mut BTreeMap<String, Value>) -> Option<String> {
         match crate::platform::windows::wifi::active_link(&self.options) {
             Ok(Some(link)) => {
-                values.insert("probe_status".to_owned(), Value::from("ok"));
-                values.insert("associated".to_owned(), Value::from(link.bssid.is_some()));
+                let status = if link.probe_error.is_some() { "partial" } else { "ok" };
+                values.insert("probe_status".to_owned(), Value::from(status));
+                maybe_insert(values, "associated", link.associated().map(Value::from));
+                maybe_insert(values, "probe_error", link.probe_error.map(Value::from));
                 maybe_insert(values, "wifi_adapter", link.adapter.clone().map(Value::from));
-                maybe_insert(values, "wifi_state", link.state.map(|value| Value::from(value.as_str())));
+                maybe_insert(values, "wifi_state", link.state.map(|value| Value::from(value.as_str().into_owned())));
                 maybe_insert(values, "wifi_ssid", link.ssid.map(Value::from));
                 maybe_insert(values, "wifi_bssid", link.bssid.map(Value::from));
                 maybe_insert(values, "wifi_profile", link.profile.map(Value::from));
-                maybe_insert(values, "wifi_radio", link.radio.map(|value| Value::from(value.as_str())));
-                maybe_insert(values, "wifi_auth", link.auth.map(|value| Value::from(value.as_str())));
-                maybe_insert(values, "wifi_cipher", link.cipher.map(|value| Value::from(value.as_str())));
+                maybe_insert(values, "wifi_radio", link.radio.map(|value| Value::from(value.as_str().into_owned())));
+                maybe_insert(values, "wifi_auth", link.auth.map(|value| Value::from(value.as_str().into_owned())));
+                maybe_insert(values, "wifi_cipher", link.cipher.map(|value| Value::from(value.as_str().into_owned())));
                 maybe_insert(values, "wifi_channel", link.channel.map(|channel| Value::Integer(i64::from(channel))));
                 maybe_insert(values, "wifi_band", link.channel.and_then(wifi_channel_band).map(Value::from));
                 maybe_insert(values, "wifi_signal_percent", link.signal_percent.map(Value::from));

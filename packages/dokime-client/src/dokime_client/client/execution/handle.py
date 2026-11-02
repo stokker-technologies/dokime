@@ -433,7 +433,7 @@ class Execution:
         await self._control("ResumeExecution")
 
     async def stop(self) -> None:
-        """Request cooperative stop; receipt progress establishes completion."""
+        """Stop cooperatively and await the durable execution seal."""
         await self._control("StopExecution")
 
 

@@ -279,7 +279,7 @@ class Row37(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row43, _Mapping]] = ..., Truncated: _Optional[_Union[Row44, _Mapping]] = ..., Replaced: _Optional[_Union[Row45, _Mapping]] = ..., Vanished: _Optional[_Union[Row46, _Mapping]] = ..., ResumeUnsupported: _Optional[_Union[Row47, _Mapping]] = ...) -> None: ...
 
 class Row38(_message.Message):
-    __slots__ = ("artifact_id", "upload_id", "scope", "filename", "content_type", "size_bytes", "sha256", "state", "created_at")
+    __slots__ = ("artifact_id", "upload_id", "scope", "filename", "content_type", "size_bytes", "sha256", "state", "created_at", "error")
     ARTIFACT_ID_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -289,6 +289,7 @@ class Row38(_message.Message):
     SHA256_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     artifact_id: str
     upload_id: str
     scope: Row48
@@ -298,7 +299,8 @@ class Row38(_message.Message):
     sha256: str
     state: Row49
     created_at: Row50
-    def __init__(self, artifact_id: _Optional[str] = ..., upload_id: _Optional[str] = ..., scope: _Optional[_Union[Row48, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., state: _Optional[_Union[Row49, _Mapping]] = ..., created_at: _Optional[_Union[Row50, _Mapping]] = ...) -> None: ...
+    error: str
+    def __init__(self, artifact_id: _Optional[str] = ..., upload_id: _Optional[str] = ..., scope: _Optional[_Union[Row48, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., state: _Optional[_Union[Row49, _Mapping]] = ..., created_at: _Optional[_Union[Row50, _Mapping]] = ..., error: _Optional[str] = ...) -> None: ...
 
 class Row39(_message.Message):
     __slots__ = ()
@@ -347,16 +349,18 @@ class Row48(_message.Message):
     def __init__(self, cycle_id: _Optional[str] = ..., case_id: _Optional[str] = ..., execution_id: _Optional[str] = ...) -> None: ...
 
 class Row49(_message.Message):
-    __slots__ = ("Unspecified", "Complete", "Cancelled", "Rejected")
+    __slots__ = ("Unspecified", "Complete", "Cancelled", "Rejected", "Failed")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     COMPLETE_FIELD_NUMBER: _ClassVar[int]
     CANCELLED_FIELD_NUMBER: _ClassVar[int]
     REJECTED_FIELD_NUMBER: _ClassVar[int]
+    FAILED_FIELD_NUMBER: _ClassVar[int]
     Unspecified: Row51
     Complete: Row52
     Cancelled: Row53
     Rejected: Row54
-    def __init__(self, Unspecified: _Optional[_Union[Row51, _Mapping]] = ..., Complete: _Optional[_Union[Row52, _Mapping]] = ..., Cancelled: _Optional[_Union[Row53, _Mapping]] = ..., Rejected: _Optional[_Union[Row54, _Mapping]] = ...) -> None: ...
+    Failed: Row55
+    def __init__(self, Unspecified: _Optional[_Union[Row51, _Mapping]] = ..., Complete: _Optional[_Union[Row52, _Mapping]] = ..., Cancelled: _Optional[_Union[Row53, _Mapping]] = ..., Rejected: _Optional[_Union[Row54, _Mapping]] = ..., Failed: _Optional[_Union[Row55, _Mapping]] = ...) -> None: ...
 
 class Row50(_message.Message):
     __slots__ = ("seconds", "nanos")
@@ -379,6 +383,10 @@ class Row53(_message.Message):
     def __init__(self) -> None: ...
 
 class Row54(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row55(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

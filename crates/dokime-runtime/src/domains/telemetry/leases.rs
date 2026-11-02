@@ -53,6 +53,7 @@ struct LeaseState {
     instances: BTreeMap<Identifier, Instance>,
     ledger: Vec<LeaseWindow>,
     held: BTreeMap<String, Hold>,
+    encoding_failures: BTreeSet<(String, String, Identifier)>,
 }
 
 struct PendingLeases {
@@ -332,6 +333,26 @@ impl StreamLeases {
         self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner).release(lease_id)
     }
 
+    pub(crate) fn release_executions(&self, ids: &BTreeSet<dokime_domain::model::identity::TestExecutionId>) {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let leases = state
+            .ledger
+            .iter()
+            .filter(|window| window.closed_at.is_none() && window.scope.test_execution_id.as_ref().is_some_and(|id| ids.contains(id)))
+            .map(|window| window.lease_id.clone())
+            .collect::<Vec<_>>();
+        for lease in leases {
+            state.release(&lease);
+        }
+        state.encoding_failures.retain(|(execution, _, _)| !ids.iter().any(|id| id.as_str() == execution));
+    }
+
+    fn first_encoding_failure(&self, stream: &Identifier, holder: &Holder) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(execution) = &holder.scope.test_execution_id else { return false };
+        state.encoding_failures.insert((execution.to_string(), holder.requester.clone(), stream.clone()))
+    }
+
     pub(crate) fn mark_gap(&self, stream: &Identifier) {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         let Some(instance) = state.instances.get_mut(stream) else {
@@ -394,6 +415,7 @@ impl StreamLeases {
 
 impl RuntimeHandle {
     pub async fn lease_streams(&self, scope: SamplingScope, streams: &[Identifier], requester: &str) -> Result<Vec<String>> {
+        let _order = self.telemetry_admission.lock().await;
         let record_scope = self.lease_scope(&scope).await?;
         let mut pending = PendingLeases {
             table: self.stream_leases(),
@@ -418,6 +440,7 @@ impl RuntimeHandle {
     // Leases Every Sampled Stream Of A Declared Set Independently; Releasing
     // `leases` Releases Exactly The Streams That Were Granted.
     pub async fn lease_declared_streams(&self, scope: SamplingScope, streams: &[Identifier], requester: &str) -> Result<DeclaredLeases> {
+        let _order = self.telemetry_admission.lock().await;
         let record_scope = self.lease_scope(&scope).await?;
         let mut declared = DeclaredLeases::default();
         for stream in streams {
@@ -438,6 +461,13 @@ impl RuntimeHandle {
 
     async fn lease_scope(&self, scope: &SamplingScope) -> Result<RecordScope> {
         let record_scope = self.state_read().capture_scope(&record_scope_from_sampling_scope(scope)).map_err(Error::Operation)?;
+        if let Some(id) = &record_scope.test_execution_id {
+            let terminal =
+                self.state_read().executions.get(id).is_none_or(|execution| execution.finished_at.is_some() || execution.saved.is_some());
+            if terminal || self.sampling().measurement_closed_now(id.as_str()) {
+                return Err(Error::conflict("execution_sealed", "execution no longer accepts stream leases"));
+            }
+        }
         if let Some(id) = &record_scope.test_execution_id
             && self.execution_storage.acquisition(id).await.is_none()
         {
@@ -499,11 +529,28 @@ impl RuntimeHandle {
             }
             streams.insert(&sample.stream);
         }
+        let runtime_state = self.state_read();
         let table = self.stream_leases();
+        let terminal = {
+            let state = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            state
+                .ledger
+                .iter()
+                .filter(|window| window.closed_at.is_none())
+                .filter_map(|window| window.scope.test_execution_id.as_ref())
+                .filter(|id| {
+                    runtime_state.executions.get(*id).is_none_or(|execution| execution.finished_at.is_some() || execution.saved.is_some())
+                })
+                .cloned()
+                .collect::<BTreeSet<_>>()
+        };
+        drop(runtime_state);
+        table.release_executions(&terminal);
         let state = table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let matches = |stream: &Identifier, window: &&LeaseWindow| {
             &window.stream == stream
                 && window.closed_at.is_none()
+                && window.scope.test_execution_id.is_some()
                 && state.instances.get(stream).is_some_and(|instance| instance.holders.contains(&window.lease_id))
         };
         harmos::storage::ReadBatch::new(()).try_map(|_| {
@@ -539,9 +586,13 @@ impl RuntimeHandle {
         frames.resize(samples.len(), None::<String>);
         for (stream, holders) in &delivery.holders {
             for holder in holders {
-                if let Some(id) = holder.scope.test_execution_id.as_ref()
-                    && self.sampling().measurement_closed(id.as_str()).await
-                {
+                let Some(id) = holder.scope.test_execution_id.as_ref() else { continue };
+                let terminal = self
+                    .state_read()
+                    .executions
+                    .get(id)
+                    .is_none_or(|execution| execution.finished_at.is_some() || execution.saved.is_some());
+                if terminal || self.sampling().measurement_closed(id.as_str()).await {
                     continue;
                 }
                 let delivered = |row: &&super::streams::PreparedSample| {
@@ -591,7 +642,9 @@ impl RuntimeHandle {
                 match request {
                     Ok(request) => queued.extend(self.queue_for_leaseholder(holder, request)),
                     Err(error) => {
-                        tracing::warn!(stream = stream.as_str(), detail = %error, "a leased row could not be encoded for its leaseholder")
+                        if self.stream_leases().first_encoding_failure(stream, holder) {
+                            tracing::warn!(stream = stream.as_str(), execution_id = %id, requester = %holder.requester, detail = %error, "a leased row could not be encoded for its leaseholder");
+                        }
                     }
                 }
             }
@@ -927,7 +980,7 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::lease_frame;
+    use super::*;
     use std::cell::Cell;
 
     struct Counted(Cell<usize>);
@@ -947,5 +1000,34 @@ mod tests {
             assert_eq!(lease_frame(&mut frame, &sample).unwrap(), "\"shared row\"");
         }
         assert_eq!(sample.0.get(), 1);
+    }
+
+    #[test]
+    fn capture_failure_warnings_once_per_holder_and_stream() {
+        let table = StreamLeases::new();
+        let first = Identifier::new("fixture.first").unwrap();
+        let second = Identifier::new("fixture.second").unwrap();
+        let execution = crate::model::identity::new_id::<dokime_domain::model::identity::TestExecutionId>();
+        let scope = RecordScope::default().with_test_execution(execution.clone());
+        let holder = Holder {
+            scope: scope.clone(),
+            requester: "fixture.reader".into(),
+        };
+        let (lease, _) = table.take(&first, "fixture.owner".into(), &holder.requester, scope.clone());
+        assert!(table.first_encoding_failure(&first, &holder));
+        assert!(!table.first_encoding_failure(&first, &holder));
+        assert!(table.first_encoding_failure(&second, &holder));
+        assert!(!table.first_encoding_failure(&second, &holder));
+        let other = Holder {
+            requester: "fixture.other".into(),
+            ..holder.clone()
+        };
+        assert!(table.first_encoding_failure(&first, &other));
+        let (viewer, _) = table.take(&first, "fixture.owner".into(), "fixture.viewer", RecordScope::default());
+        table.release_executions(&BTreeSet::from([execution]));
+        assert!(!table.is_active(&lease));
+        assert!(table.is_active(&viewer));
+        assert!(table.holders_of(&first).iter().all(|holder| holder.scope.test_execution_id.is_none()));
+        assert!(table.state.lock().unwrap().encoding_failures.is_empty());
     }
 }

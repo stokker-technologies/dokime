@@ -7,6 +7,8 @@
  * ***
  */
 
+#![recursion_limit = "256"]
+
 /* === Modules === */
 mod crashed_run_replay;
 mod host_terminal;

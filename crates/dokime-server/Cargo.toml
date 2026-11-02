@@ -81,7 +81,6 @@ tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
 rcgen = { workspace = true }
-rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "tls-ring"] }
 tonic-types = { workspace = true }
 
@@ -165,6 +164,7 @@ tokio = { workspace = true, features = ["process", "test-util"] }
 tokio-stream = { workspace = true }
 
 # Networking
+rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["channel"] }
 
 # Storage

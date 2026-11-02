@@ -307,7 +307,9 @@ dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.j
 `--input` and `--json` are mutually exclusive request sources; omitting both
 sends `{}`. Inputs use the discovered contract's protobuf JSON shape. Streaming
 input is one item per line. Without `--output`, stdout emits one JSON item or
-completion event per line. A response file contains one JSON array of those
+completion event per line. Download streams with a header, byte chunks and a
+completion save verified raw bytes with `--output`; stdout prints a JSON download
+summary including header metadata. Other response files contain one JSON array of those
 events, including the final completion; a unary call has only that completion.
 
 Existing response files require `--overwrite`. Predictable output conflicts are
@@ -347,8 +349,8 @@ dokime cycle seal CYCLE_UUID --backend lab --json
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
 returns a nonzero exit status after any earlier lines. `execution stop` stops
-the selected execution and halts its cycle's automatic continuation. Wait for
-its saved outcome before downloading evidence. To repeat a case, append a new
+the selected execution, halts its cycle's automatic continuation and waits for
+its durable seal before returning. To repeat a case, append a new
 execution identity and Start that attempt; earlier evidence remains unchanged.
 Cancelling an ordinary local wait leaves admitted backend work running.
 
@@ -975,6 +977,11 @@ interval remains the fallback upper bound when notifications are unavailable;
 FTP watches use that interval. Execution sealing and cancellation wake watches
 independently of either source.
 
+A file whose artifact content cannot be captured is retained as a failed artifact
+with its error and no downloadable content. Reports list failed artifacts alongside
+the remaining evidence; the failure does not prevent Stop, provider completion or
+report saving. Storage failures outside artifact content capture still fail the save.
+
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
 Processes return their exit status; file watches finish capturing before replying.
@@ -1139,11 +1146,13 @@ and [control-prompt](../packages/dokime-client/examples/remote/cli/control-promp
 | `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle report` | Download a running or sealed cycle's HTML report. | `--output`, `--overwrite`, `--identifier` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution report` | Download a running or sealed execution's HTML report. | `--output`, `--overwrite` |
 | `dokime execution start` | Start one execution without waiting. | `--mode` |
 | `dokime execution run` | Start one execution and wait for its seal. | `--mode`, `--wait-seconds`, `--records`, `--samples` |
 | `dokime execution wait` | Wait for a durable outcome. | `--wait-seconds` |
-| `dokime execution stop` | Request that one execution stop. | `--json` |
+| `dokime execution stop` | Stop one execution and wait for its durable seal. | `--json` |
 | `dokime execution prompt next` | Wait for the next answerable prompt. | `--wait-seconds`, `--id-only`, `--id-file` |
 | `dokime execution prompt show` | Inspect one prompt. | `--json` |
 | `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
@@ -1484,9 +1493,29 @@ The entry library also owns connection, installation and version helpers. With
 `client` enabled, connection errors live under `dokime::client_error`; root
 `dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
+### Host Telemetry
+
 Host telemetry is supplied by `plugin-host.dokime` through plugin ingest. The runtime
 has no built-in host collector or implicit plugin seed. OBC is an explicit
 test fixture under `plugins/sidecars/obc`, excluded from shipping defaults.
+
+On Windows 11 24H2 and later, SSID/BSSID connection details and nearby-network
+queries require location permission. In **Settings → Privacy & Security → Location**,
+enable **Location Services** and **Let Desktop Apps Access Your Location** for the
+host plugin. See Microsoft's [Wi-Fi access and location changes](https://learn.microsoft.com/en-us/windows/win32/nativewifi/wi-fi-access-location-changes).
+If the current-connection query fails, `host.wifi.link` reports `probe_status=partial`
+and a `probe_error` containing the WLAN call and Win32 code; code 5 includes a
+location-permission hint. Adapter, interface state and readable RSSI still publish,
+and a connected interface remains associated even when its BSSID cannot be read.
+Unknown native state, authentication, cipher and PHY values appear as `unknown_<n>`
+without discarding other fields. Connection-query warnings log once per distinct
+code during the plugin process's lifetime.
+
+RSSI uses the native RSSI query, then the associated BSSID's cached BSS reading
+if that query fails or returns an invalid value. Both sources must be in
+−120…0 dBm; RSSI remains absent if neither is readable. Signal quality is never
+converted to dBm. Default adapter selection prefers a connected physical WLAN
+adapter over connected virtual adapters; an explicit adapter selector takes precedence.
 
 ## Cargo Features
 
@@ -1510,7 +1539,7 @@ definitions are available under `dokime::domain` in every feature set.
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
-fresh storage root. Versioned local history projections, membership indexes
+fresh storage root. Versioned local history projections, membership and sample identity indexes
 and persistent query token identities are part of that layout; retained older
 roots are preserved and are not rebuilt in place. Finite history queries cover this local catalog only; merged browse
 discovery remains a separate API. Host payloads now use native repeated fields and framework
@@ -1810,8 +1839,17 @@ Recovery rebuilds an interrupted footer from batch headers and catalog checkpoin
 without decoding sample bytes.
 Files close before rename or deletion on Windows.
 
+Receiver receipts resolve sample identities through the saved SQLite batch index on
+a reader connection, including execution capture membership. Replayed chunks advance
+from their known saved positions after the receiver confirms the final sample.
+Acknowledgement never scans Arrow history or holds the storage writer.
+After an explicit retry saves every pending telemetry row, shutdown discards an
+earlier transient flush-task failure. Unsaved rows and nontransient failures still
+refuse storage close.
+
 This experimental storage layout keeps the v1 baseline and requires a fresh
-root for incompatible development data. Existing roots are never reset or
+root for incompatible development data, including roots without the sample identity index.
+Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
 restores saved frontiers without replaying device actions. Startup advances the
 record ordinal counter past saved primary records, including captures saved
@@ -1873,11 +1911,13 @@ frozen cut.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
-Stop and Cancel close and drain evidence, then return while HTML publication runs
-in the background. Execution detail exposes report **Pending**, **Ready** or
+Stop closes and drains evidence, then waits for the execution's durable seal,
+joining report publication already in flight. A report failure fails Stop without
+changing the execution result. Cancel and natural completion publish HTML in the
+background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
-and Python `await execution.snapshot()` expose the same `report` field. A report failure never fails Stop or changes the execution result.
+and Python `await execution.snapshot()` expose the same `report` field.
 Execution-scoped sample follows drain the closed evidence frontier independently
 of HTML. Report download and evidence export wait for readiness and return publication
 failures. `cycle.save(...)` uses those same waits. Shutdown preserves pending
@@ -1904,3 +1944,30 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+## Remote Certificate Refresh
+
+The managed remote listener reloads its TLS leaf in place. Existing connections
+and streaming calls continue; new handshakes use the replacement certificate
+under the same persistent pairing CA. Only enabled state, bind address/port,
+TLS mode or authentication mode changes detach and rebind the listener.
+Explicit certificate regeneration also reloads in place.
+
+Automatic refresh requires coverage of `settings.certificate_names` and every
+eligible endpoint advertised by new `.dokime-remote` pairings. Already covered
+names are compared without order or DNS case; disappearing addresses and excluded
+virtual/transient interfaces do not reissue a certificate. Missing advertised or
+configured names cause reissue. Prior SANs are retained while there is room after
+required names, preventing a disappearing/reappearing interface from causing churn.
+Configured and currently advertised names must all fit the listener's name budget;
+excess required names are rejected instead of silently leaving pairings uncovered.
+The refresh task is stopped and joined before listener management closes admission.
+
+Rust and Python clients retry an explicitly known unary read once after
+`UNAVAILABLE`, with a short reconnect delay inside the existing request deadline.
+Unknown/plugin operations and mutations are never automatically replayed; a
+request identifier alone does not imply a server deduplication contract.
+Sample and record listeners can reconnect once between successfully delivered
+pages, preserving stream/journal cursors and checking the backend epoch. Raw
+streams expose failures to their caller because arbitrary streams have no generic
+resume contract. Non-transient failures and exhausted retries remain visible.

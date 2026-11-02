@@ -88,6 +88,9 @@ pub(crate) struct ExecutionStorage {
     pub(crate) captures: super::captures::Captures,
 
     #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+    pub(super) artifact_faults: std::sync::Mutex<BTreeMap<(TestExecutionId, String), std::io::ErrorKind>>,
+
+    #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
     pub(super) log_faults: std::sync::Mutex<BTreeMap<TestExecutionId, (usize, std::io::ErrorKind)>>,
 }
 
@@ -260,6 +263,8 @@ impl ExecutionStorage {
             capture_failure: Default::default(),
             captures,
             #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
+            artifact_faults: std::sync::Mutex::new(BTreeMap::new()),
+            #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
             log_faults: std::sync::Mutex::new(BTreeMap::new()),
         })
     }
@@ -422,8 +427,10 @@ impl ExecutionStorage {
                 if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
             let outputs = if final_report { acquisition.settle_outputs().await? } else { acquisition.snapshot_outputs().await? };
             // A Final Report Seals Every Settled Output; Settlement May Follow The Evidence Cut.
-            let pending =
-                |output: &ExecutionOutput| -> harmos::Result<bool> { Ok(!final_report && !report_boundary.covers(&output.file.position)?) };
+            let pending = |output: &ExecutionOutput| -> harmos::Result<bool> {
+                Ok(!final_report
+                    && output.file.as_ref().map(|file| report_boundary.covers(&file.position)).transpose()?.is_some_and(|saved| !saved))
+            };
             let mut included_count = 0usize;
             let mut unavailable_count = 0usize;
             for output in outputs.iter() {
@@ -664,14 +671,15 @@ impl ExecutionStorage {
             let storage = self.clone();
             let expected = members[id];
             validate_identity(&*owner.lock().await, expected)?;
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_execution_checkpoint(id).await;
             tokio::spawn(async move {
                 let mut acquisition = owner.lock().await;
                 // Settle The Original Admission Before Reading Any Newer Journal State
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
                 }
-                // Native Publication Can Seal Before Managed State Adopts It.
-                // A Concurrent Checkpoint Must Keep That Durable Revision.
+                // Native Sealing Is Final Even Before The Journal Adopts Its Seal.
                 if acquisition.execution.saved.is_some() {
                     return Ok(());
                 }

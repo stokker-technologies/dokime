@@ -488,7 +488,7 @@ async fn stop_shutdown_joins() {
     assert!(shutdown.as_mut().now_or_never().is_none(), "shutdown must await the execution's original cleanup");
     physical.restore_release.notify_one();
     let (stopped, shutdown) = tokio::join!(retry, shutdown);
-    stopped.unwrap();
+    assert!(matches!(stopped, Err(dokime_runtime::runtime::Error::ShuttingDown)), "shutdown cannot acknowledge an unfinished seal");
     shutdown.unwrap();
     #[cfg(feature = "testing")]
     {

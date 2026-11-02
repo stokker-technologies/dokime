@@ -223,7 +223,12 @@ export function useLivePlotPayloads({
       modelRef.current = applyMessageById(modelRef.current, message);
       const plotState = modelRef.current[message.plot_id];
       if (plotState?.status === "error") {
-        reportFailure(new Error(plotState.error ?? "Plot refresh failed."));
+        const error = new Error(plotState.error ?? "Plot refresh failed.");
+        if (automatic) reportFailure(error);
+        else {
+          if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+          failed = true;
+        }
       } else {
         received.add(message.plot_id);
         if (activePlots.every((plot) => received.has(plot.plot_id))) {
@@ -352,33 +357,37 @@ export function useLivePlotPayloads({
     };
 
     const readSnapshot = async () => {
-      try {
-        const envelopes = await fetchNativePlotPayloads(nativeSession.identity, requests, { signal: controller.signal });
-        if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
-        if (
-          envelopes.length !== activePlots.length ||
-          activePlots.some((plot) => !envelopes.some((item) => item.plot_id === plot.plot_id))
-        ) {
-          throw new Error("The plot refresh returned an incomplete view.");
-        }
-        for (const envelope of envelopes) enqueue({ ...envelope, kind: "snapshot" });
-      } catch (error) {
-        if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
-        reportFailure(error);
-        commit((current) =>
-          Object.fromEntries(
-            activePlots.map((plot) => [
-              plot.plot_id,
-              {
-                ...(current[plot.plot_id] ?? emptyLivePlotState()),
-                status: "error" as const,
+      // Each plot owns one deadline and one transport response budget. Deliver
+      // completed plots immediately, even while another plot is still reading.
+      await Promise.all(
+        requests.map(async (request, index) => {
+          const plotId = activePlots[index].plot_id;
+          try {
+            const envelopes = await fetchNativePlotPayloads(nativeSession.identity, [request], { signal: controller.signal });
+            if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+            if (envelopes.length !== 1 || envelopes[0].plot_id !== plotId) {
+              throw new Error("The plot refresh returned an incomplete plot.");
+            }
+            enqueue({ ...envelopes[0], kind: "snapshot" });
+          } catch (error) {
+            if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
+            if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+            failed = true;
+            commit((current) => ({
+              ...current,
+              [plotId]: {
+                ...(current[plotId] ?? emptyLivePlotState()),
+                status: "error",
                 error: errorMessage(error),
                 summaryInFlight: false,
               },
-            ]),
-          ),
-        );
-      }
+            }));
+          }
+        }),
+      );
+      if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+      awaitingRefresh = false;
+      onRefreshChange?.({ refreshing: false, ...(!failed ? { updatedAt: Date.now() } : {}) });
     };
 
     if (automatic) void consumeStream();
@@ -409,6 +418,7 @@ export function plotRequestForDocumentPlot(
     summaryWindow?: SummaryWindow | null;
   },
 ): PlotPayloadRequestInput {
+  const maximum = displayPointBudget(plot.display_points);
   return {
     plotId: plot.plot_id,
     stream: plot.stream,
@@ -431,11 +441,9 @@ export function plotRequestForDocumentPlot(
     zStream: plot.z_stream ?? undefined,
     zField: plot.z_field ?? undefined,
     unit: plot.unit ?? undefined,
-    // The display budget applies to EVERY window, including "All": the canvas
-    // cannot resolve more points than this, and an unbounded request made the
-    // full-range window ship every stored raw sample (slow payload, slow
-    // render) instead of a server-downsampled frame.
-    maxPoints: displayPointBudget(plot.display_points),
+    // All always has a finite display budget, including declarations asking
+    // for every raw sample. Timed windows keep their declared budget.
+    maxPoints: options.windowS == null && maximum === 0 ? DEFAULT_PLOT_MAX_POINTS : maximum,
     technique: plot.downsample ?? "auto",
     windowS: options.windowS ?? null,
     summaryWindow: options.summaryWindow ?? null,
@@ -463,7 +471,7 @@ function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamM
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
-  return JSON.stringify(plotRequestForDocumentPlot(plot, { scope: null }));
+  return JSON.stringify({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });
 }
 
 function recordScopeKey(scope: RecordScope | null): string {

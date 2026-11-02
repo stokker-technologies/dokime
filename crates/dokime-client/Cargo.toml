@@ -30,6 +30,7 @@ dokime-operations = { version = "0.1.2", path = "../dokime-operations" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -43,6 +44,7 @@ zeroize = { workspace = true }
 
 # Serialization
 prost = { workspace = true }
+prost-reflect = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

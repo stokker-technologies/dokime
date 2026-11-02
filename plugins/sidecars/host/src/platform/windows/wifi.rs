@@ -15,19 +15,25 @@
 
 // Standard Library Imports
 use std::{
-    collections::BTreeMap,
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
     ffi::c_void,
+    mem::size_of,
     ops::RangeInclusive,
     ptr::{addr_of, null_mut},
     slice,
-    sync::mpsc::{Receiver, SyncSender, sync_channel},
+    sync::{
+        Mutex,
+        mpsc::{Receiver, SyncSender, sync_channel},
+    },
     time::Duration,
 };
 
 // Third Party Imports
 use windows::{
     Win32::{
-        Foundation::HANDLE,
+        Foundation::{ERROR_ACCESS_DENIED, ERROR_INVALID_DATA, ERROR_SUCCESS, HANDLE},
+        NetworkManagement::IpHelper::{ConvertInterfaceGuidToLuid, GetIfEntry2, MIB_IF_ROW2},
         NetworkManagement::WiFi::{
             DOT11_AUTH_ALGO_80211_OPEN, DOT11_AUTH_ALGO_80211_SHARED_KEY, DOT11_AUTH_ALGO_OWE, DOT11_AUTH_ALGO_RSNA,
             DOT11_AUTH_ALGO_RSNA_PSK, DOT11_AUTH_ALGO_WPA, DOT11_AUTH_ALGO_WPA_NONE, DOT11_AUTH_ALGO_WPA_PSK, DOT11_AUTH_ALGO_WPA3,
@@ -56,6 +62,7 @@ use crate::{Error, HostOptions, Result};
 /* === Constants === */
 
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
+static REPORTED_CONNECTION_ERRORS: Mutex<BTreeSet<u32>> = Mutex::new(BTreeSet::new());
 
 /* === Macros === */
 
@@ -65,6 +72,7 @@ const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 #[derive(Clone, Debug)]
 pub struct WifiLink {
+    pub probe_error: Option<String>,
     pub adapter: Option<String>,
     pub state: Option<WifiState>,
     pub ssid: Option<String>,
@@ -96,6 +104,7 @@ struct WifiInterface {
     guid: GUID,
     description: String,
     state: WLAN_INTERFACE_STATE,
+    hardware: bool,
 }
 
 /* === Enums === */
@@ -110,6 +119,7 @@ pub enum WifiState {
     Associating,
     Discovering,
     Authenticating,
+    Unrecognized(i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +136,7 @@ pub enum WifiRadio {
     Dot11Ad,
     Dot11Ax,
     Dot11Be,
+    Unrecognized(i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,6 +152,7 @@ pub enum WifiAuth {
     Wpa3Sae,
     Owe,
     Wpa3Enterprise,
+    Unrecognized(i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,6 +171,7 @@ pub enum WifiCipher {
     Gcmp,
     Gcmp256,
     Ccmp256,
+    Unrecognized(i32),
 }
 
 /* === Traits === */
@@ -166,8 +179,8 @@ pub enum WifiCipher {
 /* === Implementations === */
 
 impl WifiState {
-    pub const fn as_str(self) -> &'static str {
-        match self {
+    pub fn as_str(self) -> Cow<'static, str> {
+        let known = match self {
             Self::NotReady => "not_ready",
             Self::Connected => "connected",
             Self::AdHocNetworkFormed => "ad_hoc_network_formed",
@@ -176,13 +189,15 @@ impl WifiState {
             Self::Associating => "associating",
             Self::Discovering => "discovering",
             Self::Authenticating => "authenticating",
-        }
+            Self::Unrecognized(value) => return Cow::Owned(format!("unknown_{value}")),
+        };
+        Cow::Borrowed(known)
     }
 }
 
 impl WifiRadio {
-    pub const fn as_str(self) -> &'static str {
-        match self {
+    pub fn as_str(self) -> Cow<'static, str> {
+        let known = match self {
             Self::Unknown => "unknown",
             Self::Fhss => "fhss",
             Self::Dsss => "dsss",
@@ -195,13 +210,15 @@ impl WifiRadio {
             Self::Dot11Ad => "802.11ad",
             Self::Dot11Ax => "802.11ax",
             Self::Dot11Be => "802.11be",
-        }
+            Self::Unrecognized(value) => return Cow::Owned(format!("unknown_{value}")),
+        };
+        Cow::Borrowed(known)
     }
 }
 
 impl WifiAuth {
-    pub const fn as_str(self) -> &'static str {
-        match self {
+    pub fn as_str(self) -> Cow<'static, str> {
+        let known = match self {
             Self::Open => "open",
             Self::SharedKey => "shared_key",
             Self::Wpa => "wpa",
@@ -213,13 +230,15 @@ impl WifiAuth {
             Self::Wpa3Sae => "wpa3_sae",
             Self::Owe => "owe",
             Self::Wpa3Enterprise => "wpa3_enterprise",
-        }
+            Self::Unrecognized(value) => return Cow::Owned(format!("unknown_{value}")),
+        };
+        Cow::Borrowed(known)
     }
 }
 
 impl WifiCipher {
-    pub const fn as_str(self) -> &'static str {
-        match self {
+    pub fn as_str(self) -> Cow<'static, str> {
+        let known = match self {
             Self::UseGroup => "use_group",
             Self::BipGmac256 => "bip_gmac_256",
             Self::BipGmac128 => "bip_gmac_128",
@@ -234,11 +253,24 @@ impl WifiCipher {
             Self::Gcmp => "gcmp",
             Self::Gcmp256 => "gcmp_256",
             Self::Ccmp256 => "ccmp_256",
-        }
+            Self::Unrecognized(value) => return Cow::Owned(format!("unknown_{value}")),
+        };
+        Cow::Borrowed(known)
     }
 }
 
 impl WifiLink {
+    pub fn associated(&self) -> Option<bool> {
+        if self.bssid.is_some() {
+            return Some(true);
+        }
+        match self.state? {
+            WifiState::Connected | WifiState::AdHocNetworkFormed => Some(true),
+            WifiState::Unrecognized(_) => None,
+            _ => Some(false),
+        }
+    }
+
     pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
         let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
         let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
@@ -286,6 +318,7 @@ impl WlanClient {
                     guid: interface.InterfaceGuid,
                     description: wide_string(&interface.strInterfaceDescription).unwrap_or_else(|| "WiFi".to_owned()),
                     state: interface.isState,
+                    hardware: hardware_interface(&interface.InterfaceGuid),
                 })
                 .collect::<Vec<_>>()
         };
@@ -296,14 +329,21 @@ impl WlanClient {
         Ok(interfaces)
     }
 
-    fn current_connection(&self, interface: &WifiInterface) -> Result<Option<WLAN_CONNECTION_ATTRIBUTES>> {
+    fn current_connection(&self, interface: &WifiInterface) -> std::result::Result<WLAN_CONNECTION_ATTRIBUTES, u32> {
         let mut data_size = 0;
         let mut data: *mut c_void = null_mut();
         let code = unsafe {
             WlanQueryInterface(self.handle, &interface.guid, wlan_intf_opcode_current_connection, None, &mut data_size, &mut data, None)
         };
-        if code != 0 || data.is_null() {
-            return Ok(None);
+        if code != 0 {
+            return Err(code);
+        }
+        if data.is_null() {
+            return Err(ERROR_INVALID_DATA.0);
+        }
+        if (data_size as usize) < size_of::<WLAN_CONNECTION_ATTRIBUTES>() {
+            unsafe { WlanFreeMemory(data) };
+            return Err(ERROR_INVALID_DATA.0);
         }
 
         let attributes = unsafe { *(data.cast::<WLAN_CONNECTION_ATTRIBUTES>()) };
@@ -311,7 +351,7 @@ impl WlanClient {
             WlanFreeMemory(data);
         }
 
-        Ok(Some(attributes))
+        Ok(attributes)
     }
 
     fn rssi_dbm(&self, interface: &WifiInterface) -> Option<f64> {
@@ -393,15 +433,7 @@ impl WlanClient {
         unsafe {
             WlanFreeMemory(list.cast::<c_void>());
         }
-        let entries = networks.iter().map(network_security_entry).collect::<Result<Vec<_>>>()?;
-        Ok(entries.into_iter().flatten().collect())
-    }
-
-    // The Associated Entry's Frequency From The Cached BSS List; It Also Distinguishes 6 GHz Channels.
-    fn associated_channel(&self, interface: &WifiInterface, bssid: &[u8; 6]) -> Option<u32> {
-        let entries = self.bss_entries(interface).ok()?;
-        let entry = entries.into_iter().find(|entry| entry.dot11Bssid == *bssid)?;
-        channel_from_frequency(entry.ulChCenterFrequency)
+        Ok(networks.iter().filter_map(network_security_entry).collect())
     }
 }
 
@@ -413,49 +445,15 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let Some(interface) = select_interface(&interfaces, options) else {
         return Ok(None);
     };
-    let state = Some(interface_state(interface.state)?);
-    if interface.state != wlan_interface_state_connected {
-        return Ok(Some(WifiLink {
-            adapter: Some(interface.description),
-            state,
-            ssid: None,
-            bssid: None,
-            profile: None,
-            radio: None,
-            auth: None,
-            cipher: None,
-            channel: None,
-            signal_percent: None,
-            rssi_dbm: None,
-            rx_phy_mbps: None,
-            tx_phy_mbps: None,
-        }));
+    let state = interface_state(interface.state);
+    let query = matches!(state, WifiState::Connected | WifiState::AdHocNetworkFormed | WifiState::Unrecognized(_));
+    let connection = query.then(|| client.current_connection(&interface)).transpose();
+    let rssi_dbm = query.then(|| client.rssi_dbm(&interface)).flatten();
+    let entries = if matches!(connection, Ok(Some(_))) { client.bss_entries(&interface).unwrap_or_default() } else { Vec::new() };
+    if let Err(code) = connection {
+        report_connection_error(code);
     }
-
-    let Some(attributes) = client.current_connection(&interface)? else {
-        return Ok(None);
-    };
-    let association = attributes.wlanAssociationAttributes;
-    let security = attributes.wlanSecurityAttributes;
-    let bssid = mac_string(&association.dot11Bssid);
-    // Read The Signal Before The Interface Gives Up Its Description
-    let rssi_dbm = client.rssi_dbm(&interface);
-    let channel = client.associated_channel(&interface, &association.dot11Bssid);
-    Ok(Some(WifiLink {
-        adapter: Some(interface.description),
-        state,
-        ssid: ssid_string(&association.dot11Ssid),
-        bssid: Some(bssid),
-        profile: wide_string(&attributes.strProfileName),
-        radio: Some(phy_type(association.dot11PhyType)?),
-        auth: Some(auth_algorithm(security.dot11AuthAlgorithm)?),
-        cipher: Some(cipher_algorithm(security.dot11CipherAlgorithm)?),
-        channel,
-        signal_percent: Some(f64::from(association.wlanSignalQuality)),
-        rssi_dbm,
-        rx_phy_mbps: Some(association.ulRxRate as f64 / 1_000.0),
-        tx_phy_mbps: Some(association.ulTxRate as f64 / 1_000.0),
-    }))
+    Ok(Some(link_from_readings(&interface, connection, rssi_dbm, &entries)))
 }
 
 // Every BSS The Driver Reports; With A Window, After An Active Scan That Completes Within It.
@@ -471,7 +469,7 @@ pub fn scan_networks(options: &HostOptions, scan_window: Option<Duration>) -> Re
 
     let entries = client.bss_entries(&interface)?;
     let connected = interface.state == wlan_interface_state_connected;
-    let attributes = if connected { client.current_connection(&interface)? } else { None };
+    let attributes = if connected { client.current_connection(&interface).ok() } else { None };
     let associated = attributes.map(|attributes| attributes.wlanAssociationAttributes.dot11Bssid);
     let security = client.security(&interface)?;
     let scanned = |entry: &WLAN_BSS_ENTRY| scanned_network(entry, &interface, &security, associated);
@@ -479,6 +477,82 @@ pub fn scan_networks(options: &HostOptions, scan_window: Option<Duration>) -> Re
 }
 
 /* === Private Functions === */
+
+fn link_from_readings(
+    interface: &WifiInterface, connection: std::result::Result<Option<WLAN_CONNECTION_ATTRIBUTES>, u32>, rssi_dbm: Option<f64>,
+    entries: &[WLAN_BSS_ENTRY],
+) -> WifiLink {
+    let mut link = WifiLink {
+        probe_error: None,
+        adapter: Some(interface.description.clone()),
+        state: Some(interface_state(interface.state)),
+        ssid: None,
+        bssid: None,
+        profile: None,
+        radio: None,
+        auth: None,
+        cipher: None,
+        channel: None,
+        signal_percent: None,
+        rssi_dbm: rssi_dbm.filter(|value| RSSI_RANGE_DBM.contains(value)),
+        rx_phy_mbps: None,
+        tx_phy_mbps: None,
+    };
+    let attributes = match connection {
+        Ok(Some(attributes)) => attributes,
+        Ok(None) => return link,
+        Err(code) => {
+            link.probe_error = Some(connection_error(code));
+            return link;
+        }
+    };
+
+    let association = attributes.wlanAssociationAttributes;
+    let security = attributes.wlanSecurityAttributes;
+    let associated = entries.iter().find(|entry| entry.dot11Bssid == association.dot11Bssid);
+    link.ssid = ssid_string(&association.dot11Ssid);
+    link.bssid = Some(mac_string(&association.dot11Bssid));
+    link.profile = wide_string(&attributes.strProfileName);
+    link.radio = Some(phy_type(association.dot11PhyType));
+    link.auth = Some(auth_algorithm(security.dot11AuthAlgorithm));
+    link.cipher = Some(cipher_algorithm(security.dot11CipherAlgorithm));
+    link.channel = associated.and_then(|entry| channel_from_frequency(entry.ulChCenterFrequency));
+    link.signal_percent = Some(f64::from(association.wlanSignalQuality));
+    link.rssi_dbm = link.rssi_dbm.or_else(|| {
+        let rssi = f64::from(associated?.lRssi);
+        RSSI_RANGE_DBM.contains(&rssi).then_some(rssi)
+    });
+    link.rx_phy_mbps = Some(f64::from(association.ulRxRate) / 1_000.0);
+    link.tx_phy_mbps = Some(f64::from(association.ulTxRate) / 1_000.0);
+    link
+}
+
+fn connection_error(code: u32) -> String {
+    let hint =
+        if code == ERROR_ACCESS_DENIED.0 { "; check Windows Location services and Let desktop apps access your location" } else { "" };
+    format!("WlanQueryInterface(wlan_intf_opcode_current_connection) failed with Win32 code {code}{hint}")
+}
+
+fn report_connection_error(code: u32) {
+    // A Poisoned Diagnostic Set Still Contains Valid Codes; Recover It To Preserve Deduplication.
+    let mut reported = REPORTED_CONNECTION_ERRORS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let first = reported.insert(code);
+    drop(reported);
+    if first {
+        let error = connection_error(code);
+        tracing::warn!(code, %error, "Wi-Fi link details unavailable");
+    }
+}
+
+fn hardware_interface(guid: &GUID) -> bool {
+    let mut row = MIB_IF_ROW2::default();
+    // SAFETY: Both Calls Receive Valid Input And Output Pointers.
+    if unsafe { ConvertInterfaceGuidToLuid(guid, &mut row.InterfaceLuid) } != ERROR_SUCCESS {
+        return false;
+    }
+    // HardwareInterface Is The First Bit Of The Native Status Flags.
+    (unsafe { GetIfEntry2(&mut row) }) == ERROR_SUCCESS && row.InterfaceAndOperStatusFlags._bitfield & 1 != 0
+}
 
 fn scanned_network(
     entry: &WLAN_BSS_ENTRY, interface: &WifiInterface, security: &BTreeMap<Vec<u8>, String>, associated: Option<[u8; 6]>,
@@ -497,11 +571,9 @@ fn scanned_network(
     }
 }
 
-fn network_security_entry(network: &WLAN_AVAILABLE_NETWORK) -> Result<Option<(Vec<u8>, String)>> {
-    let Some(ssid) = ssid_bytes(&network.dot11Ssid) else {
-        return Ok(None);
-    };
-    Ok(Some((ssid.to_vec(), network_security(network)?.as_str().to_owned())))
+fn network_security_entry(network: &WLAN_AVAILABLE_NETWORK) -> Option<(Vec<u8>, String)> {
+    let ssid = ssid_bytes(&network.dot11Ssid)?;
+    Some((ssid.to_vec(), network_security(network).as_str().into_owned()))
 }
 
 fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Option<WifiInterface> {
@@ -510,7 +582,14 @@ fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Opti
         return interfaces.iter().find(|interface| interface.description.to_lowercase().contains(&adapter)).cloned();
     }
 
-    interfaces.iter().find(|interface| interface.state == wlan_interface_state_connected).or_else(|| interfaces.first()).cloned()
+    interfaces
+        .iter()
+        .enumerate()
+        .min_by_key(|(index, interface)| {
+            let connected = interface.state == wlan_interface_state_connected;
+            (!connected, connected && !interface.hardware, *index)
+        })
+        .map(|(_, interface)| interface.clone())
 }
 
 fn wide_string(value: &[u16]) -> Option<String> {
@@ -564,92 +643,80 @@ fn ssid_bytes(value: &DOT11_SSID) -> Option<&[u8]> {
     (len > 0).then(|| &value.ucSSID[..len])
 }
 
-fn network_security(network: &WLAN_AVAILABLE_NETWORK) -> Result<WifiAuth> {
+fn network_security(network: &WLAN_AVAILABLE_NETWORK) -> WifiAuth {
     if !network.bSecurityEnabled.as_bool() {
-        return Ok(WifiAuth::Open);
+        return WifiAuth::Open;
     }
     auth_algorithm(network.dot11DefaultAuthAlgorithm)
 }
 
-fn interface_state(state: WLAN_INTERFACE_STATE) -> Result<WifiState> {
+fn interface_state(state: WLAN_INTERFACE_STATE) -> WifiState {
     match state {
-        value if value == wlan_interface_state_not_ready => Ok(WifiState::NotReady),
-        value if value == wlan_interface_state_connected => Ok(WifiState::Connected),
-        value if value == wlan_interface_state_ad_hoc_network_formed => Ok(WifiState::AdHocNetworkFormed),
-        value if value == wlan_interface_state_disconnecting => Ok(WifiState::Disconnecting),
-        value if value == wlan_interface_state_disconnected => Ok(WifiState::Disconnected),
-        value if value == wlan_interface_state_associating => Ok(WifiState::Associating),
-        value if value == wlan_interface_state_discovering => Ok(WifiState::Discovering),
-        value if value == wlan_interface_state_authenticating => Ok(WifiState::Authenticating),
-        _ => Err(Error::UnknownValue {
-            kind: "interface_state",
-            value: state.0.to_string(),
-        }),
+        value if value == wlan_interface_state_not_ready => WifiState::NotReady,
+        value if value == wlan_interface_state_connected => WifiState::Connected,
+        value if value == wlan_interface_state_ad_hoc_network_formed => WifiState::AdHocNetworkFormed,
+        value if value == wlan_interface_state_disconnecting => WifiState::Disconnecting,
+        value if value == wlan_interface_state_disconnected => WifiState::Disconnected,
+        value if value == wlan_interface_state_associating => WifiState::Associating,
+        value if value == wlan_interface_state_discovering => WifiState::Discovering,
+        value if value == wlan_interface_state_authenticating => WifiState::Authenticating,
+        _ => WifiState::Unrecognized(state.0),
     }
 }
 
-fn phy_type(value: DOT11_PHY_TYPE) -> Result<WifiRadio> {
+fn phy_type(value: DOT11_PHY_TYPE) -> WifiRadio {
     // DOT11_PHY_TYPE: ofdm (a), hrdsss (b), erp (g), ht (n), vht (ac), dmg (ad), he (ax), eht (be).
     match value.0 {
-        0 => Ok(WifiRadio::Unknown),
-        1 => Ok(WifiRadio::Fhss),
-        2 => Ok(WifiRadio::Dsss),
-        3 => Ok(WifiRadio::Infrared),
-        4 => Ok(WifiRadio::Dot11A),
-        5 => Ok(WifiRadio::Dot11B),
-        6 => Ok(WifiRadio::Dot11G),
-        7 => Ok(WifiRadio::Dot11N),
-        8 => Ok(WifiRadio::Dot11Ac),
-        9 => Ok(WifiRadio::Dot11Ad),
-        10 => Ok(WifiRadio::Dot11Ax),
-        11 => Ok(WifiRadio::Dot11Be),
-        _ => Err(Error::UnknownValue {
-            kind: "phy_type",
-            value: value.0.to_string(),
-        }),
+        0 => WifiRadio::Unknown,
+        1 => WifiRadio::Fhss,
+        2 => WifiRadio::Dsss,
+        3 => WifiRadio::Infrared,
+        4 => WifiRadio::Dot11A,
+        5 => WifiRadio::Dot11B,
+        6 => WifiRadio::Dot11G,
+        7 => WifiRadio::Dot11N,
+        8 => WifiRadio::Dot11Ac,
+        9 => WifiRadio::Dot11Ad,
+        10 => WifiRadio::Dot11Ax,
+        11 => WifiRadio::Dot11Be,
+        _ => WifiRadio::Unrecognized(value.0),
     }
 }
 
-fn auth_algorithm(value: DOT11_AUTH_ALGORITHM) -> Result<WifiAuth> {
+fn auth_algorithm(value: DOT11_AUTH_ALGORITHM) -> WifiAuth {
     match value {
-        value if value == DOT11_AUTH_ALGO_80211_OPEN => Ok(WifiAuth::Open),
-        value if value == DOT11_AUTH_ALGO_80211_SHARED_KEY => Ok(WifiAuth::SharedKey),
-        value if value == DOT11_AUTH_ALGO_WPA => Ok(WifiAuth::Wpa),
-        value if value == DOT11_AUTH_ALGO_WPA_PSK => Ok(WifiAuth::WpaPsk),
-        value if value == DOT11_AUTH_ALGO_WPA_NONE => Ok(WifiAuth::WpaNone),
-        value if value == DOT11_AUTH_ALGO_RSNA => Ok(WifiAuth::Rsna),
-        value if value == DOT11_AUTH_ALGO_RSNA_PSK => Ok(WifiAuth::RsnaPsk),
-        value if value == DOT11_AUTH_ALGO_WPA3 => Ok(WifiAuth::Wpa3),
-        value if value == DOT11_AUTH_ALGO_WPA3_SAE => Ok(WifiAuth::Wpa3Sae),
-        value if value == DOT11_AUTH_ALGO_OWE => Ok(WifiAuth::Owe),
-        value if value == DOT11_AUTH_ALGO_WPA3_ENT => Ok(WifiAuth::Wpa3Enterprise),
-        _ => Err(Error::UnknownValue {
-            kind: "auth_algorithm",
-            value: value.0.to_string(),
-        }),
+        value if value == DOT11_AUTH_ALGO_80211_OPEN => WifiAuth::Open,
+        value if value == DOT11_AUTH_ALGO_80211_SHARED_KEY => WifiAuth::SharedKey,
+        value if value == DOT11_AUTH_ALGO_WPA => WifiAuth::Wpa,
+        value if value == DOT11_AUTH_ALGO_WPA_PSK => WifiAuth::WpaPsk,
+        value if value == DOT11_AUTH_ALGO_WPA_NONE => WifiAuth::WpaNone,
+        value if value == DOT11_AUTH_ALGO_RSNA => WifiAuth::Rsna,
+        value if value == DOT11_AUTH_ALGO_RSNA_PSK => WifiAuth::RsnaPsk,
+        value if value == DOT11_AUTH_ALGO_WPA3 => WifiAuth::Wpa3,
+        value if value == DOT11_AUTH_ALGO_WPA3_SAE => WifiAuth::Wpa3Sae,
+        value if value == DOT11_AUTH_ALGO_OWE => WifiAuth::Owe,
+        value if value == DOT11_AUTH_ALGO_WPA3_ENT => WifiAuth::Wpa3Enterprise,
+        _ => WifiAuth::Unrecognized(value.0),
     }
 }
 
-fn cipher_algorithm(value: DOT11_CIPHER_ALGORITHM) -> Result<WifiCipher> {
+fn cipher_algorithm(value: DOT11_CIPHER_ALGORITHM) -> WifiCipher {
     match value {
-        value if value == DOT11_CIPHER_ALGO_RSN_USE_GROUP => Ok(WifiCipher::UseGroup),
-        value if value == DOT11_CIPHER_ALGO_BIP_GMAC_256 => Ok(WifiCipher::BipGmac256),
-        value if value == DOT11_CIPHER_ALGO_BIP_GMAC_128 => Ok(WifiCipher::BipGmac128),
-        value if value == DOT11_CIPHER_ALGO_BIP_CMAC_256 => Ok(WifiCipher::BipCmac256),
-        value if value == DOT11_CIPHER_ALGO_BIP => Ok(WifiCipher::Bip),
-        value if value == DOT11_CIPHER_ALGO_NONE => Ok(WifiCipher::None),
-        value if value == DOT11_CIPHER_ALGO_WEP40 => Ok(WifiCipher::Wep40),
-        value if value == DOT11_CIPHER_ALGO_TKIP => Ok(WifiCipher::Tkip),
-        value if value == DOT11_CIPHER_ALGO_CCMP => Ok(WifiCipher::Ccmp),
-        value if value == DOT11_CIPHER_ALGO_WEP104 => Ok(WifiCipher::Wep104),
-        value if value == DOT11_CIPHER_ALGO_WEP => Ok(WifiCipher::Wep),
-        value if value == DOT11_CIPHER_ALGO_GCMP => Ok(WifiCipher::Gcmp),
-        value if value == DOT11_CIPHER_ALGO_GCMP_256 => Ok(WifiCipher::Gcmp256),
-        value if value == DOT11_CIPHER_ALGO_CCMP_256 => Ok(WifiCipher::Ccmp256),
-        _ => Err(Error::UnknownValue {
-            kind: "cipher_algorithm",
-            value: value.0.to_string(),
-        }),
+        value if value == DOT11_CIPHER_ALGO_RSN_USE_GROUP => WifiCipher::UseGroup,
+        value if value == DOT11_CIPHER_ALGO_BIP_GMAC_256 => WifiCipher::BipGmac256,
+        value if value == DOT11_CIPHER_ALGO_BIP_GMAC_128 => WifiCipher::BipGmac128,
+        value if value == DOT11_CIPHER_ALGO_BIP_CMAC_256 => WifiCipher::BipCmac256,
+        value if value == DOT11_CIPHER_ALGO_BIP => WifiCipher::Bip,
+        value if value == DOT11_CIPHER_ALGO_NONE => WifiCipher::None,
+        value if value == DOT11_CIPHER_ALGO_WEP40 => WifiCipher::Wep40,
+        value if value == DOT11_CIPHER_ALGO_TKIP => WifiCipher::Tkip,
+        value if value == DOT11_CIPHER_ALGO_CCMP => WifiCipher::Ccmp,
+        value if value == DOT11_CIPHER_ALGO_WEP104 => WifiCipher::Wep104,
+        value if value == DOT11_CIPHER_ALGO_WEP => WifiCipher::Wep,
+        value if value == DOT11_CIPHER_ALGO_GCMP => WifiCipher::Gcmp,
+        value if value == DOT11_CIPHER_ALGO_GCMP_256 => WifiCipher::Gcmp256,
+        value if value == DOT11_CIPHER_ALGO_CCMP_256 => WifiCipher::Ccmp256,
+        _ => WifiCipher::Unrecognized(value.0),
     }
 }
 
@@ -658,6 +725,131 @@ fn cipher_algorithm(value: DOT11_CIPHER_ALGORITHM) -> Result<WifiCipher> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows::Win32::{
+        Foundation::ERROR_INVALID_STATE,
+        NetworkManagement::WiFi::{WLAN_ASSOCIATION_ATTRIBUTES, WLAN_SECURITY_ATTRIBUTES},
+    };
+
+    fn interface(state: WLAN_INTERFACE_STATE, hardware: bool, description: &str) -> WifiInterface {
+        WifiInterface {
+            guid: GUID::zeroed(),
+            state,
+            hardware,
+            description: description.to_owned(),
+        }
+    }
+
+    fn connection() -> WLAN_CONNECTION_ATTRIBUTES {
+        WLAN_CONNECTION_ATTRIBUTES {
+            isState: wlan_interface_state_connected,
+            wlanAssociationAttributes: WLAN_ASSOCIATION_ATTRIBUTES {
+                dot11Bssid: [1, 2, 3, 4, 5, 6],
+                dot11PhyType: DOT11_PHY_TYPE(10),
+                wlanSignalQuality: 80,
+                ulRxRate: 866_700,
+                ulTxRate: 433_300,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn wifi_partial_readings() {
+        let connected = interface(wlan_interface_state_connected, true, "Wireless Adapter");
+        for code in [ERROR_ACCESS_DENIED.0, ERROR_INVALID_STATE.0] {
+            let link = link_from_readings(&connected, Err(code), Some(-52.0), &[]);
+            assert_eq!(link.rssi_dbm, Some(-52.0));
+            assert_eq!(link.adapter.as_deref(), Some("Wireless Adapter"));
+            assert_eq!(link.state, Some(WifiState::Connected));
+            assert_eq!(link.associated(), Some(true));
+            assert!(link.bssid.is_none());
+            assert!(link.rx_phy_mbps.is_none());
+            let error = link.probe_error.unwrap();
+            assert!(error.contains("WlanQueryInterface(wlan_intf_opcode_current_connection)"));
+            assert!(error.contains(&code.to_string()));
+        }
+        let disconnected = interface(wlan_interface_state_disconnected, true, "Wireless Adapter");
+        let link = link_from_readings(&disconnected, Ok(None), None, &[]);
+        assert_eq!(link.associated(), Some(false));
+        assert!(link.probe_error.is_none());
+    }
+
+    #[test]
+    fn wifi_unknown_readings() {
+        let interface = interface(WLAN_INTERFACE_STATE(99), true, "Wireless Adapter");
+        let attributes = WLAN_CONNECTION_ATTRIBUTES {
+            wlanAssociationAttributes: WLAN_ASSOCIATION_ATTRIBUTES {
+                dot11PhyType: DOT11_PHY_TYPE(99),
+                ..connection().wlanAssociationAttributes
+            },
+            wlanSecurityAttributes: WLAN_SECURITY_ATTRIBUTES {
+                dot11AuthAlgorithm: DOT11_AUTH_ALGORITHM(i32::MIN),
+                dot11CipherAlgorithm: DOT11_CIPHER_ALGORITHM(99),
+                ..Default::default()
+            },
+            ..connection()
+        };
+        let link = link_from_readings(&interface, Ok(Some(attributes)), Some(-61.0), &[]);
+        assert_eq!(link.state.unwrap().as_str(), "unknown_99");
+        assert_eq!(link.radio.unwrap().as_str(), "unknown_99");
+        assert_eq!(link.auth.unwrap().as_str(), "unknown_-2147483648");
+        assert_eq!(link.cipher.unwrap().as_str(), "unknown_99");
+        assert_eq!(link.rssi_dbm, Some(-61.0));
+        assert_eq!(link.rx_phy_mbps, Some(866.7));
+        assert_eq!(link.tx_phy_mbps, Some(433.3));
+        assert_eq!(link.associated(), Some(true));
+        assert!(link.probe_error.is_none());
+        let unknown = link_from_readings(&interface, Err(ERROR_INVALID_STATE.0), Some(-61.0), &[]);
+        assert_eq!(unknown.associated(), None);
+    }
+
+    #[test]
+    fn wifi_rssi_fallback() {
+        let interface = interface(wlan_interface_state_connected, true, "Wireless Adapter");
+        let attributes = connection();
+        let unrelated = WLAN_BSS_ENTRY {
+            dot11Bssid: [9; 6],
+            lRssi: -20,
+            ..Default::default()
+        };
+        let associated = WLAN_BSS_ENTRY {
+            dot11Bssid: attributes.wlanAssociationAttributes.dot11Bssid,
+            lRssi: -67,
+            ulChCenterFrequency: 5_180_000,
+            ..Default::default()
+        };
+        for (query, expected) in [(Some(-51.0), -51.0), (None, -67.0), (Some(12.0), -67.0), (Some(-256.0), -67.0), (Some(f64::NAN), -67.0)]
+        {
+            let link = link_from_readings(&interface, Ok(Some(attributes)), query, &[unrelated, associated]);
+            assert_eq!(link.rssi_dbm, Some(expected));
+            assert_eq!(link.channel, Some(36));
+        }
+        let invalid = WLAN_BSS_ENTRY { lRssi: 12, ..associated };
+        for entries in [&[][..], &[unrelated][..], &[invalid][..]] {
+            let link = link_from_readings(&interface, Ok(Some(attributes)), None, entries);
+            assert_eq!(link.rssi_dbm, None);
+            assert_eq!(link.signal_percent, Some(80.0));
+        }
+    }
+
+    #[test]
+    fn wifi_interface_selection() {
+        let disconnected = interface(wlan_interface_state_disconnected, true, "Physical Offline");
+        let virtual_adapter = interface(wlan_interface_state_connected, false, "Virtual Adapter");
+        let physical = interface(wlan_interface_state_connected, true, "Physical Online");
+        let interfaces = [disconnected, virtual_adapter, physical];
+        let options = HostOptions::default();
+        assert_eq!(select_interface(&interfaces, &options).unwrap().description, "Physical Online");
+        assert_eq!(select_interface(&interfaces[..2], &options).unwrap().description, "Virtual Adapter");
+        assert_eq!(select_interface(&interfaces[..1], &options).unwrap().description, "Physical Offline");
+        assert!(select_interface(&[], &options).is_none());
+        let explicit = HostOptions {
+            wifi_adapter_name: Some("vIRTUAL".to_owned()),
+            ..options
+        };
+        assert_eq!(select_interface(&interfaces, &explicit).unwrap().description, "Virtual Adapter");
+    }
 
     #[test]
     fn native_wifi_states() {
@@ -671,9 +863,9 @@ mod tests {
             (wlan_interface_state_discovering, WifiState::Discovering),
             (wlan_interface_state_authenticating, WifiState::Authenticating),
         ] {
-            assert_eq!(interface_state(native).unwrap(), expected);
+            assert_eq!(interface_state(native), expected);
         }
-        assert!(matches!(interface_state(WLAN_INTERFACE_STATE(99)), Err(Error::UnknownValue { kind: "interface_state", .. })));
+        assert_eq!(interface_state(WLAN_INTERFACE_STATE(99)).as_str(), "unknown_99");
     }
 
     #[test]
@@ -698,9 +890,9 @@ mod tests {
             (dot11_phy_type_he, WifiRadio::Dot11Ax),
             (dot11_phy_type_eht, WifiRadio::Dot11Be),
         ] {
-            assert_eq!(phy_type(native).unwrap(), expected);
+            assert_eq!(phy_type(native), expected);
         }
-        assert!(matches!(phy_type(DOT11_PHY_TYPE(99)), Err(Error::UnknownValue { kind: "phy_type", .. })));
+        assert_eq!(phy_type(DOT11_PHY_TYPE(99)).as_str(), "unknown_99");
     }
 
     #[test]
@@ -718,9 +910,9 @@ mod tests {
             (DOT11_AUTH_ALGO_OWE, WifiAuth::Owe),
             (DOT11_AUTH_ALGO_WPA3_ENT, WifiAuth::Wpa3Enterprise),
         ] {
-            assert_eq!(auth_algorithm(native).unwrap(), expected);
+            assert_eq!(auth_algorithm(native), expected);
         }
-        assert!(matches!(auth_algorithm(DOT11_AUTH_ALGORITHM(99)), Err(Error::UnknownValue { kind: "auth_algorithm", .. })));
+        assert_eq!(auth_algorithm(DOT11_AUTH_ALGORITHM(99)).as_str(), "unknown_99");
 
         for (native, expected) in [
             (DOT11_CIPHER_ALGO_NONE, WifiCipher::None),
@@ -738,8 +930,8 @@ mod tests {
             (DOT11_CIPHER_ALGO_RSN_USE_GROUP, WifiCipher::UseGroup),
             (DOT11_CIPHER_ALGO_WEP, WifiCipher::Wep),
         ] {
-            assert_eq!(cipher_algorithm(native).unwrap(), expected);
+            assert_eq!(cipher_algorithm(native), expected);
         }
-        assert!(matches!(cipher_algorithm(DOT11_CIPHER_ALGORITHM(99)), Err(Error::UnknownValue { kind: "cipher_algorithm", .. })));
+        assert_eq!(cipher_algorithm(DOT11_CIPHER_ALGORITHM(99)).as_str(), "unknown_99");
     }
 }

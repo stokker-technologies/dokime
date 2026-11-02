@@ -177,7 +177,9 @@ impl ExecutionStorage {
         }
         let saved = self.storage.cursor_saved();
         for output in inputs.outputs.iter() {
-            if !saved.covers(&output.file.position)? {
+            if let Some(file) = &output.file
+                && !saved.covers(&file.position)?
+            {
                 return Err(invalid("captured report output is not durable"));
             }
         }

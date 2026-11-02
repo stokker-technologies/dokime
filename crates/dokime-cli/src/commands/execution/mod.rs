@@ -12,6 +12,7 @@
 mod export;
 mod prompt;
 pub(crate) mod recovery;
+mod report;
 mod run;
 mod start;
 mod stop;
@@ -39,6 +40,9 @@ mod wait;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
+    #[command(about = "Download An HTML Report For A Running Or Sealed Subject.")]
+    Report(report::Args),
+
     #[command(about = "Start One Execution By Its Durable Identity Without Waiting For Completion.")]
     Start(start::Args),
 
@@ -51,7 +55,7 @@ pub(crate) enum Command {
     #[command(subcommand, about = "Discover, Inspect And Answer Prompts For One Execution.")]
     Prompt(prompt::Command),
 
-    #[command(about = "Request A Stop Of One Execution; Its Siblings Keep Running.")]
+    #[command(about = "Stop One Execution And Wait For Its Durable Seal; Its Siblings Keep Running.")]
     Stop(stop::Args),
 
     #[command(about = "Download A Sealed Execution's Evidence While Its Cycle May Stay Active.")]
@@ -66,6 +70,7 @@ pub(crate) enum Command {
 
 pub(crate) async fn run(command: Command, settings: &dokime::domain::model::settings::application::ClientPreferences) -> crate::Result<()> {
     match command {
+        Command::Report(args) => report::run(args, settings).await,
         Command::Start(args) => start::run(args, settings).await,
         Command::Run(args) => run::run(args, settings).await,
         Command::Wait(args) => wait::run(args, settings).await,

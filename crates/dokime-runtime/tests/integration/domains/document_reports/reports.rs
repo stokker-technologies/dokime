@@ -44,6 +44,112 @@ fn whole() -> harmos::storage::ByteRange {
 
 /* === Tests === */
 
+#[cfg(feature = "testing")]
+pub(super) async fn checkpoint_preserves_inflight_seal() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle = start_cycle(&runtime, suite).await;
+    let execution = cycle_snapshot(&runtime, &cycle).await.test_executions[0].test_execution_id.clone();
+    let report_gate = dokime_runtime::testing::hold_report(&execution, false);
+    let seal_gate = dokime_runtime::testing::hold_execution_seal(&execution);
+    let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    executor.release();
+    report_gate.entered().await;
+    crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
+
+    // Admit A Checkpoint While The Member Is Still Unsealed.
+    let checkpoint_gate = dokime_runtime::testing::hold_execution_checkpoint(&execution);
+    let checkpoint = runtime.update_cycle_policy(cycle.clone(), false, CommandContext::default());
+    tokio::pin!(checkpoint);
+    tokio::select! {
+        result = &mut checkpoint => panic!("checkpoint missed its gate: {result:?}"),
+        _ = checkpoint_gate.entered() => {}
+    }
+    report_gate.release();
+    seal_gate.entered().await;
+    let sealed = dokime_runtime::storage::objects::execution::read(runtime.storage(), &execution, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    let seal = sealed.value.saved.clone().expect("native sealing precedes managed adoption");
+    let position = sealed.position.clone();
+    drop(sealed);
+
+    // Resume The Older Checkpoint Between Native Durability And Managed Adoption.
+    checkpoint_gate.release();
+    checkpoint.await.unwrap();
+    let finish = runtime.finish_execution_for_test(&execution);
+    tokio::pin!(finish);
+    assert!(futures_util::poll!(&mut finish).is_pending());
+    seal_gate.release();
+    finish.await.unwrap();
+    let durable = dokime_runtime::storage::objects::execution::read(runtime.storage(), &execution, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(durable.value.saved.is_some(), "finish must leave the latest execution revision sealed durably");
+    assert_eq!(durable.value.saved, Some(seal));
+    assert_eq!(durable.position, position, "a late checkpoint must not replace an immutable seal");
+    drop(durable);
+    owner.shutdown().await.unwrap();
+}
+
+#[cfg(feature = "testing")]
+pub(super) async fn concurrent_seal_is_durable() {
+    for operation in ["finish", "stop", "seal"] {
+        let root = tempdir().unwrap();
+        let executor = Arc::new(BlockingPublishingExecutor::new());
+        let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+        let suite = fixture_suite(&["passed"]);
+        register_python_suite(&runtime, suite.clone()).await;
+        let cycle = start_cycle(&runtime, suite).await;
+        let execution = cycle_snapshot(&runtime, &cycle).await.test_executions[0].test_execution_id.clone();
+        let report_gate = dokime_runtime::testing::hold_report(&execution, false);
+        runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
+        executor.wait_until_entered().await;
+        executor.release();
+        report_gate.entered().await;
+
+        let wait_gate = dokime_runtime::testing::hold_report_wait(&execution);
+        let joined = async {
+            match operation {
+                "finish" => runtime.finish_execution_for_test(&execution).await,
+                "stop" => runtime.stop_execution(execution.clone(), CommandContext::default()).await,
+                "seal" => runtime.seal_cycle(cycle.clone(), CommandContext::default()).await,
+                _ => unreachable!(),
+            }
+        };
+        tokio::pin!(joined);
+        tokio::select! {
+            result = &mut joined => {
+                result.unwrap();
+                let durable = dokime_runtime::storage::objects::execution::read(
+                    runtime.storage(), &execution, harmos::storage::ObjectVersion::Latest,
+                ).await.unwrap().unwrap();
+                assert!(durable.value.saved.is_some(), "{operation} returned before the in-flight seal was durable");
+                panic!("{operation} did not join the held seal");
+            }
+            _ = wait_gate.entered() => {}
+        }
+        wait_gate.release();
+        assert!(futures_util::poll!(&mut joined).is_pending());
+        report_gate.release();
+        joined.await.unwrap();
+        let durable =
+            dokime_runtime::storage::objects::execution::read(runtime.storage(), &execution, harmos::storage::ObjectVersion::Latest)
+                .await
+                .unwrap()
+                .unwrap();
+        assert!(durable.value.saved.is_some(), "{operation} must expose the durable seal immediately");
+        drop(durable);
+        owner.shutdown().await.unwrap();
+    }
+}
+
 pub(super) async fn report_save_receipt() {
     use dokime_domain::model::execution::saved::ExecutionRevision;
     use dokime_runtime::storage::{

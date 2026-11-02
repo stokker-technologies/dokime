@@ -414,7 +414,7 @@ async fn snapshot_source(
         Err(failure) => return Err(failure),
     };
     let digest = *frozen.sha256();
-    if source.descriptor.as_ref().is_none_or(|previous| previous.file.sha256 != digest) {
+    if source.descriptor.as_ref().is_none_or(|previous| previous.file.as_ref().is_none_or(|file| file.sha256 != digest)) {
         let metadata = file_metadata(execution, path, Some(frozen.length()), Some(digest))?;
         let mut pending = FrozenFile::with_state(FrozenSource::Snapshot(frozen), metadata, stream_state);
         pending.session = Some(session);
@@ -442,7 +442,7 @@ async fn finish_snapshot(storage: &Manager, path: &str, source: &mut NativeOutpu
     let descriptor = ExecutionOutput {
         relative_path: path.to_owned(),
         created_at: source.created_at.clone(),
-        file: reference,
+        file: Some(reference),
         stream_state: pending.stream_state,
         content: ExecutionOutputContent::File,
     };
