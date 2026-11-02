@@ -57,6 +57,7 @@ import {
 import { histogramBars } from "@/plots/histogram-bins";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
+import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
@@ -196,6 +197,12 @@ function plotStream() {
 
 async function mountPlotView() {
   vi.useFakeTimers();
+  const animationFrame = vi
+    .spyOn(globalThis.window, "requestAnimationFrame")
+    .mockImplementation((callback) => globalThis.setTimeout(() => callback(0), 16) as unknown as number);
+  const cancelAnimationFrame = vi
+    .spyOn(globalThis.window, "cancelAnimationFrame")
+    .mockImplementation((handle) => globalThis.clearTimeout(handle));
   vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   refreshFixture.read.mockReset();
@@ -253,6 +260,8 @@ async function mountPlotView() {
     });
     host.remove();
     useSummaryWindowStore.setState({ windows: {} });
+    animationFrame.mockRestore();
+    cancelAnimationFrame.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -338,28 +347,39 @@ test("Manual All Refresh", async () => {
     refreshFixture.watch.mock.calls[0][1].map((request: { windowS: number }) => request.windowS),
     [300, 300],
   );
-  let complete: (envelopes: NativePlotPayloadEnvelope[]) => void = () => {};
+  const pending = new Map<string, (envelopes: NativePlotPayloadEnvelope[]) => void>();
+  const complete = (envelopes: NativePlotPayloadEnvelope[]) => {
+    for (const envelope of envelopes) pending.get(envelope.plot_id)?.([envelope]);
+  };
   refreshFixture.read.mockImplementation(
-    () =>
+    (_session, requests) =>
       new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
-        complete = resolve;
+        pending.set(requests[0].plotId, resolve);
       }),
   );
   await view.choose(6);
-  assert.equal(refreshFixture.read.mock.calls.length, 1);
-  assert.equal(refreshFixture.read.mock.calls[0][1].length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.ok(refreshFixture.read.mock.calls.every((call) => call[1].length === 1));
   assert.ok(refreshFixture.read.mock.calls[0][1].every((request: { windowS: number | null }) => request.windowS === null));
   assert.equal(view.button().disabled, true);
   assert.equal(view.button().getAttribute("aria-busy"), "true");
   await view.click();
-  assert.equal(refreshFixture.read.mock.calls.length, 1);
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
   await act(async () => {
-    complete(snapshotEnvelopes(view.plots));
+    complete(snapshotEnvelopes(view.plots).slice(0, 1));
+  });
+  await view.advance();
+  assert.equal(view.states()[view.plots[0].plot_id].status, "live");
+  assert.equal(view.states()[view.plots[1].plot_id].status, "loading");
+  assert.equal(view.button().disabled, true);
+  const completedAt = Date.now();
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots).slice(1));
   });
   await view.advance();
   assert.equal(view.button().disabled, false);
   const firstTime = view.window().refresh.updatedAt;
-  assert.equal(firstTime, Date.parse("2026-11-01T12:00:00Z"));
+  assert.equal(firstTime, completedAt);
   const label = view.host.querySelector('[role="status"]')?.textContent;
   assert.match(label ?? "", /^Updated \d{2}:\d{2}:\d{2}$/);
   await view.runtimeUpdate([]);
@@ -376,13 +396,13 @@ test("Manual All Refresh", async () => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
   await view.advance(60_000);
-  assert.equal(refreshFixture.read.mock.calls.length, 1);
+  assert.equal(refreshFixture.read.mock.calls.length, 2);
   assert.equal(refreshFixture.watch.mock.calls.length, 1);
   assert.equal(view.window().refresh.updatedAt, firstTime);
   await view.click();
-  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
   assert.equal(view.button().disabled, true);
-  assert.ok(refreshFixture.read.mock.calls[1][1].every((request: { maxPoints: number }) => request.maxPoints === 200));
+  assert.ok(refreshFixture.read.mock.calls.slice(2).every((call) => call[1][0].maxPoints === 200));
   await act(async () => {
     complete(snapshotEnvelopes(view.plots));
   });
@@ -439,32 +459,36 @@ test("Timed Refresh", async () => {
 
 test("Refresh Failure", async () => {
   const view = await mountPlotView();
-  refreshFixture.read.mockResolvedValueOnce(snapshotEnvelopes(view.plots));
+  const snapshots = snapshotEnvelopes(view.plots);
+  refreshFixture.read.mockImplementation(async (_session, requests) =>
+    snapshots.filter((envelope) => envelope.plot_id === requests[0].plotId),
+  );
   await view.choose(6);
   const firstTime = view.window().refresh.updatedAt;
   await view.runtimeUpdate();
-  refreshFixture.read.mockRejectedValueOnce(new Error("Storage read failed"));
+  refreshFixture.read.mockRejectedValueOnce(new NativeApiLimitError("Plots.QuerySnapshots", "plot response exceeds transport limit"));
   await view.advance(1_000);
   await view.click();
+  await view.advance();
   assert.equal(view.button().disabled, false);
   assert.equal(view.window().refresh.updatedAt, firstTime);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
-  assert.equal(refreshFixture.notify.mock.calls[0][1].error.message, "Storage read failed");
+  assert.equal(view.states()[view.plots[0].plot_id].status, "error");
+  assert.equal(view.states()[view.plots[1].plot_id].status, "live");
   await view.advance(60_000);
-  assert.equal(refreshFixture.read.mock.calls.length, 2);
-  refreshFixture.read.mockResolvedValueOnce(snapshotEnvelopes(view.plots));
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
   await view.click();
-  assert.equal(refreshFixture.read.mock.calls.length, 3);
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
 });
 
 test("Refresh Cancellation", async () => {
   const view = await mountPlotView();
-  let complete: (envelopes: NativePlotPayloadEnvelope[]) => void = () => {};
-  refreshFixture.read.mockImplementationOnce(
-    () =>
+  const pending: (() => void)[] = [];
+  refreshFixture.read.mockImplementation(
+    (_session, requests) =>
       new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
-        complete = resolve;
+        pending.push(() => resolve(snapshotEnvelopes(view.plots).filter((envelope) => envelope.plot_id === requests[0].plotId)));
       }),
   );
   await view.choose(6);
@@ -472,13 +496,15 @@ test("Refresh Cancellation", async () => {
   await view.choose(2);
   assert.equal(signal.aborted, true);
   await act(async () => {
-    complete(snapshotEnvelopes(view.plots));
+    for (const complete of pending) complete();
   });
   assert.equal(view.window().refresh.updatedAt, null);
   assert.equal(view.button().disabled, true);
-  refreshFixture.read.mockResolvedValueOnce(snapshotEnvelopes(view.plots));
+  refreshFixture.read.mockImplementation(async (_session, requests) =>
+    snapshotEnvelopes(view.plots).filter((envelope) => envelope.plot_id === requests[0].plotId),
+  );
   await view.choose(6);
-  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
   assert.equal(view.button().disabled, false);
 });
 
@@ -660,6 +686,9 @@ test("Slider Selects Storage Query Range", () => {
       assert.deepEqual(request.scope, scope);
     }
   }
+  const unbounded = { ...plot, display_points: 0 };
+  assert.ok((plotRequestForDocumentPlot(unbounded, { scope }).maxPoints ?? 0) > 0);
+  assert.equal(plotRequestForDocumentPlot(unbounded, { scope, windowS: 300 }).maxPoints, 0);
 });
 test("Storage Query Snapshots", () => {
   const recent = hostFrame([100, 101], [[2, 3]], { windowS: 30 });

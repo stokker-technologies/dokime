@@ -74,6 +74,12 @@ struct SeriesStatistics {
 
 /* === Enums === */
 
+enum NativeProjection {
+    Empty,
+    ExactRequired,
+    Table(NativeTable),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -81,6 +87,7 @@ struct SeriesStatistics {
 /* === Public Functions === */
 
 pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
+    let Some(request) = fields(request) else { return false };
     request.analysis.is_none()
         && request.max_points != Some(0)
         && request.series_by.is_none()
@@ -104,6 +111,7 @@ pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
 }
 
 pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -> bool {
+    let Some(request) = fields(request) else { return false };
     use harmos::schema::{Cardinality, graph::Kind};
     let graph = codec.graph();
     let Some(values) = graph.definitions.get(graph.root).and_then(|fields| fields.iter().find(|field| field.name == "values")) else {
@@ -125,29 +133,39 @@ pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -
 pub(crate) async fn materialize(
     session: &Manager, local: &crate::storage::sqlite::State, selection: Selection<'_>, request: &PlotPayloadRequest, generated_at: &str,
     context: &PlotPayloadContext<'_>, records: crate::records::view::View<'_>,
-) -> Result<ReadBatch<PlotPayload>> {
+) -> Result<Option<ReadBatch<PlotPayload>>> {
+    let original = request;
+    let normalized = fields(request).ok_or_else(|| invalid("stored plot requires plain fields"))?;
+    let request = &normalized;
     let Selection { query, scope, producer_order } = selection;
     let maximum = request.max_points.unwrap_or(context.default_max_points);
     if maximum == 0 {
         return Err(invalid("plot output requires a finite point bound"));
     }
-    let Some(NativeTable { table, ordered, summaries }) = native_table(session, local, &query, scope, request, producer_order).await?
-    else {
-        return super::finish_retained_plot_payload(
-            super::project_retained_plot_payload(&[], records, request, generated_at, context)?,
-            request,
-        );
+    let projection = native_table(session, local, &query, scope, request, producer_order, !original.y_expressions.is_empty()).await?;
+    let NativeTable { table, ordered, summaries } = match projection {
+        NativeProjection::ExactRequired => return Ok(None),
+        NativeProjection::Table(table) => table,
+        NativeProjection::Empty => {
+            return super::finish_retained_plot_payload(
+                super::project_retained_plot_payload(&[], records, request, generated_at, context)?,
+                request,
+            )
+            .map(Some);
+        }
     };
     let x = request.x_key.as_deref().unwrap_or("timestamp");
     let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
-    let ordered = if ordered {
+    let expression_time_order = original.x_expression.is_some() && original.x_key.as_deref().is_none_or(|key| key == "timestamp");
+    let sort_axis = if expression_time_order { path("_storage.source_time") } else { axis.clone() };
+    let ordered = if ordered && !expression_time_order {
         table.clone()
     } else {
         table.transform(
             &Transform::Sort(Sort {
                 keys: vec![
                     SortKey {
-                        field: axis.clone(),
+                        field: sort_axis,
                         descending: false,
                         nulls_first: false,
                     },
@@ -163,18 +181,26 @@ pub(crate) async fn materialize(
     };
     let mut completed = None::<PlotPayload>;
     let mut histograms = Vec::new();
-    for key in &request.y_keys {
+    for (index, key) in request.y_keys.iter().enumerate() {
         let (rows, eligible, summary) = if let Some((eligible, summary)) = summaries.get(key) {
             (table.len(), *eligible, summary.clone())
         } else {
             summary(&table, key, &axis, request.summary_window)?
         };
+        let selected_input = if original.y_expressions.is_empty() {
+            ordered.clone()
+        } else {
+            ordered.transform(&Transform::Filter(summary_filter(&value(key), &axis, None, x == "timestamp")?), &mut || Ok(()))?
+        };
+        let reduction_rows = selected_input.len();
         let technique = match request.technique {
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if rows <= maximum.saturating_mul(4) => DownsampleTechnique::Lttb,
+            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if reduction_rows <= maximum.saturating_mul(4) => {
+                DownsampleTechnique::Lttb
+            }
             DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => DownsampleTechnique::MinMax,
             technique => technique,
         };
-        let algorithm = if eligible != rows
+        let algorithm = if eligible != reduction_rows
             || maximum == 1
             || matches!(technique, DownsampleTechnique::Raw)
             || (maximum < 3 && matches!(technique, DownsampleTechnique::Lttb))
@@ -185,7 +211,7 @@ pub(crate) async fn materialize(
         } else {
             Algorithm::Lttb
         };
-        let selected = ordered.transform(
+        let selected = selected_input.transform(
             &Transform::Downsample(Downsample {
                 max_rows: maximum,
                 algorithm,
@@ -212,11 +238,11 @@ pub(crate) async fn materialize(
                 } else {
                     number(value(x).value(&batch, row)?).map_or(serde_json::Value::Null, serde_json::Value::from)
                 };
-                points.push(super::PlotPoint {
-                    x,
-                    y: number(value(key).value(&batch, row)?),
-                    z: None,
-                });
+                let y = number(value(key).value(&batch, row)?);
+                if !original.y_expressions.is_empty() && y.is_none() {
+                    continue;
+                }
+                points.push(super::PlotPoint { x, y, z: None });
             }
         }
         let mut single = request.clone();
@@ -225,8 +251,11 @@ pub(crate) async fn materialize(
         let payload = payload.try_map(|mut payload| {
             payload.series[0].points = points;
             for series in &mut payload.series {
-                series.raw_points = rows;
-                series.downsampled = series.points.len() < rows;
+                series.raw_points = if original.y_expressions.is_empty() { rows } else { eligible };
+                series.downsampled = series.points.len() < series.raw_points;
+                if let Some(expression) = original.y_expressions.get(index) {
+                    series.label = expression.label.clone().unwrap_or_else(|| key.clone());
+                }
             }
             if matches!(request.plot_type, Some(crate::document::PlotType::TimeSeries | crate::document::PlotType::XyScatter)) {
                 payload.summaries = vec![summary.clone()];
@@ -264,7 +293,7 @@ pub(crate) async fn materialize(
         }
     }
     let payload = super::finish_plot_frame(payload, request)?;
-    Ok(ReadBatch::new(payload))
+    Ok(Some(ReadBatch::new(payload)))
 }
 
 pub(crate) fn path(field: &str) -> FieldPath {
@@ -284,12 +313,12 @@ fn value(field: &str) -> FieldPath {
 // Stage Typed Arrow Values And Original Timestamps For Bounded Plot Reductions.
 async fn native_table(
     session: &Manager, local: &crate::storage::sqlite::State, query: &Query, scope: &crate::evidence_runtime::ScopeSelection,
-    request: &PlotPayloadRequest, producer_order: bool,
-) -> Result<Option<NativeTable>> {
+    request: &PlotPayloadRequest, producer_order: bool, exact_fields: bool,
+) -> Result<NativeProjection> {
     use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, StructArray, TimestampNanosecondArray, UInt64Array};
     use arrow_schema::Field;
     use std::sync::Arc;
-    let harmos::storage::query::Source::Stream(source) = &query.source else { return Ok(None) };
+    let harmos::storage::query::Source::Stream(source) = &query.source else { return Ok(NativeProjection::Empty) };
     let x = request.x_key.as_deref().unwrap_or("timestamp");
     let mut keys = request.y_keys.clone();
     if x != "timestamp" && !keys.iter().any(|key| key == x) {
@@ -320,7 +349,7 @@ async fn native_table(
     loop {
         let page = harmos::storage::ScanPage {
             after: source.after,
-            rows: session.settings().response.batch_rows,
+            rows: session.settings().response.batch_rows.max(std::num::NonZeroUsize::new(4096).expect("nonzero scan page")),
             bytes: session.settings().response.batch_bytes,
         };
         let rows = local.telemetry_numeric(query.at.clone(), source.clone(), page, keys.clone(), scope.clone()).await?;
@@ -335,6 +364,10 @@ async fn native_table(
         for (position, sample) in rows {
             source.after = source.after.max(position);
             let projected = sample.values;
+            // Numeric Projection Rounds Integers First; Typed Expressions Must Aggregate Them Exactly.
+            if exact_fields && projected.iter().flatten().any(|value| value.abs() >= (1_u64 << f64::MANTISSA_DIGITS) as f64) {
+                return Ok(NativeProjection::ExactRequired);
+            }
             let sequence = sample.sequence;
             let stamp = sample.timestamp.to_datetime().map_err(crate::storage::Error::from)?.unix_timestamp_nanos();
             let timestamp = sample.timestamp.to_string();
@@ -406,7 +439,7 @@ async fn native_table(
         }
         writer.as_mut().expect("native plot writer was initialized").push(&page, &mut || Ok(()))?;
     }
-    let Some(writer) = writer else { return Ok(None) };
+    let Some(writer) = writer else { return Ok(NativeProjection::Empty) };
     let table = writer.finish()?;
     let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
     let mut summaries = std::collections::BTreeMap::new();
@@ -452,7 +485,7 @@ async fn native_table(
         }
         summaries.insert(key, (eligible, summary));
     }
-    Ok(Some(NativeTable { table, ordered, summaries }))
+    Ok(NativeProjection::Table(NativeTable { table, ordered, summaries }))
 }
 
 // Select Exact Middle Ranks From The Existing Numeric Spill; Monotonic Values Need No Sort.
@@ -745,6 +778,31 @@ fn ordered_pair(left: &(ScalarValue, ScalarValue), right: &(ScalarValue, ScalarV
     }
 }
 
+fn fields(request: &PlotPayloadRequest) -> Option<PlotPayloadRequest> {
+    let field = |expression: &crate::expressions::DataExpression| match &expression.source {
+        crate::expressions::DataSource::Telemetry { stream, field }
+            if super::stream_matches_alias(stream, &request.stream) && expression.transforms.is_empty() =>
+        {
+            Some(field.clone())
+        }
+        _ => None,
+    };
+    let mut normalized = request.clone();
+    if let Some(expression) = &request.x_expression {
+        let x = field(expression)?;
+        if request.x_key.as_deref().is_some_and(|key| key != "timestamp" && key != x) {
+            return None;
+        }
+        normalized.x_key = Some(x);
+        normalized.x_expression = None;
+    }
+    if !request.y_expressions.is_empty() {
+        normalized.y_keys = request.y_expressions.iter().map(field).collect::<Option<Vec<_>>>()?;
+        normalized.y_expressions.clear();
+    }
+    Some(normalized)
+}
+
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
@@ -754,6 +812,41 @@ fn invalid(reason: &'static str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Fields {
+        easting: f64,
+        northing: Option<f64>,
+    }
+
+    #[test]
+    fn field_expressions() {
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(),
+            x_expression: Some(crate::expressions::telemetry("tracking", "easting")),
+            y_expressions: vec![crate::expressions::telemetry("tracking", "northing").label("Northing")],
+            plot_type: Some(crate::document::PlotType::XyLine),
+            max_points: Some(17),
+            ..Default::default()
+        };
+        assert!(supports(&request));
+        let settings = harmos::config::SchemaSettings::default();
+        let schema = harmos::schema::graph::Schema::from_declaration(<Fields as harmos::schema::Described>::DEFINITION, &settings).unwrap();
+        let codec = TypedCodec::new(&crate::Identifier::new("tracking").unwrap(), 1, &schema, &settings).unwrap();
+        assert!(supports_codec(&request, &codec));
+        let mut missing = request.clone();
+        missing.y_expressions[0] = crate::expressions::telemetry("tracking", "absent");
+        assert!(!supports_codec(&missing, &codec));
+        let normalized = fields(&request).unwrap();
+        assert_eq!(normalized.x_key.as_deref(), Some("easting"));
+        assert_eq!(normalized.y_keys, ["northing"]);
+        let mut transformed = request.clone();
+        transformed.y_expressions[0] = crate::expressions::telemetry("tracking", "northing").count();
+        assert!(!supports(&transformed));
+        transformed.y_expressions[0] = crate::expressions::telemetry("unrelated", "northing");
+        assert!(!supports(&transformed));
+    }
 
     #[test]
     fn stored_order_requires_axis_and_tie_order() {

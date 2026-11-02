@@ -202,7 +202,12 @@ fn payload_from_series(
         series,
         cartesian: None,
         analysis: None,
-        markers: plot_markers(records, &request.marker_record_types, request.scope.as_ref()),
+        markers: plot_markers(
+            records,
+            &request.marker_record_types,
+            request.scope.as_ref(),
+            request.max_points.unwrap_or(format_context.default_max_points),
+        ),
         max_points: request.max_points.unwrap_or(format_context.default_max_points),
         window_s: request.window_s,
         generated_at: generated_at.to_owned(),
@@ -689,7 +694,20 @@ fn value_contains(actual: &Value, expected: &Value) -> bool {
     }
 }
 
-fn plot_markers(records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>) -> Vec<PlotMarker> {
+pub(super) fn marker_indices(count: usize, maximum: usize) -> Vec<usize> {
+    if maximum == 0 || count <= maximum {
+        return (0..count).collect();
+    }
+    if maximum == 1 {
+        return vec![count - 1];
+    }
+    // Uniform Coverage Includes Both Ends Without Overflowing Native Indices.
+    (0..maximum).map(|index| ((index as u128 * (count - 1) as u128) / (maximum - 1) as u128) as usize).collect()
+}
+
+pub(super) fn plot_markers(
+    records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>, maximum: usize,
+) -> Vec<PlotMarker> {
     if marker_record_types.is_empty() {
         return Vec::new();
     }
@@ -697,15 +715,22 @@ fn plot_markers(records: crate::records::view::View<'_>, marker_record_types: &[
         .iter()
         .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
         .filter(|record| scope.is_none_or(|scope| record.is_visible_in(scope)));
-    let mut markers = Vec::with_capacity(selected.clone().count());
-    markers.extend(selected.map(|record| {
+    let count = selected.clone().count();
+    let maximum = if maximum == 0 { count } else { maximum.min(count) };
+    let mut indices = marker_indices(count, maximum).into_iter().peekable();
+    let mut markers = Vec::with_capacity(maximum);
+    markers.extend(selected.enumerate().filter_map(|(index, record)| {
+        if indices.peek() != Some(&index) {
+            return None;
+        }
+        indices.next();
         let record_type = record.record_type.as_str().to_owned();
-        PlotMarker {
+        Some(PlotMarker {
             x: JsonValue::String(record.timestamp.as_str().to_owned()),
             label: record.message.clone().unwrap_or_else(|| record_type.clone()),
             color: marker_color(&record_type),
             record_type,
-        }
+        })
     }));
     markers
 }
