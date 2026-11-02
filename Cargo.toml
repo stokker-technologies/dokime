@@ -100,6 +100,7 @@ hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
 prost = { version = "0.14.4" }
+prost-reflect = { version = "0.16.5", features = ["serde"] }
 prost-types = { version = "=0.14.4" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
