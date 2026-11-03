@@ -259,15 +259,16 @@ pub fn assemble(
     } else {
         bundle.deb.files = linux_files.clone();
         bundle.rpm.files = linux_files;
+        // Classic Names Resolve On Ubuntu 22.04 And Debian 12; Later Releases' t64 Packages Provide Them.
         bundle.deb.depends = Some(vec![
             "libwebkit2gtk-4.1-0".into(),
-            "libgtk-3-0t64".into(),
+            "libgtk-3-0".into(),
             "libayatana-appindicator3-1".into(),
-            "libasound2t64".into(),
+            "libasound2".into(),
             "libsoup-3.0-0".into(),
             "libjavascriptcoregtk-4.1-0".into(),
             "librsvg2-2".into(),
-            "libssl3t64".into(),
+            "libssl3".into(),
         ]);
         bundle.rpm.depends = Some(vec![
             "webkit2gtk4.1".into(),

@@ -2039,7 +2039,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
@@ -2895,7 +2895,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
