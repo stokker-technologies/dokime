@@ -305,13 +305,13 @@ impl Controller {
                 }
             }
             Change::Refresh => {
-                if !candidate.settings.enabled && !listener_changed(&state.document.settings, &candidate.settings) {
+                // Address And Access Changes Remain Pending Until Their Explicit Commit.
+                if listener_changed(&state.document.settings, &candidate.settings) || !candidate.settings.enabled {
                     return Ok(state.status());
                 }
                 let previous_names = candidate.identity.as_ref().map(|identity| identity.names.clone());
                 refresh_identity(&mut candidate)?;
                 if previous_names == candidate.identity.as_ref().map(|identity| identity.names.clone())
-                    && !listener_changed(&state.document.settings, &candidate.settings)
                     && state.server.is_some() == candidate.settings.enabled
                 {
                     return Ok(state.status());
