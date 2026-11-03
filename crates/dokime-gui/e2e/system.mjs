@@ -63,8 +63,8 @@ let failed = false;
 /* === Entry Point === */
 
 try {
-  const results = await Promise.allSettled(
-    selected.map(async (name) => {
+  for (const name of selected) {
+    try {
       const started = performance.now();
       const report = join(scratch, `${name}.xml`);
       const script = workflows[name] ? "native-desktop" : name;
@@ -76,17 +76,12 @@ try {
       const [code] = await once(child, "exit");
       process.stdout.write(`\nStory Timing: ${name} ${((performance.now() - started) / 1000).toFixed(3)} s\n`);
       const document = await readFile(report, "utf8");
-      return { code, suite: document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")) };
-    }),
-  );
-  for (const result of results) {
-    if (result.status === "rejected") {
+      failed ||= code !== 0;
+      suites.push(document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")));
+    } catch (failure) {
       failed = true;
-      process.stderr.write(`${result.reason.stack ?? result.reason}\n`);
-      continue;
+      process.stderr.write(`${failure.stack ?? failure}\n`);
     }
-    failed ||= result.value.code !== 0;
-    suites.push(result.value.suite);
   }
 } finally {
   if (options.junit) {

@@ -119,7 +119,8 @@ one another's results.
 Shared input preparation completes before test consumers start:
 preparation mutates the wheel environment and generated modules and extracts shared
 read-only Rust binaries. Within its exclusively owned interactive desktop session,
-the native system lane runs independent workflows concurrently. Each workflow owns
+the native system lane runs one workflow at a time so native input, accessibility
+and report browsers do not compete with other workflows. Each workflow owns
 its temporary data roots, WebDriver/backend ports, browser profiles and native pickers.
 Process-local test fixture mutexes protect callbacks or runtime state inside one
 story; they do not lock other nextest processes. No cross-test nextest group is
