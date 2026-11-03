@@ -62,13 +62,35 @@ provides editable baselines; CI changes are authored and reviewed here. PRs run
 the selected suites. Pushes to dev select package dependencies (checks, Product
 and Tests compilation, and both native platforms' packages), skipping suites,
 fixture preparation and Release / Dry. Dev merges remain ungated.
+Linux Build / Product and Package / Rust run on Ubuntu 22.04, the oldest supported
+distribution, so shipped binaries and packages keep its glibc and dependency
+names; other Linux jobs use the latest runner image.
 
-Dev Channel publishes only after a green dev build-and-package run supplies both
+Edge publishes only after a green dev build-and-package run supplies both
 platforms and the Python package. One serialized publisher drafts the channel,
-uploads and verifies every asset including SHA256SUMS, moves `dev-channel` once,
+uploads and verifies every asset including SHA256SUMS, moves `edge` once,
 then publishes the complete set. Downloads are temporarily unavailable while the
 channel is drafted; a failed upload leaves it drafted for the next successful
 publication instead of exposing incomplete downloads.
+
+The rolling GitHub prerelease is titled `Edge` under the `edge` tag. Publication
+sets that tag explicitly and then verifies the release and every asset at
+`releases/tags/edge`. A rolling release must stay replaceable: with GitHub
+release immutability enabled, the publisher fails and names the owner setting
+(Settings > General > Releases > Enable release immutability) instead of
+publishing a frozen release.
+
+Every project uses the workflows `CI`, `Nightly`, `Edge`, `Release` and
+`Mirror`. Run names read `<Workflow> / <Purpose>`: `CI / Validation`,
+`CI / Draft Review`, `CI / Closed Review`, `Nightly / Validation`,
+`Edge / Publication`, `Release / Preparation`, `Release / Tagging`,
+`Release / Publication` and `Mirror / Synchronization`. Job names read
+`<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as `Check / Python`,
+`Test / Rust / Unit (windows)`, `Release / Tag`, `Edge / Publish` or
+`Mirror / Push`; `CI / Required` is the aggregate gate. Release starts only for
+manual preparation, `v*` tag pushes and merged PRs into dev that change
+`tools/project.toml`, which every release review does; its jobs still require
+a `release/v*` head, so ordinary merges start no Release run.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.

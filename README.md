@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
-[![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=CI%20%2F%20Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
+[![Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/badge/crates.io-unpublished-lightgrey)](#quick-start)
 [![PyPI](https://img.shields.io/badge/PyPI-unpublished-lightgrey)](#quick-start)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -46,6 +46,15 @@ on another desktop to connect. The desktop remembers that choice; operators do
 not need a source checkout. Windows installation needs no administrator rights;
 exposing remote access to other PCs may need an administrator to allow the app
 through Windows Firewall on the exporting computer.
+Linux x86-64 packages support Ubuntu 22.04+, Debian 12+ and current Fedora;
+RHEL and Rocky Linux lack WebKitGTK 4.1 and are unsupported. Install with the
+package manager so it resolves the desktop dependencies:
+
+```sh
+sudo apt install ./dokime_<version>_amd64.deb      # Ubuntu, Debian
+sudo dnf install ./dokime-<version>-1.x86_64.rpm   # Fedora
+```
+
 Direct Ethernet cables support static or automatic IPv4 link-local addresses;
 see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
