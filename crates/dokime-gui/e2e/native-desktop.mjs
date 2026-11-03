@@ -168,29 +168,29 @@ const workflows = {
     attached: false,
   },
   execution: {
-    title: "Desktop Execution And Recovery",
-    journeys: new Set([
-      "startup",
-      "plugin-install",
-      "library",
-      "active-cycle",
-      "cycle",
-      "touch",
-      "execution-stop",
-      "containers",
-      "cycles-home",
-      "history",
-      "attachment",
-      "restart",
-    ]),
+    title: "Desktop Execution",
+    journeys: new Set(["startup", "library", "active-cycle", "cycle", "touch", "execution-stop", "containers", "cycles-home", "history"]),
+  },
+  recovery: {
+    title: "Desktop Attachment And Recovery",
+    journeys: new Set(["startup", "attachment", "restart"]),
   },
   configuration: {
-    title: "Desktop Configuration And Access",
-    journeys: new Set(["startup", "plugin-install", "idle", "settings", "distribution-identity", "organization", "remote-access"]),
+    title: "Desktop Plugin Installation And Settings",
+    journeys: new Set(["startup", "plugin-install", "idle", "settings"]),
+  },
+  appearance: {
+    title: "Desktop Distribution And Organization",
+    journeys: new Set(["startup", "distribution-identity", "organization"]),
+  },
+  remote: {
+    title: "Desktop Remote Access",
+    journeys: new Set(["startup", "remote-access"]),
   },
 };
 assert.ok(!options.workflow || Object.hasOwn(workflows, options.workflow), `Unknown desktop workflow: ${options.workflow}`);
 const workflow = workflows[options.workflow];
+const fixturePlugin = Boolean(workflow && !workflow.journeys.has("plugin-install"));
 
 /** Opt out of real key presses when the driver cannot honour the Actions API. */
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
@@ -2227,6 +2227,25 @@ async function libraryJourney(session) {
  * One layout throughout: the sidebar owns selection, the header owns every
  * whole-cycle command, and the evidence pane shows what the URL selects.
  */
+// Running Prompts Can Take Focus While The Plot Control Is Being Activated.
+async function openPlotSettings(session, selector) {
+  return until(
+    "plot settings dialog",
+    async () => {
+      const dialog = await session.execute("return document.querySelector('[role=dialog][data-state=open]')?.innerText");
+      if (dialog) return dialog;
+      const control = await session.find("css selector", selector);
+      const focused = await session.execute(
+        "arguments[0].focus(); return document.activeElement === arguments[0] && !arguments[0].disabled;",
+        [control],
+      );
+      if (focused) await session.key("Enter");
+      return null;
+    },
+    120000,
+  );
+}
+
 async function cycleJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
@@ -2482,16 +2501,7 @@ async function cycleJourney(session, cycleId) {
     120000,
   );
   const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
-  await session.clickCss(settingsSelector);
-  const settingsText = await until(
-    "plot settings dialog",
-    () =>
-      session.execute(`
-        const dialog = document.querySelector('[role=dialog][data-state=open]');
-        return dialog?.innerText;
-      `),
-    120000,
-  );
+  const settingsText = await openPlotSettings(session, settingsSelector);
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
   await session.execute(
@@ -2534,29 +2544,8 @@ async function cycleJourney(session, cycleId) {
       ),
     120000,
   );
-  // Reacquire Native Focus If A Running Prompt Remounts The Plot Control.
-  const persistedPoints = await until(
-    "persisted display point budget",
-    async () => {
-      const dialog = await session.execute(`
-        const dialog = document.querySelector('[role=dialog][data-state=open]');
-        const input = dialog?.querySelector('input[type=number]');
-        return dialog ? {open: true, input: input ? {value: input.value} : null} : null;
-      `);
-      if (dialog) return dialog.input;
-      const reopenedSettings = await session.find("css selector", settingsSelector);
-      const focused = await session.execute(
-        `
-        arguments[0].focus();
-        return document.activeElement === arguments[0] && !arguments[0].disabled;
-      `,
-        [reopenedSettings],
-      );
-      if (focused) await session.key("Enter");
-      return null;
-    },
-    120000,
-  );
+  await openPlotSettings(session, settingsSelector);
+  const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
   const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
   await session.click(cancelPlotSettings);
@@ -3327,7 +3316,7 @@ async function remoteAccessJourney(recoveredReports) {
   // Restart Preserves Both Independent Client Verifiers.
   const nativeEndpoint = backend.endpoint;
   await stopBackend();
-  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", false);
+  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", fixturePlugin);
   await session.goto("/settings/remote", { reload: true });
   assert.equal(await endpoint(), address);
   await connect("desktop-first", true);
@@ -4315,7 +4304,7 @@ async function restartJourney(recoveredReports) {
   await closeSession();
   assert.ok(await listening(endpoint), "closing the attached shell leaves its backend alive");
   await stopBackend();
-  backend = await startBackend(work, evidence, endpoint, "backend-restart", false);
+  backend = await startBackend(work, evidence, endpoint, "backend-restart", fixturePlugin);
   session = await startSession(work, endpoint, evidence);
   await session.connected();
   const current = await session.executeAsync(`
@@ -5065,7 +5054,7 @@ async function main() {
   if (workflow?.attached === false) return;
   timingScene = "attached-setup";
   await closeSession();
-  backend = await startBackend(work, evidence, undefined, "backend", false);
+  backend = await startBackend(work, evidence, undefined, "backend", fixturePlugin);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
 

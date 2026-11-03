@@ -40,7 +40,10 @@ const { values: options } = parseArgs({
 });
 const workflows = {
   "native-desktop": "execution",
+  "desktop-recovery": "recovery",
   "desktop-configuration": "configuration",
+  "desktop-appearance": "appearance",
+  "desktop-remote": "remote",
   "desktop-ownership": "ownership",
 };
 const stories = [...Object.keys(workflows), "two-gui-remote"];
