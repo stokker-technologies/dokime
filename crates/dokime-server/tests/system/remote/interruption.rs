@@ -24,9 +24,10 @@ use std::{
 };
 
 // Third Party Imports
+use hyper::{Request, body::Incoming, service::service_fn};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::oneshot,
     task::{JoinHandle, JoinSet},
@@ -43,7 +44,8 @@ use dokime::domain::model::{
     values::Value,
 };
 use dokime::operations::{
-    execution::{CreateCycle, ExecutionBinding},
+    Endpoint,
+    execution::{AppendExecutions, CreateCycle, ExecutionBinding, ListCycles, StartExecution},
     planning::MaterializeTemplate,
 };
 
@@ -188,6 +190,14 @@ impl Proxy {
 }
 
 impl Gate {
+    fn selects(&self, path: &str) -> bool {
+        let selected = match self.boundary {
+            Boundary::Append => AppendExecutions::PATH,
+            Boundary::Start => StartExecution::PATH,
+        };
+        path == selected
+    }
+
     async fn hold(&self) -> std::io::Result<()> {
         if self.released.is_cancelled() {
             return Ok(());
@@ -243,28 +253,28 @@ impl Gate {
     }
 }
 
-async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Gate>) -> std::io::Result<()> {
-    let Some(gate) = gate else {
-        tokio::io::copy_bidirectional(&mut incoming, &mut outgoing).await?;
-        return Ok(());
-    };
-    let (mut inbound, mut output) = incoming.into_split();
-    let (mut response, mut outbound) = outgoing.into_split();
-    let requests = tokio::io::copy(&mut inbound, &mut outbound);
-    let responses = async {
-        let mut buffer = [0_u8; 65_536];
-        loop {
-            let count = response.read(&mut buffer).await?;
-            if count == 0 {
-                break;
+async fn relay(incoming: TcpStream, outgoing: TcpStream, gate: Option<Gate>) -> std::io::Result<()> {
+    // Hold Only The Selected RPC Reply; The Drivers Continue Servicing HTTP/2 Control Frames.
+    let (sender, upstream) = hyper::client::conn::http2::handshake::<_, _, Incoming>(TokioExecutor::new(), TokioIo::new(outgoing))
+        .await
+        .map_err(std::io::Error::other)?;
+    let service = service_fn(move |request: Request<Incoming>| {
+        let mut sender = sender.clone();
+        let gate = gate.clone().filter(|gate| gate.selects(request.uri().path()));
+        async move {
+            let response = sender.send_request(request).await.map_err(std::io::Error::other)?;
+            if let Some(gate) = gate {
+                gate.hold().await?;
             }
-            gate.hold().await?;
-            output.write_all(&buffer[..count]).await?;
+            Ok::<_, std::io::Error>(response)
         }
-        output.shutdown().await
-    };
-    tokio::try_join!(requests, responses)?;
-    Ok(())
+    });
+    let builder = hyper::server::conn::http2::Builder::new(TokioExecutor::new());
+    let downstream = builder.serve_connection(TokioIo::new(incoming), service);
+    tokio::select! {
+        result = upstream => result.map_err(std::io::Error::other),
+        result = downstream => result.map_err(std::io::Error::other),
+    }
 }
 
 /* === Public Functions === */
@@ -384,14 +394,39 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     let command = terminal_command(command.as_std(), extension == "bat");
 
     // Ctrl+C Arrives Before Confirmation; Cleanup Must Reconcile Exact Membership.
+    let checked = CancellationToken::new();
     let action = Action::InterruptAt {
-        reached: gate.reached.clone(),
+        reached: checked.clone(),
         released: gate.released.clone(),
     };
-    let process = tokio::task::spawn_blocking(move || run(command, "Cycle: ", action));
-    let outcome = process.await.unwrap();
+    let mut process = tokio::task::spawn_blocking(move || run(command, "Cycle: ", action));
+    let mut probed = None;
+    let outcome = tokio::select! {
+        outcome = &mut process => outcome.unwrap(),
+        _ = gate.reached.cancelled() => {
+            // Another RPC Must Complete Through The Same Proxy While The Mutation Reply Is Held.
+            let target = dokime::client::Target::local(&proxy.endpoint).unwrap();
+            let reply = async {
+                let probe = Client::connect(target, None, None).await?;
+                probe.call(ListCycles {
+                    limit: 100,
+                    filter: Some(dokime::domain::model::execution::wire::CycleFilter {
+                        text: label.clone(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }).await
+            }.await;
+            probed = Some((reply, !gate.released.is_cancelled()));
+            checked.cancel();
+            process.await.unwrap()
+        }
+    };
     proxy.close().await;
     assert!(outcome.triggered, "{name} was not interrupted:\n{}", outcome.text);
+    let (reply, held) = probed.expect("the interruption follows its concurrent RPC probe");
+    assert!(reply.unwrap().cycles.iter().any(|cycle| cycle.execution_count == 1));
+    assert!(held, "the mutation reply stays held until interruption");
     assert_aborted(extension, &outcome);
     let outcome_text = outcome.text.clone();
     let cycles = super::identities(&outcome.text, "Cycle: ");
