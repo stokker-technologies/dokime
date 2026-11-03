@@ -21,6 +21,7 @@ from unittest import mock
 
 # Local Imports
 from dokime_tools.package import plugins
+from dokime_tools.release import layout
 
 
 class ArchiveTests(unittest.TestCase):
@@ -33,6 +34,25 @@ class ArchiveTests(unittest.TestCase):
             bundle.chmod(0o600)
             with mock.patch.object(plugins, "shipping", return_value={"plugin-host.dokime": bundle}):
                 destination = plugins.archive(root, root / "build", root / "out", "0.0.0", "x86_64-pc-windows-msvc")
+            with zipfile.ZipFile(destination) as archive:
+                entry = archive.getinfo("plugin-host.dokime")
+                self.assertTrue(stat.S_ISREG(entry.external_attr >> 16))
+                self.assertEqual(archive.read(entry), b"bundle")
+
+
+class ReleaseLayoutTests(unittest.TestCase):
+    def test_release_zip_members_are_regular_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "plugin-host.dokime").write_bytes(b"bundle")
+            root = source / "release"
+            bundle = {
+                "target": "x86_64-pc-windows-msvc",
+                "archive": "sidecars.zip",
+                "member": "plugin-host.dokime",
+                "path": "plugin-host.dokime",
+            }
+            (destination,) = layout.plugin_archives(source, root, [bundle])
             with zipfile.ZipFile(destination) as archive:
                 entry = archive.getinfo("plugin-host.dokime")
                 self.assertTrue(stat.S_ISREG(entry.external_attr >> 16))
