@@ -41,8 +41,8 @@ Find these files after extraction:
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
 | Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-x86_64-pc-windows-msvc-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/plugin-host.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
+| Ubuntu/Debian x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
+| Fedora x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
 
 The installer includes the host telemetry bundle. OBC is a source-built test
 fixture, not a candidate download; build it with `mise run build:rust:tests`
@@ -82,13 +82,16 @@ The installer adds its directory to your user `PATH`. Close existing terminals
 and open a new one afterward. The installed CLI and GUI stay together; each embeds the server library;
 do not move only `dokime.exe` out of that directory.
 
-On Debian/Ubuntu, open a terminal in the extracted `installers/` directory:
+Linux packages support Ubuntu 22.04+, Debian 12+ and current Fedora; RHEL and
+Rocky Linux lack WebKitGTK 4.1 and are unsupported.
+
+On Ubuntu or Debian, open a terminal in the extracted `installers/` directory:
 
 ```sh
 sudo apt install ./dokime_<version>_amd64.deb
 ```
 
-On an RPM-based system with DNF, from its `installers/` directory:
+On Fedora, from its `installers/` directory:
 
 ```sh
 sudo dnf install ./dokime-<version>-1.x86_64.rpm
@@ -96,7 +99,7 @@ sudo dnf install ./dokime-<version>-1.x86_64.rpm
 
 Use your package manager to resolve the package's native desktop dependencies.
 These candidates target Linux and Windows x86-64; this guide does not establish
-support for another architecture or a minimum OS release.
+support for another architecture.
 
 On either PC, verify command discovery in a new terminal:
 
