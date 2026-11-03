@@ -20,13 +20,22 @@
 
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
+import { notificationMessage } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,30 +55,25 @@ export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; labe
 
 /* === Types === */
 
-type PlotSettingsFormProps = PlotSettingsButtonProps & {
+type PlotSettingsFormProps = Omit<PlotSettingsButtonProps, "children"> & {
   onClose: () => void;
 };
 
 /* === Components === */
 
-export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) {
+export function PlotSettingsButton({ children, plot, onSubmit }: PlotSettingsButtonProps) {
   const [open, setOpen] = useState(false);
   return (
-    <>
-      <Button
-        aria-label={`Plot Settings For ${plot.title}`}
-        onClick={() => setOpen(true)}
-        size="icon-sm"
-        title="Plot Settings"
-        type="button"
-        variant="ghost"
-      >
-        <Settings2 />
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        {open ? <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} /> : null}
-      </Dialog>
-    </>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {children(
+        <DialogTrigger asChild>
+          <Button aria-label={`Plot Settings For ${plot.title}`} size="icon-sm" title="Plot Settings" type="button" variant="ghost">
+            <Settings2 />
+          </Button>
+        </DialogTrigger>,
+      )}
+      {open ? <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} /> : null}
+    </Dialog>
   );
 }
 

@@ -41,7 +41,6 @@ trap '
     if [ -n "$execution" ]; then dokime execution stop "$execution" "$@" || :; fi
     dokime cycle seal "$cycle" "$@"
     if [ -n "$execution" ]; then
-        dokime execution wait "$execution" "$@"
         if [ -n "$destination" ] && [ ! -e "$destination" ]; then
             dokime execution export "$execution" --output "$destination" ${overwrite:+"$overwrite"} "$@"
         fi

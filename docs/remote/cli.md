@@ -123,6 +123,9 @@ order and meanings match the [Python examples](python.md):
 Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
 Its label, ordered endpoints, expected identity and persistent CA come from the remote file; the
 native client resolves its access key from the OS keyring.
+Profile import and removal run OS credential work on a native worker with the
+ordinary request budget. A deadline error reports that already-started OS work
+may still complete.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and
@@ -269,9 +272,12 @@ the shared server remain available. Batch delegates recovery to the native CLI
 because cmd.exe cannot reliably own Ctrl+C cleanup.
 
 PowerShell and POSIX shell also attempt scoped cleanup when interrupted between
-commands after cycle creation is confirmed. Batch cannot reliably handle Ctrl+C
-between native commands or before their signal listener is installed, including
-connection setup. If cycle creation's reply is lost, no script can infer its
+commands after cycle creation is confirmed.
+The durable cycle seal settles every member before recovery exports it; a
+Cancelled verdict does not prevent that evidence from being saved.
+Batch cannot reliably handle Ctrl+C between native commands or before their
+signal listener is installed, including connection setup. If cycle creation's
+reply is lost, no script can infer its
 unknown cycle UUID. These cases, another interruption during recovery, and lost
 connections or a nonzero command during cleanup can leave the result unconfirmed.
 Retain printed identities,

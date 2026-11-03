@@ -12,9 +12,11 @@
 # === Imports === #
 
 # Standard Library Imports
+import io
 import json
 import os
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,7 +24,7 @@ from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.test import report, run, schedule
+from dokime_tools.test import archive, report, run, schedule
 
 # Type Checking Imports
 
@@ -37,6 +39,45 @@ from dokime_tools.test import report, run, schedule
 
 
 class ScheduleTests(unittest.TestCase):
+    def test_system_archive_keeps_runtime_inputs_without_other_layers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            target = directory / "producer/target"
+            binaries = {
+                name: {"binary-name": name, "binary-path": str(target / "debug/deps" / name)}
+                for name in ("unit", "integration", "system", "system-recovery")
+            }
+            metadata = {
+                "rust-build-meta": {"target-directory": str(target), "platforms": {"host": {"libdir": {"status": "unavailable"}}}},
+                "rust-binaries": binaries,
+            }
+            files = {
+                "target/nextest/binaries-metadata.json": json.dumps(metadata).encode(),
+                "target/nextest/cargo-metadata.json": b"{}",
+                **{f"target/debug/deps/{name}": name.encode() for name in binaries},
+                "target/debug/dokime": b"cli",
+                "target/debug/build/schema/output": b"generated schema",
+                "target/nextest/libdirs/host/runtime.dll": b"runtime library",
+            }
+            packed = archive.location(directory, "dev")
+            packed.parent.mkdir(parents=True)
+            with tarfile.open(packed, "w:zst") as output:
+                for name, data in files.items():
+                    member = tarfile.TarInfo(name)
+                    member.size = len(data)
+                    output.addfile(member, io.BytesIO(data))
+
+            extracted = directory / "extracted"
+            archive.extract(directory, "dev", extracted, category="system")
+            selected = archive.binaries(directory, "dev", extracted)
+            self.assertEqual(set(selected), {"system", "system-recovery"})
+            for name, data in files.items():
+                path = extracted / name
+                if name in ("target/debug/deps/unit", "target/debug/deps/integration"):
+                    self.assertFalse(path.exists())
+                elif name != "target/nextest/binaries-metadata.json":
+                    self.assertEqual(path.read_bytes(), data)
+
     def test_archive_dispatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()
@@ -106,6 +147,60 @@ class ScheduleTests(unittest.TestCase):
             self.assertNotEqual(results["missing"]["exit_code"], 0)
             self.assertEqual((directory / results["left"]["log"]).read_text().strip(), "left")
             self.assertEqual((directory / results["right"]["log"]).read_text().strip(), "right")
+
+    def test_instrumented_liveness_budget(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "tools").mkdir()
+            (directory / "tools/project.toml").write_text("", encoding="utf-8")
+            rules = run.policy.load(directory)
+            ordinary = rules.deadline("unit")
+            instrumented = rules.deadline("unit", coverage=True)
+            for environment, seconds, expected in (
+                ({}, (ordinary + instrumented) / 2, "failed"),
+                ({run.COVERAGE_VARIABLE: "1"}, (ordinary + instrumented) / 2, "passed"),
+                ({run.COVERAGE_VARIABLE: "1"}, instrumented + 1, "failed"),
+            ):
+                with run._scratch(directory, "unit-python", "dev") as scratch:
+                    junit = scratch / "junit.xml"
+                    junit.write_text(f'<testsuite name="fixture"><testcase name="passes" time="{seconds}"/></testsuite>', encoding="utf-8")
+                    with patch.object(run, "_execute", return_value=0):
+                        result = run._lane(
+                            directory, rules, "unit-python", "unit", "python", ".", "dev", [], directory, environment, junit, scratch
+                        )
+                self.assertEqual(result["outcome"], expected)
+
+    def test_coverage_liveness_layers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "tools").mkdir()
+            (directory / "tools/project.toml").write_text("[conventions.testing.deadlines]\nunit = 30\nacceptance = 60\n", encoding="utf-8")
+            rules = run.policy.load(directory)
+            seconds = rules.deadline("unit", coverage=True) + 1
+            with run._scratch(directory, "coverage-python", "dev") as scratch:
+                junit = scratch / "junit.xml"
+                junit.write_text(
+                    f'<testsuite><testcase classname="tests.unit.client" name="overrun" time="{seconds}"/>'
+                    f'<testcase classname="tests.acceptance.backend" file="tests\\acceptance\\test_backend.py" name="within_budget" time="{seconds}"/></testsuite>',
+                    encoding="utf-8",
+                )
+                with patch.object(run, "_execute", return_value=0):
+                    result = run._lane(
+                        directory,
+                        rules,
+                        "coverage-python",
+                        "coverage",
+                        "python",
+                        ".",
+                        "dev",
+                        [],
+                        directory,
+                        {run.COVERAGE_VARIABLE: "1"},
+                        junit,
+                        scratch,
+                    )
+            self.assertEqual((result["passed"], result["failed"]), (1, 1))
+            self.assertEqual(result["overruns"], ["tests.unit.client::overrun"])
 
     def test_aggregate_failure(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -211,6 +211,7 @@ pub(crate) async fn shared_sha_identity() {
         };
         assert!(backend.save_mutations(store.batch(vec![append.clone()])).await.is_err());
         let reference = backend.finish_file(file, &position, 4, hash).await.unwrap();
+        assert_eq!(std::fs::read_dir(root.path().join("staging")).unwrap().count(), 1 - index);
         backend.save_mutations(store.batch(vec![append.clone()])).await.unwrap();
         for (window, length, generation) in [("past-end", 5, 1), ("future-owner", 4, 2)] {
             let mut invalid = append.clone();
@@ -354,12 +355,15 @@ pub(crate) async fn checkpoints_advance_boundaries() {
     let metadata = metadata("boundaries");
     let file = backend.create_production(&metadata).await.unwrap();
     let bytes = (0..129).collect::<Vec<u8>>();
-    backend.write_file(&file, 0, store.batch(bytes.to_vec())).await.unwrap();
+    let mut offset = 0;
     for length in [63, 64, 65, 129] {
+        backend.write_file(&file, offset as u64, store.batch(bytes[offset..length].to_vec())).await.unwrap();
         let value = checkpoint(metadata.clone(), &file, 1, &bytes[..length]);
         backend.save_production(store.batch(vec![value.clone()])).await.unwrap();
         backend.save_production(store.batch(vec![value.clone()])).await.unwrap();
+        offset = length;
     }
+    backend.write_file(&file, bytes.len() as u64, store.batch(b"unconfirmed tail".to_vec())).await.unwrap();
     backend.close().await.unwrap();
     let store = Store::<()>::open(root.path()).await;
     let backend = &store.backend;

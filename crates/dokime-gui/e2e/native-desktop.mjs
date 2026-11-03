@@ -154,6 +154,7 @@ const WEBDRIVER_KEYS = {
   Tab: "\uE004",
   Control: "\uE009",
   Backspace: "\uE003",
+  End: "\uE010",
 };
 
 /** Journey Filters Retain These Prerequisites Within Their Selected Workflow. */
@@ -161,11 +162,15 @@ const REQUIRED_JOURNEYS = new Set(["startup", "plugin-install", "library"]);
 
 /** Independent Workflows Share Only Their Connection And Catalog Prerequisites. */
 const workflows = {
+  ownership: {
+    title: "Desktop Owned Backend Lifecycle",
+    journeys: new Set(["owned-startup"]),
+    attached: false,
+  },
   execution: {
     title: "Desktop Execution And Recovery",
     journeys: new Set([
       "startup",
-      "plugin-install",
       "library",
       "active-cycle",
       "cycle",
@@ -179,21 +184,21 @@ const workflows = {
     ]),
   },
   configuration: {
-    title: "Desktop Configuration And Access",
-    journeys: new Set([
-      "owned-startup",
-      "startup",
-      "plugin-install",
-      "idle",
-      "settings",
-      "distribution-identity",
-      "organization",
-      "remote-access",
-    ]),
+    title: "Desktop Plugin Installation And Settings",
+    journeys: new Set(["startup", "plugin-install", "idle", "settings"]),
+  },
+  appearance: {
+    title: "Desktop Distribution And Organization",
+    journeys: new Set(["startup", "distribution-identity", "organization"]),
+  },
+  remote: {
+    title: "Desktop Remote Access",
+    journeys: new Set(["startup", "remote-access"]),
   },
 };
 assert.ok(!options.workflow || Object.hasOwn(workflows, options.workflow), `Unknown desktop workflow: ${options.workflow}`);
 const workflow = workflows[options.workflow];
+const fixturePlugin = Boolean(workflow && !workflow.journeys.has("plugin-install"));
 
 /** Opt out of real key presses when the driver cannot honour the Actions API. */
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
@@ -403,7 +408,7 @@ async function promptHoverLabels() {
         clientY: bounds.top + bounds.height / 2,
       }),
     );
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await frameDrawn();
     const label = frame.querySelector("[role=tooltip]")?.textContent;
     if (label) labels.add(label);
     if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
@@ -694,29 +699,38 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     }
     return globalThis.__dokimeDom.revision;
   `);
-  session.waitForDom = (description, script, args = []) =>
+  session.waitForDom = (description, script, args = [], maximumWait) =>
     measured("dom-wait", description, async () => {
       const result = await session.executeAsync(
         `
       const args = arguments[0];
+      const maximumWait = arguments[1];
       const done = arguments[arguments.length - 1];
       const ready = () => {${script}};
       const observer = new MutationObserver(check);
+      let timer;
+      let finished = false;
+      function finish(result) {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        clearTimeout(timer);
+        done(result);
+      }
       function check() {
         try {
           const value = ready();
           if (!value) return;
-          observer.disconnect();
-          done({value});
+          finish({value});
         } catch (error) {
-          observer.disconnect();
-          done({failure: String(error)});
+          finish({failure: String(error)});
         }
       }
       observer.observe(document, {attributes: true, childList: true, characterData: true, subtree: true});
+      if (maximumWait != null) timer = setTimeout(() => finish({value: false}), maximumWait);
       check();
     `,
-        [args],
+        [args, maximumWait],
       );
       assert.equal(result.failure, undefined, result.failure);
       return result.value;
@@ -735,10 +749,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
    * control. A transient toast overlays the bottom of the page for a few
    * seconds, which is not a reason for the gate to fail the row beneath it.
    */
-  session.click = async (element) => {
+  session.click = async (element, { unobscured = false } = {}) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
     const settled = await session.executeAsync(
       `const element = arguments[0];
+       const unobscured = arguments[1];
        const done = arguments[arguments.length - 1];
        const initial = element.getBoundingClientRect();
        if (initial.top < 0 || initial.left < 0 || initial.bottom > innerHeight || initial.right > innerWidth) {
@@ -749,12 +764,15 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
          if (!element.isConnected) return done(false);
          const rect = element.getBoundingClientRect();
          const position = [rect.x, rect.y, rect.width, rect.height].join(',');
-         if (position === previous && rect.width > 0 && rect.height > 0) return done(true);
+         if (position === previous && rect.width > 0 && rect.height > 0) {
+           const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+           return done(!unobscured || element.contains(target));
+         }
          previous = position;
          requestAnimationFrame(frame);
        }
        requestAnimationFrame(frame);`,
-      [element],
+      [element, unobscured],
     );
     assert.ok(settled, "The pointer target must remain mounted while scrolling settles");
     try {
@@ -804,26 +822,17 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       [element],
     );
   session.clickCss = async (selector) => {
-    const element = await until(selector, () => session.find("css selector", selector));
-    await until(`stable pointer target ${selector}`, () =>
-      session.executeAsync(
-        `const element = arguments[0];
-         const done = arguments[arguments.length - 1];
-         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
-         requestAnimationFrame(() => {
-           const before = element.getBoundingClientRect();
-           requestAnimationFrame(() => {
-             const after = element.getBoundingClientRect();
-             const target = document.elementFromPoint(after.left + after.width / 2, after.top + after.height / 2);
-             done(element.isConnected && after.width > 0 && after.height > 0
-               && Math.abs(before.top - after.top) < 1 && Math.abs(before.left - after.left) < 1
-               && element.contains(target));
-           });
-         });`,
-        [element],
-      ),
-    );
-    await session.click(element);
+    const result = await until(`stable pointer target ${selector}`, async () => {
+      const element = await session.find("css selector", selector);
+      try {
+        return { value: await session.click(element, { unobscured: true }) };
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return null;
+        return { failure };
+      }
+    });
+    if (result.failure) throw result.failure;
+    return result.value;
   };
   session.exists = async (role, name) => {
     try {
@@ -835,26 +844,31 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   };
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
+    const numeric = await session.execute("return arguments[0].type === 'number'", [element]);
     await session.click(element);
-    /* WebKit Holds Control Through ElementSendKeys' NULL, So Release It Through
-       Native Actions Before Sending Replacement Text To The Controlled Field. */
     await session.request("POST", "/actions", {
       actions: [
         {
           type: "key",
-          id: "keyboard",
+          id: "native-text",
           actions: [
             { type: "keyDown", value: WEBDRIVER_KEYS.Control },
             { type: "keyDown", value: "a" },
             { type: "keyUp", value: "a" },
             { type: "keyUp", value: WEBDRIVER_KEYS.Control },
+            { type: "keyDown", value: WEBDRIVER_KEYS.Backspace },
+            { type: "keyUp", value: WEBDRIVER_KEYS.Backspace },
           ],
         },
       ],
     });
     await session.request("DELETE", "/actions");
-    const replacement = value.length ? value : WEBDRIVER_KEYS.Backspace;
-    await session.request("POST", `/element/${key}/value`, { text: replacement, value: [...replacement] });
+    // Let Each Native Number Edit Settle Before Delivering The Next Character.
+    if (numeric) {
+      for (const character of value) await session.key(character);
+      return;
+    }
+    if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
   /**
@@ -950,7 +964,11 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     `);
   /** The connected shell, which a full reload has to reach again. */
   session.connected = () =>
-    until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
+    until(
+      "connected shell",
+      () => session.waitForDom("connected navigation", "return Boolean(document.querySelector('nav[aria-label=Navigation]'));", [], 1000),
+      180000,
+    );
   session.load = async (url) => {
     const previousOrigin = await session.execute("return performance.timeOrigin;");
     await session.request("POST", "/url", { url });
@@ -1049,7 +1067,10 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
         `);
       } catch (error) {
-        if (windows || !ownedShells.length || !/Session terminated without a reply/i.test(error.message)) throw error;
+        const closedBeforeReply = windows
+          ? /target frame detached|invalid session id|disconnected/i.test(error.message)
+          : ownedShells.length && /Session terminated without a reply/i.test(error.message);
+        if (!closedBeforeReply) throw error;
         closeReplyLost = true;
       }
       await until(
@@ -1508,15 +1529,18 @@ async function selectDensity(session, density) {
 
 /** Dismiss Toasts Through Their Controls Before The Next Pointer Target. */
 async function settle(session) {
-  await session.execute(`
-    for (const close of document.querySelectorAll('[data-sonner-toast] [data-close-button]')) close.click();
-  `);
-  await session.waitForDom(
+  await until(
     "toast dismissal",
-    `
-    return [...document.querySelectorAll('[data-sonner-toast]')].every(toast =>
-      toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
-  `,
+    () =>
+      session.execute(`
+        const toasts = [...document.querySelectorAll('[data-sonner-toast]')];
+        for (const toast of toasts) {
+          if (toast.dataset.removed !== 'true') toast.querySelector('[data-close-button]')?.click();
+        }
+        return toasts.every(toast =>
+          toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
+      `),
+    30000,
   );
 }
 
@@ -1735,27 +1759,38 @@ async function startCaseFromItsRow(session, fragment) {
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
-  await session.clickNamed("button", target.trigger);
-  await until("the row menu", () => session.find("css selector", "[role=menu]"), 120000);
-  await session.clickNamed("menuitem", "Start Execution");
-  await closeAnyMenu(session);
-  return until(
-    `the ${fragment} case to start`,
-    async () => {
-      const row = await session.execute(
-        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+  const started = async () => {
+    const row = await session.execute(
+      `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
           .find((candidate) => candidate.dataset.executionId === arguments[0])?.innerText ?? '';`,
-        [target.executionId],
-      );
-      return (
-        Boolean(row) &&
-        (row !== target.before ||
-          /Running|Waiting|Finalizing|Passed|Failed/.test(row) ||
-          /Execution Started/.test(await toastText(session)))
-      );
+      [target.executionId],
+    );
+    return Boolean(row) && (row !== target.before || /Running|Waiting|Finalizing|Passed|Failed/.test(row));
+  };
+  await until(
+    `the ${fragment} row start command`,
+    async () => {
+      // A Native Click Can Outlive Its Popup. Reconcile The Execution Before Opening It Again.
+      if (await started()) return true;
+      const item = await session.named("menuitem", "Start Execution").catch(() => null);
+      if (!item) {
+        const trigger = await session.named("button", target.trigger);
+        const expanded = await session.execute("return arguments[0].getAttribute('aria-expanded') === 'true'", [trigger]);
+        if (!expanded) await session.click(trigger);
+        return false;
+      }
+      try {
+        await session.click(item);
+        return true;
+      } catch (failure) {
+        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return false;
+        throw failure;
+      }
     },
     120000,
-  ).catch(() => false);
+  );
+  await closeAnyMenu(session);
+  return until(`the ${fragment} case to start`, started, 120000).catch(() => false);
 }
 
 /** Press a menu trigger until its menu is up, and answer with the menu. */
@@ -2209,6 +2244,25 @@ async function libraryJourney(session) {
  * One layout throughout: the sidebar owns selection, the header owns every
  * whole-cycle command, and the evidence pane shows what the URL selects.
  */
+// Running Prompts Can Take Focus While The Plot Control Is Being Activated.
+async function openPlotSettings(session, selector) {
+  return until(
+    "plot settings dialog",
+    async () => {
+      const dialog = await session.execute("return document.querySelector('[role=dialog][data-state=open]')?.innerText");
+      if (dialog) return dialog;
+      const control = await session.find("css selector", selector);
+      const focused = await session.execute(
+        "arguments[0].focus(); return document.activeElement === arguments[0] && !arguments[0].disabled;",
+        [control],
+      );
+      if (focused) await session.key("Enter");
+      return null;
+    },
+    120000,
+  );
+}
+
 async function cycleJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
@@ -2464,16 +2518,7 @@ async function cycleJourney(session, cycleId) {
     120000,
   );
   const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
-  await session.clickCss(settingsSelector);
-  const settingsText = await until(
-    "plot settings dialog",
-    () =>
-      session.execute(`
-        const dialog = document.querySelector('[role=dialog][data-state=open]');
-        return dialog?.innerText;
-      `),
-    120000,
-  );
+  const settingsText = await openPlotSettings(session, settingsSelector);
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
   await session.execute(
@@ -2516,29 +2561,8 @@ async function cycleJourney(session, cycleId) {
       ),
     120000,
   );
-  // Reacquire Native Focus If A Running Prompt Remounts The Plot Control.
-  const persistedPoints = await until(
-    "persisted display point budget",
-    async () => {
-      const dialog = await session.execute(`
-        const dialog = document.querySelector('[role=dialog][data-state=open]');
-        const input = dialog?.querySelector('input[type=number]');
-        return dialog ? {open: true, input: input ? {value: input.value} : null} : null;
-      `);
-      if (dialog) return dialog.input;
-      const reopenedSettings = await session.find("css selector", settingsSelector);
-      const focused = await session.execute(
-        `
-        arguments[0].focus();
-        return document.activeElement === arguments[0] && !arguments[0].disabled;
-      `,
-        [reopenedSettings],
-      );
-      if (focused) await session.key("Enter");
-      return null;
-    },
-    120000,
-  );
+  await openPlotSettings(session, settingsSelector);
+  const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
   const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
   await session.click(cancelPlotSettings);
@@ -2561,6 +2585,12 @@ async function cycleJourney(session, cycleId) {
     rerunOutcome,
     /\bPassed\b/,
     `Closing plot settings must leave the prompting re-run able to pass: ${normalize(rerunOutcome)}`,
+  );
+  const plotWindow = await until("plot window control", () => session.find("css selector", '[role="slider"][aria-label$="Window"]'));
+  await session.execute("arguments[0].focus();", [plotWindow]);
+  await session.key("End");
+  await until("complete plot history selected", () =>
+    session.execute("return arguments[0].getAttribute('aria-valuenow') === arguments[0].getAttribute('aria-valuemax');", [plotWindow]),
   );
   await until("prompt marker hover labels", async () => {
     const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
@@ -2983,7 +3013,10 @@ async function exportAvailability(session, enabled, kind = "cycle") {
 async function assertNodeDeliveries(session, trigger) {
   await openMenu(session, trigger);
   for (const name of ["Export Evidence", "Download Report"]) {
-    assert.ok(await session.named("menuitem", name, { enabled: false }), `${trigger} must name ${name}`);
+    assert.ok(
+      await until(`${trigger} offers ${name}`, () => session.named("menuitem", name, { enabled: false })),
+      `${trigger} must name ${name}`,
+    );
   }
   await session.key("Escape");
 }
@@ -3130,9 +3163,13 @@ async function remoteAccessJourney(recoveredReports) {
   /* Preferences Autosave Before The Listener Is Explicitly Restarted. */
   const settled = () =>
     until("remote settings settled", () =>
-      session.execute(
-        "return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled) && [...document.querySelectorAll('[role=status][data-state]')].every((status) => status.dataset.state === 'saved');",
-      ),
+      session.execute(`
+        const states = [...document.querySelectorAll('[data-state=saved], [data-state=saving], [data-state=error]')];
+        const restart = [...document.querySelectorAll('button')].find(button => button.innerText.trim() === 'Restart Listener');
+        return states.length > 0 && states.every(status => status.dataset.state === 'saved')
+          && [...document.querySelectorAll('input[id], button[role=switch]')].every(control => !control.disabled)
+          && restart && !restart.disabled;
+      `),
     );
   const toggle = async (label, checked) => {
     const control = await until(label, () =>
@@ -3160,10 +3197,12 @@ async function remoteAccessJourney(recoveredReports) {
     await settle(session);
     await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 120000);
     await action();
-    return until(text, async () => {
+    const shown = await until(text, async () => {
       const shown = await toastText(session);
       return hasText(shown, text) ? shown : null;
     });
+    await settle(session);
+    return shown;
   };
   const endpoint = () =>
     until("remote listening address", async () => {
@@ -3296,7 +3335,7 @@ async function remoteAccessJourney(recoveredReports) {
   // Restart Preserves Both Independent Client Verifiers.
   const nativeEndpoint = backend.endpoint;
   await stopBackend();
-  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", false);
+  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", fixturePlugin);
   await session.goto("/settings/remote", { reload: true });
   assert.equal(await endpoint(), address);
   await connect("desktop-first", true);
@@ -3647,6 +3686,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
+  await session.connected();
   await session.goto("/settings/backends");
   await until("registry after selection", () => rowAction("native-stale", "Select"));
   await session.click(await rowAction("native-stale", "Select"));
@@ -3662,6 +3702,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
+  await session.connected();
   await session.goto("/settings/backends");
   await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
@@ -4284,7 +4325,7 @@ async function restartJourney(recoveredReports) {
   await closeSession();
   assert.ok(await listening(endpoint), "closing the attached shell leaves its backend alive");
   await stopBackend();
-  backend = await startBackend(work, evidence, endpoint, "backend-restart", false);
+  backend = await startBackend(work, evidence, endpoint, "backend-restart", fixturePlugin);
   session = await startSession(work, endpoint, evidence);
   await session.connected();
   const current = await session.executeAsync(`
@@ -4457,7 +4498,6 @@ async function chooseNativeFile(...args) {
 
 async function chooseNativeFileMeasured(picker, file, operation = "Open", owner = driverProcess) {
   if (!windows) {
-    if (picker.failure) throw picker.failure;
     const children = await readFile(`/proc/${owner.pid}/task/${owner.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
@@ -4495,7 +4535,10 @@ desktop = Atspi.get_desktop(0)
 def descendants(node):
     yield node
     for index in range(node.get_child_count()):
-        child = node.get_child_at_index(index)
+        try:
+            child = node.get_child_at_index(index)
+        except gi.repository.GLib.GError:
+            continue
         if child is not None:
             yield from descendants(child)
 
@@ -4515,10 +4558,10 @@ for index in range(desktop.get_child_count()):
         break
     controls = list(descendants(dialogs[0]))
     if action == "fill":
-        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_state_set().contains(Atspi.StateType.FOCUSED) and ready(node)]
+        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_editable_text_iface() is not None and ready(node)]
         if not fields:
             break
-        assert len(fields) == 1, "The native location entry has unique focus"
+        assert len(fields) == 1, "The native chooser has one visible editable location entry"
         field = fields[0]
         assert field.get_editable_text_iface() is not None, "The native location entry is editable"
         assert Atspi.EditableText.set_text_contents(field, path), "The native location entry accepts the path"
@@ -4529,29 +4572,27 @@ for index in range(desktop.get_child_count()):
         if not buttons:
             break
         assert len(buttons) == 1, "The native picker exposes one ready action"
+        if action == "ready" and operation == "Open":
+            locations = [(node, index) for node in controls if node.get_action_iface() is not None for index in range(Atspi.Action.get_n_actions(node)) if Atspi.Action.get_action_name(node, index) == "show_location"]
+            assert len(locations) == 1, "The owned chooser exposes its location action"
+            assert Atspi.Action.do_action(*locations[0]), "The native location entry is shown"
         if action == "open":
             assert Atspi.Action.do_action(buttons[0], 0), "The Native File Action Is Activated Once"
     print(action)
     break
 `;
-      try {
-        const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
-          windowsHide: true,
-          timeout: 120000,
-        });
-        if (result.stdout.trim() !== action) return false;
-        await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
-        if (action === "ready") {
-          await run(["key", "--window", ids[0], "--clearmodifiers", "ctrl+l"]);
-          picker.window = ids[0];
-        } else if (action === "fill") {
-          picker.entered = true;
-        } else {
-          picker.submitted = true;
-        }
-      } catch (failure) {
-        picker.failure = failure;
-        throw failure;
+      const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
+        windowsHide: true,
+        timeout: 120000,
+      });
+      if (result.stdout.trim() !== action) return false;
+      await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
+      if (action === "ready") {
+        picker.window = ids[0];
+      } else if (action === "fill") {
+        picker.entered = true;
+      } else {
+        picker.submitted = true;
       }
       return false;
     }
@@ -4626,16 +4667,12 @@ for index in range(desktop.get_child_count()):
             $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
             # Invoke Only A Filename That Survived The Dialog's Own Initialization Since An Earlier Observation.
             if (!$env:DOKIME_PICKER_ENTERED -or ![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
-              if ($env:DOKIME_PICKER_OPERATION -eq 'Save') {
-                # Replace The Selection In One Native Edit, Including Its EN_CHANGE Notification.
-                if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2); [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern System.IntPtr ReplaceSelection(System.IntPtr window, uint message, System.IntPtr wide, string text);' }
-                $edit = [System.IntPtr]$field.Current.NativeWindowHandle
-                if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Save Filename Box Has No Window Handle' }
-                [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
-                [void][DokimePicker.Input]::ReplaceSelection($edit, 0x00C2, [System.IntPtr]1, $env:DOKIME_PICKER_FILE)
-              } else {
-                $value.SetValue($env:DOKIME_PICKER_FILE)
-              }
+              # Replace The Selection In One Native Edit, Including Its EN_CHANGE Notification.
+              if (-not ("DokimePicker.Input" -as [type])) { Add-Type -Namespace DokimePicker -Name Input -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr SendMessage(System.IntPtr window, uint message, System.IntPtr wide, System.IntPtr wide2); [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern System.IntPtr ReplaceSelection(System.IntPtr window, uint message, System.IntPtr wide, string text);' }
+              $edit = [System.IntPtr]$field.Current.NativeWindowHandle
+              if ($edit -eq [System.IntPtr]::Zero) { throw 'The Native Picker Filename Box Has No Window Handle' }
+              [void][DokimePicker.Input]::SendMessage($edit, 0x00B1, [System.IntPtr]0, [System.IntPtr](-1))
+              [void][DokimePicker.Input]::ReplaceSelection($edit, 0x00C2, [System.IntPtr]1, $env:DOKIME_PICKER_FILE)
               [Console]::Error.WriteLine(('picker entered={0}' -f $value.Current.Value))
               if (![String]::Equals($value.Current.Value, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
                 throw 'The Native Picker Filename Differs From The Requested File After Entry'
@@ -4914,6 +4951,8 @@ async function startSecretService() {
   if (windows) return;
   const home = join(work, "secret-service");
   await mkdir(home, { recursive: true, mode: 0o700 });
+  process.env.XDG_RUNTIME_DIR = home;
+  delete process.env.AT_SPI_BUS_ADDRESS;
   secretBus = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], {
     detached: !windows,
     windowsHide: true,
@@ -4933,6 +4972,33 @@ async function startSecretService() {
     return address.includes("\n");
   });
   process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
+  const accessibility = await executeFile(
+    "dbus-send",
+    ["--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus.GetAddress"],
+    { windowsHide: true, timeout: 120000 },
+  );
+  const accessibilityAddress = accessibility.stdout.match(/\bstring "([^"]+)"/);
+  assert.ok(accessibilityAddress, "The private session owns an accessibility bus");
+  process.env.AT_SPI_BUS_ADDRESS = accessibilityAddress[1];
+  // Activated Registry Processes Must Use This Bus Too, Before Consulting The Shared Display.
+  await executeFile("dbus-update-activation-environment", ["AT_SPI_BUS_ADDRESS"], {
+    env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: process.env.AT_SPI_BUS_ADDRESS },
+    windowsHide: true,
+    timeout: 120000,
+  });
+  await executeFile(
+    "dbus-send",
+    [
+      `--bus=${process.env.AT_SPI_BUS_ADDRESS}`,
+      "--print-reply",
+      "--dest=org.freedesktop.DBus",
+      "/org/freedesktop/DBus",
+      "org.freedesktop.DBus.StartServiceByName",
+      "string:org.a11y.atspi.Registry",
+      "uint32:0",
+    ],
+    { windowsHide: true, timeout: 120000 },
+  );
   secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
     detached: !windows,
@@ -5003,9 +5069,10 @@ async function main() {
   await startSecretService();
   const owned = await journey("owned-startup", ownedStartupJourney, (scene) => scene.reports);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
+  if (workflow?.attached === false) return;
   timingScene = "attached-setup";
   await closeSession();
-  backend = await startBackend(work, evidence, undefined, "backend", false);
+  backend = await startBackend(work, evidence, undefined, "backend", fixturePlugin);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
 

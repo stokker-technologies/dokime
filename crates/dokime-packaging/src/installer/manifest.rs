@@ -169,8 +169,8 @@ impl Manifest {
         }
         let installer_version = cargo_metadata::semver::Version::parse(&self.installer.version);
         let version = self.dokime.version();
-        if installer_version.is_err() || (version != "dev-channel" && cargo_metadata::semver::Version::parse(version).is_err()) {
-            return Err(Error::Invalid("versions must be exact semantic versions or Dokime dev-channel".into()));
+        if installer_version.is_err() || (version != "edge" && cargo_metadata::semver::Version::parse(version).is_err()) {
+            return Err(Error::Invalid("versions must be exact semantic versions or Dokime edge".into()));
         }
         let windows = self.dokime.target == "x86_64-pc-windows-msvc";
         let linux = self.dokime.target == "x86_64-unknown-linux-gnu";
@@ -275,6 +275,16 @@ mod tests {
         assert_eq!(manifest.dokime.version(), env!("CARGO_PKG_VERSION"));
         assert_eq!(manifest.plugin[0].name.as_deref(), Some("opaque-name"));
         assert_eq!(manifest.plugin[1].path.as_deref(), Some(Path::new("plugins/plugin.dokime")));
+    }
+
+    #[test]
+    fn release_versions() {
+        let format = if cfg!(target_os = "windows") { "nsis" } else { "deb" };
+        for (version, valid) in [("1.2.3", true), ("edge", true), ("latest", false), ("^1.2", false)] {
+            let text = format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='{version}'");
+            let manifest: Manifest = toml::from_str(&text).unwrap();
+            assert_eq!(manifest.validate().is_ok(), valid, "{version}");
+        }
     }
 
     #[test]

@@ -62,4 +62,12 @@ use {dokime::Identifier, dokime::Metadata, dokime::Runtime};
 
 /* === Private Functions === */
 
+async fn stage(future: impl std::future::Future<Output = ()>) {
+    let name = std::any::type_name_of_val(&future);
+    let started = std::time::Instant::now();
+    eprintln!("Stage: {name}");
+    future.await;
+    eprintln!("Completed: {name} ({:?})", started.elapsed());
+}
+
 /* === Tests === */

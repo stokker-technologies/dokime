@@ -122,7 +122,7 @@ pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {
 }
 
 fn built_bundle(relative: &str) -> std::path::PathBuf {
-    let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     assert!(matches!(profile.as_str(), "dev" | "release"));
     let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
     let workspace = std::path::PathBuf::from(manifest)

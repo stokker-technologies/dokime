@@ -69,17 +69,27 @@ async fn publish(handle: &RuntimeHandle) {
 }
 
 async fn poison_capture(handle: &RuntimeHandle) {
-    // Damage only this fixture's primary store. Projection refusal is healthy;
-    // a physical persistence failure must instead close admission and readers.
+    // Refuse Writes In This Fixture's Primary Store Without Breaking Admission Reads.
+    // A Physical Persistence Failure Must Close Admission And Readers.
     // Save everything already admitted first, so a background save of earlier
     // groups never meets the damage before the publication below does.
     handle.storage().flush().await.unwrap();
     let primary = handle.storage_root().join("local.sqlite");
     let connection = rusqlite::Connection::open(primary).unwrap();
-    connection.execute_batch("DROP TABLE storage_data_entries").unwrap();
-    publish(handle).await;
-    // Admission is buffered. Force the damaged primary through its save barrier
-    // before asserting that the manager's failure reaches every reader.
+    connection
+        .execute_batch(
+            "CREATE TRIGGER refuse_capture BEFORE INSERT ON storage_data_entries
+             BEGIN SELECT RAISE(ABORT, 'injected capture persistence failure'); END;",
+        )
+        .unwrap();
+    // The Damaged Primary Can Close Admission Before This Publication Returns.
+    let _ = handle
+        .publish_product_record(
+            ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                .into_draft("fixture.product"),
+        )
+        .await;
+    // Force The Save Barrier Before Asserting The Failure Reaches Every Reader.
     let saved = handle.storage().flush().await;
     assert!(saved.is_err());
     assert!(handle.storage().status().failure.is_some());

@@ -106,10 +106,13 @@ export function LiveConsoleView({
   useEffect(() => {
     if (!drawer.open) return undefined;
     const leave = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) close();
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        event.preventDefault();
+        close();
+      }
     };
-    window.addEventListener("keydown", leave);
-    return () => window.removeEventListener("keydown", leave);
+    document.addEventListener("keydown", leave);
+    return () => document.removeEventListener("keydown", leave);
   }, [close, drawer.open]);
 
   if (!drawer.open) return null;

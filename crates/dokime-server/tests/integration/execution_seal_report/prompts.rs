@@ -156,6 +156,8 @@ pub(crate) async fn execution_prompt_identity() {
     // === Wait For The Durable Result Without Sealing The Container === //
 
     gate.release.notify_one();
+    // Storage Finalization Has Its Own Completion Event; The CLI Budget Covers Reading That Outcome.
+    execution.wait(None, None).await.unwrap();
     let command = [
         "dokime",
         "execution",

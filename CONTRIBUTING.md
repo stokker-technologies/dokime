@@ -48,7 +48,7 @@ uses the built authoring tool to assemble and inspect it without recompiling;
 see [Native Installers](docs/product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
 
-For coupled Harmos development, keep registry dependencies declared and place the
+For coupled library development, keep registry dependencies declared and place the
 local Cargo patch in an untracked `.cargo/config.toml`. Cargo applies it to every
 build, including the binding generator in `cargo-dokime`; remove the patch and pin
 the published dependency before a release. Git revision pins are allowed on dev
@@ -62,13 +62,35 @@ provides editable baselines; CI changes are authored and reviewed here. PRs run
 the selected suites. Pushes to dev select package dependencies (checks, Product
 and Tests compilation, and both native platforms' packages), skipping suites,
 fixture preparation and Release / Dry. Dev merges remain ungated.
+Linux Build / Product and Package / Rust run on Ubuntu 22.04, the oldest supported
+distribution, so shipped binaries and packages keep its glibc and dependency
+names; other Linux jobs use the latest runner image.
 
-Dev Channel publishes only after a green dev build-and-package run supplies both
+Edge publishes only after a green dev build-and-package run supplies both
 platforms and the Python package. One serialized publisher drafts the channel,
-uploads and verifies every asset including SHA256SUMS, moves `dev-channel` once,
+uploads and verifies every asset including SHA256SUMS, moves `edge` once,
 then publishes the complete set. Downloads are temporarily unavailable while the
 channel is drafted; a failed upload leaves it drafted for the next successful
 publication instead of exposing incomplete downloads.
+
+The rolling GitHub prerelease is titled `Edge` under the `edge` tag. Publication
+sets that tag explicitly and then verifies the release and every asset at
+`releases/tags/edge`. A rolling release must stay replaceable: with GitHub
+release immutability enabled, the publisher fails and names the owner setting
+(Settings > General > Releases > Enable release immutability) instead of
+publishing a frozen release.
+
+Every project uses the workflows `CI`, `Nightly`, `Edge`, `Release` and
+`Mirror`. Run names read `<Workflow> / <Purpose>`: `CI / Validation`,
+`CI / Draft Review`, `CI / Closed Review`, `Nightly / Validation`,
+`Edge / Publication`, `Release / Preparation`, `Release / Tagging`,
+`Release / Publication` and `Mirror / Synchronization`. Job names read
+`<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as `Check / Python`,
+`Test / Rust / Unit (windows)`, `Release / Tag`, `Edge / Publish` or
+`Mirror / Push`; `CI / Required` is the aggregate gate. Release starts only for
+manual preparation, `v*` tag pushes and merged PRs into dev that change
+`tools/project.toml`, which every release review does; its jobs still require
+a `release/v*` head, so ordinary merges start no Release run.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
@@ -93,7 +115,9 @@ Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue` in PowerShell).
 The entry prepares desktop prerequisites, installs the built Python wheel,
 restores generated contracts and extracts the Rust archive once before concurrent
 readers start. Standalone Rust lanes also reuse one extraction for listing and
-execution. The entry runs all ten
+execution; standalone system runs unpack their binaries and shared runtime inputs
+without the other test layers, keeping extraction within hosted disk capacity.
+The entry runs all ten
 lanes even if one fails and returns failure if any lane fails. Full lane logs,
 exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
 `target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
@@ -117,7 +141,8 @@ one another's results.
 Shared input preparation completes before test consumers start:
 preparation mutates the wheel environment and generated modules and extracts shared
 read-only Rust binaries. Within its exclusively owned interactive desktop session,
-the native system lane runs independent workflows concurrently. Each workflow owns
+the native system lane runs one workflow at a time so native input, accessibility
+and report browsers do not compete with other workflows. Each workflow owns
 its temporary data roots, WebDriver/backend ports, browser profiles and native pickers.
 Process-local test fixture mutexes protect callbacks or runtime state inside one
 story; they do not lock other nextest processes. No cross-test nextest group is
@@ -126,8 +151,9 @@ and impact selection independently, without test-to-test dependencies or a share
 concurrency group; each keeps its own public bootstrap and required platform legs.
 
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
+Use `mise run test:rust:system -- --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/recovery (`native-desktop`), configuration/remote access (`desktop-configuration`), and two-desktop control on Windows and Linux.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Every story retains the same five-minute deadline.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -145,7 +171,7 @@ CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
 policy changes retain full selection.
 
-The Tests producer alone enables
+The Tests producer and instrumented Rust coverage enable
 `dokime-runtime/testing`: a Rust fixture surface for private receipt, spool,
 window, log and report zoom owners, with no extra Harmos visibility. Integration
 exercises small histories; system uses seven days of complete raw evidence, bounded report envelopes,
@@ -155,6 +181,11 @@ a controlled picker result; its integration story uses real verified streams and
 atomic filesystem publication, including refusal and generation-change cleanup.
 Product enables neither testing feature. Focus one small guard with
 `mise run build:rust:focused -- test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
+
+Python acceptance and coverage also consume the matching Tests fixtures. All native
+artifact consumers select the graph profile through `TEST_PROFILE`. Coverage uses
+the ordinary story budgets multiplied by five, including retained-report validation;
+Rust compile contracts remain owned and executed by Build / Tests.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,
@@ -167,8 +198,9 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 
 Both Rust and native desktop system lanes enforce a 300-second budget per story.
 Keep workloads proportional to the behavior under test; retain boundary sizes
-when the boundary is the point. Terminal interruption and transport disconnection
-are independently selectable plugin recovery stories.
+when the boundary is the point. Terminal interruption groups each native script
+family into an independently selectable plugin recovery story; transport
+disconnection retains its own story.
 
 Report-producing system stories automatically save and reopen their final sealed
 execution reports during shared fixture teardown or desktop scene finalization.
@@ -182,9 +214,10 @@ which do not produce execution reports have explicit reasons in
 `crates/dokime-runtime/tests/support/system_reports.json`.
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
-selected journeys in JUnit. The default lane runs both walkthrough workflows
+selected journeys in JUnit. The default lane runs the walkthrough workflows
 with every maintained scene; each has its own fixture, JUnit result and enforced
-story budget.
+story budget. Owned-backend startup has its own storage root and story; it does
+not consume the attached configuration fixture's budget.
 The native harness logs scene totals and retains per-step timings in each story's
 `timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
 Categories distinguish launches, subprocesses, execution waits, polling, native
@@ -202,9 +235,17 @@ mise run test:rust:integration -- --select 'test(=retained_evidence::retained_ev
 
 Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
 `target/test-reports/<category>-<language>/traces/`. Native tests, desktop stories
-and inherited application/sidecar processes write `<process>-<pid>.pftrace` files.
+and inherited application/sidecar processes write `<process>-<pid>-<opened>.pftrace`
+files. The opening-time suffix and exclusive creation preserve earlier traces when
+the operating system reuses a process ID.
+Span callbacks queue bounded metadata for a native writer thread. They keep file
+I/O off instrumented runtime workers; it batches already queued spans into native
+writes. Guard flushes drain the queue and report write failures. Every written
+prefix remains valid JSON if a child is killed.
 Open these Chrome JSON traces in [Perfetto](https://ui.perfetto.dev) to inspect
 Rust test, desktop scene/step and Harmos/Dokime operation span lifetimes.
+`storage.sqlite.execute` measures the writer handler after queue admission, so
+its duration separates execution from waiting to acquire the writer.
 Place `#[dokime_tracing::trace_test]` before the existing `#[test]` or
 `#[tokio::test]` on each Rust lane story, with `dokime-tracing` in the package's
 dev-dependencies. Stories which install application logging use

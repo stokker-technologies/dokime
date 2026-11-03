@@ -62,8 +62,10 @@ def read(environment: Path, paths: Path, current: dict[str, str]) -> dict[str, s
             raise ValueError("invalid environment record")
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or "\0" in value:
             raise ValueError("invalid environment name or value")
-        if name.upper().startswith(("GITHUB_", "RUNNER_")) or name.upper() == "NODE_OPTIONS":
-            raise ValueError("reserved provider environment variable")
+        # Setup Owns This Cache Identity; It Is Not A Provider Control Variable.
+        image_identity = name.upper() == "RUNNER_IMAGE_ID"
+        if (name.upper().startswith(("GITHUB_", "RUNNER_")) and not image_identity) or name.upper() == "NODE_OPTIONS":
+            raise ValueError(f"reserved provider environment variable: {name}")
         result[name] = value
     additions = [line for line in paths.read_text(encoding="utf-8-sig").split("\n") if line]
     if any("\0" in entry for entry in additions):
@@ -109,7 +111,7 @@ if __name__ == "__main__":
     try:
         values = read(Path(os.environ["GITHUB_ENV"]), Path(os.environ["GITHUB_PATH"]), dict(os.environ))
     except (OSError, UnicodeError, ValueError, KeyError) as error:
-        parser.exit(1, f"Step environment import failed: {type(error).__name__}\n")
+        parser.exit(1, f"Step environment import failed: {error}\n")
     if options.format == "json":
         print(json.dumps(values))
     else:

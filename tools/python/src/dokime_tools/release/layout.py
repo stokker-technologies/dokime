@@ -14,6 +14,7 @@ import hashlib
 import io
 import json
 import re
+import stat
 import tarfile
 import zipfile
 from pathlib import Path
@@ -174,7 +175,11 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
                 for bundle in sorted(members, key=lambda item: item["member"]):
                     data = policy.inside(directory, bundle["path"]).read_bytes()
                     bundle["sha256"] = hashlib.sha256(data).hexdigest()
-                    archive.writestr(bundle["member"], data)
+                    # Record A Regular-File Mode; The Default Omits The File Type And Installers Reject The Member.
+                    entry = zipfile.ZipInfo(bundle["member"])
+                    entry.compress_type = zipfile.ZIP_DEFLATED
+                    entry.external_attr = (stat.S_IFREG | 0o644) << 16
+                    archive.writestr(entry, data)
         else:
             with tarfile.open(destination, "x:gz") as archive:
                 for bundle in sorted(members, key=lambda item: item["member"]):

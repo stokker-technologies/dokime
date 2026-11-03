@@ -57,9 +57,13 @@ pub(crate) struct Args {
 pub(super) async fn run(args: Args) -> crate::Result<()> {
     let store = args.config.store()?;
     if let Some(path) = args.remote {
-        let pairing = dokime::client::pairing::read(&path)?;
-        let identifier = args.identifier.as_deref().unwrap_or(&pairing.backend_identifier);
-        let profile = store.import_pairing(&pairing, identifier, &dokime::client::secrets::KeyringStore)?;
+        let (store, pairing, profile) = crate::connection::secrets(dokime::operations::ORDINARY.timeout, move || {
+            let pairing = dokime::client::pairing::read(&path)?;
+            let identifier = args.identifier.as_deref().unwrap_or(&pairing.backend_identifier);
+            let profile = store.import_pairing(&pairing, identifier, &dokime::client::secrets::KeyringStore)?;
+            Ok::<_, crate::Error>((store, pairing, profile))
+        })
+        .await?;
         let selected = dokime::client::profiles::selection(&profile)?;
         let client =
             dokime::client::Client::connect(selected.target.clone(), pairing.access_key.as_deref(), Some(&pairing.backend_identifier))
