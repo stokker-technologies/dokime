@@ -72,10 +72,10 @@ struct Asset {
 
 impl Release {
     pub async fn resolve(version: &str) -> Result<Self, Error> {
-        if version != "dev-channel" {
+        if version != "edge" {
             semver::Version::parse(version).map_err(|error| Error::Invalid(error.to_string()))?;
         }
-        let tag = if version == "dev-channel" { version.to_owned() } else { format!("v{version}") };
+        let tag = if version == "edge" { version.to_owned() } else { format!("v{version}") };
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .https_only(true)
@@ -153,7 +153,7 @@ impl Release {
     }
 
     fn distribution_name(&self, version: &str, target: &str) -> Result<String, Error> {
-        if version != "dev-channel" {
+        if version != "edge" {
             return Ok(format!("dokime-distribution-{version}-{target}.zip"));
         }
         let suffix = format!("-{target}.zip");

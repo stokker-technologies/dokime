@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Publish Existing Dev Packages To The Fixed Dev Channel."""
+"""Publish Existing Dev Packages To The Rolling Edge Release."""
 
 # === Imports === #
 
@@ -30,7 +30,7 @@ from . import layout, policy, registry, run
 
 # === Constants === #
 
-TAG = "dev-channel"
+TAG = "edge"
 
 # === Types === #
 
@@ -41,29 +41,29 @@ TAG = "dev-channel"
 
 def publish(directory: Path) -> None:
     settings = policy.policy(directory, "release")
-    if settings.get("dev_channel") is not True:
-        raise policy.ToolError("release.dev_channel must opt in to channel publication")
+    if settings.get("edge") is not True:
+        raise policy.ToolError("release.edge must opt in to channel publication")
     github = settings["provider"] == "github"
     if github:
         if os.environ.get("GITHUB_EVENT_NAME") != "workflow_run":
-            raise policy.ToolError("dev channel requires a successful dev CI completion")
+            raise policy.ToolError("edge requires a successful dev CI completion")
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]
         eligible = event["conclusion"] == "success" and event["event"] == "push" and event["head_branch"] == "dev"
         if not eligible or event["head_repository"]["full_name"] != os.environ["GITHUB_REPOSITORY"]:
-            raise policy.ToolError("ineligible dev channel CI run")
+            raise policy.ToolError("ineligible edge CI run")
         sha, identifier, url = event["head_sha"], str(event["id"]), event["html_url"]
     else:
         source = os.environ.get("PIPELINE_SOURCE") or os.environ.get("CI_PIPELINE_SOURCE")
         eligible = source == "push" and os.environ.get("CI_COMMIT_BRANCH") == "dev"
         if not eligible or os.environ.get("CI_DEFAULT_BRANCH") != "dev":
-            raise policy.ToolError("GitLab dev channel requires a push to default dev")
+            raise policy.ToolError("GitLab edge requires a push to default dev")
         sha, identifier, url = (
             os.environ["CI_COMMIT_SHA"],
             os.environ["CI_PIPELINE_ID"],
             os.environ["CI_PIPELINE_URL"],
         )
     if not re.fullmatch(r"[0-9a-f]{40,64}", sha) or not identifier.isdecimal() or run._revision(directory) != sha:
-        raise policy.ToolError("dev channel checkout must match the source CI commit")
+        raise policy.ToolError("edge checkout must match the source CI commit")
     source_run = f"[{identifier}]({url})"
     endpoint = f"releases/tags/{TAG}" if github else f"releases/{TAG}"
     previous = _github_release(settings) if github else registry.document(settings, endpoint, channel=True)
@@ -90,7 +90,7 @@ def _github_release(settings: dict) -> dict | None:
     # The Tag Lookup Can Omit Drafts; Recover Interrupted Publication By Listing.
     drafts = [item for item in registry.pages(settings, "releases", channel=True) if item.get("tag_name") == TAG]
     if len(drafts) > 1:
-        raise policy.ToolError("multiple dev channel releases require owner reconciliation")
+        raise policy.ToolError("multiple edge releases require owner reconciliation")
     return drafts[0] if drafts else None
 
 
@@ -146,7 +146,7 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
                 "",
                 "```toml",
                 f'[tools."github:{repository}"]',
-                'version = "dev-channel"',
+                'version = "edge"',
                 "```",
                 "",
             ]
@@ -196,13 +196,13 @@ def _github(
         channel=True,
     )
     if latest and any(int(item["id"]) > int(identifier) for item in latest["workflow_runs"]):
-        print("dev channel superseded by a newer successful CI run")
+        print("edge superseded by a newer successful CI run")
         return
     release = _github_release(settings)
     if _superseded(release, identifier, "body"):
         return
     if release and release.get("immutable"):
-        raise policy.ToolError("dev-channel assets are immutable; a rolling channel requires an existing mutable release")
+        raise policy.ToolError("edge assets are immutable; a rolling channel requires an existing mutable release")
     if release is None:
         release = registry.document(
             settings,
@@ -211,7 +211,7 @@ def _github(
             {
                 "tag_name": TAG,
                 "target_commitish": sha,
-                "name": "Dev Channel",
+                "name": "Dokime Edge",
                 "prerelease": True,
                 "draft": True,
                 "make_latest": "false",
@@ -242,11 +242,11 @@ def _github(
     expected = {item["name"]: item["size"] for item in files}
     if (len(uploaded) != len(files) or actual != expected or "SHA256SUMS" not in actual
             or any(asset.get("state") != "uploaded" for asset in uploaded)):
-        raise policy.ToolError("dev channel upload inventory is incomplete; leaving it drafted")
+        raise policy.ToolError("edge upload inventory is incomplete; leaving it drafted")
     for asset in uploaded:
         expected_digest = next(item["sha256"] for item in files if item["name"] == asset["name"])
         if asset.get("digest") not in (None, "sha256:" + expected_digest):
-            raise policy.ToolError("dev channel upload digest differs; leaving it drafted")
+            raise policy.ToolError("edge upload digest differs; leaving it drafted")
 
     # Move The Channel Once, Only After Every Platform And Checksum Is Uploaded.
     tag = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
@@ -260,7 +260,7 @@ def _github(
         "PATCH",
         {
             "body": notes,
-            "name": "Dev Channel",
+            "name": "Dokime Edge",
             "prerelease": True,
             "draft": False,
             "make_latest": "false",
@@ -279,7 +279,7 @@ def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes:
             settings,
             "releases",
             "POST",
-            {"tag_name": TAG, "ref": sha, "name": "Dev Channel", "description": notes},
+            {"tag_name": TAG, "ref": sha, "name": "Dokime Edge", "description": notes},
             channel=True,
         )
     # Links Address This Job's Unexpiring Staged Artifacts, Never A Moving Branch.
@@ -305,7 +305,7 @@ def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes:
         settings,
         endpoint,
         "PUT",
-        {"name": "Dev Channel", "description": notes},
+        {"name": "Dokime Edge", "description": notes},
         channel=True,
     )
 
@@ -316,5 +316,5 @@ if __name__ == "__main__":
     try:
         publish(policy.root())
     except (policy.ToolError, OSError, ValueError, KeyError, TypeError) as error:
-        print(f"dev-channel: {error}", file=sys.stderr)
+        print(f"edge: {error}", file=sys.stderr)
         raise SystemExit(1) from error
