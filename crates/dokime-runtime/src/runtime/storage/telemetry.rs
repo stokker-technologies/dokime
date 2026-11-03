@@ -51,6 +51,7 @@ pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 
 #[derive(Default)]
 pub(crate) struct ReadOptions<'a> {
+    pub codecs: Option<&'a [telemetry::TypedCodec]>,
     pub scan_limit: Option<usize>,
     pub window: Option<(&'a str, f64)>,
     pub visible: Option<&'a dokime_domain::model::execution::RecordScope>,
@@ -510,19 +511,30 @@ async fn visit_positioned(
     mut visit: impl FnMut(usize, u64, crate::telemetry::TelemetrySample) -> Result<std::ops::ControlFlow<()>>,
 ) -> Result<()> {
     let ReadOptions {
+        codecs,
         scan_limit,
         window,
         visible,
         sequence,
         after,
     } = options;
-    let mut catalog_at = session.cursor_saved();
-    catalog_at.sequence = catalog_at.sequence.min(at.sequence);
-    let codecs = saved_codecs(session, &catalog_at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
+    let loaded;
+    let codecs = match codecs {
+        Some(codecs) => codecs,
+        None => {
+            let mut catalog_at = session.cursor_saved();
+            catalog_at.sequence = catalog_at.sequence.min(at.sequence);
+            loaded = saved_codecs(session, &catalog_at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
+            &loaded
+        }
+    };
 
     let mut end = None;
     if let Some((anchor, _)) = window {
         for codec in codecs.iter() {
+            if !telemetry::selected_schema(codec.schema().id.as_str(), &selection.streams) {
+                continue;
+            }
             if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
                 continue;
             }
@@ -564,6 +576,9 @@ async fn visit_positioned(
         .transpose()?;
     let mut count = 0usize;
     'schemas: for (schema, codec) in codecs.iter().enumerate() {
+        if !telemetry::selected_schema(codec.schema().id.as_str(), &selection.streams) {
+            continue;
+        }
         if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
             continue;
         }

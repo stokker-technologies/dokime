@@ -117,6 +117,11 @@ async fn execution_workflow_queue() {
     queue::later_cases_start().await;
     queue::running_queued_counts().await;
     queue::execution_retry_receipt().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_workflow_prompt_commands() {
     prompts::prompt_commands_records().await;
     prompts::condition_gated_runtime().await;
     prompts::stopping_cycle_waits().await;

@@ -139,7 +139,8 @@ async fn export_zip(
 }
 
 async fn verify_arrow_archive(path: &Path) {
-    let project = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
+    let project = std::path::PathBuf::from(manifest).join("../..");
     let python = project.join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" });
     let proof = tokio::process::Command::from(dokime_domain::process::command(python))
         .kill_on_drop(true)

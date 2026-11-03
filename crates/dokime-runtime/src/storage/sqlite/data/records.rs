@@ -75,15 +75,25 @@ pub(crate) struct ScopedRecord {
 
 impl super::State {
     pub(crate) async fn record_frontier(&self) -> Result<u64, Error> {
-        let ordinal = self
-            .read(|connection| {
-                connection.query_row("SELECT MAX(ordinal) FROM storage_record_visibility", [], |row| row.get::<_, Option<String>>(0))
-            })
-            .await?;
-        match ordinal {
-            Some(ordinal) => super::sequence(&ordinal),
-            None => Ok(0),
-        }
+        self.read(|connection| {
+            Ok((|| {
+                let mut query = connection.prepare(
+                    "SELECT v.ordinal,e.body,e.digest FROM storage_record_visibility v
+                     JOIN storage_data_entries e ON e.position=v.position ORDER BY v.ordinal DESC LIMIT 1",
+                )?;
+                let mut rows = query.query([])?;
+                let Some(row) = rows.next()? else { return Ok(0) };
+                let ordinal = super::sequence(&row.get::<_, String>(0)?)?;
+                let body = blob(row, 1)?;
+                check_digest(body, blob(row, 2)?)?;
+                let Entry::Record(record) = Entry::decode("record", body)? else { unreachable!() };
+                if RecordRow::decode_entry(&record.payload)?.ordinal != ordinal {
+                    return Err(Error::Corrupt("record frontier differs from saved evidence"));
+                }
+                Ok(ordinal)
+            })())
+        })
+        .await?
     }
 
     pub(crate) async fn scoped_records(

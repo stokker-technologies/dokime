@@ -32,7 +32,7 @@ members and member SHA-256 hashes. Future target-independent guests use
 `dokime-guests-<version>.zip`; guest execution is not currently admitted.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The dev-channel uses the same asset names and workspace version,
+downloads. The `edge` release uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
@@ -1231,6 +1231,9 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
+Generated projects lock tools for Linux x64 and Windows x64, matching the
+published native authoring executables.
+
 Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
 bundle. For a build system that already compiled the plugin, collect its Cargo
 JSON and metadata, then assemble those exact executables:
@@ -1286,7 +1289,9 @@ path = "plugins/acme-bench.dokime"
 `organization` resolves relative to that manifest. It may contain a partial
 [organization override](#organization); omitted values and files inherit the
 selected distribution's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
-`formats = ["deb", "rpm"]`. Assembly requires the matching native operating
+`formats = ["deb", "rpm"]`. Linux packages declare dependencies that resolve on
+Ubuntu 22.04+, Debian 12+ and current Fedora; Dokime builds its Linux binaries on
+Ubuntu 22.04 so they run on that set. Assembly requires the matching native operating
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 
@@ -1368,7 +1373,7 @@ extract it and supply its directory through `--artifacts`.
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
-Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the key
+Use an exact semantic version such as `"0.1.3"`, `"edge"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
 
@@ -1380,7 +1385,7 @@ The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
 its bundle identity before validating distribution files and plugin compatibility.
-For dev-channel, the distribution metadata supplies the actual Dokime version.
+For `edge`, the distribution metadata supplies the actual Dokime version.
 
 Verified downloads are cached by SHA-256 under
 `%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or
@@ -1848,7 +1853,9 @@ This experimental storage layout keeps the v1 baseline and requires a fresh
 root for incompatible development data, including roots without the sample identity index.
 Existing roots are never reset or
 silently deleted. Captured records keep their bounded durable queue and recovery
-restores saved frontiers without replaying device actions.
+restores saved frontiers without replaying device actions. Startup advances the
+record ordinal counter past saved primary records, including captures saved
+before their recovery journal group reached disk.
 
 Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.

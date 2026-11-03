@@ -8,7 +8,7 @@
  */
 
 /**
- * TODO: Describe this module's responsibility.
+ * Supplies Live Plot Editing Without Adding Editors To Frozen Reports.
  */
 
 /* === Imports === */
@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { type ComponentType, createContext, useContext } from "react";
+import { type ComponentType, createContext, type ReactNode, useContext } from "react";
 // Local Imports
 import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
 
@@ -33,6 +33,7 @@ export type PlotDisplaySettings = {
 };
 
 export type PlotSettingsButtonProps = {
+  children: (trigger: ReactNode) => ReactNode;
   plot: DocumentViewPlot;
   onSubmit: (settings: PlotDisplaySettings) => Promise<void>;
 };

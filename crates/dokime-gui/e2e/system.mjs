@@ -38,7 +38,14 @@ const { values: options } = parseArgs({
     select: { type: "string" },
   },
 });
-const stories = ["native-desktop", "desktop-configuration", "two-gui-remote"];
+const workflows = {
+  "native-desktop": "execution",
+  "desktop-configuration": "configuration",
+  "desktop-appearance": "appearance",
+  "desktop-remote": "remote",
+  "desktop-ownership": "ownership",
+};
+const stories = [...Object.keys(workflows), "two-gui-remote"];
 const selected = options.select ? [options.select.replace(/^e2e[/\\]/, "").replace(/\.(mjs|js)$/, "")] : stories;
 for (const name of selected) assert.ok(stories.includes(name), `Unknown system story: ${name}`);
 const scratch = await mkdtemp(join(tmpdir(), "dokime-desktop-junit-"));
@@ -56,13 +63,12 @@ let failed = false;
 /* === Entry Point === */
 
 try {
-  const results = await Promise.allSettled(
-    selected.map(async (name) => {
+  for (const name of selected) {
+    try {
       const started = performance.now();
       const report = join(scratch, `${name}.xml`);
-      const script = name === "desktop-configuration" ? "native-desktop" : name;
-      const workflow =
-        name === "native-desktop" ? ["--workflow", "execution"] : name === "desktop-configuration" ? ["--workflow", "configuration"] : [];
+      const script = workflows[name] ? "native-desktop" : name;
+      const workflow = workflows[name] ? ["--workflow", workflows[name]] : [];
       const child = spawn(process.execPath, [`e2e/${script}.mjs`, "--profile", options.profile, "--junit", report, ...workflow], {
         stdio: "inherit",
         windowsHide: true,
@@ -70,17 +76,12 @@ try {
       const [code] = await once(child, "exit");
       process.stdout.write(`\nStory Timing: ${name} ${((performance.now() - started) / 1000).toFixed(3)} s\n`);
       const document = await readFile(report, "utf8");
-      return { code, suite: document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")) };
-    }),
-  );
-  for (const result of results) {
-    if (result.status === "rejected") {
+      failed ||= code !== 0;
+      suites.push(document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")));
+    } catch (failure) {
       failed = true;
-      process.stderr.write(`${result.reason.stack ?? result.reason}\n`);
-      continue;
+      process.stderr.write(`${failure.stack ?? failure}\n`);
     }
-    failed ||= result.value.code !== 0;
-    suites.push(result.value.suite);
   }
 } finally {
   if (options.junit) {

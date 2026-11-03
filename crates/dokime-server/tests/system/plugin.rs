@@ -58,9 +58,8 @@ const HOST_STREAMS: &[&str] = &["host.system", "host.network", "host.wifi.link",
 
 /* === Structs === */
 
-// The Shared Walkthrough Fixture: A Development Host Over A Private Copy Of The Built Bundle, With
-// Its Runtime Watch Open. Every Scene Starts From `Session::ready` (the development session from
-// `Session::launch`) and leaves the fixture ready, so scenes run alone or in walkthrough order.
+// A Development Host Over A Private Copy Of The Built Bundle, With Its Runtime Watch Open.
+// Each Scene Owns A Fixture Starting From `Session::ready` Or `Session::launch`.
 struct Session {
     root: tempfile::TempDir,
     bytes: Vec<u8>,
@@ -332,9 +331,9 @@ async fn scene_remote_scripts(session: &mut Session) {
 }
 
 // The Actual Remote Scripts Are Interrupted Through Their Native Terminals Without Harming Other Clients.
-async fn scene_interruptions(session: &mut Session) {
+async fn scene_interruptions(session: &mut Session, extension: &str) {
     let root = session.root.path().join("remote scripts/interruptions");
-    Box::pin(super::remote::interruptions(&session.client, session.host.endpoint(), &root)).await;
+    Box::pin(super::remote::interruptions(&session.client, session.host.endpoint(), &root, extension)).await;
 }
 
 // The Host Stops Cleanly With Its Watch Still Open.
@@ -1123,9 +1122,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
 
 /* === Tests === */
 
-// The Plugin-And-Host Walkthrough Over The Built Bundle Is One Story Of Independently Runnable
-// Scenes On One Shared Fixture. Each Scene Is A Test That Reruns Alone (`-- plugin::<scene>`);
-// `walkthrough` Replays Every Scene In Order On One Host.
+// Each Plugin-And-Host Scene Is A Test That Reruns Alone (`-- plugin::<scene>`).
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -1162,9 +1159,36 @@ async fn remote_scripts() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn interruptions() {
+async fn interruptions_python() {
     let mut session = Session::ready().await;
-    scene_interruptions(&mut session).await;
+    scene_interruptions(&mut session, "py").await;
+    session.stop().await;
+}
+
+#[cfg(windows)]
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn interruptions_powershell() {
+    let mut session = Session::ready().await;
+    scene_interruptions(&mut session, "ps1").await;
+    session.stop().await;
+}
+
+#[cfg(windows)]
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn interruptions_batch() {
+    let mut session = Session::ready().await;
+    scene_interruptions(&mut session, "bat").await;
+    session.stop().await;
+}
+
+#[cfg(unix)]
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn interruptions_shell() {
+    let mut session = Session::ready().await;
+    scene_interruptions(&mut session, "sh").await;
     session.stop().await;
 }
 
@@ -1245,22 +1269,4 @@ async fn store() {
     );
     assert!(!serves_startup(&client).await);
     host.stop(false).await;
-}
-
-// Every Scene In Walkthrough Order On One Host; The Lane Runs The Scenes Individually.
-#[dokime_tracing::trace_test]
-#[tokio::test]
-#[ignore = "replays the scenes the lane already runs; select it with --run-ignored"]
-async fn walkthrough() {
-    // Each Scene Is Boxed: A Debug Poll Frame Keeps A Stack Temporary For Every Future It Awaits,
-    // So Replaying Every Scene In One Function Would Outgrow The Test Thread's Stack.
-    let mut session = Session::launch().await;
-    Box::pin(scene_development_session(&mut session)).await;
-    Box::pin(scene_startup(&mut session)).await;
-    Box::pin(scene_steady_sweep(&session.client.clone(), &mut session.changes)).await;
-    Box::pin(scene_open_report_while_cycle_runs(&mut session)).await;
-    Box::pin(scene_remote_scripts(&mut session)).await;
-    Box::pin(scene_interruptions(&mut session)).await;
-    Box::pin(disconnections::scene(&mut session)).await;
-    Box::pin(scene_clean_stop(session)).await;
 }
