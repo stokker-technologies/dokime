@@ -3194,10 +3194,12 @@ async function remoteAccessJourney(recoveredReports) {
     await settle(session);
     await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 120000);
     await action();
-    return until(text, async () => {
+    const shown = await until(text, async () => {
       const shown = await toastText(session);
       return hasText(shown, text) ? shown : null;
     });
+    await settle(session);
+    return shown;
   };
   const endpoint = () =>
     until("remote listening address", async () => {
