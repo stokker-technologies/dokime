@@ -168,12 +168,20 @@ const workflows = {
     attached: false,
   },
   execution: {
-    title: "Desktop Execution",
-    journeys: new Set(["startup", "library", "active-cycle", "cycle", "touch", "execution-stop", "containers", "cycles-home", "history"]),
-  },
-  recovery: {
-    title: "Desktop Attachment And Recovery",
-    journeys: new Set(["startup", "attachment", "restart"]),
+    title: "Desktop Execution And Recovery",
+    journeys: new Set([
+      "startup",
+      "library",
+      "active-cycle",
+      "cycle",
+      "touch",
+      "execution-stop",
+      "containers",
+      "cycles-home",
+      "history",
+      "attachment",
+      "restart",
+    ]),
   },
   configuration: {
     title: "Desktop Plugin Installation And Settings",
@@ -3667,6 +3675,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
+  await session.connected();
   await session.goto("/settings/backends");
   await until("registry after selection", () => rowAction("native-stale", "Select"));
   await session.click(await rowAction("native-stale", "Select"));
@@ -3682,6 +3691,7 @@ async function settingsJourney(session, notes) {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
   });
+  await session.connected();
   await session.goto("/settings/backends");
   await openMenu(session, "Actions For native-stale");
   await session.clickNamed("menuitem", "Delete");
@@ -4477,7 +4487,6 @@ async function chooseNativeFile(...args) {
 
 async function chooseNativeFileMeasured(picker, file, operation = "Open", owner = driverProcess) {
   if (!windows) {
-    if (picker.failure) throw picker.failure;
     const children = await readFile(`/proc/${owner.pid}/task/${owner.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
@@ -4515,7 +4524,10 @@ desktop = Atspi.get_desktop(0)
 def descendants(node):
     yield node
     for index in range(node.get_child_count()):
-        child = node.get_child_at_index(index)
+        try:
+            child = node.get_child_at_index(index)
+        except gi.repository.GLib.GError:
+            continue
         if child is not None:
             yield from descendants(child)
 
@@ -4558,23 +4570,18 @@ for index in range(desktop.get_child_count()):
     print(action)
     break
 `;
-      try {
-        const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
-          windowsHide: true,
-          timeout: 120000,
-        });
-        if (result.stdout.trim() !== action) return false;
-        await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
-        if (action === "ready") {
-          picker.window = ids[0];
-        } else if (action === "fill") {
-          picker.entered = true;
-        } else {
-          picker.submitted = true;
-        }
-      } catch (failure) {
-        picker.failure = failure;
-        throw failure;
+      const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
+        windowsHide: true,
+        timeout: 120000,
+      });
+      if (result.stdout.trim() !== action) return false;
+      await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
+      if (action === "ready") {
+        picker.window = ids[0];
+      } else if (action === "fill") {
+        picker.entered = true;
+      } else {
+        picker.submitted = true;
       }
       return false;
     }

@@ -40,7 +40,6 @@ const { values: options } = parseArgs({
 });
 const workflows = {
   "native-desktop": "execution",
-  "desktop-recovery": "recovery",
   "desktop-configuration": "configuration",
   "desktop-appearance": "appearance",
   "desktop-remote": "remote",
