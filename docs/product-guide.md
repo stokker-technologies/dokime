@@ -32,7 +32,7 @@ members and member SHA-256 hashes. Future target-independent guests use
 `dokime-guests-<version>.zip`; guest execution is not currently admitted.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The dev-channel uses the same asset names and workspace version,
+downloads. The `edge` release uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
@@ -1371,7 +1371,7 @@ extract it and supply its directory through `--artifacts`.
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
-Use an exact semantic version such as `"0.1.3"`, `"dev-channel"`, or omit the key
+Use an exact semantic version such as `"0.1.3"`, `"edge"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
 
@@ -1383,7 +1383,7 @@ The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
 its bundle identity before validating distribution files and plugin compatibility.
-For dev-channel, the distribution metadata supplies the actual Dokime version.
+For `edge`, the distribution metadata supplies the actual Dokime version.
 
 Verified downloads are cached by SHA-256 under
 `%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or

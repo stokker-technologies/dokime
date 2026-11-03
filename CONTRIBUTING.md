@@ -63,9 +63,9 @@ the selected suites. Pushes to dev select package dependencies (checks, Product
 and Tests compilation, and both native platforms' packages), skipping suites,
 fixture preparation and Release / Dry. Dev merges remain ungated.
 
-Dev Channel publishes only after a green dev build-and-package run supplies both
+Edge publishes only after a green dev build-and-package run supplies both
 platforms and the Python package. One serialized publisher drafts the channel,
-uploads and verifies every asset including SHA256SUMS, moves `dev-channel` once,
+uploads and verifies every asset including SHA256SUMS, moves `edge` once,
 then publishes the complete set. Downloads are temporarily unavailable while the
 channel is drafted; a failed upload leaves it drafted for the next successful
 publication instead of exposing incomplete downloads.
