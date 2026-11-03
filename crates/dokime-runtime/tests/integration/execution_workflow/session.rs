@@ -56,6 +56,17 @@ struct Probe {
     record_ordinal: std::sync::atomic::AtomicU64,
     // The Live Replay Story Reads Host Rows Through Its Runtime And Clears It Before Shutdown.
     runtime: Mutex<Option<RuntimeHandle>>,
+    // The Sample Output The Host Handed The Run, For Stories That Drive A Workflow Against It.
+    output: Mutex<Option<SampleOutput>>,
+}
+
+// A Live Native SDK Session Whose Run Holds Open While A Story Uses Its Hosted Sample Output.
+pub(crate) struct HostedOutput {
+    pub(crate) output: SampleOutput,
+    owner: crate::service_support::system_reports::Runtime,
+    handle: RuntimeHandle,
+    cycle: TestCycleId,
+    _root: tempfile::TempDir,
 }
 
 struct Provider(Arc<Probe>);
@@ -101,6 +112,7 @@ impl Probe {
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
             record_ordinal: std::sync::atomic::AtomicU64::new(0),
             runtime: Mutex::new(None),
+            output: Mutex::new(None),
         }
     }
 
@@ -140,10 +152,11 @@ impl Runnable for Probe {
     }
 
     fn run(
-        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller,
+        &self, request: RunExecution, host: Arc<dyn ExecutionHost>, output: Option<SampleOutput>, _: Caller,
     ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         Box::pin(async move {
             *self.token.lock().unwrap() = request.execution_token;
+            *self.output.lock().unwrap() = output;
             let start = StepAttemptStart {
                 attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepAttemptId>(),
                 step_id: dokime_runtime::StepId::from_seed(PHASE),
@@ -343,6 +356,15 @@ impl Runnable for Probe {
     }
 }
 
+impl HostedOutput {
+    pub(crate) async fn close(mut self) {
+        self.handle.seal_cycle(self.cycle.clone(), CommandContext::default()).await.unwrap();
+        wait_for_cycle_lifecycle(&self.handle, &self.cycle, CycleStatus::Stopped).await;
+        drop(self.handle);
+        self.owner.shutdown().await.unwrap();
+    }
+}
+
 impl Provider {
     fn configure(self, config: dokime_runtime::RuntimeConfig, directory: &std::path::Path) -> dokime_runtime::RuntimeConfig {
         if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
@@ -441,6 +463,25 @@ impl dokime_runtime::Plugin for HostSession {
 }
 
 /* === Public Functions === */
+
+pub(crate) async fn hosted_output() -> HostedOutput {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Complete));
+    let (owner, handle) = started(Provider(probe.clone()).configure(config(root.path()), root.path())).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle = start_cases(&handle, metadata("session.hosted", "Hosted Output"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let output = probe.output.lock().unwrap().clone().expect("a hosted run receives the host's sample output");
+    HostedOutput {
+        output,
+        owner,
+        handle,
+        cycle,
+        _root: root,
+    }
+}
 
 /* === Private Functions === */
 async fn host_rows(runtime: &RuntimeHandle) -> usize {

@@ -77,7 +77,6 @@ async fn execution_workflow() {
     workflow::resources_release_verdict().await;
     workflow::record_wait_publication().await;
     workflow::capture_declared_scope().await;
-    workflow::settlement_late_receipt().await;
     workflow::callbacks::interrupted_join_teardown().await;
     authoring::wait_completes_duration().await;
 }
@@ -86,6 +85,7 @@ async fn execution_workflow() {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow_session() {
+    workflow::settlement_late_receipt().await;
     session::cancellation_retains_verdict().await;
     session::ignored_run_identity().await;
     session::ignored_signal_identity().await;

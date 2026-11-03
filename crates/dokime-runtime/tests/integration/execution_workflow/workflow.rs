@@ -28,7 +28,7 @@ use dokime_runtime::Value;
 use dokime_runtime::definition::TestCaseTemplate;
 use dokime_runtime::definition::authoring::{criterion as authored_criterion, metadata as authored_metadata};
 use dokime_runtime::definition::{DeclaredTemplate, Step, TemplateContext};
-use dokime_runtime::execution::Workflow;
+use dokime_runtime::execution::{Caller, SampleOutput, Workflow};
 use dokime_runtime::execution::{CleanupContext, CriterionContext, InitializationContext, StepContext};
 use dokime_runtime::execution::{DeclaredObserver, InitializationFuture, ObserverContext, SidecarTemplate, StepFuture};
 use dokime_runtime::plugin::Diagnostic;
@@ -1615,10 +1615,23 @@ pub(crate) async fn capture_declared_scope() {
     workflow.shutdown().await;
 }
 
+// Settlement Waits For The Host Only On A Hosted Run, So The Output Comes From A Live SDK Session
+// And The Story Pauses A Clock Of Its Own Rather Than The Session's.
 pub(crate) async fn settlement_late_receipt() {
+    let hosted = super::session::hosted_output().await;
+    let output = hosted.output.clone();
+    tokio::task::spawn_blocking(move || {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(late_receipt(output))
+    })
+    .await
+    .unwrap();
+    hosted.close().await;
+}
+
+async fn late_receipt(output: SampleOutput) {
     let workflow = workflow();
     let token = "late-receipt";
-    workflow.start(start_request(token, serde_json::json!({"samples": 0}))).unwrap();
+    workflow.start_on(start_request(token, serde_json::json!({"samples": 0})), Some(output), Caller::default()).unwrap();
     let mut cursor = 0;
     loop {
         let reply = next(&workflow, token, cursor).await;
