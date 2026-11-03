@@ -407,10 +407,13 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:system"]
 description = "Test System Rust"
 depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>" help="Narrow The Nextest Filterset"
+'''
 run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
+  '{{vars.lane}} --profile {{usage.profile}} --category system --language rust {% if usage.select %}-- -E "{{usage.select}}"{% endif %}',
 ]
 env.CARGO_INCREMENTAL = "0"
 

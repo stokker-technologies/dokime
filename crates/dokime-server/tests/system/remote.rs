@@ -80,9 +80,9 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     }
 }
 
-pub async fn interruptions(client: &Client, endpoint: &str, root: &Path) {
+pub async fn interruptions(client: &Client, endpoint: &str, root: &Path, extension: &str) {
     *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
-    Box::pin(interruption::scripts(client, endpoint, root)).await;
+    Box::pin(interruption::scripts(client, endpoint, root, extension)).await;
 }
 
 pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
@@ -106,8 +106,14 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
     let output = command.output().await.unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let diagnostics = std::env::var_os("DOKIME_TEST_TRACE_DIR").map(PathBuf::from).unwrap_or_else(|| directory.to_owned());
+    let diagnostics = diagnostics.join(format!("remote-{}-{extension}-{workflow}", std::process::id()));
+    std::fs::create_dir_all(&diagnostics).unwrap();
+    std::fs::write(diagnostics.join("stdout.log"), &stdout).unwrap();
+    std::fs::write(diagnostics.join("stderr.log"), stderr.as_bytes()).unwrap();
     assert!(output.status.success(), "{extension} {workflow} failed with {}\n{stdout}\n{stderr}", output.status);
-    format!("{stdout}\n{stderr}")
+    let combined = format!("{stdout}\n{stderr}");
+    anstream::adapter::strip_str(&combined).to_string()
 }
 
 async fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
@@ -371,7 +377,7 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
 fn drained(stdout: &str, expected: usize, samples: &BTreeMap<String, u64>, extension: &str) {
     let summaries: Vec<Value> =
         stdout.lines().filter_map(|line| line.strip_prefix("Drained Evidence: ")).map(|text| serde_json::from_str(text).unwrap()).collect();
-    assert_eq!(summaries.len(), expected);
+    assert_eq!(summaries.len(), expected, "{extension} listener drain summaries:\n{stdout}");
     for summary in summaries {
         let id = summary["execution_id"].as_str().unwrap();
         if extension != "py" {

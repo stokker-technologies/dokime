@@ -77,6 +77,12 @@ struct TerminalOutput {
     batch_prompt: bool,
 }
 
+struct TerminalInput {
+    writer: Box<dyn Write + Send>,
+    native: bool,
+    triggered: bool,
+}
+
 struct Proxy {
     endpoint: String,
     cancellation: CancellationToken,
@@ -98,7 +104,7 @@ enum Action {
     Interrupt(Client),
     InterruptOnSample(Client),
     Disconnect(Client, oneshot::Sender<()>),
-    InterruptAt(Gate),
+    InterruptAt { reached: CancellationToken, released: CancellationToken },
 }
 
 enum TerminalKey {
@@ -262,26 +268,25 @@ async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Ga
 
 /* === Public Functions === */
 
-pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
+pub async fn scripts(client: &Client, endpoint: &str, root: &Path, extension: &str) {
     std::fs::create_dir_all(root).unwrap();
     // Box Each Story And Keep Export Admission Available For Its Recovery.
     let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
-    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
-    for extension in extensions {
-        Box::pin(scenario(client, endpoint, root, extension, "test")).await;
-        Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
-        if *extension != "py" {
-            Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
-            Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
-        }
-        let summary = other_execution.snapshot().await.unwrap();
-        assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script interrupt");
-        assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
+    Box::pin(scenario(client, endpoint, root, extension, "test")).await;
+    Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
+    if extension != "py" {
+        Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
+        Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
     }
+    let summary = other_execution.snapshot().await.unwrap();
+    assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script interrupt");
+    assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
     other_cycle.seal().await.unwrap();
     let saved = other_execution.wait(None, None).await.unwrap();
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
-    Box::pin(partial_capture(client, endpoint, root)).await;
+    if extension == "py" {
+        Box::pin(partial_capture(client, endpoint, root)).await;
+    }
 }
 
 pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
@@ -378,7 +383,11 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     let command = terminal_command(command.as_std(), extension == "bat");
 
     // Ctrl+C Arrives Before Confirmation; Cleanup Must Reconcile Exact Membership.
-    let process = tokio::task::spawn_blocking(move || run(command, "Cycle: ", Action::InterruptAt(gate)));
+    let action = Action::InterruptAt {
+        reached: gate.reached.clone(),
+        released: gate.released.clone(),
+    };
+    let process = tokio::task::spawn_blocking(move || run(command, "Cycle: ", action));
     let outcome = process.await.unwrap();
     proxy.close().await;
     assert!(outcome.triggered, "{name} was not interrupted:\n{}", outcome.text);
@@ -608,16 +617,30 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let transcript = Arc::new(Mutex::new(Vec::new()));
     let captured = transcript.clone();
     let mut killer = process.child.clone_killer();
+    let root = process.child.process_id();
     let read = std::thread::spawn(move || {
-        let result = read_terminal(reader, writer, &marker, action, runtime, captured);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            read_terminal(reader, writer, &marker, action, runtime, captured.clone(), root)
+        }))
+        .unwrap_or_else(|failure| {
+            let message = failure
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| failure.downcast_ref::<&str>().copied())
+                .unwrap_or("unknown terminal reader panic");
+            let output = terminal_output(&captured.lock().unwrap());
+            Err(std::io::Error::other(format!("{message}\nTerminal Transcript:\n{}", output.text)))
+        });
         if result.is_err() {
+            if let Some(root) = root {
+                kill_tree(root);
+            }
             let _ = killer.kill();
         }
         result
     });
     // A Stuck Script Fails With Its Terminal Text Instead Of Hanging The Lane.
     let (finished, exited) = std::sync::mpsc::channel::<()>();
-    let root = process.child.process_id();
     let watchdog = std::thread::spawn(move || {
         let expired = exited.recv_timeout(SCRIPT_DEADLINE).is_err();
         if expired && let Some(root) = root {
@@ -668,19 +691,26 @@ fn kill_tree(root: u32) {
 }
 
 fn read_terminal(
-    mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>, marker: &str, action: Action, runtime: tokio::runtime::Handle,
-    transcript: Arc<Mutex<Vec<u8>>>,
+    mut reader: Box<dyn Read + Send>, writer: Box<dyn Write + Send>, marker: &str, action: Action, runtime: tokio::runtime::Handle,
+    transcript: Arc<Mutex<Vec<u8>>>, process: Option<u32>,
 ) -> std::io::Result<(String, bool)> {
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut cursors = 0;
+    let input = Arc::new(Mutex::new(TerminalInput { writer, native: false, triggered: false }));
+    let mut control = None;
     let mut action = Some(action);
     let gate = match &action {
-        Some(Action::InterruptAt(gate)) => Some(gate.clone()),
+        Some(Action::InterruptAt { released, .. }) => Some(released.clone()),
         _ => None,
     };
-    let mut triggered = false;
     let mut continued = false;
+    let mut diagnostics = std::env::var_os("DOKIME_TEST_TRACE_DIR")
+        .map(|root| {
+            let name = format!("terminal-{}-{}.log", std::process::id(), uuid::Uuid::now_v7());
+            std::fs::File::create(PathBuf::from(root).join(name))
+        })
+        .transpose()?;
     loop {
         let count = match reader.read(&mut buffer) {
             Ok(0) | Err(_) => break,
@@ -688,53 +718,92 @@ fn read_terminal(
         };
         bytes.extend_from_slice(&buffer[..count]);
         transcript.lock().unwrap().extend_from_slice(&buffer[..count]);
+        if let Some(diagnostics) = diagnostics.as_mut() {
+            diagnostics.write_all(&buffer[..count])?;
+            diagnostics.flush()?;
+        }
         if bytes.len() > 4 * 1024 * 1024 {
             return Err(std::io::Error::other("remote script terminal output exceeded its budget"));
         }
         let queries = bytes.windows(4).filter(|window| window == b"\x1b[6n").count();
         while cursors < queries {
-            writer.write_all(b"\x1b[1;1R")?;
-            writer.flush()?;
+            let mut input = input.lock().unwrap();
+            input.writer.write_all(b"\x1b[1;1R")?;
+            input.writer.flush()?;
             cursors += 1;
         }
         let output = terminal_output(&bytes);
+        input.lock().unwrap().native = output.native_input;
         let text = &output.text;
         let execution = output.execution;
         let selected = execution.is_some() || gate.is_some();
-        if !triggered && text.contains(marker) && selected {
+        if action.is_some() && text.contains(marker) && selected {
             eprintln!("Remote Terminal Reached: {marker}; execution: {execution:?}; native input: {}", output.native_input);
-            match action.take().unwrap() {
-                Action::Interrupt(client) => {
-                    runtime.block_on(admitted(&client, execution.unwrap()));
-                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
+            let action = action.take().unwrap();
+            let input = input.clone();
+            // Readiness Can Require More Terminal Queries Before The Script Can Make Progress.
+            control = Some(runtime.spawn(async move {
+                let result = async {
+                    let disconnect = match action {
+                        Action::Interrupt(client) => {
+                            admitted(&client, execution.unwrap()).await?;
+                            None
+                        }
+                        Action::InterruptOnSample(client) => {
+                            let id = execution.unwrap();
+                            admitted(&client, id.clone()).await?;
+                            first_sample(&client, id).await?;
+                            None
+                        }
+                        Action::Disconnect(client, disconnect) => {
+                            admitted(&client, execution.unwrap()).await?;
+                            Some(disconnect)
+                        }
+                        Action::InterruptAt { reached, .. } => {
+                            tokio::time::timeout(std::time::Duration::from_secs(120), reached.cancelled())
+                                .await
+                                .map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
+                            None
+                        }
+                    };
+                    let mut input = input.lock().unwrap();
+                    input.triggered = true;
+                    if let Some(disconnect) = disconnect {
+                        let _ = disconnect.send(());
+                    } else {
+                        let native = input.native;
+                        terminal_key(&mut input.writer, native, TerminalKey::Interrupt)?;
+                    }
+                    eprintln!("Remote Terminal Action Delivered");
+                    Ok::<_, std::io::Error>(())
                 }
-                Action::InterruptOnSample(client) => {
-                    let id = execution.unwrap();
-                    runtime.block_on(admitted(&client, id.clone()));
-                    runtime.block_on(first_sample(&client, id));
-                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
+                .await;
+                if result.is_err()
+                    && let Some(process) = process
+                {
+                    kill_tree(process);
                 }
-                Action::Disconnect(client, disconnect) => {
-                    runtime.block_on(admitted(&client, execution.unwrap()));
-                    let _ = disconnect.send(());
-                }
-                Action::InterruptAt(gate) => {
-                    let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(120), gate.reached.cancelled()).await };
-                    runtime.block_on(waiting).map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
-                    terminal_key(&mut writer, output.native_input, TerminalKey::Interrupt)?;
-                }
-            }
-            triggered = true;
-            eprintln!("Remote Terminal Action Delivered");
+                result
+            }));
         }
-        let cancellation_requested = triggered && output.cancellation_requested;
+        let cancellation_requested = input.lock().unwrap().triggered && output.cancellation_requested;
         if cancellation_requested && let Some(gate) = &gate {
-            gate.released.cancel();
+            gate.cancel();
         }
         if !continued && output.batch_prompt {
-            terminal_key(&mut writer, output.native_input, TerminalKey::ContinueBatch)?;
+            let mut input = input.lock().unwrap();
+            let native = input.native;
+            terminal_key(&mut input.writer, native, TerminalKey::ContinueBatch)?;
             eprintln!("Batch Termination Prompt Acknowledged");
             continued = true;
+        }
+    }
+    let triggered = input.lock().unwrap().triggered;
+    if let Some(control) = control {
+        if triggered || control.is_finished() {
+            runtime.block_on(control).map_err(|error| std::io::Error::other(format!("terminal action failed: {error:?}")))??;
+        } else {
+            control.abort();
         }
     }
     Ok((terminal_output(&bytes).text, triggered))
@@ -773,24 +842,32 @@ fn terminal_output(bytes: &[u8]) -> TerminalOutput {
     }
 }
 
-async fn first_sample(client: &Client, id: TestExecutionId) {
+async fn first_sample(client: &Client, id: TestExecutionId) -> std::io::Result<()> {
     // The Tutorial Prints Only After Draining; Observe Live Evidence Before Interrupting It.
     let execution = client.execution(id);
-    let samples = execution.samples(vec!["obc.charger.startup.samples".into()], true, 64).unwrap();
+    let samples = execution
+        .samples(vec!["obc.charger.startup.samples".into()], true, 64)
+        .map_err(|error| std::io::Error::other(format!("sample listener failed: {error:?}")))?;
     let waiting = async {
-        while let Some(page) = samples.message().await.unwrap() {
+        while let Some(page) = samples.message().await.map_err(|error| std::io::Error::other(format!("sample read failed: {error:?}")))? {
             if !page.samples.is_empty() {
-                return;
+                return Ok(());
             }
         }
-        panic!("the execution must publish a sample before finishing");
+        Err(std::io::Error::other("the execution must publish a sample before finishing"))
     };
-    tokio::time::timeout(std::time::Duration::from_secs(120), waiting).await.expect("the execution must begin its capture");
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), waiting)
+        .await
+        .map_err(|_| std::io::Error::other("the execution must begin its capture"));
     samples.close().await;
+    result?
 }
 
-async fn admitted(client: &Client, id: TestExecutionId) {
-    let changes = client.stream(dokime::client::contracts::observation::WatchRuntime::default()).await.unwrap();
+async fn admitted(client: &Client, id: TestExecutionId) -> std::io::Result<()> {
+    let changes = client
+        .stream(dokime::client::contracts::observation::WatchRuntime::default())
+        .await
+        .map_err(|error| std::io::Error::other(format!("admission observation failed: {error:?}")))?;
     let execution = client.execution(id);
     let waiting = async {
         loop {
@@ -798,19 +875,95 @@ async fn admitted(client: &Client, id: TestExecutionId) {
             let request_id = match execution.snapshot().await {
                 Ok(snapshot) => snapshot.controls.and_then(|controls| controls.request_id),
                 Err(dokime::client::Error::Rpc(status)) if status.code() == dokime::client::RpcCode::NotFound => None,
-                Err(error) => panic!("execution admission probe failed: {error}"),
+                Err(error) => return Err(std::io::Error::other(format!("execution admission probe failed: {error:?}"))),
             };
             if request_id.is_some() {
-                break;
+                return Ok(());
             }
-            changes.message().await.unwrap().expect("runtime observation remains open until admission");
+            changes
+                .message()
+                .await
+                .map_err(|error| std::io::Error::other(format!("admission observation failed: {error:?}")))?
+                .ok_or_else(|| std::io::Error::other("runtime observation closed before admission"))?;
         }
     };
-    tokio::time::timeout(std::time::Duration::from_secs(120), waiting).await.expect("script must admit its printed execution");
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), waiting)
+        .await
+        .map_err(|_| std::io::Error::other("script must admit its printed execution"));
     changes.close().await;
+    result?
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn terminal_reader_services_queries_before_action_readiness() {
+    struct Reader {
+        stage: usize,
+        interrupted: std::sync::mpsc::Receiver<()>,
+    }
+    impl Read for Reader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let bytes: &[u8] = match self.stage {
+                0 => b"Cycle: fixture\r\n",
+                1 => b"\x1b[6n",
+                2 => {
+                    self.interrupted.recv().map_err(std::io::Error::other)?;
+                    b"Cancellation Requested\r\n"
+                }
+                _ => return Ok(0),
+            };
+            buffer[..bytes.len()].copy_from_slice(bytes);
+            self.stage += 1;
+            Ok(bytes.len())
+        }
+    }
+    struct Writer {
+        cursor: Option<oneshot::Sender<()>>,
+        interrupted: std::sync::mpsc::Sender<()>,
+    }
+    impl Write for Writer {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if bytes == b"\x1b[1;1R" {
+                if let Some(cursor) = self.cursor.take() {
+                    let _ = cursor.send(());
+                }
+            } else if bytes == b"\x03" {
+                self.interrupted.send(()).map_err(std::io::Error::other)?;
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let (cursor, response) = oneshot::channel();
+    let (interrupt, interrupted) = std::sync::mpsc::channel();
+    let reader = Reader { stage: 0, interrupted };
+    let writer = Writer {
+        cursor: Some(cursor),
+        interrupted: interrupt,
+    };
+    let reached = CancellationToken::new();
+    let released = CancellationToken::new();
+    let action = Action::InterruptAt {
+        reached: reached.clone(),
+        released: released.clone(),
+    };
+    let runtime = tokio::runtime::Handle::current();
+    let reading = std::thread::spawn(move || {
+        read_terminal(Box::new(reader), Box::new(writer), "Cycle: ", action, runtime, Arc::new(Mutex::new(Vec::new())), None)
+    });
+
+    // The Producer Cannot Reach Its Mutation Boundary Until Its Cursor Query Is Answered.
+    let serviced = tokio::time::timeout(std::time::Duration::from_secs(3), response).await;
+    reached.cancel();
+    let outcome = tokio::task::spawn_blocking(move || reading.join()).await.unwrap().unwrap().unwrap();
+    assert!(matches!(serviced, Ok(Ok(()))), "terminal queries must progress before action readiness");
+    assert!(outcome.1);
+    assert!(released.is_cancelled());
+}
 
 #[test]
 fn terminal_protocol_preserves_identity_and_input_negotiation() {

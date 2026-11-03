@@ -129,6 +129,7 @@ and impact selection independently, without test-to-test dependencies or a share
 concurrency group; each keeps its own public bootstrap and required platform legs.
 
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
+Use `mise run test:rust:system -- --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
 Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Every story retains the same five-minute deadline.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
@@ -175,8 +176,9 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 
 Both Rust and native desktop system lanes enforce a 300-second budget per story.
 Keep workloads proportional to the behavior under test; retain boundary sizes
-when the boundary is the point. Terminal interruption and transport disconnection
-are independently selectable plugin recovery stories.
+when the boundary is the point. Terminal interruption groups each native script
+family into an independently selectable plugin recovery story; transport
+disconnection retains its own story.
 
 Report-producing system stories automatically save and reopen their final sealed
 execution reports during shared fixture teardown or desktop scene finalization.
