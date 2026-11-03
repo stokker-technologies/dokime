@@ -1778,7 +1778,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
@@ -2247,9 +2247,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2260,9 +2260,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
@@ -2273,9 +2273,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2286,9 +2286,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
@@ -2299,9 +2299,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2312,9 +2312,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
@@ -2325,9 +2325,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2338,9 +2338,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
@@ -2351,9 +2351,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2364,9 +2364,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
@@ -2377,9 +2377,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - run: mise run package:rust --profile ${{ env.PROFILE }}
       if: >-
@@ -2387,9 +2387,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Archive package
       uses: ./.github/actions/archive-build
@@ -2400,9 +2400,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -2416,9 +2416,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
@@ -2426,9 +2426,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
@@ -2441,9 +2441,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.mise-cache-hit != 'true')
@@ -2456,9 +2456,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.pnpm-cache-hit != 'true')
@@ -2471,9 +2471,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.uv-cache-hit != 'true')
@@ -2486,9 +2486,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
@@ -2508,9 +2508,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2521,9 +2521,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
@@ -2534,9 +2534,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2547,9 +2547,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
@@ -2560,9 +2560,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2573,9 +2573,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
@@ -2586,9 +2586,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2599,9 +2599,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
@@ -2612,9 +2612,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2625,9 +2625,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
@@ -2638,9 +2638,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - run: mise run package:rust --profile ${{ env.PROFILE }}
       if: >-
@@ -2648,9 +2648,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - name: Archive package
       uses: ./.github/actions/archive-build
@@ -2661,9 +2661,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -2677,9 +2677,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
@@ -2687,9 +2687,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
@@ -2702,9 +2702,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.mise-cache-hit != 'true')
@@ -2717,9 +2717,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.pnpm-cache-hit != 'true')
@@ -2732,9 +2732,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.uv-cache-hit != 'true')
@@ -2747,9 +2747,9 @@ jobs:
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
         'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
@@ -2761,16 +2761,16 @@ jobs:
       startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) &&
       (!startsWith(github.ref, 'refs/tags/') || needs.source.outputs.stable_release == 'true' ||
-      github.workflow == 'CI / Nightly') && !(needs.source.outputs.stable_release ==
+      github.workflow == 'Nightly') && !(needs.source.outputs.stable_release ==
       'true' && contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI /
       Nightly')) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) || (((github.event_name == 'schedule' ||
       github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
       github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
       'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-      needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+      needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
       !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'windows')
-      && github.workflow != 'CI / Nightly')) && needs.impact.result == 'success' &&
+      && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'package:rust'))) &&
       (github.event_name != 'pull_request' || (github.event.action != 'closed' &&
       !github.event.pull_request.draft))
@@ -2786,7 +2786,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows

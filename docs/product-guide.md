@@ -1289,7 +1289,9 @@ path = "plugins/acme-bench.dokime"
 `organization` resolves relative to that manifest. It may contain a partial
 [organization override](#organization); omitted values and files inherit the
 selected distribution's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
-`formats = ["deb", "rpm"]`. Assembly requires the matching native operating
+`formats = ["deb", "rpm"]`. Linux packages declare dependencies that resolve on
+Ubuntu 22.04+, Debian 12+ and current Fedora; Dokime builds its Linux binaries on
+Ubuntu 22.04 so they run on that set. Assembly requires the matching native operating
 system. `--format` accepts repeated or comma-separated `nsis`, `deb`, `rpm`
 values; `--target` overrides the manifest target.
 

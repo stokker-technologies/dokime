@@ -1,4 +1,5 @@
-name: CI / Nightly
+name: Nightly
+run-name: Nightly / Validation
 "on":
   schedule:
   - cron: 0 0 * * *
@@ -1746,13 +1747,6 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
       if: matrix.platform == 'unix' && (true) && (true)
-    - name: Compile Release Product
-      run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.build --profile release --output product --task build
-      if: >-
-        matrix.platform == 'unix' && (true) && (env.PROFILE == 'dev' &&
-        github.event_name != 'pull_request')
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
@@ -1904,13 +1898,6 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
       if: matrix.platform == 'windows' && (true) && (true)
-    - name: Compile Release Product
-      run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.build --profile release --output product --task build
-      if: >-
-        matrix.platform == 'windows' && (true) && (env.PROFILE == 'dev' &&
-        github.event_name != 'pull_request')
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
@@ -2056,7 +2043,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
@@ -2454,9 +2441,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-cli-${{ env.PROFILE }}-unix
@@ -2465,9 +2452,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
@@ -2476,9 +2463,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-generator-${{ env.PROFILE }}-unix
@@ -2487,9 +2474,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
@@ -2498,9 +2485,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-gui-${{ env.PROFILE }}-unix
@@ -2509,9 +2496,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
@@ -2520,9 +2507,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-packaging-${{ env.PROFILE }}-unix
@@ -2531,9 +2518,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
       with:
@@ -2542,9 +2529,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-plugins-${{ env.PROFILE }}-unix
@@ -2553,9 +2540,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
@@ -2564,17 +2551,17 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - run: mise run package:rust --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
@@ -2583,9 +2570,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -2597,17 +2584,17 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
       with:
@@ -2618,9 +2605,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.mise-cache-hit != 'true')
       with:
@@ -2631,9 +2618,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.pnpm-cache-hit != 'true')
       with:
@@ -2644,9 +2631,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.uv-cache-hit != 'true')
       with:
@@ -2657,9 +2644,9 @@ jobs:
         matrix.platform == 'unix' && ((true || github.event_name == 'pull_request' ||
         startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly')
+        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly')
         && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI / Nightly')) && (always())
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'Nightly')) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
       uses: ./.github/actions/save-caches
@@ -2679,7 +2666,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-cli-${{ env.PROFILE }}-windows
@@ -2690,7 +2677,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
@@ -2701,7 +2688,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-generator-${{ env.PROFILE }}-windows
@@ -2712,7 +2699,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
@@ -2723,7 +2710,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-gui-${{ env.PROFILE }}-windows
@@ -2734,7 +2721,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
@@ -2745,7 +2732,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-packaging-${{ env.PROFILE }}-windows
@@ -2756,7 +2743,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
       with:
@@ -2767,7 +2754,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-plugins-${{ env.PROFILE }}-windows
@@ -2778,7 +2765,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
@@ -2789,7 +2776,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - run: mise run package:rust --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && ((true || github.event_name == 'pull_request'
@@ -2797,7 +2784,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
@@ -2808,7 +2795,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -2822,7 +2809,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (true)
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'windows' && ((true || github.event_name == 'pull_request'
@@ -2830,7 +2817,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
       with:
@@ -2843,7 +2830,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.mise-cache-hit != 'true')
       with:
@@ -2856,7 +2843,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.pnpm-cache-hit != 'true')
       with:
@@ -2869,7 +2856,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (success() &&
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.uv-cache-hit != 'true')
       with:
@@ -2882,7 +2869,7 @@ jobs:
         && github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
-        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly')) && (always())
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
       uses: ./.github/actions/save-caches
@@ -2892,14 +2879,14 @@ jobs:
       ((true || github.event_name == 'pull_request' || startsWith(github.ref,
       'refs/tags/v') || false || (github.event_name == 'push' && github.ref ==
       'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-      needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+      needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
       !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-      github.workflow != 'CI / Nightly')) || ((true || github.event_name == 'pull_request' ||
+      github.workflow != 'Nightly')) || ((true || github.event_name == 'pull_request' ||
       startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push' &&
       github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-      needs.source.outputs.stable_release == 'true' || github.workflow == 'CI / Nightly') &&
+      needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
       !(needs.source.outputs.stable_release == 'true' &&
-      contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'CI / Nightly'))
+      contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly'))
     env:
       MISE_ENABLE_TOOLS: >-
         aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
@@ -2912,7 +2899,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
