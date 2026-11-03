@@ -264,7 +264,7 @@ async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Ga
 
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
-    // Each Interruption Story Is Boxed So Only The Running One's Await Temporaries Occupy The Stack.
+    // Box Each Story And Keep Export Admission Available For Its Recovery.
     let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
     let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
     for extension in extensions {
@@ -437,6 +437,7 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
 
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &executions[0]);
     recovery_saved(&execution_file, &outcome.text);
+    recovery_saved(&cycle_file, &outcome.text);
     let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled", "obc.pulse");
     assert_eq!(samples[&executions[0]], 0, "the independent prompt kept this execution queued");
     super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled", "obc.pulse");
@@ -598,6 +599,7 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     assert_ne!(unsafe { windows_sys::Win32::System::Console::SetConsoleCtrlHandler(None, 0) }, 0, "Ctrl+C processing must be restorable");
     let child = pair.slave.spawn_command(command).unwrap();
     let mut process = Process { child, reaped: false };
+    eprintln!("Remote Terminal Started: {:?}", process.child.process_id());
     drop(pair.slave);
 
     let reader = pair.master.try_clone_reader().unwrap();
@@ -700,6 +702,7 @@ fn read_terminal(
         let execution = output.execution;
         let selected = execution.is_some() || gate.is_some();
         if !triggered && text.contains(marker) && selected {
+            eprintln!("Remote Terminal Reached: {marker}; execution: {execution:?}; native input: {}", output.native_input);
             match action.take().unwrap() {
                 Action::Interrupt(client) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
@@ -722,6 +725,7 @@ fn read_terminal(
                 }
             }
             triggered = true;
+            eprintln!("Remote Terminal Action Delivered");
         }
         let cancellation_requested = triggered && output.cancellation_requested;
         if cancellation_requested && let Some(gate) = &gate {
