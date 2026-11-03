@@ -34,7 +34,7 @@ use starship_battery::{
         time::second,
     },
 };
-use sysinfo::{Components, MemoryRefreshKind, System};
+use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 // Local Imports
 use crate::{
@@ -91,7 +91,7 @@ impl SystemCollector {
             options,
             sample_index: 0,
             cpu: None,
-            system: System::new_all()?,
+            system: System::new_with_specifics(RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()))?,
             components: Components::new_with_refreshed_list()?,
             battery_manager: BatteryManager::new().ok(),
             git_identity: None,

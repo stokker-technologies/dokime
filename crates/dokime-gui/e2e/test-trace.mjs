@@ -15,7 +15,7 @@
 
 // Standard Library Imports
 import { AsyncLocalStorage } from "node:async_hooks";
-import { closeSync, mkdirSync, openSync, writeSync, fsyncSync } from "node:fs";
+import { closeSync, fsyncSync, mkdirSync, openSync, writeSync } from "node:fs";
 import { basename, join } from "node:path";
 
 // Third Party Imports
@@ -82,7 +82,7 @@ function record(name, category, id, parent, begin) {
 
 if (directory) {
   mkdirSync(directory, { recursive: true });
-  file = openSync(join(directory, `${story}-${process.pid}.pftrace`), "w");
+  file = openSync(join(directory, `${story}-${process.pid}-${Date.now()}.pftrace`), "wx");
   const header = Buffer.from('{"traceEvents":[');
   writeSync(file, header);
   position = header.length;

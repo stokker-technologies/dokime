@@ -172,8 +172,8 @@ async fn current(
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
-            if !at.covers(boundary)? {
-                return Err(invalid("pending member evidence exceeds cycle report boundary"));
+            if !storage.cursor_saved().covers(boundary)? {
+                return Err(invalid("pending member evidence is not durable"));
             }
             // A Finalizing Member Keeps Its Owner, Which Already Refuses New Producers.
             if resources.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
@@ -209,6 +209,9 @@ async fn current(
             _ => None,
         })
         .collect::<Result<Vec<_>>>()?;
+    // A Current Report Freezes Its Read After Member Admission. A Member Can
+    // Seal While Admission Waits, Beyond The Caller's Earlier Durable Cursor.
+    let at = &storage.cursor_saved();
     let mut evidence = ctx.storage.report_evidence(requests).await?.into_iter();
     drop(gate);
     let mut members = Vec::with_capacity(plans.len());
