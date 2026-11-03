@@ -62,6 +62,9 @@ provides editable baselines; CI changes are authored and reviewed here. PRs run
 the selected suites. Pushes to dev select package dependencies (checks, Product
 and Tests compilation, and both native platforms' packages), skipping suites,
 fixture preparation and Release / Dry. Dev merges remain ungated.
+Linux Build / Product and Package / Rust run on Ubuntu 22.04, the oldest supported
+distribution, so shipped binaries and packages keep its glibc and dependency
+names; other Linux jobs use the latest runner image.
 
 Edge publishes only after a green dev build-and-package run supplies both
 platforms and the Python package. One serialized publisher drafts the channel,
