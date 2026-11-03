@@ -79,7 +79,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::List(args) => list::run(args),
         Command::Show(args) => show::run(args),
         Command::Use(args) => r#use::run(args),
-        Command::Remove(args) => remove::run(args),
+        Command::Remove(args) => crate::connection::secrets(dokime::operations::ORDINARY.timeout, move || remove::run(args)).await,
     }
 }
 

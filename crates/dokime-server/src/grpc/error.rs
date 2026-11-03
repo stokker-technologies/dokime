@@ -30,6 +30,7 @@ use dokime::runtime::Error as HostError;
 // Leave Room For Base64 Encoding And Other HTTP/2 Trailers.
 const STATUS_DETAILS_BYTES: usize = 4_096;
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
+const DIAGNOSTIC_BYTES: usize = 2048;
 
 /* === Macros === */
 
@@ -83,7 +84,7 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
 /* === Private Functions === */
 
 fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
-    let diagnostics = diagnostic
+    let mut diagnostics = diagnostic
         .span_trace
         .iter()
         .map(String::as_str)
@@ -91,6 +92,10 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         .filter(|text| !text.is_empty())
         .collect::<Vec<_>>()
         .join("\n");
+    if diagnostics.len() > DIAGNOSTIC_BYTES {
+        diagnostics.truncate(diagnostics.floor_char_boundary(DIAGNOSTIC_BYTES));
+        diagnostics.push_str("\n[truncated]");
+    }
     dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,

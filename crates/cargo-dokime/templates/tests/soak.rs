@@ -44,7 +44,10 @@ use {{crate}}::domain::operations::ReadChamber;
 
 fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
-    move |_| ChamberReading { celsius: sensor.read_celsius().expect("the simulated sensor reads"), sensor: sensor.describe() }
+    move |_| ChamberReading {
+        celsius: sensor.read_celsius().expect("the simulated sensor reads"),
+        sensor: sensor.describe(),
+    }
 }
 
 #[tokio::test]
