@@ -1529,15 +1529,18 @@ async function selectDensity(session, density) {
 
 /** Dismiss Toasts Through Their Controls Before The Next Pointer Target. */
 async function settle(session) {
-  await session.execute(`
-    for (const close of document.querySelectorAll('[data-sonner-toast] [data-close-button]')) close.click();
-  `);
-  await session.waitForDom(
+  await until(
     "toast dismissal",
-    `
-    return [...document.querySelectorAll('[data-sonner-toast]')].every(toast =>
-      toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
-  `,
+    () =>
+      session.execute(`
+        const toasts = [...document.querySelectorAll('[data-sonner-toast]')];
+        for (const toast of toasts) {
+          if (toast.dataset.removed !== 'true') toast.querySelector('[data-close-button]')?.click();
+        }
+        return toasts.every(toast =>
+          toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
+      `),
+    30000,
   );
 }
 
