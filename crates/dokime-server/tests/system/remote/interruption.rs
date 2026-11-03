@@ -81,6 +81,7 @@ struct TerminalInput {
     writer: Box<dyn Write + Send>,
     native: bool,
     triggered: bool,
+    batch_prompt: bool,
 }
 
 struct Proxy {
@@ -697,14 +698,19 @@ fn read_terminal(
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut cursors = 0;
-    let input = Arc::new(Mutex::new(TerminalInput { writer, native: false, triggered: false }));
+    let input = Arc::new(Mutex::new(TerminalInput {
+        writer,
+        native: false,
+        triggered: false,
+        batch_prompt: false,
+    }));
     let mut control = None;
+    let mut batch = None;
     let mut action = Some(action);
     let gate = match &action {
         Some(Action::InterruptAt { released, .. }) => Some(released.clone()),
         _ => None,
     };
-    let mut continued = false;
     let mut diagnostics = std::env::var_os("DOKIME_TEST_TRACE_DIR")
         .map(|root| {
             let name = format!("terminal-{}-{}.log", std::process::id(), uuid::Uuid::now_v7());
@@ -733,7 +739,11 @@ fn read_terminal(
             cursors += 1;
         }
         let output = terminal_output(&bytes);
-        input.lock().unwrap().native = output.native_input;
+        {
+            let mut input = input.lock().unwrap();
+            input.native = output.native_input;
+            input.batch_prompt = output.batch_prompt;
+        }
         let text = &output.text;
         let execution = output.execution;
         let selected = execution.is_some() || gate.is_some();
@@ -790,12 +800,23 @@ fn read_terminal(
         if cancellation_requested && let Some(gate) = &gate {
             gate.cancel();
         }
-        if !continued && output.batch_prompt {
-            let mut input = input.lock().unwrap();
-            let native = input.native;
-            terminal_key(&mut input.writer, native, TerminalKey::ContinueBatch)?;
-            eprintln!("Batch Termination Prompt Acknowledged");
-            continued = true;
+        if batch.is_none() && output.batch_prompt {
+            let input = input.clone();
+            batch = Some(runtime.spawn(async move {
+                // A Written Reply Is Not An Acknowledgement; Keep Reading And Retry Until It Is Echoed.
+                let mut retry = tokio::time::interval(std::time::Duration::from_millis(100));
+                retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    retry.tick().await;
+                    let mut input = input.lock().unwrap();
+                    if !input.batch_prompt {
+                        eprintln!("Batch Termination Prompt Acknowledged");
+                        return Ok::<_, std::io::Error>(());
+                    }
+                    let native = input.native;
+                    terminal_key(&mut input.writer, native, TerminalKey::ContinueBatch)?;
+                }
+            }));
         }
     }
     let triggered = input.lock().unwrap().triggered;
@@ -804,6 +825,13 @@ fn read_terminal(
             runtime.block_on(control).map_err(|error| std::io::Error::other(format!("terminal action failed: {error:?}")))??;
         } else {
             control.abort();
+        }
+    }
+    if let Some(batch) = batch {
+        if batch.is_finished() {
+            runtime.block_on(batch).map_err(|error| std::io::Error::other(format!("batch reply failed: {error:?}")))??;
+        } else {
+            batch.abort();
         }
     }
     Ok((terminal_output(&bytes).text, triggered))
@@ -837,7 +865,7 @@ fn terminal_output(bytes: &[u8]) -> TerminalOutput {
         execution,
         native_input: enabled.is_some_and(|enabled| disabled.is_none_or(|disabled| enabled > disabled)),
         cancellation_requested: text.contains("Cancellation Requested"),
-        batch_prompt: text.contains("Terminate batch job (Y/N)?"),
+        batch_prompt: text.rsplit_once("Terminate batch job (Y/N)?").is_some_and(|(_, response)| response.trim().is_empty()),
         text,
     }
 }
@@ -980,4 +1008,60 @@ fn terminal_protocol_preserves_identity_and_input_negotiation() {
     assert!(output.batch_prompt);
     bytes.extend_from_slice(b"\x1b[?9001l");
     assert!(!terminal_output(&bytes).native_input);
+    bytes.extend_from_slice(b"n\r\n");
+    assert!(!terminal_output(&bytes).batch_prompt);
+}
+
+#[tokio::test]
+async fn batch_reply_recovery() {
+    struct Reader {
+        stage: usize,
+        acknowledged: std::sync::mpsc::Receiver<()>,
+    }
+    impl Read for Reader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let bytes: &[u8] = match self.stage {
+                0 => b"Terminate batch job (Y/N)? ",
+                1 => {
+                    self.acknowledged.recv_timeout(std::time::Duration::from_secs(3)).map_err(std::io::Error::other)?;
+                    b"n\r\n"
+                }
+                _ => return Ok(0),
+            };
+            buffer[..bytes.len()].copy_from_slice(bytes);
+            self.stage += 1;
+            Ok(bytes.len())
+        }
+    }
+    struct Writer {
+        replies: Arc<std::sync::atomic::AtomicUsize>,
+        acknowledged: std::sync::mpsc::Sender<()>,
+    }
+    impl Write for Writer {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if bytes == b"N\r" && self.replies.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                self.acknowledged.send(()).map_err(std::io::Error::other)?;
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let (acknowledged, received) = std::sync::mpsc::channel();
+    let replies = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let reader = Reader { stage: 0, acknowledged: received };
+    let writer = Writer { replies: replies.clone(), acknowledged };
+    let action = Action::InterruptAt {
+        reached: CancellationToken::new(),
+        released: CancellationToken::new(),
+    };
+    let runtime = tokio::runtime::Handle::current();
+    let reading = std::thread::spawn(move || {
+        read_terminal(Box::new(reader), Box::new(writer), "Cycle: ", action, runtime, Arc::new(Mutex::new(Vec::new())), None)
+    });
+    let outcome = tokio::task::spawn_blocking(move || reading.join()).await.unwrap().unwrap().unwrap();
+    assert!(!outcome.1);
+    assert!(replies.load(std::sync::atomic::Ordering::SeqCst) >= 2, "a dropped reply must be delivered again before terminal EOF");
 }
