@@ -2345,10 +2345,11 @@ async function cycleJourney(session, cycleId) {
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
      renders one from the run so far and the shell hands it to the opener
-     (`xdg-open` is a no-op here). It is never disabled and never refused. */
+     (`xdg-open` is a no-op here). It is never disabled and never refused.
+     A cycle whose prompting member already waits reads Waiting, not Running. */
   const inFlight = await until(
     "the cycle header to show an in-flight lifecycle",
-    async () => /\b(Running|Paused|Stopping)\b/.test(normalize(await session.text())),
+    async () => /\b(Running|Waiting|Paused|Stopping)\b/.test(normalize(await session.text())),
     120000,
   ).catch(() => false);
   if (inFlight) {
@@ -2380,7 +2381,7 @@ async function cycleJourney(session, cycleId) {
   } else {
     defect(
       "cycle/open-report",
-      "The admitted cycle never showed Running, Paused or Stopping, so Open Report could not be checked while it was in flight.",
+      "The admitted cycle never showed Running, Waiting, Paused or Stopping, so Open Report could not be checked while it was in flight.",
     );
   }
 
