@@ -166,6 +166,9 @@ pub fn assemble(
     }
     let mut staging = Staging { resources, linux_files, files };
     let (license, license_file) = stage_licenses(manifest, source, scratch, &installed_resource_prefix, &mut staging)?;
+    if !windows {
+        stage_copyright(manifest, &pack, source, scratch, &identity.slug, &mut staging)?;
+    }
     let Staging {
         mut resources,
         mut linux_files,
@@ -432,6 +435,46 @@ fn stage_licenses(
     Ok((expression, staged))
 }
 
+/// Stages The DEP-5 Debian Copyright File At `/usr/share/doc/<package>/copyright`.
+///
+/// Tauri Names The Linux Package After The Product Name, Which Is The Distribution Slug.
+fn stage_copyright(
+    manifest: &Manifest, pack: &dokime::config::organization::ResolvedPack, source: &Path, scratch: &Path, package: &str,
+    staging: &mut Staging,
+) -> Result<(), Error> {
+    let apache = std::fs::read_to_string(source.join("LICENSE"))?;
+    let terms = match &manifest.license {
+        Some(terms) => Some(terms_text(terms)?),
+        None => None,
+    };
+    let mut holders = vec![license::DOKIME_HOLDER];
+    let organization = pack.organization_name().map(str::trim).filter(|name| !name.is_empty());
+    if let Some(name) = organization.filter(|name| *name != license::DOKIME_HOLDER) {
+        holders.push(name);
+    }
+
+    // Shared With The RPM Payload And Hashed Like Every Other Installed File.
+    let pack_terms = terms.as_ref().map(|(spdx, text)| (*spdx, text.as_str()));
+    let text = license::debian_copyright(&holders, &apache, pack_terms);
+    let staged = scratch.join("copyright");
+    std::fs::write(&staged, &text)?;
+    let installed = format!("usr/share/doc/{package}/copyright");
+    staging.linux_files.insert(PathBuf::from(format!("/{installed}")), staged);
+    staging.files.insert(installed, distribution::digest(text.as_bytes()));
+    Ok(())
+}
+
+/// Reads The Pack's Terms As UTF-8 Text For The Debian Copyright File.
+fn terms_text(terms: &super::manifest::License) -> Result<(&str, String), Error> {
+    let (spdx, file) = terms.terms()?;
+    let bytes = std::fs::read(file)?;
+    let text = String::from_utf8(bytes).map_err(|_| Error::License {
+        field: "file",
+        reason: "must be UTF-8 text on Linux, where it is copied into the Debian copyright file".into(),
+    })?;
+    Ok((spdx, text))
+}
+
 fn package_settings(manifest: &Manifest, identity: &distribution::Identity, label: &str, windows: bool) -> PackageSettings {
     // Tauri Uses The Linux Product Name As The Native Package Name.
     // The Description Supplies DEB's Display Description And RPM's Summary.
@@ -440,7 +483,7 @@ fn package_settings(manifest: &Manifest, identity: &distribution::Identity, labe
         version: manifest.installer.version.clone(),
         description: label.to_owned(),
         homepage: None,
-        authors: Some(vec!["Stokker Technologies".into()]),
+        authors: Some(vec![license::DOKIME_HOLDER.into()]),
         default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
     }
 }
@@ -841,6 +884,46 @@ target='x86_64-unknown-linux-gnu'";
         let mut installed: Vec<_> = staging.resources.values().cloned().collect();
         installed.sort();
         assert_eq!(installed, ["EULA.txt", "LICENSE"]);
+    }
+
+    #[test]
+    fn copyright_staging() {
+        let source = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("LICENSE"), "apache").unwrap();
+        std::fs::write(source.path().join("terms.txt"), "acme terms").unwrap();
+        let text = "[installer]
+version='1.2.3'
+formats=['deb', 'rpm']
+[dokime]
+target='x86_64-unknown-linux-gnu'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        manifest.license = Some(super::super::manifest::License {
+            spdx: Some("LicenseRef-Acme-Proprietary".into()),
+            file: Some(source.path().join("terms.txt")),
+        });
+        let pack = dokime::config::organization::ResolvedPack {
+            manifest: toml::from_str("[app.organization]\nname = 'Acme Corporation'").unwrap(),
+            files: BTreeMap::new(),
+        };
+        let scratch = tempfile::tempdir().unwrap();
+        let mut staging = Staging {
+            resources: HashMap::new(),
+            linux_files: HashMap::new(),
+            files: BTreeMap::new(),
+        };
+
+        // The Linux Payload Maps The Rendered File Under The Package's Doc Folder And Hashes It.
+        stage_copyright(&manifest, &pack, source.path(), scratch.path(), "acme", &mut staging).unwrap();
+        let staged = &staging.linux_files[Path::new("/usr/share/doc/acme/copyright")];
+        let bytes = std::fs::read(staged).unwrap();
+        let expected = license::debian_copyright(
+            &[license::DOKIME_HOLDER, "Acme Corporation"],
+            "apache",
+            Some(("LicenseRef-Acme-Proprietary", "acme terms")),
+        );
+        assert_eq!(bytes, expected.as_bytes());
+        assert_eq!(staging.files, BTreeMap::from([("usr/share/doc/acme/copyright".to_owned(), distribution::digest(&bytes))]));
+        assert!(staging.resources.is_empty());
     }
 
     #[test]
