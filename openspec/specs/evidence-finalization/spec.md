@@ -36,6 +36,16 @@ exact summaries and complete raw evidence retained separately. Plots SHALL use f
 in the same transaction as raw samples. Tables SHALL expose bounded first/last
 rows and identify full evidence. Limits SHALL come from configuration. Unsupported
 history-dependent analyses SHALL be explicitly unavailable without scanning.
+Repeated sections over row-local selectors SHALL expand over every distinct value
+of the complete evidence, folded page by page from the one stream they select, so
+the report shows the sections the sealed document resolves to; repeats over
+correlated selectors SHALL be explicitly unavailable.
+
+#### Scenario: Repeated Section Beyond The Bounded Rows
+
+- **WHEN** a sealed execution's document repeats a section per value of a column
+- **AND** a value occurs only outside the bounded first and last rows
+- **THEN** the report expands one section per distinct value, each with its plots
 
 #### Scenario: Saved Report At Four Times The History
 

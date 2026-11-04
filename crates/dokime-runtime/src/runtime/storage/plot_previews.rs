@@ -44,18 +44,23 @@ use crate::runtime::Result;
 
 /* === Public Functions === */
 
+/// One replay of the execution's evidence feeding every requested preview, so
+/// a document's uncheckpointed plots cost one read rather than one each.
 pub(crate) async fn rebuild(
-    view: &ExecutionView, local: &crate::storage::sqlite::State, request: &PlotPayloadRequest, limits: Limits,
+    view: &ExecutionView, local: &crate::storage::sqlite::State, requests: &[PlotPayloadRequest], limits: Limits,
     settings: &harmos::config::SchemaSettings,
-) -> Result<Preview> {
+) -> Result<Vec<Preview>> {
+    let mut previews: Vec<_> = requests.iter().map(|_| Preview::default()).collect();
+    if requests.is_empty() {
+        return Ok(previews);
+    }
     let mut telemetry = TelemetryReader::selected(view, local, None, None, 0, settings).await?;
     let mut records = RecordReader::open(view).await?;
     let mut samples = VecDeque::new();
     let mut events = VecDeque::new();
     let mut telemetry_done = false;
     let mut records_done = false;
-    let streams = crate::plot::plot_streams(request);
-    let mut preview = Preview::default();
+    let streams: Vec<_> = requests.iter().map(crate::plot::plot_streams).collect();
     loop {
         if samples.is_empty() && !telemetry_done {
             match telemetry.next_positioned().await? {
@@ -69,26 +74,28 @@ pub(crate) async fn rebuild(
                 None => records_done = true,
             }
         }
-        match (samples.front(), events.front()) {
+        let record = match (samples.front(), events.front()) {
             (None, None) => break,
-            (Some((sample, _)), Some((record, _))) if sample > record => {
-                let (_, record) = events.pop_front().expect("record head");
-                preview.record(record, request, limits)?;
+            (Some((sample, _)), Some((record, _))) => sample > record,
+            (Some(_), None) => false,
+            (None, Some(_)) => true,
+        };
+        if record {
+            let (_, record) = events.pop_front().expect("record head");
+            for (preview, request) in previews.iter_mut().zip(requests) {
+                preview.record(record.clone(), request, limits)?;
             }
-            (Some(_), _) => {
-                let (_, mut sample) = samples.pop_front().expect("sample head");
-                if streams.iter().any(|stream| crate::plot::stream_matches_alias(sample.stream.as_str(), stream)) {
-                    crate::plot::enrich_plot_samples_with_cycle_context(std::slice::from_mut(&mut sample), view.execution());
-                    preview.sample(sample, request, limits)?;
-                }
-            }
-            (None, Some(_)) => {
-                let (_, record) = events.pop_front().expect("record head");
-                preview.record(record, request, limits)?;
+            continue;
+        }
+        let (_, mut sample) = samples.pop_front().expect("sample head");
+        crate::plot::enrich_plot_samples_with_cycle_context(std::slice::from_mut(&mut sample), view.execution());
+        for ((preview, request), streams) in previews.iter_mut().zip(requests).zip(&streams) {
+            if streams.iter().any(|stream| crate::plot::stream_matches_alias(sample.stream.as_str(), stream)) {
+                preview.sample(sample.clone(), request, limits)?;
             }
         }
     }
-    Ok(preview)
+    Ok(previews)
 }
 
 /* === Private Functions === */

@@ -299,6 +299,9 @@ pub(crate) fn summaries(
             .find(|(metadata, _, _)| metadata.identifier == binding.source_id);
         let Some((_, filters, body)) = definition else { continue };
         let DocumentCardBody::TelemetrySummary { summary } = body else { continue };
+        // A Repeated Copy Carries Its Instance Filter, Which The Execution-Wide
+        // Exact Summaries Cannot Honour.
+        let repeated = binding.metadata.identifier != binding.source_id;
         for (group, source) in groups.iter_mut().zip(&summary.groups) {
             for (tile, source) in group.tiles.iter_mut().zip(&source.tiles) {
                 let needs_history = |expression: &crate::expressions::DataExpression| {
@@ -311,7 +314,7 @@ pub(crate) fn summaries(
                     continue;
                 }
                 let result = (|| {
-                    if !filters.is_empty() || !source.filters.is_empty() {
+                    if repeated || !filters.is_empty() || !source.filters.is_empty() {
                         return None;
                     }
                     let DataSource::Telemetry { stream, field } = &source.value.source else { return None };
@@ -343,12 +346,17 @@ pub(crate) fn summaries(
     }
 }
 
+// Repeats Over Row-Local Selectors Resolve From The Complete Evidence; Only
+// Correlated Selectors, Which Read Across Rows, Are Withheld.
 pub(crate) fn bound_definition(definition: &mut crate::document::DocumentDefinition, limit: usize) -> bool {
+    fn withheld(repeat: Option<&crate::document::DocumentSectionRepeat>) -> bool {
+        repeat.is_some_and(|repeat| !crate::document::resolve::pageable(repeat))
+    }
     fn sections(nodes: &mut Vec<crate::document::DocumentNode>) -> bool {
         let mut removed = false;
         nodes.retain_mut(|node| {
             let crate::document::DocumentNode::Section(section) = node else { return true };
-            if section.repeat.is_some() {
+            if withheld(section.repeat.as_ref()) {
                 removed = true;
                 return false;
             }
@@ -359,7 +367,7 @@ pub(crate) fn bound_definition(definition: &mut crate::document::DocumentDefinit
     }
     let mut removed = sections(&mut definition.layout.nodes);
     definition.sections.retain(|section| {
-        if section.repeat.is_some() {
+        if withheld(section.repeat.as_ref()) {
             removed = true;
             return false;
         }

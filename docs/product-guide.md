@@ -1920,8 +1920,12 @@ sample count. Group counters and numeric moments update incrementally, and
 record durations retain the preceding matching record and telemetry context.
 `groups` bounds series and correlation keys (256 by default). Plots with fewer
 than four points render normally. Analyses that need more exact history than the
-configured cap identify their specific limitation. History-dependent repeated
-sections remain unavailable. Full evidence remains available for external analysis.
+configured cap identify their specific limitation. Repeated sections expand over
+every distinct value in the complete evidence, read page by page from the stream
+they select, so a report shows the same sections the live document does; repeats
+over correlated selectors (`time_between`, `telemetry_at_or_before`) remain
+unavailable. Plots without a checkpoint share one evidence replay per document.
+Full evidence remains available for external analysis.
 Plot checkpoints commit with the telemetry batch that advances them. A historical
 cut whose plot checkpoint has advanced, and captures and plots without a
 plot-specific checkpoint, are reconstructed from bounded evidence pages through

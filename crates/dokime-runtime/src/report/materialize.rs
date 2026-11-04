@@ -150,6 +150,18 @@ pub(crate) async fn execution_with_evidence(
             ..crate::document::bounded::DocumentLimits::default()
         },
     )?;
+    // Repeated Sections Expand Over The Complete Evidence, Not The Bounded Rows.
+    let repeats = crate::runtime::storage::document_repeats::resolve(
+        inspection,
+        &ctx.storage,
+        &ctx.resources().schema_settings,
+        &selection,
+        context,
+        &captured.outputs,
+        crate::document::resolve::RepeatScan::new(captured.context.execution_documents.values()),
+    )
+    .await?;
+    let limits = ctx.storage.preview_settings().into();
     let mut documents = BTreeMap::new();
     let mut plots = BTreeMap::new();
     for (id, definition) in &captured.context.execution_documents {
@@ -157,25 +169,45 @@ pub(crate) async fn execution_with_evidence(
         let mut definition = definition.clone();
         let limit = table_rows;
         let repeats_unavailable = super::previews::bound_definition(&mut definition, limit);
-        let mut document = bindings.capture(&definition)?;
+        let mut document = bindings.capture(&definition, Some(&repeats))?;
         if repeats_unavailable {
             document.warnings.push(super::previews::warning(
-                "History-dependent repeated sections are unavailable in bounded reports; inspect the complete execution evidence.".into(),
+                "Repeated sections over correlated selectors are unavailable in bounded reports; inspect the complete execution evidence."
+                    .into(),
             ));
         }
         super::previews::summaries(&mut document, &exact, &fields, context);
         document.warnings.push(super::previews::warning(format!(
             "Tables contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
             table_rows, execution.test_execution_id, captured.evidence_through.sequence)));
-        for card in &document.cards {
-            let CardBindingResult::Plot { descriptor } = &card.result else { continue };
-            let mut request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
-            request.max_points = Some(
-                request
-                    .max_points
-                    .unwrap_or(captured.report_defaults.plot_points as usize)
-                    .min(captured.report_defaults.plot_points as usize),
-            );
+        let requests: Vec<_> = document
+            .cards
+            .iter()
+            .filter_map(|card| {
+                let CardBindingResult::Plot { descriptor } = &card.result else { return None };
+                let mut request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None);
+                request.max_points = Some(
+                    request
+                        .max_points
+                        .unwrap_or(captured.report_defaults.plot_points as usize)
+                        .min(captured.report_defaults.plot_points as usize),
+                );
+                Some((descriptor.clone(), request))
+            })
+            .collect();
+        // Plots Without A Checkpoint Share One Replay Of The Evidence.
+        let replayed: Vec<_> = requests
+            .iter()
+            .filter(|(descriptor, request)| {
+                !evidence.plots.contains_key(descriptor.plot_id.as_str()) && !crate::plot::preview::index::uses_numeric_mean(request)
+            })
+            .map(|(_, request)| request.clone())
+            .collect();
+        let mut replayed =
+            crate::runtime::storage::plot_previews::rebuild(inspection, &ctx.storage, &replayed, limits, &ctx.resources().schema_settings)
+                .await?
+                .into_iter();
+        for (descriptor, request) in requests {
             let indexed = match evidence.plots.get(descriptor.plot_id.as_str()) {
                 Some(checkpoint) if !crate::plot::preview::index::uses_numeric_mean(&request) => Some(checkpoint.payload(
                     &request,
@@ -188,11 +220,7 @@ pub(crate) async fn execution_with_evidence(
                 _ => None,
             };
             let indexed = if indexed.is_none() && !crate::plot::preview::index::uses_numeric_mean(&request) {
-                let local = &ctx.storage;
-                let limits = local.preview_settings().into();
-                let preview =
-                    crate::runtime::storage::plot_previews::rebuild(inspection, local, &request, limits, &ctx.resources().schema_settings)
-                        .await?;
+                let preview = replayed.next().ok_or_else(|| invalid("report plot replay lost a preview"))?;
                 let run = execution.started_at.as_ref().map(ToString::to_string);
                 let cycle = captured.context.cycle.cycle.started_at.as_ref().map(ToString::to_string);
                 let context = crate::plot::PlotPayloadContext {
