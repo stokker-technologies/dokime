@@ -22,7 +22,7 @@ use tonic::Status;
 use super::super::value::canonical;
 use crate::grpc::transcode::Transcode;
 use dokime::domain::model::plugins::wire as plugins_model;
-use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
+use dokime::plugins::{PluginEntry, PluginLastBoot, PluginRestart, PluginState};
 
 /* === Constants === */
 
@@ -78,7 +78,11 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_mode
         metadata,
         error: entry.error,
         active: entry.active,
-        restart_required: entry.restart_required,
+        restart: match entry.restart {
+            PluginRestart::Idle => dokime::domain::model::settings::wire::PluginRestart::Idle,
+            PluginRestart::Restarting => dokime::domain::model::settings::wire::PluginRestart::Restarting,
+            PluginRestart::Pending => dokime::domain::model::settings::wire::PluginRestart::Pending,
+        },
         boot_failed: entry.boot_failed,
     };
     if result.wire_len()? > limit {

@@ -454,11 +454,11 @@ a running plugin remains its responsibility.
 
 A declared secret's identifier is its Secret Storage identifier. At plugin start,
 Dokime reads each declaration directly from the store. A missing required secret
-fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+fails startup with ``secret `api_token` is not in Secret Storage; add it and retry the plugin``
 (the identifier varies). Optional secrets are absent when missing. Add the exact
-identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
-to read the store again. There are no per-plugin bindings, environment-variable
-sources, automatic retries or fallback identifiers.
+identifier in Secret Storage, then use **Retry** on the plugin page to read the
+store again; only that plugin restarts. There are no per-plugin bindings,
+environment-variable sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
@@ -510,10 +510,26 @@ that uses an affected program is running or prepared, the restart waits: the
 page shows **Restart Pending** and the restart follows once those executions
 finish. An execution uses the program that runs its case and every program
 publishing telemetry or records. Running executions are never stopped for a
-restart, and saves made while one waits apply together. A refused restart, such
-as values the plugin's preparation rejects, is reported like a failed startup;
-the saved values stay saved, and saving corrected values restarts it again.
-Programs that did not start with Dokime apply saved settings on the next start.
+restart, and saves made while one waits apply together. A restart refused before
+the program stops, such as saved values or a missing secret its preparation
+rejects, keeps the running generation: the plugin shows **Active · Restart
+Refused** with the reason, the saved values stay saved, and saving corrected
+values or **Retry** restarts it. A new generation that fails to start is reported
+like a failed startup. Programs that are not running apply saved settings when
+they start, including through **Retry**.
+
+### Installing And Removing Plugins
+
+Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
+enabling, disabling or removing one, take effect in the running backend; nothing
+asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
+replaced or stops. While an execution that uses it runs or waits, the change shows
+**Restart Pending** and applies once that execution finishes; running executions
+are never stopped for it. If a reinstall or update is refused, the previous
+version keeps running and stays installed, and the refused bundle is listed as
+**Refused** with its reason until the next start deletes it. A plugin that did not
+start offers **Retry**, which starts only that plugin again. See
+[Plugins](plugins.md#live-installation-changes) for the admission rules.
 
 #### Host Settings
 
@@ -1237,7 +1253,7 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | --- | --- | --- |
 | `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
 | `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
-| `dokime plugin install` | Verify and install a bundle directly for next-boot activation. | Bundle path and backend selection |
+| `dokime plugin install` | Verify and install a bundle; the running backend starts it once no execution uses it. | Bundle path and backend selection |
 
 ### Plugin Authoring
 
@@ -1828,7 +1844,7 @@ bundles. Publish the feed, archives and SHA256SUMS together. A direct source
 serves the archives and SHA256SUMS beside its plugins.json URL. Provider sources
 resolve asset URLs from one release snapshot. Settings → Plugins lists all
 compatible plugins, verifies archive and member hashes and inspected identity,
-and installs only the explicitly selected member. Restart the host to activate it.
+and installs only the explicitly selected member; the running host starts it.
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
 
@@ -1844,7 +1860,7 @@ summary in the desktop to inspect each unavailable operation without mixing it i
 
 A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
 **Add Secret** dialog with that identifier prefilled, including after a failed start.
-Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+Save the correction, then use **Retry** on the plugin page to start that plugin again.
 All owners in an inactive bundle keep their ordinary settings editable; secret
 declarations show their identifiers read-only.
 

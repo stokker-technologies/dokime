@@ -19,7 +19,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Constants === */
 
-/** A restart the saved settings asked for outranks the admitted status. */
+/** A restart the saved settings or the installation asked for outranks the admitted status. */
 const RESTART_STATUS: Record<PluginRestart, string | null> = {
   idle: null,
   restarting: "restarting",
@@ -45,7 +45,7 @@ export async function getInstalledPluginDetail(session: SessionIdentity, pluginI
         version: entry.metadata.identity.version,
         enabled: entry.state === "installed",
         runtime: "code",
-        status: entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "pending",
+        status: RESTART_STATUS[entry.restart] ?? (entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "not_running"),
         error: entry.error,
       };
     }

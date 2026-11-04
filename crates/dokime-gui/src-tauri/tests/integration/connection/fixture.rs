@@ -387,7 +387,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
                 metadata: None,
                 error: None,
                 active: false,
-                restart_required: false,
+                restart: model::settings::wire::PluginRestart::Idle,
                 boot_failed: false,
             })))
         })

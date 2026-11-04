@@ -173,14 +173,24 @@ the captured column schema to select this presentation.
   startup fails. Their declared schema comes from the verified bundle inventory.
   Secret declarations show identifiers and availability read-only; Add In Secret
   Storage opens the shared Add Secret dialog prefilled with the identifier.
-  Every owner in an inactive bundle remains visible. Add missing identifiers and
-  restart Dokime, or use the existing plugin Retry to read the store again.
+  Every owner in an inactive bundle remains visible. Add missing identifiers, then
+  use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
 - A saved settings change restarts its program. The plugin's status badge reads
   Restarting… while the new generation starts, and Restart Pending, explained as
   applying when the running execution finishes, while executions that use it run
   or wait. Both states come from `PluginRuntimeSettings.restart`; while one holds,
   the page re-reads the plugin views whenever the backend's operations change,
-  since the restart runs as one. A refused restart surfaces like a failed startup.
+  since the restart runs as one. A restart refused before the program stopped
+  shows **Restart Refused** with **Retry** while the plugin stays active; a failed
+  new generation surfaces like a failed startup.
+- Install, reinstall, update, enable, disable and remove apply in the running
+  backend; no plugin action prompts to restart the application.
+  `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
+  Pending** with its reason) and, while any row is not idle, Settings › Plugins
+  re-reads the list on operation changes. A refused replacement is a
+  `removal_pending` row reported as **Refused**; the previous installation stays
+  **Active**. `startNotification` in `src/features/settings/plugins/plugin-queries.ts`
+  raises one toast per recorded failed startup or refused restart.
   Startup notifications and plugin views keep root prose separate from collapsed
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.

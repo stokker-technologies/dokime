@@ -5,8 +5,9 @@ with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
 show their shared Secret Storage identifiers and availability read-only. Use
 **Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
-then restart Dokime or use the existing plugin Retry. There are no secret bindings
-or environment-variable sources. Notification history retains the settings link.
+then use **Retry** on the plugin page, which starts that plugin again while Dokime
+keeps running. There are no secret bindings or environment-variable sources.
+Notification history retains the settings link.
 
 A failed boot has one typed reason with the plugin identity, message and refusal
 code. Initialization failures also retain the encoded Harmos failure, including its kind,
@@ -256,10 +257,13 @@ unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
 A settings save that changes a value starts a new generation of that plugin and
 its dependents through the same reload, with a configuration built from the saved
-values, once no running or prepared execution uses them. A refused restart
-records its reason like a failed boot.
+values, once no running or prepared execution uses them. A restart refused before
+the program stops, for example because its saved values or a required secret do
+not resolve, keeps the running generation and records why; one whose new
+generation then fails to start is recorded like a failed boot.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
+
 
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
@@ -328,3 +332,35 @@ A bundle that declares a Harmos guest is refused at admission.
 Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
+
+## Live Installation Changes
+
+Installing, reinstalling or updating a bundle, and enabling, disabling or removing
+one, take effect in the running backend without restarting Dokime. The plugin
+store records the change first, and the backend's restarter
+(`crates/dokime-runtime/src/runtime/plugins/installs.rs`) then brings the running
+programs in line with it through the same reload as a settings restart: a new
+bundle starts, a changed bundle replaces the running generation, and a disabled or
+removed bundle stops. Each change is admitted like a startup. The desired catalog
+is validated as a whole before anything stops: conflicting catalogs, unavailable
+or circular contracts, and the packages that need a removed or refused provider.
+A package that loses a provider it requires stops with it and records why, so the
+running set matches what the next start would admit.
+
+While a running or prepared execution uses an affected program, the change waits
+and the plugin shows **Restart Pending**; it applies once those executions and
+their provider runs settle. An execution uses the program that runs its case, the
+programs that depend on it, and every program publishing telemetry or records it
+may capture. Executions are never stopped or disturbed for a change, and further
+changes to the same package join the one that waits, applying the latest.
+
+A replacement refused before anything stops, because its bundle, catalog,
+contracts, saved settings or secrets do not validate, leaves the previous
+generation running untouched. Harmos stops a generation before starting its
+replacement, so a replacement whose new program then fails to start brings the
+previous bundle back as a fresh generation. Either way the previous installation
+stays installed with its saved values, and the refused one is listed as
+**Refused** with its failure, reported like a failed startup, until the next start
+deletes its file. A first installation that fails stays installed with its
+failure; **Retry** starts it again once the cause is fixed. Removal stops the
+plugin live; the managed file is deleted when Dokime next starts.

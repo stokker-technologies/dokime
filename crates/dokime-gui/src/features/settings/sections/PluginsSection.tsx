@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
@@ -19,7 +19,7 @@ import { toast } from "@/lib/notifications";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { useInstalledPluginsQuery, usePluginRestartRefresh } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
 import { bundleSettingsPage, programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
@@ -29,7 +29,6 @@ import {
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
-  useRestartAppMutation,
   useSetPluginEnabledMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -52,10 +51,8 @@ export function PluginsSection() {
   const installMutation = useInstallPluginMutation();
   const releaseMutation = usePluginReleaseMutation();
   const removeMutation = useRemovePluginMutation();
-  const restartMutation = useRestartAppMutation();
   const enabledMutation = useSetPluginEnabledMutation();
   const [installOpen, setInstallOpen] = useState(false);
-  const [restartPrompt, setRestartPrompt] = useState(false);
   const [uploadingFilename, setUploadingFilename] = useState<string | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
   const entries = pluginsQuery.data ?? [];
@@ -70,7 +67,8 @@ export function PluginsSection() {
       ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: settingsSection } })
       : undefined,
   }));
-  const restartPending = entries.some((entry) => entry.restart_required);
+  // Changes apply in the running backend; re-read the list until each one has.
+  usePluginRestartRefresh(entries.find((entry) => entry.restart !== "idle")?.restart);
 
   /* A plugin's settings page is its contributed section. The frame keys those
      by installed plugin, and an artifact names the installation it came
@@ -87,7 +85,6 @@ export function PluginsSection() {
       const entry = await installMutation.mutateAsync(source);
       if (entry) {
         setInstallOpen(false);
-        setRestartPrompt(true);
       }
     } catch (error) {
       toast.error("Plugin Installation Failed", {
@@ -106,7 +103,6 @@ export function PluginsSection() {
     try {
       await removeMutation.mutateAsync(removeCandidate.install_id);
       setRemoveCandidate(null);
-      setRestartPrompt(true);
     } catch {
       // Keep explicit confirmation open with the error visible.
     }
@@ -138,25 +134,6 @@ export function PluginsSection() {
             </Button>
           </SettingsRow>
         ))}
-        {restartPending ? (
-          <SettingsRow
-            label="Restart Required"
-            failure={restartMutation.error}
-            description={`Restart ${brand.label} to apply pending plugin changes.`}
-            error={restartMutation.isError ? errorMessage(restartMutation.error, `${brand.label} could not be restarted.`) : null}
-          >
-            {desktop ? (
-              <Button disabled={restartMutation.isPending} onClick={() => setRestartPrompt(true)} size="sm" variant="outline">
-                <RotateCcw className={restartMutation.isPending ? "animate-spin" : undefined} />
-                {restartMutation.isPending ? "Restarting…" : `Restart ${brand.label}`}
-              </Button>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Restart <code className="font-mono text-foreground">dokime server</code> to apply.
-              </p>
-            )}
-          </SettingsRow>
-        ) : null}
         <div className="px-4 py-3">
           {pluginsQuery.isPending || programsQuery.isPending ? (
             <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
@@ -208,7 +185,6 @@ export function PluginsSection() {
               enabledMutation.mutate(
                 { installId: entry.install_id, enabled },
                 {
-                  onSuccess: () => setRestartPrompt(true),
                   onError: (error) =>
                     toast.error("Plugin Change Failed", {
                       error,
@@ -244,35 +220,6 @@ export function PluginsSection() {
           />
         </DialogContent>
       </Dialog>
-      <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restart {brand.label}?</DialogTitle>
-            <DialogDescription>
-              Plugin changes are saved. Restart {brand.label} to apply them. Active work will stop and plugin resources will close before
-              the application restarts.
-            </DialogDescription>
-          </DialogHeader>
-          {restartMutation.isError ? (
-            <NotificationMessage error={restartMutation.error}>
-              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
-            </NotificationMessage>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRestartPrompt(false)}>
-              Later
-            </Button>
-            {desktop ? (
-              <Button disabled={restartMutation.isPending} onClick={() => restartMutation.mutate()}>
-                Restart Now
-              </Button>
-            ) : (
-              <p>Restart dokime server to apply these changes.</p>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         onOpenChange={(open) => {
           if (!open && !removeMutation.isPending) {
@@ -285,7 +232,7 @@ export function PluginsSection() {
           <DialogHeader>
             <DialogTitle>Remove Plugin?</DialogTitle>
             <DialogDescription>
-              {`The plugin will stop loading and its managed file will be deleted at the next ${brand.label} restart.`}
+              {`The plugin stops once no execution uses it. Its managed file is deleted when ${brand.label} next starts.`}
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (

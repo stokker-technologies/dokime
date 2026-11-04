@@ -20,7 +20,7 @@ pub(crate) mod store;
 
 pub use catalog::{PluginIdentity, PluginMetadata, inspect, inspect_with_archive_limit};
 pub use config::{PluginBundle, PluginProvenance};
-pub use model::{Installation, PluginEntry, PluginLastBoot, PluginSettings, PluginState, ProgramValues};
+pub use model::{Installation, PluginEntry, PluginLastBoot, PluginRestart, PluginSettings, PluginState, ProgramValues};
 pub use store::{PluginError, PluginPage, PluginStore};
 
 /* === Imports === */

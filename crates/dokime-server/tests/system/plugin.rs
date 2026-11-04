@@ -1213,26 +1213,34 @@ async fn store() {
     let root = tempfile::tempdir().unwrap();
     let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
 
-    // An Installed Plugin Activates Only After A Restart
+    // An Installed Plugin Starts In The Running Backend, And Again On The Next Boot
     let store = root.path().join("store");
     std::fs::create_dir_all(store.join("plugins")).unwrap();
     std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
+    let mut changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
     assert!(!serves_startup(&client).await);
     let installation = install(&client, &bytes).await;
-    assert!(!installation.active && installation.restart_required);
-    assert!(!serves_startup(&client).await);
+    let started = on_change(&mut changes, "the installed plugin starting", async || {
+        installations(&client).await.into_iter().find(|listed| listed.install_id == installation.install_id && listed.active)
+    })
+    .await;
+    assert_eq!(started.restart, model::settings::wire::PluginRestart::Idle);
+    assert!(serves_startup(&client).await);
+    status_ready(&client).await;
+    drop(changes);
     host.stop(false).await;
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
     let listed = installations(&client).await;
     assert_eq!(listed.len(), 1);
-    assert!(listed[0].active && !listed[0].restart_required);
+    assert!(listed[0].active && listed[0].restart == model::settings::wire::PluginRestart::Idle);
     assert!(serves_startup(&client).await);
     status_ready(&client).await;
 
-    // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
+    // Scene: Removal Stops The Live Plugin, And The Next Boot Deletes It
+    let mut changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
     let removed = client
         .call(contracts::plugins::Remove {
             install_id: installation.install_id.clone(),
@@ -1240,10 +1248,14 @@ async fn store() {
         .await
         .unwrap()
         .installation
-        .expect("a installed installation stays pending removal");
+        .expect("a removed installation stays pending removal");
     assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
-    assert!(removed.active && removed.restart_required);
-    assert!(serves_startup(&client).await);
+    on_change(&mut changes, "the removed plugin stopping", async || {
+        let stopped = installations(&client).await.iter().all(|listed| !listed.active);
+        (stopped && !serves_startup(&client).await).then_some(())
+    })
+    .await;
+    drop(changes);
     host.stop(false).await;
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;

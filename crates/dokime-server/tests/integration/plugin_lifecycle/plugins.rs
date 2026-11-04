@@ -390,10 +390,20 @@ pub(crate) async fn plugin_install_identity() {
         client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap().into_inner();
     assert_eq!(staged.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(!staged.active);
-    assert!(staged.restart_required);
     assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc_plugin"]);
     assert_eq!(staged.metadata.as_ref().unwrap().identity.as_ref().unwrap().name, "grpc-fixture");
     assert!(staged.installed_at.is_some());
+    // The Running Backend Starts It Without A Restart; The Inert Fixture Fails Like A Startup.
+    owner.handle().plugin_bundle_settled("grpc-fixture").await;
+    let attempted = client
+        .unary::<contracts::plugins::GetInstallation>(authenticated(contracts::plugins::GetInstallation {
+            install_id: staged.install_id.clone(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(attempted.boot_failed && !attempted.active);
+    assert_eq!(attempted.restart, model::settings::wire::PluginRestart::Idle);
     let disabled = client
         .unary::<contracts::plugins::SetEnabled>(authenticated(contracts::plugins::SetEnabled {
             install_id: staged.install_id.clone(),
@@ -421,7 +431,8 @@ pub(crate) async fn plugin_install_identity() {
         .await
         .unwrap()
         .into_inner();
-    assert!(current.restart_required);
+    assert!(!current.active);
+    assert_eq!(current.state, model::plugins::wire::PluginInstallationState::RemovalPending);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -711,7 +722,6 @@ pub(crate) async fn bounded_installed_metadata() {
     let installed =
         client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bytes)))).await.unwrap().into_inner();
     assert_eq!(installed.state, model::plugins::wire::PluginInstallationState::Installed);
-    assert!(installed.restart_required);
     assert!(installed.metadata.is_none());
     assert!(installed.error.is_some());
     let entry = client

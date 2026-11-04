@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod installs;
 pub(super) mod lifecycle;
 pub(super) mod restarts;
 
@@ -52,7 +53,7 @@ const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 
 /* === Structs === */
 
-// Every Admitted Program And The Manager That Runs Them, Shared With The Settings Restarter.
+// Every Admitted Program And The Manager That Runs Them, Shared With The Restarter.
 pub(super) struct PluginHost {
     pub(super) handle: super::RuntimeHandle,
     pub(super) publications: super::sidecars::PublicationIngest,
@@ -249,21 +250,7 @@ impl PluginHost {
         let mut packages = Vec::new();
         for (prepared, input) in inputs.into_iter().enumerate() {
             progress.progress(prepared as u64, total);
-            let reuse = reusable_extraction(&extraction, &input);
-            let cached_digest = reuse.as_ref().and_then(|_| match &input.provenance {
-                PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
-                PluginProvenance::Configured => None,
-            });
-            let prepared = match read_bundle(
-                input.clone(),
-                cached_digest.as_deref(),
-                usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
-                    .expect("validated server plugin bundle limit fits native address space"),
-            ) {
-                Ok(bundle) => prepare(bundle, &extraction, reuse, &self.handle).await,
-                Err(error) => Err(error),
-            };
-            match prepared {
+            match prepare_input(input.clone(), &extraction, &self.handle).await {
                 Ok(package) => packages.push(package),
                 Err(error) => {
                     if let Err(failure) = failed(&store, &input, &error.to_string()).await {
@@ -278,70 +265,22 @@ impl PluginHost {
         progress.indeterminate();
         let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
         let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
-        let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins, &self.handle.operations).await {
-            Ok(plan) => plan,
+        // Validate the entire desired catalog before any process runs. An
+        // installed package that conflicts is pruned together with dependents.
+        let refusals = match admission(&packages.iter().collect::<Vec<_>>(), &self.embedded, &self.handle) {
+            Ok(refusals) => refusals,
             Err(error) => {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
         };
-        // Validate the entire desired catalog before any process runs. An
-        // installed package that conflicts is pruned together with dependents.
-        loop {
-            let catalogs: Vec<ProviderCatalog> = embedded_catalogs
-                .iter()
-                .cloned()
-                .chain(
-                    packages
-                        .iter()
-                        .enumerate()
-                        .filter(|(index, _)| !removed.contains(index))
-                        .map(|(_, package)| package.catalog.clone().into()),
-                )
-                .collect();
-            if self.handle.state_read().validate_providers(&catalogs).is_ok() {
-                break;
-            }
-            let mut accepted = embedded_catalogs.clone();
-            let mut refused = None;
-            for (index, package) in packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)) {
-                accepted.push(package.catalog.clone().into());
-                if let Err(error) = self.handle.state_read().as_ref().validate_providers(&accepted) {
-                    refused = Some((index, error));
-                    break;
-                }
-            }
-            let Some((index, reason)) = refused else {
-                break;
-            };
-            let reason = rejection(&packages[index].catalog.package, reason.to_string(), None);
-            if let Err(error) = prune(
-                &store,
-                &packages.iter().collect::<Vec<_>>(),
-                &mut removed,
-                index,
-                &reason,
-                &embedded_plugins,
-                &self.handle.operations,
-            )
-            .await
-            {
+        for (index, failure) in &refusals {
+            if let Err(error) = refused(&store, &packages[*index].input, failure.clone()).await {
                 self.pending_plugins.extend(packages);
                 return Err(error);
             }
         }
-        let catalogs: Vec<ProviderCatalog> = embedded_catalogs
-            .iter()
-            .cloned()
-            .chain(
-                packages
-                    .iter()
-                    .enumerate()
-                    .filter(|(index, _)| !removed.contains(index))
-                    .map(|(_, package)| package.catalog.clone().into()),
-            )
-            .collect();
-        self.handle.state_read().validate_providers(&catalogs).map_err(operation)?;
+        let removed: BTreeSet<usize> = refusals.into_keys().collect();
         for provider in self.embedded.values() {
             self.handle.streams.validate_publications(&provider.definition.id, provider.streams.clone()).map_err(operation)?;
         }
@@ -553,11 +492,14 @@ impl PluginHost {
         }
 
         // Values Saved From Here On Ask For One More Restart.
-        self.handle.plugin_restarts.begin(plugin);
+        self.handle.plugin_restarts.begin(&restarts::Target::Program(plugin.to_owned()));
         let planned = match self.plan_reinitialization(plugin).await {
             Ok(planned) => planned,
             Err(error) => {
-                self.settle_restart(plugin, &input, Some(rejection(&name, &error, None))).await;
+                // Nothing Stopped: The Running Generation Keeps Running, And The Refused Restart Is Recorded.
+                let failure = kept(refusal(&name, &error));
+                tracing::warn!(plugin, reason = %failure.message, "plugin was not restarted with its saved settings");
+                record(&self.handle.plugin_store(), &input, Some(failure)).await;
                 return restarts::Outcome::Settled;
             }
         };
@@ -628,11 +570,27 @@ impl PluginHost {
         applied.and(exposed)
     }
 
-    // Only Admitted Programs Restart With Saved Settings; Others Apply Them On The Next Start.
+    // Only Admitted Programs Restart; Their Packages Say Which Installation Runs.
     fn publish_hosted(&self) {
-        self.handle
-            .plugin_restarts
-            .host(self.plugins.values().flat_map(|active| &active.package.programs).map(|program| program.executable.id()));
+        let programs = self
+            .plugins
+            .iter()
+            .flat_map(|(package, active)| active.package.programs.iter().map(move |program| (program.executable.id(), package.as_str())));
+        let packages = self.plugins.iter().map(|(package, active)| (package.as_str(), active.package.input.install_id()));
+        self.handle.plugin_restarts.host(programs, packages);
+    }
+
+    // The Ready Catalogs Become The Admitted Ones After A Live Change, Like A Startup's.
+    async fn reconcile_ready(&mut self, changed: &str) {
+        let providers = self.ready_catalogs();
+        if self.handle.state_read().providers_current(&providers) {
+            return;
+        }
+        if let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
+            tracing::error!(changed, %error, "admitted catalogs were not reconciled after a plugin change");
+        } else if let Err(error) = self.capture_ready_catalogs().await {
+            tracing::error!(changed, %error, "changed catalogs were not captured");
+        }
     }
 
     // The Admitted Bundle That Runs `plugin`, And Its Display Name.
@@ -650,14 +608,7 @@ impl PluginHost {
         if let Some(failure) = &failure {
             tracing::warn!(plugin, reason = %failure.message, "plugin did not restart with its saved settings");
         }
-        let providers = self.ready_catalogs();
-        if !self.handle.state_read().providers_current(&providers) {
-            if let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
-                tracing::error!(plugin, %error, "admitted catalogs were not reconciled after a plugin restart");
-            } else if let Err(error) = self.capture_ready_catalogs().await {
-                tracing::error!(plugin, %error, "restarted catalogs were not captured");
-            }
-        }
+        self.reconcile_ready(plugin).await;
         if let PluginProvenance::Installed { install_id, .. } = input.provenance {
             self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, failure.is_none());
         }
@@ -1127,6 +1078,103 @@ fn orphaned_extraction(name: &str, live: &BTreeSet<String>) -> bool {
     !live.contains(name) && uuid::Uuid::parse_str(name).is_ok()
 }
 
+// Read, Inspect And Extract One Bundle Input, Reusing An Installation's Intact Extraction.
+async fn prepare_input(input: PluginBundle, extraction: &std::path::Path, handle: &super::RuntimeHandle) -> Result<Package> {
+    let reuse = reusable_extraction(extraction, &input);
+    let cached_digest = reuse.as_ref().and_then(|_| match &input.provenance {
+        PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
+        PluginProvenance::Configured => None,
+    });
+    let bundle = read_bundle(
+        input,
+        cached_digest.as_deref(),
+        usize::try_from(dokime_domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES)
+            .expect("validated server plugin bundle limit fits native address space"),
+    )?;
+    prepare(bundle, extraction, reuse, handle).await
+}
+
+// The Same Admission At Startup And For A Live Change: Every Refused Package, With Why.
+//
+// The contract graph and host requirements refuse a package together with
+// the packages that need it; the desired catalog must then validate as a
+// whole, refusing the first package that conflicts with those before it.
+fn admission(
+    packages: &[&Package], embedded: &BTreeMap<String, super::embedded::Active>, handle: &super::RuntimeHandle,
+) -> Result<BTreeMap<usize, dokime_domain::model::plugins::wire::PluginStartFailure>> {
+    let embedded_plugins: Vec<_> = embedded.values().map(|provider| provider.definition.clone()).collect();
+    let embedded_catalogs: Vec<ProviderCatalog> = embedded.values().map(|provider| provider.catalog.clone()).collect();
+    let definitions = package_definitions(packages);
+    let admitted = |removed: &BTreeSet<usize>| -> Vec<ProviderCatalog> {
+        embedded_catalogs
+            .iter()
+            .cloned()
+            .chain(
+                packages
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| !removed.contains(index))
+                    .map(|(_, package)| package.catalog.clone().into()),
+            )
+            .collect()
+    };
+    let mut refusals = BTreeMap::new();
+    let mut removed = plan_admission(packages, &(0..packages.len()).collect::<Vec<_>>(), &embedded_plugins, handle, &mut refusals)?;
+    loop {
+        if handle.state_read().validate_providers(&admitted(&removed)).is_ok() {
+            return Ok(refusals);
+        }
+        let mut accepted = embedded_catalogs.clone();
+        let mut conflict = None;
+        for (index, package) in packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)) {
+            accepted.push(package.catalog.clone().into());
+            if let Err(error) = handle.state_read().validate_providers(&accepted) {
+                conflict = Some((index, error));
+                break;
+            }
+        }
+        let Some((initial, reason)) = conflict else {
+            return handle.state_read().validate_providers(&admitted(&removed)).map(|()| refusals).map_err(operation);
+        };
+        let reason = rejection(&packages[initial].catalog.package, reason, None);
+        for index in prune_graph(&definitions, &mut removed, initial) {
+            let failure = if index == initial {
+                reason.clone()
+            } else {
+                rejection(
+                    &packages[index].catalog.package,
+                    format!("required plugin {} could not start", reason.plugin_name),
+                    Some("plugin_contract_unavailable"),
+                )
+            };
+            refusals.entry(index).or_insert(failure);
+        }
+        // Removing A Provider Can Turn A Previously Routed Contract Into A Host
+        // Requirement. Replan Before Activation.
+        let remaining: Vec<_> = (0..packages.len()).filter(|index| !removed.contains(index)).collect();
+        removed.extend(plan_admission(packages, &remaining, &embedded_plugins, handle, &mut refusals)?);
+    }
+}
+
+// Plan The Contract Graph Of The `within` Packages; Refused Ones Are Recorded In `refusals`.
+fn plan_admission(
+    packages: &[&Package], within: &[usize], embedded: &[harmos::plugin::PluginDefinition], handle: &super::RuntimeHandle,
+    refusals: &mut BTreeMap<usize, dokime_domain::model::plugins::wire::PluginStartFailure>,
+) -> Result<BTreeSet<usize>> {
+    let selected: Vec<_> = within.iter().map(|index| packages[*index]).collect();
+    let removed = plan_graph(
+        &package_definitions(&selected),
+        embedded,
+        |candidate| handle.operations.validate_requirements(candidate),
+        |index, reason| {
+            let failure = rejection(&selected[index].catalog.package, reason.to_string(), reason.code());
+            refusals.entry(within[index]).or_insert(failure);
+            Ok(())
+        },
+    )?;
+    Ok(removed.into_iter().map(|index| within[index]).collect())
+}
+
 fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginDefinition>> {
     packages.iter().map(|package| package.programs.iter().map(|program| program.definition.clone()).collect()).collect()
 }
@@ -1307,6 +1355,30 @@ async fn failed(store: &PluginStore, input: &PluginBundle, reason: &str) -> Resu
         .map(|metadata| metadata.identity.name)
         .unwrap_or_else(|| input.path.display().to_string());
     refused(store, input, rejection(&name, reason, None)).await
+}
+
+// A Refused Preparation, Naming The Missing Secret When That Is Why.
+fn refusal(name: &str, error: &Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let Error::Dokime(crate::Error::UnavailableSecret(secret)) = error else {
+        return rejection(name, error, None);
+    };
+    let mut failure = rejection(name, error, None);
+    failure.code = Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string());
+    failure.missing_secret = Some(secret.clone());
+    failure
+}
+
+// A Change Refused Before Anything Stopped Leaves The Running Generation In Place.
+fn kept(failure: dokime_domain::model::plugins::wire::PluginStartFailure) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    noted(failure, "The previous generation keeps running.")
+}
+
+fn noted(
+    mut failure: dokime_domain::model::plugins::wire::PluginStartFailure, note: &str,
+) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let message = failure.message.trim_end().trim_end_matches('.');
+    failure.message = format!("{message}. {note}");
+    failure
 }
 
 fn rejection(name: &str, reason: impl std::fmt::Display, code: Option<&str>) -> dokime_domain::model::plugins::wire::PluginStartFailure {
@@ -1793,6 +1865,17 @@ mod tests {
         assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
         assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE));
         assert!(!retained.diagnostics().unwrap().chain().is_empty());
+    }
+
+    // A Refused Restart Keeps Its Missing Secret Typed, As A Failed Startup Does.
+    #[test]
+    fn refused_restart_secret() {
+        let refused = kept(refusal("Example Plugin", &Error::Dokime(crate::Error::UnavailableSecret("api_token".into()))));
+        assert_eq!(refused.plugin_name, "Example Plugin");
+        assert_eq!(refused.missing_secret.as_deref(), Some("api_token"));
+        assert_eq!(refused.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
+        let other = kept(refusal("Example Plugin", &operation("catalog conflict")));
+        assert!(other.missing_secret.is_none() && other.code.is_none());
     }
 
     #[test]

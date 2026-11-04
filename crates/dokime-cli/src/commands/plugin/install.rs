@@ -66,7 +66,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     if installed.sha256 != digest || installed.state != wire::PluginInstallationState::Installed || installed.install_id.is_empty() {
         return Err(Error::Setup(format!("unexpected installation response; inspect Plugins on {endpoint} before retrying")));
     }
-    Terminal::default().success(format!("Installed plugin {}; restart the host to activate it.", installed.install_id));
+    Terminal::default().success(format!("Installed plugin {}; the host starts it once no execution uses it.", installed.install_id));
     Ok(())
 }
 

@@ -339,7 +339,6 @@ pub(crate) async fn direct_installation() {
     assert!(store.list().await.unwrap().is_empty());
     let installed = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap();
     assert_eq!(installed.installation.state, PluginState::Installed);
-    assert!(installed.restart_required);
     assert!(!installed.active);
     let queried = store.get(installed.installation.install_id).await.unwrap();
     assert_eq!(queried.installation.sha256, installed.installation.sha256);

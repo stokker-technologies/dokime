@@ -15,10 +15,11 @@
 
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 // Third Party Imports
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 // Local Imports
 use super::PluginHost;
@@ -36,13 +37,33 @@ use dokime_domain::model::identity::Identifier;
 
 /* === Structs === */
 
-// Which Programs Wait To Restart With Their Saved Settings, Shared By Saves And The Restarter.
+// Which Programs And Bundles Wait To Restart, Shared By Requests And The Restarter.
 pub(in crate::runtime) struct Restarts {
-    phases: tokio::sync::watch::Sender<BTreeMap<String, Phase>>,
-    hosted: RwLock<BTreeSet<String>>,
+    phases: tokio::sync::watch::Sender<BTreeMap<Target, Phase>>,
+    hosted: RwLock<Hosted>,
+
+    // The installation each bundle was last asked to apply, by package.
+    requested: Mutex<BTreeMap<String, Uuid>>,
+}
+
+// What Runs Now: Each Admitted Program's Package, And Each Package's Installation.
+#[derive(Default)]
+struct Hosted {
+    programs: BTreeMap<String, String>,
+    packages: BTreeMap<String, Option<Uuid>>,
 }
 
 /* === Enums === */
+
+// One Thing The Restarter Brings In Line With What Is Saved.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(in crate::runtime) enum Target {
+    // An installed bundle, by package: it starts, replaces or stops its programs as the store says.
+    Bundle(String),
+
+    // One admitted program restarts with its saved settings.
+    Program(String),
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
@@ -70,11 +91,11 @@ pub(in crate::runtime) enum Outcome {
 
 impl Outcome {
     // Record The Outcome; A Deferred Restart Stays Waiting And Reports Pending.
-    fn settle(self, restarts: &Restarts, plugin: &str) -> Self {
+    fn settle(self, restarts: &Restarts, target: &Target) -> Self {
         match &self {
-            Self::Settled => restarts.finish(plugin),
-            Self::Unhosted => restarts.forget(plugin),
-            Self::Deferred(_) => restarts.defer(plugin),
+            Self::Settled => restarts.finish(target),
+            Self::Unhosted => restarts.forget(target),
+            Self::Deferred(_) => restarts.defer(target),
         }
         self
     }
@@ -85,48 +106,90 @@ impl Default for Restarts {
         Self {
             phases: tokio::sync::watch::Sender::new(BTreeMap::new()),
             hosted: RwLock::default(),
+            requested: Mutex::default(),
         }
     }
 }
 
 impl Restarts {
-    pub(in crate::runtime) fn host<'a>(&self, programs: impl Iterator<Item = &'a str>) {
-        let programs = programs.map(str::to_owned).collect();
-        *self.hosted.write().unwrap_or_else(PoisonError::into_inner) = programs;
+    // Publish What Runs: Each Admitted Program With Its Package, And Each Package's Installation.
+    pub(in crate::runtime) fn host<'a>(
+        &self, programs: impl Iterator<Item = (&'a str, &'a str)>, packages: impl Iterator<Item = (&'a str, Option<Uuid>)>,
+    ) {
+        let hosted = Hosted {
+            programs: programs.map(|(program, package)| (program.to_owned(), package.to_owned())).collect(),
+            packages: packages.map(|(package, install)| (package.to_owned(), install)).collect(),
+        };
+        *self.hosted.write().unwrap_or_else(PoisonError::into_inner) = hosted;
     }
 
     // Further Saves Before The Restart Reads Its Values Join It; Later Ones Ask For One More.
-    fn request(&self, plugin: &str, blocked: bool) -> PluginRestart {
-        let hosted = self.hosted.read().unwrap_or_else(PoisonError::into_inner).contains(plugin);
-        if !hosted {
+    fn request(&self, target: Target, blocked: bool) -> PluginRestart {
+        if let Target::Program(plugin) = &target
+            && !self.hosted.read().unwrap_or_else(PoisonError::into_inner).programs.contains_key(plugin)
+        {
             return PluginRestart::Idle;
         }
 
-        self.phases.send_if_modified(|phases| match phases.get_mut(plugin) {
+        self.phases.send_if_modified(|phases| match phases.get_mut(&target) {
             Some(Phase::Restarting { again }) => !std::mem::replace(again, true),
             Some(Phase::Waiting { .. }) => false,
-            None => phases.insert(plugin.to_owned(), Phase::Waiting { blocked }).is_none(),
+            None => phases.insert(target.clone(), Phase::Waiting { blocked }).is_none(),
         });
-        self.state(plugin)
+        self.state(&target)
     }
 
-    fn state(&self, plugin: &str) -> PluginRestart {
-        match self.phases.borrow().get(plugin) {
+    // A Store Change For `package`: The Restarter Applies `install`, The Latest One Asked For.
+    fn request_bundle(&self, package: &str, install: Uuid, blocked: bool) -> PluginRestart {
+        self.requested.lock().unwrap_or_else(PoisonError::into_inner).insert(package.to_owned(), install);
+        self.request(Target::Bundle(package.to_owned()), blocked)
+    }
+
+    fn requested(&self, package: &str) -> Option<Uuid> {
+        self.requested.lock().unwrap_or_else(PoisonError::into_inner).get(package).copied()
+    }
+
+    fn state(&self, target: &Target) -> PluginRestart {
+        match self.phases.borrow().get(target) {
             None => PluginRestart::Idle,
             Some(Phase::Waiting { blocked: true }) => PluginRestart::Pending,
             Some(Phase::Waiting { blocked: false } | Phase::Restarting { .. }) => PluginRestart::Restarting,
         }
     }
 
-    fn waiting(&self) -> Vec<String> {
+    // A Program Also Waits While Its Bundle Does; Restarting Outranks Pending.
+    fn program_state(&self, plugin: &str) -> PluginRestart {
+        let own = self.state(&Target::Program(plugin.to_owned()));
+        let package = self.hosted.read().unwrap_or_else(PoisonError::into_inner).programs.get(plugin).cloned();
+        let bundle = package.map_or(PluginRestart::Idle, |package| self.state(&Target::Bundle(package)));
+        match (own, bundle) {
+            (PluginRestart::Restarting, _) | (_, PluginRestart::Restarting) => PluginRestart::Restarting,
+            (PluginRestart::Pending, _) | (_, PluginRestart::Pending) => PluginRestart::Pending,
+            _ => PluginRestart::Idle,
+        }
+    }
+
+    // The Programs `package` Runs Now.
+    fn programs(&self, package: &str) -> BTreeSet<String> {
+        let hosted = self.hosted.read().unwrap_or_else(PoisonError::into_inner);
+        hosted.programs.iter().filter(|(_, owner)| *owner == package).map(|(program, _)| program.clone()).collect()
+    }
+
+    // `Some` While `package` Runs, With The Installation It Runs.
+    fn running(&self, package: &str) -> Option<Option<Uuid>> {
+        self.hosted.read().unwrap_or_else(PoisonError::into_inner).packages.get(package).copied()
+    }
+
+    // Bundles Come First: A Bundle's New Generation Already Prepares With The Saved Values.
+    fn waiting(&self) -> Vec<Target> {
         let phases = self.phases.borrow();
-        phases.iter().filter(|(_, phase)| matches!(phase, Phase::Waiting { .. })).map(|(plugin, _)| plugin.clone()).collect()
+        phases.iter().filter(|(_, phase)| matches!(phase, Phase::Waiting { .. })).map(|(target, _)| target.clone()).collect()
     }
 
     // A Deferred Restart Reads Its Values Again When It Runs, So Saves Meanwhile Join It.
-    fn defer(&self, plugin: &str) {
+    fn defer(&self, target: &Target) {
         self.phases.send_if_modified(|phases| {
-            let Some(phase) = phases.get_mut(plugin) else { return false };
+            let Some(phase) = phases.get_mut(target) else { return false };
             let deferred = Phase::Waiting { blocked: true };
             if *phase == deferred {
                 return false;
@@ -136,28 +199,33 @@ impl Restarts {
         });
     }
 
-    pub(in crate::runtime) fn begin(&self, plugin: &str) {
+    pub(in crate::runtime) fn begin(&self, target: &Target) {
         self.phases.send_if_modified(|phases| {
-            let Some(phase @ Phase::Waiting { .. }) = phases.get_mut(plugin) else { return false };
+            let Some(phase @ Phase::Waiting { .. }) = phases.get_mut(target) else { return false };
             *phase = Phase::Restarting { again: false };
             true
         });
     }
 
-    fn finish(&self, plugin: &str) {
+    fn finish(&self, target: &Target) {
         self.phases.send_if_modified(|phases| {
-            let Some(phase) = phases.get_mut(plugin) else { return false };
+            let Some(phase) = phases.get_mut(target) else { return false };
             if *phase == (Phase::Restarting { again: true }) {
                 *phase = Phase::Waiting { blocked: false };
             } else {
-                phases.remove(plugin);
+                phases.remove(target);
             }
             true
         });
     }
 
-    fn forget(&self, plugin: &str) {
-        self.phases.send_if_modified(|phases| phases.remove(plugin).is_some());
+    fn forget(&self, target: &Target) {
+        self.phases.send_if_modified(|phases| phases.remove(target).is_some());
+    }
+
+    async fn settled(&self, target: Target) {
+        let mut phases = self.phases.subscribe();
+        let _ = phases.wait_for(|phases| !phases.contains_key(&target)).await;
     }
 }
 
@@ -179,17 +247,42 @@ impl RuntimeHandle {
     // A Save That Changed Values: Restart The Program Now, Or Once Nothing Uses It.
     pub(crate) fn request_plugin_restart(&self, plugin: &str) -> PluginRestart {
         let blocked = self.plugin_use(&BTreeSet::from([plugin.to_owned()])).is_some();
-        self.plugin_restarts.request(plugin, blocked)
+        self.plugin_restarts.request(Target::Program(plugin.to_owned()), blocked)
+    }
+
+    // A Store Change For `package`: Apply `install` Now, Or Once Nothing Uses Its Running Programs.
+    pub(crate) fn request_plugin_apply(&self, package: &str, install: Uuid) -> PluginRestart {
+        let blocked = self.plugin_use(&self.plugin_restarts.programs(package)).is_some();
+        self.plugin_restarts.request_bundle(package, install, blocked)
+    }
+
+    // The Programs `package` Runs When It Runs `install` Now.
+    pub(crate) fn plugin_runs(&self, package: &str, install: Uuid) -> Option<BTreeSet<String>> {
+        (self.plugin_restarts.running(package) == Some(Some(install))).then(|| self.plugin_restarts.programs(package))
+    }
+
+    // The Package That Runs `install` Now.
+    pub(crate) fn running_package(&self, install: Uuid) -> Option<String> {
+        let hosted = self.plugin_restarts.hosted.read().unwrap_or_else(PoisonError::into_inner);
+        hosted.packages.iter().find(|(_, running)| **running == Some(install)).map(|(package, _)| package.clone())
     }
 
     pub(crate) fn plugin_restart(&self, plugin: &str) -> PluginRestart {
-        self.plugin_restarts.state(plugin)
+        self.plugin_restarts.program_state(plugin)
+    }
+
+    pub(crate) fn plugin_bundle_restart(&self, package: &str) -> PluginRestart {
+        self.plugin_restarts.state(&Target::Bundle(package.to_owned()))
     }
 
     // Resolves Once `plugin` Runs With Every Value Saved So Far, Or Its Failed Restart Is Recorded.
     pub async fn plugin_restart_settled(&self, plugin: &Identifier) {
-        let mut phases = self.plugin_restarts.phases.subscribe();
-        let _ = phases.wait_for(|phases| !phases.contains_key(plugin.as_str())).await;
+        self.plugin_restarts.settled(Target::Program(plugin.as_str().to_owned())).await;
+    }
+
+    // Resolves Once `package` Runs What The Store Says, Or Its Refused Change Is Recorded.
+    pub async fn plugin_bundle_settled(&self, package: &str) {
+        self.plugin_restarts.settled(Target::Bundle(package.to_owned())).await;
     }
 
     // Under Plugin Admission: Refuse While Anything Uses An Affected Program, Else Close Their Admission.
@@ -237,7 +330,7 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-// One Restarter Per Runtime: Saves Queue Programs, And It Restarts Each Once Nothing Uses It.
+// One Restarter Per Runtime: Saves Queue Programs, Store Changes Queue Bundles; Each Applies Once Nothing Uses It.
 pub(in crate::runtime) fn spawn(host: Arc<tokio::sync::Mutex<PluginHost>>, handle: RuntimeHandle) -> BackgroundTask {
     BackgroundTask(tokio::spawn(serve(host, handle)))
 }
@@ -259,20 +352,23 @@ async fn serve(host: Arc<tokio::sync::Mutex<PluginHost>>, handle: RuntimeHandle)
     }
 }
 
-// One Pass Over Waiting Programs: Whether Any Stayed Blocked, And A Settling Provider To Wait On.
+// One Pass Over Waiting Bundles And Programs: Whether Any Stayed Blocked, And A Settling Provider To Wait On.
 async fn restart_waiting(
     host: &tokio::sync::Mutex<PluginHost>, restarts: &Restarts, stopping: &tokio::sync::watch::Receiver<bool>,
 ) -> Option<(bool, Option<CancellationToken>)> {
     let mut blocked = false;
     let mut settling = None;
-    for plugin in restarts.waiting() {
+    for target in restarts.waiting() {
         let mut host = host.lock().await;
         if *stopping.borrow() {
             return None;
         }
 
-        let outcome = host.restart_with_saved_settings(&plugin).await;
-        let Outcome::Deferred(provider) = outcome.settle(restarts, &plugin) else { continue };
+        let outcome = match &target {
+            Target::Bundle(package) => host.apply_bundle(package, restarts.requested(package)).await,
+            Target::Program(plugin) => host.restart_with_saved_settings(plugin).await,
+        };
+        let Outcome::Deferred(provider) = outcome.settle(restarts, &target) else { continue };
         blocked = true;
         settling = settling.or(provider);
     }
@@ -295,53 +391,74 @@ async fn stopped(stopping: &mut tokio::sync::watch::Receiver<bool>) {
 mod tests {
     use super::*;
 
+    fn program(plugin: &str) -> Target {
+        Target::Program(plugin.to_owned())
+    }
+
     fn hosting(plugins: &[&str]) -> Restarts {
         let restarts = Restarts::default();
-        restarts.host(plugins.iter().copied());
+        restarts.host(plugins.iter().map(|plugin| (*plugin, "capture-fixture")), std::iter::once(("capture-fixture", None)));
         restarts
     }
 
     #[test]
     fn repeated_saves_wait_once() {
         let restarts = hosting(&["capture"]);
-        assert_eq!(restarts.request("capture", true), PluginRestart::Pending);
-        assert_eq!(restarts.request("capture", false), PluginRestart::Pending);
-        assert_eq!(restarts.waiting(), ["capture"]);
-        restarts.begin("capture");
-        assert_eq!(restarts.state("capture"), PluginRestart::Restarting);
-        restarts.finish("capture");
-        assert_eq!(restarts.state("capture"), PluginRestart::Idle);
+        assert_eq!(restarts.request(program("capture"), true), PluginRestart::Pending);
+        assert_eq!(restarts.request(program("capture"), false), PluginRestart::Pending);
+        assert_eq!(restarts.waiting(), [program("capture")]);
+        restarts.begin(&program("capture"));
+        assert_eq!(restarts.state(&program("capture")), PluginRestart::Restarting);
+        restarts.finish(&program("capture"));
+        assert_eq!(restarts.state(&program("capture")), PluginRestart::Idle);
         assert!(restarts.waiting().is_empty());
     }
 
     #[test]
     fn save_during_restart_follows() {
         let restarts = hosting(&["capture"]);
-        assert_eq!(restarts.request("capture", false), PluginRestart::Restarting);
-        restarts.begin("capture");
-        restarts.request("capture", false);
-        restarts.request("capture", false);
+        assert_eq!(restarts.request(program("capture"), false), PluginRestart::Restarting);
+        restarts.begin(&program("capture"));
+        restarts.request(program("capture"), false);
+        restarts.request(program("capture"), false);
         assert!(restarts.waiting().is_empty());
-        restarts.finish("capture");
-        assert_eq!(restarts.waiting(), ["capture"]);
-        restarts.begin("capture");
-        restarts.finish("capture");
-        assert_eq!(restarts.state("capture"), PluginRestart::Idle);
+        restarts.finish(&program("capture"));
+        assert_eq!(restarts.waiting(), [program("capture")]);
+        restarts.begin(&program("capture"));
+        restarts.finish(&program("capture"));
+        assert_eq!(restarts.state(&program("capture")), PluginRestart::Idle);
     }
 
     #[test]
     fn deferred_restart_reports_pending() {
         let restarts = hosting(&["capture"]);
-        restarts.request("capture", false);
-        restarts.defer("capture");
-        assert_eq!(restarts.state("capture"), PluginRestart::Pending);
-        assert_eq!(restarts.waiting(), ["capture"]);
+        restarts.request(program("capture"), false);
+        restarts.defer(&program("capture"));
+        assert_eq!(restarts.state(&program("capture")), PluginRestart::Pending);
+        assert_eq!(restarts.waiting(), [program("capture")]);
     }
 
     #[test]
     fn unhosted_save_restarts_nothing() {
         let restarts = hosting(&["capture"]);
-        assert_eq!(restarts.request("inactive", false), PluginRestart::Idle);
+        assert_eq!(restarts.request(program("inactive"), false), PluginRestart::Idle);
         assert!(restarts.waiting().is_empty());
+    }
+
+    // A Bundle Applies The Latest Installation Asked For, Ahead Of Program Restarts, And Its Programs Report It.
+    #[test]
+    fn bundle_change_coalesces() {
+        let restarts = hosting(&["capture"]);
+        let bundle = Target::Bundle("capture-fixture".into());
+        let (first, second) = (Uuid::now_v7(), Uuid::now_v7());
+        restarts.request(program("capture"), true);
+        assert_eq!(restarts.request_bundle("capture-fixture", first, true), PluginRestart::Pending);
+        assert_eq!(restarts.request_bundle("capture-fixture", second, false), PluginRestart::Pending);
+        assert_eq!(restarts.requested("capture-fixture"), Some(second));
+        assert_eq!(restarts.waiting(), [bundle.clone(), program("capture")]);
+        restarts.begin(&bundle);
+        assert_eq!(restarts.program_state("capture"), PluginRestart::Restarting);
+        restarts.finish(&bundle);
+        assert_eq!(restarts.program_state("capture"), PluginRestart::Pending);
     }
 }
