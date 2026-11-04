@@ -228,11 +228,9 @@ impl<'a> Projection<'a> {
                 } else {
                     let mut points = Points::new()?;
                     rows(read, index, &group, |point, exact| points.push_exact(point, exact))?;
-                    let (key, label) = match input {
-                        Input::Field(_) if self.request.y_keys.len() == 1 => (group.clone(), group.clone()),
-                        Input::Field(field) => (format!("{field}:{group}"), format!("{field} {group}")),
-                        Input::Expression(_) => (format!("{}:{group}", input.field()), group.clone()),
-                    };
+                    let named_key = matches!(input, Input::Expression(_));
+                    let (key, label) = payload::groups::trace_names(input.field(), &group, self.inputs.len(), named_key);
+                    let (key, label) = (payload::groups::join(&key)?, payload::groups::join(&label)?);
                     visit(points.finish(metadata(&key, &label, self.request))?)?;
                 }
             }
