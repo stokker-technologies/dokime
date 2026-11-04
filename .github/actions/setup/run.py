@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -35,6 +36,15 @@ ZSTD_SHA256 = "acb4e8111511749dc7a3ebedca9b04190e37a17afeb73f55d4425dbf0b90fad9"
 MISE_URL = "https://github.com/jdx/mise/releases/download/v2026.10.17/mise-v2026.10.17-windows-x64.zip"
 MISE_SHA256 = "32bcfda5f72bf7cb189e18ba93c2798bffcb4a678fd004e3127780363f2d8c8c"
 EXPORTED = {}
+# Preinstalled GitHub-Hosted Linux Toolchains No Job Uses; Heavy Builds Reclaim Their Space.
+UNUSED_RUNNER_PATHS = (
+    "/usr/local/lib/android",
+    "/usr/share/dotnet",
+    "/opt/ghc",
+    "/usr/local/.ghcup",
+    "/opt/hostedtoolcache/CodeQL",
+    "/usr/share/swift",
+)
 
 # === Types === #
 
@@ -242,6 +252,26 @@ def unix():
         raise RuntimeError("GNU tar is required")
 
 
+def free_disk():
+    """Report And Reclaim Root Disk Space On A GitHub-Hosted Linux Runner."""
+
+    def available():
+        return shutil.disk_usage("/").free / 2**30
+
+    before, started = available(), time.monotonic()
+    elevate = [] if os.geteuid() == 0 else ["sudo", "-n"]
+    paths = [str(path) for pattern in UNUSED_RUNNER_PATHS for path in sorted(Path("/").glob(pattern.lstrip("/")))]
+    if paths:
+        subprocess.run([*elevate, "rm", "-rf", *paths], check=True, creationflags=spawn_flags())
+    if shutil.which("docker"):
+        subprocess.run(["docker", "image", "prune", "--all", "--force"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
+    print(
+        f"Free Disk: {before:.1f} GiB Before, {available():.1f} GiB After, In {time.monotonic() - started:.1f} s",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def atomic_available():
     if shutil.which("ldconfig"):
         result = subprocess.run(["ldconfig", "-p"], check=False, capture_output=True, text=True, creationflags=spawn_flags())
@@ -311,6 +341,10 @@ def main():
                         stream.write(f"{name}-{field}<<CACHE_VALUE\n{value}\nCACHE_VALUE\n")
     if options.roots_only:
         return
+    hosted = os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" and options.platform == "unix"
+    if os.environ.get("FREE_RUNNER_DISK") == "true" and hosted:
+        with group("Free Runner Disk"):
+            free_disk()
     with group("Native Prerequisites"):
         windows(workspace) if options.platform == "windows" else unix()
     subprocess.run(["zstd", "--version"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
