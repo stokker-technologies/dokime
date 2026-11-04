@@ -73,10 +73,6 @@ impl ListRecords {
     }
 }
 
-impl Endpoint for ListRecords {
-    const PATH: &'static str = "/dokime.v1.Query/ListRecords";
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

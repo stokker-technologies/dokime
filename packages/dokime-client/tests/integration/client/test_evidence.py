@@ -26,7 +26,7 @@ import pytest
 from dokime_client.client import Cycle, Execution, _wire
 from dokime_client.client.execution import handle as execution_module
 
-from .backend import EXECUTION_ID, SUITE_ID, TEMPLATE, collect, prepare, serve
+from .backend import EXECUTION_ID, SUITE_ID, TEMPLATE, BackendFixture, collect, prepare, serve
 
 # Type Checking Imports
 
@@ -71,6 +71,7 @@ def test_live_values() -> None:
                 run.wait(poll_interval=0.01),
             )
             await server.records_parked.wait()
+            await server.samples_parked.wait()
             server.finish_gate.set()
             events, samples, status = await following
             assert [r.id for r in events] == ["event-1", "event-2"]
@@ -80,6 +81,26 @@ def test_live_values() -> None:
             assert summary.passed == 1
             assert server.stop_calls == 0
             assert any(p.get("voltage") == 2 for p in server.sent_cursors)
+
+    asyncio.run(scenario())
+
+
+def test_sample_watch_drains_seal_during_page_delivery() -> None:
+    async def scenario() -> None:
+        server = BackendFixture()
+        server.publish("started")
+        selection = _wire.request("Telemetry", "ListSamples", limit=2, latest=False)
+        request = _wire.request("Telemetry", "WatchSamples", selection=selection, follow=True)
+        reader = server.WatchSamples(request, None)
+        try:
+            first = await anext(reader)
+            assert first.complete
+            server.publish("finished")
+            server.sealed.set()
+            remaining = [sample async for page in reader for sample in page.samples]
+            assert [sample.sample_id for sample in [*first.samples, *remaining]] == ["sample-1", "sample-2"]
+        finally:
+            await reader.aclose()
 
     asyncio.run(scenario())
 

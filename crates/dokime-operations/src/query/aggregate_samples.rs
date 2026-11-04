@@ -78,10 +78,6 @@ impl AggregateSamples {
     }
 }
 
-impl Endpoint for AggregateSamples {
-    const PATH: &'static str = "/dokime.v1.Query/AggregateSamples";
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

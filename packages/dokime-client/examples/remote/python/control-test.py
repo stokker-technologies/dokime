@@ -15,6 +15,7 @@
 import asyncio
 import json
 import sys
+import traceback
 from collections import Counter
 from pathlib import Path
 
@@ -37,6 +38,7 @@ PAIRING_FILE = Path("../lab.dokime-remote")
 TEMPLATE = "obc.checks.pulse"
 CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
+PARAMETERS = {"sample_count": SAMPLE_COUNT}
 EXECUTION_COUNT = 2
 WAIT_SECONDS = 60.0
 
@@ -75,7 +77,7 @@ async def run() -> int:
         try:
             # Materialize One Immutable Case; Each Execution Gets Its Own UUID.
             template = await client.template(TEMPLATE)
-            (test_case,) = await template.materialize(parameters={"sample_count": SAMPLE_COUNT})
+            (test_case,) = await template.materialize(parameters=PARAMETERS)
             first = Execution(test_case)
             second = Execution(test_case)
 
@@ -216,4 +218,5 @@ if __name__ == "__main__":
         raise SystemExit(130)
     except (DokimeError, OSError, ValueError, TimeoutError, ExceptionGroup) as error:
         print(f"Workflow Incomplete: {error}. Inspect The Printed Identities Before Resubmitting", file=sys.stderr)
+        traceback.print_exception(error)
         raise SystemExit(1)

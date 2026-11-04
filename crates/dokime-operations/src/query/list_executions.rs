@@ -65,10 +65,6 @@ impl ListExecutions {
     }
 }
 
-impl Endpoint for ListExecutions {
-    const PATH: &'static str = "/dokime.v1.Query/ListExecutions";
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

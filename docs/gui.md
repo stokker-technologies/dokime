@@ -83,6 +83,10 @@ to the captured producer streams. Running reports freeze one saved evidence cut;
 later samples stay outside that report. Plot previews remain bounded independently
 of raw evidence retention.
 
+An open plot settings dialog retains its edit draft while incoming payloads replace
+the loading, chart or error presentation. Closing it returns focus to its plot's
+settings control.
+
 The live viewer owns the time window for all plots in its view. The options are
 1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
 stays with that view across rerenders. Plot definitions carry no time window.
@@ -156,7 +160,7 @@ the captured column schema to select this presentation.
   export preview; keep that preview transient and out of logs, persisted browser
   storage and report output. Connection credentials never belong in status or profiles.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
-  artifact and recording bytes. Do not add ordinary calls to it.
+  artifact bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.

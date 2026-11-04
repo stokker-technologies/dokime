@@ -173,6 +173,16 @@ async fn live_report() {
     runtime.release_stream_leases(leases).await.unwrap();
     publish(&runtime, None, &[103.0], 6).await;
     runtime.wait_execution_report(&execution).await.unwrap();
+    let current = runtime
+        .operations()
+        .call::<MaterializeReport>(MaterializeReport {
+            subject: ReportSubject::Cycle(cycle.to_string()),
+            at: stale,
+        })
+        .await
+        .unwrap();
+    let current = crate::service_support::reports::payload(runtime.storage(), &current.report).await;
+    assert_cut(&current, &[2.0, 5.0, 11.0, 19.0, 23.0]);
     let mut first = runtime.open_execution_report(&execution).await.unwrap();
     let first_file = first.file.clone();
     let bytes = crate::service_support::reports::opened_bytes(&mut first).await;

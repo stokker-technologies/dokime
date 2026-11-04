@@ -38,7 +38,7 @@ from dokime_tools.test import archive
 def build(profile: str) -> None:
     """Run The Prepared Contract Harness Against Its Original SDK Compiler Inputs."""
     prepared = archive.require(configuration.ROOT, profile)
-    environment = dict(os.environ, DOKIME_COMPILE_CONTRACTS_DIRECTORY=str(prepared.parent), STKR_TEST_PROFILE=profile)
+    environment = dict(os.environ, DOKIME_COMPILE_CONTRACTS_DIRECTORY=str(prepared.parent), TEST_PROFILE=profile)
     subprocess.run(
         [
             "cargo",

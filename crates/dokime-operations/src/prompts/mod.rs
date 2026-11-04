@@ -30,7 +30,6 @@ pub use respond::Respond;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::ORDINARY;
 
 use dokime_domain::model::execution::wire::*;
@@ -61,26 +60,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListDefinitions {
-    const PATH: &'static str = "/dokime.v1.Prompts/ListDefinitions";
-}
-
-impl Endpoint for GetDefinition {
-    const PATH: &'static str = "/dokime.v1.Prompts/GetDefinition";
-}
-
-impl Endpoint for ListPending {
-    const PATH: &'static str = "/dokime.v1.Prompts/ListPending";
-}
-
-impl Endpoint for GetPrompt {
-    const PATH: &'static str = "/dokime.v1.Prompts/GetPrompt";
-}
-
-impl Endpoint for Respond {
-    const PATH: &'static str = "/dokime.v1.Prompts/Respond";
-}
 
 /* === Public Functions === */
 

@@ -144,6 +144,7 @@ class BackendFixture:
         self.checkpoint_missed = asyncio.Event()
         self.records_watched = asyncio.Event()
         self.records_parked = asyncio.Event()
+        self.samples_parked = asyncio.Event()
         self.catalog_started = asyncio.Event()
         self.suite_page: Any = None
         self.catalog_finished = asyncio.Event()
@@ -775,6 +776,8 @@ class BackendFixture:
                 position = min(position, frontier)
                 page.through_stream_cursors[0].value = position
                 page.complete = position == frontier
+            if page.complete and not self.sealed.is_set():
+                self.samples_parked.set()
             yield page
             if self.interrupt_sample_watch and page.samples:
                 self.interrupt_sample_watch = False
@@ -783,7 +786,8 @@ class BackendFixture:
             selection.after_stream_cursors.add(key="voltage", value=position)
             if not page.complete:
                 continue
-            if not request.follow or self.sealed.is_set():
+            # Drain A Final Publish That Raced With Page Delivery.
+            if not request.follow or (self.sealed.is_set() and position >= len(self.samples)):
                 return
             changed = asyncio.create_task(self.changed.wait())
             sealed = asyncio.create_task(self.sealed.wait())

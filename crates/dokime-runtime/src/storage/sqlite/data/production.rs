@@ -164,12 +164,15 @@ impl State {
                     if !files::regular(&path)? && value.length == 0 {
                         harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
                         OpenOptions::new().write(true).create_new(true).open(&path)?.sync_all()?;
-                        files::confirm_durability(&path)?;
                     }
                     let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
                     verify_prefix_cancellable(&mut physical, &value, None, Some(&cancelled))?;
                     physical.set_len(value.length)?;
                     physical.sync_all()?;
+                    drop(physical);
+                    // Recovery Can Find A Creation Whose Caller Never Received Its
+                    // Durable Name. Confirm That Name Before Returning Its Session.
+                    files::confirm_durability(&path)?;
                     Ok::<_, Error>(value)
                 })
                 .await??;
@@ -281,8 +284,9 @@ fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpo
         return Ok(());
     }
     let encoded = entry::encode(requested)?;
+    // Creation And Recovery Already Confirmed This Name. Flush The Appended
+    // Prefix Before Its Catalog Commit Without Republishing The Whole File.
     physical.sync_all()?;
-    files::confirm_durability(&path)?;
     connection.execute("UPDATE storage_productions SET checkpoint=?1 WHERE id=?2", params![encoded, file.id.as_str()])?;
     Ok(())
 }

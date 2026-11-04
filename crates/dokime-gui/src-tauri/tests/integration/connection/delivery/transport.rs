@@ -24,7 +24,7 @@ use tonic::{Request, Response, Status};
 
 // Local Imports
 use super::{FixtureFuture, Gate, HttpFuture, HttpRequest, HttpResponse, Service, wire_codec};
-use dokime::client::contracts::{Endpoint, content};
+use dokime::client::contracts::content;
 use dokime::domain::model::content::wire as model;
 
 /* === Constants === */
@@ -72,7 +72,7 @@ impl tonic::codegen::Service<HttpRequest> for Content {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                content::DownloadArtifact::PATH => {
+                "/dokime.v1.Content/DownloadArtifact" => {
                     wire_codec::<content::DownloadArtifact, dokime::harmos::operations::Response<Envelope>>()
                         .server()
                         .server_streaming(Download(service), request)

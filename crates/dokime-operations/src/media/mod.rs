@@ -32,7 +32,6 @@ pub use screenshot::Screenshot;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::FOLLOW;
 use super::TRANSFER;
 use dokime_domain::model::content::wire::ArtifactMetadata;
@@ -63,32 +62,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for Screenshot {
-    const PATH: &'static str = "/dokime.v1.Media/Screenshot";
-    // The host's screen, camera and microphone are never exposed to a remote listener.
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for Photo {
-    const PATH: &'static str = "/dokime.v1.Media/Photo";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for AudioRecording {
-    const PATH: &'static str = "/dokime.v1.Media/AudioRecording";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for ScreenRecording {
-    const PATH: &'static str = "/dokime.v1.Media/ScreenRecording";
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for CameraRecording {
-    const PATH: &'static str = "/dokime.v1.Media/CameraRecording";
-    const LOCAL_ONLY: bool = true;
-}
 
 /* === Public Functions === */
 

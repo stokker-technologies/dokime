@@ -108,7 +108,6 @@ try {
             }
             dokime cycle seal $CycleId @Connection
             if ($ExecutionId) {
-                dokime execution wait $ExecutionId @Connection
                 $Destination = Join-Path $Recovery "execution-$ExecutionId.zip"
                 if (-not (Test-Path -LiteralPath $Destination)) {
                     dokime execution export $ExecutionId --output $Destination @Connection

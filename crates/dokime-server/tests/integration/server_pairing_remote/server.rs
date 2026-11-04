@@ -654,11 +654,14 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
     let handle = owner.handle();
     let server = prepared.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
+    let reservation = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener_address = reservation.local_addr().unwrap().to_string();
+    drop(reservation);
     let status = native
         .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener {
             settings: Some(model::remote::RemoteListenerSettings {
                 enabled: true,
-                address: "127.0.0.1:0".into(),
+                address: listener_address,
                 tls_enabled: true,
                 authentication_enabled: false,
                 certificate_names: vec!["localhost".into()],
@@ -733,6 +736,36 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
         .await
         .unwrap();
     WireClient::new(fresh).unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+
+    // Refresh Leaves Pending Listener Edits For Their Explicit Commit.
+    let occupied = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let snapshot = handle.read_application_settings().await.unwrap();
+    let active = snapshot.settings.listener.clone();
+    let mut settings = snapshot.settings;
+    settings.listener.address = occupied.local_addr().unwrap().to_string();
+    let pending = settings.listener.clone();
+    handle
+        .update_application_settings(model::settings::wire::UpdateSettings {
+            expected_revision: snapshot.revision,
+            settings,
+        })
+        .await
+        .unwrap();
+    native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Pending Edit Fixture".into() })
+        .await
+        .unwrap();
+    let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
+    assert_eq!(status.listening_address.as_deref(), Some(address.as_str()));
+    assert_eq!(status.settings.as_ref(), Some(&pending));
+    assert!(status.error.is_none());
+    assert!(
+        native.unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(pending) }).await.is_err()
+    );
+    let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
+    assert_eq!(status.listening_address.as_deref(), Some(address.as_str()));
+    assert!(status.error.is_some());
+    native.unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(active) }).await.unwrap();
     drop(stream);
     drop(handle);
     owner.shutdown().await.unwrap();

@@ -15,7 +15,7 @@
 
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { connectionError } from "@/app/native-session/errors";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
@@ -99,12 +99,47 @@ export function BackendsTable({
       setBusy(false);
     }
   }
-  function connect(identifier: string) {
-    if (busy) return;
-    onConnect?.();
-    lastSelected.current = identifier;
-    void owner.select({ kind: "profile", identifier });
-  }
+  const connect = useCallback(
+    (identifier: string) => {
+      if (busy) return;
+      onConnect?.();
+      lastSelected.current = identifier;
+      void owner.select({ kind: "profile", identifier });
+    },
+    [busy, onConnect, owner],
+  );
+  const defaultProfile = document?.default;
+  const columns = useMemo(
+    () =>
+      dataTableColumns<Profile>().columns([
+        dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
+        dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
+        dataTableColumns<Profile>().accessor("endpoint", {
+          header: "Endpoint",
+          meta: { filter: "text", truncate: true },
+        }),
+        dataTableColumns<Profile>().accessor((profile) => (defaultProfile === profile.identifier ? "Last Used" : "—"), {
+          id: "lastUsed",
+          header: "Last Used",
+          meta: { filter: "facet", width: "w-28" },
+        }),
+        dataTableColumns<Profile>().display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <DataTableRowActions
+              label={row.original.identifier}
+              primary={{ label: "Connect", icon: Plug, disabled: busy, onSelect: () => connect(row.original.identifier) }}
+            >
+              <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
+                Delete
+              </DropdownMenuItem>
+            </DataTableRowActions>
+          ),
+        }),
+      ]),
+    [busy, connect, defaultProfile],
+  );
   return (
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
@@ -149,33 +184,7 @@ export function BackendsTable({
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
         emptyText="No Saved Backends"
-        columns={dataTableColumns<Profile>().columns([
-          dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
-          dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
-          dataTableColumns<Profile>().accessor("endpoint", {
-            header: "Endpoint",
-            meta: { filter: "text", truncate: true },
-          }),
-          dataTableColumns<Profile>().accessor((profile) => (document?.default === profile.identifier ? "Last Used" : "—"), {
-            id: "lastUsed",
-            header: "Last Used",
-            meta: { filter: "facet", width: "w-28" },
-          }),
-          dataTableColumns<Profile>().display({
-            id: "actions",
-            header: "Actions",
-            cell: ({ row }) => (
-              <DataTableRowActions
-                label={row.original.identifier}
-                primary={{ label: "Connect", icon: Plug, disabled: busy, onSelect: () => connect(row.original.identifier) }}
-              >
-                <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
-                  Delete
-                </DropdownMenuItem>
-              </DataTableRowActions>
-            ),
-          }),
-        ])}
+        columns={columns}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
           <>

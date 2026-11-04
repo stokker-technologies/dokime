@@ -78,10 +78,6 @@ impl ListSamples {
     }
 }
 
-impl Endpoint for ListSamples {
-    const PATH: &'static str = "/dokime.v1.Query/ListSamples";
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
