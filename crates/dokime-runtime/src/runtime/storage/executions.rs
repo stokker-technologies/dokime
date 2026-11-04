@@ -385,12 +385,20 @@ impl ExecutionStorage {
                 retained_execution(execution)?
             }
         };
-        if !self.storage.cursor_saved().covers(at)? {
-            return Err(invalid("report cursor is not durable"));
-        }
         let intent =
             self.state_manager.state().read(|state| state.report_finalizations.get(&execution.test_execution_id).cloned()).await?.value;
-        let report_boundary = intent.as_ref().map(|intent| intent.evidence_at.clone());
+        // A Final Report Names Its Persisted Boundary. A Current Capture Stops At
+        // The Boundary A Finalization Persisted After Its Caller Chose A Cursor.
+        let report_boundary = match intent.as_ref().map(|intent| &intent.evidence_at) {
+            Some(boundary) if final_report && boundary != at => {
+                return Err(invalid("report request differs from its persisted finalization boundary"));
+            }
+            Some(boundary) => boundary.clone(),
+            None => at.clone(),
+        };
+        if !self.storage.cursor_saved().covers(&report_boundary)? {
+            return Err(invalid("report cursor is not durable"));
+        }
         let (lifecycle_id, anchor) = match intent.and_then(|intent| intent.lifecycle) {
             Some(lifecycle) => {
                 self.adopt_revision(execution, &lifecycle.execution).await?;
@@ -401,10 +409,6 @@ impl ExecutionStorage {
             }
             None => (uuid::Uuid::now_v7().to_string(), None),
         };
-        if report_boundary.as_ref().is_some_and(|boundary| boundary != at) {
-            return Err(invalid("report request differs from its persisted finalization boundary"));
-        }
-        let report_boundary = at.clone();
         let open_scopes = self.open_scopes.clone();
         let operation = async move {
             let gate = owner.lock().await.gate.clone();

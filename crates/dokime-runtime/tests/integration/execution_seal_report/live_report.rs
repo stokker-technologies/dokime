@@ -202,3 +202,64 @@ async fn live_report() {
     assert_eq!(crate::service_support::reports::opened_bytes(&mut second).await, bytes);
     owner.shutdown().await.unwrap();
 }
+
+// A Member Persists Its Finalization Boundary While An Open Cycle Report Admits It.
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn finalization_during_cycle_report() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let mut contract = crate::service_support::contracts::tracking_contract();
+    contract.stream = identifier("example.tracking");
+    let configuration = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
+        source: "example-plugin".into(),
+        version: "test".into(),
+        enabled: true,
+        telemetry_contracts: vec![contract],
+        ..Default::default()
+    }]);
+    let (mut owner, runtime) = started_with_fixture(configuration, executor.clone()).await;
+    let suite = custom_suite();
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle = start_cycle(&runtime, suite).await;
+    let execution = runtime.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+
+    // The Member Has Finished But Not Yet Persisted Its Finalization Boundary
+    let request = dokime_runtime::testing::hold_report_request(&execution);
+    let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+    executor.release();
+    request.entered().await;
+    {
+        let snapshot = runtime.watch_state().latest();
+        assert!(snapshot.state().executions[&execution].finished_at.is_some());
+        assert!(!snapshot.state().report_finalizations.contains_key(&execution));
+    }
+
+    // The Report Reads The Cycle, Then The Boundary Lands Beyond Its Cursor Before The Member Is Captured
+    let capture = dokime_runtime::testing::hold_member_capture(&execution);
+    let task_runtime = runtime.clone();
+    let task_cycle = cycle.clone();
+    let mut open = tokio::spawn(async move { task_runtime.open_cycle_report(&task_cycle).await });
+    tokio::select! {
+        () = capture.entered() => {},
+        result = &mut open => panic!("the cycle report settled before its member capture: {:?}", result.map(|result| result.map(|_| ()))),
+    }
+    publish(&runtime, None, &[7.0], 0).await;
+    request.release();
+    let mut watch = runtime.watch_state();
+    loop {
+        if watch.latest().state().report_finalizations.contains_key(&execution) {
+            break;
+        }
+        watch.next().await.expect("the runtime keeps publishing state");
+    }
+    capture.release();
+
+    let mut opened = open.await.unwrap().unwrap();
+    assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Current);
+    assert!(!crate::service_support::reports::opened_bytes(&mut opened).await.is_empty());
+    runtime.wait_execution_report(&execution).await.unwrap();
+    owner.shutdown().await.unwrap();
+}
