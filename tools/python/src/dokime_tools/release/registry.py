@@ -197,11 +197,11 @@ def request(
         else:
             if channel:
                 resource = endpoint.split("?", 1)[0]
-                links = re.fullmatch(r"releases/(?:nightly|edge)/assets/links(?:/[0-9]+)?", resource)
+                links = re.fullmatch(r"releases/nightly/assets/links(?:/[0-9]+)?", resource)
                 allowed = (
                     resource == "releases"
                     and method == "POST"
-                    or resource in ("releases/nightly", "releases/edge")
+                    or resource == "releases/nightly"
                     and method in {"GET", "PUT"}
                     or links
                     and method in {"GET", "POST", "DELETE"}

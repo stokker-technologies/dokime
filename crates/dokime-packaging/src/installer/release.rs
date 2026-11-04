@@ -39,6 +39,8 @@ use dokime::{
 
 const METADATA_MAX_BYTES: usize = 1024 * 1024;
 const RELEASE_API: &str = "https://api.github.com/repos/stokker-technologies/dokime/releases/tags";
+/// The Mutable Prerelease Channel Whose Distribution Metadata Supplies Its Dokime Version.
+pub const NIGHTLY: &str = "nightly";
 
 /* === Macros === */
 
@@ -72,10 +74,10 @@ struct Asset {
 
 impl Release {
     pub async fn resolve(version: &str) -> Result<Self, Error> {
-        if version != "edge" {
+        if version != NIGHTLY {
             semver::Version::parse(version).map_err(|error| Error::Invalid(error.to_string()))?;
         }
-        let tag = if version == "edge" { version.to_owned() } else { format!("v{version}") };
+        let tag = if version == NIGHTLY { version.to_owned() } else { format!("v{version}") };
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .https_only(true)
@@ -153,7 +155,7 @@ impl Release {
     }
 
     fn distribution_name(&self, version: &str, target: &str) -> Result<String, Error> {
-        if version != "edge" {
+        if version != NIGHTLY {
             return Ok(format!("dokime-distribution-{version}-{target}.zip"));
         }
         let suffix = format!("-{target}.zip");

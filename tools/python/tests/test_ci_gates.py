@@ -11,7 +11,6 @@
 
 # Standard Library Imports
 import copy
-import functools
 import hashlib
 import itertools
 import json
@@ -44,30 +43,30 @@ class ImpactTests(unittest.TestCase):
     def test_dev_and_review(self):
         plan = simulate.PLAN["impact"]
         full = impact.select(plan, {"Cargo.toml"})
-        development = impact.scope(plan, full, "package")
-        self.assertTrue({"package:rust", "package:python", "build:rust:tests"} <= development)
-        self.assertFalse(any(job.startswith(("test:", "release:", "bench:", "prepare:")) for job in development))
+        development = impact.scope(plan, full, "build")
+        self.assertTrue({"build", "build:rust:tests", "check:rust"} <= development)
+        self.assertFalse(any(job.startswith(("package:", "test:", "release:", "bench:", "prepare:")) for job in development))
         self.assertTrue(any(job.startswith("test:") for job in impact.scope(plan, full)))
         for job in development:
             self.assertTrue(set(plan["dependencies"][job]) <= development)
         action = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
-        self.assertEqual(action["scope"](plan, action["select"](plan, {"Cargo.toml"}), "package"), development)
+        self.assertEqual(action["scope"](plan, action["select"](plan, {"Cargo.toml"}), "build"), development)
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         authored = next(line.removeprefix("        plan: ") for line in workflow.splitlines() if line.startswith("        plan: "))
         hosted_plan = json.loads(json.loads(authored))
-        self.assertEqual(impact.scope(hosted_plan, impact.select(hosted_plan, {"Cargo.toml"}), "package"), development)
+        self.assertEqual(impact.scope(hosted_plan, impact.select(hosted_plan, {"Cargo.toml"}), "build"), development)
         print("Dev Impact:", ", ".join(sorted(development)))
         print("PR Impact:", ", ".join(sorted(full)))
 
     def test_guidance_scope(self):
         plan = simulate.PLAN["impact"]
         selected = impact.select(plan, {"CONTRIBUTING.md"})
-        self.assertEqual(impact.scope(plan, selected, "package"), set())
+        self.assertEqual(impact.scope(plan, selected, "build"), set())
 
     def test_conservative_scope(self):
-        plan = {"dependencies": {"package:rust": ["producer"], "producer": []}, "rules": []}
+        plan = {"dependencies": {"build": ["producer"], "package:rust": ["build"], "producer": []}, "rules": []}
         self.assertEqual(impact.close(plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
-        self.assertEqual(impact.scope(plan, {"package:rust"}, "package"), {"package:rust", "producer"})
+        self.assertEqual(impact.scope(plan, {"build", "package:rust"}, "build"), {"build", "producer"})
         with self.assertRaises(ValueError):
             impact.scope(plan, set(), "typo")
 
@@ -179,13 +178,6 @@ class PinTests(unittest.TestCase):
             preflight.assert_not_called()
 
 
-def _publishers() -> list[tuple]:
-    # The Nightly Channel Publisher And The Starter Template's Edge Publisher Share One Contract.
-    template = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools/release/edge.py.tmpl"
-    rendered = runpy.run_path(str(template), run_name="dokime_tools.release.edge_template")
-    return [(functools.partial(nightly._github, channel=nightly.NIGHTLY), nightly.NIGHTLY.tag), (rendered["_github"], "edge")]
-
-
 class ChannelTests(unittest.TestCase):
     def test_nightly_source(self):
         base = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "42", "GITHUB_SHA": "a" * 40, "GITHUB_SERVER_URL": "https://github.com"}
@@ -193,12 +185,12 @@ class ChannelTests(unittest.TestCase):
         for event in ("schedule", "workflow_dispatch"):
             environment = {**base, "GITHUB_EVENT_NAME": event, "GITHUB_REF": "refs/heads/dev"}
             with self.subTest(event=event), patch.dict(os.environ, environment, clear=True):
-                self.assertEqual(nightly._source(nightly.NIGHTLY, True), expected)
+                self.assertEqual(nightly._source(True), expected)
 
         for event, ref in (("workflow_dispatch", "refs/heads/feature"), ("push", "refs/heads/dev")):
             environment = {**base, "GITHUB_EVENT_NAME": event, "GITHUB_REF": ref}
             with self.subTest(event=event, ref=ref), patch.dict(os.environ, environment, clear=True), self.assertRaises(policy.ToolError):
-                nightly._source(nightly.NIGHTLY, True)
+                nightly._source(True)
 
     def test_publish_lookup(self):
         faults = (
@@ -215,7 +207,8 @@ class ChannelTests(unittest.TestCase):
             "wrong-size",
             "pending-asset",
         )
-        for (publisher, tag), missing_release, fault in itertools.product(_publishers(), (False, True), faults):
+        publisher, tag = nightly._github, nightly.TAG
+        for missing_release, fault in itertools.product((False, True), faults):
             with (
                 self.subTest(tag=tag, missing_release=missing_release, fault=fault),
                 tempfile.TemporaryDirectory() as temporary,
@@ -331,7 +324,8 @@ class ChannelTests(unittest.TestCase):
                 self.assertEqual(verified, [f"releases/tags/{tag}"])
 
     def test_immutable_release(self):
-        for (publisher, tag), stage in itertools.product(_publishers(), ("existing", "published")):
+        publisher, tag = nightly._github, nightly.TAG
+        for stage in ("existing", "published"):
             with self.subTest(tag=tag, stage=stage), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 data = b"checksum"
@@ -386,7 +380,7 @@ class ChannelTests(unittest.TestCase):
                     data = name.encode()
                     (directory / name).write_bytes(data)
                     files.append({"name": name, "path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
-                release = {} if missing_release else {"id": 17, "draft": False, "body": "", "tag_name": nightly.NIGHTLY.tag}
+                release = {} if missing_release else {"id": 17, "draft": False, "body": "", "tag_name": nightly.TAG}
                 assets = [{"id": 1, "name": "obsolete.zip", "size": 3}]
                 tag_moves = []
                 published = []

@@ -270,7 +270,7 @@ jobs:
           ${{ github.event_name == 'pull_request' && github.base_ref != '' &&
           !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) || false
           && github.event.before || '' }}
-        scope: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'package' || '' }}
+        scope: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'build' || '' }}
     if: >-
       (true) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
@@ -1258,8 +1258,7 @@ jobs:
         summary-module: ""
     if: >-
       (((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'push' && github.ref == 'refs/heads/dev'))) &&
+      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')) &&
       needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs),
       'package:python')) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
@@ -2245,8 +2244,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2258,8 +2256,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2271,8 +2268,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2284,8 +2280,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2297,8 +2292,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2310,8 +2304,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2323,8 +2316,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2336,8 +2328,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2349,8 +2340,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2362,8 +2352,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2375,8 +2364,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2385,8 +2373,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2398,8 +2385,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2414,8 +2400,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2424,8 +2409,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2439,8 +2423,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2454,8 +2437,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2469,8 +2451,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2484,8 +2465,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2506,8 +2486,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2519,8 +2498,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2532,8 +2510,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2545,8 +2522,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2558,8 +2534,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2571,8 +2546,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2584,8 +2558,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2597,8 +2570,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2610,8 +2582,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2623,8 +2594,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2636,8 +2606,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2646,8 +2615,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2659,8 +2627,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2675,8 +2642,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2685,8 +2651,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2700,8 +2665,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2715,8 +2679,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2730,8 +2693,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2745,8 +2707,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2758,16 +2719,14 @@ jobs:
         summary-module: ""
     if: >-
       ((((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) &&
+      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
       (!startsWith(github.ref, 'refs/tags/') || needs.source.outputs.stable_release == 'true' ||
       github.workflow == 'Nightly') && !(needs.source.outputs.stable_release ==
       'true' && contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI /
       Nightly')) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) || (((github.event_name == 'schedule' ||
       github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-      github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-      'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
       needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
       !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'windows')
       && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&

@@ -4,24 +4,27 @@ Detailed concepts, supported interfaces and existing authoring examples. For ins
 
 ## Install Tools With Mise
 
-Select matching CLI and authoring-tool release archives in your mise configuration. For Windows x86-64:
+Select the CLI and authoring tool from one release in your mise configuration,
+the same form generated plugin projects use:
 
 ```toml
 [tool_alias]
 dokime = "github:stokker-technologies/dokime"
-cargo-dokime = "github:stokker-technologies/dokime"
 
 [tools]
-dokime = { version = "0.1.0", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
-cargo-dokime = { version = "0.1.0", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+"github:stokker-technologies/dokime" = { version = "0.1.2", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" }
+dokime = { version = "0.1.2", matching_regex = "^dokime-cli-", bin = "dokime" }
 ```
 
-For Linux x86-64, use `dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz`
-and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its command at the root,
-LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
-The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
-own installation directory. Cargo-binstall metadata selects the same archive names, although this
-Cargo subcommand is distributed through release assets and mise.
+Set both versions to `nightly` to follow the nightly prerelease. The CLI asset is
+`dokime-cli-<version>-<Rust-target>` and the authoring tool
+`cargo-dokime-<version>-<Rust-target>`; mise picks the native target. Release
+v0.1.2 ships them as raw executables (`.exe` on Windows). Nightly ships ZIP
+(Windows) or tar.gz (Unix) archives containing the command at the root, LICENSE,
+README and generated CHANGELOG; Unix commands retain executable modes. The
+[mise alias](https://mise.jdx.dev/dev-tools/aliases.html) gives the CLI its own
+installation directory. Cargo-binstall metadata selects the same archive names,
+although this Cargo subcommand is distributed through release assets and mise.
 
 Release downloads include native installers, CLI and authoring-tool archives,
 `dokime-distribution-<version>-<Rust-target>.zip` distributor inputs and
@@ -32,7 +35,7 @@ members and member SHA-256 hashes. Future target-independent guests use
 `dokime-guests-<version>.zip`; guest execution is not currently admitted.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The `edge` release uses the same asset names and workspace version,
+downloads. The `nightly` prerelease uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
@@ -1391,7 +1394,7 @@ extract it and supply its directory through `--artifacts`.
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
-Use an exact semantic version such as `"0.1.3"`, `"edge"`, or omit the key
+Use an exact semantic version such as `"0.1.3"`, `"nightly"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
 
@@ -1403,7 +1406,7 @@ The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
 its bundle identity before validating distribution files and plugin compatibility.
-For `edge`, the distribution metadata supplies the actual Dokime version.
+For `nightly`, the distribution metadata supplies the actual Dokime version.
 
 Verified downloads are cached by SHA-256 under
 `%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or
