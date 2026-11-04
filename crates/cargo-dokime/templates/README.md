@@ -63,7 +63,7 @@ environment sources or defaults.
 
 The SDK and `plugin-host` definitions use the same Dokime release tag. Install the host telemetry bundle before loading this template, which subscribes to `plugin_host::System`; missing publishers are refused per stream.
 
-Install `cargo-dokime` and the `dokime` host, then run from this directory:
+Run `mise install`, then run from this directory:
 
 ```sh
 cargo dokime sidecar dev{{selection}}
@@ -75,8 +75,8 @@ the checkpoint prompt. Keep dev running while editing: successful builds cancel
 active plugin work and reload the plugin while the browser stays connected.
 Click **Re-run**, or start dev with `--rerun` to repeat your latest case after
 each reload. Type `r` and Enter to retry, `q` and Enter to quit. Dev launches
-the installed host through the `dokime` CLI, so `dokime` must be on `PATH`
-(or passed with `--dokime`).
+the host through the `dokime` CLI that `mise.toml` pins (or one passed with
+`--dokime`); without `--headless`, it opens the installed Dokime desktop GUI.
 
 ```sh
 cargo test
@@ -109,7 +109,7 @@ the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
 Run `cargo generate-lockfile` and `mise install` once, then commit both lockfiles:
-CI installs the locked dependencies and tools. Build and Package install the pinned `cargo-dokime` raw executable from Dokime's official GitHub release assets, selecting the host platform; the executable is not a crates.io package. `mise run check` verifies source and formatting; Build runs configuration-matched Clippy before compiling. `mise run build` compiles the plugin and freezes its catalog
+CI installs the locked dependencies and tools. `mise.toml` pins `cargo-dokime` and the `dokime` CLI to the Dokime release that generated this project, from Dokime's official GitHub release assets for the host platform; neither is a crates.io package. Set both versions to `nightly` to follow the nightly prerelease. `mise run check` verifies source and formatting; Build runs configuration-matched Clippy before compiling. `mise run build` compiles the plugin and freezes its catalog
 under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
 Standalone development builds retain line tables with separate debug information,
 matching Dokime's development profile while keeping the packaged executable bounded.

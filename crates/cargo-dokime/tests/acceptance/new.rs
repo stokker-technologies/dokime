@@ -104,6 +104,25 @@ fn standalone_scaffold_offline() {
     let python = fs::read_to_string(plugin.join("pyproject.toml")).unwrap().parse::<toml_edit::DocumentMut>().unwrap();
     let members = python["tool"]["uv"]["workspace"]["members"].as_array().unwrap();
     assert!(members.iter().any(|member| member.as_str() == Some("tools/python")));
+
+    // The Project Pins Its Authoring Tools Once, At The Generating Release
+    let tooling = fs::read_to_string(plugin.join("mise.toml")).unwrap();
+    assert!(!tooling.contains("SPDX-License-Identifier"), "mise.toml has no embedded file header");
+    let tooling = tooling.parse::<toml_edit::DocumentMut>().unwrap();
+    assert_eq!(tooling["tool_alias"]["dokime"].as_str(), Some("github:stokker-technologies/dokime"));
+    for (tool, asset, binary) in
+        [("github:stokker-technologies/dokime", "^cargo-dokime-", "cargo-dokime"), ("dokime", "^dokime-cli-", "dokime")]
+    {
+        let tool = &tooling["tools"][tool];
+        assert_eq!(tool["version"].as_str(), Some(env!("CARGO_PKG_VERSION")));
+        assert_eq!(tool["matching_regex"].as_str(), Some(asset));
+        assert_eq!(tool["bin"].as_str(), Some(binary));
+    }
+    let tasks = tooling["tasks"].as_table().unwrap();
+    assert!(tasks.contains_key("dev"));
+    for (name, task) in tasks {
+        assert!(task.get("tools").is_none(), "task {name} relies on the project tools");
+    }
     for file in ["mise.toml", "tools/python/src/project_tools/test/run.py"] {
         let contents = fs::read_to_string(plugin.join(file)).unwrap();
         let public_contents = contents.replace(".stkr", "").to_ascii_lowercase();
