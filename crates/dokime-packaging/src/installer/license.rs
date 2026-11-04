@@ -25,8 +25,21 @@ use std::{ffi::OsStr, path::Path};
 /// Dokime's Own License, Always Installed As `LICENSE`.
 pub const DOKIME: &str = "Apache-2.0";
 
+/// Dokime's Copyright Holder, Named In Package Metadata And The Debian Copyright File.
+pub const DOKIME_HOLDER: &str = "Stokker Technologies";
+
 /// Installed File Stem Of An Organization Pack's Additional Terms.
 const TERMS_STEM: &str = "EULA";
+
+/// Debian Machine-Readable Copyright Format Revision The Generated File Declares.
+const DEP5_FORMAT: &str = "https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/";
+
+/// Dokime's Upstream Name And Source Repository.
+const UPSTREAM_NAME: &str = "Dokime";
+const UPSTREAM_SOURCE: &str = env!("CARGO_PKG_REPOSITORY");
+
+/// Debian's Shared Copy Of Dokime's License Text.
+const COMMON_LICENSE: &str = "/usr/share/common-licenses/Apache-2.0";
 
 /* === Macros === */
 
@@ -117,7 +130,66 @@ pub fn installed_name(file: &Path) -> String {
     }
 }
 
+/// Renders A DEP-5 Debian Copyright File For Dokime And Any Pack Terms.
+///
+/// `terms` Holds The Pack's SPDX Expression And Its Text; Holders Are Listed In Order.
+pub fn debian_copyright(holders: &[&str], apache: &str, terms: Option<(&str, &str)>) -> String {
+    let header = format!("Format: {DEP5_FORMAT}\nUpstream-Name: {UPSTREAM_NAME}\nSource: {UPSTREAM_SOURCE}\n");
+    let mut files = String::from("Files: *\nCopyright:");
+    for holder in holders {
+        let holder = single_line(holder);
+        files.push_str(&format!(" {holder}\n"));
+    }
+
+    // One Standalone License Paragraph Per Term: The Pack's Terms, Then Dokime's Apache-2.0.
+    let mut paragraphs = vec![header];
+    let mut pack = None;
+    if let Some((expression, text)) = terms {
+        let expression = single_line(expression);
+        paragraphs.push(format!("License: {expression}\n{}", license_text(text)));
+        pack = Some(expression);
+    }
+    let reference = format!(" On Debian systems, the complete text of the Apache License 2.0 can be found in {COMMON_LICENSE}.\n .\n");
+    paragraphs.push(format!("License: {DOKIME}\n{reference}{}", license_text(apache)));
+
+    // The Files Paragraph Declares The Effective Expression Of Every Term.
+    let expression = combined(pack.as_deref());
+    files.push_str(&format!("License: {expression}\n"));
+    paragraphs.insert(1, files);
+    paragraphs.join("\n")
+}
+
 /* === Private Functions === */
+
+/// Collapses A Field Value Onto One Line So It Cannot Open Another Field.
+fn single_line(value: &str) -> String {
+    let words: Vec<&str> = value.split_whitespace().collect();
+    words.join(" ")
+}
+
+/// Formats License Text As DEP-5 Continuation Lines Without Surrounding Blank Lines.
+fn license_text(text: &str) -> String {
+    // Drop Surrounding Blank Lines But Keep The First Line's Indentation.
+    let text = text.trim_start_matches('\u{feff}');
+    let text = text.trim_end();
+    let first = text.len() - text.trim_start().len();
+    let start = text[..first].rfind('\n').map_or(0, |newline| newline + 1);
+
+    let mut lines = String::new();
+    for line in text[start..].lines() {
+        lines.push_str(&continuation(line));
+    }
+    lines
+}
+
+/// Returns One Continuation Line Indented One Space; A Blank Line Becomes ` .`.
+fn continuation(line: &str) -> String {
+    let line = line.trim_end();
+    if line.is_empty() {
+        return " .\n".into();
+    }
+    format!(" {line}\n")
+}
 
 fn license(token: &str) -> bool {
     if let Some((document, reference)) = token.split_once(':') {
@@ -192,6 +264,57 @@ mod tests {
         assert_eq!(combined(None), "Apache-2.0");
         assert_eq!(combined(Some("LicenseRef-Acme-Proprietary")), "LicenseRef-Acme-Proprietary AND Apache-2.0");
         assert_eq!(combined(Some("MIT OR LicenseRef-Acme")), "(MIT OR LicenseRef-Acme) AND Apache-2.0");
+    }
+
+    /// Splits A Rendered Copyright File Into Its Blank-Line-Separated Paragraphs.
+    fn paragraphs(file: &str) -> Vec<Vec<&str>> {
+        let paragraphs = file.split("\n\n");
+        paragraphs.map(|paragraph| paragraph.lines().collect()).collect()
+    }
+
+    /// Asserts Every Line After A Paragraph's First Field Is A Nonblank DEP-5 Continuation Line.
+    fn assert_continuations(paragraph: &[&str]) {
+        for line in &paragraph[1..] {
+            assert!(line.starts_with(' ') && !line.trim().is_empty(), "{line:?}");
+        }
+    }
+
+    #[test]
+    fn debian_copyright_without_terms() {
+        let file = debian_copyright(&[DOKIME_HOLDER], "\n  Apache License\n\n  Terms   \n\n", None);
+        let paragraphs = paragraphs(&file);
+        assert_eq!(paragraphs.len(), 3);
+        let header = [format!("Format: {DEP5_FORMAT}"), format!("Upstream-Name: {UPSTREAM_NAME}"), format!("Source: {UPSTREAM_SOURCE}")];
+        assert_eq!(paragraphs[0], header);
+        let files = ["Files: *".to_owned(), format!("Copyright: {DOKIME_HOLDER}"), "License: Apache-2.0".to_owned()];
+        assert_eq!(paragraphs[1], files);
+
+        // Apache-2.0 Names Debian's Common Copy, Then Carries Its Own Text.
+        let apache = &paragraphs[2];
+        assert_eq!(apache[0], "License: Apache-2.0");
+        assert_continuations(apache);
+        assert!(apache[1].contains(COMMON_LICENSE));
+        assert_eq!(apache[2..], [" .", "   Apache License", " .", "   Terms"]);
+        assert!(file.ends_with("   Terms\n"));
+    }
+
+    #[test]
+    fn debian_copyright_with_terms() {
+        let holders = [DOKIME_HOLDER, "Acme\nCorporation"];
+        let terms = ("MIT OR\nLicenseRef-Acme", "\u{feff}Acme terms\r\n\r\nSection 2\r\n");
+        let file = debian_copyright(&holders, "Apache text", Some(terms));
+        let paragraphs = paragraphs(&file);
+        assert_eq!(paragraphs.len(), 4);
+        let copyright = format!("Copyright: {DOKIME_HOLDER}");
+        let expected = ["Files: *", &copyright, " Acme Corporation", "License: (MIT OR LicenseRef-Acme) AND Apache-2.0"];
+        assert_eq!(paragraphs[1], expected);
+
+        // The Pack's Terms Precede Dokime's Apache-2.0 Paragraph.
+        assert_eq!(paragraphs[2], ["License: MIT OR LicenseRef-Acme", " Acme terms", " .", " Section 2"]);
+        let apache = &paragraphs[3];
+        assert_eq!(apache[0], "License: Apache-2.0");
+        assert_continuations(apache);
+        assert_eq!(apache.last(), Some(&" Apache text"));
     }
 
     #[test]

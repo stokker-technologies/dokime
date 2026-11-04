@@ -1457,6 +1457,17 @@ DEB and RPM payloads carry both files under `/usr/lib/<slug>/`, and the RPM
 expression is parenthesized first, as in `(MIT OR LicenseRef-Acme-Terms) AND Apache-2.0`.
 Without `[license]`, packages declare `Apache-2.0` and the license page shows `LICENSE`.
 
+Linux packages also install `/usr/share/doc/<slug>/copyright` in the Debian
+machine-readable copyright format (DEP-5), hashed in `installer.json`. Its header
+names Dokime and its source repository; one `Files: *` paragraph lists Dokime's
+copyright holder plus the pack's `[app.organization] name` and declares the same
+expression as the RPM `License` tag. Standalone `License` paragraphs follow: the
+pack's `spdx` expression carrying the text of its `file`, then `Apache-2.0`
+pointing at `/usr/share/common-licenses/Apache-2.0` and carrying the full text.
+Because the text is copied verbatim, the pack's `file` must be UTF-8 on Linux.
+RPM packages carry the same file as documentation; their license metadata
+remains the `License` tag.
+
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
