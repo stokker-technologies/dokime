@@ -135,16 +135,11 @@ async fn current(
                 return Ok(Err(MaterializedReport { report: seal.report.clone() }));
             }
             let source = state.cycle_view(id).ok_or_else(|| invalid("cycle member is missing"))?;
-            let boundaries = cycle
-                .execution_ids
-                .iter()
-                .filter_map(|id| state.report_finalizations.get(id).map(|intent| (id.clone(), intent.evidence_at.clone())))
-                .collect::<std::collections::BTreeMap<_, _>>();
-            Ok::<_, Error>(Ok((source, state.identity.node.node_id.clone(), state.session_id.clone(), boundaries)))
+            Ok::<_, Error>(Ok((source, state.identity.node.node_id.clone(), state.session_id.clone())))
         })
         .await?
         .value?;
-    let (source, owner, session, intents) = match current {
+    let (source, owner, session) = match current {
         Ok(current) => current,
         Err(published) => return Ok(published),
     };
@@ -171,10 +166,6 @@ async fn current(
             Member::Sealed(seal)
         } else {
             progress.phase("Capturing Evidence");
-            let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
-            if !storage.cursor_saved().covers(boundary)? {
-                return Err(invalid("pending member evidence is not durable"));
-            }
             // A Finalizing Member Keeps Its Owner, Which Already Refuses New Producers.
             if resources.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
                 resources.execution_storage.acquire(&source, execution).await?;
@@ -185,17 +176,14 @@ async fn current(
                 plans.push(Member::Sealed(seal));
                 continue;
             }
-            let inspection = match resources.execution_storage.published_report_view(&execution.test_execution_id).await? {
-                Some(inspection) => inspection,
-                None => {
-                    let inputs = resources.execution_storage.prepare_capture(&source, execution, boundary, false).await?;
-                    resources
-                        .execution_storage
-                        .capture_execution_view(&source, &inputs, resources.settings.read_application_settings().await?.settings.report)
-                        .await?
-                }
-            };
-            if inspection.evidence_through()? != boundary || inspection.execution() != execution {
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_member_capture(&execution.test_execution_id).await;
+            // Capture Admission Resolves The Member's Boundary Together With Its Finalization
+            // Intent, Which May Be Persisted After This Report Read The Cycle.
+            let inputs = resources.execution_storage.prepare_capture(&source, execution, at, false).await?;
+            let defaults = resources.settings.read_application_settings().await?.settings.report;
+            let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
+            if *inspection.evidence_through()? != inputs.through || inspection.execution() != execution {
                 return Err(invalid("cycle member differs from its frozen source"));
             }
             Member::Captured(inspection, guard)

@@ -195,7 +195,7 @@ async fn execution(
     let defaults = resources.settings.read_application_settings().await?.settings.report;
     let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
 
-    if inspection.evidence_through()? != at {
+    if *inspection.evidence_through()? != inputs.through {
         return Err(invalid("capture changed requested report boundary"));
     }
     let storage = &resources.execution_storage.storage;

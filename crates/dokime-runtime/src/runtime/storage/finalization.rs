@@ -197,6 +197,8 @@ impl RuntimeHandle {
             self.execution_storage.acquire(cycle, execution).await?;
         }
         self.execution_storage.finish_outputs(id).await?;
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_report_request(id).await;
         let evidence_at = self.storage().flush().await?;
         if !self.state_read().report_finalizations.contains_key(id) {
             self.commit(crate::transactions::RequestReportFinalization {
