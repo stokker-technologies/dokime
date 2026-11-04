@@ -60,14 +60,14 @@ pub(crate) async fn sealed_member(
     ctx: &Scope, storage: &Manager, seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     let inspection = ExecutionView::from_seal_source(storage, seal).await?;
-    execution(ctx, &inspection, true, operation).await
+    execution(ctx, &inspection, true, false, operation).await
 }
 
 // Presentation Reads Are Bounded By Ingestion And Indexed Previews.
 pub(crate) async fn execution(
-    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation,
+    ctx: &Scope, inspection: &ExecutionView, final_report: bool, current: bool, operation: &Operation,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
-    let request = evidence_request(inspection, final_report)?;
+    let request = evidence_request(inspection, current)?;
     let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
     execution_with_evidence(ctx, inspection, final_report, operation, evidence.remove(0)).await
 }
@@ -277,7 +277,7 @@ pub(crate) async fn execution_with_evidence(
     Ok(ReadBatch::new(report))
 }
 
-pub(crate) fn evidence_request(inspection: &ExecutionView, final_report: bool) -> Result<Request> {
+pub(crate) fn evidence_request(inspection: &ExecutionView, current: bool) -> Result<Request> {
     let captured = inspection.source_snapshot()?;
     let execution = inspection.execution();
     let mut percentiles = std::collections::BTreeSet::new();
@@ -303,7 +303,7 @@ pub(crate) fn evidence_request(inspection: &ExecutionView, final_report: bool) -
         execution: execution.test_execution_id.to_string(),
         cycle: execution.test_cycle_id.to_string(),
         at: captured.evidence_through.clone(),
-        current: !final_report && execution.finished_at.is_none(),
+        current,
         rows: captured.report_defaults.table_rows as usize,
         streams: captured.telemetry_contracts.keys().map(ToString::to_string).collect(),
         percentiles,

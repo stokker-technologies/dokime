@@ -15,7 +15,8 @@
 
 // Standard Library Imports
 use std::{
-    path::{Path, PathBuf},
+    io::{Read, Seek},
+    path::Path,
     process::Stdio,
 };
 // Third Party Imports
@@ -37,7 +38,8 @@ pub struct Host {
     finalize_reports: bool,
     endpoint: String,
     replies: Lines<BufReader<ChildStdout>>,
-    stderr: PathBuf,
+    // An Independent Read Handle Outlives A Story Root Removed Before This Host Drops.
+    stderr: std::fs::File,
     _root: Option<TempDir>,
 }
 
@@ -53,7 +55,7 @@ impl Drop for Host {
             return;
         }
         let status = self.child.try_wait();
-        let diagnostics = std::fs::read_to_string(&self.stderr).unwrap_or_default();
+        let diagnostics = self.diagnostics();
         eprintln!("backend status at story failure: {status:?}\n{diagnostics}");
     }
 }
@@ -70,6 +72,7 @@ impl Host {
         std::fs::create_dir_all(root).unwrap();
         let stderr = root.join("host.stderr.log");
         let diagnostics = std::fs::File::create(&stderr).unwrap();
+        let log = std::fs::File::open(&stderr).unwrap();
         let mut command = Command::from(dokime::domain::process::command(super::artifacts::host_binary()));
         command.arg("server");
         command
@@ -118,7 +121,7 @@ impl Host {
             finalize_reports: super::system_reports::required(),
             endpoint,
             replies: lines,
-            stderr,
+            stderr: log,
             _root: None,
         }
     }
@@ -150,7 +153,7 @@ impl Host {
         drop(self.child.stdin.take());
         let status = self.child.wait().await.unwrap();
         let elapsed = started.elapsed();
-        (status, elapsed, std::fs::read_to_string(&self.stderr).unwrap())
+        (status, elapsed, self.diagnostics())
     }
 
     pub async fn stop(mut self, signal: bool) {
@@ -169,8 +172,16 @@ impl Host {
             drop(stdin);
         }
         let status = self.child.wait().await.unwrap();
-        let diagnostics = std::fs::read_to_string(&self.stderr).unwrap();
+        let diagnostics = self.diagnostics();
         assert!(status.success(), "the host exited with {status}:\n{diagnostics}");
+    }
+
+    fn diagnostics(&self) -> String {
+        let mut log = &self.stderr;
+        let mut diagnostics = String::new();
+        log.rewind().unwrap();
+        log.read_to_string(&mut diagnostics).unwrap();
+        diagnostics
     }
 }
 
