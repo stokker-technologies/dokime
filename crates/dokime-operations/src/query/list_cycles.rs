@@ -63,10 +63,6 @@ impl ListCycles {
     }
 }
 
-impl Endpoint for ListCycles {
-    const PATH: &'static str = "/dokime.v1.Query/ListCycles";
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

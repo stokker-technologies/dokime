@@ -24,7 +24,7 @@ use dokime::operations::hosting::{Serve, Served};
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime::client::contracts::{self, Endpoint, backend, plugins as v1, runtime};
+use dokime::client::contracts::{self, backend, plugins as v1, runtime};
 use dokime::domain::model;
 
 /* === Constants === */
@@ -161,14 +161,14 @@ operation!(backend::GetAvailability, _host, _request, _input, {
         epoch: ID.into(),
         methods: [
             "/harmos.host.v1.Host/Catalog",
-            backend::GetIdentity::PATH,
-            backend::GetHealth::PATH,
-            backend::GetAvailability::PATH,
-            runtime::GetIdentity::PATH,
-            runtime::GetHealth::PATH,
-            v1::Install::PATH,
-            contracts::reports::DownloadExecutionReport::PATH,
-            contracts::reports::DownloadCycleReport::PATH,
+            "/dokime.v1.Backend/GetIdentity",
+            "/dokime.v1.Backend/GetHealth",
+            "/dokime.v1.Backend/GetAvailability",
+            "/dokime.v1.Runtime/GetIdentity",
+            "/dokime.v1.Runtime/GetHealth",
+            "/dokime.v1.Plugins/Install",
+            "/dokime.v1.Reports/DownloadExecutionReport",
+            "/dokime.v1.Reports/DownloadCycleReport",
         ]
         .into_iter()
         .map(str::to_owned)

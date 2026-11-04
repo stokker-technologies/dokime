@@ -339,18 +339,18 @@ fn cases() -> impl Iterator<Item = &'static Case> {
     use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case {
-            path: GetHealth::PATH,
-            call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH),
+            path: "/dokime.v1.Runtime/GetHealth",
+            call: |channel, token| operation::<GetHealth>(channel, token),
         },
         Case {
-            path: GetIdentity::PATH,
-            call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH),
+            path: "/dokime.v1.Runtime/GetIdentity",
+            call: |channel, token| operation::<GetIdentity>(channel, token),
         },
     ];
     CASES.iter().chain(STREAMING_CASES).chain(OPERATIONS)
 }
 
-fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
+fn operation<O>(channel: Channel, token: Option<&'static str>) -> Refusal
 where
     O: dokime::harmos::operations::OperationDeclaration + dokime::harmos::domain::Portable + Default,
     O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
@@ -374,7 +374,7 @@ where
         let declaration = O::default();
         let envelope = dokime::harmos::operations::Response::new(declaration);
         let request = secreted(envelope, token);
-        let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
+        let route = dokime::operations::path::<O>().parse::<tonic::codegen::http::uri::PathAndQuery>().unwrap();
         let response = client.unary(request, route, codec).await;
         response.err()
     })
@@ -409,7 +409,7 @@ async fn assert_key_refusals(channel: &Channel, authenticated: bool) {
 
 pub(crate) fn table_covers_serves() {
     let served: std::collections::BTreeSet<_> = dokime_server::grpc::methods().map(|(path, _)| path).collect();
-    let covered: std::collections::BTreeSet<_> = cases().map(|case| case.path).collect();
+    let covered: std::collections::BTreeSet<_> = cases().map(|case| case.path.to_owned()).collect();
     assert_eq!(served, covered, "every served method needs a row here, and a row needs a served method");
     assert_eq!(covered.len(), cases().count(), "no duplicate rows");
 }
@@ -443,8 +443,7 @@ async fn assert_remote_key_boundary(authenticated: bool) {
         .into_iter()
         .collect();
     let public_methods = methods.iter().filter(|(_, local_only)| !**local_only);
-    let public_paths = public_methods.map(|(path, _)| *path);
-    let expected: std::collections::BTreeSet<_> = public_paths.map(str::to_owned).collect();
+    let expected: std::collections::BTreeSet<_> = public_methods.map(|(path, _)| path.clone()).collect();
     assert_eq!(advertised, expected, "availability must exclude native-only and internal host providers");
 
     for case in cases() {
