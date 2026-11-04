@@ -3285,8 +3285,19 @@ jobs:
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: matrix.platform == 'windows' && (true) && (true)
+    - name: Disk Counters / Start
+      uses: ./.github/actions/disk-counters
+      with:
+        mode: start
+      if: matrix.platform == 'windows' && (true) && (true)
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
       if: matrix.platform == 'windows' && (true) && (true)
+    - name: Disk Counters / Stop
+      uses: ./.github/actions/disk-counters
+      with:
+        mode: stop
+        name: disk-counters-test_rust_integration-${{ env.PROFILE }}-windows
+      if: matrix.platform == 'windows' && (true) && (always())
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: matrix.platform == 'windows' && (true) && (always())
       with:
