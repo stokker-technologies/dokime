@@ -27,6 +27,7 @@ use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings,
 use super::{
     artwork,
     distribution::{self, Distribution},
+    license,
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
 };
 use crate::Error;
@@ -52,11 +53,28 @@ struct DistributionMetadata {
     updater_signed: bool,
 }
 
+/// Installed Payload Collected While Staging: Windows Resources, Linux Files And Their Digests.
+struct Staging {
+    resources: HashMap<String, String>,
+    linux_files: HashMap<PathBuf, PathBuf>,
+    files: BTreeMap<String, String>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Staging {
+    fn add(&mut self, staged: &Path, prefix: &str, installed: &str) -> Result<(), Error> {
+        self.resources.insert(staged.to_string_lossy().into_owned(), installed.into());
+        self.linux_files.insert(PathBuf::from(format!("/{prefix}{installed}")), staged.to_owned());
+        let bytes = std::fs::read(staged)?;
+        self.files.insert(format!("{prefix}{installed}"), distribution::digest(&bytes));
+        Ok(())
+    }
+}
 
 /* === Public Functions === */
 
@@ -146,19 +164,13 @@ pub fn assemble(
         let installed = format!("{installed_resource_prefix}{relative}");
         files.insert(installed, digest);
     }
-    let license = source.join("LICENSE");
-    #[cfg(windows)]
-    let license = {
-        let staged = scratch.join("LICENSE");
-        std::fs::copy(&license, &staged)?;
-        staged
-    };
-    resources.insert(license.to_string_lossy().into_owned(), "LICENSE".into());
-    linux_files.insert(PathBuf::from(format!("/{installed_resource_prefix}LICENSE")), license.clone());
-    let license_bytes = std::fs::read(&license)?;
-    let license_digest = distribution::digest(&license_bytes);
-    let installed_license = format!("{installed_resource_prefix}LICENSE");
-    files.insert(installed_license, license_digest);
+    let mut staging = Staging { resources, linux_files, files };
+    let (license, license_file) = stage_licenses(manifest, source, scratch, &installed_resource_prefix, &mut staging)?;
+    let Staging {
+        mut resources,
+        mut linux_files,
+        mut files,
+    } = staging;
 
     // Stage Startup Identity In The Verified Inventory
     let installed_identity =
@@ -227,8 +239,8 @@ pub fn assemble(
     let mut bundle = BundleSettings {
         identifier: Some(identity.identifier.clone()),
         icon: Some(icons),
-        license: Some("Apache-2.0".into()),
-        license_file: Some(license),
+        license: Some(license),
+        license_file: Some(license_file),
         ..BundleSettings::default()
     };
     bundle.windows.nsis = Some(NsisSettings {
@@ -389,6 +401,36 @@ pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
+
+/// Stages Dokime's `LICENSE` And Any Pack Terms; Returns The Package License And License Page File.
+fn stage_licenses(
+    manifest: &Manifest, source: &Path, scratch: &Path, prefix: &str, staging: &mut Staging,
+) -> Result<(String, PathBuf), Error> {
+    // Dokime's Apache-2.0 License Is Always Installed Unchanged.
+    let license = source.join("LICENSE");
+    #[cfg(windows)]
+    let license = {
+        let staged = scratch.join("LICENSE");
+        std::fs::copy(&license, &staged)?;
+        staged
+    };
+    staging.add(&license, prefix, "LICENSE")?;
+    let Some(terms) = &manifest.license else {
+        return Ok((license::DOKIME.into(), license));
+    };
+
+    // Pack Terms Are Added Beside Dokime's License And Shown On The NSIS License Page.
+    let (spdx, file) = terms.terms()?;
+    let name = license::installed_name(file);
+    // A Separate Folder Keeps The Terms Clear Of Case-Insensitive Scratch Names Such As LICENSE.
+    let folder = scratch.join("terms");
+    std::fs::create_dir_all(&folder)?;
+    let staged = folder.join(&name);
+    std::fs::copy(file, &staged)?;
+    staging.add(&staged, prefix, &name)?;
+    let expression = license::combined(Some(spdx));
+    Ok((expression, staged))
+}
 
 fn package_settings(manifest: &Manifest, identity: &distribution::Identity, label: &str, windows: bool) -> PackageSettings {
     // Tauri Uses The Linux Product Name As The Native Package Name.
@@ -747,6 +789,58 @@ mod tests {
         assert!(validate_signing(&manifest, false).is_ok());
         let error = validate_signing(&manifest, true).unwrap_err();
         assert!(error.to_string().contains("matching installer and Dokime versions"));
+    }
+
+    #[test]
+    fn license_staging() {
+        let source = tempfile::tempdir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("LICENSE"), "apache").unwrap();
+        std::fs::write(source.path().join("terms.txt"), "acme terms").unwrap();
+        let text = "[installer]
+version='1.2.3'
+formats=['deb']
+[dokime]
+target='x86_64-unknown-linux-gnu'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        let empty = || Staging {
+            resources: HashMap::new(),
+            linux_files: HashMap::new(),
+            files: BTreeMap::new(),
+        };
+        let prefix = "usr/lib/acme/";
+
+        // Without A License Section Only Dokime's Apache-2.0 License Is Staged And Shown.
+        let mut staging = empty();
+        let (expression, page) = stage_licenses(&manifest, source.path(), scratch.path(), prefix, &mut staging).unwrap();
+        assert_eq!(expression, "Apache-2.0");
+        assert_eq!(std::fs::read(&page).unwrap(), b"apache");
+        assert_eq!(staging.files, BTreeMap::from([(format!("{prefix}LICENSE"), distribution::digest(b"apache"))]));
+        assert_eq!(staging.linux_files.keys().collect::<Vec<_>>(), [Path::new("/usr/lib/acme/LICENSE")]);
+        assert_eq!(staging.resources.values().collect::<Vec<_>>(), ["LICENSE"]);
+
+        // Pack Terms Are Added Beside The Unchanged Apache-2.0 License.
+        let terms = source.path().join("terms.txt");
+        manifest.license = Some(super::super::manifest::License {
+            spdx: Some("LicenseRef-Acme-Proprietary".into()),
+            file: Some(terms),
+        });
+        let scratch = tempfile::tempdir().unwrap();
+        let mut staging = empty();
+        let (expression, page) = stage_licenses(&manifest, source.path(), scratch.path(), prefix, &mut staging).unwrap();
+        assert_eq!(expression, "LicenseRef-Acme-Proprietary AND Apache-2.0");
+        assert_eq!(page.file_name().unwrap(), "EULA.txt");
+        assert_eq!(std::fs::read(&page).unwrap(), b"acme terms");
+        let expected = BTreeMap::from([
+            (format!("{prefix}LICENSE"), distribution::digest(b"apache")),
+            (format!("{prefix}EULA.txt"), distribution::digest(b"acme terms")),
+        ]);
+        assert_eq!(staging.files, expected);
+        assert_eq!(staging.linux_files.get(Path::new("/usr/lib/acme/EULA.txt")), Some(&page));
+        assert!(staging.linux_files.contains_key(Path::new("/usr/lib/acme/LICENSE")));
+        let mut installed: Vec<_> = staging.resources.values().cloned().collect();
+        installed.sort();
+        assert_eq!(installed, ["EULA.txt", "LICENSE"]);
     }
 
     #[test]

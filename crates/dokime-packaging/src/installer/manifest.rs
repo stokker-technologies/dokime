@@ -40,6 +40,7 @@ pub struct Manifest {
     pub plugin: Vec<Plugin>,
 
     pub signing: Option<Signing>,
+    pub license: Option<License>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +66,14 @@ pub struct Artifact {
 pub struct Plugin {
     pub name: Option<String>,
     pub path: Option<PathBuf>,
+}
+
+/// Organization Pack Terms Installed In Addition To Dokime's Apache-2.0 License.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct License {
+    pub spdx: Option<String>,
+    pub file: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,6 +121,37 @@ impl Artifact {
     }
 }
 
+impl License {
+    /// Returns The Validated SPDX Expression And Terms File.
+    pub(super) fn terms(&self) -> Result<(&str, &Path), Error> {
+        let (Some(spdx), Some(file)) = (self.spdx.as_deref(), self.file.as_deref()) else {
+            let field = if self.spdx.is_none() { "spdx" } else { "file" };
+            let reason = "is required; set spdx and file together".into();
+            return Err(Error::License { field, reason });
+        };
+        super::license::validate(spdx).map_err(|reason| Error::License { field: "spdx", reason })?;
+        Ok((spdx, file))
+    }
+
+    /// Resolves The Terms File Inside The Pack Folder That Holds The Manifest.
+    fn resolve(&mut self, base: &Path) -> Result<(), Error> {
+        let (_, file) = self.terms()?;
+        let text = file.to_str().ok_or_else(|| file_error("must be UTF-8"))?;
+        let relative = super::distribution::relative(text);
+        let relative = relative.map_err(|_| file_error("must be relative to and stay inside the pack folder"))?;
+
+        let base = if base.as_os_str().is_empty() { Path::new(".") } else { base };
+        let root = base.canonicalize()?;
+        let path = root.join(relative);
+        let resolved = path.canonicalize().map_err(|_| file_error("must name an existing file in the pack folder"))?;
+        if !resolved.starts_with(&root) || !resolved.is_file() {
+            return Err(file_error("must name a file that stays inside the pack folder"));
+        }
+        self.file = Some(resolved);
+        Ok(())
+    }
+}
+
 impl Plugin {
     fn validate(&self, index: usize) -> Result<(), Error> {
         let error = |reason| {
@@ -149,6 +189,9 @@ impl Manifest {
         let mut manifest: Self = toml::from_str(&text).map_err(|error| parse_error(path, &error))?;
         let base = path.parent().unwrap_or(Path::new("."));
         manifest.validate_plugins()?;
+        if let Some(license) = &mut manifest.license {
+            license.resolve(base)?;
+        }
         if let Some(folder) = &mut manifest.installer.organization {
             *folder = base.join(&*folder);
         }
@@ -164,6 +207,9 @@ impl Manifest {
     }
     pub fn validate(&self) -> Result<(), Error> {
         self.validate_plugins()?;
+        if let Some(license) = &self.license {
+            license.terms()?;
+        }
         if let Some(identifier) = &self.installer.identifier {
             dokime::paths::DistributionIdentity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
         }
@@ -229,6 +275,10 @@ fn parse_error(path: &Path, error: &toml::de::Error) -> Error {
         _ => "",
     };
     Error::Invalid(format!("invalid installer manifest {}: {error}{hint}", path.display()))
+}
+
+fn file_error(reason: &str) -> Error {
+    Error::License { field: "file", reason: reason.into() }
 }
 
 fn native_target() -> String {
@@ -327,6 +377,76 @@ mod tests {
         manifest.installer.identifier = Some("../outside".into());
         assert!(manifest.identity(&compiled).is_err());
         assert!(manifest.validate().is_err());
+    }
+
+    #[test]
+    fn license_terms() {
+        let base = "[installer]
+version='1.2.3'
+formats=['nsis']
+[dokime]
+";
+        let absent: Manifest = toml::from_str(base).unwrap();
+        assert!(absent.license.is_none());
+
+        for (entry, expected) in [
+            ("file='EULA.txt'", "spdx"),
+            ("spdx='LicenseRef-Acme-Proprietary'", "file"),
+            ("", "spdx"),
+            (
+                "spdx='Acme Proprietary'
+file='EULA.txt'",
+                "spdx",
+            ),
+            (
+                "spdx='MIT AND'
+file='EULA.txt'",
+                "spdx",
+            ),
+        ] {
+            let manifest: Manifest = toml::from_str(&format!(
+                "{base}[license]
+{entry}"
+            ))
+            .unwrap();
+            let Err(Error::License { field, .. }) = manifest.license.as_ref().unwrap().terms() else { panic!("{entry}") };
+            assert_eq!(field, expected, "{entry}");
+        }
+        assert!(
+            toml::from_str::<Manifest>(&format!(
+                "{base}[license]
+spdx='MIT'
+file='EULA.txt'
+name='x'"
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn license_file_containment() {
+        let pack = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir(pack.path().join("terms")).unwrap();
+        std::fs::write(pack.path().join("terms/EULA.txt"), "terms").unwrap();
+        std::fs::write(outside.path().join("EULA.txt"), "terms").unwrap();
+        let escape = format!("../{}/EULA.txt", outside.path().file_name().unwrap().to_str().unwrap());
+
+        let mut license = License {
+            spdx: Some("LicenseRef-Acme-Proprietary".into()),
+            file: Some("terms/EULA.txt".into()),
+        };
+        license.resolve(pack.path()).unwrap();
+        assert_eq!(license.file.as_deref(), Some(pack.path().join("terms/EULA.txt").canonicalize().unwrap().as_path()));
+
+        for file in [escape.as_str(), "/EULA.txt", "C:/EULA.txt", r"terms\EULA.txt", "missing.txt", "terms"] {
+            let mut license = License {
+                spdx: Some("LicenseRef-Acme-Proprietary".into()),
+                file: Some(file.into()),
+            };
+            let Err(Error::License { field, .. }) = license.resolve(pack.path()) else { panic!("{file}") };
+            assert_eq!(field, "file", "{file}");
+        }
     }
 
     #[test]

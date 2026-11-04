@@ -50,6 +50,9 @@ pub enum Error {
     #[error("distribution organization member is not integrity indexed: {member}")]
     UnindexedDistribution { member: String },
 
+    #[error("invalid installer [license] {field}: {reason}")]
+    License { field: &'static str, reason: String },
+
     #[error("--sign requires explicit signing configuration")]
     SigningConfiguration,
 
