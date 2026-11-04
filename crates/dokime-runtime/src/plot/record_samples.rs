@@ -105,14 +105,12 @@ impl<'a> RecordSampleLookup<'a> {
                 time: Some(sample.timestamp.unix_timestamp_nanos()),
                 present: true,
             }),
-            Strategy::AtOrBefore,
+            Strategy::Latest,
         )?;
         Ok(Self { samples, lookup })
     }
 
-    pub(crate) fn nearest_at_or_before(
-        &self, record_scope: Option<&RecordScope>, record_time: OffsetDateTime,
-    ) -> Option<IndexedRecordSample<'a>> {
+    pub(crate) fn latest_until(&self, record_scope: Option<&RecordScope>, record_time: OffsetDateTime) -> Option<IndexedRecordSample<'a>> {
         let side = side(record_scope, record_time);
         let ordinal = self.lookup.find(&side)?;
         self.samples.get(ordinal).copied()

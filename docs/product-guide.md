@@ -1042,7 +1042,9 @@ below the title. Preserve unit symbols and case.
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct
-value, in ascending order. Templates can also add parameter-based reference
+value, in ascending order. A repeat selects row-local values: a value, order or
+filter that uses `time_between` is refused when the document is validated, naming
+the section. Templates can also add parameter-based reference
 bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
@@ -1928,8 +1930,10 @@ Report presentation is built during ingestion. Each numeric field has adaptive
 time buckets containing first, last, minimum, maximum and count, committed with
 its raw samples. Plots render the resulting extrema envelope within their display
 budget; extending a run coarsens time resolution while retaining peaks and dips.
-Tables show bounded first/last rows. Each report identifies its execution and
-saved evidence frontier; evidence paging and exported bundles retain the full data.
+Table cards carry every row their author registered and page in the report
+exactly as in the live document; Dokime neither trims nor caps authored rows.
+Telemetry previews keep bounded first/last rows per stream. Each report identifies
+its execution and saved evidence frontier; evidence paging and exported bundles retain the full data.
 Numeric summaries, including percentiles and the built-in mean analysis,
 use all samples through the incremental numeric indexes. Within-cap plot
 summaries preserve typed integers until the final numeric result.
@@ -1955,11 +1959,10 @@ sample count. Group counters and numeric moments update incrementally, and
 record durations retain the preceding matching record and telemetry context.
 `groups` bounds series and correlation keys (256 by default). Plots with fewer
 than four points render normally. Analyses that need more exact history than the
-configured cap identify their specific limitation. Repeated sections expand over
-every distinct value in the complete evidence, read page by page from the stream
-they select, so a report shows the same sections the live document does; repeats
-over correlated selectors (`time_between`, `telemetry_at_or_before`) remain
-unavailable. Plots without a checkpoint share one evidence replay per document.
+configured cap identify their specific limitation. Every repeated section
+resolves at seal over every distinct value in the complete evidence, read page by
+page from the stream it selects, so a report contains the full sealed document
+with the same sections the live document shows. Plots without a checkpoint share one evidence replay per document.
 Full evidence remains available for external analysis.
 Plot checkpoints commit with the telemetry batch that advances them. A historical
 cut whose plot checkpoint has advanced, and captures and plots without a

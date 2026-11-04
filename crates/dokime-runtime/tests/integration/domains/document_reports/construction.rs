@@ -553,10 +553,11 @@ pub(super) async fn repeated_sections_follow() {
     owner.shutdown().await.unwrap();
 }
 
-// The sealed report expands a repeated section over every distinct value the
-// execution recorded, including one its bounded table rows never reach.
+// The sealed report is the full resolved document: a repeated section expands over
+// every distinct value the execution recorded, including one its bounded telemetry
+// rows never reach, and an authored table keeps every row its author registered.
 pub(super) async fn repeated_sections_freeze() {
-    use dokime_runtime::document::{DocumentDefinition, DocumentSection, Plot};
+    use dokime_runtime::document::{DocumentCard, DocumentCardBody, DocumentDefinition, DocumentSection, Plot};
 
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
@@ -577,6 +578,13 @@ pub(super) async fn repeated_sections_freeze() {
     channels.y(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_channel"));
     let mut plain = DocumentSection::new("Host");
     plain.plot(channels);
+    // More Rows Than Twice The Report's Bounded Row Count.
+    let table_rows = 100;
+    let mut readings = DocumentCard::text("fixture.repeat.readings", "Readings", "");
+    readings.body = DocumentCardBody::Table {
+        rows: (0..table_rows).map(|index| std::collections::BTreeMap::from([("Index".to_owned(), Value::Integer(index))])).collect(),
+    };
+    plain.card(readings);
     let mut document = DocumentDefinition::new("default", "Networks");
     document.section(networks);
     document.section(plain);
@@ -625,6 +633,17 @@ pub(super) async fn repeated_sections_freeze() {
         assert_eq!(section["metadata"]["label"], format!("Network {ssid}"));
     }
     assert!(capture["sections"].as_object().unwrap().values().any(|section| section["metadata"]["label"] == "Host"));
+
+    // The Authored Table Keeps Every Row, In Order
+    let readings = capture["definition"]["cards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|card| card["metadata"]["identifier"] == "fixture.repeat.readings")
+        .expect("the table card is frozen");
+    let indices = readings["data"]["rows"].as_array().unwrap().iter().map(|row| row["Index"].clone()).collect::<Vec<_>>();
+    let expected = (0..table_rows).map(|index| serde_json::to_value(Value::Integer(index)).unwrap()).collect::<Vec<_>>();
+    assert_eq!(indices, expected);
 
     // Each Instance Plots Exactly Its Own Samples, One Series Per Band
     let plots = capture["cards"]

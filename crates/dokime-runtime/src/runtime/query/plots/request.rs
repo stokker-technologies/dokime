@@ -95,16 +95,10 @@ pub(super) fn scope_selection(request: &PlotPayloadRequest) -> ScopeSelection {
 /* === Private Functions === */
 
 fn expression_telemetry_streams(expression: &DataExpression) -> Vec<String> {
-    let mut streams = Vec::new();
-    if let DataSource::Telemetry { stream, .. } = &expression.source {
-        streams.push(stream.clone());
+    match &expression.source {
+        DataSource::Telemetry { stream, .. } => vec![stream.clone()],
+        _ => Vec::new(),
     }
-    for transform in &expression.transforms {
-        if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
-            streams.push(stream.clone());
-        }
-    }
-    streams
 }
 
 fn insert_identifier(streams: &mut BTreeSet<Identifier>, stream: &str) {

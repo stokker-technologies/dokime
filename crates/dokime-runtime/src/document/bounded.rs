@@ -325,6 +325,54 @@ mod tests {
     }
 
     #[test]
+    fn time_between_repeats_are_refused_naming_their_section() {
+        use crate::document::{DocumentFailure, DocumentSection, DocumentSectionNode, DocumentSectionRepeat};
+        use crate::expressions::{record, telemetry};
+        use dokime_domain::model::identity::{Identifier, Metadata};
+
+        // Authored Through The Builder: Elapsed Time Is The Repeated Value.
+        let mut authored = DocumentDefinition::new("repeats.authored", "Authored");
+        let mut laps = DocumentSection::new("Laps");
+        laps.id("fixture.laps");
+        laps.each(record("fixture.end").time_between("fixture.start"), "Lap {value}");
+        authored.section(laps);
+
+        // Stored Or Wire Layout: Elapsed Time Orders A Row-Local Value.
+        let section = Identifier::new("fixture.channels").unwrap();
+        let mut stored = DocumentDefinition::new("repeats.stored", "Stored");
+        stored.layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode {
+            node_id: section.clone(),
+            metadata: Metadata::new(section, "Channels", None),
+            repeat: Some(DocumentSectionRepeat {
+                value: telemetry("wifi", "channel"),
+                label_template: "Channel {value}".into(),
+                id_template: None,
+                order_by: Some(record("fixture.end").time_between("fixture.start")),
+                filters: Vec::new(),
+            }),
+            children: Vec::new(),
+        })));
+
+        for (definition, section) in [(authored, "fixture.laps"), (stored, "fixture.channels")] {
+            let input = DocumentResolveInput {
+                definition,
+                selection: DocumentSelection::default(),
+                data: Default::default(),
+            };
+            let captured = capture_document_borrowed(input.borrowed(), DocumentLimits::default()).map(|_| ());
+            let resolved = crate::document::resolve_document(input, DocumentLimits::default()).map(|_| ());
+            for result in [captured, resolved] {
+                match result {
+                    Err(crate::Error::Document(DocumentFailure::CorrelatedRepeat { section: refused })) => {
+                        assert_eq!(refused.as_str(), section)
+                    }
+                    other => panic!("expected the repeat of {section} to be refused, got {other:?}"),
+                }
+            }
+        }
+    }
+
+    #[test]
     fn normalization_preserves_placements() {
         use crate::document::{DocumentCard, DocumentSection};
         let mut definition = DocumentDefinition::new("normalization", "Normalization");
