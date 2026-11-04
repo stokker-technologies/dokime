@@ -53,7 +53,7 @@ enum Member {
     Planned(Box<TestExecution>),
     Sealed(harmos::storage::ReadBatch<ExecutionSeal>),
     // Its Materialization Gate Stays Held Until Its Evidence Is Materialized.
-    Captured(crate::runtime::storage::execution::ExecutionView, tokio::sync::OwnedMutexGuard<()>),
+    Captured(crate::runtime::storage::execution::ExecutionView, bool, tokio::sync::OwnedMutexGuard<()>),
 }
 
 /* === Traits === */
@@ -183,17 +183,17 @@ async fn current(
             let inputs = resources.execution_storage.prepare_capture(&source, execution, at, false).await?;
             let defaults = resources.settings.read_application_settings().await?.settings.report;
             let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
-            if *inspection.evidence_through()? != inputs.through || inspection.execution() != execution {
+            if *inspection.evidence_through()? != inputs.through || inspection.execution() != &*inputs.execution {
                 return Err(invalid("cycle member differs from its frozen source"));
             }
-            Member::Captured(inspection, guard)
+            Member::Captured(inspection, inputs.current, guard)
         };
         plans.push(plan);
     }
     let requests = plans
         .iter()
         .filter_map(|plan| match plan {
-            Member::Captured(inspection, _) => Some(crate::report::materialize::evidence_request(inspection, false)),
+            Member::Captured(inspection, current, _) => Some(crate::report::materialize::evidence_request(inspection, *current)),
             _ => None,
         })
         .collect::<Result<Vec<_>>>()?;
@@ -210,12 +210,12 @@ async fn current(
         {
             members.push(member?);
         }
-        let snapshot = if matches!(&plan, Member::Captured(_, _)) { evidence.next() } else { None };
+        let snapshot = if matches!(&plan, Member::Captured(_, _, _)) { evidence.next() } else { None };
         pending.push_back(async move {
             Ok::<_, Error>(match plan {
                 Member::Planned(execution) => CycleMember::Planned(execution),
                 Member::Sealed(seal) => sealed_member(ctx, resources, &seal, at, progress).await?,
-                Member::Captured(inspection, _guard) => CycleMember::capture(
+                Member::Captured(inspection, _, _guard) => CycleMember::capture(
                     crate::report::materialize::execution_with_evidence(
                         ctx,
                         &inspection,

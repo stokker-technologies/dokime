@@ -224,6 +224,8 @@ impl RuntimeHandle {
         let workers = self.execution_storage.report_workers.clone();
         let job = tokio::spawn(async move {
             let _worker = workers.acquire_owned().await.expect("report workers remain open");
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_report_job(&execution.test_execution_id).await;
             let rendered = std::panic::AssertUnwindSafe(runtime.materialize_saved_execution(&cycle, &execution)).catch_unwind().await;
             let rendered = rendered.unwrap_or_else(|_| Err(Error::Operation("report worker panicked".into())));
             if let Err(error) = rendered {

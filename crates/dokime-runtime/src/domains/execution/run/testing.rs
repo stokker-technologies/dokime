@@ -39,6 +39,8 @@ static REQUEST_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = L
 
 static MEMBER_CAPTURE_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
 
+static REPORT_JOB_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
+
 static COUNTS: LazyLock<Mutex<BTreeMap<TestExecutionId, BTreeMap<&'static str, usize>>>> = LazyLock::new(Default::default);
 
 /* === Macros === */
@@ -111,6 +113,14 @@ pub fn hold_report_request(execution: &TestExecutionId) -> ReportGate {
 
 pub fn hold_member_capture(execution: &TestExecutionId) -> ReportGate {
     hold(&MEMBER_CAPTURE_GATES, execution)
+}
+
+pub fn hold_report_job(execution: &TestExecutionId) -> ReportGate {
+    hold(&REPORT_JOB_GATES, execution)
+}
+
+pub(crate) async fn before_report_job(execution: &TestExecutionId) {
+    enter(&REPORT_JOB_GATES, execution).await;
 }
 
 pub(crate) async fn before_report_request(execution: &TestExecutionId) {

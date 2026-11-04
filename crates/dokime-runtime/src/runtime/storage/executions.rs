@@ -131,6 +131,9 @@ pub(crate) struct CaptureInputs {
     pub outputs: Arc<ReadBatch<Vec<ExecutionOutput>>>,
     pub unavailable_outputs: ReadBatch<Vec<String>>,
     pub through: StorageCursor,
+    // Evidence Is Read At The Durable Head: The Execution Runs, Or Finished Before Its
+    // Finalization Persisted A Boundary, So Its Settling Previews May Pass `through`.
+    pub current: bool,
 }
 
 struct PendingRevision {
@@ -371,6 +374,16 @@ impl ExecutionStorage {
         {
             return Err(invalid("execution finalization requires an unsealed settled input"));
         }
+        let intent = self.report_finalization(&execution.test_execution_id).await?;
+        // A Current Capture Admits The Terminal Input A Finalization Froze After Its Caller Read The Member.
+        let lifecycle_member = match intent.as_ref().and_then(|intent| intent.lifecycle.as_ref()) {
+            Some(lifecycle) if !final_report => Some(match self.frozen_execution(&self.storage, &lifecycle.execution).await? {
+                FrozenExecution::Live(member) => (*member).clone(),
+                FrozenExecution::Saved(member) => member.value.clone(),
+            }),
+            _ => None,
+        };
+        let execution = lifecycle_member.as_ref().unwrap_or(execution);
         let owner = match self.acquisition(&execution.test_execution_id).await {
             Some(owner) => owner,
             None => self.acquire(cycle, execution).await?,
@@ -385,8 +398,6 @@ impl ExecutionStorage {
                 retained_execution(execution)?
             }
         };
-        let intent =
-            self.state_manager.state().read(|state| state.report_finalizations.get(&execution.test_execution_id).cloned()).await?.value;
         // A Final Report Names Its Persisted Boundary. A Current Capture Stops At
         // The Boundary A Finalization Persisted After Its Caller Chose A Cursor.
         let report_boundary = match intent.as_ref().map(|intent| &intent.evidence_at) {
@@ -399,6 +410,7 @@ impl ExecutionStorage {
         if !self.storage.cursor_saved().covers(&report_boundary)? {
             return Err(invalid("report cursor is not durable"));
         }
+        let current = !final_report && (execution.finished_at.is_none() || intent.is_none());
         let (lifecycle_id, anchor) = match intent.and_then(|intent| intent.lifecycle) {
             Some(lifecycle) => {
                 self.adopt_revision(execution, &lifecycle.execution).await?;
@@ -473,6 +485,7 @@ impl ExecutionStorage {
                 outputs: Arc::new(included),
                 unavailable_outputs,
                 through: report_boundary,
+                current,
             })
         };
         let captured = tokio::spawn(operation).await.map_err(|source| Error::Join { source })??;
@@ -482,13 +495,8 @@ impl ExecutionStorage {
         Ok(captured)
     }
 
-    pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {
-        Ok(self
-            .state_manager
-            .state()
-            .read(|state| state.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some()))
-            .await?
-            .value)
+    pub(crate) async fn report_finalization(&self, id: &TestExecutionId) -> Result<Option<crate::transactions::ReportFinalization>> {
+        Ok(self.state_manager.state().read(|state| state.report_finalizations.get(id).cloned()).await?.value)
     }
 
     pub(crate) async fn freeze_revision(&self, execution: &TestExecution) -> Result<Arc<ExecutionRevision>> {
