@@ -1576,6 +1576,7 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        free-disk: "true"
         cache-backend: disk
         cache-mode: >-
           ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
@@ -1748,6 +1749,7 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        free-disk: "true"
         cache-backend: disk
         cache-mode: >-
           ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
@@ -2093,6 +2095,7 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        free-disk: "true"
         cache-backend: disk
         cache-mode: >-
           ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
