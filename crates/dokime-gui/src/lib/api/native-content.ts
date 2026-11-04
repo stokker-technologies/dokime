@@ -293,8 +293,7 @@ export async function uploadNativeArtifact(session: NativeContentSession, option
   }
 }
 
-/** Shared with `ArtifactUploader.tsx`'s native recording sink, which builds an
- * `UploadArtifactHeader` directly rather than through `uploadNativeArtifact`. */
+/** Maps an artifact record scope to the native upload scope; refuses records without a cycle and execution. */
 export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
   const cycleId = scope?.test_cycle_id?.trim();
   const executionId = scope?.test_execution_id?.trim();

@@ -20,7 +20,6 @@ use crate::rpc::protocol::UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES;
 use std::time::Duration;
 
 // Third Party Imports
-use tokio::io::AsyncWriteExt;
 use tokio::sync::{Notify, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -31,23 +30,9 @@ use super::*;
 
 const DESKTOP_ACTIVE_UPLOADS: u64 = 2;
 const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
-const DESKTOP_RECORDING_IDLE_MS: u64 = 1_800_000;
 const DESKTOP_UPLOAD_HEARTBEAT_MS: u64 = 5_000;
 const DESKTOP_UPLOAD_IDLE_MS: u64 = 30_000;
 const DESKTOP_UPLOAD_REAPER_MS: u64 = 1_000;
-
-// Recording Sink
-//
-// A screen recording is not streamed straight to the server the way an
-// upload is: `desktop_recording_finish` has to patch the MP4 duration atoms
-// in place before the bytes are hashed, so the raw timeslices first land in
-// a local temp file. `RecordingSinks` is therefore a much smaller registry
-// than `ArtifactUploads`: at most one recording per owner (the UI only ever
-// offers one "Stop Recording" button), no chunk framing beyond ordered
-// bytes (the webview queue already serializes writes one in flight), and no
-// tonic stream — `desktop_recording_finish` (a `bindings/mod.rs` command,
-// not one of these raw ones) takes the finished file out of the registry
-// and hands it to `content::push_verified` after patching it.
 
 /* === Macros === */
 
@@ -87,24 +72,6 @@ struct Outcome {
 }
 
 struct SettleOnDrop(Arc<Outcome>);
-
-struct Recording {
-    context: Arc<Context>,
-    cancel: CancellationToken,
-    last_access: Mutex<tokio::time::Instant>,
-    file: tokio::sync::Mutex<tokio::fs::File>,
-    path: std::path::PathBuf,
-    header: dokime::domain::model::content::wire::UploadArtifactHeader,
-}
-
-pub struct RecordingHandle {
-    pub lease: crate::connection::SessionLease,
-    pub path: std::path::PathBuf,
-    pub header: dokime::domain::model::content::wire::UploadArtifactHeader,
-}
-
-#[derive(Clone, Default)]
-pub(super) struct RecordingSinks(Arc<Mutex<HashMap<String, Arc<Recording>>>>);
 
 /* === Enums === */
 
@@ -385,116 +352,6 @@ impl Registry {
     }
 }
 
-impl RecordingSinks {
-    async fn open(
-        &self, context: Context, header: dokime::domain::model::content::wire::UploadArtifactHeader, directory: std::path::PathBuf,
-    ) -> Result<tauri::ipc::Response, RpcError> {
-        context.check()?;
-        {
-            let mut registry = self.0.lock().expect("recording registry poisoned");
-            registry.retain(|_, recording| !recording.cancel.is_cancelled());
-            if registry.contains_key(&context.owner) {
-                return Err(RpcError::Busy);
-            }
-        }
-        tokio::fs::create_dir_all(&directory).await.map_err(|_| RpcError::InvalidRequest)?;
-        ensure_private_recording_directory(&directory);
-        let path = directory.join(format!("{}-{}.rec", context.generation, rand::random::<u64>()));
-        let file = tokio::fs::File::create(&path).await.map_err(|_| RpcError::InvalidRequest)?;
-        let owner = context.owner.clone();
-        let recording = Arc::new(Recording {
-            context: Arc::new(context),
-            cancel: CancellationToken::new(),
-            last_access: Mutex::new(tokio::time::Instant::now()),
-            file: tokio::sync::Mutex::new(file),
-            path,
-            header,
-        });
-        let response = recording.context.reply_bytes(&[])?;
-        self.0.lock().expect("recording registry poisoned").insert(owner, recording);
-        Ok(response)
-    }
-
-    async fn write(&self, owner: &str, generation: u64, bytes: Vec<u8>) -> Result<(), RpcError> {
-        let recording = self.get(owner, generation)?;
-        recording.context.check()?;
-        let mut file = recording.file.lock().await;
-        use tokio::io::AsyncWriteExt;
-        file.write_all(&bytes).await.map_err(|_| RpcError::InvalidRequest)?;
-        *recording.last_access.lock().expect("recording idle timer poisoned") = tokio::time::Instant::now();
-        Ok(())
-    }
-
-    pub(super) async fn take(&self, owner: &str, generation: u64) -> Result<RecordingHandle, RpcError> {
-        let recording = {
-            let mut registry = self.0.lock().expect("recording registry poisoned");
-            registry.remove(owner).ok_or(RpcError::UnknownStream)?
-        };
-        if recording.context.owner != owner || recording.context.generation != generation {
-            return Err(RpcError::UnknownStream);
-        }
-        recording.context.check()?;
-        {
-            let mut file = recording.file.lock().await;
-            file.flush().await.map_err(|_| RpcError::InvalidRequest)?;
-        }
-        Ok(RecordingHandle {
-            lease: recording.context.lease.clone(),
-            path: recording.path.clone(),
-            header: recording.header.clone(),
-        })
-    }
-
-    fn get(&self, owner: &str, generation: u64) -> Result<Arc<Recording>, RpcError> {
-        let mut registry = self.0.lock().expect("recording registry poisoned");
-        registry.retain(|_, recording| {
-            let expired = recording.last_access.lock().expect("recording idle timer poisoned").elapsed()
-                >= Duration::from_millis(DESKTOP_RECORDING_IDLE_MS);
-            if recording.cancel.is_cancelled()
-                || recording.context.owner_cancel.is_cancelled()
-                || recording.context.lease.cancellation().is_cancelled()
-                || expired
-            {
-                recording.cancel.cancel();
-                false
-            } else {
-                true
-            }
-        });
-        registry
-            .get(owner)
-            .filter(|recording| recording.context.owner == owner && recording.context.generation == generation)
-            .cloned()
-            .ok_or(RpcError::UnknownStream)
-    }
-
-    async fn cancel(&self, owner: &str, generation: u64) -> Result<(), RpcError> {
-        let recording = self.get(owner, generation)?;
-        self.remove(owner, generation);
-        recording.cancel.cancel();
-        let _ = tokio::fs::remove_file(&recording.path).await;
-        Ok(())
-    }
-
-    fn remove(&self, owner: &str, generation: u64) {
-        let mut registry = self.0.lock().expect("recording registry poisoned");
-        if registry.get(owner).is_some_and(|recording| recording.context.owner == owner && recording.context.generation == generation) {
-            registry.remove(owner);
-        }
-    }
-
-    pub(super) fn cancel_owner(&self, owner: &str) {
-        let mut registry = self.0.lock().expect("recording registry poisoned");
-        if let Some(recording) = registry.remove(owner) {
-            recording.cancel.cancel();
-            let path = recording.path.clone();
-            tokio::spawn(async move {
-                let _ = tokio::fs::remove_file(&path).await;
-            });
-        }
-    }
-}
-
 /* === Public Functions === */
 
 #[tauri::command]
@@ -546,40 +403,6 @@ pub async fn artifact_upload_cancel<R: tauri::Runtime>(
     bridge.uploads.cancel(webview.label(), generation, read_u64(payload)?).await
 }
 
-#[tauri::command]
-pub async fn recording_open<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    app: tauri::AppHandle<R>, request: tauri::ipc::Request<'_>,
-) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) =
-        bridge.prepare::<dokime::domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
-    let directory = {
-        use tauri::Manager;
-        app.try_state::<dokime::paths::ApplicationPaths>().ok_or(RpcError::InvalidRequest)?.cache().join("recordings")
-    };
-    bridge.recordings.open(context, header, directory).await
-}
-
-#[tauri::command]
-pub async fn recording_write<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
-) -> Result<(), RpcError> {
-    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
-    session.lease(&generation.to_string())?;
-    bridge.recordings.write(webview.label(), generation, payload.to_vec()).await
-}
-
-#[tauri::command]
-pub async fn recording_cancel<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
-) -> Result<(), RpcError> {
-    let (generation, _payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
-    session.lease(&generation.to_string())?;
-    bridge.recordings.cancel(webview.label(), generation).await
-}
-
 /* === Private Functions === */
 
 async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, RpcError> {
@@ -596,14 +419,5 @@ async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime::domain::model::c
         }
     }
 }
-
-#[cfg(unix)]
-fn ensure_private_recording_directory(path: &std::path::Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
-}
-
-#[cfg(not(unix))]
-fn ensure_private_recording_directory(_path: &std::path::Path) {}
 
 /* === Tests === */

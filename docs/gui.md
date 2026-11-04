@@ -160,7 +160,7 @@ the captured column schema to select this presentation.
   export preview; keep that preview transient and out of logs, persisted browser
   storage and report output. Connection credentials never belong in status or profiles.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
-  artifact and recording bytes. Do not add ordinary calls to it.
+  artifact bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
