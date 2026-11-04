@@ -1232,7 +1232,25 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
 Generated projects lock tools for Linux x64 and Windows x64, matching the
-published native authoring executables.
+published native authoring executables. Their `mise.toml` pins `cargo-dokime`
+and the `dokime` CLI, which `sidecar dev` uses to launch the host, at the release
+that generated them:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+
+[tools]
+"github:stokker-technologies/dokime" = { version = "0.1.2", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" }
+dokime = { version = "0.1.2", matching_regex = "^dokime-cli-", bin = "dokime" }
+```
+
+Set both versions to `nightly` to follow the nightly prerelease. To create a
+plugin before `cargo-dokime` is installed, run it once through mise:
+
+```sh
+mise x "github:stokker-technologies/dokime[matching_regex=^cargo-dokime-,bin=cargo-dokime]@v0.1.2" -- cargo dokime sidecar new my-plugin
+```
 
 Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
 bundle. For a build system that already compiled the plugin, collect its Cargo

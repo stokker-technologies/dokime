@@ -6,6 +6,10 @@ lockfile_platforms = ["linux-x64", "windows-x64"]
 
 # === Tools === #
 
+# The Dokime CLI And Its Cargo Extension Ship From The Same Release.
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+
 [tools]
 # Languages And Runtimes
 go = "1.27.3"
@@ -31,6 +35,10 @@ git-cliff = "2.14.2"
 
 # Project Statistics
 "aqua:boyter/scc" = "4.1.0"
+
+# Dokime Authoring
+"github:stokker-technologies/dokime" = { version = "{{sdk_version}}", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" }
+dokime = { version = "{{sdk_version}}", matching_regex = "^dokime-cli-", bin = "dokime" }
 
 # === Environment === #
 
@@ -117,7 +125,6 @@ run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete 
 [tasks.build]
 description = "Build The Plugin And Its Frozen Catalog"
 usage = 'flag "--profile <profile>" default="dev"'
-tools = { "github:stokker-technologies/dokime" = { version = "0.1.0", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" } }
 run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
 [tasks."build:rust:compatibility"]
@@ -138,14 +145,6 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.build.cargo archive --profile {{usage.profile}}"
 
 # === Dev === #
-
-# ***
-#
-# Dokime
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# ***
 
 [tasks.dev]
 description = "Rebuild And Reload The Plugin In A Development Host"
@@ -197,7 +196,6 @@ run = [{ tasks = ["package:rust --profile {{usage.profile}}"] }]
 [tasks."package:rust"]
 description = "Package Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-tools = { "github:stokker-technologies/dokime" = { version = "0.1.0", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" } }
 run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 # === CI === #
