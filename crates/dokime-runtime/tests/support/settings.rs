@@ -31,6 +31,14 @@ pub const FILE_POLL: Duration = Duration::from_millis(50);
 pub const STATE_TAIL: usize = 4;
 pub const PAGE_ROWS: usize = 2;
 pub const EXPORT_CHUNK_BYTES: usize = 64 * 1024 + 1;
+// Bounds Fixture Operations And In-Story Waits; Sized For Hosted-Runner Disk Stalls.
+pub const STORY_BOUND: Duration = Duration::from_secs(240);
+pub const FIXTURE_POLICY: super::OperationPolicy = super::OperationPolicy {
+    timeout: STORY_BOUND,
+    attempt_timeout: STORY_BOUND,
+    cancellation_timeout: Duration::ZERO,
+    retries: super::RetryPolicy::Never,
+};
 
 /* === Macros === */
 

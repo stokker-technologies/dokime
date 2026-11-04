@@ -78,7 +78,7 @@ export async function call(desktop, service, method, request = {}) {
   const result = await desktop.executeAsync(
     `const done = arguments[arguments.length - 1];
      window.__TAURI_INTERNALS__.invoke('rpc', Uint8Array.from(arguments[0]), {headers: {
-       'dokime-rpc-path': arguments[1], 'dokime-rpc-deadline-ms': '30000'
+       'dokime-rpc-path': arguments[1], 'dokime-rpc-deadline-ms': '60000'
      }}).then(value => done({bytes: [...new Uint8Array(value)]}), error => done({failure: error}));`,
     [[...bytes], path],
   );

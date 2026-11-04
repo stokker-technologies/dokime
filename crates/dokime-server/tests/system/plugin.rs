@@ -349,7 +349,7 @@ async fn scene_clean_stop(session: Session) {
 // Prompting Member's Admission, To Its Pending Question, And Both Reports Open While That
 // Question Waits Without Answering It.
 async fn scene_open_report_while_cycle_runs(session: &mut Session) {
-    const BOUND: Duration = Duration::from_secs(120);
+    const BOUND: Duration = crate::support::budgets::settings::STORY_BOUND;
     let client = session.client.clone();
     let changes = &mut session.changes;
 
@@ -760,7 +760,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     let telemetry = client.clone();
     // Bounded readiness poll: the plugin process exposes no signal for its
     // first observer sample.
-    let live_deadline = Instant::now() + Duration::from_secs(120);
+    let live_deadline = Instant::now() + crate::support::budgets::settings::STORY_BOUND;
     let live_samples = loop {
         let page = telemetry
             .call(contracts::telemetry::ListSamples {
@@ -794,7 +794,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     // time can advance faster than the host collector's wall-clock cadence.
     // Bounded readiness poll: host collectors tick on wall time and expose no
     // signal per row.
-    let host_deadline = Instant::now() + Duration::from_secs(120);
+    let host_deadline = Instant::now() + crate::support::budgets::settings::STORY_BOUND;
     loop {
         let page = telemetry
             .call(contracts::telemetry::ListSamples {

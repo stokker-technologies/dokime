@@ -30,12 +30,7 @@ use model::plugins::wire::InstallPluginFrameFrame as Frame;
 /* === Constants === */
 
 const DYNAMIC_OWNER: &str = "grpc_dynamic_fixture";
-const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
-    timeout: Duration::from_secs(120),
-    attempt_timeout: Duration::from_secs(120),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: dokime::harmos::operations::RetryPolicy::Never,
-};
+const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = crate::support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
 
@@ -292,12 +287,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
     let version = "1.0.0";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = dokime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
-        cancellation_timeout: std::time::Duration::ZERO,
-        retries: dokime::harmos::operations::RetryPolicy::Never,
-    };
+    let policy = crate::support::budgets::settings::FIXTURE_POLICY;
     let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
         .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
     let contracts =

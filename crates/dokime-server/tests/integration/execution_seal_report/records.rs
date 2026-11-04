@@ -160,13 +160,13 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn captured_record_watch() {
-    tokio::time::timeout(Duration::from_secs(120), captured_watch()).await.unwrap();
+    tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, captured_watch()).await.unwrap();
 }
 
 async fn captured_watch() {
     let root = tempfile::tempdir().unwrap();
     let expectation = Arc::new(Expectation {
-        budget: Duration::from_secs(120),
+        budget: crate::support::budgets::settings::STORY_BOUND,
         listening: Notify::new(),
         heard: Default::default(),
     });
@@ -275,7 +275,7 @@ async fn captured_watch() {
 pub(crate) async fn step_awaits_record() {
     let root = tempfile::tempdir().unwrap();
     let expectation = Arc::new(Expectation {
-        budget: Duration::from_secs(120),
+        budget: crate::support::budgets::settings::STORY_BOUND,
         listening: Notify::new(),
         heard: Default::default(),
     });

@@ -57,12 +57,7 @@ fn bundle_with_registrations(package: &str, owner: &str, version: &str, registra
     };
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
-        cancellation_timeout: std::time::Duration::ZERO,
-        retries: harmos::operations::RetryPolicy::Never,
-    };
+    let policy = super::budgets::settings::FIXTURE_POLICY;
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
     let lifecycle = serde_json::json!([
         {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},

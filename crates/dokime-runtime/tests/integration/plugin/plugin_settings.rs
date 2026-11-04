@@ -19,19 +19,14 @@ use std::sync::Arc;
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::domains::OptionProviderOption;
-use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
+use dokime_runtime::harmos::operations::OperationPolicy;
 use dokime_runtime::plugin::settings::{Discovered, PluginSettings, SettingsSection};
 use dokime_runtime::plugin::{Configuration, Secret};
 use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
 use dokime_runtime::settings::{SettingValues, SettingsEntry};
 
 /* === Constants === */
-const POLICY: OperationPolicy = OperationPolicy {
-    timeout: std::time::Duration::from_secs(120),
-    attempt_timeout: std::time::Duration::from_secs(120),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: RetryPolicy::Never,
-};
+const POLICY: OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
 

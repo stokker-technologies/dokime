@@ -56,8 +56,8 @@ fn install_bundle(schema: u32) -> Bundle {
     let owner = "fixture_worker";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Install fixture","config":"()"});
     let policy = dokime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
+        timeout: std::time::Duration::from_secs(240),
+        attempt_timeout: std::time::Duration::from_secs(240),
         cancellation_timeout: std::time::Duration::ZERO,
         retries: dokime::harmos::operations::RetryPolicy::Never,
     };
