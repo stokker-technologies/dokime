@@ -19,9 +19,10 @@ import pytest
 
 # Local Imports
 import dokime_client
-from dokime_client.client import DokimeClient, ProtocolError, RpcError
+from dokime_client.client import DokimeClient, ProtocolError, RpcError, _wire
+from dokime_client.client.execution.listeners import read_records, read_samples
 
-from .backend import BackendFixture
+from .backend import EXECUTION_ID, SUITE_ID, BackendFixture, serve
 from .canonical import register
 
 # Type Checking Imports
@@ -85,6 +86,91 @@ def test_incomplete_stream_refused(failure: str) -> None:
             await reader.close()
             await client.close()
             await server.stop(0)
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_unary_reads_retry_without_mutation_replay():
+    class TransientBackend(BackendFixture):
+        def __init__(self):
+            super().__init__()
+            self.reads = 0
+            self.starts_seen = 0
+
+        async def GetSuite(self, request, context):
+            self.reads += 1
+            if self.reads == 1:
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "listener stopping")
+            return await super().GetSuite(request, context)
+
+        async def StartExecution(self, request, context):
+            self.starts_seen += 1
+            await context.abort(grpc.StatusCode.UNAVAILABLE, "listener stopping")
+
+    async def scenario():
+        fixture = TransientBackend()
+        async with serve(fixture) as (_, client):
+            await client._transport.unary("Catalog", "GetSuite", _wire.request("Catalog", "GetSuite", suite_id=SUITE_ID))
+            assert fixture.reads == 2
+            with pytest.raises(RpcError) as caught:
+                await client._transport.unary(
+                    "Execution", "StartExecution", _wire.request("Execution", "StartExecution", execution_id=EXECUTION_ID)
+                )
+            assert caught.value.code == "UNAVAILABLE"
+            assert fixture.starts_seen == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("kind", ["records", "samples"])
+def test_unavailable_listeners_resume_delivered_cursors(kind):
+    class TransientBackend(BackendFixture):
+        def __init__(self):
+            super().__init__()
+            self.opens = []
+            self.finished = asyncio.Event()
+            self.publish("first")
+            self.publish("second")
+
+        async def WatchRecords(self, request, context):
+            after = request.after.position if request.HasField("after") else 0
+            self.opens.append(after)
+            yield self.page(request.selection, after, after + 1)
+            if len(self.opens) == 1:
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "listener stopping")
+            await self.finished.wait()
+
+        async def WatchSamples(self, request, context):
+            positions = {entry.key: entry.value for entry in request.selection.after_stream_cursors}
+            self.opens.append(positions.get("voltage", 0))
+            if len(self.opens) == 1:
+                yield await self.ListSamples(request.selection, context)
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "listener stopping")
+            async for page in super().WatchSamples(request, context):
+                yield page
+
+    async def scenario():
+        fixture = TransientBackend()
+        async with serve(fixture) as (_, client):
+            backend = await client.connect()
+            scope = _wire.nested("Evidence", "ListRecords", "selection.scope", execution_id=EXECUTION_ID)
+            seen = []
+            if kind == "records":
+                reader = read_records(client._transport, backend, scope, [], fixture.finished.wait())
+            else:
+                reader = read_samples(client._transport, backend, scope, [], 1, False)
+            try:
+                async for page in reader:
+                    if kind == "records":
+                        seen.extend(item.record_id for item in page.records)
+                        if len(seen) == 2:
+                            fixture.finished.set()
+                    else:
+                        seen.extend(item.sample_id for item in page.samples)
+            finally:
+                await reader.aclose()
+            assert fixture.opens == [0, 1]
+            assert seen == (["event-1", "event-2"] if kind == "records" else ["sample-1", "sample-2"])
 
     asyncio.run(scenario())
 

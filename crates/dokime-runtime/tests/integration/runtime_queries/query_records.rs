@@ -69,17 +69,27 @@ async fn publish(handle: &RuntimeHandle) {
 }
 
 async fn poison_capture(handle: &RuntimeHandle) {
-    // Damage only this fixture's primary store. Projection refusal is healthy;
-    // a physical persistence failure must instead close admission and readers.
+    // Refuse Writes In This Fixture's Primary Store Without Breaking Admission Reads.
+    // A Physical Persistence Failure Must Close Admission And Readers.
     // Save everything already admitted first, so a background save of earlier
     // groups never meets the damage before the publication below does.
     handle.storage().flush().await.unwrap();
     let primary = handle.storage_root().join("local.sqlite");
     let connection = rusqlite::Connection::open(primary).unwrap();
-    connection.execute_batch("DROP TABLE storage_data_entries").unwrap();
-    publish(handle).await;
-    // Admission is buffered. Force the damaged primary through its save barrier
-    // before asserting that the manager's failure reaches every reader.
+    connection
+        .execute_batch(
+            "CREATE TRIGGER refuse_capture BEFORE INSERT ON storage_data_entries
+             BEGIN SELECT RAISE(ABORT, 'injected capture persistence failure'); END;",
+        )
+        .unwrap();
+    // The Damaged Primary Can Close Admission Before This Publication Returns.
+    let _ = handle
+        .publish_product_record(
+            ProductCalibrationDetails::new("fixture-device", ProductCalibrationKind::Field, ProductCalibrationPhase::Completed)
+                .into_draft("fixture.product"),
+        )
+        .await;
+    // Force The Save Barrier Before Asserting The Failure Reaches Every Reader.
     let saved = handle.storage().flush().await;
     assert!(saved.is_err());
     assert!(handle.storage().status().failure.is_some());
@@ -232,9 +242,12 @@ pub(crate) async fn fixed_replay_append() {
 
 pub(crate) async fn independent_readers_pages() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let mut config = runtime_config(root.path());
+    config.storage.response.batch_rows = std::num::NonZeroUsize::new(crate::service_support::budgets::settings::PAGE_ROWS).unwrap();
+    let rows = config.storage.response.batch_rows.get() + 1;
+    let mut owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
-    for _ in 0..260 {
+    for _ in 0..rows {
         publish(&handle).await;
     }
     handle.storage().flush().await.unwrap();
@@ -258,7 +271,7 @@ pub(crate) async fn independent_readers_pages() {
         after = record.sequence;
         count += 1;
     }
-    assert_eq!(count, 260);
+    assert_eq!(count, rows);
     assert_eq!(&*old.next(0, through).await.unwrap().unwrap(), &*first);
     assert_eq!(&*old.next(through, current).await.unwrap().unwrap(), &*appended);
     assert_eq!(&*old.next(through, current).await.unwrap().unwrap(), &*appended);
@@ -275,10 +288,11 @@ pub(crate) async fn independent_readers_pages() {
 pub(crate) async fn slow_dropped_create() {
     let root = tempfile::tempdir().unwrap();
     let config = runtime_config(root.path());
+    let rows = config.managed_storage.journal_tail + 1;
     let mut owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
     let slow = handle.captured_records();
-    for _ in 0..2000 {
+    for _ in 0..rows {
         publish(&handle).await;
     }
     let frontier = handle.captured_records().frontier();
@@ -296,7 +310,7 @@ pub(crate) async fn slow_dropped_create() {
     let reader = handle.captured_records();
     assert!(reader.next(frontier, reader.frontier()).await.unwrap().unwrap().sequence > frontier);
     let selected = handle.selected_records(RecordSelection::default()).await.unwrap();
-    assert_eq!(selected.len(), 2001);
+    assert_eq!(selected.len(), rows + 1);
     drop(handle);
     owner.shutdown().await.unwrap();
 }
@@ -316,7 +330,9 @@ pub(crate) async fn capture_failure_reader() {
 
 pub(crate) async fn captured_records_failure() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
+    let config = runtime_config(root.path());
+    let tail = config.managed_storage.journal_tail;
+    let mut owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
     let note = |message: &str| OperatorNoteRequest {
         scope: None,
@@ -334,11 +350,23 @@ pub(crate) async fn captured_records_failure() {
     assert_eq!(handle.selected_records(RecordSelection::default()).await.unwrap().len(), 2);
     // Transaction-only groups evict the Harmos in-memory tail without adding
     // product facts; retained payloads must come from shared primary capture.
-    for _ in 0..1030 {
+    for _ in 0..=tail {
         handle.set_suites("query.fixture", dokime_runtime::definition::SuiteSet::default()).await.unwrap();
     }
+    publish(&handle).await;
     let current = handle.captured_records().frontier();
     assert_eq!(&*captured.next(0, current).await.unwrap().unwrap(), &*first);
+    let second = captured.next(through, current).await.unwrap().unwrap();
+    let after_gap = captured.next(second.sequence, current).await.unwrap().unwrap();
+    assert!(after_gap.sequence > second.sequence + tail as u64);
+    assert_eq!(after_gap.record_type.as_str(), "calibration.field.completed");
+    assert!(captured.next(after_gap.sequence, current).await.unwrap().is_none());
+    let selected = handle.selected_records(RecordSelection::default()).await.unwrap();
+    let mut selected_ids = selected.iter().map(|record| record.record_id.clone()).collect::<Vec<_>>();
+    let mut captured_ids = [first.record_id.clone(), second.record_id.clone(), after_gap.record_id.clone()];
+    selected_ids.sort();
+    captured_ids.sort();
+    assert_eq!(selected_ids, captured_ids);
     assert!(captured.wait_after(through).await.unwrap().unwrap() >= current);
     assert_eq!(&*captured.next(0, through).await.unwrap().unwrap(), &*first);
     poison_capture(&handle).await;

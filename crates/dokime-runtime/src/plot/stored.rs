@@ -23,7 +23,7 @@ use harmos::{
     storage::{
         Query, ReadBatch,
         query::{
-            QueryArrow, Table, TableWriter,
+            Table, TableWriter,
             scalar::ScalarValue,
             transform::{
                 FieldPath, FieldPathExecution, Transform,
@@ -53,7 +53,7 @@ use crate::{
 
 pub(crate) struct Selection<'a> {
     pub query: Query,
-    pub codec: &'a TypedCodec,
+    pub scope: &'a crate::evidence_runtime::ScopeSelection,
     pub producer_order: bool,
 }
 
@@ -63,7 +63,22 @@ struct NativeTable {
     summaries: std::collections::BTreeMap<String, (usize, PlotSeriesSummary)>,
 }
 
+struct SeriesStatistics {
+    moments: harmos::signal::Summary,
+    eligible: usize,
+    extent: Option<PlotWindow>,
+    previous: Option<f64>,
+    ascending: bool,
+    values: Option<Vec<f64>>,
+}
+
 /* === Enums === */
+
+enum NativeProjection {
+    Empty,
+    ExactRequired,
+    Table(NativeTable),
+}
 
 /* === Traits === */
 
@@ -72,6 +87,7 @@ struct NativeTable {
 /* === Public Functions === */
 
 pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
+    let Some(request) = fields(request) else { return false };
     request.analysis.is_none()
         && request.max_points != Some(0)
         && request.series_by.is_none()
@@ -95,6 +111,7 @@ pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
 }
 
 pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -> bool {
+    let Some(request) = fields(request) else { return false };
     use harmos::schema::{Cardinality, graph::Kind};
     let graph = codec.graph();
     let Some(values) = graph.definitions.get(graph.root).and_then(|fields| fields.iter().find(|field| field.name == "values")) else {
@@ -114,62 +131,41 @@ pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -
 
 // Each Series Reduces The Original Selection Independently; No Re-Reduction Of A Union.
 pub(crate) async fn materialize(
-    session: &Manager, selection: Selection<'_>, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext<'_>,
-    records: crate::records::view::View<'_>,
-) -> Result<ReadBatch<PlotPayload>> {
-    let Selection { query, codec, producer_order } = selection;
+    session: &Manager, local: &crate::storage::sqlite::State, selection: Selection<'_>, request: &PlotPayloadRequest, generated_at: &str,
+    context: &PlotPayloadContext<'_>, records: crate::records::view::View<'_>,
+) -> Result<Option<ReadBatch<PlotPayload>>> {
+    let original = request;
+    let normalized = fields(request).ok_or_else(|| invalid("stored plot requires plain fields"))?;
+    let request = &normalized;
+    let Selection { query, scope, producer_order } = selection;
     let maximum = request.max_points.unwrap_or(context.default_max_points);
     if maximum == 0 {
         return Err(invalid("plot output requires a finite point bound"));
     }
-    let native = native_table(session, &query, codec, request, producer_order).await?;
-    let (table, ordered, native, summaries) = if let Some(NativeTable { table, ordered, summaries }) = native {
-        (table, ordered, true, summaries)
-    } else {
-        // Read Durable Evidence Once; Reuse Its Immutable Spill For Every Series And Summary.
-        let mut reader = session.query(query).await?;
-        let mut writer = None::<TableWriter>;
-        let x = request.x_key.as_deref().unwrap_or("timestamp");
-        let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
-        let tie = path(if producer_order { "payload.metadata.sequence" } else { "_storage.position" });
-        let mut previous = None;
-        let mut ordered = true;
-        while let Some(output) = reader.next().await? {
-            let QueryArrow::Batch(batch) = output else { continue };
-            let page = batch.as_record_batch();
-            for row in 0..page.num_rows() {
-                let current = (axis.value(page, row)?, tie.value(page, row)?);
-                if let Some(previous) = &previous {
-                    ordered &= ordered_pair(previous, &current);
-                }
-                previous = Some(current);
-            }
-            if writer.is_none() {
-                writer = Some(TableWriter::new(page.schema())?);
-            }
-            writer.as_mut().expect("table writer was initialized").push(page, &mut || Ok(()))?;
-        }
-        reader.completion()?;
-        let Some(writer) = writer else {
+    let projection = native_table(session, local, &query, scope, request, producer_order, !original.y_expressions.is_empty()).await?;
+    let NativeTable { table, ordered, summaries } = match projection {
+        NativeProjection::ExactRequired => return Ok(None),
+        NativeProjection::Table(table) => table,
+        NativeProjection::Empty => {
             return super::finish_retained_plot_payload(
                 super::project_retained_plot_payload(&[], records, request, generated_at, context)?,
                 request,
-            );
-        };
-        let table = writer.finish()?;
-        (table, ordered, false, Default::default())
+            )
+            .map(Some);
+        }
     };
-
     let x = request.x_key.as_deref().unwrap_or("timestamp");
     let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
-    let ordered = if ordered {
+    let expression_time_order = original.x_expression.is_some() && original.x_key.as_deref().is_none_or(|key| key == "timestamp");
+    let sort_axis = if expression_time_order { path("_storage.source_time") } else { axis.clone() };
+    let ordered = if ordered && !expression_time_order {
         table.clone()
     } else {
         table.transform(
             &Transform::Sort(Sort {
                 keys: vec![
                     SortKey {
-                        field: axis.clone(),
+                        field: sort_axis,
                         descending: false,
                         nulls_first: false,
                     },
@@ -185,18 +181,26 @@ pub(crate) async fn materialize(
     };
     let mut completed = None::<PlotPayload>;
     let mut histograms = Vec::new();
-    for key in &request.y_keys {
+    for (index, key) in request.y_keys.iter().enumerate() {
         let (rows, eligible, summary) = if let Some((eligible, summary)) = summaries.get(key) {
             (table.len(), *eligible, summary.clone())
         } else {
             summary(&table, key, &axis, request.summary_window)?
         };
+        let selected_input = if original.y_expressions.is_empty() {
+            ordered.clone()
+        } else {
+            ordered.transform(&Transform::Filter(summary_filter(&value(key), &axis, None, x == "timestamp")?), &mut || Ok(()))?
+        };
+        let reduction_rows = selected_input.len();
         let technique = match request.technique {
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if rows <= maximum.saturating_mul(4) => DownsampleTechnique::Lttb,
+            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if reduction_rows <= maximum.saturating_mul(4) => {
+                DownsampleTechnique::Lttb
+            }
             DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => DownsampleTechnique::MinMax,
             technique => technique,
         };
-        let algorithm = if eligible != rows
+        let algorithm = if eligible != reduction_rows
             || maximum == 1
             || matches!(technique, DownsampleTechnique::Raw)
             || (maximum < 3 && matches!(technique, DownsampleTechnique::Lttb))
@@ -207,7 +211,7 @@ pub(crate) async fn materialize(
         } else {
             Algorithm::Lttb
         };
-        let selected = ordered.transform(
+        let selected = selected_input.transform(
             &Transform::Downsample(Downsample {
                 max_rows: maximum,
                 algorithm,
@@ -216,54 +220,42 @@ pub(crate) async fn materialize(
             }),
             &mut || Ok(()),
         )?;
-        let mut samples = Vec::new();
         let mut points = Vec::new();
         let mut reader = selected.reader()?;
         while let Some(batch) = reader.next(&mut || Ok(()))? {
-            if native {
-                use arrow_array::{Array, StringArray};
-                points.try_reserve(batch.num_rows()).map_err(|_| invalid("plot point allocation failed"))?;
-                let timestamps = batch
-                    .column_by_name("_timestamp")
-                    .and_then(|column| column.as_any().downcast_ref::<StringArray>())
-                    .ok_or_else(|| invalid("native plot timestamps are absent"))?;
-                for row in 0..batch.num_rows() {
-                    if timestamps.is_null(row) {
-                        return Err(invalid("native plot timestamp is null"));
-                    }
-                    let x = if x == "timestamp" {
-                        serde_json::Value::String(timestamps.value(row).to_owned())
-                    } else {
-                        number(value(x).value(&batch, row)?).map_or(serde_json::Value::Null, serde_json::Value::from)
-                    };
-                    points.push(super::PlotPoint {
-                        x,
-                        y: number(value(key).value(&batch, row)?),
-                        z: None,
-                    });
+            use arrow_array::{Array, StringArray};
+            points.try_reserve(batch.num_rows()).map_err(|_| invalid("plot point allocation failed"))?;
+            let timestamps = batch
+                .column_by_name("_timestamp")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                .ok_or_else(|| invalid("native plot timestamps are absent"))?;
+            for row in 0..batch.num_rows() {
+                if timestamps.is_null(row) {
+                    return Err(invalid("native plot timestamp is null"));
                 }
-                continue;
-            }
-            let batch = harmos::storage::arrow::ArrowBatch::try_new(batch)?;
-            let entries = crate::storage::telemetry::decode_positioned(codec, batch)?;
-            samples.try_reserve(entries.len()).map_err(|_| invalid("plot output workspace allocation failed"))?;
-            for (_, entry) in entries.iter() {
-                let mut sample = entry.sample.clone();
-                sample.storage_payload = None;
-                sample.values.retain(|field, _| field == key || field == x);
-                samples.push(sample);
+                let x = if x == "timestamp" {
+                    serde_json::Value::String(timestamps.value(row).to_owned())
+                } else {
+                    number(value(x).value(&batch, row)?).map_or(serde_json::Value::Null, serde_json::Value::from)
+                };
+                let y = number(value(key).value(&batch, row)?);
+                if !original.y_expressions.is_empty() && y.is_none() {
+                    continue;
+                }
+                points.push(super::PlotPoint { x, y, z: None });
             }
         }
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
-        let payload = super::project_retained_plot_payload(&samples, records, &single, generated_at, context)?;
+        let payload = super::project_retained_plot_payload(&[], records, &single, generated_at, context)?;
         let payload = payload.try_map(|mut payload| {
-            if native {
-                payload.series[0].points = points;
-            }
+            payload.series[0].points = points;
             for series in &mut payload.series {
-                series.raw_points = rows;
-                series.downsampled = series.points.len() < rows;
+                series.raw_points = if original.y_expressions.is_empty() { rows } else { eligible };
+                series.downsampled = series.points.len() < series.raw_points;
+                if let Some(expression) = original.y_expressions.get(index) {
+                    series.label = expression.label.clone().unwrap_or_else(|| key.clone());
+                }
             }
             if matches!(request.plot_type, Some(crate::document::PlotType::TimeSeries | crate::document::PlotType::XyScatter)) {
                 payload.summaries = vec![summary.clone()];
@@ -301,7 +293,7 @@ pub(crate) async fn materialize(
         }
     }
     let payload = super::finish_plot_frame(payload, request)?;
-    Ok(ReadBatch::new(payload))
+    Ok(Some(ReadBatch::new(payload)))
 }
 
 pub(crate) fn path(field: &str) -> FieldPath {
@@ -318,19 +310,15 @@ fn value(field: &str) -> FieldPath {
     }
 }
 
-// Float Series Stage Only Their Numeric Columns And Original Timestamps.
-// Integer Schemas Keep Their Native Exact Scalar Representation In The General Path.
+// Stage Typed Arrow Values And Original Timestamps For Bounded Plot Reductions.
 async fn native_table(
-    session: &Manager, query: &Query, codec: &TypedCodec, request: &PlotPayloadRequest, producer_order: bool,
-) -> Result<Option<NativeTable>> {
+    session: &Manager, local: &crate::storage::sqlite::State, query: &Query, scope: &crate::evidence_runtime::ScopeSelection,
+    request: &PlotPayloadRequest, producer_order: bool, exact_fields: bool,
+) -> Result<NativeProjection> {
     use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, StructArray, TimestampNanosecondArray, UInt64Array};
     use arrow_schema::Field;
-    use harmos::schema::graph::Kind;
     use std::sync::Arc;
-    let harmos::storage::query::Source::Stream(source) = &query.source else { return Ok(None) };
-    if !query.transforms.is_empty() || query.slice != Default::default() {
-        return Ok(None);
-    }
+    let harmos::storage::query::Source::Stream(source) = &query.source else { return Ok(NativeProjection::Empty) };
     let x = request.x_key.as_deref().unwrap_or("timestamp");
     let mut keys = request.y_keys.clone();
     if x != "timestamp" && !keys.iter().any(|key| key == x) {
@@ -338,42 +326,54 @@ async fn native_table(
     }
     keys.sort();
     keys.dedup();
-    let graph = codec.graph();
-    let values = graph.definitions[graph.root].iter().find(|field| field.name == "values");
-    let Some(Kind::Message { definition }) = values.map(|field| &field.kind) else { return Ok(None) };
-    if !keys
-        .iter()
-        .all(|key| graph.definitions[*definition].iter().any(|field| field.name == *key && matches!(field.kind, Kind::F32 | Kind::F64)))
-    {
-        return Ok(None);
-    }
-
-    let Ok(validator) = harmos::schema::Validator::from_schema(graph, &Default::default()) else { return Ok(None) };
     if request.summary_window.is_some_and(|window| !window.from.is_finite() || !window.to.is_finite() || window.from > window.to) {
         return Err(invalid("plot summary window is invalid"));
     }
-    let mut statistics =
-        keys.iter().map(|_| (harmos::signal::Summary::new(), 0usize, None::<PlotWindow>, None::<f64>, true)).collect::<Vec<_>>();
-    let mut reader = session
-        .read_stream(harmos::storage::StreamRead {
-            at: query.at.clone(),
-            selection: source.clone(),
+    // Share One Response Budget Across All Exact-Median Columns; Larger Selections Keep The Spill Path.
+    let cache_limit = session.settings().response.batch_bytes.get() / std::mem::size_of::<f64>() / keys.len();
+    let mut statistics = keys
+        .iter()
+        .map(|_| SeriesStatistics {
+            moments: harmos::signal::Summary::new(),
+            eligible: 0,
+            extent: None,
+            previous: None,
+            ascending: true,
+            values: Some(Vec::new()),
         })
-        .await?;
+        .collect::<Vec<_>>();
+    let mut source = source.clone();
     let mut writer = None::<TableWriter>;
     let mut previous = None;
     let mut ordered = true;
-    while let Some(rows) = reader.next().await? {
+    loop {
+        let page = harmos::storage::ScanPage {
+            after: source.after,
+            rows: session.settings().response.batch_rows.max(std::num::NonZeroUsize::new(4096).expect("nonzero scan page")),
+            bytes: session.settings().response.batch_bytes,
+        };
+        let rows = local.telemetry_numeric(query.at.clone(), source.clone(), page, keys.clone(), scope.clone()).await?;
+        if rows.is_empty() {
+            break;
+        }
         let mut values = vec![Vec::with_capacity(rows.len()); keys.len()];
         let mut stamps = Vec::with_capacity(rows.len());
         let mut positions = Vec::with_capacity(rows.len());
         let mut sequences = Vec::with_capacity(rows.len());
         let mut timestamps = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let (projected, sequence, stamp, timestamp) = project_native_row(&validator, codec, row, &keys)?;
+        for (position, sample) in rows {
+            source.after = source.after.max(position);
+            let projected = sample.values;
+            // Numeric Projection Rounds Integers First; Typed Expressions Must Aggregate Them Exactly.
+            if exact_fields && projected.iter().flatten().any(|value| value.abs() >= (1_u64 << f64::MANTISSA_DIGITS) as f64) {
+                return Ok(NativeProjection::ExactRequired);
+            }
+            let sequence = sample.sequence;
+            let stamp = sample.timestamp.to_datetime().map_err(crate::storage::Error::from)?.unix_timestamp_nanos();
+            let timestamp = sample.timestamp.to_string();
             timestamps.push(timestamp);
             stamps.push(i64::try_from(stamp).map_err(|_| invalid("plot timestamp exceeds native range"))?);
-            positions.push(row.record.position.sequence);
+            positions.push(position);
             sequences.push(sequence);
             for (value, column) in projected.iter().zip(&mut values) {
                 column.push(*value);
@@ -385,25 +385,37 @@ async fn native_table(
                     .map_or(ScalarValue::Null, ScalarValue::Float)
             };
             let coordinate = number(axis.clone());
-            for (value, (moments, eligible, extent, previous, ascending)) in projected.iter().zip(&mut statistics) {
+            for (value, statistics) in projected.iter().zip(&mut statistics) {
                 let Some(value) = value else { continue };
-                *eligible += 1;
+                statistics.eligible += 1;
                 if request.summary_window.is_some_and(|window| match &axis {
                     ScalarValue::Datetime(stamp) => *stamp < (window.from * 1e9) as i128 || *stamp > (window.to * 1e9) as i128,
                     _ => coordinate.is_none_or(|x| x < window.from || x > window.to),
                 }) {
                     continue;
                 }
-                *ascending &= previous.is_none_or(|previous| previous <= *value);
-                *previous = Some(*value);
-                moments.push(*value);
+                statistics.ascending &= statistics.previous.is_none_or(|previous| previous <= *value);
+                statistics.previous = Some(*value);
+                statistics.moments.push(*value);
+                if let Some(values) = &mut statistics.values {
+                    if values.len() == cache_limit {
+                        statistics.values = None;
+                    } else {
+                        if values.len() == values.capacity() {
+                            values
+                                .try_reserve_exact((cache_limit - values.len()).min(page.rows.get()))
+                                .map_err(|_| invalid("plot median allocation failed"))?;
+                        }
+                        values.push(*value);
+                    }
+                }
                 if let Some(x) = coordinate {
-                    let range = extent.get_or_insert(PlotWindow { from: x, to: x });
+                    let range = statistics.extent.get_or_insert(PlotWindow { from: x, to: x });
                     range.from = range.from.min(x);
                     range.to = range.to.max(x);
                 }
             }
-            let tie = if producer_order { sequence } else { row.record.position.sequence };
+            let tie = if producer_order { sequence } else { position };
             let current = (axis, ScalarValue::Unsigned(tie));
             if let Some(previous) = &previous {
                 ordered &= ordered_pair(previous, &current);
@@ -427,18 +439,39 @@ async fn native_table(
         }
         writer.as_mut().expect("native plot writer was initialized").push(&page, &mut || Ok(()))?;
     }
-    let Some(writer) = writer else { return Ok(None) };
+    let Some(writer) = writer else { return Ok(NativeProjection::Empty) };
     let table = writer.finish()?;
     let axis = if x == "timestamp" { path("_storage.source_time") } else { value(x) };
     let mut summaries = std::collections::BTreeMap::new();
-    for (key, (moments, eligible, extent, _, ascending)) in keys.into_iter().zip(statistics) {
+    for (key, statistics) in keys.into_iter().zip(statistics) {
+        let SeriesStatistics {
+            moments,
+            eligible,
+            extent,
+            ascending,
+            values,
+            ..
+        } = statistics;
+        let median = if let Some(mut values) = values {
+            if values.is_empty() {
+                None
+            } else {
+                if !ascending {
+                    // Stable Equal-Value Ordering Preserves The Sign Of Zero At The Middle Rank.
+                    values.sort_by(|left, right| left.partial_cmp(right).expect("finite plot values"));
+                }
+                Some(midpoint(values[(values.len() - 1) / 2], values[values.len() / 2]))
+            }
+        } else {
+            native_median(&table, &key, &axis, request.summary_window, moments.count() as usize, ascending)?
+        };
         let summary = PlotSeriesSummary {
             series_id: key.clone(),
             count: moments.count() as usize,
             min: moments.min(),
             max: moments.max(),
             mean: moments.mean(),
-            median: native_median(&table, &key, &axis, request.summary_window, moments.count() as usize, ascending)?,
+            median,
             std: moments.std(),
             rms: moments.rms(),
             window: request.summary_window.or(extent),
@@ -452,7 +485,7 @@ async fn native_table(
         }
         summaries.insert(key, (eligible, summary));
     }
-    Ok(Some(NativeTable { table, ordered, summaries }))
+    Ok(NativeProjection::Table(NativeTable { table, ordered, summaries }))
 }
 
 // Select Exact Middle Ranks From The Existing Numeric Spill; Monotonic Values Need No Sort.
@@ -502,94 +535,24 @@ fn native_median(
         if upper >= offset && upper < offset + page.num_rows() {
             let low = low.ok_or_else(|| invalid("plot median lower rank is absent"))?;
             let high = number(field.value(&page, upper - offset)?).ok_or_else(|| invalid("plot median upper rank is absent"))?;
-            return Ok(Some(if low == high {
-                low
-            } else if low.signum() == high.signum() {
-                low + (high - low) * 0.5
-            } else {
-                low * 0.5 + high * 0.5
-            }));
+            return Ok(Some(midpoint(low, high)));
         }
         offset += page.num_rows();
     }
     Err(invalid("plot median rank exceeds stored selection"))
 }
 
-// Visit The Checked Graph Once Without Materializing Every Sample's Metadata And Value Maps.
-fn project_native_row(
-    validator: &harmos::schema::Validator, codec: &TypedCodec, row: &harmos::storage::StoredRow, keys: &[String],
-) -> Result<(Vec<Option<f64>>, u64, i128, String)> {
-    use harmos::schema::{Event, PathElement, Scalar};
-    let mut values = vec![None; keys.len()];
-    let mut sequence = None;
-    let mut timestamp = None;
-    let mut stamp_text = None;
-    let mut scope = None;
-    if &row.record.schema != codec.schema() {
-        return Err(invalid("typed telemetry schema differs from storage envelope"));
+fn midpoint(low: f64, high: f64) -> f64 {
+    if low == high {
+        low
+    } else if low.signum() == high.signum() {
+        low + (high - low) * 0.5
+    } else {
+        low * 0.5 + high * 0.5
     }
-    validator
-        .visit(&row.record.payload, |path, event| {
-            let Event::Scalar(scalar) = event else { return Ok(()) };
-            if let [PathElement::Field { name: "values", .. }, PathElement::Field { name, .. }] = path
-                && let Ok(index) = keys.binary_search_by(|key| key.as_str().cmp(name))
-            {
-                let value = match scalar {
-                    Scalar::F32(value) => f64::from(value),
-                    Scalar::F64(value) => value,
-                    _ => return Err(invalid("native plot value is not floating point")),
-                };
-                values[index] = value.is_finite().then_some(value);
-            }
-            if let [PathElement::Field { name: "metadata", .. }, PathElement::Field { name, .. }] = path {
-                let matches = match (*name, scalar) {
-                    ("sequence", Scalar::U64(value)) => {
-                        sequence = Some(value);
-                        true
-                    }
-                    ("ordinal", Scalar::U64(value)) => value == row.sequence,
-                    ("schema_version", Scalar::U32(value)) => value == codec.schema().version.get(),
-                    ("epoch", Scalar::String(value)) => row.record.source.as_ref().map(|id| id.as_str()) == Some(value),
-                    ("sample_id", Scalar::String(value)) => row.record.item.as_str() == value,
-                    ("stream", Scalar::String(value)) => row.stream.as_str() == value,
-                    ("timestamp", Scalar::String(value)) => {
-                        stamp_text = Some(value);
-                        let parsed = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
-                            .map_err(|_| invalid("native plot timestamp is invalid"))?;
-                        timestamp = Some(parsed.unix_timestamp_nanos());
-                        row.record.source_time == Some(parsed.into())
-                    }
-                    _ => true,
-                };
-                if !matches {
-                    return Err(invalid("typed telemetry row differs from storage envelope"));
-                }
-            }
-            if let [
-                PathElement::Field { name: "metadata", .. },
-                PathElement::Field { name: "scope", .. },
-                PathElement::Field { name: "test_execution_id", .. },
-            ] = path
-                && let Scalar::String(value) = scalar
-            {
-                scope = Some(value);
-            }
-            Ok::<_, Error>(())
-        })
-        .map_err(|_| invalid("native plot row is invalid"))?;
-    if scope != row.record.scope.as_ref().map(|id| id.as_str()) {
-        return Err(invalid("typed telemetry scope differs from storage envelope"));
-    }
-    Ok((
-        values,
-        sequence.ok_or_else(|| invalid("native plot sequence is absent"))?,
-        timestamp.ok_or_else(|| invalid("native plot timestamp is absent"))?,
-        stamp_text.ok_or_else(|| invalid("native plot timestamp is absent"))?.to_owned(),
-    ))
 }
 
-// One Projected Scan Counts The Selection And Its Finite Values. A Second Scan
-// Runs Only When A Window Or A Missing Value Narrows What The Summary Covers.
+// Visit The Checked Graph Once Without Materializing Every Sample's Metadata And Value Maps.
 fn summary(base: &Table, key: &str, axis: &FieldPath, window: Option<PlotWindow>) -> Result<(usize, usize, PlotSeriesSummary)> {
     let time_axis = axis.fields == ["_storage", "source_time"];
     let (rows, unfiltered) = aggregate_summary(base, key, axis, None, time_axis)?;
@@ -815,6 +778,31 @@ fn ordered_pair(left: &(ScalarValue, ScalarValue), right: &(ScalarValue, ScalarV
     }
 }
 
+fn fields(request: &PlotPayloadRequest) -> Option<PlotPayloadRequest> {
+    let field = |expression: &crate::expressions::DataExpression| match &expression.source {
+        crate::expressions::DataSource::Telemetry { stream, field }
+            if super::stream_matches_alias(stream, &request.stream) && expression.transforms.is_empty() =>
+        {
+            Some(field.clone())
+        }
+        _ => None,
+    };
+    let mut normalized = request.clone();
+    if let Some(expression) = &request.x_expression {
+        let x = field(expression)?;
+        if request.x_key.as_deref().is_some_and(|key| key != "timestamp" && key != x) {
+            return None;
+        }
+        normalized.x_key = Some(x);
+        normalized.x_expression = None;
+    }
+    if !request.y_expressions.is_empty() {
+        normalized.y_keys = request.y_expressions.iter().map(field).collect::<Option<Vec<_>>>()?;
+        normalized.y_expressions.clear();
+    }
+    Some(normalized)
+}
+
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
@@ -824,6 +812,41 @@ fn invalid(reason: &'static str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Fields {
+        easting: f64,
+        northing: Option<f64>,
+    }
+
+    #[test]
+    fn field_expressions() {
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(),
+            x_expression: Some(crate::expressions::telemetry("tracking", "easting")),
+            y_expressions: vec![crate::expressions::telemetry("tracking", "northing").label("Northing")],
+            plot_type: Some(crate::document::PlotType::XyLine),
+            max_points: Some(17),
+            ..Default::default()
+        };
+        assert!(supports(&request));
+        let settings = harmos::config::SchemaSettings::default();
+        let schema = harmos::schema::graph::Schema::from_declaration(<Fields as harmos::schema::Described>::DEFINITION, &settings).unwrap();
+        let codec = TypedCodec::new(&crate::Identifier::new("tracking").unwrap(), 1, &schema, &settings).unwrap();
+        assert!(supports_codec(&request, &codec));
+        let mut missing = request.clone();
+        missing.y_expressions[0] = crate::expressions::telemetry("tracking", "absent");
+        assert!(!supports_codec(&missing, &codec));
+        let normalized = fields(&request).unwrap();
+        assert_eq!(normalized.x_key.as_deref(), Some("easting"));
+        assert_eq!(normalized.y_keys, ["northing"]);
+        let mut transformed = request.clone();
+        transformed.y_expressions[0] = crate::expressions::telemetry("tracking", "northing").count();
+        assert!(!supports(&transformed));
+        transformed.y_expressions[0] = crate::expressions::telemetry("unrelated", "northing");
+        assert!(!supports(&transformed));
+    }
 
     #[test]
     fn stored_order_requires_axis_and_tie_order() {

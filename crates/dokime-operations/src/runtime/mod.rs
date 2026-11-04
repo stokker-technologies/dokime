@@ -33,7 +33,6 @@ const POLICY: OperationPolicy = OperationPolicy {
     cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };
-pub const PACKAGE: &str = "dokime.v1";
 
 /* === Macros === */
 
@@ -63,22 +62,6 @@ pub struct GetIdentity {}
 /* === Traits === */
 
 /* === Implementations === */
-
-impl GetHealth {
-    pub const PATH: &str = "/dokime.v1.Runtime/GetHealth";
-}
-
-impl GetIdentity {
-    pub const PATH: &str = "/dokime.v1.Runtime/GetIdentity";
-}
-
-impl super::Endpoint for GetHealth {
-    const PATH: &'static str = GetHealth::PATH;
-}
-
-impl super::Endpoint for GetIdentity {
-    const PATH: &'static str = GetIdentity::PATH;
-}
 
 /* === Public Functions === */
 

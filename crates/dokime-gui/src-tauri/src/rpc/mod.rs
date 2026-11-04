@@ -16,7 +16,6 @@ pub mod protocol;
 /* === Re-Exports === */
 
 pub use crate::Error as RpcError;
-pub use artifact_upload::RecordingHandle;
 pub use calls::{
     CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, INPUT_HEADER, PATH_HEADER, STREAM_HEADER,
 };
@@ -42,7 +41,7 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::connection::{ConnectionError, ConnectionSession, SessionLease};
-use artifact_upload::{ArtifactUploads, RecordingSinks};
+use artifact_upload::ArtifactUploads;
 use calls::Streams;
 
 /* === Constants === */
@@ -62,9 +61,6 @@ pub const COMMANDS: &[&str] = &[
     "artifact_upload_write",
     "artifact_upload_finish",
     "artifact_upload_cancel",
-    "recording_open",
-    "recording_write",
-    "recording_cancel",
 ];
 
 // Calls Share The Session's HTTP/2 Connection And Configured Admission Budget.
@@ -83,7 +79,6 @@ pub struct Bridge {
     calls: Arc<Semaphore>,
     streams: Streams,
     uploads: ArtifactUploads,
-    recordings: RecordingSinks,
 }
 
 struct Context {
@@ -190,7 +185,6 @@ impl Bridge {
             streams: Streams::new(DESKTOP_STREAMS as usize),
             owners: Arc::default(),
             uploads: ArtifactUploads::default(),
-            recordings: RecordingSinks::default(),
         }
     }
 
@@ -200,11 +194,6 @@ impl Bridge {
         }
         self.streams.cancel_owner(owner);
         self.uploads.cancel_owner(owner);
-        self.recordings.cancel_owner(owner);
-    }
-
-    pub async fn take_recording(&self, owner: &str, generation: u64) -> Result<artifact_upload::RecordingHandle, RpcError> {
-        self.recordings.take(owner, generation).await
     }
 
     fn context(
@@ -253,9 +242,6 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
         artifact_upload::artifact_upload_write,
         artifact_upload::artifact_upload_finish,
         artifact_upload::artifact_upload_cancel,
-        artifact_upload::recording_open,
-        artifact_upload::recording_write,
-        artifact_upload::recording_cancel,
     ]
 }
 
@@ -333,18 +319,5 @@ mod tests {
         measure!(artifact_upload::artifact_upload_write);
         measure!(artifact_upload::artifact_upload_finish);
         measure!(artifact_upload::artifact_upload_cancel);
-        measure!(artifact_upload::recording_write);
-        measure!(artifact_upload::recording_cancel);
-        let bytes = size(
-            |(session, bridge, window, app, request): (
-                tauri::State<'_, ConnectionSession>,
-                tauri::State<'_, Bridge>,
-                tauri::WebviewWindow,
-                tauri::AppHandle,
-                tauri::ipc::Request<'_>,
-            )| artifact_upload::recording_open(session, bridge, window, app, request),
-        );
-        eprintln!("recording_open: {bytes} bytes");
-        assert!(bytes <= 16 * 1024, "recording_open command future uses {bytes} bytes");
     }
 }

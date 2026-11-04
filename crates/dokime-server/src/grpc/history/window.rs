@@ -73,17 +73,15 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
                 .iter()
                 .find(|output| output.relative_path == request.relative_path)
                 .ok_or_else(|| Status::not_found("checkpoint output not found"))?;
-            let offset = request.offset.min(output.file.length);
-            let length = usize::try_from((output.file.length - offset).min(limit as u64))
+            let file = output.file.as_ref().ok_or_else(|| Status::failed_precondition("artifact content capture failed"))?;
+            let offset = request.offset.min(file.length);
+            let length = usize::try_from((file.length - offset).min(limit as u64))
                 .map_err(|_| Status::resource_exhausted("checkpoint file extent overflows"))?;
             let maximum = self.maximum;
             let template_content = ExecutionFileContent {
                 relative_path: output.relative_path.clone(),
-                content_type: Some(output.file.metadata.media_type.clone()),
-                content_kind: dokime::ExecutionFileContentKind::from_metadata(
-                    &output.relative_path,
-                    Some(&output.file.metadata.media_type),
-                ),
+                content_type: Some(file.metadata.media_type.clone()),
+                content_kind: dokime::ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&file.metadata.media_type)),
                 stream_state: match output.stream_state {
                     Some(dokime::domain::model::execution::saved::SavedStreamState::Interrupted) => {
                         dokime::ExecutionFileStreamState::Interrupted
@@ -91,7 +89,7 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
                     _ => dokime::ExecutionFileStreamState::Finalized,
                 },
                 offset,
-                size_bytes: output.file.length,
+                size_bytes: file.length,
                 bytes: Vec::new(),
             };
             let template = dokime::domain::model::history::wire::CheckpointFileWindow {
@@ -108,7 +106,7 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
             let mut content = dokime::harmos::storage::ReadBatch::new(())
                 .try_map(|_| -> dokime::harmos::Result<_> {
                     let checkpoint = inspection::project(&checkpoint, maximum)?;
-                    let content_type = Some(output.file.metadata.media_type.clone());
+                    let content_type = Some(file.metadata.media_type.clone());
                     let mut bytes = Vec::new();
                     bytes.try_reserve_exact(length).map_err(|_| exhausted())?;
                     let state = match output.stream_state {
@@ -123,14 +121,14 @@ impl Serve<history::ReadCheckpointOutput> for Resources {
                         content_type,
                         stream_state: state,
                         offset,
-                        size_bytes: output.file.length,
+                        size_bytes: file.length,
                         bytes,
                     };
                     Ok((checkpoint, content))
                 })
                 .map_err(|error| wire::checkpoint_failure(error.into()))?;
             let mut reader = view
-                .read_file(&output.file, dokime::harmos::storage::ByteRange { offset, limit: Some(length as u64) })
+                .read_file(file, dokime::harmos::storage::ByteRange { offset, limit: Some(length as u64) })
                 .await
                 .map_err(wire::checkpoint_failure)?;
             while let Some(batch) = reader.next().await.map_err(|error| wire::checkpoint_failure(error.into()))? {

@@ -52,6 +52,7 @@ fn refusal(plot: &PlotDefinition) -> String {
 /* === Tests === */
 
 // A histogram bins the one value it declares on x; the host counts it on y.
+#[dokime_tracing::trace_test]
 #[test]
 fn histogram_bins_x() {
     let mut plot = Plot::histogram("Time Until Ready");
@@ -66,6 +67,7 @@ fn histogram_bins_x() {
 }
 
 // A y binding on a histogram is refused with where the value belongs instead.
+#[dokime_tracing::trace_test]
 #[test]
 fn histogram_refuses_y() {
     let mut value_on_y = Plot::histogram("Voltage Distribution");
@@ -89,6 +91,7 @@ fn histogram_refuses_y() {
 }
 
 // A histogram without exactly one value, or with a time format, says which axis.
+#[dokime_tracing::trace_test]
 #[test]
 fn histogram_requires_x() {
     for plot in [
@@ -117,6 +120,7 @@ fn histogram_requires_x() {
 }
 
 // A box summary keeps its value on y, and its refusal names the plot and the axis.
+#[dokime_tracing::trace_test]
 #[test]
 fn box_keeps_y() {
     let mut plot = Plot::box_summary("Voltage By Phase");

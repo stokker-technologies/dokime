@@ -43,6 +43,7 @@ pub struct Service {
 pub struct Server {
     address: SocketAddr,
     tls: bool,
+    certificate: Option<dokime::harmos::grpc::ServerCertificate>,
     attachment: Option<Attached>,
     listeners: Arc<Listeners>,
     remote: Option<Arc<super::remote::Controller>>,
@@ -153,15 +154,33 @@ impl Service {
             return Err(Error::Configuration("all listeners must use the registered service message limit"));
         }
         let tls = config.tls.is_some();
+        let certificate = config
+            .tls
+            .as_ref()
+            .map(|identity| dokime::harmos::grpc::ServerCertificate::from_pem(&identity.certificate, &identity.private_key))
+            .transpose()?;
         let policy = config.policy.clone();
         let local = config.local_only();
         let settings = config.into_listener_settings()?;
-        let attachment = self.runtime.grpc().attach(settings).await?;
+        let attachment = match &certificate {
+            Some(certificate) => {
+                self.runtime
+                    .grpc()
+                    .attach_with_certificate(
+                        settings,
+                        certificate.clone(),
+                        std::time::Duration::from_millis(super::config::SERVER_TLS_TIMEOUT_MS),
+                    )
+                    .await?
+            }
+            None => self.runtime.grpc().attach(settings).await?,
+        };
         let address = attachment.local_addr();
         self.listeners.insert(address, policy, local);
         Ok(Server {
             address,
             tls,
+            certificate,
             attachment: Some(attachment),
             listeners: self.listeners.clone(),
             remote: None,
@@ -171,6 +190,12 @@ impl Service {
 }
 
 impl Server {
+    pub(super) fn reload_certificate(&self, identity: &super::TlsIdentity) -> Result<(), Error> {
+        let certificate = self.certificate.as_ref().ok_or(Error::Configuration("listener has no reloadable TLS certificate"))?;
+        certificate.reload(&identity.certificate, &identity.private_key)?;
+        Ok(())
+    }
+
     pub fn address(&self) -> SocketAddr {
         self.address
     }

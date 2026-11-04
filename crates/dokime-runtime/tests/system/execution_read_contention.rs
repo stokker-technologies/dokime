@@ -43,6 +43,7 @@ use crate::service_support::sampling::{Contention, contended_reads};
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_read_contention() {
     contended_reads(Contention { plots: 15, rows: 2_000, rounds: 2 }).await;

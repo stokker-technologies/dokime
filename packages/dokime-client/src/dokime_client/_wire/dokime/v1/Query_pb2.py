@@ -22,6 +22,11 @@ from google.protobuf.internal import builder as _builder
 from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime_client._wire.dokime.v1.QueryMessages.Aggregate import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_Aggregate_dot_messages__pb2
+from dokime_client._wire.dokime.v1.QueryMessages.AggregateSamples import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_AggregateSamples_dot_messages__pb2
+from dokime_client._wire.dokime.v1.QueryMessages.ListCycles import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_ListCycles_dot_messages__pb2
+from dokime_client._wire.dokime.v1.QueryMessages.ListExecutions import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_ListExecutions_dot_messages__pb2
+from dokime_client._wire.dokime.v1.QueryMessages.ListRecords import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_ListRecords_dot_messages__pb2
+from dokime_client._wire.dokime.v1.QueryMessages.ListSamples import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_QueryMessages_dot_ListSamples_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -46,21 +51,51 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Query.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/QueryMessages/Aggregate/messages.proto\"\x1c\n\x1aQueryAggregateCancellation\"\xe8\x01\n\x16QueryAggregateRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17QueryAggregateRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row2H\x00R\x08responseB\x07\n\x05value2\xc1\x01\n\x05Query\x12]\n\tAggregate\x12\'.dokime.v1.QueryMessages.Aggregate.Row1\x1a\'.dokime.v1.QueryMessages.Aggregate.Row2\x12Y\n\x0cRunAggregate\x12!.dokime.v1.QueryAggregateRunInput\x1a\".dokime.v1.QueryAggregateRunOutput(\x01\x30\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n)dokime_client/_wire/dokime/v1/Query.proto\x12\tdokime.v1\x1a\x44\x64okime_client/_wire/dokime/v1/QueryMessages/Aggregate/messages.proto\x1aKdokime_client/_wire/dokime/v1/QueryMessages/AggregateSamples/messages.proto\x1a\x45\x64okime_client/_wire/dokime/v1/QueryMessages/ListCycles/messages.proto\x1aIdokime_client/_wire/dokime/v1/QueryMessages/ListExecutions/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/QueryMessages/ListRecords/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/QueryMessages/ListSamples/messages.proto\"\x1c\n\x1aQueryAggregateCancellation\"\xe8\x01\n\x16QueryAggregateRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.QueryAggregateCancellationH\x00R\x06\x66inishB\x07\n\x05value\"i\n\x17QueryAggregateRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.QueryMessages.Aggregate.Row2H\x00R\x08responseB\x07\n\x05value\"#\n!QueryAggregateSamplesCancellation\"\x84\x02\n\x1dQueryAggregateSamplesRunInput\x12J\n\x07request\x18\x01 \x01(\x0b\x32..dokime.v1.QueryMessages.AggregateSamples.Row1H\x00R\x07request\x12\x46\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32,.dokime.v1.QueryAggregateSamplesCancellationH\x00R\x06\x63\x61ncel\x12\x46\n\x06\x66inish\x18\x04 \x01(\x0b\x32,.dokime.v1.QueryAggregateSamplesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"w\n\x1eQueryAggregateSamplesRunOutput\x12L\n\x08response\x18\x02 \x01(\x0b\x32..dokime.v1.QueryMessages.AggregateSamples.Row2H\x00R\x08responseB\x07\n\x05value\"\x1d\n\x1bQueryListCyclesCancellation\"\xec\x01\n\x17QueryListCyclesRunInput\x12\x44\n\x07request\x18\x01 \x01(\x0b\x32(.dokime.v1.QueryMessages.ListCycles.Row1H\x00R\x07request\x12@\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32&.dokime.v1.QueryListCyclesCancellationH\x00R\x06\x63\x61ncel\x12@\n\x06\x66inish\x18\x04 \x01(\x0b\x32&.dokime.v1.QueryListCyclesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"k\n\x18QueryListCyclesRunOutput\x12\x46\n\x08response\x18\x02 \x01(\x0b\x32(.dokime.v1.QueryMessages.ListCycles.Row2H\x00R\x08responseB\x07\n\x05value\"!\n\x1fQueryListExecutionsCancellation\"\xfc\x01\n\x1bQueryListExecutionsRunInput\x12H\n\x07request\x18\x01 \x01(\x0b\x32,.dokime.v1.QueryMessages.ListExecutions.Row1H\x00R\x07request\x12\x44\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32*.dokime.v1.QueryListExecutionsCancellationH\x00R\x06\x63\x61ncel\x12\x44\n\x06\x66inish\x18\x04 \x01(\x0b\x32*.dokime.v1.QueryListExecutionsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"s\n\x1cQueryListExecutionsRunOutput\x12J\n\x08response\x18\x02 \x01(\x0b\x32,.dokime.v1.QueryMessages.ListExecutions.Row2H\x00R\x08responseB\x07\n\x05value\"\x1e\n\x1cQueryListRecordsCancellation\"\xf0\x01\n\x18QueryListRecordsRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.QueryMessages.ListRecords.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.QueryListRecordsCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.QueryListRecordsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19QueryListRecordsRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.QueryMessages.ListRecords.Row2H\x00R\x08responseB\x07\n\x05value\"\x1e\n\x1cQueryListSamplesCancellation\"\xf0\x01\n\x18QueryListSamplesRunInput\x12\x45\n\x07request\x18\x01 \x01(\x0b\x32).dokime.v1.QueryMessages.ListSamples.Row1H\x00R\x07request\x12\x41\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\'.dokime.v1.QueryListSamplesCancellationH\x00R\x06\x63\x61ncel\x12\x41\n\x06\x66inish\x18\x04 \x01(\x0b\x32\'.dokime.v1.QueryListSamplesCancellationH\x00R\x06\x66inishB\x07\n\x05value\"m\n\x19QueryListSamplesRunOutput\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.QueryMessages.ListSamples.Row2H\x00R\x08responseB\x07\n\x05value2\xc9\t\n\x05Query\x12]\n\tAggregate\x12\'.dokime.v1.QueryMessages.Aggregate.Row1\x1a\'.dokime.v1.QueryMessages.Aggregate.Row2\x12Y\n\x0cRunAggregate\x12!.dokime.v1.QueryAggregateRunInput\x1a\".dokime.v1.QueryAggregateRunOutput(\x01\x30\x01\x12r\n\x10\x41ggregateSamples\x12..dokime.v1.QueryMessages.AggregateSamples.Row1\x1a..dokime.v1.QueryMessages.AggregateSamples.Row2\x12n\n\x13RunAggregateSamples\x12(.dokime.v1.QueryAggregateSamplesRunInput\x1a).dokime.v1.QueryAggregateSamplesRunOutput(\x01\x30\x01\x12`\n\nListCycles\x12(.dokime.v1.QueryMessages.ListCycles.Row1\x1a(.dokime.v1.QueryMessages.ListCycles.Row2\x12\\\n\rRunListCycles\x12\".dokime.v1.QueryListCyclesRunInput\x1a#.dokime.v1.QueryListCyclesRunOutput(\x01\x30\x01\x12l\n\x0eListExecutions\x12,.dokime.v1.QueryMessages.ListExecutions.Row1\x1a,.dokime.v1.QueryMessages.ListExecutions.Row2\x12h\n\x11RunListExecutions\x12&.dokime.v1.QueryListExecutionsRunInput\x1a\'.dokime.v1.QueryListExecutionsRunOutput(\x01\x30\x01\x12\x63\n\x0bListRecords\x12).dokime.v1.QueryMessages.ListRecords.Row1\x1a).dokime.v1.QueryMessages.ListRecords.Row2\x12_\n\x0eRunListRecords\x12#.dokime.v1.QueryListRecordsRunInput\x1a$.dokime.v1.QueryListRecordsRunOutput(\x01\x30\x01\x12\x63\n\x0bListSamples\x12).dokime.v1.QueryMessages.ListSamples.Row1\x1a).dokime.v1.QueryMessages.ListSamples.Row2\x12_\n\x0eRunListSamples\x12#.dokime.v1.QueryListSamplesRunInput\x1a$.dokime.v1.QueryListSamplesRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Query_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_QUERYAGGREGATECANCELLATION']._serialized_start=126
-  _globals['_QUERYAGGREGATECANCELLATION']._serialized_end=154
-  _globals['_QUERYAGGREGATERUNINPUT']._serialized_start=157
-  _globals['_QUERYAGGREGATERUNINPUT']._serialized_end=389
-  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_start=391
-  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_end=496
-  _globals['_QUERY']._serialized_start=499
-  _globals['_QUERY']._serialized_end=692
+  _globals['_QUERYAGGREGATECANCELLATION']._serialized_start=493
+  _globals['_QUERYAGGREGATECANCELLATION']._serialized_end=521
+  _globals['_QUERYAGGREGATERUNINPUT']._serialized_start=524
+  _globals['_QUERYAGGREGATERUNINPUT']._serialized_end=756
+  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_start=758
+  _globals['_QUERYAGGREGATERUNOUTPUT']._serialized_end=863
+  _globals['_QUERYAGGREGATESAMPLESCANCELLATION']._serialized_start=865
+  _globals['_QUERYAGGREGATESAMPLESCANCELLATION']._serialized_end=900
+  _globals['_QUERYAGGREGATESAMPLESRUNINPUT']._serialized_start=903
+  _globals['_QUERYAGGREGATESAMPLESRUNINPUT']._serialized_end=1163
+  _globals['_QUERYAGGREGATESAMPLESRUNOUTPUT']._serialized_start=1165
+  _globals['_QUERYAGGREGATESAMPLESRUNOUTPUT']._serialized_end=1284
+  _globals['_QUERYLISTCYCLESCANCELLATION']._serialized_start=1286
+  _globals['_QUERYLISTCYCLESCANCELLATION']._serialized_end=1315
+  _globals['_QUERYLISTCYCLESRUNINPUT']._serialized_start=1318
+  _globals['_QUERYLISTCYCLESRUNINPUT']._serialized_end=1554
+  _globals['_QUERYLISTCYCLESRUNOUTPUT']._serialized_start=1556
+  _globals['_QUERYLISTCYCLESRUNOUTPUT']._serialized_end=1663
+  _globals['_QUERYLISTEXECUTIONSCANCELLATION']._serialized_start=1665
+  _globals['_QUERYLISTEXECUTIONSCANCELLATION']._serialized_end=1698
+  _globals['_QUERYLISTEXECUTIONSRUNINPUT']._serialized_start=1701
+  _globals['_QUERYLISTEXECUTIONSRUNINPUT']._serialized_end=1953
+  _globals['_QUERYLISTEXECUTIONSRUNOUTPUT']._serialized_start=1955
+  _globals['_QUERYLISTEXECUTIONSRUNOUTPUT']._serialized_end=2070
+  _globals['_QUERYLISTRECORDSCANCELLATION']._serialized_start=2072
+  _globals['_QUERYLISTRECORDSCANCELLATION']._serialized_end=2102
+  _globals['_QUERYLISTRECORDSRUNINPUT']._serialized_start=2105
+  _globals['_QUERYLISTRECORDSRUNINPUT']._serialized_end=2345
+  _globals['_QUERYLISTRECORDSRUNOUTPUT']._serialized_start=2347
+  _globals['_QUERYLISTRECORDSRUNOUTPUT']._serialized_end=2456
+  _globals['_QUERYLISTSAMPLESCANCELLATION']._serialized_start=2458
+  _globals['_QUERYLISTSAMPLESCANCELLATION']._serialized_end=2488
+  _globals['_QUERYLISTSAMPLESRUNINPUT']._serialized_start=2491
+  _globals['_QUERYLISTSAMPLESRUNINPUT']._serialized_end=2731
+  _globals['_QUERYLISTSAMPLESRUNOUTPUT']._serialized_start=2733
+  _globals['_QUERYLISTSAMPLESRUNOUTPUT']._serialized_end=2842
+  _globals['_QUERY']._serialized_start=2845
+  _globals['_QUERY']._serialized_end=4070
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

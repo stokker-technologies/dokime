@@ -22,7 +22,6 @@ pub use get_appearance::GetAppearance;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::ORDINARY;
 use dokime_domain::model::appearance::wire::*;
 
@@ -47,10 +46,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for GetAppearance {
-    const PATH: &'static str = "/dokime.v1.Appearance/GetAppearance";
-}
 
 /* === Public Functions === */
 

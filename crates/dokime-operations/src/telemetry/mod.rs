@@ -24,7 +24,6 @@ pub use watch_samples::WatchSamples;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 
@@ -53,14 +52,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListSamples {
-    const PATH: &'static str = "/dokime.v1.Telemetry/ListSamples";
-}
-
-impl Endpoint for WatchSamples {
-    const PATH: &'static str = "/dokime.v1.Telemetry/WatchSamples";
-}
 
 /* === Public Functions === */
 

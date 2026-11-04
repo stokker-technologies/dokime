@@ -19,9 +19,9 @@
 
 // Local Imports
 use super::{
+    context_records::ContextRecord,
     execution::ExecutionView,
     paging::{Cursor, page_limit},
-    records::RecordReader,
 };
 use crate::{
     runtime::Result,
@@ -44,10 +44,11 @@ use crate::{
 
 /* === Public Functions === */
 
-pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> Result<harmos::storage::ReadBatch<ExecutionRecordPage>> {
+pub(crate) async fn read(
+    view: &ExecutionView, local: &crate::storage::sqlite::State, query: ExecutionRecordQuery,
+) -> Result<harmos::storage::ReadBatch<ExecutionRecordPage>> {
     let limit = page_limit(query.limit)?;
     let after = Cursor::requested(query.after.as_deref())?;
-    let mut reader = RecordReader::open_page(view, after).await?;
     view.revision()?;
 
     let header = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
@@ -59,8 +60,16 @@ pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> R
     let mut count = 0usize;
     let mut last = after;
     let mut more = false;
-    while let Some(rows) = reader.next_positioned().await? {
-        let selected = rows.try_map(|rows| -> Result<_> {
+    let scope = crate::evidence_runtime::ScopeSelection {
+        test_execution_id: Some(view.execution().test_execution_id.clone()),
+        ..Default::default()
+    };
+    let mut scanned = after;
+    loop {
+        let rows = local.scoped_records(view.evidence_through()?.clone(), scope.clone(), None, scanned, 0, u64::MAX).await?;
+        let Some(end) = rows.last() else { break };
+        scanned = end.position;
+        let selected = harmos::storage::ReadBatch::new(rows).try_map(|rows| -> Result<_> {
             let mut selected = Vec::new();
             selected
                 .try_reserve_exact(rows.len().min(limit - count))
@@ -75,7 +84,7 @@ pub(crate) async fn read(view: &ExecutionView, query: ExecutionRecordQuery) -> R
                 }
                 last = row.position;
                 count += 1;
-                selected.push(row.captured);
+                selected.push(ContextRecord { epoch: row.epoch, record: row.record });
             }
             Ok(selected)
         })?;

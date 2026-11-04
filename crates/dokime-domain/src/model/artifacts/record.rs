@@ -44,6 +44,7 @@ pub struct ArtifactRecord {
     pub size_bytes: u64,
     pub sha256: Option<String>,
     pub status: ArtifactStatus,
+    pub error: Option<String>,
     pub created_at: Timestamp,
 }
 
@@ -73,6 +74,7 @@ pub enum ArtifactStatus {
     Complete,
     Cancelled,
     Rejected,
+    Failed,
 }
 
 /* === Traits === */
@@ -88,6 +90,7 @@ impl harmos::MemorySize for ArtifactRecord {
             (harmos::MemorySize::memory_size(&self.filename), std::mem::size_of_val(&self.filename)),
             (harmos::MemorySize::memory_size(&self.content_type), std::mem::size_of_val(&self.content_type)),
             (harmos::MemorySize::memory_size(&self.sha256), std::mem::size_of_val(&self.sha256)),
+            (harmos::MemorySize::memory_size(&self.error), std::mem::size_of_val(&self.error)),
             (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {

@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 from time import perf_counter
 
 # Third Party Imports
@@ -94,11 +95,11 @@ def test(profile: str) -> None:
                 stderr=sys.stderr,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-        candidate = json.dumps(str(product))
-        declaration = f'"github:stokker-technologies/dokime" = {{ path = {candidate} }}\n'
-        (plugin / "mise.local.toml").write_text(
-            f'[tasks.build.tools]\n{declaration}\n[tasks."package:rust".tools]\n{declaration}', encoding="utf-8", newline="\n"
-        )
+        # The Native Candidate Supplies The Authoring Tool; Other Tools Keep Their Locked Resolution.
+        environment["PATH"] = os.pathsep.join((str(tool.parent), environment.get("PATH", "")))
+        environment["MISE_DISABLE_TOOLS"] = ",".join(filter(None, (environment.get("MISE_DISABLE_TOOLS"), "github:stokker-technologies/dokime")))
+        if Path(shutil.which("cargo-dokime", path=environment["PATH"]) or "").resolve() != tool.resolve():
+            raise ValueError("the starter must use the candidate authoring tool")
 
         # Only The Disposable Consumer Uses The Current SDK Before Publication.
         manifest = plugin / "Cargo.toml"
@@ -142,7 +143,6 @@ def test(profile: str) -> None:
             MISE_YES="1",
             CARGO_NET_OFFLINE="true",
             CARGO_HOME=str(scratch / "cargo-home"),
-            CARGO_TARGET_DIR=str(root / "target"),
         )
 
         # uv Owns Its Normal Lock And Cache Integrity; No Custom Wheel Hash Gate.

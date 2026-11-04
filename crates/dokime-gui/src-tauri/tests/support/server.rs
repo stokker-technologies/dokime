@@ -58,6 +58,7 @@ impl Fixture {
         let root = tempfile::tempdir().unwrap();
         let artifacts = Arc::new(artifact::Provider::default());
         let mut config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None));
+        super::settings::configure(&mut config);
         config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
         let server_config = Config::local().with_max_message_bytes(1024 * 1024);
         let prepared_runtime = dokime_server::grpc::Service::prepare(server_config).unwrap();

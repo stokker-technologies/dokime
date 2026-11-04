@@ -17,6 +17,8 @@ pub(crate) mod contention;
 pub(crate) mod cycles;
 pub(crate) mod diagnostics;
 pub(crate) mod lifecycle;
+#[cfg(feature = "testing")]
+mod live_report;
 pub(crate) mod planning;
 pub(crate) mod reboot;
 pub(crate) mod records;
@@ -75,6 +77,7 @@ fn stage<F: Future<Output = ()>>(future: F) -> Pin<Box<F>> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report() {
     // Each Story Stage Owns Its Async Frame Independently.
@@ -91,6 +94,11 @@ async fn execution_seal_report() {
     stage(lifecycle::continuation_after_failure()).await;
     stage(planning::empty_cycle_grows()).await;
     stage(planning::empty_cycle_seals()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_run_sealing() {
     stage(run::cycle_exposes_rows()).await;
     stage(run::provider_lane_run()).await;
     stage(run::failing_panicking_failed()).await;
@@ -98,7 +106,11 @@ async fn execution_seal_report() {
     stage(run::stop_spares_sibling()).await;
     stage(run::cycle_spanning_group()).await;
     stage(run::group_continues_after_failure()).await;
-    stage(storage::execution_save_sealing()).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_report_recovery() {
     stage(storage::terminal_capture_repaired()).await;
     stage(cancel::cancel_skips_unstarted()).await;
     stage(reboot::native_history_index()).await;
@@ -110,6 +122,13 @@ async fn execution_seal_report() {
     stage(report_cancellation::stopped_report_boundary()).await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_file_save_sealing() {
+    stage(storage::execution_save_sealing()).await;
+}
+
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_threaded() {
     stage(storage::permanent_finalization_settles()).await;
@@ -117,25 +136,34 @@ async fn execution_seal_report_threaded() {
 }
 
 // The Smoke Provider Stages Share One Embedded Fixture Binding.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report_smoke() {
     stage(contention::contended_reads_interactive()).await;
-    stage(artifacts::saved_evidence_export()).await;
-    stage(artifacts::required_evidence_files()).await;
     stage(artifacts::chunked_artifact_rewrite()).await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn execution_arrow_evidence_export() {
+    stage(artifacts::saved_evidence_export()).await;
+    stage(artifacts::required_evidence_files()).await;
+}
+
 // Each Of These Stages Boots Its Own Embedded Runtime And Owns Process-Wide Fixture State.
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_seal_report_streams() {
     stage(streams::live_rows_paths()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn execution_seal_report_transfers() {
     stage(artifacts::abandoned_transfer_slots()).await;
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn execution_seal_report_sync() {
     cycles::catalog_reconciliation_preserves_execution_evidence();

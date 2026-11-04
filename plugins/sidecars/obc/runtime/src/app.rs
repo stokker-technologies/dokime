@@ -29,7 +29,6 @@ use crate::{Testbench, Transactions, error::LaunchError};
 pub type Origin = dokime::harmos::state::Origin<Testbench>;
 pub type Runtime = dokime::harmos::Runtime<ChargerBench>;
 pub type Handle = dokime::harmos::runtime::Handle<ChargerBench>;
-pub type State = dokime::harmos::state::ManagedState<ChargerBench>;
 
 /* === Structs === */
 
@@ -64,15 +63,6 @@ impl dokime::harmos::Lifecycle for ChargerBench {
     async fn prepare(_: (), setup: &mut dokime::harmos::Setup<Self>) -> Result<Self, Self::Error> {
         setup.settings().register(Transactions::catalog());
         Ok(Self)
-    }
-    async fn initialize(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> Result<(), Self::Error> {
-        Ok(())
     }
 }
 

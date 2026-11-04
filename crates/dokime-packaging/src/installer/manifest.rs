@@ -169,8 +169,8 @@ impl Manifest {
         }
         let installer_version = cargo_metadata::semver::Version::parse(&self.installer.version);
         let version = self.dokime.version();
-        if installer_version.is_err() || (version != "dev-channel" && cargo_metadata::semver::Version::parse(version).is_err()) {
-            return Err(Error::Invalid("versions must be exact semantic versions or Dokime dev-channel".into()));
+        if installer_version.is_err() || (version != "edge" && cargo_metadata::semver::Version::parse(version).is_err()) {
+            return Err(Error::Invalid("versions must be exact semantic versions or Dokime edge".into()));
         }
         let windows = self.dokime.target == "x86_64-pc-windows-msvc";
         let linux = self.dokime.target == "x86_64-unknown-linux-gnu";
@@ -278,6 +278,16 @@ mod tests {
     }
 
     #[test]
+    fn release_versions() {
+        let format = if cfg!(target_os = "windows") { "nsis" } else { "deb" };
+        for (version, valid) in [("1.2.3", true), ("edge", true), ("latest", false), ("^1.2", false)] {
+            let text = format!("[installer]\nversion='1.2.3'\nformats=['{format}']\n[dokime]\nversion='{version}'");
+            let manifest: Manifest = toml::from_str(&text).unwrap();
+            assert_eq!(manifest.validate().is_ok(), valid, "{version}");
+        }
+    }
+
+    #[test]
     fn plugin_entry_validation() {
         let base = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n";
         let empty: Manifest = toml::from_str(base).unwrap();
@@ -301,7 +311,7 @@ mod tests {
     }
     #[test]
     fn distribution_identifier() {
-        let text = "[installer]\nversion='1.2.3'\nidentifier='com.hilti.dokime'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let text = "[installer]\nversion='1.2.3'\nidentifier='com.example.testhub'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
         let mut manifest: Manifest = toml::from_str(text).unwrap();
         let compiled = super::super::distribution::Identity {
             identifier: "com.stokker.dokime".into(),
@@ -309,8 +319,8 @@ mod tests {
             updater_public_key: "trust".into(),
         };
         let identity = manifest.identity(&compiled).unwrap();
-        assert_eq!(identity.identifier, "com.hilti.dokime");
-        assert_eq!(identity.slug, "com-hilti-dokime");
+        assert_eq!(identity.identifier, "com.example.testhub");
+        assert_eq!(identity.slug, "com-example-testhub");
         assert_eq!(identity.updater_public_key, compiled.updater_public_key);
         manifest.installer.identifier = None;
         assert_eq!(manifest.identity(&compiled).unwrap().slug, "dokime");

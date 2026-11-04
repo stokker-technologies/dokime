@@ -38,7 +38,7 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 // Public, so a template reaches it through `ctx.host()` without listing it.
 // A step built-in only: listeners watch through `FileWatch`, and a gRPC
 // binding would make the contract a plugin requires differ from the host's.
-// Watches one file for the calling step's execution until the instance is
+// Watches a file or filtered directory for the calling step's execution until the instance is
 // cancelled, the bound elapses or the execution seals. Its bytes become the
 // artifact `artifact`, or `<output>/<file name>` when absent.
 #[harmos::operation(resources = [crate::hosting::Host<WatchFile>], response = WatchFileOutcome, id = "dokime.files.watch_file",
@@ -48,7 +48,7 @@ pub struct WatchFile {
     #[row(description = "Absent takes the execution of the calling step's context; one of the two is required.")]
     pub execution_id: Option<String>,
 
-    #[row(description = "A local root or FTP URL naming the watched file itself.")]
+    #[row(description = "A local path or FTP URL naming a file, or a directory when recursive or rules are set.")]
     pub source: Option<FileWatchSource>,
 
     #[row(description = "The artifact folder, a relative path.")]
@@ -77,6 +77,17 @@ pub struct WatchFile {
     pub matchers: Vec<LineMatcher>,
 
     pub markers: Vec<LineMarker>,
+
+    #[serde(default)]
+    #[row(description = "Discover subfolders, including those created after arming; empty rules include all files.")]
+    pub recursive: bool,
+
+    #[serde(default)]
+    #[row(description = "Ordered include/exclude globs relative to a directory source; last match wins.")]
+    pub rules: Vec<FileRule>,
+
+    #[row(description = "Directory file cap: default 64, maximum 256; single-file watches track one file.")]
+    pub maximum_files: Option<u32>,
 }
 
 /* === Enums === */

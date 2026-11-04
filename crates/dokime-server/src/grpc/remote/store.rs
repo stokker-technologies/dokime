@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
 // Local Imports
-use dokime::domain::model::remote::RemoteListenerSettings;
+use dokime::domain::model::remote::{RemoteEndpoint, RemoteListenerSettings};
 
 /* === Constants === */
 
@@ -225,25 +225,38 @@ pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
 // The identities this host answers to: the listen address when it is specific, the host name
 // and ranked real interface addresses; virtual adapters are excluded. Loopback is same-PC only.
 pub(super) fn host_names(address: SocketAddr, maximum: usize) -> Vec<String> {
+    host_endpoints(address, maximum).into_iter().map(|endpoint| endpoint.address).collect()
+}
+
+pub(super) fn host_endpoints(address: SocketAddr, maximum: usize) -> Vec<RemoteEndpoint> {
     let networks = sysinfo::Networks::new_with_refreshed_list().ok();
     let interfaces = networks
         .iter()
         .flat_map(|networks| networks.iter())
         .flat_map(|(name, network)| network.ip_networks().iter().map(move |network| (name.to_str().unwrap_or(""), network.addr)));
-    default_names(address, sysinfo::System::host_name().ok(), interfaces, maximum)
+    detected_endpoints(address, sysinfo::System::host_name().ok(), interfaces, maximum)
 }
 
 /* === Private Functions === */
 
-fn default_names<'a>(
+fn detected_endpoints<'a>(
     address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = (&'a str, IpAddr)>, maximum: usize,
-) -> Vec<String> {
+) -> Vec<RemoteEndpoint> {
+    if matches!(address.ip(), IpAddr::V6(ip) if ip.is_unicast_link_local()) {
+        return Vec::new();
+    }
+    let interfaces: Vec<_> = interfaces.collect();
     if !address.ip().is_unspecified() {
-        return vec![address.ip().to_string()];
+        let adapter_name = interfaces.iter().find(|(_, ip)| *ip == address.ip()).map(|(name, _)| (*name).to_owned());
+        return vec![RemoteEndpoint {
+            address: address.ip().to_string(),
+            adapter_name,
+        }];
     }
     let host =
         host_name.map(|name| name.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|name| name.len() <= 253 && valid_dns(name));
     let mut addresses: Vec<_> = interfaces
+        .into_iter()
         .filter_map(|(name, ip)| {
             let adapter = name.to_ascii_lowercase();
             let virtual_adapter = [
@@ -272,29 +285,34 @@ fn default_names<'a>(
                 || ip.is_unspecified()
                 || ip.is_multicast()
                 || address.is_ipv4() != ip.is_ipv4()
-                || matches!(ip, IpAddr::V4(v4) if v4.is_link_local())
                 || matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local())
             {
                 return None;
             }
-            Some(ip)
+            Some((ip, name.to_owned()))
         })
         .collect();
-    addresses.sort_unstable_by_key(|ip| {
+    addresses.sort_unstable_by_key(|(ip, adapter)| {
         let private = match ip {
             IpAddr::V4(ip) => ip.is_private(),
             IpAddr::V6(ip) => ip.is_unique_local(),
         };
-        (!private, *ip)
+        let link_local = matches!(ip, IpAddr::V4(ip) if ip.is_link_local());
+        (link_local, !private, *ip, adapter.clone())
     });
     let mut names = Vec::new();
-    for name in host.into_iter().chain(addresses.into_iter().map(|ip| ip.to_string())) {
-        if names.len() < maximum && !names.contains(&name) {
-            names.push(name);
+    for (name, adapter_name) in
+        host.into_iter().map(|host| (host, None)).chain(addresses.into_iter().map(|(ip, adapter)| (ip.to_string(), Some(adapter))))
+    {
+        if names.len() < maximum && !names.iter().any(|endpoint: &RemoteEndpoint| endpoint.address == name) {
+            names.push(RemoteEndpoint { address: name, adapter_name });
         }
     }
     if names.is_empty() {
-        names.push(if address.is_ipv4() { "127.0.0.1" } else { "::1" }.into());
+        names.push(RemoteEndpoint {
+            address: if address.is_ipv4() { "127.0.0.1" } else { "::1" }.into(),
+            adapter_name: None,
+        });
     }
     names.truncate(maximum);
     names
@@ -316,6 +334,12 @@ fn valid_dns(name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::grpc::remote::SERVER_REMOTE_NAMES;
+
+    fn default_names<'a>(
+        address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = (&'a str, IpAddr)>, maximum: usize,
+    ) -> Vec<String> {
+        detected_endpoints(address, host_name, interfaces, maximum).into_iter().map(|endpoint| endpoint.address).collect()
+    }
 
     #[test]
     fn persistent_identity_and_verifier() {
@@ -421,14 +445,85 @@ mod tests {
             ("Ethernet", "203.0.113.8"),
             ("Wi-Fi", "192.168.1.20"),
             ("Ethernet", "10.0.0.2"),
+            ("Cable Ethernet", "169.254.23.41"),
+            ("Virtual VPN", "169.254.8.9"),
+            ("Cable Ethernet", "fe80::1234"),
         ]
         .into_iter()
         .map(|(name, ip)| (name, ip.parse().unwrap()));
         assert_eq!(
             default_names("0.0.0.0:8765".parse().unwrap(), Some("Lab".into()), interfaces, 32),
-            ["lab", "10.0.0.2", "192.168.1.20", "203.0.113.8"]
+            ["lab", "10.0.0.2", "192.168.1.20", "203.0.113.8", "169.254.23.41"]
         );
         assert_eq!(default_names("192.168.1.20:8765".parse().unwrap(), Some("Lab".into()), std::iter::empty(), 32), ["192.168.1.20"]);
+    }
+
+    #[test]
+    fn cable_certificate_endpoints() {
+        use rustls::{
+            client::danger::ServerCertVerifier,
+            pki_types::{CertificateDer, ServerName, UnixTime, pem::PemObject},
+        };
+
+        let detect = |cable| {
+            detected_endpoints(
+                "0.0.0.0:8765".parse().unwrap(),
+                Some("Bench".into()),
+                [("Wireless", "192.168.7.4"), ("Cable Ethernet", cable), ("Cable Ethernet", cable)]
+                    .into_iter()
+                    .map(|(name, ip)| (name, ip.parse().unwrap())),
+                32,
+            )
+        };
+        let hosts = detect("169.254.23.41");
+        assert_eq!(
+            hosts.iter().map(|host| (host.address.as_str(), host.adapter_name.as_deref())).collect::<Vec<_>>(),
+            [("bench", None), ("192.168.7.4", Some("Wireless")), ("169.254.23.41", Some("Cable Ethernet"))]
+        );
+        let specific = detected_endpoints(
+            "169.254.23.41:8765".parse().unwrap(),
+            None,
+            [("Cable Ethernet", "169.254.23.41".parse().unwrap())].into_iter(),
+            32,
+        );
+        assert_eq!(specific, vec![hosts[2].clone()]);
+        let cable_only = detected_endpoints(
+            "0.0.0.0:8765".parse().unwrap(),
+            None,
+            [("Cable Ethernet", "169.254.23.41".parse().unwrap())].into_iter(),
+            32,
+        );
+        assert_eq!(cable_only, specific);
+        let ipv6 =
+            [("Cable Ethernet", "fe80::1234"), ("Ethernet", "2001:db8::7")].into_iter().map(|(name, ip)| (name, ip.parse().unwrap()));
+        assert_eq!(default_names("[::]:8765".parse().unwrap(), None, ipv6, 32), ["2001:db8::7"]);
+        assert!(detected_endpoints("[fe80::1234]:8765".parse().unwrap(), None, std::iter::empty(), 32).is_empty());
+
+        let mut identity = Identity::generate(hosts.iter().map(|host| host.address.clone()).collect()).unwrap();
+        let ca = identity.ca_certificate.clone();
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(CertificateDer::from_pem_slice(ca.as_bytes()).unwrap()).unwrap();
+        let verifier = rustls::client::WebPkiServerVerifier::builder_with_provider(
+            std::sync::Arc::new(roots),
+            std::sync::Arc::new(rustls::crypto::ring::default_provider()),
+        )
+        .build()
+        .unwrap();
+        let now = UnixTime::since_unix_epoch(std::time::Duration::from_secs(1_800_000_000));
+        for hosts in [hosts, detect("169.254.23.42")] {
+            let names = hosts.iter().map(|host| host.address.clone()).collect();
+            identity.reissue(names).unwrap();
+            assert_eq!(identity.ca_certificate, ca);
+            let leaf = CertificateDer::from_pem_slice(identity.certificate.as_bytes()).unwrap();
+            let origins = super::super::pairing::endpoints(hosts, 8765, true);
+            for origin in origins {
+                let host = origin.strip_prefix("https://").unwrap().rsplit_once(':').unwrap().0;
+                let name = ServerName::try_from(host).unwrap();
+                verifier.verify_server_cert(&leaf, &[], &name, &[], now).unwrap();
+            }
+            let obsolete = ServerName::try_from("169.254.23.99").unwrap();
+            assert!(verifier.verify_server_cert(&leaf, &[], &obsolete, &[], now).is_err());
+        }
     }
 
     #[test]

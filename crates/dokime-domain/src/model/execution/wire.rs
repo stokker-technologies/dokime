@@ -61,7 +61,7 @@ pub struct AppendCasesReply {
     pub execution_ids: Vec<String>,
 }
 
-// Server-side selection and ordering for the live cycle list.
+// Server-side selection and ordering for current and saved cycles.
 //
 // `text` matches a cycle's label, description and identifier
 // case-insensitively; an empty string selects everything. Repeated fields are

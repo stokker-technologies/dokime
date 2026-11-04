@@ -41,8 +41,8 @@ Find these files after extraction:
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
 | Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-x86_64-pc-windows-msvc-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/plugin-host.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
+| Ubuntu/Debian x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
+| Fedora x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/plugin-host.dokime` |
 
 The installer includes the host telemetry bundle. OBC is a source-built test
 fixture, not a candidate download; build it with `mise run build:rust:tests`
@@ -82,13 +82,16 @@ The installer adds its directory to your user `PATH`. Close existing terminals
 and open a new one afterward. The installed CLI and GUI stay together; each embeds the server library;
 do not move only `dokime.exe` out of that directory.
 
-On Debian/Ubuntu, open a terminal in the extracted `installers/` directory:
+Linux packages support Ubuntu 22.04+, Debian 12+ and current Fedora; RHEL and
+Rocky Linux lack WebKitGTK 4.1 and are unsupported.
+
+On Ubuntu or Debian, open a terminal in the extracted `installers/` directory:
 
 ```sh
 sudo apt install ./dokime_<version>_amd64.deb
 ```
 
-On an RPM-based system with DNF, from its `installers/` directory:
+On Fedora, from its `installers/` directory:
 
 ```sh
 sudo dnf install ./dokime-<version>-1.x86_64.rpm
@@ -96,7 +99,7 @@ sudo dnf install ./dokime-<version>-1.x86_64.rpm
 
 Use your package manager to resolve the package's native desktop dependencies.
 These candidates target Linux and Windows x86-64; this guide does not establish
-support for another architecture or a minimum OS release.
+support for another architecture.
 
 On either PC, verify command discovery in a new terminal:
 
@@ -132,8 +135,12 @@ Use the host's connected local desktop session, then open
    interface addresses automatically. Save `lab.dokime-remote`.
 2. Treat this file as a secret. Transfer it privately to the other PC. Loopback
    addresses work on the same PC only.
-3. The Windows installer configures a Private-network inbound application rule
-   (administrator confirmation required). On Linux, allow the listener port
+3. Windows installation needs no administrator rights. If Remote Access shows a
+   firewall notice on the host, choose **Allow In Firewall…** and have an
+   administrator approve the listener's local-subnet rule for the listed network
+   profiles, including Public cable networks. See [Direct Cable Between Two PCs](../product-guide.md#direct-cable-between-two-pcs).
+   Connecting from the other
+   PC needs no firewall change. On Linux, allow the listener port
    through the host firewall. Advanced listener settings can change that port.
 
 Transfer that pairing file privately to `remote-demo/` on the remote computer.
@@ -229,7 +236,9 @@ after restarting or reconnecting to the same server without rerunning hardware.
 
 Extract one evidence ZIP into its own new directory, for example
 `unpacked-test/`. It contains `manifest.json`, `evidence.sqlite`,
-`files/` when the execution captured files, and saved HTML under `reports/`.
+`artifacts/` for captured files, `telemetry/` for Arrow IPC files, and saved HTML
+under `reports/`. Cycle bundles group artifacts and telemetry under
+`executions/<execution-id>/`.
 Open a report in a browser to inspect the saved document.
 
 The CLI/Python download already checks the archive's size and SHA-256 before
@@ -258,12 +267,13 @@ SELECT execution_id, direction, identifier, source_kind, value, unit_json
 FROM inputs ORDER BY execution_id, direction, identifier;
 SELECT execution_id, record_type, count(*) AS records
 FROM records GROUP BY execution_id, record_type;
-SELECT execution_id, stream_id, schema_version, sample_count, table_name
-FROM streams ORDER BY execution_id, stream_id;
-SELECT s.execution_id, s.stream_id, c.field_id, c.table_name,
-       c.column_name, c.value_type, c.unit_json
-FROM streams AS s JOIN stream_columns AS c ON c.base_table = s.table_name
-ORDER BY s.execution_id, c.table_name, c.column_name;
+SELECT s.execution_id, s.stream_id, s.rows, f.path, f.size_bytes, f.sha256
+FROM streams AS s JOIN files AS f ON f.id = s.file_id
+ORDER BY s.execution_id, s.stream_id;
+SELECT s.stream_id, n.signal, n.count, n.minimum, n.maximum, n.sum
+FROM stream_summaries AS n JOIN streams AS s ON n.file_id = s.file_id;
+SELECT a.execution_id, a.relative_path, f.path, f.size_bytes, f.sha256
+FROM artifacts AS a JOIN files AS f ON a.file_id = f.id;
 SELECT execution_id, relative_path, archive_path, size_bytes, sha256
 FROM outputs ORDER BY execution_id, ordinal;
 ```
@@ -274,22 +284,25 @@ retain their truthful outcome and whatever rows were saved. An execution bundle
 taken before cycle sealing can show an Active cycle; the final cycle bundle
 shows its sealed phase and all members.
 
-Sample table names and field column names are generated. Do not assume a fixed
-name. This query prints a sample-reading statement for each actual pulse table;
-copy the returned statement back into SQLite:
+Read the exported typed telemetry file with an Arrow-compatible reader. For
+example, in a Python environment with Polars installed:
 
-```sql
-SELECT 'SELECT m_sequence, sample_json FROM "' ||
-       replace(table_name, '"', '""') || '" ORDER BY m_row LIMIT 8;'
-       AS query_to_copy
-FROM streams WHERE stream_id = 'obc.pulse';
+```python
+from pathlib import Path
+import polars as pl
+
+for path in Path("unpacked-test").rglob("telemetry/*.arrow"):
+    frame = pl.read_ipc(path)
+    print(path, frame.select(pl.col("values").struct.unnest()).head(8))
 ```
 
-The mapping above identifies each typed field and unit; `sample_json` retains
-the complete saved sample. Wide streams use several tables joined by `m_row`.
-Rows in `outputs` identify captured files by their archive paths and digests.
-A pulse need not capture a separate file. Keep the manifest, database, reports
-and captured files together. Use `.quit` to leave the SQLite CLI.
+The Arrow schema carries field units, descriptions and stream identity. SQLite
+`files` rows identify each archive member and digest; `streams` links telemetry
+to its execution and lists batch offsets and row/time ranges in `batches_json`.
+This membership includes captured observer samples whose producer scope remains
+empty or identifies another owner. Shared files contribute only captured rows.
+Keep the manifest, database, reports, artifacts and Arrow files together. Use
+`.quit` to leave the SQLite CLI.
 
 ## Troubleshooting
 

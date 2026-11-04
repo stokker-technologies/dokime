@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 type PluginDropZoneProps = {
   disabled: boolean;
   error: string | null;
+  failure?: unknown;
   filename: string | null;
   onDrop: (filename: string) => void;
   onPick: () => void;
@@ -36,7 +37,7 @@ type PluginDropZoneProps = {
 
 /* === Components === */
 
-export function PluginDropZone({ disabled, error, filename, onDrop, onPick, progress }: PluginDropZoneProps) {
+export function PluginDropZone({ disabled, error, failure, filename, onDrop, onPick, progress }: PluginDropZoneProps) {
   const brand = useBrand();
   const zone = useRef<HTMLFieldSetElement>(null);
   const dragging = useNativeFileDrop(zone, disabled, onDrop);
@@ -69,7 +70,7 @@ export function PluginDropZone({ disabled, error, filename, onDrop, onPick, prog
           </Button>
         </div>
       </fieldset>
-      {error ? <NotificationMessage>{error}</NotificationMessage> : null}
+      {error ? <NotificationMessage error={failure}>{error}</NotificationMessage> : null}
     </div>
   );
 }
@@ -112,6 +113,7 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
       .catch((error: unknown) => {
         if (disposed) return;
         toast.error("Plugin File Drop Unavailable", {
+          error,
           description: error instanceof Error ? error.message : String(error),
         });
       });

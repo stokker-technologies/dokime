@@ -44,6 +44,7 @@ use clap::Parser;
 /* === Private Functions === */
 
 fn main() -> ExitCode {
+    let _trace = dokime::diagnostics::test_trace::process();
     let mut args = std::env::args_os().collect::<Vec<_>>();
     if args.get(1).is_some_and(|arg| arg == "dokime") {
         args.remove(1);

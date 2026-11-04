@@ -48,7 +48,7 @@ const MAX_DEPTH: usize = 64;
 /* === Structs === */
 
 #[harmos::message]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Cell {
     pub name: Option<String>,
     pub kind: String,

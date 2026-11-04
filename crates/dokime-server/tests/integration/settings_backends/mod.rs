@@ -46,15 +46,26 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
-async fn settings_backends() {
-    Box::pin(settings::frame_readable_probe()).await;
-    Box::pin(settings::storage_sources()).await;
-    Box::pin(settings::plugin_settings()).await;
-    Box::pin(settings::application_settings()).await;
-    Box::pin(appearance::appearance_asset_bound()).await;
-    Box::pin(appearance::appearance_refuses_transfer()).await;
+async fn settings() {
+    stage(Box::pin(settings::frame_readable_probe())).await;
+    stage(Box::pin(settings::storage_sources())).await;
+    stage(Box::pin(settings::plugin_settings())).await;
+    stage(Box::pin(settings::application_settings())).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn appearance() {
+    stage(Box::pin(appearance::appearance_asset_bound())).await;
+    stage(Box::pin(appearance::appearance_refuses_transfer())).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn authorization() {
     authorization::table_covers_serves();
-    Box::pin(authorization::key_boundary_matrix()).await;
-    Box::pin(authorization::remote_refuses_local()).await;
+    stage(Box::pin(authorization::key_boundary_matrix())).await;
+    stage(Box::pin(authorization::remote_refuses_local())).await;
 }

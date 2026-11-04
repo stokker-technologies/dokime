@@ -57,6 +57,7 @@ export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReport
       })
       .catch((error: unknown) =>
         toast.error("The Report Could Not Be Saved", {
+          error,
           description: error instanceof Error ? error.message : String(error),
         }),
       );

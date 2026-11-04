@@ -186,6 +186,17 @@ impl Serialize for Artifacts<'_> {
 }
 
 impl DocumentSelection {
+    pub(crate) fn matches_sample(&self, sample: &crate::telemetry::TelemetrySample) -> bool {
+        self.matches_scope(sample.scope.as_ref()) || self.captured_sample_scope(sample).is_some()
+    }
+
+    pub(crate) fn captured_sample_scope<'a>(&self, sample: &'a crate::telemetry::TelemetrySample) -> Option<&'a RecordScope> {
+        if self.scope.test_execution_id.is_none() && self.scope.test_cycle_id.is_none() {
+            return None;
+        }
+        sample.captured_scopes.iter().find(|scope| self.matches_scope(Some(scope)))
+    }
+
     pub(crate) fn foreign_execution_scope(&self, scope: Option<&RecordScope>) -> bool {
         self.scope.test_execution_id.is_some()
             && scope.is_some_and(|scope| {

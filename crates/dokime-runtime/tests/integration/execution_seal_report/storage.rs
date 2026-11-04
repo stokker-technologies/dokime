@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -124,10 +125,14 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(retained, expected);
     // Exercise Registration And Sealing Beyond The Former Private Source Cap.
     let additional_outputs = 257u32;
-    for index in 0..additional_outputs {
-        let target = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true).await.unwrap().unwrap();
-        std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
-    }
+    let outputs = (0..additional_outputs).map(|index| {
+        let registering = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true);
+        async move {
+            let target = registering.await.unwrap().unwrap();
+            std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
+        }
+    });
+    futures_util::future::join_all(outputs).await;
     executor.release();
     wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
@@ -188,32 +193,38 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(follower.metadata().phase, wire::ExecutionFilePhase::Finished);
     drop(follower);
     // Every Registered Output Remains Addressable After Reopening Storage.
-    for index in 0..additional_outputs {
-        let mut output = handle.follow_execution_file(&id, &format!("outputs/{index}.bin"), None, 0).await.unwrap().unwrap();
-        assert_eq!(output.metadata().phase, wire::ExecutionFilePhase::Finished);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
-            panic!("saved output must return its bytes");
-        };
-        assert_eq!(chunk.offset, 0);
-        assert_eq!(chunk.data, index.to_le_bytes()[..3]);
-        drop(frame);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
-            panic!("saved output must return its remaining byte");
-        };
-        assert_eq!(chunk.offset, 3);
-        assert_eq!(chunk.data, index.to_le_bytes()[3..]);
-        drop(frame);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
-            panic!("saved output must finish with its sealed reference");
-        };
-        assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
-        assert_eq!(terminal.sealed.as_ref().unwrap().length, 4);
-        drop(frame);
-        assert!(output.next_frame(maximum).await.unwrap().is_none());
-    }
+    futures_util::stream::iter(0..additional_outputs)
+        .for_each_concurrent(dokime_runtime::config::storage_defaults().request.max_active_queries.get(), |index| {
+            let handle = &handle;
+            let id = &id;
+            async move {
+                let mut output = handle.follow_execution_file(id, &format!("outputs/{index}.bin"), None, 0).await.unwrap().unwrap();
+                assert_eq!(output.metadata().phase, wire::ExecutionFilePhase::Finished);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                    panic!("saved output must return its bytes");
+                };
+                assert_eq!(chunk.offset, 0);
+                assert_eq!(chunk.data, index.to_le_bytes()[..3]);
+                drop(frame);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                    panic!("saved output must return its remaining byte");
+                };
+                assert_eq!(chunk.offset, 3);
+                assert_eq!(chunk.data, index.to_le_bytes()[3..]);
+                drop(frame);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+                    panic!("saved output must finish with its sealed reference");
+                };
+                assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
+                assert_eq!(terminal.sealed.as_ref().unwrap().length, 4);
+                drop(frame);
+                assert!(output.next_frame(maximum).await.unwrap().is_none());
+            }
+        })
+        .await;
     drop(handle);
     reopened.shutdown().await.unwrap();
 }
@@ -334,8 +345,8 @@ pub(crate) async fn permanent_finalization_settles() {
         .await
         .unwrap();
     assert!(runtime.wait_execution_report(&execution).await.is_err());
+    assert!(runtime.stop_execution(execution.clone(), CommandContext::default()).await.is_err());
     assert_eq!(runtime.watch_state().latest().state().executions[&execution].status, ExecutionStatus::Passed);
-    runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
     drop(watch);
     owner.shutdown().await.unwrap();
     drop(runtime);

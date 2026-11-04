@@ -38,7 +38,7 @@ type Commit = {
   status: ListenerStatus;
   change: ListenerChange;
   send: (settings: ListenerSettings) => Promise<ListenerStatus>;
-  fail: (message: string) => void;
+  fail: (message: string, error: unknown) => void;
 };
 
 /* === Classes === */
@@ -61,7 +61,7 @@ export async function commitListener({ status, change, send, fail }: Commit): Pr
   try {
     return await send(listenerRequest(status, change));
   } catch (error) {
-    fail(listenerError(error));
+    fail(listenerError(error), error);
     return status;
   }
 }

@@ -55,7 +55,7 @@ impl ArtifactReader {
     pub(super) async fn from_output(session: crate::storage::Manager, descriptor: ReadBatch<ExecutionOutput>) -> Result<Self> {
         let reader = session
             .read_file(FileRead {
-                source: harmos::storage::FileSource::Stored(descriptor.file.clone()),
+                source: harmos::storage::FileSource::Stored(descriptor.file().map_err(crate::storage::Error::from)?.clone()),
                 range: ByteRange { offset: 0, limit: None },
             })
             .await?;
@@ -72,7 +72,7 @@ impl ArtifactReader {
             })
             .ok_or_else(|| Error::Storage(crate::storage::Error::Invalid("artifact descriptor is missing from captured output")))?;
         let output = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, harmos::Error>(output.clone()))?;
-        let reader = view.read_file(&output.file, ByteRange { offset: 0, limit: None }).await?;
+        let reader = view.read_file(output.file().map_err(crate::storage::Error::from)?, ByteRange { offset: 0, limit: None }).await?;
         Ok(Self::new(output, reader))
     }
 

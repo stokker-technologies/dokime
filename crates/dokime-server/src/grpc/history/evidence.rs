@@ -147,11 +147,14 @@ fn checkpoint_outputs(
     maximum: usize,
 ) -> Result<dokime::domain::model::history::wire::CheckpointEvidence, Status> {
     let files = if sections.contains(&dokime::domain::model::history::wire::EvidenceSection::Outputs) {
-        collect(outputs.iter().map(|output| {
-            let kind = dokime::ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&output.file.metadata.media_type));
-            Ok(dokime::domain::model::content::wire::ExecutionFileMetadata {
+        let count = outputs.iter().filter(|output| output.file.is_some()).count();
+        let mut files = value::projection::slots(count).map_err(status_failure)?;
+        for output in outputs {
+            let Some(file) = &output.file else { continue };
+            let kind = dokime::ExecutionFileContentKind::from_metadata(&output.relative_path, Some(&file.metadata.media_type));
+            files.push(dokime::domain::model::content::wire::ExecutionFileMetadata {
                 relative_path: value::projection::text(&output.relative_path).map_err(status_failure)?,
-                content_type: Some(value::projection::text(&output.file.metadata.media_type).map_err(status_failure)?),
+                content_type: Some(value::projection::text(&file.metadata.media_type).map_err(status_failure)?),
                 kind: content::files::kind(&kind),
                 state: match output.stream_state {
                     Some(dokime::domain::model::execution::saved::SavedStreamState::Finalized) => {
@@ -162,10 +165,11 @@ fn checkpoint_outputs(
                     }
                     None => dokime::domain::model::content::wire::ExecutionFileState::Streaming,
                 },
-                size_bytes: output.file.length,
+                size_bytes: file.length,
                 created_at: Some(canonical::timestamp(&output.created_at)?),
-            })
-        }))?
+            });
+        }
+        files
     } else {
         Vec::new()
     };
@@ -255,14 +259,6 @@ fn file(value: dokime::ExecutionFileEntry) -> Result<dokime::domain::model::cont
         size_bytes: value.size_bytes,
         created_at: Some(canonical::timestamp(&value.updated_at)?),
     })
-}
-
-fn collect<T>(items: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
-    let mut values = value::projection::slots(items.len()).map_err(status_failure)?;
-    for item in items {
-        values.push(item?);
-    }
-    Ok(values)
 }
 
 fn status_failure(source: dokime::harmos::Error) -> Status {

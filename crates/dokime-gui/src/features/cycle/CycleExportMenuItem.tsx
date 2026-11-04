@@ -49,6 +49,7 @@ export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
       })
       .catch((error: unknown) =>
         toast.error("Evidence Could Not Be Saved", {
+          error,
           description: error instanceof Error ? error.message : String(error),
         }),
       );

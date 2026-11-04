@@ -43,6 +43,7 @@ use crate::service_support::plots;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn telemetry_plot_history() {
     plots::telemetry_history(50_000, 400, 7).await;

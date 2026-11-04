@@ -7,7 +7,7 @@ description: Define Dokime domain, runtime, shell and packaging ownership and li
 
 Declare product contracts once in `dokime-domain` and implement handlers in `dokime-runtime`. Interfaces consume the `dokime` entry library and expose the same operation contracts without redeclaration or forwarding implementations. Host-free consumers depend on `dokime-domain` directly.
 
-Host plugin rows, contracts, cadences and document defaults belong to the definitions-only default of `plugin-host`, consumed explicitly without runtime re-exports. Application lifecycle records remain in `dokime::host`. `PluginOwner::Host` identifies embedding application catalogs, presented as Built-in.
+Host plugin rows, contracts, settings declarations and document defaults belong to the definitions-only default of `plugin-host`, consumed explicitly without runtime re-exports. Runtime observers resolve collection cadence from the prepared settings snapshot; static schemas do not advertise a nominal interval. Stream leases recognize owner observer outputs and never choose the cadence. Application lifecycle records remain in `dokime::host`. `PluginOwner::Host` identifies embedding application catalogs, presented as Built-in.
 
 Mutable resources register as `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Server owners prepare their composition before launching Dokime and acquire the activated service afterward; listeners do not register handlers. Dokime initialization validates recovered ownership, starts record capture and commits startup recovery before assembling its live handle. Harmos invokes storage reconciliation after application initialization, so that callback cannot own prerequisites of the initialized handle.
 

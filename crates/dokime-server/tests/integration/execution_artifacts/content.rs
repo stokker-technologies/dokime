@@ -270,9 +270,9 @@ async fn artifact_transfer(message_bytes: usize) {
         assert!(completed, "dynamic stream must report completion after final OK status");
         dynamic.close().await;
 
-        // The CLI Saves The Same Streaming Protocol As A Complete JSON Document.
+        // The CLI Saves Verified Chunk Bytes Without JSON Conversion.
         let cli_server = service.listen_with(Config::local().with_max_message_bytes(message_bytes)).await.unwrap();
-        let response_file = root.path().join("cli-response.json");
+        let response_file = root.path().join("cli-artifact.bin");
         let endpoint = cli_server.local_endpoint();
         let cli_request = std::str::from_utf8(&request_json).unwrap();
         let command = [
@@ -289,11 +289,7 @@ async fn artifact_transfer(message_bytes: usize) {
         ];
         dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
         let bytes = std::fs::read(&response_file).unwrap();
-        let response: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        let events = response.as_array().unwrap();
-        assert_eq!(events.len(), item_count + 1);
-        assert!(events[..item_count].iter().all(|event| event["event"] == "item"));
-        assert_eq!(events[item_count]["event"], "completion");
+        assert_eq!(bytes, records[0].1);
 
         artifacts.release.notify_one();
         support::wait_for_cycle_outcome(

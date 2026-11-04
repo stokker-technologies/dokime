@@ -145,6 +145,7 @@ fn owners() -> PluginDefinitions {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     let root = tempfile::tempdir().unwrap();

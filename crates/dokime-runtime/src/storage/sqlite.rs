@@ -11,13 +11,18 @@
 
 mod catalog;
 pub(crate) mod data;
+pub(crate) mod history;
 mod settings;
+pub(crate) mod snapshots;
 
 /* === Re-Exports === */
 
 pub use crate::storage::Error;
 pub use catalog::Source;
 pub use data::Backend;
+pub(crate) use data::telemetry::StreamFile;
+pub(crate) use data::telemetry::aggregates::{Moments, ordered, unordered};
+pub(crate) use data::telemetry::query::{QueryRead, QueryWork};
 pub use rusqlite;
 
 /* === Imports === */
@@ -71,6 +76,8 @@ pub struct Settings {
     // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
     // Spans Write Each Repeatedly Updated Index Page Once Instead Of After Every Commit.
     pub checkpoint_pages: NonZeroU32,
+    pub telemetry_rows: NonZeroUsize,
+    pub telemetry_interval: Duration,
 }
 
 // Process-Wide SQLite Diagnostics; These Exclude Autocommit Statements And The Harmos State Journal.
@@ -97,10 +104,10 @@ pub struct ReadCounters {
 struct ReadMetrics {
     data_scan_rows: AtomicU64,
     telemetry_anchor_rows: AtomicU64,
+    telemetry_batch: std::sync::Mutex<Option<data::telemetry::CachedBatch>>,
 }
 
 struct Owner {
-    previews: PreviewSettings,
     read_metrics: Arc<ReadMetrics>,
     // The Only Writer Connection; Reads Never Hold It, So Concurrent Queries Cannot Delay A Save.
     live: Arc<Mutex<Option<Live>>>,
@@ -110,6 +117,11 @@ struct Owner {
     reads: AtomicU64,
     files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
     verification_prefix: std::sync::Mutex<data::VerifiedPrefix>,
+    telemetry: std::sync::Mutex<data::telemetry::Store>,
+    telemetry_tail: std::sync::Mutex<data::telemetry::Tail>,
+    telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
+    previews: PreviewSettings,
+    close: tokio::sync::Mutex<()>,
 }
 
 struct Live {
@@ -144,6 +156,10 @@ struct Interruption {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PreviewSettings {
+    pub exact_points: NonZeroUsize,
+    pub grid_columns: NonZeroUsize,
+    pub grid_rows: NonZeroUsize,
+    pub groups: NonZeroUsize,
     pub report_concurrency: NonZeroUsize,
     pub bucket_count: NonZeroUsize,
     pub bucket_interval: Duration,
@@ -190,9 +206,22 @@ impl State {
         Self::open_with(root, crate::config::local_storage_defaults()).await
     }
 
+    pub(crate) fn preview_settings(&self) -> PreviewSettings {
+        self.0.previews
+    }
+
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
+        if settings.telemetry_interval.is_zero() {
+            return Err(Error::Invalid("telemetry flush interval must be positive"));
+        }
+        if tokio::time::Instant::now().checked_add(settings.telemetry_interval).is_none() {
+            return Err(Error::Invalid("telemetry flush deadline overflows"));
+        }
         if settings.previews.bucket_interval.is_zero() || settings.previews.bucket_interval.as_nanos() > i128::MAX as u128 {
             return Err(Error::Data("preview interval must fit positive nanoseconds"));
+        }
+        if settings.previews.grid_columns.get().checked_mul(settings.previews.grid_rows.get()).is_none() {
+            return Err(Error::Data("preview grid exceeds native address range"));
         }
         if settings.previews.report_concurrency.get() > Semaphore::MAX_PERMITS {
             return Err(Error::Data("report concurrency exceeds native range"));
@@ -227,7 +256,6 @@ impl State {
             let verification_prefix = data::VerifiedPrefix::default();
             let verification_prefix = std::sync::Mutex::new(verification_prefix);
             Ok(Self(Arc::new(Owner {
-                previews: settings.previews,
                 read_metrics: Arc::new(ReadMetrics::default()),
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
                 readers: Arc::new(Readers {
@@ -240,12 +268,53 @@ impl State {
                 reads: AtomicU64::new(1),
                 files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
                 verification_prefix,
+                telemetry: std::sync::Mutex::new(data::telemetry::Store::new(root, settings)),
+                telemetry_tail: Default::default(),
+                telemetry_tasks: Default::default(),
+                previews: settings.previews,
+                close: Default::default(),
             })))
         })
         .await?
     }
 
     pub async fn close(&self) -> Result<(), Error> {
+        let _close = self.0.close.lock().await;
+        let has_tail = !self.0.telemetry_tail.lock().unwrap().entries.is_empty();
+        if has_tail {
+            let saved = self.data_saved().await?;
+            self.0.telemetry_tail.lock().unwrap().entries.retain(|position, _| *position > saved.sequence);
+        }
+        {
+            let mut tail = self.0.telemetry_tail.lock().unwrap();
+            tail.force = true;
+            tail.changed.notify_one();
+        }
+        let mut failure = None;
+        let mut transient_failure = None;
+        for task in std::mem::take(&mut *self.0.telemetry_tasks.lock().await) {
+            let result = task.await.map_err(Error::from)?;
+            if let Err(error) = result {
+                if matches!(&error, Error::HarmosStorage(source) if source.backend_failure() == Some(harmos::BackendFailure::Transient)) {
+                    transient_failure.get_or_insert(error);
+                } else {
+                    failure.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        // A Retried Flush May Already Have Saved The Failed Task's Entire Tail.
+        // Only Durable Retirement Can Supersede A Transient Task Error.
+        if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
+            let saved = self.data_saved().await?;
+            let mut tail = self.0.telemetry_tail.lock().unwrap();
+            tail.entries.retain(|position, _| *position > saved.sequence);
+            if !tail.entries.is_empty() {
+                return Err(transient_failure.unwrap_or(Error::Conflict("unflushed telemetry prevents closing")));
+            }
+        }
         self.0.closing.store(true, Ordering::Release);
         // Accepted Reads Settle And Return Their Connections Before The Writer Closes.
         let readers = self.0.readers.clone();
@@ -257,6 +326,9 @@ impl State {
         let mut live = self.0.live.clone().lock_owned().await;
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
+            if let Some(live) = live.as_mut() {
+                owner.telemetry.lock().unwrap().finish(&mut live.connection, None)?;
+            }
             owner.files.lock().unwrap().clear();
             *owner.verification_prefix.lock().unwrap() = data::VerifiedPrefix::default();
             let Some(Live { connection, _lease }) = live.take() else {
@@ -278,8 +350,11 @@ impl State {
         }
         // Acquire before spawning: a cancelled caller cannot leave a queued
         // older write that overtakes its retry or a subsequent transition.
+        let parent = tracing::Span::current();
         let mut live = self.0.live.clone().lock_owned().await;
         tokio::task::spawn_blocking(move || {
+            let _parent = parent.enter();
+            let _execute = tracing::debug_span!("storage.sqlite.execute").entered();
             let result = live.as_mut().ok_or(Error::Closed).and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
             drop(live);
             result
@@ -393,6 +468,40 @@ fn check_layout(connection: &Connection) -> Result<bool, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn metadata_reads_the_committed_cut_while_the_writer_is_busy() {
+        let root = tempfile::tempdir().unwrap();
+        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
+        let initial = state.data_open(None).await.unwrap();
+        state.initialize_settings().await.unwrap();
+        let settings = state.read_application_settings().await.unwrap();
+        let sources = state.sources().await.unwrap();
+        #[cfg(feature = "native")]
+        let metadata = state.read_application_metadata().await.unwrap();
+        let mut writer = state.0.live.lock().await;
+        let transaction = writer.as_mut().unwrap().connection.transaction().unwrap();
+        transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [data::position(initial.sequence + 1)]).unwrap();
+        transaction.execute("UPDATE application_settings SET revision=revision+1", []).unwrap();
+        transaction
+            .execute("INSERT INTO storage_sources SELECT 'pending','fixture',COALESCE(MAX(priority),-1)+1,1 FROM storage_sources", [])
+            .unwrap();
+        #[cfg(feature = "native")]
+        transaction.execute("DELETE FROM application_metadata WHERE id=1", []).unwrap();
+
+        let saved = state.data_saved().await.unwrap();
+        assert_eq!(saved.history, initial.history);
+        assert_eq!(saved.sequence, initial.sequence);
+        assert_eq!(saved.retention_generation, initial.retention_generation);
+        assert_eq!(state.read_application_settings().await.unwrap(), settings);
+        assert_eq!(state.sources().await.unwrap(), sources);
+        #[cfg(feature = "native")]
+        assert_eq!(state.read_application_metadata().await.unwrap(), metadata);
+
+        transaction.rollback().unwrap();
+        drop(writer);
+        state.close().await.unwrap();
+    }
 
     // Every Reader Holds An Open Snapshot While The Writer Commits 100 Rows: The Commit
     // Never Waits For Them, And Each Held Snapshot Still Reads Its Original Cut.

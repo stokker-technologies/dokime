@@ -12,6 +12,7 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
+pub(crate) mod firewall;
 mod http;
 pub(crate) mod local;
 mod logging;
@@ -19,7 +20,6 @@ pub(crate) mod media;
 pub(crate) mod organization;
 pub(crate) mod plugins;
 pub(crate) mod preferences;
-pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
 
@@ -213,6 +213,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     drop(retained);
     let closing = closing::Closing::default();
     app.run(move |app, event| match event {
+        tauri::RunEvent::Exit => dokime::diagnostics::test_trace::flush(),
         tauri::RunEvent::WindowEvent {
             event: tauri::WindowEvent::CloseRequested { api, .. },
             ..

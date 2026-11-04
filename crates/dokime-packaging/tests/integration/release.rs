@@ -50,6 +50,7 @@ use dokime_packaging::installer::release::Release;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn verified_release_cache() {
     let root = tempfile::tempdir().unwrap();
@@ -126,7 +127,7 @@ async fn verified_release_cache() {
     let release = Release::open(reqwest::Client::new(), assets, cache.clone()).await.unwrap();
     let destination = root.path().join("distribution");
     std::fs::create_dir(&destination).unwrap();
-    assert_eq!(release.distribution("dev-channel", target, &destination).await.unwrap(), "1.2.3");
+    assert_eq!(release.distribution("edge", target, &destination).await.unwrap(), "1.2.3");
     assert_eq!(std::fs::read(destination.join("distribution.json")).unwrap(), b"distribution metadata");
     let manifest: dokime_packaging::installer::Manifest =
         toml::from_str("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n[[plugin]]\nname='plugin-host'").unwrap();

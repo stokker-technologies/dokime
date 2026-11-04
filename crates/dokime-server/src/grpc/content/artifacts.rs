@@ -107,7 +107,7 @@ pub(in crate::grpc) async fn deliver(
     reader: ArtifactReader, maximum: usize, chunk_bytes: usize, output: &StreamOutput<dokime::domain::model::content::wire::ArtifactFrame>,
 ) -> Result<(), Status> {
     let frame = dokime::domain::model::content::wire::ArtifactFrame {
-        payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
+        payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Metadata(Box::new(super::metadata(reader.record())?))),
     };
     if super::output_frame_len(&frame)? > maximum {
         return Err(Status::resource_exhausted("artifact metadata exceeds the message limit"));

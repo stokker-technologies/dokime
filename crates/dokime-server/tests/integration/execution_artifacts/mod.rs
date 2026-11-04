@@ -46,6 +46,7 @@ use super::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_artifacts() {
     Box::pin(content::small_frame_transfer()).await;

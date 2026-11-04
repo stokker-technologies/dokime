@@ -45,7 +45,6 @@ pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
-    context: bool,
 }
 
 /* === Enums === */
@@ -55,15 +54,7 @@ pub struct RecordReader {
 /* === Implementations === */
 
 impl RecordReader {
-    pub(super) async fn open_page(view: &ExecutionView, after: u64) -> Result<Self> {
-        Self::query(view, false, after).await
-    }
-
-    pub(crate) async fn open(view: &ExecutionView, context: bool) -> Result<Self> {
-        Self::query(view, context, 0).await
-    }
-
-    async fn query(view: &ExecutionView, context: bool, after: u64) -> Result<Self> {
+    pub(crate) async fn open(view: &ExecutionView) -> Result<Self> {
         let through = view.evidence_through()?;
         if !view.saved().covers(through)? {
             return Err(invalid("record evidence exceeds the original saved view"));
@@ -79,10 +70,10 @@ impl RecordReader {
                     source_start: None,
                     source_end: None,
                 },
-                after,
+                after: 0,
             })
             .await?;
-        Ok(Self { rows, view: view.clone(), context })
+        Ok(Self { rows, view: view.clone() })
     }
 
     pub async fn next(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<ContextRecord>>>> {
@@ -116,7 +107,7 @@ impl RecordReader {
 
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {
-            let native = owned(&row, execution, self.context);
+            let native = owned(&row, execution);
             let position = row.position.sequence;
             let mut decoded = decode(row)?;
             if !native && execution.records.captured_scope(&decoded.record).is_none() {
@@ -139,16 +130,16 @@ impl RecordReader {
 
 /* === Private Functions === */
 
-// The Execution's Own Records; With Context, Also Its Cycle's Unowned
+// Report Context Includes The Execution's Own Records, Its Cycle's Unowned
 // Records And Records Without Any Test Owner.
-fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool) -> bool {
+fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution) -> bool {
     let scope = row.payload.scope();
     let field = |select: fn(&ScopeRow) -> &Option<String>| scope.and_then(|scope| select(scope).as_deref());
     let owner = field(|scope| &scope.test_execution_id);
     if owner == Some(execution.test_execution_id.as_str()) {
         return true;
     }
-    if !context || owner.is_some() {
+    if owner.is_some() {
         return false;
     }
     field(|scope| &scope.test_cycle_id) == Some(execution.test_cycle_id.as_str())

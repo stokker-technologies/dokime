@@ -186,7 +186,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         </div>
         {!busy && diagnostics && (
           <div className="grid gap-3 text-left text-sm">
-            <NotificationMessage source="Startup" title="Backend Could Not Start">
+            <NotificationMessage source="Startup" title="Backend Could Not Start" error={error}>
               {diagnostics.cause || connectionError(error)}
             </NotificationMessage>
             {diagnostics.log && <PathPill value={diagnostics.log} />}

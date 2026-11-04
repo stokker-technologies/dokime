@@ -99,7 +99,14 @@ impl Fixture {
 
         let mut rows = 0;
         for contract in support::contracts::suite_telemetry_contracts() {
-            let cadence = contract.interval.as_ref().map_or(100, |interval| interval.0);
+            // Synthetic Evidence Density Belongs To This Workload, Not The Plugin's Runtime Settings.
+            let cadence = match contract.stream.as_str() {
+                "host.system" | "host.network" | "host.wifi.link" => 1_000,
+                "host.bluetooth" => 5_000,
+                "host.wifi.latency" => 10_000,
+                "host.wifi.scan" => 60_000,
+                _ => contract.interval.as_ref().map_or(100, |interval| interval.0),
+            };
             let count = hours * 3_600_000 / cadence;
             for start in (0..count).step_by(PAGE as usize) {
                 let samples = (start..(start + PAGE).min(count))

@@ -11,6 +11,7 @@
 
 pub(crate) mod analysis;
 mod context;
+mod previews;
 mod request;
 mod stream;
 
@@ -80,11 +81,9 @@ impl RuntimeHandle {
             if page.is_empty() {
                 break;
             }
-            for row in page {
-                position = row.record.position.sequence;
-                if let Some(stream) = row.record.schema.id.as_str().strip_prefix("dokime.telemetry.") {
-                    streams.insert(stream.to_owned());
-                }
+            for (at, entry) in page {
+                position = at;
+                streams.insert(entry.sample.stream.to_string());
             }
         }
         Ok(streams)
@@ -129,8 +128,10 @@ pub fn reduce_plot_payload(
 pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
-    let at = runtime.storage().cursor_saved();
-    query_plot_payloads_at(runtime, requests, mode, &at).await
+    let at = runtime.storage().cursor_accepted();
+    let session = runtime.storage().clone();
+    let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, &at, &session).await?;
+    query_plot_payloads_with_context(&context, runtime, requests, mode, &at, &session, true).await
 }
 
 pub async fn query_plot_payloads_at(
@@ -138,7 +139,7 @@ pub async fn query_plot_payloads_at(
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, at, &session).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session).await
+    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session, false).await
 }
 
 pub async fn query_plot_stream_batches(
@@ -162,9 +163,33 @@ fn plot_payload_context<'a>(
 ) -> PlotPayloadContext<'a> {
     let column =
         |name: &str| -> Option<&TelemetryColumn> { contract?.columns.iter().find(|column| column.metadata.identifier.as_str() == name) };
-    let x_key = request.x_key.as_deref().unwrap_or("timestamp");
+    let x_key = request
+        .x_expression
+        .as_ref()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or(request.x_key.as_deref())
+        .unwrap_or("timestamp");
     let x_format = resolved_format(request.x_format.as_ref(), column(x_key));
-    let series_format = resolved_format(request.y_format.as_ref(), request.y_keys.first().and_then(|key| column(key)));
+    let y_key = request
+        .y_expressions
+        .first()
+        .and_then(|expression| match &expression.source {
+            crate::expressions::DataSource::Telemetry { stream, field }
+                if expression.transforms.is_empty() && crate::plot::stream_matches_alias(stream, &request.stream) =>
+            {
+                Some(field.as_str())
+            }
+            _ => None,
+        })
+        .or_else(|| request.y_keys.first().map(String::as_str));
+    let series_format = resolved_format(request.y_format.as_ref(), y_key.and_then(column));
 
     PlotPayloadContext {
         default_max_points,
@@ -177,104 +202,163 @@ fn plot_payload_context<'a>(
 
 async fn query_plot_payloads_with_context(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, _mode: RuntimePlotQueryMode,
-    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
+    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager, current_previews: bool,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
-    let mut completed = Vec::with_capacity(requests.len());
-    let mut shared = Vec::<(String, harmos::storage::ReadBatch<PlotPayloadEnvelope>)>::new();
+    let mut unique = Vec::new();
+    let mut keys = Vec::new();
+    let mut remaining = Vec::<usize>::new();
+    let mut projections = Vec::with_capacity(requests.len());
     for request in requests {
         let streams = request_telemetry_streams(&request);
         let request = canonical_plot_request(request, &streams);
         let mut key = serde_json::to_value(&request).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         key.as_object_mut().expect("plot request is an object").remove("plot_id");
         let key = key.to_string();
-        if let Some((_, previous)) = shared.iter().find(|(candidate, _)| candidate == &key) {
-            let id = request.plot_id.as_deref().unwrap_or(&request.stream).to_owned();
-            let previous = harmos::storage::ReadBatch::new((**previous).clone());
-            completed.push(previous.try_map(|mut envelope| {
-                envelope.plot_id = id;
-                Ok::<_, crate::runtime::Error>(envelope)
-            })?);
-            continue;
-        }
-        let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
-            let codecs = crate::runtime::storage::telemetry::saved_codecs(session, at, None, runtime.schema_settings(), |id, _| {
-                id.strip_prefix("dokime.telemetry.") == Some(request.stream.as_str())
-            })
-            .await?;
-            if codecs.len() == 1 && crate::plot::stored::supports_codec(&request, &codecs[0]) {
-                let codec = &codecs[0];
-                let selection = TelemetrySelection {
-                    streams: vec![
-                        dokime_domain::model::identity::IdentifierPattern::new(request.stream.clone())
-                            .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?,
-                    ],
-                    scope: scope_selection(&request),
-                    ..Default::default()
-                };
-                let query = crate::runtime::storage::telemetry::plot_query(
-                    at,
-                    &selection,
-                    codec,
-                    request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
-                    &runtime.local_storage,
-                )
-                .await?;
-                let maximum = runtime.read_application_settings().await?.settings.report.plot_points as usize;
-                let contract = telemetry_contract(context, &request.stream);
-                let (run, cycle) = context.run_and_cycle_start(request.scope.as_ref());
-                let format = plot_payload_context(&request, contract, run, cycle, maximum);
-                let payload = match query {
-                    Some(query) => {
-                        crate::plot::stored::materialize(
-                            session,
-                            crate::plot::stored::Selection { query, codec, producer_order: false },
-                            &request,
-                            context.generated_at.as_str(),
-                            &format,
-                            crate::records::view::View::default(),
-                        )
-                        .await?
-                    }
-                    None => finish_retained_plot_payload(
-                        project_retained_plot_payload(
-                            &[],
-                            crate::records::view::View::default(),
-                            &request,
-                            context.generated_at.as_str(),
-                            &format,
-                        )?,
-                        &request,
-                    )?,
-                };
-                let diagnostics = plot_payload_diagnostics(&payload);
-                Some(payload.try_map(|payload| {
-                    Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
-                        plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
-                        revision: at.sequence,
-                        payload,
-                        diagnostics,
-                        warnings: Vec::new(),
-                    })
-                })?)
-            } else {
-                None
+        let id = request.plot_id.as_deref().unwrap_or(&request.stream).to_owned();
+        let index = match keys.iter().position(|candidate| candidate == &key) {
+            Some(index) => index,
+            None => {
+                let index = unique.len();
+                keys.push(key);
+                unique.push(request);
+                remaining.push(0);
+                index
             }
+        };
+        remaining[index] += 1;
+        projections.push((index, id));
+    }
+    let previews = unique.iter().map(|request| previews::query(context, runtime, request, at, current_previews));
+    let previews = futures_util::future::try_join_all(previews).await?;
+    let streams = unique
+        .iter()
+        .zip(&previews)
+        .filter(|(_, preview)| preview.is_none())
+        .flat_map(|(request, _)| request_telemetry_streams(request))
+        .map(Into::into)
+        .collect::<Vec<_>>();
+    let mut saved = session.cursor_saved();
+    saved.sequence = saved.sequence.min(at.sequence);
+    let codecs = if streams.is_empty() {
+        harmos::storage::ReadBatch::new(Vec::new())
+    } else {
+        crate::runtime::storage::telemetry::saved_codecs(session, &saved, None, runtime.schema_settings(), |id, _| {
+            crate::storage::telemetry::selected_schema(id, &streams)
+        })
+        .await?
+    };
+    let work = unique.into_iter().zip(previews).map(|(request, preview)| {
+        let codecs = &codecs;
+        async move {
+            match preview {
+                Some(envelope) => Ok(envelope),
+                None => query_plot_payload(context, runtime, request, at, session, codecs).await,
+            }
+        }
+    });
+    let mut queried = futures_util::future::try_join_all(work).await?.into_iter().map(Some).collect::<Vec<_>>();
+    let mut completed = Vec::with_capacity(projections.len());
+    for (index, id) in projections {
+        remaining[index] -= 1;
+        let envelope = if remaining[index] == 0 {
+            queried[index].take().expect("the final projection owns its result")
         } else {
-            None
+            harmos::storage::ReadBatch::new((**queried[index].as_ref().expect("later projections retain their result")).clone())
         };
-        let envelope = match payload {
-            Some(payload) => payload,
-            None => query_spilled_plot(context, runtime, request, at, session).await?,
-        };
-        shared.push((key, envelope.clone()));
-        completed.push(envelope);
+        completed.push(envelope.try_map(|mut envelope| {
+            envelope.plot_id = id;
+            Ok::<_, crate::runtime::Error>(envelope)
+        })?);
     }
     Ok(completed)
 }
 
+async fn query_plot_payload(
+    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
+    session: &crate::storage::Manager, codecs: &[crate::storage::telemetry::TypedCodec],
+) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
+    let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
+        let mut matching =
+            codecs.iter().filter(|codec| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") == Some(request.stream.as_str()));
+        let codec = matching.next();
+        if let Some(codec) = codec.filter(|codec| matching.next().is_none() && crate::plot::stored::supports_codec(&request, codec)) {
+            let selection = TelemetrySelection {
+                streams: vec![
+                    dokime_domain::model::identity::IdentifierPattern::new(request.stream.clone())
+                        .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?,
+                ],
+                scope: scope_selection(&request),
+                ..Default::default()
+            };
+            let query = crate::runtime::storage::telemetry::plot_query(
+                at,
+                &selection,
+                codec,
+                request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
+                &runtime.local_storage,
+            )
+            .await?;
+            let maximum = runtime.read_application_settings().await?.settings.report.plot_points as usize;
+            let contract = telemetry_contract(context, &request.stream);
+            let (run, cycle) = context.run_and_cycle_start(request.scope.as_ref());
+            let format = plot_payload_context(&request, contract, run, cycle, maximum);
+            let payload = match query {
+                Some(query) => {
+                    crate::plot::stored::materialize(
+                        session,
+                        &runtime.local_storage,
+                        crate::plot::stored::Selection {
+                            query,
+                            scope: &selection.scope,
+                            producer_order: false,
+                        },
+                        &request,
+                        context.generated_at.as_str(),
+                        &format,
+                        crate::records::view::View::default(),
+                    )
+                    .await?
+                }
+                None => Some(finish_retained_plot_payload(
+                    project_retained_plot_payload(
+                        &[],
+                        crate::records::view::View::default(),
+                        &request,
+                        context.generated_at.as_str(),
+                        &format,
+                    )?,
+                    &request,
+                )?),
+            };
+            payload
+                .map(|payload| {
+                    let diagnostics = plot_payload_diagnostics(&payload);
+                    payload.try_map(|payload| {
+                        Ok::<_, crate::runtime::Error>(PlotPayloadEnvelope {
+                            plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),
+                            revision: at.sequence,
+                            payload,
+                            diagnostics,
+                            warnings: Vec::new(),
+                        })
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    Ok(match payload {
+        Some(payload) => payload,
+        None => query_spilled_plot(context, runtime, request, at, session, codecs).await?,
+    })
+}
+
 async fn query_spilled_plot(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
-    session: &crate::storage::Manager,
+    session: &crate::storage::Manager, codecs: &[crate::storage::telemetry::TypedCodec],
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
     let analysis = analysis::Prepared::resolve(runtime, context.snapshot.state(), &request)?;
     let input = crate::plot::spilled::Input::new()?;
@@ -287,19 +371,24 @@ async fn query_spilled_plot(
     );
     let visible = super::records::view_filter(&context.snapshot, None, captured);
     if !record_types.is_empty() {
+        let mut records_at = at.clone();
+        records_at.sequence = records_at.sequence.min(session.cursor_saved().sequence);
         runtime
             .record_source
-            .visit_saved_records_at_in(session, context.snapshot.revision(), at, |page| {
+            .visit_saved_records_at_in(session, context.snapshot.revision(), &records_at, |page| {
                 for record in page.iter() {
                     let subscribed = captured.and_then(|captures| captures.captured_scope(record));
                     if !visible(record)
                         || !record_types.contains(&record.record_type)
-                        || !scope.matches(subscribed.or(record.scope.as_ref()))
+                        || !(scope.matches_evidence(record.scope.as_ref(), &record.captured_scopes)
+                            || subscribed.is_some_and(|scope_value| scope.matches(Some(scope_value))))
                     {
                         continue;
                     }
                     let mut record = record.clone();
-                    if let Some(scope) = subscribed {
+                    if let Some(scope) =
+                        subscribed.or_else(|| record.captured_scopes.iter().find(|candidate| scope.matches(Some(candidate))))
+                    {
                         record.scope = Some(scope.clone());
                     }
                     input.append_record(&record)?;
@@ -331,6 +420,7 @@ async fn query_spilled_plot(
             ..Default::default()
         };
         let options = crate::runtime::storage::telemetry::ReadOptions {
+            codecs: Some(codecs),
             scan_limit: analysis.as_ref().map(|_| dokime_domain::model::analysis::MAX_SAMPLES as usize),
             window: request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
             sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
@@ -344,6 +434,11 @@ async fn query_spilled_plot(
             options,
             &runtime.local_storage,
             |mut sample| {
+                if let Some(selected) = &request.scope
+                    && let Some(captured) = sample.captured_scopes.iter().find(|scope| scope.is_visible_in(selected))
+                {
+                    sample.scope = Some(captured.clone());
+                }
                 context.enrich_sample(&mut sample, &request);
                 input.append(&sample)
             },

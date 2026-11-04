@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod all_plots;
 pub mod backend;
 pub mod budgets;
 pub mod bundles;
