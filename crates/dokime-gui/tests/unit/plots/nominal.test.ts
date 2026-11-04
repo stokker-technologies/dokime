@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
+import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
@@ -40,7 +41,7 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
-import { CartesianPlot } from "@/plots/CartesianPlot";
+import { CartesianPlot, cursorPointOptions, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
@@ -141,6 +142,11 @@ function hostFrame(
       signature: "host",
     },
   } as unknown as PlotPayload;
+}
+
+/** Reads a uPlot cursor point option for one series, whether it is a value or a callback. */
+function callPointOption<T>(option: T | ((self: uPlot, seriesIdx: number) => T) | undefined, seriesIdx: number): T | undefined {
+  return typeof option === "function" ? (option as (self: uPlot, seriesIdx: number) => T)({} as uPlot, seriesIdx) : option;
 }
 
 function streamMessage(kind: PlotPayloadStreamMessage["kind"], revision: number, payload: PlotPayload): PlotPayloadStreamMessage {
@@ -867,6 +873,49 @@ test("Boolean State Plots", () => {
   }
   columns[0].value_type = "number";
   assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
+});
+
+test("Point Marks", () => {
+  const color = "rgb(96, 165, 250)";
+  const background = "rgb(10, 10, 10)";
+  for (const dense of [false, true]) {
+    const solid = seriesPointMarks("points", dense, color, background);
+    assert.equal(solid.show, true);
+    assert.equal(solid.stroke, color);
+    assert.equal(solid.fill, color);
+    assert.ok(solid.width > 0 && solid.width < solid.size / 2);
+
+    const hollow = seriesPointMarks("line_points", dense, color, background);
+    assert.equal(hollow.show, !dense);
+    assert.equal(hollow.stroke, color);
+    assert.equal(hollow.fill, background);
+    assert.equal(hollow.size, solid.size);
+    assert.ok(hollow.width > 0 && hollow.width < hollow.size / 2);
+
+    for (const style of ["line", "step"] as const) {
+      assert.equal(seriesPointMarks(style, dense, color, background).show, false);
+    }
+  }
+  const sparse = seriesPointMarks("points", false, color, background);
+  const dense = seriesPointMarks("points", true, color, background);
+  assert.ok(dense.size < sparse.size);
+  assert.ok(seriesPointMarks("line_points", false, color, background).width > sparse.width);
+});
+
+test("Cursor Point Marks", () => {
+  const colors = ["rgb(96, 165, 250)", "rgb(251, 146, 60)"];
+  const background = "rgb(10, 10, 10)";
+  for (const style of ["points", "line_points"] as const) {
+    const marks = colors.map((color) => seriesPointMarks(style, false, color, background));
+    const cursor = cursorPointOptions(marks);
+    assert.equal(cursor.width, 0);
+    colors.forEach((color, index) => {
+      const seriesIdx = index + 1;
+      assert.equal(callPointOption(cursor.fill, seriesIdx), color);
+      assert.equal(callPointOption(cursor.stroke, seriesIdx), color);
+      assert.ok(Number(callPointOption(cursor.size, seriesIdx)) > marks[index].size);
+    });
+  }
 });
 
 test("Plot Statistics", () => {

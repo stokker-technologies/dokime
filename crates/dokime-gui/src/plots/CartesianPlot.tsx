@@ -61,8 +61,15 @@ const X_AXIS_MIN_RIGHT_PAD = 25;
 /* Axis text is canvas-drawn; the touch rules in styles.css cannot reach it. */
 const TOUCH_PLOT_FONT_SCALE = 1.3;
 const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
-const DENSE_POINT_MARK_SIZE = 3;
-const DEFAULT_POINT_MARK_SIZE = 5;
+/* Point mark diameters in CSS pixels: a lone sample must read at 1x DPR on
+   either theme, and dense captures keep smaller marks. */
+const DENSE_POINT_MARK_SIZE = 4;
+const DEFAULT_POINT_MARK_SIZE = 6;
+const SOLID_POINT_OUTLINE_WIDTH = 1.5;
+const SERIES_LINE_WIDTH = 2;
+/* The hover mark grows by this many CSS pixels over the drawn mark. */
+const CURSOR_POINT_GROWTH = 2;
+const CURSOR_POINT_FALLBACK_COLOR = "currentColor";
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
 const NO_PROMPTS: PromptMarker[] = [];
 /* How near the pointer must come to a prompt marker, in CSS pixels, to read it. */
@@ -139,6 +146,15 @@ type ChartFrame = {
   mode: PlotCartesianFrame["mode"];
   pointCount: number;
   signature: string;
+};
+
+/** A series' drawn point marks, in uPlot's terms: the outline is inset within `size`. */
+export type PointMarks = {
+  show: boolean;
+  size: number;
+  width: number;
+  stroke: string;
+  fill: string;
 };
 
 export type PlotViewportRange = {
@@ -334,9 +350,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       width: measuredChartWidth(root),
       height: chartHeight,
     });
-    const showPoints = style === "points" || (style === "line_points" && !densePoints);
-    const pointSize = densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE;
-    const lineWidth = style === "points" ? 0 : 2;
+    const seriesColor = (index: number) => resolvedSeriesColors[index] ?? fallbackSeriesColor;
+    const pointMarks = renderedSeries.map((_, index) => seriesPointMarks(style, densePoints, seriesColor(index), themeColors.background));
+    const lineWidth = style === "points" ? 0 : SERIES_LINE_WIDTH;
     // Elapsed formats need an origin; §7.4 falls back to the first point of
     // the first series (already epoch seconds, the coordinate space the axis
     // itself ticks in) when the payload names neither a run nor a cycle start.
@@ -445,6 +461,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursor: {
         drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
+        points: cursorPointOptions(pointMarks),
         sync:
           timeAxis && syncKey
             ? {
@@ -527,11 +544,11 @@ export const CartesianPlot = memo(function CartesianPlot({
           spanGaps: item.downsampled === true,
           value: seriesLegendValue(item.format ?? yFormat),
           pxAlign: 0,
-          stroke: resolvedSeriesColors[index] ?? fallbackSeriesColor,
+          stroke: seriesColor(index),
           width: lineWidth,
-          points: faceted ? { show: false } : { show: showPoints, size: pointSize },
+          points: faceted ? { show: false } : pointMarks[index],
           paths: faceted
-            ? facetedSeriesPaths(style, showPoints, pointSize, resolvedSeriesColors[index] ?? fallbackSeriesColor, themeColors.background)
+            ? facetedSeriesPaths(style, pointMarks[index], seriesColor(index))
             : style === "step"
               ? uPlotConstructor.paths.stepped?.({ align: 1 })
               : undefined,
@@ -1249,13 +1266,28 @@ function plotPixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
-function facetedSeriesPaths(
-  style: DocumentPlotStyle,
-  showPoints: boolean,
-  pointSize: number,
-  color: string,
-  pointFillColor: string,
-): uPlot.Series.PathBuilder {
+/** Points are solid series-colour marks; line points are hollow rings over the plot background. */
+export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean, color: string, background: string): PointMarks {
+  const size = densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE;
+  if (style === "points") {
+    return { show: true, size, width: SOLID_POINT_OUTLINE_WIDTH, stroke: color, fill: color };
+  }
+  return { show: style === "line_points" && !densePoints, size, width: SERIES_LINE_WIDTH, stroke: color, fill: background };
+}
+
+/** The hover mark is a solid disc in the series colour, a little larger than its drawn marks. */
+export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.Points {
+  // uPlot numbers data series from 1; marks follow the rendered series from 0.
+  const color = (_plot: uPlot, seriesIdx: number) => marks[seriesIdx - 1]?.stroke ?? CURSOR_POINT_FALLBACK_COLOR;
+  return {
+    size: (_plot, seriesIdx) => (marks[seriesIdx - 1]?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
+    width: 0,
+    stroke: color,
+    fill: color,
+  };
+}
+
+function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: string): uPlot.Series.PathBuilder {
   return (plot, seriesIdx) => {
     const data = facetedSeriesData(plot, seriesIdx);
     if (!data) {
@@ -1265,9 +1297,10 @@ function facetedSeriesPaths(
     const [xValues, yValues] = data;
     const { ctx, bbox } = plot;
     const pixelRatio = plotPixelRatio();
-    const radius = (pointSize * pixelRatio) / 2;
+    // uPlot insets the outline within the mark's size; faceted marks match its aligned marks.
+    const radius = ((marks.size - marks.width) * pixelRatio) / 2;
     const line = style === "points" ? null : new Path2D();
-    const points = showPoints ? new Path2D() : null;
+    const points = marks.show ? new Path2D() : null;
     let lineStarted = false;
     let previousTop: number | null = null;
 
@@ -1306,17 +1339,14 @@ function facetedSeriesPaths(
 
     if (line) {
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2 * pixelRatio;
+      ctx.lineWidth = SERIES_LINE_WIDTH * pixelRatio;
       ctx.stroke(line);
     }
     if (points) {
-      const alpha = ctx.globalAlpha;
-      ctx.fillStyle = pointFillColor;
-      ctx.globalAlpha = alpha * 0.82;
+      ctx.fillStyle = marks.fill;
       ctx.fill(points);
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5 * pixelRatio;
+      ctx.strokeStyle = marks.stroke;
+      ctx.lineWidth = marks.width * pixelRatio;
       ctx.stroke(points);
     }
     ctx.restore();
