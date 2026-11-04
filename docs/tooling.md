@@ -43,3 +43,14 @@ the bundles its integration lane requires.
 the root environment without a staged wheel. A focused integration selection uses
 `mise run test:python:integration --select <expression>` and also checks source.
 Full Python unit and integration tasks retain their built-wheel input.
+
+## Hosted-Runner Test Budgets
+
+Test-time budgets are doubled so hosted runners, whose disks can stall for over a
+minute, finish stories reliably on Linux and Windows. `[conventions.testing.deadlines]`
+in `tools/project.toml` sets each lane's per-story deadline, which the test runner
+passes to nextest, pytest and Vitest. Rust fixture operations and in-story waits
+share `STORY_BOUND` and `FIXTURE_POLICY` in
+`crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
+waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.
+Product operation policies keep their own deadlines.

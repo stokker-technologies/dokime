@@ -59,12 +59,7 @@ mod one_prelude {
 mod bare_attributes {
     use dokime_runtime::prelude::*;
 
-    const POLICY: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
-        cancellation_timeout: std::time::Duration::ZERO,
-        retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
-    };
+    const POLICY: dokime_runtime::harmos::operations::OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
     #[message]
     #[derive(Clone, PartialEq)]

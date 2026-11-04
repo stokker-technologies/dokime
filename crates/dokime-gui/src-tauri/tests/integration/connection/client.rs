@@ -55,7 +55,7 @@ async fn install_with_deadline(client: Client, mode: &str) -> String {
 
     // Canonical Empty Request And Input Item Envelopes, As Sent By The WebView.
     let input = tokio_stream::iter([vec![0x0a, 0], vec![0x12, 0]]);
-    let deadline = Duration::from_secs(10);
+    let deadline = Duration::from_secs(20);
     let mut reply = client.stream_raw("/dokime.v1.Plugins/Install", input, deadline).await.unwrap();
     let bytes = reply.message().await.unwrap().unwrap();
     let (installed, _) = model::plugins::wire::PluginInstallation::from_wire(&bytes).unwrap();

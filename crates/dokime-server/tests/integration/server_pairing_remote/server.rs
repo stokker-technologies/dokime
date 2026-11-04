@@ -817,7 +817,7 @@ pub(crate) async fn client_retries_reads_without_replaying_mutations() {
     client.call(contracts::backend::GetIdentity {}).await.unwrap();
     assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
     ingress.failures.store(1, Ordering::SeqCst);
-    client.call_raw("/dokime.v1.Backend/GetIdentity", Vec::new(), Duration::from_secs(5)).await.unwrap();
+    client.call_raw("/dokime.v1.Backend/GetIdentity", Vec::new(), Duration::from_secs(10)).await.unwrap();
     assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
     ingress.failures.store(1, Ordering::SeqCst);
     let bounded = client.with_timeout(Duration::from_millis(10)).call(contracts::backend::GetIdentity {}).await;

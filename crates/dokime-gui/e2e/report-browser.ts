@@ -45,16 +45,19 @@ export class ReportBrowser {
   private readonly process: ChildProcess;
   private readonly debug: string;
   private readonly server: http.Server;
+  private readonly wait: number;
   readonly endpoint: string;
 
-  private constructor(process: ChildProcess, debug: string, server: http.Server, endpoint: string) {
+  private constructor(process: ChildProcess, debug: string, server: http.Server, endpoint: string, wait: number) {
     this.process = process;
     this.debug = debug;
     this.server = server;
     this.endpoint = endpoint;
+    this.wait = wait;
   }
 
-  static async start(root: string, executable: string): Promise<ReportBrowser> {
+  /** `wait` bounds each browser request and lifecycle step in milliseconds. */
+  static async start(root: string, executable: string, wait: number): Promise<ReportBrowser> {
     const reserved = net.createServer();
     await new Promise<void>((resolve) => reserved.listen(0, "127.0.0.1", resolve));
     const address = reserved.address();
@@ -101,7 +104,7 @@ export class ReportBrowser {
         assert.ok(inside && inside !== ".." && !inside.startsWith(`..${sep}`) && !isAbsolute(inside));
         assert.ok(path.endsWith(".html"), "the report opener accepts owned HTML reports");
         const url = pathToFileURL(path).href;
-        const signal = AbortSignal.timeout(120000);
+        const signal = AbortSignal.timeout(wait);
         let target = browser.target;
         if (!target) {
           const created = await fetch(`${debug}/json/new?about:blank`, { method: "PUT", signal });
@@ -117,13 +120,13 @@ export class ReportBrowser {
       }
     });
     try {
-      const deadline = Date.now() + 120000;
+      const deadline = Date.now() + wait;
       while (true) {
         if (startup) throw startup;
         if (child.exitCode !== null)
           throw new Error(`Owned report browser exited during startup (${child.exitCode}, ${child.signalCode}): ${diagnostics}`);
         if (
-          await fetch(`${debug}/json/version`, { signal: AbortSignal.timeout(120000) })
+          await fetch(`${debug}/json/version`, { signal: AbortSignal.timeout(wait) })
             .then((r) => r.ok)
             .catch(() => false)
         )
@@ -134,7 +137,7 @@ export class ReportBrowser {
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
       const listening = server.address();
       assert.ok(listening && typeof listening === "object");
-      browser = new ReportBrowser(child, debug, server, `http://127.0.0.1:${listening.port}/open`);
+      browser = new ReportBrowser(child, debug, server, `http://127.0.0.1:${listening.port}/open`, wait);
       return browser;
     } catch (error) {
       child.kill();
@@ -209,7 +212,7 @@ export class ReportBrowser {
   async closeTabs(): Promise<void> {
     this.target = undefined;
     if (this.tabs.size) {
-      const signal = AbortSignal.timeout(120000);
+      const signal = AbortSignal.timeout(this.wait);
       const version = await fetch(`${this.debug}/json/version`, { signal }).then((response) => response.json());
       const socket = new WebSocket(version.webSocketDebuggerUrl);
       try {
@@ -233,7 +236,7 @@ export class ReportBrowser {
         socket.close();
       }
     }
-    const targets = (await fetch(`${this.debug}/json/list`, { signal: AbortSignal.timeout(120000) }).then((r) => r.json())) as Target[];
+    const targets = (await fetch(`${this.debug}/json/list`, { signal: AbortSignal.timeout(this.wait) }).then((r) => r.json())) as Target[];
     assert.ok(!targets.some((target) => target.type === "page" && target.url.startsWith("file:")), "no owned report tab survives cleanup");
   }
 
@@ -252,7 +255,7 @@ export class ReportBrowser {
       const timer = new AbortController();
       let socket: WebSocket | undefined;
       try {
-        const version = await fetch(`${this.debug}/json/version`, { signal: AbortSignal.timeout(120000) }).then((r) => r.json());
+        const version = await fetch(`${this.debug}/json/version`, { signal: AbortSignal.timeout(this.wait) }).then((r) => r.json());
         socket = new WebSocket(version.webSocketDebuggerUrl);
         await new Promise<void>((resolve, reject) => {
           socket?.addEventListener("open", () => resolve(), { once: true });
@@ -261,7 +264,7 @@ export class ReportBrowser {
         socket.send(JSON.stringify({ id: 1, method: "Browser.close" }));
         await Promise.race([
           exited,
-          delay(120000, undefined, { signal: timer.signal }).then(() => {
+          delay(this.wait, undefined, { signal: timer.signal }).then(() => {
             throw new Error("Owned report browser did not exit");
           }),
         ]);
