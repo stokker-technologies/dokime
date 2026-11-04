@@ -1399,6 +1399,33 @@ Product `mise run package:rust --profile dev` invokes the matching built
 preserves the distribution bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 
+#### Installer License Terms
+
+Every installer ships Dokime's Apache-2.0 `LICENSE` unchanged. An organization
+pack may add its own terms with an optional `[license]` table in
+`installer.toml`; the pack's terms are added, never replacing Apache-2.0:
+
+```toml
+[license]
+spdx = "LicenseRef-Acme-Proprietary"
+file = "EULA.txt"
+```
+
+Set `spdx` and `file` together. `spdx` is an SPDX license expression such as
+`LicenseRef-Acme-Proprietary` or `MIT OR LicenseRef-Acme-Terms`; packaging checks
+its syntax (identifiers, `LicenseRef-`/`DocumentRef-` references, `AND`, `OR`,
+`WITH`, `+` and parentheses) but not membership in the SPDX license list. `file`
+resolves relative to `installer.toml` and must name an existing file inside that
+folder; absolute, `..`, backslash and symlink-escaped paths are rejected.
+
+The terms install beside `LICENSE` as `EULA` plus the source file's extension
+(`EULA.txt` here; an extensionless file installs as `EULA`) and are hashed in
+`installer.json` like `LICENSE`. The NSIS license page shows the pack's file.
+DEB and RPM payloads carry both files under `/usr/lib/<slug>/`, and the RPM
+`License` tag becomes `LicenseRef-Acme-Proprietary AND Apache-2.0`; a compound
+expression is parenthesized first, as in `(MIT OR LicenseRef-Acme-Terms) AND Apache-2.0`.
+Without `[license]`, packages declare `Apache-2.0` and the license page shows `LICENSE`.
+
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.

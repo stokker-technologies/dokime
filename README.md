@@ -155,7 +155,9 @@ keep their installation and storage separate from plain Dokime. They include
 plugins selected by version and feed name, plus external bundles from an
 organization pack or repeatable `cargo dokime installer package --plugin <path>`
 arguments. Release distributions and plugin archives are verified and cached. Bundled plugins
-install on startup without replacing newer installed versions. See the
+install on startup without replacing newer installed versions. An optional
+`[license]` table adds the organization's own terms beside Dokime's unchanged
+Apache-2.0 license. See the
 [installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
