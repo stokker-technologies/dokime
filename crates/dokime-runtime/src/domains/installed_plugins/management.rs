@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // Local Imports
+use crate::plugins::PluginRestart;
 use crate::settings::{SettingValues, Settings};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::secrets::SecretAvailability;
@@ -54,21 +55,6 @@ pub struct PluginSettingsUpdate {
 }
 
 /* === Enums === */
-
-// A Save That Changes A Value Restarts The Program So It Prepares With Them.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PluginRestart {
-    // The running program prepared with the saved values.
-    #[default]
-    Idle,
-
-    // A new generation is starting with the saved values.
-    Restarting,
-
-    // An execution that uses the program is running or prepared; the restart follows it.
-    Pending,
-}
 
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum RuntimePluginManagementError {

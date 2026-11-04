@@ -63,7 +63,9 @@ export function PluginDropZone({ disabled, error, failure, filename, onDrop, onP
           )}
           <div className="grid gap-1">
             <p className="font-medium">{disabled ? installationLabel(progress, filename) : "Drop a plugin bundle here"}</p>
-            <p className="text-sm text-muted-foreground">{brand.label} verifies and installs the bundle. It activates after restart.</p>
+            <p className="text-sm text-muted-foreground">
+              {brand.label} verifies and installs the bundle, then starts it once no execution uses it.
+            </p>
           </div>
           <Button disabled={disabled} onClick={onPick} size="sm" type="button" variant="outline">
             Choose File

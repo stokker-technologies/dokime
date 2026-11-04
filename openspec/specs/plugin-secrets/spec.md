@@ -16,7 +16,7 @@ Secret Storage before plugin start, without bindings or environment sources.
 
 #### Scenario: Required Identifier Is Missing
 - **WHEN** a required identifier is absent
-- **THEN** startup fails before launch with a typed error naming the identifier and instructing the user to add it and restart
+- **THEN** startup fails before launch with a typed error naming the identifier and instructing the user to add it and retry the plugin
 
 #### Scenario: Optional Identifier Is Missing
 - **WHEN** an optional declared identifier is absent

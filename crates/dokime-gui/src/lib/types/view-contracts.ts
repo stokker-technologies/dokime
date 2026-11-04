@@ -302,7 +302,11 @@ export type PluginEntry = {
   error: string | null;
   /**  Whether this installation was admitted by this process. */
   active?: boolean;
-  restart_required?: boolean;
+  /**
+   * Whether the running backend still applies this installation: it starts,
+   * replaces or stops the bundle now, or once the executions using it finish.
+   */
+  restart: PluginRestart;
   boot_failed?: boolean;
 } & Installation;
 

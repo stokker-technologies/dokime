@@ -78,7 +78,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
       {detail.settings.contributions?.some((entry) => entry.kind === "secret") ? (
         <SettingsCard
           title="Required Secrets"
-          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then restart Dokime or retry the plugin."
+          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then retry the plugin."
         >
           {detail.settings.contributions
             .filter((entry) => entry.kind === "secret")

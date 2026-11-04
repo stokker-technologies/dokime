@@ -293,6 +293,9 @@ export const pluginsListInstallations = (session: SessionIdentity, request: Para
 import { Row1Schema as pluginsRemoveRequest } from "@generated/dokime/v1/PluginsMessages/Remove/messages_pb.js";
 import { Row2Schema as pluginsRemoveResponse } from "@generated/dokime/v1/PluginsMessages/Remove/messages_pb.js";
 export const pluginsRemove = (session: SessionIdentity, request: Parameters<typeof unary<typeof pluginsRemoveRequest, typeof pluginsRemoveResponse>>[4]) => unary("/dokime.v1.Plugins/Remove", pluginsRemoveRequest, pluginsRemoveResponse, session, request, 120000);
+import { Row1Schema as pluginsRetryRequest } from "@generated/dokime/v1/PluginsMessages/Retry/messages_pb.js";
+import { Row2Schema as pluginsRetryResponse } from "@generated/dokime/v1/PluginsMessages/Retry/messages_pb.js";
+export const pluginsRetry = (session: SessionIdentity, request: Parameters<typeof unary<typeof pluginsRetryRequest, typeof pluginsRetryResponse>>[4]) => unary("/dokime.v1.Plugins/Retry", pluginsRetryRequest, pluginsRetryResponse, session, request, 10000);
 import { Row1Schema as pluginsSetEnabledRequest } from "@generated/dokime/v1/PluginsMessages/SetEnabled/messages_pb.js";
 import { Row2Schema as pluginsSetEnabledResponse } from "@generated/dokime/v1/PluginsMessages/SetEnabled/messages_pb.js";
 export const pluginsSetEnabled = (session: SessionIdentity, request: Parameters<typeof unary<typeof pluginsSetEnabledRequest, typeof pluginsSetEnabledResponse>>[4]) => unary("/dokime.v1.Plugins/SetEnabled", pluginsSetEnabledRequest, pluginsSetEnabledResponse, session, request, 10000);

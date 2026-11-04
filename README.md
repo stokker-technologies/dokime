@@ -207,8 +207,9 @@ Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
 Settings → Plugins keeps ordinary settings editable after startup fails and shows
 required secret identifiers. A missing-secret failure offers Set Secret, which opens
-Secret Storage's Add Secret dialog with its identifier prefilled; then restart Dokime
-or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
+Secret Storage's Add Secret dialog with its identifier prefilled; then retry the
+plugin. Installing, updating, disabling and removing plugins apply without restarting
+Dokime. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
 and [Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the

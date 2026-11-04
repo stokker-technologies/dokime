@@ -253,6 +253,7 @@ matrix! {
     "/dokime.v1.Plugins/ListAdmittedPlugins", unary, contracts::plugins::ListAdmittedPlugins;
     "/dokime.v1.Plugins/ListInstallations", unary, contracts::plugins::ListInstallations;
     "/dokime.v1.Plugins/Remove", unary, contracts::plugins::Remove;
+    "/dokime.v1.Plugins/Retry", unary, contracts::plugins::Retry;
     "/dokime.v1.Plugins/SetEnabled", unary, contracts::plugins::SetEnabled;
     "/dokime.v1.Prompts/GetDefinition", unary, contracts::prompts::GetDefinition;
     "/dokime.v1.Prompts/GetPrompt", unary, contracts::prompts::GetPrompt;

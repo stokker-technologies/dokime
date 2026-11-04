@@ -56,8 +56,8 @@ routed through the host. Adding an operation means a request variant in
 `domain::operations::Operations` and its `impl Operation`.
 
 The optional `cloud_token` setting reads the shared Secret Storage identifier
-`cloud_token` directly. Add it in Settings → Secret Storage and restart the host
-or retry the plugin. A bare `Secret` field is required and refuses startup when
+`cloud_token` directly. Add it in Settings → Secret Storage and retry
+the plugin. A bare `Secret` field is required and refuses startup when
 missing; `Option<Secret>` permits absence. Secret fields have no saved bindings,
 environment sources or defaults.
 

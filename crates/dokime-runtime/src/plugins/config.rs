@@ -68,6 +68,14 @@ impl PluginBundle {
         }
     }
 
+    // The Store Installation This Bundle Was Read From; Configured Bundles Have None.
+    pub(crate) fn install_id(&self) -> Option<Uuid> {
+        match self.provenance {
+            PluginProvenance::Installed { install_id, .. } => Some(install_id),
+            PluginProvenance::Configured => None,
+        }
+    }
+
     pub(crate) fn all(paths: &[PathBuf]) -> Vec<Self> {
         paths.iter().map(Self::new).collect()
     }

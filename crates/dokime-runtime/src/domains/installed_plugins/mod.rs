@@ -19,13 +19,14 @@ pub(crate) mod module_preferences;
 
 pub(crate) use crate::config::organization as brand;
 
+pub use crate::plugins::PluginRestart;
 pub use appearance::{
     AppearanceLimitExceeded, CapturedAppearance, RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeInstalledPluginAsset, RuntimeThemeFamily,
 };
 pub use brand::{EmbeddedLogo, ResolvedBrand, compiled_brand, load_brand};
 pub use dokime_domain::model::plugins::InstalledPluginErrorRecord;
 pub use dokime_domain::model::plugins::InstalledPluginPhase;
-pub use management::{PluginRestart, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings};
+pub use management::{PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings};
 
 /* === Imports === */
 

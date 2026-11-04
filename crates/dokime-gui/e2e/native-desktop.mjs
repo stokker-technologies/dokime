@@ -4400,7 +4400,6 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
     "settled",
     `Native plugin installation failed: ${installed.entry.error ?? installed.entry.nativeResponse}`,
   );
-  await until("saved plugin installation", () => session.exists("button", "Later"), 300000);
   const invokes = await session.execute(
     "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_install_file');",
   );
@@ -4411,8 +4410,17 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
     "Installation passes control arguments without bundle bytes",
   );
   assert.ok(invokes[0].size < 1024, "The installation invocation stays bounded independently of bundle size");
-  await session.clickNamed("button", "Later");
-  await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 120000);
+  const name = basename(bundle, ".dokime");
+  await until(
+    "installed plugin starts without a restart",
+    () =>
+      session.execute(`
+    return [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
+      .filter(row => row.innerText.includes(${JSON.stringify(name)}))
+      .some(row => [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
+  `),
+    300000,
+  );
   await session.screenshot("plugin-install");
 }
 

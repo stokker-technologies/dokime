@@ -237,7 +237,7 @@ mod tests {
         assert!(
             matches!(&missing, crate::runtime::Error::Dokime(crate::Error::UnavailableSecret(identifier)) if identifier == "api_token")
         );
-        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and restart");
+        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and retry the plugin");
 
         let store = handle.secret_store();
         // A Similar Plugin-Prefixed Identifier Never Satisfies The Declaration.

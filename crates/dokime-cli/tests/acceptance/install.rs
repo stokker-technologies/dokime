@@ -151,7 +151,7 @@ async fn install() {
             }),
             error: None,
             active: false,
-            restart_required: false,
+            restart: model::settings::wire::PluginRestart::Idle,
             boot_failed: false,
         }),
         bytes: bundle.bytes().to_vec(),

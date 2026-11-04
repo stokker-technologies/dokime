@@ -16,11 +16,17 @@ import { useEffect, useRef, useState } from "react";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
 import type { InstallPluginProgress, PluginSource } from "@/lib/api/native-plugins";
-import { installNativePlugin, listNativePlugins, removeNativePlugin, setNativePluginEnabled } from "@/lib/api/native-plugins";
+import {
+  installNativePlugin,
+  listNativePlugins,
+  removeNativePlugin,
+  retryNativePlugin,
+  setNativePluginEnabled,
+} from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
 import { toast } from "@/lib/notifications";
+import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Query Keys === */
 
@@ -39,12 +45,13 @@ export function PluginStartNotifications() {
   const seen = useRef(new Set<string>());
   useEffect(() => {
     for (const entry of query.data ?? []) {
-      if (!entry.boot_failed || entry.last_boot?.state !== "failed") continue;
+      const title = startNotification(entry);
+      if (!title || entry.last_boot?.state !== "failed") continue;
       const key = `${session.identity.generation}:${entry.install_id}:${entry.last_boot.at}`;
       if (seen.current.has(key)) continue;
       seen.current.add(key);
       const failure = entry.last_boot.failure;
-      toast.error("Plugin Could Not Start", {
+      toast.error(title, {
         description: failure.message,
         source: failure.plugin_name,
         pluginSettings: entry.install_id,
@@ -52,7 +59,7 @@ export function PluginStartNotifications() {
         consequences: failure.consequences,
         failure: { reason: failure.code ?? undefined, operation: "Plugin Startup", causes: [failure.message] },
         action:
-          failure.missing_secret || entry.metadata?.owners.length
+          failure.missing_secret || (entry.metadata?.owners.length && entry.state !== "removal_pending")
             ? {
                 label: failure.missing_secret ? "Set Secret" : "Open Plugin Settings",
                 onClick: () =>
@@ -67,6 +74,16 @@ export function PluginStartNotifications() {
     }
   }, [query.data, session.identity.generation, navigate]);
   return null;
+}
+
+/**
+ * A failed startup, and a refused restart that left the running generation in
+ * place, notify once per recorded outcome.
+ */
+export function startNotification(entry: PluginEntry): string | null {
+  if (entry.last_boot?.state !== "failed") return null;
+  if (entry.boot_failed) return "Plugin Could Not Start";
+  return entry.active ? "Plugin Restart Refused" : null;
 }
 
 export function usePluginsQuery() {
@@ -116,12 +133,14 @@ export function useRemovePluginMutation() {
   });
 }
 
-export function useRestartAppMutation() {
+/** Starts one installation again through the running backend; nothing else restarts. */
+export function useRetryPluginMutation() {
+  const session = useNativeSession();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => restartDesktopApp(),
+    mutationFn: (installId: string) => retryNativePlugin(session.identity, installId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.all });
     },
   });
 }
