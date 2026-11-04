@@ -245,16 +245,9 @@ async fn non_admitted_settings() {
     let (environment, server, client) = fixture().await;
     let bytes = support::bundles::bundle_with_settings("failed-settings", "failed_settings", fixture_module().settings);
     let installed = environment.runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
-    let failure = model::plugins::wire::PluginStartFailure {
-        plugin_id: "failed_settings".into(),
-        plugin_name: "Fixture".into(),
-        message: "startup-refused".into(),
-        code: Some(dokime::domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
-        missing_secret: Some("fixture.token".into()),
-        consequences: Vec::new(),
-        carrier: dokime::harmos::domain::Failure::new(dokime::harmos::operations::FailureKind::Permanent, "fixture.token").encode(),
-    };
-    environment.runtime.plugin_store().record_boot(installed.installation.install_id, Some(failure.clone())).await.unwrap();
+    // The Install Starts The Bundle Live; Without Its Secret The Start Fails And Is Recorded.
+    let package = &installed.metadata.as_ref().unwrap().identity.name;
+    environment.runtime.plugin_bundle_settled(package).await;
     let installation = client
         .unary::<contracts::plugins::GetInstallation>(auth(
             contracts::plugins::GetInstallation {
@@ -266,7 +259,10 @@ async fn non_admitted_settings() {
         .unwrap()
         .into_inner();
     let Some(model::plugins::wire::PluginLastBootResult::Error(retained)) = installation.last_boot.unwrap().result else { panic!() };
-    assert_eq!(retained, failure);
+    assert_eq!(retained.plugin_name, "failed-settings");
+    let missing_secret_code = dokime::domain::model::plugins::error::MISSING_SECRET_CODE.to_string();
+    assert_eq!(retained.code.as_deref(), Some(missing_secret_code.as_str()));
+    assert_eq!(retained.missing_secret.as_deref(), Some("fixture.token"));
     let initial = client
         .unary::<contracts::settings::GetPluginSettings>(auth(
             contracts::settings::GetPluginSettings { plugin_id: "failed_settings".into() },
