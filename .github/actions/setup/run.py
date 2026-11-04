@@ -168,12 +168,10 @@ def windows(workspace):
             os.environ["CARGO_HOME"],
             os.environ["MISE_DATA_DIR"],
         ]
+        # The Runner-Owned Temporary Root Holds Every Lane's Scratch And Test Store; Excluding It
+        # Whole Avoids Wildcard Exclusions Defender Does Not Honour On Every Volume.
         temporary_roots = native_temporary_paths()
-        for root in temporary_roots:
-            # Lane Scratch Holds The Extracted Test Binaries; Test Stores Use The Other Two Prefixes.
-            for pattern in ("dokime-*", ".tmp*", "project-tmp-*"):
-                scratch = str(root / pattern)
-                exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
+        exclusions.extend(str(root) for root in temporary_roots)
         print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
         script = (
             "$paths = @("
@@ -228,12 +226,21 @@ def verify_temporary_exclusions(roots):
                 nested.write_bytes(b"")
                 for path in (Path(directory), nested, Path(file.name)):
                     print(f"Native Scanner Check: {path}", flush=True)
-                    subprocess.run(
+                    checked = subprocess.run(
                         [str(scanner), "-CheckExclusion", "-Path", str(path)],
-                        check=True,
+                        check=False,
                         stdout=sys.stderr,
                         creationflags=spawn_flags(),
                     )
+                    if checked.returncode:
+                        # Show What Defender Holds Next To The Refused Probe.
+                        subprocess.run(
+                            ["powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-MpPreference).ExclusionPath"],
+                            check=False,
+                            stdout=sys.stderr,
+                            creationflags=spawn_flags(),
+                        )
+                        raise RuntimeError(f"native scanner exclusion does not cover {path} under {root}")
 
 
 def unix():
