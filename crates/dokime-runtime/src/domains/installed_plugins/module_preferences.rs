@@ -64,10 +64,6 @@ impl PluginPreferences {
         }
     }
 
-    pub(crate) fn bind_installs(&self, installs: BTreeMap<String, Uuid>) {
-        *self.installs.write().unwrap_or_else(PoisonError::into_inner) = installs;
-    }
-
     pub(crate) fn bind_install(&self, plugin_id: &Identifier, install: Uuid) {
         self.installs.write().unwrap_or_else(PoisonError::into_inner).insert(plugin_id.as_str().to_owned(), install);
     }

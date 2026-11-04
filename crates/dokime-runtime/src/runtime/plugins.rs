@@ -249,20 +249,6 @@ impl Runtime {
         progress.progress(total, total);
         progress.phase("Validating Catalogs");
         progress.indeterminate();
-        // Program values live under their bundle's install ID; bind the
-        // sources before any program is activated with them.
-        self.handle.plugin_preferences().bind_installs(
-            packages
-                .iter()
-                .filter_map(|package| match package.input.provenance {
-                    PluginProvenance::Installed { install_id, .. } => Some((package, install_id)),
-                    PluginProvenance::Configured => None,
-                })
-                .flat_map(|(package, install_id)| {
-                    package.programs.iter().map(move |program| (program.executable.id().to_owned(), install_id))
-                })
-                .collect(),
-        );
         let embedded_plugins: Vec<_> = self.embedded.values().map(|provider| provider.definition.clone()).collect();
         let embedded_catalogs: Vec<_> = self.embedded.values().map(|provider| provider.catalog.clone()).collect();
         let mut removed = match plan(&store, &packages.iter().collect::<Vec<_>>(), &embedded_plugins, &self.handle.operations).await {
@@ -888,7 +874,7 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         }
         let (id, version, description, operations) =
             (&declaration.id, &declaration.version, &declaration.description, &declaration.operations);
-        dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
+        let program_id = dokime_domain::model::identity::Identifier::new(id).map_err(operation)?;
         let registrations = file.executable.as_ref().expect("selected executable").registrations.clone();
         let plugin = decode_registrations(id, &version.to_string(), description, &registrations)?;
         super::native_telemetry::validate(&plugin, &declaration.streams, handle.schema_settings()).map_err(operation)?;
@@ -912,6 +898,11 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             return Err(operation(format!("extracted executable `{id}` differs from its verified bundle")));
         }
         let configured = input.programs.get(id).cloned().unwrap_or_else(crate::plugins::config::empty_object);
+        // Saved program values live under the bundle's install ID; bind it
+        // before the program's start configuration is resolved from them.
+        if let PluginProvenance::Installed { install_id, .. } = input.provenance {
+            handle.plugin_preferences().bind_install(&program_id, install_id);
+        }
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
         let mut definition =
             harmos::plugin::PluginDefinition::sidecar(&executable, serde_json::to_vec(&initialization).map_err(operation)?)
@@ -1406,6 +1397,113 @@ mod tests {
                 ..Default::default()
             },
         }
+    }
+
+    #[dokime_runtime::settings]
+    #[derive(Clone, Debug, Default, PartialEq)]
+    struct CaptureSettings {
+        capture: Capture,
+    }
+
+    #[dokime_runtime::section(label = "File Capture")]
+    #[derive(Clone, Debug, Default, PartialEq)]
+    struct Capture {
+        #[setting(label = "Capture Files", default = false)]
+        enabled: bool,
+    }
+
+    // An Inert Installable Sidecar Declaring The Capture Settings Catalog.
+    fn capture_bundle(owner: &str) -> Vec<u8> {
+        use crate::plugin::registration::{SETTINGS_NAMESPACE, SettingsRegistration, domain_schema};
+        use crate::plugin::settings::PluginSettings;
+        use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+
+        let registration = harmos::sidecar::Registration {
+            namespace: SETTINGS_NAMESPACE.into(),
+            schema: domain_schema(SETTINGS_NAMESPACE),
+            payload: serde_json::to_vec(&SettingsRegistration {
+                catalog: CaptureSettings::catalog(),
+                ..Default::default()
+            })
+            .unwrap(),
+        };
+        let policy = harmos::operations::OperationPolicy {
+            timeout: std::time::Duration::from_secs(120),
+            attempt_timeout: std::time::Duration::from_secs(120),
+            cancellation_timeout: std::time::Duration::ZERO,
+            retries: harmos::operations::RetryPolicy::Never,
+        };
+        let declaration =
+            serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
+        let lifecycle = serde_json::json!([
+            {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
+            {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
+        ]);
+        let contracts = serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
+        let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
+        let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
+        let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
+        let executable = format!(
+            "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
+            prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
+        );
+        Bundle::build(
+            Identity {
+                name: "capture-fixture".into(),
+                version: "1.0.0".parse().unwrap(),
+                description: "A fixture.".into(),
+                package: Default::default(),
+            },
+            &[Source {
+                path: "bin/fixture",
+                bytes: executable.as_bytes(),
+                executable: Some(Executable {
+                    facility: Facility::Sidecar,
+                    target: crate::plugins::NATIVE_TARGET.into(),
+                    registrations: vec![registration],
+                }),
+            }],
+            Limits::default(),
+        )
+        .unwrap()
+        .bytes()
+        .to_vec()
+    }
+
+    #[tokio::test]
+    async fn saved_settings_reach_restarted_program() {
+        use dokime_domain::model::identity::Identifier;
+
+        let root = tempfile::tempdir().unwrap();
+        let config = || {
+            crate::RuntimeConfig::new(root.path(), crate::Metadata::new(Identifier::new("capture.fixture").unwrap(), "Capture", None))
+                .with_credential_store(keyring_core::mock::Store::new().unwrap())
+        };
+        let id = Identifier::new("capture_fixture").unwrap();
+        let mut first = Runtime::start(config()).await.unwrap();
+        let handle = first.handle();
+        handle.install_plugin(capture_bundle(id.as_str()), |_| Ok(())).await.unwrap();
+        let mut values = handle.plugin_settings(&id).await.unwrap().values;
+        values.insert("enabled".into(), crate::Value::Bool(true));
+        handle.save_plugin_settings(&id, crate::domains::installed_plugins::PluginSettingsUpdate { values }).await.unwrap();
+        drop(handle);
+        first.shutdown().await.unwrap();
+
+        // The Restarted Program Opens With What The Operator Saved.
+        let mut restarted = Runtime::start(config()).await.unwrap();
+        let program = restarted
+            .plugins
+            .values()
+            .map(|active| &active.package)
+            .chain(&restarted.pending_plugins.0)
+            .flat_map(|package| &package.programs)
+            .find(|program| program.executable.id() == id.as_str())
+            .expect("the installed program is prepared at boot");
+        let configuration: crate::plugin::Configuration = serde_json::from_slice(&program.definition.configuration).unwrap();
+        assert!(configuration.settings::<CaptureSettings>().unwrap().capture.enabled);
+        assert!(configuration.is_saved("enabled"));
+        assert_eq!(restarted.handle().plugin_settings(&id).await.unwrap().values["enabled"], crate::Value::Bool(true));
+        restarted.shutdown().await.unwrap();
     }
 
     #[test]
