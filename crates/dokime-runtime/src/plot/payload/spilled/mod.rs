@@ -310,33 +310,6 @@ mod tests {
     }
 
     #[test]
-    fn grouped_record_traces_name_their_expression_and_group() {
-        use dokime_domain::model::expressions::{record, telemetry};
-        let fixture = grouped_fixture();
-        let mut request = PlotPayloadRequest {
-            stream: "fixture.signal".into(),
-            y_expressions: vec![
-                record("fixture.mark").telemetry_at_or_before("fixture.signal", "first"),
-                record("fixture.mark").telemetry_at_or_before("fixture.signal", "second"),
-            ],
-            series_by_expression: Some(telemetry("fixture.signal", "side")),
-            plot_type: Some(PlotType::TimeSeries),
-            ..Default::default()
-        };
-        assert_eq!(
-            grouped_traces(&fixture, &request),
-            traces(&[
-                ("first at fixture.mark:left", "first at fixture.mark left"),
-                ("first at fixture.mark:right", "first at fixture.mark right"),
-                ("second at fixture.mark:left", "second at fixture.mark left"),
-                ("second at fixture.mark:right", "second at fixture.mark right"),
-            ])
-        );
-        request.y_expressions.truncate(1);
-        assert_eq!(grouped_traces(&fixture, &request), traces(&[("left", "left"), ("right", "right")]));
-    }
-
-    #[test]
     fn spilled_records_preserve_capture_order_and_scope_correlation() {
         use dokime_domain::model::{
             execution::RecordScope,
@@ -378,27 +351,24 @@ mod tests {
             cycle_started_at: None,
         };
         let timing = record("fixture.end").time_between("fixture.start");
-        let at_end = record("fixture.end").telemetry_at_or_before("fixture.signal", "y");
         for reverse in [false, true] {
             if reverse {
                 input.reverse_records().unwrap();
             }
-            for expression in [timing.clone(), at_end.clone()] {
-                for aggregate in [false, true] {
-                    let expression = if aggregate { expression.clone().mean() } else { expression.clone() };
-                    let request = PlotPayloadRequest {
-                        stream: "fixture.signal".into(),
-                        y_expressions: vec![expression],
-                        series_by_expression: Some(telemetry("fixture.signal", "group")),
-                        plot_type: Some(PlotType::TimeSeries),
-                        marker_record_types: vec!["fixture.start".into()],
-                        ..Default::default()
-                    };
-                    let eager = super::super::retained::project(&samples, records.as_slice().into(), &request, "now", &context).unwrap();
-                    let eager = super::super::retained::finish(eager, &request).unwrap();
-                    let spilled = project(&input, &request, "now", &context).unwrap();
-                    assert_eq!(serde_json::to_value(&*spilled).unwrap(), serde_json::to_value(&*eager).unwrap());
-                }
+            for aggregate in [false, true] {
+                let expression = if aggregate { timing.clone().mean() } else { timing.clone() };
+                let request = PlotPayloadRequest {
+                    stream: "fixture.signal".into(),
+                    y_expressions: vec![expression],
+                    series_by_expression: Some(telemetry("fixture.signal", "group")),
+                    plot_type: Some(PlotType::TimeSeries),
+                    marker_record_types: vec!["fixture.start".into()],
+                    ..Default::default()
+                };
+                let eager = super::super::retained::project(&samples, records.as_slice().into(), &request, "now", &context).unwrap();
+                let eager = super::super::retained::finish(eager, &request).unwrap();
+                let spilled = project(&input, &request, "now", &context).unwrap();
+                assert_eq!(serde_json::to_value(&*spilled).unwrap(), serde_json::to_value(&*eager).unwrap());
             }
         }
     }

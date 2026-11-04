@@ -346,48 +346,6 @@ pub(crate) fn summaries(
     }
 }
 
-// Repeats Over Row-Local Selectors Resolve From The Complete Evidence; Only
-// Correlated Selectors, Which Read Across Rows, Are Withheld.
-pub(crate) fn bound_definition(definition: &mut crate::document::DocumentDefinition, limit: usize) -> bool {
-    fn withheld(repeat: Option<&crate::document::DocumentSectionRepeat>) -> bool {
-        repeat.is_some_and(|repeat| !crate::document::resolve::pageable(repeat))
-    }
-    fn sections(nodes: &mut Vec<crate::document::DocumentNode>) -> bool {
-        let mut removed = false;
-        nodes.retain_mut(|node| {
-            let crate::document::DocumentNode::Section(section) = node else { return true };
-            if withheld(section.repeat.as_ref()) {
-                removed = true;
-                return false;
-            }
-            removed |= sections(&mut section.children);
-            true
-        });
-        removed
-    }
-    let mut removed = sections(&mut definition.layout.nodes);
-    definition.sections.retain(|section| {
-        if withheld(section.repeat.as_ref()) {
-            removed = true;
-            return false;
-        }
-        true
-    });
-    for body in definition
-        .cards
-        .iter_mut()
-        .map(|card| &mut card.body)
-        .chain(definition.sections.iter_mut().flat_map(|section| section.cards.iter_mut().map(|card| &mut card.body)))
-    {
-        if let crate::document::DocumentCardBody::Table { rows } = body
-            && rows.len() > limit * 2
-        {
-            rows.drain(limit..rows.len() - limit);
-        }
-    }
-    removed
-}
-
 pub(crate) fn warning(message: String) -> DocumentWarning {
     DocumentWarning {
         code: Identifier::new("report.bounded_evidence").expect("static identifier"),

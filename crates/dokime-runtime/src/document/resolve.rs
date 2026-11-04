@@ -77,8 +77,8 @@ struct DocumentMaterializer<'a> {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RepeatValues(Vec<(DocumentSectionRepeat, Vec<Value>)>);
 
-/// Folds the distinct values of every pageable repeat of a document across
-/// evidence pages, in evidence order, as one complete read would.
+/// Folds the distinct values of every repeat of a document across evidence
+/// pages, in evidence order, as one complete read would.
 pub(crate) struct RepeatScan {
     repeats: Vec<(DocumentSectionRepeat, Distinct)>,
 }
@@ -450,30 +450,38 @@ impl RepeatValues {
 }
 
 impl RepeatScan {
-    /// Every distinct pageable repeat the definitions declare, at any depth.
-    pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Self {
-        fn nodes(items: &[DocumentNode], repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>) {
+    /// Every distinct repeat the definitions declare, at any depth. A repeat
+    /// selecting on a correlated transform is refused before any evidence is read.
+    pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Result<Self> {
+        fn nodes(items: &[DocumentNode], repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>) -> Result<()> {
             for node in items {
                 let DocumentNode::Section(section) = node else { continue };
                 if let Some(repeat) = &section.repeat {
-                    insert(repeat, repeats);
+                    insert(&section.node_id, repeat, repeats)?;
                 }
-                nodes(&section.children, repeats);
+                nodes(&section.children, repeats)?;
             }
+            Ok(())
         }
-        fn insert(repeat: &DocumentSectionRepeat, repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>) {
-            if pageable(repeat) && !repeats.iter().any(|(candidate, _)| candidate == repeat) {
+        fn insert(
+            section: &Identifier, repeat: &DocumentSectionRepeat, repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>,
+        ) -> Result<()> {
+            binding::validate_repeat_selector(section, repeat)?;
+            if !repeats.iter().any(|(candidate, _)| candidate == repeat) {
                 repeats.push((repeat.clone(), Distinct::default()));
             }
+            Ok(())
         }
         let mut repeats = Vec::new();
         for definition in definitions {
-            for repeat in definition.sections.iter().filter_map(|section| section.repeat.as_ref()) {
-                insert(repeat, &mut repeats);
+            for section in &definition.sections {
+                if let Some(repeat) = &section.repeat {
+                    insert(&section.metadata.identifier, repeat, &mut repeats)?;
+                }
             }
-            nodes(&definition.layout.nodes, &mut repeats);
+            nodes(&definition.layout.nodes, &mut repeats)?;
         }
-        Self { repeats }
+        Ok(Self { repeats })
     }
 
     fn expressions(&self) -> impl Iterator<Item = &DataExpression> {
@@ -578,21 +586,6 @@ impl Distinct {
 
 /* === Public Functions === */
 
-/// Whether a repeat's values are row-local, so folding evidence page by page
-/// yields what one complete read yields. Correlated selectors read across rows.
-pub(crate) fn pageable(repeat: &DocumentSectionRepeat) -> bool {
-    std::iter::once(&repeat.value).chain(&repeat.order_by).chain(repeat.filters.iter().map(|filter| &filter.expression)).all(|expression| {
-        !expression.transforms.iter().any(|transform| {
-            matches!(
-                transform,
-                crate::expressions::DataTransform::TimeBetween { .. }
-                    | crate::expressions::DataTransform::TelemetryAtOrBefore { .. }
-                    | crate::expressions::DataTransform::PerCase
-            )
-        })
-    })
-}
-
 pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> Result<DocumentPayload> {
     super::bounded::resolve_bounded(input, limits, true)
 }
@@ -601,6 +594,7 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits,
     let (mut cards, layout) = input.definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
+    binding::validate_repeat_selectors(&layout.nodes)?;
     // Captures Freeze Stored IDs And Discard Builder-Only Automatic ID State.
     for card in &mut cards {
         if let DocumentCardBody::Plot { plot } = &mut card.body {

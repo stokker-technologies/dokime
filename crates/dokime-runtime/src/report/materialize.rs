@@ -158,7 +158,7 @@ pub(crate) async fn execution_with_evidence(
         &selection,
         context,
         &captured.outputs,
-        crate::document::resolve::RepeatScan::new(captured.context.execution_documents.values()),
+        crate::document::resolve::RepeatScan::new(captured.context.execution_documents.values())?,
     )
     .await?;
     let limits = ctx.storage.preview_settings().into();
@@ -166,19 +166,10 @@ pub(crate) async fn execution_with_evidence(
     let mut plots = BTreeMap::new();
     for (id, definition) in &captured.context.execution_documents {
         let _permit = operation.report_work().await;
-        let mut definition = definition.clone();
-        let limit = table_rows;
-        let repeats_unavailable = super::previews::bound_definition(&mut definition, limit);
-        let mut document = bindings.capture(&definition, Some(&repeats))?;
-        if repeats_unavailable {
-            document.warnings.push(super::previews::warning(
-                "Repeated sections over correlated selectors are unavailable in bounded reports; inspect the complete execution evidence."
-                    .into(),
-            ));
-        }
+        let mut document = bindings.capture(definition, Some(&repeats))?;
         super::previews::summaries(&mut document, &exact, &fields, context);
         document.warnings.push(super::previews::warning(format!(
-            "Tables contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
+            "Telemetry previews contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
             table_rows, execution.test_execution_id, captured.evidence_through.sequence)));
         let requests: Vec<_> = document
             .cards

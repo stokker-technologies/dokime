@@ -19,7 +19,7 @@
 
 // Local Imports
 use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput, PlotType};
-use crate::expressions::{DataExpression, DataSource, DataTransform};
+use crate::expressions::{DataExpression, DataSource};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
@@ -157,7 +157,6 @@ fn plot_uses_telemetry(plot: &PlotDefinition) -> bool {
 
 fn is_telemetry_expression(expression: &DataExpression) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. })
-        || expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
 }
 
 fn telemetry_expression_matches(sample: &TelemetrySample, expression: &DataExpression) -> bool {
@@ -165,12 +164,7 @@ fn telemetry_expression_matches(sample: &TelemetrySample, expression: &DataExpre
         DataSource::Telemetry { stream, field } => {
             stream_matches_alias(sample.stream.as_str(), stream) && (field == "timestamp" || sample.values.contains_key(field))
         }
-        DataSource::Record { .. } => expression.transforms.iter().any(|transform| {
-            let DataTransform::TelemetryAtOrBefore { stream, field } = transform else {
-                return false;
-            };
-            stream_matches_alias(sample.stream.as_str(), stream) && sample.values.contains_key(field)
-        }),
+        DataSource::Record { .. } => false,
         DataSource::Parameter { .. } | DataSource::Dimension { .. } | DataSource::Artifact { .. } => true,
     }
 }

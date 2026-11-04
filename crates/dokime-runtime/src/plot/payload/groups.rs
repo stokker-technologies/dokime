@@ -217,10 +217,7 @@ fn operation(request: &PlotPayloadRequest) -> Option<Operation<'_>> {
     // Record Correlation Has Priority Over Telemetry Aggregates In The Shared Projection.
     let record = request.y_expressions.iter().any(|expression| {
         matches!(expression.source, DataSource::Record { .. })
-            && expression
-                .transforms
-                .iter()
-                .any(|transform| matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }))
+            && expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TimeBetween { .. }))
     });
     if record {
         return None;

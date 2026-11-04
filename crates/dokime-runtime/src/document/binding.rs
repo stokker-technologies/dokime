@@ -27,6 +27,7 @@ use super::{DocumentCardBody, DocumentCardDefinition, DocumentDefinition, Docume
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
+use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
@@ -213,9 +214,36 @@ pub(super) fn validate(cards: &[DocumentCardDefinition], nodes: &[DocumentNode])
             continue;
         };
         if let Some(repeat) = &section.repeat {
+            validate_repeat_selector(&section.node_id, repeat)?;
             validate_repeat(repeat)?;
         }
         validate(&[], &section.children)?;
+    }
+    Ok(())
+}
+
+/// Refuses a repeated section, at any depth, whose value, order or filters
+/// select on `time_between`: a repeat names its instances from row-local values.
+pub(crate) fn validate_repeat_selectors(nodes: &[DocumentNode]) -> Result<()> {
+    for node in nodes {
+        let DocumentNode::Section(section) = node else {
+            continue;
+        };
+        if let Some(repeat) = &section.repeat {
+            validate_repeat_selector(&section.node_id, repeat)?;
+        }
+        validate_repeat_selectors(&section.children)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_repeat_selector(section: &Identifier, repeat: &super::DocumentSectionRepeat) -> Result<()> {
+    let correlated = std::iter::once(&repeat.value)
+        .chain(&repeat.order_by)
+        .chain(repeat.filters.iter().map(|filter| &filter.expression))
+        .any(|expression| expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TimeBetween { .. })));
+    if correlated {
+        return Err(DocumentFailure::CorrelatedRepeat { section: section.clone() }.into());
     }
     Ok(())
 }
@@ -252,10 +280,7 @@ pub(super) fn evaluation_work(definition: &DocumentDefinition, rows: usize, inst
 
 pub(super) fn correlation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
     fn correlated(expression: &DataExpression, rows: usize) -> usize {
-        let lookup = expression
-            .transforms
-            .iter()
-            .any(|transform| matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }));
+        let lookup = expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TimeBetween { .. }));
         let per_case = expression.transforms.contains(&DataTransform::PerCase);
         if !lookup && !per_case {
             return 0;
@@ -318,7 +343,7 @@ pub(super) fn row<'a>(input: Row<'a>, expression: &DataExpression, evidence: Evi
         }
         match transforms.next()? {
             DataTransform::Detail { name } => Cow::Borrowed(record.entry.details.get(name)?),
-            DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. } => correlate(record, expression, evidence)?,
+            DataTransform::TimeBetween { .. } => correlate(record, expression, evidence)?,
             _ => return None,
         }
     } else if let DataSource::Artifact { artifact: filename } = &expression.source {
@@ -383,7 +408,7 @@ fn correlate<'a>(record: RecordView<'a>, expression: &DataExpression, evidence: 
         transforms: expression.transforms.first().cloned().into_iter().collect(),
     };
     let plan = Plan::compile(&selector, None).ok()?;
-    plan.correlate(record, &selector, evidence).ok().flatten()
+    plan.correlate(record, evidence).ok().flatten()
 }
 
 fn bindings_need(definition: &DocumentDefinition, needs: impl Fn(&DataExpression) -> bool + Copy) -> bool {
@@ -425,7 +450,6 @@ fn validate_pair(expression: &DataExpression, other: &DataExpression) -> Result<
 
 pub(crate) fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. })
-        || expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TelemetryAtOrBefore { .. }))
         || (matches!(expression.source, DataSource::Dimension { .. }) && !context.supplies(&expression.source))
 }
 
@@ -484,10 +508,7 @@ fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregat
         }
     }
     if matches!(source, DataSource::Record { .. })
-        && !matches!(
-            transforms.first(),
-            Some(DataTransform::Detail { .. } | DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. })
-        )
+        && !matches!(transforms.first(), Some(DataTransform::Detail { .. } | DataTransform::TimeBetween { .. }))
         && !(aggregate && transforms == [DataTransform::Aggregate(Aggregate::Count)])
     {
         return Err(failure("record scalar bindings require a selector or an occurrence count"));
@@ -499,10 +520,7 @@ fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregat
             }
             continue;
         }
-        if index == 0
-            && matches!(source, DataSource::Record { .. })
-            && matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. })
-        {
+        if index == 0 && matches!(source, DataSource::Record { .. }) && matches!(transform, DataTransform::TimeBetween { .. }) {
             continue;
         }
         if aggregate && index + 1 == transforms.len() && matches!(transform, DataTransform::Aggregate(_)) {
