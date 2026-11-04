@@ -100,6 +100,7 @@ def download(url, checksum, destination):
 
 
 def windows(workspace):
+    temporary_root(workspace)
     vswhere = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
     installation = subprocess.check_output(
         [
@@ -169,7 +170,8 @@ def windows(workspace):
         ]
         temporary_roots = native_temporary_paths()
         for root in temporary_roots:
-            for pattern in ("dokime-*", ".tmp*"):
+            # Lane Scratch Holds The Extracted Test Binaries; Test Stores Use The Other Two Prefixes.
+            for pattern in ("dokime-*", ".tmp*", "project-tmp-*"):
                 scratch = str(root / pattern)
                 exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
         print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
@@ -187,6 +189,23 @@ def windows(workspace):
         verify_temporary_exclusions(temporary_roots)
 
 
+def temporary_root(workspace):
+    """Keep Scratch On The Workspace Volume: Hosted Images Put TEMP On The IOPS-Capped OS Disk."""
+    workspace = workspace.resolve()
+    current = Path(tempfile.gettempdir()).resolve()
+    if current.drive.casefold() != workspace.drive.casefold():
+        runner = os.environ.get("RUNNER_TEMP")
+        runner = Path(runner).resolve() if runner else None
+        current = runner if runner and runner.drive.casefold() == workspace.drive.casefold() else Path(workspace.anchor) / "tmp"
+        if current.is_relative_to(workspace):
+            raise RuntimeError(f"temporary directory must stay outside the checkout: {current}")
+        current.mkdir(parents=True, exist_ok=True)
+        export({"TEMP": str(current), "TMP": str(current)})
+        tempfile.tempdir = None
+    free = shutil.disk_usage(current).free / 2**30
+    print(f"Temporary Directory: {current} ({free:.1f} GiB Free)", flush=True)
+
+
 def native_temporary_paths():
     buffer = ctypes.create_unicode_buffer(32768)
     length = ctypes.windll.kernel32.GetTempPath2W(len(buffer), buffer)
@@ -199,7 +218,7 @@ def native_temporary_paths():
 def verify_temporary_exclusions(roots):
     scanner = Path(os.environ["ProgramFiles"]) / "Windows Defender/MpCmdRun.exe"
     for root in roots:
-        for prefix in ("dokime-exclusion-", ".tmp"):
+        for prefix in ("dokime-exclusion-", ".tmp", "project-tmp-"):
             with (
                 tempfile.TemporaryDirectory(dir=root, prefix=prefix) as directory,
                 tempfile.NamedTemporaryFile(dir=root, prefix=prefix, delete_on_close=False) as file,
