@@ -553,6 +553,105 @@ pub(super) async fn repeated_sections_follow() {
     owner.shutdown().await.unwrap();
 }
 
+// The sealed report expands a repeated section over every distinct value the
+// execution recorded, including one its bounded table rows never reach.
+pub(super) async fn repeated_sections_freeze() {
+    use dokime_runtime::document::{DocumentDefinition, DocumentSection, Plot};
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+
+    // One Section Per Network, Plotting Signal Per Band, Then A Plain Section
+    let network = dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_ssid");
+    let mut signal = Plot::time_series("Signal");
+    signal.id("fixture.repeat.signal");
+    signal.y(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_rssi_dbm"));
+    signal.series_by(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_band"));
+    let mut networks = DocumentSection::new("Networks");
+    networks.id("fixture.repeat.networks");
+    networks.each(network, "Network {value}");
+    networks.plot(signal);
+    let mut channels = Plot::time_series("Channel");
+    channels.id("fixture.repeat.channel");
+    channels.y(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_channel"));
+    let mut plain = DocumentSection::new("Host");
+    plain.plot(channels);
+    let mut document = DocumentDefinition::new("default", "Networks");
+    document.section(networks);
+    document.section(plain);
+    let mut suite = fixture_suite(&["passed"]);
+    suite.test_case_templates[0].document = Some(document);
+    register_python_suite(&runtime, suite.clone()).await;
+
+    // The Middle Network Lies Far From Both Ends Of The Evidence
+    let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
+    let execution = cycle.test_executions[0].clone();
+    let blocks = [("alpha", 0..100), ("beta", 100..110), ("gamma", 110..210)];
+    for (ssid, indices) in blocks.clone() {
+        let mut batch = samples_from("host.wifi.scan", indices.start, indices.len(), Some(execution.scope.clone()));
+        for (sample, index) in batch.samples.iter_mut().zip(indices) {
+            sample.values.insert("wifi_ssid".to_owned(), Value::from(ssid));
+            sample.values.insert("wifi_band".to_owned(), Value::from(if index % 2 == 0 { "2.4" } else { "5" }));
+            sample.values.insert("wifi_rssi_dbm".to_owned(), Value::Number(-(index as f64)));
+            // Saved Rows Come From The Typed Payload, So The Edited Sample Is Encoded Again.
+            *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+        }
+        runtime.publish_telemetry_batch(batch).await.unwrap();
+    }
+    runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
+    executor.release();
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+
+    let mut report = runtime.open_execution_report(&execution.test_execution_id).await.unwrap();
+    assert_eq!(report.origin, dokime_runtime::ReportOrigin::Sealed);
+    let payload = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut report).await).unwrap(),
+    );
+    let case = &payload["case_runs"][0];
+    let capture = &case["documents"]["default"];
+
+    // Every Network Expands, In Ascending Order, Into A Present Section
+    let instances = capture["repeats"]["fixture.repeat.networks"].as_array().expect("the repeat expanded");
+    let values = instances.iter().map(|instance| instance["filter"]["value"].clone()).collect::<Vec<_>>();
+    let expected = blocks.iter().map(|(ssid, _)| serde_json::to_value(Value::from(*ssid)).unwrap()).collect::<Vec<_>>();
+    assert_eq!(values, expected);
+    for (instance, (ssid, _)) in instances.iter().zip(&blocks) {
+        let section = &capture["sections"][instance["node_id"].as_str().unwrap()];
+        assert_eq!(section["metadata"]["label"], format!("Network {ssid}"));
+    }
+    assert!(capture["sections"].as_object().unwrap().values().any(|section| section["metadata"]["label"] == "Host"));
+
+    // Each Instance Plots Exactly Its Own Samples, One Series Per Band
+    let plots = capture["cards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|card| card["source_id"] == "fixture.repeat.signal")
+        .map(|card| card["result"]["data"]["descriptor"]["plot_id"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(plots.len(), blocks.len());
+    for (plot_id, (ssid, indices)) in plots.into_iter().zip(blocks) {
+        let series = case["plots"][plot_id]["series"].as_array().unwrap_or_else(|| panic!("network {ssid} has no plot payload"));
+        assert_eq!(series.len(), 2, "network {ssid} plots one series per band");
+        let mut points = series
+            .iter()
+            .flat_map(|series| series["points"].as_array().unwrap())
+            .map(|point| point["y"].as_f64().unwrap())
+            .collect::<Vec<_>>();
+        points.sort_by(f64::total_cmp);
+        let mut reference = indices.map(|index| -(index as f64)).collect::<Vec<_>>();
+        reference.sort_by(f64::total_cmp);
+        assert_eq!(points, reference, "network {ssid} plots every one of its samples");
+    }
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 fn document_nodes(document: &dokime_runtime::document::DocumentPayload) -> Vec<&dokime_runtime::document::DocumentNodePayload> {
     use dokime_runtime::document::DocumentNodePayload;
     let mut pending = document.layout.nodes.iter().rev().collect::<Vec<_>>();

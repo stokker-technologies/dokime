@@ -19,6 +19,7 @@ pub(crate) mod context_records;
 pub(crate) mod cycle;
 pub(crate) mod cycle_finalization;
 mod cycles;
+pub(crate) mod document_repeats;
 pub(crate) mod execution;
 pub(crate) mod executions;
 mod finalization;

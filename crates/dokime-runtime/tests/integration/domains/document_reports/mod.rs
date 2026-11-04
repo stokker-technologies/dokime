@@ -99,6 +99,7 @@ async fn document_report_live() {
     construction::current_fact_frontiers().await;
     construction::document_routes_samples().await;
     construction::repeated_sections_follow().await;
+    construction::repeated_sections_freeze().await;
     reports::report_opens_anytime().await;
     reports::open_report_repeatedly().await;
     reports::cycle_report_reboot().await;
