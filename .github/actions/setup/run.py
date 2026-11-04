@@ -213,20 +213,23 @@ def native_temporary_paths():
     return list(dict.fromkeys(candidate for root in roots for candidate in (root, root.resolve())))
 
 
-def verify_temporary_exclusions(roots):
-    status = json.loads(
-        subprocess.check_output(
-            [
-                "powershell",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, OnAccessProtectionEnabled | ConvertTo-Json",
-            ],
-            text=True,
-            creationflags=spawn_flags(),
-        )
+def scanner_status():
+    output = subprocess.check_output(
+        [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, OnAccessProtectionEnabled | ConvertTo-Json",
+        ],
+        text=True,
+        creationflags=spawn_flags(),
     )
+    return json.loads(output)
+
+
+def verify_temporary_exclusions(roots):
+    status = scanner_status()
     print("Native Scanner Status: " + json.dumps(status), flush=True)
     # A Scanner That Does Not Scan On Access Has Nothing To Exclude, And Its Exclusion Check Reports Nothing Excluded.
     if status.get("RealTimeProtectionEnabled") is False or status.get("OnAccessProtectionEnabled") is False:

@@ -36,6 +36,9 @@ from dokime_tools.ci import environment as step_environment
 # === Constants === #
 
 SETUP = runpy.run_path(str(Path(__file__).resolve().parents[3] / ".github/actions/setup/run.py"))
+# Setup Functions Resolve Names In The Script Namespace, Which `run_path` Returns Only A Copy Of.
+SETUP_GLOBALS = SETUP["verify_temporary_exclusions"].__globals__
+SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAccessProtectionEnabled": True}
 
 # === Types === #
 
@@ -93,17 +96,18 @@ class NativeSetupTests(unittest.TestCase):
             def run(command, **options):
                 target = Path(command[-1])
                 self.assertTrue(target.exists())
-                self.assertTrue(options["check"])
                 self.assertEqual(command[1:3], ["-CheckExclusion", "-Path"])
                 checked.append((target, target.is_dir()))
+                return subprocess.CompletedProcess(command, 0)
 
             with (
                 patch.dict(os.environ, {"ProgramFiles": str(root)}),
+                patch.dict(SETUP_GLOBALS, {"scanner_status": lambda: SCANNING}),
                 patch.object(subprocess, "run", side_effect=run),
                 contextlib.redirect_stdout(io.StringIO()),
             ):
                 SETUP["verify_temporary_exclusions"]([root])
-            for prefix in ("dokime-exclusion-", ".tmp"):
+            for prefix in ("dokime-exclusion-", ".tmp", "project-tmp-"):
                 selected = [(path, folder) for path, folder in checked if path.relative_to(root).parts[0].startswith(prefix)]
                 self.assertTrue(any(folder for _, folder in selected))
                 self.assertTrue(any(not folder and path.parent == root for path, folder in selected))
@@ -112,14 +116,34 @@ class NativeSetupTests(unittest.TestCase):
 
     def test_native_setup_rejects_failed_exclusion_matching(self):
         with tempfile.TemporaryDirectory() as directory:
+            commands = []
+
+            def run(command, **options):
+                commands.append(command)
+                return subprocess.CompletedProcess(command, 1 if "-CheckExclusion" in command else 0)
+
             with (
                 patch.dict(os.environ, {"ProgramFiles": directory}),
-                patch.object(subprocess, "run", side_effect=subprocess.CalledProcessError(1, ["fixture"])),
+                patch.dict(SETUP_GLOBALS, {"scanner_status": lambda: SCANNING}),
+                patch.object(subprocess, "run", side_effect=run),
                 contextlib.redirect_stdout(io.StringIO()),
-                self.assertRaises(subprocess.CalledProcessError),
+                self.assertRaises(RuntimeError),
             ):
                 SETUP["verify_temporary_exclusions"]([Path(directory)])
+            self.assertTrue(any("(Get-MpPreference).ExclusionPath" in command for command in commands))
             self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_native_setup_skips_probes_without_on_access_scanning(self):
+        for status in ({"RealTimeProtectionEnabled": False}, {"RealTimeProtectionEnabled": True, "OnAccessProtectionEnabled": False}):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                with (
+                    patch.dict(os.environ, {"ProgramFiles": directory}),
+                    patch.dict(SETUP_GLOBALS, {"scanner_status": lambda status=status: status}),
+                    patch.object(subprocess, "run", side_effect=AssertionError("no probe runs")),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    SETUP["verify_temporary_exclusions"]([Path(directory)])
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
 
 # === Public Functions === #
