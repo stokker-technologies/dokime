@@ -363,9 +363,16 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
             )?);
             continue;
         }
+        let name = groups::join(&plan.expression.label())?;
         for group in &plan.groups {
-            let label = plan.rows[group.start].group.as_deref().unwrap_or("");
-            series.push(series_entry(text(label)?, text(label)?, plan.expression.unit(request), points(&plan.rows[group.clone()])?)?);
+            let group_label = plan.rows[group.start].group.as_deref().unwrap_or("");
+            let (key, label) = groups::trace_names(&name, group_label, plans.len(), false);
+            series.push(series_entry(
+                groups::join(&key)?,
+                groups::join(&label)?,
+                plan.expression.unit(request),
+                points(&plan.rows[group.clone()])?,
+            )?);
         }
     }
     Ok(series)

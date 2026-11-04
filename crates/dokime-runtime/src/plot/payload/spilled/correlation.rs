@@ -224,13 +224,15 @@ pub(super) fn project(read: &Read<'_>, request: &PlotPayloadRequest, mut visit: 
     let group = request.x_expression.as_ref().or(request.series_by_expression.as_ref());
     let aggregate = group.is_some() && expressions.iter().any(|expression| payload::aggregate_method(expression.expression).is_some());
     let group = if aggregate { group } else { request.series_by_expression.as_ref() };
+    let expressions: Vec<_> =
+        expressions.into_iter().filter(|expression| !aggregate || payload::aggregate_method(expression.expression).is_some()).collect();
+    let inputs = expressions.len();
     let mut context_stream = false;
     read.samples(|sample| {
         context_stream |= sample.stream.as_str() == crate::plot::RECORD_CONTEXT_STREAM;
         Ok(())
     })?;
-    for expression in expressions.into_iter().filter(|expression| !aggregate || payload::aggregate_method(expression.expression).is_some())
-    {
+    for expression in expressions {
         projection::reset(read)?;
         let axis = request.x_expression.as_ref().and_then(|expression| expression_for(expression, false));
         let contextual = !aggregate && (axis.is_some() || group.is_some());
@@ -276,16 +278,20 @@ pub(super) fn project(read: &Read<'_>, request: &PlotPayloadRequest, mut visit: 
             grouped: group.is_some(),
             keep_empty_aggregate: true,
         };
+        let name = match expression.source {
+            Source::Timing(previous) => format!("{previous} -> {}", expression.kind),
+            Source::Telemetry { field, .. } => format!("{field} at {}", expression.kind),
+        };
         projected.series(read, |mut series| {
             if !aggregate && group.is_some() {
-                series.metadata.key = series.metadata.label.clone();
-            } else {
-                let label = match expression.source {
-                    Source::Timing(previous) => format!("{previous} -> {}", expression.kind),
-                    Source::Telemetry { field, .. } => format!("{field} at {}", expression.kind),
-                };
-                series.metadata.key = label.clone();
+                // A Single-Input Projection Labels Each Trace By Its Bare Group.
+                let (key, label) = payload::groups::trace_names(&name, &series.metadata.label, inputs, false);
+                let (key, label) = (payload::groups::join(&key)?, payload::groups::join(&label)?);
+                series.metadata.key = key;
                 series.metadata.label = label;
+            } else {
+                series.metadata.key = name.clone();
+                series.metadata.label = name.clone();
             }
             if matches!(expression.source, Source::Timing(_)) && series.metadata.unit.is_none() {
                 series.metadata.unit = Some("s".into());
