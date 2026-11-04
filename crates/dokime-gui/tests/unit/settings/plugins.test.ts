@@ -137,6 +137,7 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
   useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
+  usePluginRestartRefresh: vi.fn(),
 }));
 vi.mock("@/features/settings/plugins/plugin-queries", () => ({
   usePluginsQuery: fixture.installations,
@@ -163,6 +164,7 @@ beforeEach(() => {
     values: { address: "corrected" },
     discovered: {},
     secrets: [],
+    restart: "idle",
   });
 });
 
@@ -283,6 +285,7 @@ test("Declared Secret Add", () => {
     error: null,
     values: {},
     discovered: {},
+    restart: "idle",
     settings: {
       contributions: [
         { kind: "secret", id: "api_token", title: "API Token", description: null, required: true },
@@ -311,6 +314,45 @@ test("Declared Secret Add", () => {
   assert.ok(opened.includes("Add Secret"));
   assert.ok(opened.includes('value="api_token"'));
   assert.ok(opened.includes('type="password"'));
+});
+
+test("Restart States", async () => {
+  const plugin = { plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null };
+  fixture.admitted.mockResolvedValue([plugin]);
+  const expected = { idle: "ready", restarting: "restarting", pending: "restart_pending" } as const;
+  for (const [restart, status] of Object.entries(expected)) {
+    fixture.settings.mockResolvedValueOnce({ settings: { contributions: [] }, values: {}, discovered: {}, secrets: [], restart });
+    const detail = await getInstalledPluginDetail(session, plugin.plugin_id);
+    assert.equal(detail?.restart, restart);
+    assert.equal(detail?.status, status);
+  }
+});
+
+test("Pending Restart Explained", () => {
+  const detail: PluginDetail = {
+    plugin_id: "equipment.main",
+    owner: null,
+    label: "Equipment",
+    version: "1.0.0",
+    enabled: true,
+    runtime: "code",
+    status: "restart_pending",
+    error: null,
+    values: {},
+    discovered: {},
+    restart: "pending",
+    settings: { contributions: [] },
+    secrets: [],
+  };
+  const statuses = (restart: PluginDetail["restart"]) =>
+    (
+      renderToStaticMarkup(createElement(InstalledPluginDetail, { detail: { ...detail, restart }, onSaveSettings: async () => {} })).match(
+        /role="status"/g,
+      ) ?? []
+    ).length;
+  assert.equal(statuses("pending"), 1);
+  assert.equal(statuses("restarting"), 0);
+  assert.equal(statuses("idle"), 0);
 });
 
 test("Missing Secret Action", () => {

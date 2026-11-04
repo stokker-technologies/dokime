@@ -175,6 +175,12 @@ the captured column schema to select this presentation.
   Storage opens the shared Add Secret dialog prefilled with the identifier.
   Every owner in an inactive bundle remains visible. Add missing identifiers and
   restart Dokime, or use the existing plugin Retry to read the store again.
+- A saved settings change restarts its program. The plugin's status badge reads
+  Restarting… while the new generation starts, and Restart Pending, explained as
+  applying when the running execution finishes, while executions that use it run
+  or wait. Both states come from `PluginRuntimeSettings.restart`; while one holds,
+  the page re-reads the plugin views whenever the backend's operations change,
+  since the restart runs as one. A refused restart surfaces like a failed startup.
   Startup notifications and plugin views keep root prose separate from collapsed
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.

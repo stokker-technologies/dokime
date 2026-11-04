@@ -386,7 +386,14 @@ export type RuntimePluginSettings = {
    */
   discovered?: { [key in string]: Value };
   secrets: SecretAvailability[];
+  /**
+   * Whether saved values wait to reach the running program: a save that
+   * changes one restarts it now, or once the executions using it finish.
+   */
+  restart: PluginRestart;
 };
+
+export type PluginRestart = "idle" | "restarting" | "pending";
 
 export type RuntimeSettingsCard = {
   plugin_id: Identifier;

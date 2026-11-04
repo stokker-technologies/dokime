@@ -154,6 +154,13 @@ async fn execution_workflow_threaded() {
     session::live_replay_settles().await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_settings_restart() {
+    session::saved_change_restarts().await;
+    session::saved_change_waits_for_execution().await;
+}
+
 // These Stages Serve An Embedded Template Whose Initialization Fails In This Environment Even Alone.
 #[dokime_tracing::trace_test]
 #[tokio::test]
