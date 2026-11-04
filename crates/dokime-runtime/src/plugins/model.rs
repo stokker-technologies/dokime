@@ -104,7 +104,7 @@ pub enum PluginRestart {
     // A new generation is starting, or the programs are stopping.
     Restarting,
 
-    // An execution that uses the programs is running or prepared; the change follows it.
+    // A cycle is active; the change applies once none is.
     Pending,
 }
 

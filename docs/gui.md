@@ -177,12 +177,14 @@ the captured column schema to select this presentation.
   use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
 - A saved settings change restarts its program. The plugin's status badge reads
   Restarting… while the new generation starts, and Restart Pending, explained as
-  applying when the running execution finishes, while executions that use it run
-  or wait. Both states come from `PluginRuntimeSettings.restart`; while one holds,
-  the page re-reads the plugin views whenever the backend's operations change,
-  since the restart runs as one. A restart refused before the program stopped
-  shows **Restart Refused** with **Retry** while the plugin stays active; a failed
-  new generation surfaces like a failed startup.
+  applying when no cycle is active, while any cycle runs, pauses, continues to its
+  next case or finalizes. Both states come from `PluginRuntimeSettings.restart`;
+  while one holds, the page re-reads the plugin views whenever the backend's
+  operations change, since the restart runs as one. A restart refused before the
+  program stopped shows **Restart Refused** with **Retry** while the plugin stays
+  active; a failed new generation surfaces like a failed startup. **Retry** starts
+  a plugin that does not run at once, even during a cycle; retrying a running one
+  shows Restart Pending until no cycle is active.
 - Install, reinstall, update, enable, disable and remove apply in the running
   backend; no plugin action prompts to restart the application.
   `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
