@@ -40,6 +40,7 @@ use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSess
 /* === Private Functions === */
 
 /* === Tests === */
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn attached_backend_survives() {
     let root = tempfile::tempdir().unwrap();
@@ -67,6 +68,7 @@ async fn attached_backend_survives() {
     backend.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn disconnect_cancels_discovery() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -81,6 +83,7 @@ async fn disconnect_cancels_discovery() {
     assert_eq!(owner.status().ownership, BackendOwnership::None);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn invalid_local_attachment() {
     let root = tempfile::tempdir().unwrap();
@@ -92,6 +95,7 @@ async fn invalid_local_attachment() {
     backend.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn owned_trace_tail() {
     use dokime::domain::model::backend::wire::{LogLevel, TraceScope};
@@ -147,4 +151,60 @@ async fn owned_trace_tail() {
     assert!(live.next_sequence > history.next_sequence);
     stream.close().await;
     owner.shutdown().await.unwrap();
+}
+
+#[cfg(feature = "testing")]
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn remote_export_enables_saved_listener_and_preserves_ca_on_reissue() {
+    use dokime::operations::remote::{ListPairedClients, ReadListener, RegenerateCertificate, RenamePairedClient, UpdateListener};
+    let fixture = crate::support::server::Fixture::new().await;
+    let client =
+        dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
+    let mut settings = client.call(ReadListener {}).await.unwrap().settings.unwrap();
+    settings.address = "127.0.0.1:0".into();
+    settings.enabled = false;
+    client.call(UpdateListener { settings: Some(settings) }).await.unwrap();
+    assert!(dokime_gui::testing::create_remote_access(&client, "Not Confirmed".into(), false).await.is_err());
+    let saved = client.call(ReadListener {}).await.unwrap();
+    assert!(!saved.settings.unwrap().enabled);
+    let exported = dokime_gui::testing::create_remote_access(&client, "Remote Test".into(), true).await.unwrap();
+    let running = client.call(ReadListener {}).await.unwrap();
+    assert!(running.settings.as_ref().unwrap().enabled);
+    let mut stable = running.settings.as_ref().unwrap().clone();
+    stable.address = running.listening_address.clone().unwrap();
+    client.call(UpdateListener { settings: Some(stable) }).await.unwrap();
+    let old_leaf = running.certificate_pem.unwrap();
+    let paired_id = exported.client.as_ref().unwrap().identifier.clone();
+    client
+        .call(RenamePairedClient {
+            identifier: paired_id.clone(),
+            label: "Renamed Test".into(),
+        })
+        .await
+        .unwrap();
+    let paired = client.call(ListPairedClients { cursor: None, limit: 100 }).await.unwrap();
+    assert_eq!(paired.clients.iter().find(|entry| entry.identifier == paired_id).unwrap().label, "Renamed Test");
+    let target = dokime::client::Target::remote(&exported.pairing.endpoints[0], exported.pairing.ca_certificate_pem.clone()).unwrap();
+    let connected =
+        dokime::client::Client::connect(target.clone(), exported.pairing.access_key.as_deref(), Some(&exported.pairing.backend_identifier))
+            .await
+            .unwrap();
+    connected.close_and_wait().await;
+    let next = client
+        .call(RegenerateCertificate {
+            certificate_names: vec!["localhost".into()],
+        })
+        .await
+        .unwrap();
+    assert_ne!(old_leaf, next.certificate_pem.unwrap());
+    let reexported = dokime_gui::testing::create_remote_access(&client, "Another Client".into(), false).await.unwrap();
+    assert_eq!(reexported.pairing.ca_certificate_pem, exported.pairing.ca_certificate_pem);
+    let connected =
+        dokime::client::Client::connect(target, exported.pairing.access_key.as_deref(), Some(&exported.pairing.backend_identifier))
+            .await
+            .unwrap();
+    connected.close_and_wait().await;
+    assert_ne!(exported.pairing.access_key, reexported.pairing.access_key);
+    fixture.close().await;
 }

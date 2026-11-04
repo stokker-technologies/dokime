@@ -385,7 +385,7 @@ impl Hold {
     fn in_band(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
         let mut held = 0;
-        for row in ctx.samples::<SoakRow>() {
+        for row in ctx.samples::<SoakRow>().iter() {
             // The ramp is not the hold, and the observer said which is which.
             if !row.holding {
                 continue;
@@ -406,7 +406,7 @@ impl Hold {
     )]
     fn host_quiet(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         let limit = ctx.parameters().host_cpu_limit;
-        for row in ctx.samples::<plugin_host::System>() {
+        for row in ctx.samples::<plugin_host::System>().iter() {
             let Some(load) = row.cpu_load_percent else {
                 return Err(Error::Unmeasured("cpu_load_percent"));
             };

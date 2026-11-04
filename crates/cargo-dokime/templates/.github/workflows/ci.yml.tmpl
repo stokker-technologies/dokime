@@ -170,13 +170,6 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
       if: matrix.platform == 'unix' && (true) && (true)
-    - name: Compile Release Product
-      run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        project_tools.ci.build --profile release --output product --task build
-      if: >-
-        matrix.platform == 'unix' && (true) && (env.PROFILE == 'dev' &&
-        github.event_name != 'pull_request')
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'unix' && (true) && (success() && (github.ref ==
@@ -232,13 +225,6 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
       if: matrix.platform == 'windows' && (true) && (true)
-    - name: Compile Release Product
-      run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        project_tools.ci.build --profile release --output product --task build
-      if: >-
-        matrix.platform == 'windows' && (true) && (env.PROFILE == 'dev' &&
-        github.event_name != 'pull_request')
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'windows' && (true) && (success() && (github.ref ==
@@ -295,7 +281,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows
@@ -772,7 +758,7 @@ jobs:
         - windows
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           container: ""
         - platform: windows

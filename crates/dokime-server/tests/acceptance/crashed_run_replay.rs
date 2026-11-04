@@ -59,6 +59,7 @@ fn config() -> Config {
     keyed()
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn crashed_run_replay() {
     if let Some(root) = std::env::var_os(CRASH_ROOT) {

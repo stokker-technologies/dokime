@@ -43,6 +43,7 @@ pub struct Chamber {
     pub sensor_port: Option<PathBuf>,
 
     #[setting(label = "Cloud Token", description = "Optional token for result upload.")]
+    // Reads The Shared Secret Storage Identifier `cloud_token`; Missing Is Optional.
     pub cloud_token: Option<Secret>,
 }
 

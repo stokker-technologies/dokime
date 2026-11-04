@@ -44,6 +44,9 @@ const PAIRING_BYTES: usize = 1_048_576;
 /* === Public Functions === */
 
 pub fn read(path: &Path) -> Result<PairingFile, super::profiles::Error> {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("dokime-remote") {
+        return Err(super::profiles::Error::Invalid("remote access files require .dokime-remote".into()));
+    }
     let bytes = harmos::filesystem::input::read(path, PAIRING_BYTES)?;
     let pairing: PairingFile =
         serde_json::from_slice(&bytes).map_err(|_| super::profiles::Error::Invalid("invalid version 1 pairing file".into()))?;

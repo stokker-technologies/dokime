@@ -107,7 +107,7 @@ Install Dokime on `PATH`, restart the host after admitting the matching OBC
 plugin, and import the host-created pairing once:
 
 ```sh
-dokime backend add --pairing ../lab.dokime-pair --identifier lab
+dokime backend add --remote ../lab.dokime-remote --identifier lab
 ```
 
 Edit the globals at the top of each script before running it. Names, grouping,
@@ -121,8 +121,11 @@ order and meanings match the [Python examples](python.md):
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
 
 Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
-Its label, endpoint, expected identity and CA come from the pairing file; the
+Its label, ordered endpoints, expected identity and persistent CA come from the remote file; the
 native client resolves its access key from the OS keyring.
+Profile import and removal run OS credential work on a native worker with the
+ordinary request budget. A deadline error reports that already-started OS work
+may still complete.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and
@@ -215,10 +218,47 @@ checksums and replace files atomically; download retries never rerun hardware.
 The fixed `cycle.json` and `prompt.json` response files are replaced by ordinary
 shell redirection. The `.id` files retain confirmed native identities.
 
-Bundles contain `manifest.json`, `evidence.sqlite`, captured `files/` and
-saved `reports/`. Inspect the SQLite database and verify manifest checksums.
+Bundles contain `manifest.json`, `evidence.sqlite`, captured `artifacts/`,
+Arrow IPC files of produced or captured samples under `telemetry/` and saved `reports/`.
+Complete finalized producer files retain their original bytes; shared observer
+files contribute only the execution's captured ranges at the saved frontier.
+Cycle bundles
+place artifacts and telemetry under `executions/<execution-id>/`. Join the
+SQLite catalogs and verify manifest checksums.
 An execution bundle saved before the cycle is sealed records an Active cycle;
 the final cycle bundle includes all members and its sealed phase.
+
+## Download HTML Reports
+
+Download a report for a running or sealed execution, or a cycle:
+
+```sh
+dokime execution report <execution-id> --backend lab --output execution.html
+dokime cycle report <cycle-id> --backend lab --output cycle.html
+```
+
+Cycle reports default to `cycle.summary`; use `--identifier` to select another
+report identifier. Running reports describe the saved evidence frontier at the
+requested cut; sealed reports retain their final cut. Downloading does not stop
+or rerun an execution.
+
+The discoverable operation form uses the same verified download path:
+
+```sh
+dokime operation call dokime.reports.download_execution_report --backend lab --json '{"execution_id":"<execution-id>"}' --output execution.html
+dokime operation call dokime.reports.download_cycle_report --backend lab --json '{"cycle_id":"<cycle-id>","identifier":"cycle.summary"}' --output cycle.html
+```
+
+For header/chunk/complete download streams, `--output` writes raw chunk bytes
+with bounded memory, verifies contiguous offsets, final size, SHA-256 and final
+RPC status, then publishes atomically. Stdout contains a JSON summary with `path`,
+`size_bytes`, `sha256` and header `metadata`. Existing files require `--overwrite`;
+a failed or interrupted download preserves them and removes partial output.
+Other operations continue to save ordered JSON event arrays. Byte fields on
+stdout use base64 within the JSON byte ceiling; larger responses require
+`--output` for chunked downloads. Other byte-bearing responses keep base64 JSON
+within the ceiling, written directly to the JSON output file; larger responses
+without a chunked download protocol require a typed client.
 
 ## Interruption And Recovery
 
@@ -232,9 +272,12 @@ the shared server remain available. Batch delegates recovery to the native CLI
 because cmd.exe cannot reliably own Ctrl+C cleanup.
 
 PowerShell and POSIX shell also attempt scoped cleanup when interrupted between
-commands after cycle creation is confirmed. Batch cannot reliably handle Ctrl+C
-between native commands or before their signal listener is installed, including
-connection setup. If cycle creation's reply is lost, no script can infer its
+commands after cycle creation is confirmed.
+The durable cycle seal settles every member before recovery exports it; a
+Cancelled verdict does not prevent that evidence from being saved.
+Batch cannot reliably handle Ctrl+C between native commands or before their
+signal listener is installed, including connection setup. If cycle creation's
+reply is lost, no script can infer its
 unknown cycle UUID. These cases, another interruption during recovery, and lost
 connections or a nonzero command during cleanup can leave the result unconfirmed.
 Retain printed identities,

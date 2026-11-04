@@ -294,6 +294,7 @@ export type ExecutionInvalidation = {
 };
 
 export type TestExecution = {
+  report?: { state: "pending" | "ready" | "failed"; failure: string | null } | null;
   /** Hidden from the default lists; orthogonal to the lifecycle. */
   archived?: boolean;
   /** The execution report is sealed, so its case label no longer changes. */

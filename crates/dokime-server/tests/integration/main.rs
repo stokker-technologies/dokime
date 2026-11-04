@@ -15,6 +15,7 @@ mod authoring_catalog;
 mod execution_artifacts;
 mod execution_run;
 mod execution_seal_report;
+mod finite_queries;
 mod plugin_lifecycle;
 mod query_roundtrip;
 mod server_diagnostics;
@@ -60,5 +61,13 @@ use {dokime::Identifier, dokime::Metadata, dokime::Runtime};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn stage(future: impl std::future::Future<Output = ()>) {
+    let name = std::any::type_name_of_val(&future);
+    let started = std::time::Instant::now();
+    eprintln!("Stage: {name}");
+    future.await;
+    eprintln!("Completed: {name} ({:?})", started.elapsed());
+}
 
 /* === Tests === */

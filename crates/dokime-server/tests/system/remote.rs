@@ -80,9 +80,14 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     }
 }
 
-pub async fn interruptions(client: &Client, endpoint: &str, root: &Path) {
+pub async fn interruptions(client: &Client, endpoint: &str, root: &Path, extension: &str) {
     *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
-    Box::pin(interruption::scripts(client, endpoint, root)).await;
+    Box::pin(interruption::scripts(client, endpoint, root, extension)).await;
+}
+
+pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
+    *BACKEND_IDENTIFIER.lock().unwrap() = client.backend().backend_id.clone();
+    Box::pin(interruption::disconnections(client, endpoint, root)).await;
 }
 
 /* === Private Functions === */
@@ -94,22 +99,28 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
         std::fs::write(directory.join("obc.run.started"), b"local record filename").unwrap();
         std::fs::write(directory.join("obc.pudding"), b"local stream filename").unwrap();
         let filters = [("RECORD_TYPES", "\"obc.run.*\""), ("STREAMS", "\"obc.pu*\"")];
-        configured_command(extension, workflow, endpoint, directory, &filters)
+        configured_command(extension, workflow, endpoint, directory, &filters).await
     } else {
-        command(extension, workflow, endpoint, directory)
+        command(extension, workflow, endpoint, directory).await
     };
     let output = command.output().await.unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let diagnostics = std::env::var_os("DOKIME_TEST_TRACE_DIR").map(PathBuf::from).unwrap_or_else(|| directory.to_owned());
+    let diagnostics = diagnostics.join(format!("remote-{}-{extension}-{workflow}", std::process::id()));
+    std::fs::create_dir_all(&diagnostics).unwrap();
+    std::fs::write(diagnostics.join("stdout.log"), &stdout).unwrap();
+    std::fs::write(diagnostics.join("stderr.log"), stderr.as_bytes()).unwrap();
     assert!(output.status.success(), "{extension} {workflow} failed with {}\n{stdout}\n{stderr}", output.status);
-    format!("{stdout}\n{stderr}")
+    let combined = format!("{stdout}\n{stderr}");
+    anstream::adapter::strip_str(&combined).to_string()
 }
 
-fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
-    configured_command(extension, workflow, endpoint, directory, &[])
+async fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
+    configured_command(extension, workflow, endpoint, directory, &[]).await
 }
 
-fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
+async fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
     let workspace = artifacts::workspace_root();
     let family = if extension == "py" { "python" } else { "cli" };
     let script = workspace.join(format!("packages/dokime-client/examples/remote/{family}/control-{workflow}.{extension}"));
@@ -118,9 +129,9 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
-    let pairing = directory.join("lab.dokime-pair");
+    let pairing = directory.join("lab.dokime-remote");
     let profiles = directory.join("profiles.json");
-    import_profile(&binary, endpoint, &pairing, &profiles);
+    import_profile(&binary, endpoint, &pairing, &profiles).await;
     let mut values = vec![
         ("BACKEND_IDENTIFIER", PROFILE_IDENTIFIER.to_owned()),
         ("PAIRING_FILE", pairing.to_str().unwrap().to_owned()),
@@ -150,12 +161,12 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     command
 }
 
-fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
+async fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
     // The Host Under Test Is An Unsecured Lab Listener: No CA Or Access Key.
     let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
     let document = serde_json::json!({
         "version": 1,
-        "endpoint": endpoint,
+        "endpoints": [endpoint],
         "backend_identifier": backend,
         "label": "Lab",
         "ca_certificate_pem": null,
@@ -163,12 +174,14 @@ fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path
     });
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
     let _ = std::fs::remove_file(profiles);
-    let output = dokime::domain::process::command(binary)
-        .args(["backend", "add", "--pairing"])
+    let output = Command::from(dokime::domain::process::command(binary))
+        .args(["backend", "add", "--remote"])
         .arg(pairing)
         .args(["--identifier", PROFILE_IDENTIFIER])
         .env("DOKIME_PROFILES_FILE", profiles)
+        .kill_on_drop(true)
         .output()
+        .await
         .unwrap();
     assert!(output.status.success(), "profile import failed: {}", String::from_utf8_lossy(&output.stderr));
 }
@@ -196,6 +209,8 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
                     "py" => {
                         let selected = if numeric {
                             value.clone()
+                        } else if matches!(*name, "PARAMETERS" | "STREAMS") {
+                            format!("json.loads({quoted})")
                         } else if value.is_empty() {
                             "None".into()
                         } else if matches!(*name, "ENDPOINT" | "CYCLE_LABEL" | "TEMPLATE" | "ANSWER") {
@@ -274,7 +289,7 @@ async fn conflicts(endpoint: &str, root: &Path, extension: &str) {
     // Bundle Conflicts Must Not Create A Cycle Or Admit Hardware Work.
     for workflow in ["test", "prompt"] {
         let directory = root.join(workflow);
-        let mut command = command(extension, workflow, endpoint, &directory);
+        let mut command = command(extension, workflow, endpoint, &directory).await;
         let destination = directory.join("cycle.zip");
         std::fs::write(&destination, b"existing evidence").unwrap();
         let output = command.output().await.unwrap();
@@ -339,12 +354,12 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
     assert_eq!(actual, executions);
 
     let path = directory.join("cycle.zip");
-    let samples = archive(&path, cycle_id, &executions, CyclePhase::Sealed, "passed");
+    let samples = archive(&path, cycle_id, &executions, CyclePhase::Sealed, "passed", "obc.pulse");
     for (index, id) in identities(stdout, "Execution: ").iter().enumerate() {
         let name = if workflow == "test" { format!("execution-{}.zip", index + 1) } else { "execution.zip".to_owned() };
         let path = directory.join(name);
         let selected = std::slice::from_ref(id);
-        let captured = archive(&path, cycle_id, selected, CyclePhase::Active, "passed");
+        let captured = archive(&path, cycle_id, selected, CyclePhase::Active, "passed", "obc.pulse");
         assert_eq!(captured[id], samples[id]);
     }
 
@@ -362,7 +377,7 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
 fn drained(stdout: &str, expected: usize, samples: &BTreeMap<String, u64>, extension: &str) {
     let summaries: Vec<Value> =
         stdout.lines().filter_map(|line| line.strip_prefix("Drained Evidence: ")).map(|text| serde_json::from_str(text).unwrap()).collect();
-    assert_eq!(summaries.len(), expected);
+    assert_eq!(summaries.len(), expected, "{extension} listener drain summaries:\n{stdout}");
     for summary in summaries {
         let id = summary["execution_id"].as_str().unwrap();
         if extension != "py" {
@@ -410,7 +425,7 @@ fn identities(stdout: &str, prefix: &str) -> Vec<String> {
         .collect()
 }
 
-fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str) -> BTreeMap<String, u64> {
+fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str, stream: &str) -> BTreeMap<String, u64> {
     let file = std::fs::File::open(path).unwrap_or_else(|error| {
         let present = std::fs::read_dir(path.parent().unwrap())
             .map(|entries| entries.filter_map(|entry| Some(entry.ok()?.file_name())).collect::<Vec<_>>())
@@ -452,26 +467,29 @@ fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, s
     let actual: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
     assert_eq!(actual, executions);
 
-    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status, path))).collect()
+    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status, path, stream))).collect()
 }
 
-fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str, archive: &Path) -> u64 {
+fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str, archive: &Path, selected: &str) -> u64 {
     let status: String =
         database.query_row("SELECT status FROM executions WHERE execution_id=?1 AND cycle_id=?2", [id, cycle], |row| row.get(0)).unwrap();
     assert_eq!(status, expected, "execution {id} in {}", archive.display());
 
     let stream: Option<(String, i64)> = database
-        .query_row("SELECT table_name,sample_count FROM streams WHERE execution_id=?1 AND stream_id='obc.pulse'", [id], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row(
+            "SELECT f.path,s.rows FROM streams s JOIN files f ON s.file_id=f.id WHERE s.execution_id=?1 AND s.stream_id=?2",
+            [id, selected],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .optional()
         .unwrap();
     let count = match stream {
-        Some((table, count)) => {
-            assert!(table.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'));
-            let query = format!("SELECT count(*) FROM {table}");
-            let physical: i64 = database.query_row(&query, [], |row| row.get(0)).unwrap();
-            assert_eq!(physical, count);
+        Some((member, count)) => {
+            let mut zip = zip::ZipArchive::new(std::fs::File::open(archive).unwrap()).unwrap();
+            let mut bytes = Vec::new();
+            zip.by_name(&member).unwrap().read_to_end(&mut bytes).unwrap();
+            let reader = arrow_ipc::reader::FileReader::try_new(std::io::Cursor::new(bytes), None).unwrap();
+            assert_eq!(reader.map(|batch| batch.unwrap().num_rows()).sum::<usize>() as i64, count);
             count
         }
         None => 0,

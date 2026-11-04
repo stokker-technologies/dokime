@@ -14,14 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Third Party Imports
 
 // Local Imports
 // Third-Party Imports
 use crate::error::Error;
+use crate::settings::SAMPLE_INTERVAL_MS;
 use crate::suites::common::system::{self, SystemInputs};
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
@@ -31,10 +31,8 @@ use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
 const LABEL: &str = "Pulse";
 pub const DEFAULT_SAMPLE_COUNT: i64 = 8;
-pub const SAMPLE_INTERVAL_MS: u64 = 100;
 pub const DEFAULT_TOLERANCE: f64 = 1e-9;
 const MAX_SAMPLE_COUNT: u64 = 64;
-const PROGRESS_POLL: Duration = Duration::from_millis(5);
 
 /* === Macros === */
 
@@ -61,10 +59,10 @@ pub struct RunCompleted {
 
 pub struct Pulse;
 
-#[derive(Default)]
 pub struct PulseResources {
     armed: AtomicBool,
-    produced: AtomicU64,
+    sample_count: u64,
+    produced: tokio::sync::watch::Sender<u64>,
 }
 
 // The attribute reads these fields once and generates every half: the columns
@@ -161,10 +159,14 @@ pub enum ObserverStreams {
     parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
 impl Pulse {
     async fn initialize(
-        _: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
+        parameters: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
-        let shared = PulseResources::default();
+        let shared = PulseResources {
+            armed: AtomicBool::new(false),
+            sample_count: parameters.sample_count,
+            produced: tokio::sync::watch::Sender::new(0),
+        };
         Ok((template, shared))
     }
 
@@ -200,7 +202,6 @@ impl Pulse {
         // === Start Signal Capture === //
 
         ctx.publish(RunStarted {}).await;
-        ctx.resources().armed.store(true, Ordering::Release);
 
         Ok(())
     }
@@ -214,17 +215,16 @@ impl Pulse {
         // template-wide samples(...) declaration is needed for this window.
         let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
-        let started = ctx.resources().produced.load(Ordering::Acquire);
-        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
-            tokio::time::sleep(PROGRESS_POLL).await;
-        }
+        let mut produced = ctx.resources().produced.subscribe();
+        ctx.resources().armed.store(true, Ordering::Release);
+        produced.wait_for(|count| *count >= wanted).await.expect("the resources retain the sample counter");
 
         Ok(())
     }
 
     #[dokime::step(label = "Complete", description = "The last phase: say what the run produced.")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let produced = ctx.resources().produced.load(Ordering::Acquire);
+        let produced = *ctx.resources().produced.borrow();
         ctx.publish(RunCompleted { samples: produced }).await;
 
         Ok(())
@@ -256,13 +256,16 @@ impl Pulse {
             return Ok(());
         }
         // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
-        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let index = *ctx.resources().produced.borrow();
         ctx.publish(PulseRow {
             sample_index: index as i64,
             value: pulse_value(index),
         })
         .await;
-        ctx.resources().produced.store(index + 1, Ordering::Release);
+        if index + 1 >= ctx.resources().sample_count {
+            ctx.resources().armed.store(false, Ordering::Release);
+        }
+        ctx.resources().produced.send_replace(index + 1);
 
         Ok(())
     }

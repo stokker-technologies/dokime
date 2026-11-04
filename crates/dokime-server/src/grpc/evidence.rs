@@ -98,8 +98,8 @@ impl Reader {
         let record_items = usize::try_from(SERVER_EVIDENCE_RECORD_ITEMS).expect("validated record page count");
         let page_bytes = usize::try_from(SERVER_EVIDENCE_PAGE_BYTES).expect("validated record page bytes");
         let session = runtime.storage().clone();
-        let source = runtime.captured_records_in(&session);
         let selection = Selection::new(selection)?;
+        let source = runtime.captured_records_in(&session).select_scope(selection.owners());
         let validate = |cursor: &Cursor| {
             if cursor.epoch != source.epoch() || cursor.stream != selection.stream {
                 return Err(Status::failed_precondition("record cursor epoch/selection mismatch; resynchronize without cursors"));

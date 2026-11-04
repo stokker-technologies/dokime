@@ -47,6 +47,7 @@ dokime-domain = { workspace = true }
 dokime-runtime = { workspace = true }
 
 # Git
+harmos-packaging = { workspace = true, optional = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -55,7 +56,6 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-harmos-packaging = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 
 # Serialization

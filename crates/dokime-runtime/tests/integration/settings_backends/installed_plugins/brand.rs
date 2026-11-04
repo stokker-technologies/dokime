@@ -17,6 +17,7 @@
 use std::{fs, path::Path};
 
 // Third Party Imports
+use base64::Engine as _;
 use dokime_runtime::domains::{ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy};
 use tempfile::tempdir;
 
@@ -271,8 +272,27 @@ pub(crate) fn generated_organization_stylesheet_matches_runtime_resolution() {
     let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .join("../../organization");
     let resolved = load_brand(&directory).unwrap();
-    let stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
-    let generated = fs::read_to_string(directory.join("../crates/dokime-gui/src/generated/organization/theme.css")).unwrap();
+    let mut stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
+    let mut generated = fs::read_to_string(directory.join("../crates/dokime-gui/src/generated/organization/theme.css")).unwrap();
+
+    // Compare Font Bytes Across The Generated And Runtime Data URI Encodings.
+    for font in fs::read_dir(directory.join("fonts")).unwrap() {
+        let path = font.unwrap().path();
+        let mime = match path.extension().and_then(|extension| extension.to_str()) {
+            Some("woff2") => "font/woff2",
+            Some("woff") => "font/woff",
+            Some("ttf") => "font/ttf",
+            Some("otf") => "font/otf",
+            _ => continue,
+        };
+        let bytes = fs::read(path).unwrap();
+        let escaped = bytes.iter().map(|byte| format!("%{byte:02X}")).collect::<String>();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let generated_uri = format!("data:{mime},{escaped}");
+        let runtime_uri = format!("data:{mime};base64,{encoded}");
+        generated = generated.replace(&generated_uri, &runtime_uri);
+        stylesheet = stylesheet.replace(&generated_uri, &runtime_uri);
+    }
 
     assert_eq!(generated, stylesheet);
 }

@@ -32,7 +32,7 @@ from dokime_client.client import DokimeClient, DokimeError
 # === Constants === #
 
 # Connection Parameters
-PAIRING_FILE = Path("../lab.dokime-pair")
+PAIRING_FILE = Path("../lab.dokime-remote")
 
 # === Types === #
 

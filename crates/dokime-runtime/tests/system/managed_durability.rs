@@ -41,6 +41,7 @@
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn managed_durability() {
     crate::managed_support::managed_durability(7, 1440).await;

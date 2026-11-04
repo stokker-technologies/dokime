@@ -172,8 +172,8 @@ async fn current(
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
-            if !at.covers(boundary)? {
-                return Err(invalid("pending member evidence exceeds cycle report boundary"));
+            if !storage.cursor_saved().covers(boundary)? {
+                return Err(invalid("pending member evidence is not durable"));
             }
             // A Finalizing Member Keeps Its Owner, Which Already Refuses New Producers.
             if resources.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
@@ -202,6 +202,17 @@ async fn current(
         };
         plans.push(plan);
     }
+    let requests = plans
+        .iter()
+        .filter_map(|plan| match plan {
+            Member::Captured(inspection, _) => Some(crate::report::materialize::evidence_request(inspection, false)),
+            _ => None,
+        })
+        .collect::<Result<Vec<_>>>()?;
+    // A Current Report Freezes Its Read After Member Admission. A Member Can
+    // Seal While Admission Waits, Beyond The Caller's Earlier Durable Cursor.
+    let at = &storage.cursor_saved();
+    let mut evidence = ctx.storage.report_evidence(requests).await?.into_iter();
     drop(gate);
     let mut members = Vec::with_capacity(plans.len());
     let mut pending = FuturesOrdered::new();
@@ -211,13 +222,21 @@ async fn current(
         {
             members.push(member?);
         }
+        let snapshot = if matches!(&plan, Member::Captured(_, _)) { evidence.next() } else { None };
         pending.push_back(async move {
             Ok::<_, Error>(match plan {
                 Member::Planned(execution) => CycleMember::Planned(execution),
                 Member::Sealed(seal) => sealed_member(ctx, resources, &seal, at, progress).await?,
-                Member::Captured(inspection, _guard) => {
-                    CycleMember::capture(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)?
-                }
+                Member::Captured(inspection, _guard) => CycleMember::capture(
+                    crate::report::materialize::execution_with_evidence(
+                        ctx,
+                        &inspection,
+                        false,
+                        progress,
+                        snapshot.expect("captured member has evidence"),
+                    )
+                    .await?,
+                )?,
             })
         });
     }

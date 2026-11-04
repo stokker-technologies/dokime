@@ -189,6 +189,7 @@ export function useExecutionActions({
         .then(() => toast.success(report.done))
         .catch((error: unknown) =>
           toast.error(report.failed, {
+            error,
             description: error instanceof Error ? error.message : String(error),
           }),
         );

@@ -62,6 +62,7 @@ pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 // The Opened Owners A Boot Hands To Handle Assembly.
 pub(crate) struct BootParts {
     pub(crate) config: RuntimeConfig,
+    query: crate::config::QueryConfig,
     pub(crate) record_namespace: SessionId,
     installed_plugins: InstalledPlugins,
     pub(crate) storage: crate::storage::Manager,
@@ -119,6 +120,7 @@ pub struct RuntimeHandle {
     pub(crate) action_dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
     pub(crate) routing: Arc<std::sync::OnceLock<harmos::plugin::Router>>,
     config: Arc<RuntimeConfig>,
+    query: crate::config::QueryConfig,
     settings: crate::config::Settings,
     plugin_preferences: Arc<PluginPreferences>,
     secrets: Arc<SecretStore>,
@@ -231,7 +233,7 @@ impl RuntimeHandle {
             live: live.clone(),
             boot,
             #[cfg(feature = "fault-injection")]
-            decorate,
+            decorate: decorate.map(|decorate| Arc::new(std::sync::Mutex::new(Some(decorate)))),
         };
         let outcome = HarmosRuntime::launch(state, Some(launch)).await;
         let harmos = match outcome {
@@ -265,10 +267,20 @@ impl RuntimeHandle {
         let config = launch.config;
         let providers = launch.providers;
         #[cfg(feature = "fault-injection")]
-        let decorate = launch.decorate;
+        let decorate = launch
+            .decorate
+            .map(|owner| {
+                owner
+                    .lock()
+                    .expect("launch decorator owner is healthy")
+                    .take()
+                    .ok_or_else(|| Error::Operation("launch decorator was already consumed".into()))
+            })
+            .transpose()?;
         let boot_started = std::time::Instant::now();
         let installed_plugins = check_boot_config(&config)?;
         config.storage.validate()?;
+        let query = config.query.compose(&config.storage, &config.schema)?;
         harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend = Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.local_storage).await?);
         let local_state = backend.local_state();
@@ -302,6 +314,7 @@ impl RuntimeHandle {
         let resources = crate::app::Resources::new(config.schema);
         *resources.analysis.dispatchers.write().expect("analysis dispatcher registry is healthy") = config.action_dispatchers.clone();
         Ok(BootParts {
+            query,
             record_namespace: launch.record_namespace,
             config,
             installed_plugins,
@@ -322,6 +335,7 @@ impl RuntimeHandle {
     // Activate Prepared Resources, Recover Receipts And Assemble The Booted Handle.
     pub(crate) async fn initialize(harmos_runtime: &harmos::runtime::Handle<Dokime>, parts: BootParts, prepared: Prepared) -> Result<Self> {
         let BootParts {
+            query,
             record_namespace: _,
             config,
             installed_plugins,
@@ -378,14 +392,17 @@ impl RuntimeHandle {
         let execution_storage = Arc::new(
             crate::runtime::storage::executions::ExecutionStorage::new(
                 storage.clone(),
+                local_state.clone(),
                 harmos_runtime.state.clone(),
                 process_id,
                 brand.clone(),
                 config.schema,
+                config.local_storage.previews,
             )
             .await?,
         );
         let runtime = Self {
+            query,
             local_storage: local_state.clone(),
             request_storage,
             storage: storage.clone(),
@@ -513,6 +530,10 @@ impl RuntimeHandle {
 
     pub fn settings(&self) -> &crate::config::Settings {
         &self.settings
+    }
+
+    pub fn query_config(&self) -> &crate::config::QueryConfig {
+        &self.query
     }
 
     pub fn schema_settings(&self) -> &harmos::config::SchemaSettings {

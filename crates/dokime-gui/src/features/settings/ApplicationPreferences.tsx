@@ -95,6 +95,14 @@ const FIELDS: PreferenceField[] = [
     advanced: true,
   },
   {
+    group: "client",
+    key: "endpoint_stagger_ms",
+    label: "Endpoint Stagger",
+    help: "Delay between remote endpoint connection attempts.",
+    unit: "ms",
+    advanced: true,
+  },
+  {
     group: "telemetry",
     key: "interval_ms",
     label: "Telemetry Interval",
@@ -171,7 +179,7 @@ function ScopedPreferences({
         </p>
       ) : query.error ? (
         <div className="grid justify-items-start gap-3 p-4 text-sm">
-          <NotificationMessage>{preferencesError(query.error)}</NotificationMessage>
+          <NotificationMessage error={query.error}>{preferencesError(query.error)}</NotificationMessage>
           <Button variant="outline" onClick={() => void query.refetch()}>
             Retry
           </Button>
@@ -381,7 +389,7 @@ function PreferencesForm({
       )}
       {(failure || save.error) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <NotificationMessage>{preferencesError(failure ?? save.error)}</NotificationMessage>
+          <NotificationMessage error={failure ?? save.error}>{preferencesError(failure ?? save.error)}</NotificationMessage>
           <Button
             variant="outline"
             onClick={async () => {

@@ -26,6 +26,7 @@ pub(crate) mod history;
 pub(crate) mod native_outputs;
 mod notes;
 mod paging;
+pub(crate) mod plot_previews;
 pub(crate) mod presentation;
 pub(crate) mod record_capture;
 pub(crate) mod record_pages;

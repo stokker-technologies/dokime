@@ -53,8 +53,8 @@ pub(in crate::storage::sqlite) struct Batch {
 }
 
 #[derive(Clone, Copy, Default)]
-struct Moments {
-    count: u64,
+pub(crate) struct Moments {
+    pub(crate) count: u64,
     sum: f64,
     mean: f64,
     lowest: f64,
@@ -68,7 +68,7 @@ struct Moments {
 pub(crate) struct NumericSummary {
     pub(crate) stream: String,
     pub(crate) field: String,
-    pub(crate) statistics: Vec<(&'static str, f64)>,
+    pub(crate) statistics: Vec<(String, f64)>,
 }
 
 /* === Enums === */
@@ -78,7 +78,9 @@ pub(crate) struct NumericSummary {
 /* === Implementations === */
 
 impl Batch {
-    pub(in crate::storage::sqlite) fn push(&mut self, connection: &Connection, row: &StoredRow) -> Result<(), Error> {
+    pub(in crate::storage::sqlite) fn push(
+        &mut self, connection: &Connection, row: &StoredRow, previews: &mut super::previews::Batch,
+    ) -> Result<(), Error> {
         let Some(execution) = row.record.scope.as_ref() else {
             return Ok(());
         };
@@ -86,6 +88,7 @@ impl Batch {
             return Ok(());
         }
         for (field, value) in crate::storage::telemetry::numeric_metadata(&row.record.payload)? {
+            previews.push(connection, row, &field, value)?;
             let key = (execution.to_string(), row.stream.to_string(), field);
             if let std::collections::btree_map::Entry::Vacant(entry) = self.fields.entry(key.clone()) {
                 let existing: Option<Vec<u8>> = connection
@@ -129,7 +132,25 @@ impl Batch {
 }
 
 impl Moments {
-    fn push(&mut self, value: f64) -> Result<(), Error> {
+    pub(crate) fn value(&self, method: harmos::Aggregate) -> Option<f64> {
+        use harmos::Aggregate;
+        if self.count == 0 {
+            return None;
+        }
+        let std = if self.deviations.is_nan() { f64::NAN } else { (self.deviations / self.count as f64).max(0.0).sqrt() };
+        Some(match method {
+            Aggregate::Count => self.count as f64,
+            Aggregate::Sum => self.sum,
+            Aggregate::Mean => self.mean,
+            Aggregate::Min => self.lowest,
+            Aggregate::Max => self.highest,
+            Aggregate::Std => std,
+            Aggregate::Rms => self.mean.hypot(std),
+            _ => return None,
+        })
+    }
+
+    pub(crate) fn push(&mut self, value: f64) -> Result<(), Error> {
         let before = self.mean;
         self.count = self.count.checked_add(1).ok_or(Error::Data("numeric summary count overflow"))?;
         self.sum += value;
@@ -191,52 +212,76 @@ impl Moments {
 
 impl crate::storage::sqlite::State {
     pub(crate) async fn numeric_summaries(&self, execution: String) -> Result<Vec<NumericSummary>, Error> {
-        self.read(move |connection| {
-            Ok((|| {
-                let mut query = connection
-                    .prepare("SELECT stream,field,moments FROM storage_numeric_summaries WHERE execution=?1 ORDER BY stream,field")?;
-                let mut rows = query.query([&execution])?;
-                let mut summaries = Vec::new();
-                while let Some(row) = rows.next()? {
-                    let stream: String = row.get(0)?;
-                    let field: String = row.get(1)?;
-                    let moments = Moments::decode(blob(row, 2)?)?;
-                    let std = (moments.deviations / moments.count as f64).max(0.0).sqrt();
-                    let key = (execution.clone(), stream.clone(), field.clone());
-                    let statistics = vec![
-                        ("count", moments.count as f64),
-                        ("first", moments.first),
-                        ("last", moments.last),
-                        ("min", moments.lowest),
-                        ("max", moments.highest),
-                        ("mean", moments.mean),
-                        ("median", percentile(connection, &key, moments.count, 50)?),
-                        ("std", std),
-                        ("rms", moments.mean.hypot(std)),
-                        ("max_abs", moments.max_abs),
-                        ("sum", moments.sum),
-                        ("p95", percentile(connection, &key, moments.count, 95)?),
-                        ("p99", percentile(connection, &key, moments.count, 99)?),
-                    ];
-                    if statistics.iter().any(|(_, value)| !value.is_finite()) {
-                        return Err(Error::Data("numeric aggregate exceeds finite range"));
-                    }
-                    summaries.push(NumericSummary { stream, field, statistics });
-                }
-                Ok(summaries)
-            })())
-        })
-        .await?
+        self.read(move |connection| Ok(numeric_summaries(connection, execution))).await?
     }
 }
 
 /* === Public Functions === */
 
+pub(super) fn numeric_percentile(
+    connection: &Connection, execution: String, stream: String, field: String, rank: u8,
+) -> Result<Option<f64>, Error> {
+    if rank > 100 {
+        return Err(Error::Data("invalid percentile rank"));
+    }
+
+    let moments: Option<Vec<u8>> = connection
+        .query_row(
+            "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
+            params![execution, stream, field],
+            |row| row.get(0),
+        )
+        .optional()?;
+    moments.map(|moments| percentile(connection, &(execution, stream, field), Moments::decode(&moments)?.count, rank)).transpose()
+}
+
+pub(super) fn numeric_summaries(connection: &Connection, execution: String) -> Result<Vec<NumericSummary>, Error> {
+    let mut query =
+        connection.prepare("SELECT stream,field,moments FROM storage_numeric_summaries WHERE execution=?1 ORDER BY stream,field")?;
+    let mut rows = query.query([&execution])?;
+    let mut summaries = Vec::new();
+    while let Some(row) = rows.next()? {
+        let stream: String = row.get(0)?;
+        let field: String = row.get(1)?;
+        let moments = Moments::decode(blob(row, 2)?)?;
+        let std = (moments.deviations / moments.count as f64).max(0.0).sqrt();
+        let key = (execution.clone(), stream.clone(), field.clone());
+        let statistics: Vec<_> = vec![
+            ("count", moments.count as f64),
+            ("first", moments.first),
+            ("last", moments.last),
+            ("min", moments.lowest),
+            ("max", moments.highest),
+            ("mean", moments.mean),
+            ("median", percentile(connection, &key, moments.count, 50)?),
+            ("std", std),
+            ("rms", moments.mean.hypot(std)),
+            ("max_abs", moments.max_abs),
+            ("sum", moments.sum),
+            ("p95", percentile(connection, &key, moments.count, 95)?),
+            ("p99", percentile(connection, &key, moments.count, 99)?),
+        ]
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value))
+        .collect();
+        if statistics.iter().any(|(_, value)| !value.is_finite()) {
+            return Err(Error::Data("numeric aggregate exceeds finite range"));
+        }
+        summaries.push(NumericSummary { stream, field, statistics });
+    }
+    Ok(summaries)
+}
+
 /* === Private Functions === */
 
-fn ordered(value: f64) -> u64 {
+pub(crate) fn ordered(value: f64) -> u64 {
     let bits = value.to_bits();
     if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
+}
+
+pub(crate) fn unordered(value: u64) -> f64 {
+    let bits = if value >> 63 != 0 { value ^ (1 << 63) } else { !value };
+    f64::from_bits(bits)
 }
 
 fn rank(connection: &Connection, key: &Key, mut ordinal: u64) -> Result<f64, Error> {
@@ -259,8 +304,7 @@ fn rank(connection: &Connection, key: &Key, mut ordinal: u64) -> Result<f64, Err
         prefix.push(selected.ok_or(Error::Corrupt("numeric rank is absent"))?);
     }
     let ordered = u64::from_be_bytes(prefix.try_into().unwrap());
-    let bits = if ordered >> 63 != 0 { ordered ^ (1 << 63) } else { !ordered };
-    Ok(f64::from_bits(bits))
+    Ok(unordered(ordered))
 }
 
 fn percentile(connection: &Connection, key: &Key, count: u64, percentile: u8) -> Result<f64, Error> {

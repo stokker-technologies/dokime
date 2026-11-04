@@ -36,6 +36,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, ThisError)]
 pub enum Error {
+    #[error(transparent)]
+    Query(#[from] Box<dokime_domain::model::query::error::Failure>),
+
     #[error("interface lifecycle failed: {source}")]
     Hosting {
         #[source]
@@ -119,13 +122,16 @@ pub enum Error {
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),
 
+    #[error("The report could not be created from saved evidence. Try again; if the problem continues, collect diagnostics.")]
+    ReportUnavailable(#[source] Box<Error>),
+
     #[error("invalid checkpoint query: {0}")]
     InvalidCheckpointQuery(String),
 
     #[error("Plugin {plugin} could not initialize\n  Cause: {reason}")]
     PluginInitialization { plugin: String, reason: String },
 
-    #[error("Plugin {plugin} could not start: {}", harmos::domain::failure::Report(source.as_ref()))]
+    #[error("{}", super::plugins::start_error(plugin, plugin, source))]
     PluginStart {
         plugin: String,
 

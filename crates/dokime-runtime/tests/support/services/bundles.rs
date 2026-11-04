@@ -103,11 +103,26 @@ pub fn plugin_obc_bundle() -> std::path::PathBuf {
 }
 
 pub fn host_plugin_bundle() -> std::path::PathBuf {
-    built_bundle("plugins/plugin-host.dokime")
+    built_bundle("fixtures/plugins/plugin-host.dokime")
+}
+
+pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {
+    let settings = [
+        "system_interval_ms",
+        "network_interval_ms",
+        "wifi_link_interval_ms",
+        "wifi_scan_interval_ms",
+        "wifi_latency_interval_ms",
+        "bluetooth_interval_ms",
+    ]
+    .map(|setting| (setting, super::budgets::CADENCE_MS))
+    .into_iter()
+    .collect::<std::collections::BTreeMap<_, _>>();
+    dokime_runtime::plugins::PluginBundle::new(host_plugin_bundle()).configured("plugin_host", settings).unwrap()
 }
 
 fn built_bundle(relative: &str) -> std::path::PathBuf {
-    let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     assert!(matches!(profile.as_str(), "dev" | "release"));
     let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
     let workspace = std::path::PathBuf::from(manifest)

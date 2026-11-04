@@ -32,7 +32,6 @@ pub use list_telemetry_schemas::ListTelemetrySchemas;
 // Third Party Imports
 
 // Local Imports
-use super::Endpoint;
 use super::ORDINARY;
 
 use dokime_domain::model::definition::wire::*;
@@ -63,30 +62,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for ListSuites {
-    const PATH: &'static str = "/dokime.v1.Catalog/ListSuites";
-}
-
-impl Endpoint for GetSuite {
-    const PATH: &'static str = "/dokime.v1.Catalog/GetSuite";
-}
-
-impl Endpoint for ListRecordSchemas {
-    const PATH: &'static str = "/dokime.v1.Catalog/ListRecordSchemas";
-}
-
-impl Endpoint for GetRecordSchema {
-    const PATH: &'static str = "/dokime.v1.Catalog/GetRecordSchema";
-}
-
-impl Endpoint for ListTelemetrySchemas {
-    const PATH: &'static str = "/dokime.v1.Catalog/ListTelemetrySchemas";
-}
-
-impl Endpoint for GetTelemetrySchema {
-    const PATH: &'static str = "/dokime.v1.Catalog/GetTelemetrySchema";
-}
 
 /* === Public Functions === */
 

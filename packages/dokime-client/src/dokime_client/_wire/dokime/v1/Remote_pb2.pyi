@@ -3,8 +3,9 @@ from dokime_client._wire.dokime.v1.RemoteMessages.ListPairedClients import messa
 from dokime_client._wire.dokime.v1.RemoteMessages.ListSessions import messages_pb2 as _messages_pb2_1_1
 from dokime_client._wire.dokime.v1.RemoteMessages.ReadListener import messages_pb2 as _messages_pb2_1_1_1
 from dokime_client._wire.dokime.v1.RemoteMessages.RegenerateCertificate import messages_pb2 as _messages_pb2_1_1_1_1
-from dokime_client._wire.dokime.v1.RemoteMessages.RevokePairedClient import messages_pb2 as _messages_pb2_1_1_1_1_1
-from dokime_client._wire.dokime.v1.RemoteMessages.UpdateListener import messages_pb2 as _messages_pb2_1_1_1_1_1_1
+from dokime_client._wire.dokime.v1.RemoteMessages.RenamePairedClient import messages_pb2 as _messages_pb2_1_1_1_1_1
+from dokime_client._wire.dokime.v1.RemoteMessages.RevokePairedClient import messages_pb2 as _messages_pb2_1_1_1_1_1_1
+from dokime_client._wire.dokime.v1.RemoteMessages.UpdateListener import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Mapping as _Mapping
@@ -112,6 +113,26 @@ class RemoteRegenerateCertificateRunOutput(_message.Message):
     response: _messages_pb2_1_1_1_1.Row2
     def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
 
+class RemoteRenamePairedClientCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class RemoteRenamePairedClientRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2_1_1_1_1_1.Row1
+    cancel: RemoteRenamePairedClientCancellation
+    finish: RemoteRenamePairedClientCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[RemoteRenamePairedClientCancellation, _Mapping]] = ..., finish: _Optional[_Union[RemoteRenamePairedClientCancellation, _Mapping]] = ...) -> None: ...
+
+class RemoteRenamePairedClientRunOutput(_message.Message):
+    __slots__ = ("response",)
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2_1_1_1_1_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
+
 class RemoteRevokePairedClientCancellation(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
@@ -121,16 +142,16 @@ class RemoteRevokePairedClientRunInput(_message.Message):
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CANCEL_FIELD_NUMBER: _ClassVar[int]
     FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1_1.Row1
+    request: _messages_pb2_1_1_1_1_1_1.Row1
     cancel: RemoteRevokePairedClientCancellation
     finish: RemoteRevokePairedClientCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[RemoteRevokePairedClientCancellation, _Mapping]] = ..., finish: _Optional[_Union[RemoteRevokePairedClientCancellation, _Mapping]] = ...) -> None: ...
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[RemoteRevokePairedClientCancellation, _Mapping]] = ..., finish: _Optional[_Union[RemoteRevokePairedClientCancellation, _Mapping]] = ...) -> None: ...
 
 class RemoteRevokePairedClientRunOutput(_message.Message):
     __slots__ = ("response",)
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    response: _messages_pb2_1_1_1_1_1.Row2
-    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
+    response: _messages_pb2_1_1_1_1_1_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
 
 class RemoteUpdateListenerCancellation(_message.Message):
     __slots__ = ()
@@ -141,13 +162,13 @@ class RemoteUpdateListenerRunInput(_message.Message):
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CANCEL_FIELD_NUMBER: _ClassVar[int]
     FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1_1_1.Row1
+    request: _messages_pb2_1_1_1_1_1_1_1.Row1
     cancel: RemoteUpdateListenerCancellation
     finish: RemoteUpdateListenerCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[RemoteUpdateListenerCancellation, _Mapping]] = ..., finish: _Optional[_Union[RemoteUpdateListenerCancellation, _Mapping]] = ...) -> None: ...
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[RemoteUpdateListenerCancellation, _Mapping]] = ..., finish: _Optional[_Union[RemoteUpdateListenerCancellation, _Mapping]] = ...) -> None: ...
 
 class RemoteUpdateListenerRunOutput(_message.Message):
     __slots__ = ("response",)
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    response: _messages_pb2_1_1_1_1_1_1.Row2
-    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
+    response: _messages_pb2_1_1_1_1_1_1_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...

@@ -23,6 +23,7 @@ mod row;
 mod settings;
 mod suite;
 mod template;
+mod test_trace;
 
 /* === Re-Exports === */
 
@@ -50,6 +51,11 @@ use proc_macro::TokenStream;
 /* === Implementations === */
 
 /* === Public Functions === */
+
+#[proc_macro_attribute]
+pub fn trace_test(attribute: TokenStream, item: TokenStream) -> TokenStream {
+    test_trace::expand(attribute.into(), item.into()).into()
+}
 
 #[proc_macro_attribute]
 pub fn parameters(attribute: TokenStream, item: TokenStream) -> TokenStream {

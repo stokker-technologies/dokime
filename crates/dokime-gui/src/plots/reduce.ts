@@ -47,9 +47,11 @@ export function windowIndices(
   series: readonly Values[],
   range: { min: number; max: number } | null,
   columns: number,
+  fitPixels = false,
 ): number[] | null {
   const length = x.length;
-  const buckets = Math.max(1, Math.floor(columns));
+  // Reports Share One X Grid: Budget Four Corners Per Trace Plus The Two Extent Endpoints.
+  const buckets = Math.max(1, Math.floor(fitPixels ? (columns - 2) / (4 * Math.max(1, series.length)) : columns));
   if (length <= 4 * buckets) return null;
 
   const from = range ? Math.max(0, lowerBound(x, range.min) - 1) : 0;

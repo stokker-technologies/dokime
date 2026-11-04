@@ -157,6 +157,119 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn captured_record_watch() {
+    tokio::time::timeout(Duration::from_secs(120), captured_watch()).await.unwrap();
+}
+
+async fn captured_watch() {
+    let root = tempfile::tempdir().unwrap();
+    let expectation = Arc::new(Expectation {
+        budget: Duration::from_secs(120),
+        listening: Notify::new(),
+        heard: Default::default(),
+    });
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let config = support::budgets::runtime_config(root.path(), support::metadata("capture.watch", "Capture Watch"))
+        .register(Arc::new(Bench { expectation: expectation.clone() }));
+    let mut owner = Runtime::start(prepared.configuration(config)).await.unwrap();
+    let handle = owner.handle();
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let suite = BenchSuite::definition().suite;
+    let cycle =
+        support::cycle_with_cases(&handle, support::metadata("capture.cycle", "Capture Cycle"), support::materialize_cases(SUITE, &suite))
+            .await;
+    let execution = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+    let receipt = handle.start_execution(execution.clone(), model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+    assert!(receipt.rejection.is_none(), "{receipt:?}");
+    expectation.listening.notified().await;
+    let selection = model::evidence::wire::CapturedRecordSelection {
+        record_types: vec!["tool.connection.acquired".into()],
+        scope: Some(model::identity::wire::EvidenceScope {
+            execution_id: Some(execution.to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let mut watch = client
+        .download::<contracts::evidence::WatchRecords>(contracts::evidence::WatchRecords {
+            selection: Some(selection.clone()),
+            after: None,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let initial = watch.message().await.unwrap().unwrap();
+    assert!(initial.records.is_empty());
+    handle.publish_record(connection("captured-unit")).await.unwrap();
+    let captured = loop {
+        let page = watch.message().await.unwrap().unwrap();
+        if let Some(record) = page.records.first() {
+            break record.clone();
+        }
+    };
+    assert!(captured.scope.as_ref().is_none_or(|scope| scope.execution_id.is_none()));
+    let replay = client
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(replay.records.iter().map(|record| &record.record_id).collect::<Vec<_>>(), vec![&captured.record_id]);
+    let cycle_page = client
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(model::evidence::wire::CapturedRecordSelection {
+                scope: Some(model::identity::wire::EvidenceScope {
+                    cycle_id: Some(cycle.to_string()),
+                    ..Default::default()
+                }),
+                ..selection.clone()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(cycle_page.records.len(), 1);
+    let unrelated = client
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(model::evidence::wire::CapturedRecordSelection {
+                scope: Some(model::identity::wire::EvidenceScope {
+                    execution_id: Some(dokime::TestExecutionId::from_seed("unrelated").to_string()),
+                    ..Default::default()
+                }),
+                ..selection
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(unrelated.records.is_empty());
+    let runtime_page = handle
+        .selected_records(dokime::domains::evidence::RecordSelection {
+            record_types: vec![Identifier::new("tool.connection.acquired").unwrap()],
+            scope: dokime::domains::evidence::ScopeSelection {
+                test_execution_id: Some(execution),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(runtime_page.len(), 1);
+    assert!(runtime_page[0].scope.as_ref().is_none_or(|scope| scope.test_execution_id.is_none()));
+    drop(watch);
+    drop(client);
+    drop(handle);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
 // A step waiting on a host record proceeds when the host publishes it from
 // outside the execution.
 pub(crate) async fn step_awaits_record() {

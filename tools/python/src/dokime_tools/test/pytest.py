@@ -60,6 +60,12 @@ def run(
     """One pytest lane whose per-story deadline is the lane maximum."""
     if not (project / suite).is_dir():
         raise policy.TestError(f"missing Python suite {project / suite}")
+    # Integration Fixtures Own Ephemeral Sockets And Worker-Local Temporary Roots.
+    parallel = []
+    if suite == "tests/integration" and not any(
+        value in ("-n", "--numprocesses") or value.startswith(("-n", "--numprocesses=")) for value in arguments
+    ):
+        parallel = ["-n", "auto", "--dist=worksteal", "--max-worker-restart=0"]
     return [
         sys.executable,
         "-m",
@@ -69,6 +75,7 @@ def run(
         f"--timeout={deadline}",
         f"--junitxml={junit}",
         suite,
+        *parallel,
         *arguments,
     ]
 

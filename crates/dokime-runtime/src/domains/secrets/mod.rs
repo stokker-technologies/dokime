@@ -31,7 +31,6 @@ use zeroize::Zeroizing;
 // Local Imports
 use crate::config::{RuntimeConfig, Settings};
 use dokime_domain::model::secrets::catalog::{self, Catalog, Metadata, Slot};
-use dokime_domain::model::secrets::{RedactedSecretBinding, SecretBackendKind};
 
 /* === Constants === */
 
@@ -117,24 +116,14 @@ impl SecretStore {
         Ok(self.settings.read(|document| document.secrets.clone()).await?)
     }
 
-    pub(crate) async fn snapshot(&self, cleanup_pending: bool) -> Result<catalog::Snapshot, SecretStoreError> {
+    pub(crate) async fn snapshot(
+        &self, cleanup_pending: bool, mut uses: BTreeMap<String, Vec<String>>,
+    ) -> Result<catalog::Snapshot, SecretStoreError> {
         let host = self.host.clone();
         let label = self.label.clone();
         Ok(self
             .settings
             .read(move |document| {
-                let mut uses: BTreeMap<String, Vec<String>> = BTreeMap::new();
-                for plugin in document.plugins.values() {
-                    for (program, values) in &plugin.programs {
-                        for (setting, value) in &values.values {
-                            if let Ok(crate::settings::SecretReference::StoredSecret { secret_id }) =
-                                crate::settings::SecretReference::try_from(value)
-                            {
-                                uses.entry(secret_id).or_default().push(format!("{program}.{setting}"));
-                            }
-                        }
-                    }
-                }
                 let entries = document
                     .secrets
                     .entries
@@ -153,21 +142,6 @@ impl SecretStore {
                 }
             })
             .await?)
-    }
-
-    pub(crate) async fn set_secret(&self, identifier: &str, value: &str) -> Result<(), SecretStoreError> {
-        let current = self.catalog().await?;
-        let metadata = current.entries.get(identifier).map(|entry| entry.metadata.clone()).unwrap_or_else(|| Metadata {
-            identifier: identifier.into(),
-            label: identifier.into(),
-            description: None,
-        });
-        let change = Change {
-            metadata,
-            value: Some(SecretValue::new(value.to_owned())),
-        };
-        self.apply(vec![change], &[], current.generation).await?;
-        Ok(())
     }
 
     pub(crate) async fn get_secret(&self, identifier: &str) -> Result<Option<SecretValue>, SecretStoreError> {
@@ -194,15 +168,6 @@ impl SecretStore {
         catalog::validate_identifier(identifier).map_err(SecretStoreError::Invalid)?;
         catalog::check_identifier_limit(identifier).map_err(SecretStoreError::Invalid)?;
         Ok(self.catalog().await?.entries.contains_key(identifier))
-    }
-
-    pub(crate) async fn redacted_binding(&self, identifier: impl Into<String>) -> Result<RedactedSecretBinding, SecretStoreError> {
-        let secret_id = identifier.into();
-        Ok(RedactedSecretBinding {
-            configured: self.contains(&secret_id).await?,
-            backend: SecretBackendKind::OsKeyring,
-            secret_id,
-        })
     }
 
     pub(crate) async fn apply(&self, changes: Vec<Change>, removed: &[String], expected: u64) -> Result<bool, SecretStoreError> {

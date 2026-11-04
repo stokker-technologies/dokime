@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod adapters;
+mod cadence;
 mod collectors;
 mod controls;
 mod cpu;

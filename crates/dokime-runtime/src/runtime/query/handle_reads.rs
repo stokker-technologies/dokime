@@ -195,10 +195,6 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<crate::evidence_runtime::TelemetryStreamSummary>>> {
         let session = self.storage();
         let at = session.cursor_saved();
-        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |id, _| {
-            crate::storage::telemetry::selected_schema(id, &[])
-        })
-        .await?;
         let mut summaries = EvidenceSummaries::default();
         let mut after = 0;
         loop {
@@ -206,13 +202,9 @@ impl RuntimeHandle {
             if page.is_empty() {
                 break;
             }
-            for row in page {
-                after = row.record.position.sequence;
-                let codec = codecs
-                    .iter()
-                    .find(|codec| codec.schema() == &row.record.schema)
-                    .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
-                let mut sample = codec.decode_stored(&row)?.sample;
+            for (position, entry) in page {
+                after = position;
+                let mut sample = entry.sample;
                 sample.sequence = after;
                 summaries.record_telemetry_sample(&sample);
             }
@@ -223,11 +215,22 @@ impl RuntimeHandle {
 
     pub async fn selected_records(&self, selection: crate::evidence_runtime::RecordSelection) -> crate::runtime::Result<Vec<RecordEntry>> {
         let snapshot = self.capture_state().await?;
-        let captured =
-            crate::queries::records::execution_capture(snapshot.state().executions.values(), selection.scope.test_execution_id.as_ref());
-        Ok(selection.apply_with_subscriptions(&self.records_at(&snapshot).await?, |record| {
-            captured.and_then(|captures| captures.captured_scope(record))
-        }))
+        if selection.scope.test_execution_id.is_some() || selection.scope.test_cycle_id.is_some() {
+            let at = self.saved_through(snapshot.revision()).await?;
+            let mut after = 0;
+            let mut records = Vec::new();
+            let epoch = self.process_epoch();
+            loop {
+                let page = self.local_storage.scoped_records(at.clone(), selection.scope.clone(), None, after, 0, u64::MAX).await?;
+                let Some(last) = page.last() else { break };
+                after = last.position;
+                records.extend(
+                    page.into_iter().filter(|row| row.epoch != epoch || row.record.sequence <= snapshot.revision()).map(|row| row.record),
+                );
+            }
+            return Ok(selection.apply(&records));
+        }
+        Ok(selection.apply(&self.records_at(&snapshot).await?))
     }
 
     pub(crate) async fn record_pages_at_in(
@@ -268,6 +271,11 @@ impl RuntimeHandle {
         use harmos::storage::{ObjectRead, query::ObjectVersions};
         let mut sealed = false;
         if let Some(id) = &selection.scope.test_execution_id {
+            let intent = self.state_read().report_finalizations.get(id).filter(|intent| intent.lifecycle.is_some()).cloned();
+            if let Some(intent) = intent {
+                sealed = at.covers(&intent.evidence_at)?;
+            }
+
             let mut rows = session
                 .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
                     at: at.clone(),

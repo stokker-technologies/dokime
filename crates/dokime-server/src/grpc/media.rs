@@ -44,8 +44,7 @@ const SERVER_MEDIA_PROGRESS_MS: u64 = 1_000;
 const SERVER_MEDIA_RECORDING_MS: u64 = 3_600_000;
 
 // Video capture is declared but refused until an encoder is chosen: no ffmpeg,
-// GStreamer or platform encoder is linked yet. The desktop's MediaRecorder sink
-// remains the video path until that decision lands.
+// GStreamer or platform encoder is linked yet.
 const NO_VIDEO_ENCODER: &str = "no video encoder available in this build";
 
 /* === Macros === */

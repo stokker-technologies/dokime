@@ -205,7 +205,7 @@ pub fn secret(configuration: &Configuration, id: &str) -> crate::Result<Secret> 
     configuration.secret(id)
 }
 
-pub fn bound_secret(configuration: &Configuration, id: &str) -> Option<Secret> {
+pub fn optional_secret(configuration: &Configuration, id: &str) -> Option<Secret> {
     configuration.secret(id).ok()
 }
 

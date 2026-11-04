@@ -260,20 +260,21 @@ async fn run_matrix(interface: &str) {
         .canonicalize()
         .unwrap();
     let contract: Value = serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();
-    for scenario in contract["scenarios"].as_array().unwrap() {
-        // Backend With The Matrix Provider
-        let name = scenario["name"].as_str().unwrap();
-        let directory = tempfile::tempdir().unwrap();
-        let config = RuntimeConfig::new(
-            directory.path().join("backend"),
-            dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
-        )
-        .register(Arc::new(Provider(State { root: directory.path().into() })));
-        let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-        let mut runtime = Runtime::start(prepared_runtime.configuration(config)).await.unwrap();
-        let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
-        let endpoint = server.local_endpoint();
+    // Independent Cases Share One Backend And Retain Separate Execution Scopes.
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = RuntimeConfig::new(
+        directory.path().join("backend"),
+        dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
+    )
+    .register(Arc::new(Provider(State { root: directory.path().into() })));
+    crate::support::settings::configure(&mut config);
+    let prepared_runtime = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut runtime = Runtime::start(prepared_runtime.configuration(config)).await.unwrap();
+    let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();
+    let endpoint = server.local_endpoint();
 
+    for scenario in contract["scenarios"].as_array().unwrap() {
+        let name = scenario["name"].as_str().unwrap();
         // Client Observation
         let observed = if interface == "desktop" {
             desktop(&root, &endpoint, name).await
@@ -293,19 +294,21 @@ async fn run_matrix(interface: &str) {
             "Rust Backend/{interface}/{name}"
         );
         assert_eq!(std::fs::read_to_string(directory.path().join("lifecycle.txt")).unwrap(), "open\ncleanup\nclose\n");
-
-        server.shutdown().await.unwrap();
-        runtime.shutdown().await.unwrap();
+        std::fs::write(directory.path().join("lifecycle.txt"), []).unwrap();
     }
+    server.shutdown().await.unwrap();
+    runtime.shutdown().await.unwrap();
 }
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn python_runs_matrix() {
     run_matrix("python").await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn desktop_runs_matrix() {
     run_matrix("desktop").await;

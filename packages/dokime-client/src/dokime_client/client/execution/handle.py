@@ -41,6 +41,7 @@ from ..models import (
     Value,
 )
 from ..planning import TestCase
+from ..query.evidence import execution_records, telemetry
 from .listeners import read_records, read_samples, validate_patterns
 from .request import _identity, _interval
 
@@ -83,6 +84,9 @@ class Execution:
     """A Fresh Local Attempt; Append It To A Cycle Before Using Remote Controls."""
 
     __slots__ = ("_backend", "_case", "_cycle_id", "_id", "_outcome", "_transport")
+
+    query_records = execution_records
+    telemetry = telemetry
 
     def __init__(self, test_case: TestCase) -> None:
         if not isinstance(test_case, TestCase):
@@ -131,7 +135,7 @@ class Execution:
         return await export_evidence(self._transport, self._backend, "Execution", self.id, destination, overwrite=overwrite)
 
     async def snapshot(self) -> dict[str, Any]:
-        """An owned current-runtime snapshot, verified against the original epoch."""
+        """An owned snapshot, including pending/ready/failed report state and failure cause."""
         detail = await self._snapshot()
         return MessageToDict(detail, preserving_proto_field_name=True)
 
@@ -429,7 +433,7 @@ class Execution:
         await self._control("ResumeExecution")
 
     async def stop(self) -> None:
-        """Request cooperative stop; receipt progress establishes completion."""
+        """Stop cooperatively and await the durable execution seal."""
         await self._control("StopExecution")
 
 

@@ -78,13 +78,23 @@ impl Transaction<RuntimeState> for CompleteRun {
             if unsealed.execution_ids.iter().any(|id| !members.contains(id)) {
                 return Err("unsealed executions differ from cycle membership".into());
             }
-        } else if request.selected_execution_ids.iter().any(|id| state.executions.get(id).is_none_or(|execution| execution.saved.is_none()))
-        {
-            return Err("completed request requires every selected execution seal".into());
+        } else if request.selected_execution_ids.iter().any(|id| {
+            state.executions.get(id).is_none_or(|execution| {
+                execution.finished_at.is_none()
+                    || (execution.saved.is_none() && !state.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some()))
+            })
+        }) {
+            return Err("completed request requires drained execution evidence and a durable report intent".into());
         }
         Ok(())
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.run_requests.get(&self.request_id).map(|request| &request.summary.cycle_id),
+            out,
+        );
         if let Some(unsealed) = &self.unsealed
             && !state.run_requests[&self.request_id].summary.phase.terminal()
         {
@@ -234,6 +244,12 @@ impl Transaction<RuntimeState> for SettleRun {
         outcomes_settled(state, &self.request_id)
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(
+            state,
+            self,
+            state.run_requests.get(&self.request_id).map(|request| &request.summary.cycle_id),
+            out,
+        );
         if state.run_requests[&self.request_id].completion_at.is_none() {
             CompleteRun {
                 request_id: self.request_id.clone(),

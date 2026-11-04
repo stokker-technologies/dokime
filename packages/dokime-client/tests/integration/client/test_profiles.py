@@ -91,6 +91,25 @@ def test_profile_read_bound(tmp_path):
         load("local", path=path)
 
 
+def test_remembered_endpoint_preserves_order_and_refuses_concurrent_change(tmp_path):
+    from dokime_client.client.profiles import remember_endpoint
+
+    path = tmp_path / "backends.json"
+    document = json.loads(_CASES[0]["document"])
+    item = document["profiles"][0]
+    item["endpoints"] = [item["endpoint"], "http://192.168.1.20:8765"]
+    path.write_text(json.dumps(document), encoding="utf-8")
+    selected = load(item["identifier"], path=path)
+    remember_endpoint(selected, path, item["endpoints"][1])
+    reopened = load(item["identifier"], path=path)
+    assert reopened.endpoint == item["endpoints"][1]
+    assert reopened.endpoints == tuple(item["endpoints"])
+    with pytest.raises(ValueError):
+        remember_endpoint(selected, path, item["endpoints"][1])
+    with pytest.raises(ValueError):
+        remember_endpoint(reopened, path, "http://unselected:8765")
+
+
 # === Private Functions === #
 
 # === Entry Point === #

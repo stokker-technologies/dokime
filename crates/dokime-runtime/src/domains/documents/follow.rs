@@ -109,7 +109,7 @@ impl RuntimeHandle {
             let Some(file) = saved.file(path)? else {
                 return Ok(None);
             };
-            let reference = &file.descriptor().file;
+            let reference = file.descriptor().file().map_err(crate::storage::Error::from)?;
             let staged = harmos::storage::ReadBatch::new(()).try_map(|_| {
                 Ok::<_, Error>(StagedFile {
                     history: reference.position.history.clone(),
@@ -129,17 +129,8 @@ impl RuntimeHandle {
             } else {
                 dokime_domain::model::content::wire::ExecutionFilePhase::Finished
             };
-            let metadata = metadata(
-                &staged,
-                execution,
-                path,
-                &output.file.metadata.media_type,
-                Position {
-                    phase,
-                    length: output.file.length,
-                    offset,
-                },
-            )?;
+            let metadata =
+                metadata(&staged, execution, path, &reference.metadata.media_type, Position { phase, length: reference.length, offset })?;
             return Ok(Some(ExecutionFileFollower {
                 poll_interval: self.storage().settings().filesystem.poll_interval,
                 reader,
@@ -360,7 +351,10 @@ impl ExecutionFileFollower {
             }
             let (reference, interrupted) = match &self.source {
                 Source::Captured(reference, interrupted) => (&**reference, *interrupted),
-                Source::Saved(file) => (&file.descriptor().file, file.descriptor().stream_state == Some(SavedStreamState::Interrupted)),
+                Source::Saved(file) => (
+                    file.descriptor().file().map_err(crate::storage::Error::from)?,
+                    file.descriptor().stream_state == Some(SavedStreamState::Interrupted),
+                ),
                 Source::Live(_) => unreachable!(),
             };
             let phase = if interrupted {

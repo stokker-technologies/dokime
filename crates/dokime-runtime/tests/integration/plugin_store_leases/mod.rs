@@ -45,6 +45,7 @@ pub(crate) use crate::service_support::prelude::*;
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_store_leases() {
     activation::broken_configured_loud().await;
@@ -64,6 +65,7 @@ async fn plugin_store_leases() {
     store::unauthorized_files_kept().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn plugin_store_leases_concurrent() {
     leases::failed_group_holds().await;

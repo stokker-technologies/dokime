@@ -24,7 +24,7 @@ use tonic::Status;
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{Budget, canonical};
 use dokime::app::LiveRuntime;
-use dokime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings};
+use dokime::domains::installed_plugins::{PluginSettingsUpdate, RuntimePluginSettings};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::settings as wire;
 
@@ -43,7 +43,6 @@ enum PreparedOperations {
     Operation0(wire::GetSettings),
     Operation1(wire::GetPluginSettings),
     Operation2(wire::UpdatePluginSettings),
-    Operation3(wire::UpdatePluginSecret),
 }
 
 /* === Traits === */
@@ -99,24 +98,6 @@ impl Serve<wire::UpdatePluginSettings> for Resources {
     }
 }
 
-impl Serve<wire::UpdatePluginSecret> for Resources {
-    fn serve<'a>(
-        &'a self, mut request: wire::UpdatePluginSecret, _: Context<'a, wire::UpdatePluginSecret>,
-    ) -> Served<'a, dokime::domain::model::settings::wire::PluginRuntimeSettings> {
-        Box::pin(async move {
-            let id = plugin_id(&request.plugin_id)?;
-            let secret_id = std::mem::take(&mut request.secret_id);
-            let secret = std::mem::take(&mut request.secret);
-            let settings = dokime::app::live_runtime(&self.runtime)
-                .await?
-                .save_plugin_secret(&id, &secret_id, PluginSecretUpdate { secret })
-                .await
-                .map_err(projection::plugin_error)?;
-            plugin_response(self, settings)
-        })
-    }
-}
-
 /* === Public Functions === */
 
 pub(super) fn prepare(
@@ -127,7 +108,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::GetSettings>>(Host::<wire::GetSettings>::new(served.clone()));
     setup.resource::<Host<wire::GetPluginSettings>>(Host::<wire::GetPluginSettings>::new(served.clone()));
     setup.resource::<Host<wire::UpdatePluginSettings>>(Host::<wire::UpdatePluginSettings>::new(served.clone()));
-    setup.resource::<Host<wire::UpdatePluginSecret>>(Host::<wire::UpdatePluginSecret>::new(served.clone()));
 
     setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())

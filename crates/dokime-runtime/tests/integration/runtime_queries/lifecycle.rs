@@ -132,7 +132,7 @@ pub(crate) async fn boot_reboots_intact() {
 }
 
 async fn start_bundled_composition(root: &std::path::Path, metadata: Metadata) -> Runtime {
-    let config = crate::service_support::budgets::runtime_config(root, metadata)
-        .with_plugins([dokime_runtime::plugins::PluginBundle::new(crate::service_support::bundles::host_plugin_bundle())]);
+    let config =
+        crate::service_support::budgets::runtime_config(root, metadata).with_plugins([crate::service_support::bundles::host_plugin()]);
     Runtime::start(config).await.expect("the shipped composition boots")
 }

@@ -74,9 +74,9 @@ pub struct Workspace {
     pub archive: Option<std::path::PathBuf>,
 }
 
-#[dokime_runtime::section(label = "Secrets", description = "The section nothing but a binding fills in.")]
+#[dokime_runtime::section(label = "Secrets", description = "Shared Secret Storage declarations.")]
 pub struct Secrets {
-    #[setting(label = "Bearer Token", from_environment = "BENCH_TOKEN")]
+    #[setting(label = "Bearer Token")]
     pub token: Option<Secret>,
 }
 #[dokime_runtime::message]
@@ -135,18 +135,6 @@ impl dokime_runtime::harmos::Lifecycle for Bench {
         };
         setup.resource::<()>(owner.resources());
         Ok(owner)
-    }
-
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
     }
 }
 
@@ -237,6 +225,7 @@ fn defaults() -> SettingValues {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn section_folds_shows() {
     let catalog = BenchSettings::catalog();
@@ -246,6 +235,7 @@ fn section_folds_shows() {
     catalog.validate().expect("the declared catalog validates");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn field_type_required() {
     let catalog = BenchSettings::catalog();
@@ -257,11 +247,7 @@ fn field_type_required() {
             && !field.required));
     assert!(matches!(entry("upload_enabled"), SettingsEntry::Boolean(field) if field.default));
     assert!(matches!(entry("archive"), SettingsEntry::Path(field) if !field.required));
-    assert!(matches!(entry("token"), SettingsEntry::SecretReference(field)
-    if field.default
-        == Some(dokime_runtime::settings::SecretReference::Environment {
-            variable: "BENCH_TOKEN".to_owned(),
-        })));
+    assert!(matches!(entry("token"), SettingsEntry::Secret(field) if field.id == "token" && !field.required));
     // A field with no label of its own is read by its own name, titled.
     assert!(matches!(entry("page_limit"), SettingsEntry::Number(field)
         if field.title == "Page Limit"
@@ -277,6 +263,7 @@ fn field_type_required() {
             && field.provider.as_deref() == Some("bench.list_environments")));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn section_links_default() {
     assert_eq!(<Workspace as SettingsSection>::status_operation(), Some("bench.get_status"));
@@ -289,6 +276,7 @@ fn section_links_default() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn admitted_values_handed() {
     let mut saved = defaults();
@@ -310,11 +298,12 @@ fn admitted_values_handed() {
     assert_eq!(settings.workspace.port, None);
     assert_eq!(settings.workspace.stream, Some(0));
     assert_eq!(settings.workspace.archive, Some(std::path::PathBuf::from("/var/bench")));
-    // A secret never travels in the values: it is read out of the binding the
-    // host admitted, and an unbound one is absent rather than refused.
+    // A secret never travels in the values: the host reads its store identifier;
+    // an optional missing identifier is absent rather than refused.
     assert_eq!(settings.secrets.token, None);
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn value_outside_refused() {
     let mut saved = defaults();
@@ -325,6 +314,7 @@ fn value_outside_refused() {
     assert!(refusal.contains("page_limit"), "{refusal}");
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn settings_links_ids() {
     // Settings links use the IDs authored by the selected operation contracts.
@@ -335,6 +325,7 @@ fn settings_links_ids() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn saved_values_empty() {
     // Nobody saved a port, so the field is absent: discovery is the host's to

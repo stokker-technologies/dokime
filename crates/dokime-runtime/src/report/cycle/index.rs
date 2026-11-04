@@ -77,6 +77,7 @@ pub(crate) struct Sample {
     pub member: usize,
     pub sample: usize,
     pub stream: Identifier,
+    pub schema_version: u32,
     pub timestamp: Timestamp,
     received_at: Timestamp,
     id: String,
@@ -165,6 +166,7 @@ impl Index {
                 member: self.members,
                 sample,
                 stream: value.stream.clone(),
+                schema_version: value.schema_version,
                 timestamp: value.timestamp.clone(),
                 received_at: value.received_at.clone(),
                 id: value.sample_id.as_str().to_owned(),
@@ -172,9 +174,13 @@ impl Index {
         }
         let context = &captured.context;
         self.annotations
-            .try_reserve_exact(context.notes.len().saturating_add(context.health.len()))
+            .try_reserve_exact(
+                (context.notes.len().min(captured.report_defaults.table_rows as usize * 2))
+                    .saturating_add(context.health.len().min(captured.report_defaults.table_rows as usize * 2)),
+            )
             .map_err(|source| Error::Operation(source.to_string()))?;
-        for (position, note) in context.notes.iter().enumerate() {
+        for position in crate::report::previews::indices(context.notes.len(), captured.report_defaults.table_rows as usize) {
+            let note = &context.notes[position];
             self.annotations.push(Annotation {
                 kind: AnnotationKind::Note,
                 member: self.members,
@@ -183,7 +189,8 @@ impl Index {
                 at: note.created_at.clone(),
             });
         }
-        for (position, item) in context.health.iter().enumerate() {
+        for position in crate::report::previews::indices(context.health.len(), captured.report_defaults.table_rows as usize) {
+            let item = &context.health[position];
             self.annotations.push(Annotation {
                 kind: AnnotationKind::Health,
                 member: self.members,

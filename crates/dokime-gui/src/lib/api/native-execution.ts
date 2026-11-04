@@ -251,6 +251,17 @@ function mapNativeExecution(
       : null,
     archived: item.archived,
     sealed: item.sealed,
+    report: detail.report
+      ? {
+          state:
+            detail.report.state?.HarmosVariant.case === "Ready"
+              ? "ready"
+              : detail.report.state?.HarmosVariant.case === "Failed"
+                ? "failed"
+                : "pending",
+          failure: detail.report.failure ?? null,
+        }
+      : null,
     test_execution_id: item.executionId,
     test_cycle_id: detail.cycleId,
     queue_item_id: item.caseId,

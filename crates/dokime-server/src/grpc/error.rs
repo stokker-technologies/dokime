@@ -27,7 +27,10 @@ use dokime::runtime::Error as HostError;
 
 /* === Constants === */
 
+// Leave Room For Base64 Encoding And Other HTTP/2 Trailers.
+const STATUS_DETAILS_BYTES: usize = 4_096;
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
+const DIAGNOSTIC_BYTES: usize = 2048;
 
 /* === Macros === */
 
@@ -53,26 +56,46 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
     let diagnostic = Diagnostic::capture(error).redacted();
     let code = status.code();
     let message = status.message().to_owned();
-    let envelope = tonic_types::Status {
-        code: code as i32,
-        message: message.clone(),
-        // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
-        details: crate::grpc::transcode::Transcode::wire_bytes(&captured(&diagnostic))
-            .ok()
-            .map(|value| prost_types::Any {
-                type_url: DETAIL_TYPE_URL.to_owned(),
-                value,
-            })
-            .into_iter()
-            .collect(),
-    };
-
-    Status::with_details(code, message, envelope.encode_to_vec().into())
+    let mut detail = captured(&diagnostic);
+    loop {
+        let envelope = tonic_types::Status {
+            code: code as i32,
+            message: message.clone(),
+            // A Detail The Transcoder Refuses Is Omitted; The Status Still Reaches The Caller.
+            details: crate::grpc::transcode::Transcode::wire_bytes(&detail)
+                .ok()
+                .map(|value| prost_types::Any {
+                    type_url: DETAIL_TYPE_URL.to_owned(),
+                    value,
+                })
+                .into_iter()
+                .collect(),
+        };
+        if envelope.encoded_len() <= STATUS_DETAILS_BYTES {
+            return Status::with_details(code, message, envelope.encode_to_vec().into());
+        }
+        // Optional Technical Text Must Not Hide The Original RPC Failure Behind A Transport Error.
+        if detail.diagnostics.take().is_none() {
+            return status;
+        }
+    }
 }
 
 /* === Private Functions === */
 
 fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
+    let mut diagnostics = diagnostic
+        .span_trace
+        .iter()
+        .map(String::as_str)
+        .chain(std::iter::once(diagnostic.backtrace.as_str()))
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if diagnostics.len() > DIAGNOSTIC_BYTES {
+        diagnostics.truncate(diagnostics.floor_char_boundary(DIAGNOSTIC_BYTES));
+        diagnostics.push_str("\n[truncated]");
+    }
     dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,
@@ -89,7 +112,28 @@ fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::C
         stacktrace_attachment: None,
         trace_id: None,
         correlation_id: None,
+        diagnostics: (!diagnostics.is_empty()).then_some(diagnostics),
     }
 }
 
 /* === Tests === */
+
+#[test]
+fn captured_failure_retains_causes_and_technical_diagnostics() {
+    let diagnostic = Diagnostic {
+        message: "fixture-operation-failed".to_owned(),
+        chain: vec!["fixture-wrapper".to_owned(), "fixture-root".to_owned()],
+        location: "fixture.rs:42".to_owned(),
+        span_trace: vec!["fixture-span".to_owned()],
+        backtrace: "fixture-frame-1\nfixture-frame-2".to_owned(),
+    };
+    let detail = captured(&diagnostic);
+    let bytes = crate::grpc::transcode::Transcode::wire_bytes(&detail).expect("encode captured error");
+    assert_eq!(detail.message, diagnostic.message);
+    assert_eq!(detail.source.as_deref(), Some(diagnostic.location.as_str()));
+    assert_eq!(detail.cause_chain.iter().map(|cause| cause.message.as_str()).collect::<Vec<_>>(), diagnostic.chain);
+    let diagnostics = detail.diagnostics.as_deref().expect("technical diagnostics");
+    assert_eq!(diagnostics, "fixture-span\nfixture-frame-1\nfixture-frame-2");
+    assert!(bytes.windows(diagnostics.len()).any(|window| window == diagnostics.as_bytes()));
+    assert!(captured(&Diagnostic::default()).diagnostics.is_none());
+}

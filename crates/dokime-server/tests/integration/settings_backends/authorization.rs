@@ -92,7 +92,7 @@ matrix! {
     "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
     "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
     "/dokime.v1.Remote/CreatePairing", unary, contracts::remote::CreatePairing = contracts::remote::CreatePairing {
-        label: "Fixture".into(), endpoint: "http://127.0.0.1:8765".into()
+        label: "Fixture".into(),
     };
     "/dokime.v1.Remote/ListPairedClients", unary, contracts::remote::ListPairedClients = contracts::remote::ListPairedClients {
         cursor: None, limit: 100
@@ -100,6 +100,7 @@ matrix! {
     "/dokime.v1.Remote/RevokePairedClient", unary, contracts::remote::RevokePairedClient = contracts::remote::RevokePairedClient {
         identifier: "fixture".into()
     };
+    "/dokime.v1.Remote/RenamePairedClient", unary, contracts::remote::RenamePairedClient = contracts::remote::RenamePairedClient { identifier: "fixture".into(), label: "Renamed".into() };
     "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
@@ -258,6 +259,22 @@ matrix! {
     "/dokime.v1.Prompts/ListDefinitions", unary, contracts::prompts::ListDefinitions;
     "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
     "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
+    "/dokime.v1.Query/ListCycles", unary, contracts::query::ListCycles = super::super::finite_queries::cycles();
+    "/dokime.v1.Query/ListExecutions", unary, contracts::query::ListExecutions = contracts::query::ListExecutions {
+        selection: model::query::selection::ExecutionSelection { template_ids: vec![], cycle_ids: vec![], statuses: vec![], started_at: None, archive: None },
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/ListRecords", unary, contracts::query::ListRecords = contracts::query::ListRecords {
+        scope: model::query::selection::RecordScope::Execution(String::new()), record_type: String::new(), versions: vec![], r#where: vec![], between: None,
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/ListSamples", unary, contracts::query::ListSamples = contracts::query::ListSamples {
+        execution_id: String::new(), stream: String::new(), versions: vec![], fields: vec![], r#where: vec![], between: None, bucket: None,
+        page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,
+    };
+    "/dokime.v1.Query/AggregateSamples", unary, contracts::query::AggregateSamples = contracts::query::AggregateSamples {
+        execution_id: String::new(), stream: String::new(), versions: vec![], r#where: vec![], between: None, outputs: vec![], at: None,
+    };
     "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::Aggregate {
         source: model::query::wire::QuerySource::Unspecified,
         filters: vec![],
@@ -285,7 +302,6 @@ matrix! {
     "/dokime.v1.Settings/UpdateApplicationSettings", unary, contracts::settings::UpdateApplicationSettings = contracts::settings::UpdateApplicationSettings {
         update: model::settings::application::UpdateSettings { expected_revision: 0, settings: Default::default() },
     };
-    "/dokime.v1.Settings/UpdatePluginSecret", unary, contracts::settings::UpdatePluginSecret;
     "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
     "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;
     "/dokime.v1.Telemetry/WatchSamples", download, contracts::telemetry::WatchSamples;
@@ -323,18 +339,18 @@ fn cases() -> impl Iterator<Item = &'static Case> {
     use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case {
-            path: GetHealth::PATH,
-            call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH),
+            path: "/dokime.v1.Runtime/GetHealth",
+            call: |channel, token| operation::<GetHealth>(channel, token),
         },
         Case {
-            path: GetIdentity::PATH,
-            call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH),
+            path: "/dokime.v1.Runtime/GetIdentity",
+            call: |channel, token| operation::<GetIdentity>(channel, token),
         },
     ];
     CASES.iter().chain(STREAMING_CASES).chain(OPERATIONS)
 }
 
-fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
+fn operation<O>(channel: Channel, token: Option<&'static str>) -> Refusal
 where
     O: dokime::harmos::operations::OperationDeclaration + dokime::harmos::domain::Portable + Default,
     O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
@@ -358,7 +374,7 @@ where
         let declaration = O::default();
         let envelope = dokime::harmos::operations::Response::new(declaration);
         let request = secreted(envelope, token);
-        let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
+        let route = dokime::operations::path::<O>().parse::<tonic::codegen::http::uri::PathAndQuery>().unwrap();
         let response = client.unary(request, route, codec).await;
         response.err()
     })
@@ -393,7 +409,7 @@ async fn assert_key_refusals(channel: &Channel, authenticated: bool) {
 
 pub(crate) fn table_covers_serves() {
     let served: std::collections::BTreeSet<_> = dokime_server::grpc::methods().map(|(path, _)| path).collect();
-    let covered: std::collections::BTreeSet<_> = cases().map(|case| case.path).collect();
+    let covered: std::collections::BTreeSet<_> = cases().map(|case| case.path.to_owned()).collect();
     assert_eq!(served, covered, "every served method needs a row here, and a row needs a served method");
     assert_eq!(covered.len(), cases().count(), "no duplicate rows");
 }
@@ -427,8 +443,7 @@ async fn assert_remote_key_boundary(authenticated: bool) {
         .into_iter()
         .collect();
     let public_methods = methods.iter().filter(|(_, local_only)| !**local_only);
-    let public_paths = public_methods.map(|(path, _)| *path);
-    let expected: std::collections::BTreeSet<_> = public_paths.map(str::to_owned).collect();
+    let expected: std::collections::BTreeSet<_> = public_methods.map(|(path, _)| path.clone()).collect();
     assert_eq!(advertised, expected, "availability must exclude native-only and internal host providers");
 
     for case in cases() {
@@ -482,3 +497,29 @@ pub(crate) async fn remote_refuses_local() {
 }
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn finite_query_authorization_matrix() {
+    table_covers_serves();
+    for authenticated in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let token = authenticated.then_some(TOKEN);
+        let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
+        let prepared = dokime_server::grpc::Service::prepare(config).unwrap();
+        let mut owner = runtime(root.path(), &prepared).await;
+        let server = prepared.ready().await.unwrap().listen().await.unwrap();
+        let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
+        for case in cases().filter(|case| case.path.starts_with("/dokime.v1.Query/")) {
+            if authenticated {
+                for rejected in [None, Some("wrong-key-012345678901234567890123456789")] {
+                    let status = (case.call)(channel.clone(), rejected).await.unwrap();
+                    assert_eq!(status.code(), Code::Unauthenticated);
+                }
+            }
+            assert_case_admission(case, false, (case.call)(channel.clone(), token).await);
+        }
+        server.shutdown().await.unwrap();
+        owner.shutdown().await.unwrap();
+    }
+}

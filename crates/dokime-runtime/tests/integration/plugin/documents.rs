@@ -196,6 +196,7 @@ fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn step_adds_declared() {
     let report = Harness::template(TEMPLATE).run::<OwnerSuites>().await.expect("the run completes");
@@ -223,6 +224,7 @@ async fn step_adds_declared() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn observer_shares_write() {
     let report = Harness::template(TEMPLATE).run::<OwnerSuites>().await.expect("the run completes");
@@ -245,6 +247,7 @@ async fn observer_shares_write() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn declared_section_so() {
     let report = Harness::template(TEMPLATE).parameter("repeat", true).run::<OwnerSuites>().await.expect("the run completes");
@@ -273,6 +276,7 @@ async fn declared_section_so() {
     assert!(report.diagnostics().contains("documents.checks.declared"), "an operator cannot act on {:?}", report.diagnostics());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn typed_columns_compare() {
     // A generated column accessor compares directly, and `only` narrows a

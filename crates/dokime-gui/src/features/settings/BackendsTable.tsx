@@ -15,7 +15,7 @@
 
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { connectionError } from "@/app/native-session/errors";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
@@ -99,17 +99,56 @@ export function BackendsTable({
       setBusy(false);
     }
   }
-  function connect(identifier: string) {
-    if (busy) return;
-    onConnect?.();
-    lastSelected.current = identifier;
-    void owner.select({ kind: "profile", identifier });
-  }
+  const connect = useCallback(
+    (identifier: string) => {
+      if (busy) return;
+      onConnect?.();
+      lastSelected.current = identifier;
+      void owner.select({ kind: "profile", identifier });
+    },
+    [busy, onConnect, owner],
+  );
+  const defaultProfile = document?.default;
+  const columns = useMemo(
+    () =>
+      dataTableColumns<Profile>().columns([
+        dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
+        dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
+        dataTableColumns<Profile>().accessor("endpoint", {
+          header: "Endpoint",
+          meta: { filter: "text", truncate: true },
+        }),
+        dataTableColumns<Profile>().accessor((profile) => (defaultProfile === profile.identifier ? "Last Used" : "—"), {
+          id: "lastUsed",
+          header: "Last Used",
+          meta: { filter: "facet", width: "w-28" },
+        }),
+        dataTableColumns<Profile>().display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <DataTableRowActions
+              label={row.original.identifier}
+              primary={{ label: "Connect", icon: Plug, disabled: busy, onSelect: () => connect(row.original.identifier) }}
+            >
+              <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
+                Delete
+              </DropdownMenuItem>
+            </DataTableRowActions>
+          ),
+        }),
+      ]),
+    [busy, connect, defaultProfile],
+  );
   return (
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage source="Backends" title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}>
+          <NotificationMessage
+            source="Backends"
+            title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
+            error={state.phase === "failed" ? state.error : error}
+          >
             {connectionFailure || preferencesError(error)}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
@@ -145,38 +184,35 @@ export function BackendsTable({
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
         emptyText="No Saved Backends"
-        columns={dataTableColumns<Profile>().columns([
-          dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
-          dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
-          dataTableColumns<Profile>().accessor("endpoint", {
-            header: "Endpoint",
-            meta: { filter: "text", truncate: true },
-          }),
-          dataTableColumns<Profile>().accessor((profile) => (document?.default === profile.identifier ? "Last Used" : "—"), {
-            id: "lastUsed",
-            header: "Last Used",
-            meta: { filter: "facet", width: "w-28" },
-          }),
-          dataTableColumns<Profile>().display({
-            id: "actions",
-            header: "Actions",
-            cell: ({ row }) => (
-              <DataTableRowActions
-                label={row.original.identifier}
-                primary={{ label: "Connect", icon: Plug, disabled: busy, onSelect: () => connect(row.original.identifier) }}
-              >
-                <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
-                  Delete
-                </DropdownMenuItem>
-              </DataTableRowActions>
-            ),
-          }),
-        ])}
+        columns={columns}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
-          <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setAdding(true)}>
-            Add Backend
-          </Button>
+          <>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(undefined);
+                try {
+                  const imported = await preferencesCommands.desktopBackendImportPairing(null);
+                  if (imported) {
+                    setDocument(imported);
+                    onConnect?.();
+                  }
+                } catch (failure) {
+                  setError(failure);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Import Remote
+            </Button>
+            <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setAdding(true)}>
+              Add Backend
+            </Button>
+          </>
         }
       />
       <Dialog
@@ -211,7 +247,7 @@ export function BackendsTable({
             </Button>
           </div>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}
@@ -271,6 +307,7 @@ function AddBackend({
           identifier: identifier.trim(),
           label: label.trim(),
           endpoint: endpoint.trim(),
+          endpoints: [],
           expected_backend_id: null,
           ca_certificate_pem: null,
           secret: "none",
@@ -315,7 +352,7 @@ function AddBackend({
             }
           }}
         >
-          Import Pairing File
+          Import Remote
         </Button>
         <p className="text-sm text-muted-foreground">Manual entry is for unsecured HTTP lab listeners.</p>
         <form onSubmit={submit} className="grid gap-3">
@@ -330,11 +367,19 @@ function AddBackend({
                 id={`${fieldId}-identifier`}
                 aria-label="Backend Identifier"
                 aria-invalid={submitted && Boolean(validation.identifier)}
+                aria-describedby={submitted && validation.identifier ? `${fieldId}-identifier-error` : undefined}
                 required
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
               />
-              {submitted && validation.identifier && <NotificationMessage>{validation.identifier}</NotificationMessage>}
+              {submitted && validation.identifier && (
+                <>
+                  <span className="sr-only" id={`${fieldId}-identifier-error`}>
+                    {validation.identifier}
+                  </span>
+                  <NotificationMessage>{validation.identifier}</NotificationMessage>
+                </>
+              )}
             </label>
             <label htmlFor={`${fieldId}-label`}>
               Label
@@ -348,12 +393,20 @@ function AddBackend({
                 aria-label="Backend Endpoint"
                 required
                 aria-invalid={submitted && Boolean(validation.endpoint)}
+                aria-describedby={submitted && validation.endpoint ? `${fieldId}-endpoint-error` : undefined}
                 placeholder="http://lab.example:8765"
                 type="url"
                 value={endpoint}
                 onChange={(event) => setEndpoint(event.target.value)}
               />
-              {submitted && validation.endpoint && <NotificationMessage>{validation.endpoint}</NotificationMessage>}
+              {submitted && validation.endpoint && (
+                <>
+                  <span className="sr-only" id={`${fieldId}-endpoint-error`}>
+                    {validation.endpoint}
+                  </span>
+                  <NotificationMessage>{validation.endpoint}</NotificationMessage>
+                </>
+              )}
             </label>
             <div className="mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
@@ -363,7 +416,7 @@ function AddBackend({
             </div>
           </fieldset>
           {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Added">
+            <NotificationMessage source="Backends" title="Backend Could Not Be Added" error={error}>
               {preferencesError(error)}
             </NotificationMessage>
           )}

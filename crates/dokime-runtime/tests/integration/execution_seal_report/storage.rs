@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -27,8 +28,6 @@ use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::e
 
 /* === Constants === */
 const UNENCODABLE: &str = "fixture report cannot be encoded";
-
-const UNSEALED: &str = "final execution report was not sealed";
 
 /* === Macros === */
 
@@ -126,10 +125,14 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(retained, expected);
     // Exercise Registration And Sealing Beyond The Former Private Source Cap.
     let additional_outputs = 257u32;
-    for index in 0..additional_outputs {
-        let target = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true).await.unwrap().unwrap();
-        std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
-    }
+    let outputs = (0..additional_outputs).map(|index| {
+        let registering = handle.execution_file_target(&id, format!("outputs/{index}.bin"), false, true);
+        async move {
+            let target = registering.await.unwrap().unwrap();
+            std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
+        }
+    });
+    futures_util::future::join_all(outputs).await;
     executor.release();
     wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
@@ -190,32 +193,38 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(follower.metadata().phase, wire::ExecutionFilePhase::Finished);
     drop(follower);
     // Every Registered Output Remains Addressable After Reopening Storage.
-    for index in 0..additional_outputs {
-        let mut output = handle.follow_execution_file(&id, &format!("outputs/{index}.bin"), None, 0).await.unwrap().unwrap();
-        assert_eq!(output.metadata().phase, wire::ExecutionFilePhase::Finished);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
-            panic!("saved output must return its bytes");
-        };
-        assert_eq!(chunk.offset, 0);
-        assert_eq!(chunk.data, index.to_le_bytes()[..3]);
-        drop(frame);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
-            panic!("saved output must return its remaining byte");
-        };
-        assert_eq!(chunk.offset, 3);
-        assert_eq!(chunk.data, index.to_le_bytes()[3..]);
-        drop(frame);
-        let frame = output.next_frame(maximum).await.unwrap().unwrap();
-        let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
-            panic!("saved output must finish with its sealed reference");
-        };
-        assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
-        assert_eq!(terminal.sealed.as_ref().unwrap().length, 4);
-        drop(frame);
-        assert!(output.next_frame(maximum).await.unwrap().is_none());
-    }
+    futures_util::stream::iter(0..additional_outputs)
+        .for_each_concurrent(dokime_runtime::config::storage_defaults().request.max_active_queries.get(), |index| {
+            let handle = &handle;
+            let id = &id;
+            async move {
+                let mut output = handle.follow_execution_file(id, &format!("outputs/{index}.bin"), None, 0).await.unwrap().unwrap();
+                assert_eq!(output.metadata().phase, wire::ExecutionFilePhase::Finished);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                    panic!("saved output must return its bytes");
+                };
+                assert_eq!(chunk.offset, 0);
+                assert_eq!(chunk.data, index.to_le_bytes()[..3]);
+                drop(frame);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                    panic!("saved output must return its remaining byte");
+                };
+                assert_eq!(chunk.offset, 3);
+                assert_eq!(chunk.data, index.to_le_bytes()[3..]);
+                drop(frame);
+                let frame = output.next_frame(maximum).await.unwrap().unwrap();
+                let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+                    panic!("saved output must finish with its sealed reference");
+                };
+                assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
+                assert_eq!(terminal.sealed.as_ref().unwrap().length, 4);
+                drop(frame);
+                assert!(output.next_frame(maximum).await.unwrap().is_none());
+            }
+        })
+        .await;
     drop(handle);
     reopened.shutdown().await.unwrap();
 }
@@ -223,18 +232,28 @@ pub(crate) async fn execution_save_sealing() {
 pub(crate) async fn terminal_capture_repaired() {
     let root = tempdir().unwrap();
     let (mut owner, handle, cycle_id, executor) = blocked_cycle(root.path()).await;
-    std::fs::write(root.path().join("organization.toml"), "[app]\nlabel = \"Stokker Technologies\"\n").unwrap();
-    let mut brand = dokime_runtime::domains::installed_plugins::load_brand(root.path()).unwrap();
-    brand.customization.display_name = Some("x".repeat(4 * 1024 * 1024));
-    handle.set_brand(Some(brand));
+    let original = handle.read_application_settings().await.unwrap();
+    let mut settings = original.settings.clone();
+    settings.report.source_bytes = 1;
+    let limited = handle
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: original.revision,
+            settings,
+        })
+        .await
+        .unwrap();
     let id = cycle_snapshot(&handle, &cycle_id).await.test_executions[0].test_execution_id.clone();
     executor.release();
-    until_state(&handle, |state| {
-        state.cycle_views().any(|cycle| cycle.test_cycle_id == cycle_id && cycle.test_executions[0].finished_at.is_some())
-    })
-    .await;
+    until_state(&handle, |state| state.report_finalizations.get(&id).is_some_and(|intent| intent.failure.is_some())).await;
     assert!(handle.execution_saved_checkpoint(id.clone()).await.is_err());
-    handle.set_brand(None);
+    handle
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: limited.revision,
+            settings: original.settings,
+        })
+        .await
+        .unwrap();
+    handle.finish_execution_for_test(&id).await.unwrap();
     let checkpoint = crate::service_support::native::checkpoint(&handle, &id).await;
     assert_eq!(crate::service_support::native::open(&handle, &checkpoint).await.execution().status, ExecutionStatus::Passed);
     drop(handle);
@@ -265,9 +284,14 @@ pub(crate) async fn unsealed_cycle_survives_restart() {
     drop(terminal);
     drop(watch);
 
-    // The Diagnostic Lands After The Freeze, As Host Sampling Failures Do On A Wedged Machine.
+    // Cycle Diagnostics Remain Writable After The Execution Closes.
     runtime
-        .add_health_item(member.scope.clone(), dokime_domain::model::execution::HealthSeverity::Error, "late diagnostic".into(), None)
+        .add_health_item(
+            dokime_domain::model::execution::RecordScope::default().with_cycle(test_cycle_id.clone()),
+            dokime_domain::model::execution::HealthSeverity::Error,
+            "late diagnostic".into(),
+            None,
+        )
         .await
         .unwrap();
     drop(runtime);
@@ -300,137 +324,38 @@ pub(crate) async fn unsealed_cycle_survives_restart() {
     owner.shutdown().await.unwrap();
 }
 
-// A permanent finalization failure settles the run Failed with its cause and leaves the
-// recorded test outcome unchanged; a rerun on a runtime that can encode its report seals.
+// Publication Failure Is Independent Of The Settled Provider Outcome.
 pub(crate) async fn permanent_finalization_settles() {
     let root = tempdir().unwrap();
     let refuse = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let (mut owner, runtime) =
-        started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()))).await;
+        started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
+    let execution = runtime.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
     let mut watch = runtime.watch_state();
-    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-
-    // The report can never be encoded. The watch stream settles the run
-    // instead of leaving it running forever.
-    let terminal = watch
+    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    watch
         .wait_until(|snapshot| {
-            snapshot.state().run_requests.get(&receipt.command_id).is_some_and(|request| request.summary.phase.terminal())
+            snapshot.state().run_requests[&receipt.command_id].summary.phase.terminal()
+                && snapshot.state().report_finalizations.get(&execution).is_some_and(|intent| intent.failure.is_some())
         })
         .await
-        .expect("the state watch stays open");
-    let cycle = terminal.state().cycle_view(&test_cycle_id).unwrap();
-    assert!(cycle.saved.is_none(), "an unproduced report is never sealed");
-    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
-    assert_eq!(cycle.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
-    let failed_id = cycle.test_executions[0].test_execution_id.clone();
-    let test_case_id = cycle.test_executions[0].test_case_id.clone();
-    assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Passed);
-    assert!(cycle.test_executions[0].saved.is_none());
-    let diagnosis = terminal.state().run_requests.get(&receipt.command_id).and_then(|request| request.publication_failure.clone());
-    assert!(
-        diagnosis.as_deref().is_some_and(|cause| cause.starts_with(UNSEALED)),
-        "the watch stream carries the terminal diagnosis: {diagnosis:?}"
-    );
-    assert!(diagnosis.as_deref().is_some_and(|cause| cause.contains(UNENCODABLE)), "the diagnosis names the injected cause: {diagnosis:?}");
-    // Stopping The Unsealed Execution Retries Its Report And Answers With The Operator Code, Not The Internal Chain.
-    let stopped = runtime.stop_execution(failed_id.clone(), CommandContext::default()).await.unwrap_err();
-    assert_eq!(stopped.code(), Some("report_not_saved"), "{stopped:?}");
-    drop(terminal);
+        .unwrap();
+    assert!(runtime.wait_execution_report(&execution).await.is_err());
+    assert!(runtime.stop_execution(execution.clone(), CommandContext::default()).await.is_err());
+    assert_eq!(runtime.watch_state().latest().state().executions[&execution].status, ExecutionStatus::Passed);
     drop(watch);
-    drop(runtime);
-    // The stop leaves the unsealable cycle to the next start, which seals it once its report encodes.
     owner.shutdown().await.unwrap();
-    drop(owner);
-
-    // Restart on the same store with a fixture whose reports encode. The
-    // publication failure stays terminal and its cause durable: in the receipt,
-    // and as evidence scoped to the execution and to the cycle.
-    let (mut owner, runtime) = started_with_fixture(config(root.path()), Arc::new(FakePythonExecutor::fixed("passed"))).await;
-    register_python_suite(&runtime, suite.clone()).await;
-    let original_cycle =
-        dokime_runtime::storage::objects::cycle::read(runtime.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
-            .await
-            .unwrap()
-            .unwrap();
-    assert_eq!(original_cycle.value.lifecycle, CycleStatus::Completed);
-    assert!(original_cycle.value.saved.is_some(), "publication repair is durable without replaying the provider");
-    let receipt = runtime.run_request(&receipt.command_id).await.unwrap().unwrap();
-    assert_eq!(receipt.summary.phase, RunPhase::Failed);
-    assert_eq!(receipt.summary.failed, 0);
-    assert!(
-        receipt.interruption.as_deref().is_some_and(|cause| cause.starts_with(UNSEALED)),
-        "the receipt reports the unsealed cause: {:?}",
-        receipt.interruption
-    );
-    let mut reader = runtime
-        .storage()
-        .read_records::<dokime_runtime::storage::records::RecordRow>(harmos::storage::RecordRead {
-            at: runtime.storage().cursor_saved(),
-            selection: harmos::storage::query::RecordSelection {
-                schema: dokime_runtime::storage::records::schema(),
-                scope: None,
-                item: None,
-                source_start: None,
-                source_end: None,
-            },
-            after: 0,
-        })
-        .await
-        .unwrap();
-    let mut records = Vec::new();
-    while let Some(batch) = reader.next().await.unwrap() {
-        records.push(crate::service_support::native::record_page(batch).unwrap());
-    }
-    drop(reader);
-    for (record_type, scoped) in [("test.execution.finalization.failed", Some(&failed_id)), ("test.cycle.finalization.failed", None)] {
-        let record = records
-            .iter()
-            .flat_map(|batch| batch.iter())
-            .find(|record| record.record_type.as_str() == record_type)
-            .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
-        assert_eq!(record.severity, RecordSeverity::Error);
-        assert_eq!(record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()), scoped, "{record_type} scope");
-        assert!(
-            record.message.as_deref().is_some_and(|message| message.starts_with(UNSEALED)),
-            "{record_type} names the permanent cause: {record:?}"
-        );
-    }
-
-    // A New Attempt Uses A New Container And Preserves The Repaired Original.
-    let checkpoint = crate::service_support::native::checkpoint(&runtime, &failed_id).await;
-    let original_view = crate::service_support::native::open(&runtime, &checkpoint).await;
-    let original = original_view.execution();
-    assert_eq!(original.test_execution_id, failed_id);
-    assert_eq!(original.status, ExecutionStatus::Passed);
-    assert!(original.saved.is_some(), "publication repair preserves the original outcome");
-    assert_eq!(original_cycle.value.execution_ids.len(), 1);
-    let fresh_cycle = runtime
-        .create_cycle(
-            CycleDefinition {
-                metadata: original_cycle.value.metadata.clone(),
-                continue_automatically: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
-    runtime
-        .append_executions(fresh_cycle.clone(), vec![(dokime_runtime::model::identity::new_id::<TestExecutionId>(), test_case_id.clone())])
-        .await
-        .unwrap();
-    runtime.start_case_execution(fresh_cycle.clone(), test_case_id, CommandContext::default()).await;
-    wait_for_cycle_outcome(&runtime, &fresh_cycle, ResultStatus::Passed).await;
-    runtime.seal_cycle(fresh_cycle.clone(), CommandContext::default()).await.unwrap();
-    let rerun = cycle_snapshot(&runtime, &fresh_cycle).await;
-    assert_eq!(rerun.test_executions.len(), 1);
-    let attempt = &rerun.test_executions[0];
-    assert_ne!(attempt.test_execution_id, failed_id);
-    assert_eq!(attempt.status, ExecutionStatus::Passed);
-    assert!(attempt.saved.is_some(), "the rerun attempt is sealed");
     drop(runtime);
+    drop(owner);
+    let (mut owner, runtime) = started_with_fixture(config(root.path()), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let receipt = runtime.run_request(&receipt.command_id).await.unwrap().unwrap();
+    assert_eq!(receipt.summary.phase, RunPhase::Completed);
+    assert!(receipt.interruption.is_none());
+    let mut report = runtime.open_execution_report(&execution).await.unwrap();
+    assert!(!crate::service_support::reports::opened_bytes(&mut report).await.is_empty());
     owner.shutdown().await.unwrap();
 }

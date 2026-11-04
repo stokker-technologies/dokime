@@ -48,12 +48,21 @@ export function PluginStartNotifications() {
         description: failure.message,
         source: failure.plugin_name,
         pluginSettings: entry.install_id,
-        action: entry.metadata?.owners.length
-          ? {
-              label: "Open Plugin Settings",
-              onClick: () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: entry.install_id } }),
-            }
-          : undefined,
+        missingSecret: failure.missing_secret ?? undefined,
+        consequences: failure.consequences,
+        failure: { reason: failure.code ?? undefined, operation: "Plugin Startup", causes: [failure.message] },
+        action:
+          failure.missing_secret || entry.metadata?.owners.length
+            ? {
+                label: failure.missing_secret ? "Set Secret" : "Open Plugin Settings",
+                onClick: () =>
+                  void navigate(
+                    failure.missing_secret
+                      ? { to: "/settings/$section", params: { section: "secrets" }, hash: `add-secret=${failure.missing_secret}` }
+                      : { to: "/settings/plugins/$pluginId", params: { pluginId: entry.install_id } },
+                  ),
+              }
+            : undefined,
       });
     }
   }, [query.data, session.identity.generation, navigate]);

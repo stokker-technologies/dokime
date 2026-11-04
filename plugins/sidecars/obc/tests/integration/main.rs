@@ -104,6 +104,7 @@ fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item 
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suite_export_bound() {
     // The plugin lists its suites on its own attribute; each of them answers
@@ -117,6 +118,7 @@ fn suite_export_bound() {
     assert_eq!(suites[0].workflow.as_deref(), Some("obc.checks"));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn contracts_bind_fields() {
     let registration = ObcChecks::definition();
@@ -151,6 +153,7 @@ fn contracts_bind_fields() {
     }));
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn default_case_phases() {
     let template = ObcChecks::suite().test_case_templates.remove(0);
@@ -176,6 +179,7 @@ fn default_case_phases() {
     );
 }
 
+#[dokime_tracing::trace_test]
 #[test]
 fn suites_survive_trip() {
     let suites = SuiteSet::new(vec![ObcChecks::definition()]);
@@ -185,6 +189,7 @@ fn suites_survive_trip() {
     assert_eq!(decoded, suites);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn pulse_leases_unmeasured() {
     let row = SystemRow {
@@ -211,6 +216,7 @@ async fn pulse_leases_unmeasured() {
     assert!(!refused.passed(), "an unmeasured global stream is refused");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn pulse_confirmation() {
     use dokime::plugin::testing::Harness;
@@ -232,4 +238,43 @@ async fn pulse_confirmation() {
             assert!(samples.is_empty(), "capture stays disarmed until confirmation succeeds");
         }
     }
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test(start_paused = true)]
+async fn cpu_load_example_uses_public_hold_and_control_subscription() {
+    use plugin_host::host::cpu::load::{LoadControl, LoadHold, LoadSummary, LoadTarget};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let row = LoadControl {
+        mode: "percent".into(),
+        target_percent: Some(35.0),
+        measured_percent: Some(35.0),
+        target_flops: None,
+        measured_flops: None,
+        duty_percent: 20.0,
+        generator_flops: 1_000.0,
+    };
+    let report = dokime::plugin::testing::Harness::template("obc.checks.cpu_load")
+        .parameter("target_percent", 35.0)
+        .parameter("duration_s", 1.0)
+        .measuring::<LoadControl>([row])
+        .answering::<LoadHold, _>(move |request| {
+            assert_eq!(request.target, LoadTarget::Percent(35.0));
+            assert_eq!(request.threads, None);
+            observed.fetch_add(1, Ordering::SeqCst);
+            LoadSummary {
+                target: request.target,
+                mean: 35.0,
+                error_rms: 0.0,
+                duration_s: 1.0,
+                samples: 4,
+            }
+        })
+        .run::<plugin_obc::suites::Suites>()
+        .await
+        .unwrap();
+    assert!(report.passed(), "{}", report.diagnostics());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

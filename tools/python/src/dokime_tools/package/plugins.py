@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import json
+import stat
 import subprocess
 import sys
 import tarfile
@@ -30,7 +31,7 @@ from dokime_tools.release import policy
 
 # === Constants === #
 
-FIXTURES = ("plugin-obc",)
+FIXTURES = ("plugin-host", "plugin-obc")
 
 # === Types === #
 
@@ -102,7 +103,11 @@ def archive(root: Path, build: Path, output: Path, version: str, target: str) ->
     if extension == ".zip":
         with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for name, source in sorted(members.items()):
-                archive.write(source, name)
+                # Record A Regular-File Mode Explicitly; Host Defaults Can Omit The File Type And Consumers Reject That.
+                entry = zipfile.ZipInfo.from_file(source, name)
+                entry.compress_type = zipfile.ZIP_DEFLATED
+                entry.external_attr = (stat.S_IFREG | 0o644) << 16
+                archive.writestr(entry, source.read_bytes())
     else:
         with tarfile.open(destination, "w:gz") as archive:
             for name, source in sorted(members.items()):

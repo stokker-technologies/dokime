@@ -161,20 +161,22 @@ class Row20(_message.Message):
     def __init__(self, offset: _Optional[int] = ..., data: _Optional[bytes] = ...) -> None: ...
 
 class Row21(_message.Message):
-    __slots__ = ("plugin_id", "plugin_name", "message", "code", "missing_secret", "carrier")
+    __slots__ = ("plugin_id", "plugin_name", "message", "code", "missing_secret", "carrier", "consequences")
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     PLUGIN_NAME_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CODE_FIELD_NUMBER: _ClassVar[int]
     MISSING_SECRET_FIELD_NUMBER: _ClassVar[int]
     CARRIER_FIELD_NUMBER: _ClassVar[int]
+    CONSEQUENCES_FIELD_NUMBER: _ClassVar[int]
     plugin_id: str
     plugin_name: str
     message: str
     code: str
     missing_secret: str
     carrier: bytes
-    def __init__(self, plugin_id: _Optional[str] = ..., plugin_name: _Optional[str] = ..., message: _Optional[str] = ..., code: _Optional[str] = ..., missing_secret: _Optional[str] = ..., carrier: _Optional[bytes] = ...) -> None: ...
+    consequences: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, plugin_id: _Optional[str] = ..., plugin_name: _Optional[str] = ..., message: _Optional[str] = ..., code: _Optional[str] = ..., missing_secret: _Optional[str] = ..., carrier: _Optional[bytes] = ..., consequences: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response", "input")

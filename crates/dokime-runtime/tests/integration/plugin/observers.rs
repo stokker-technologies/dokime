@@ -81,7 +81,7 @@ pub struct OwnerSettings {
 
 #[dokime_runtime::section(label = "Required Secrets")]
 struct RequiredSecrets {
-    #[setting(label = "Token", from_environment = "OBSERVER_FIXTURE_TOKEN")]
+    #[setting(label = "Token")]
     token: dokime_runtime::plugin::Secret,
 }
 
@@ -314,14 +314,6 @@ impl dokime_runtime::harmos::Lifecycle for Owner {
         Ok(owner)
     }
 
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
     async fn cleanup(&mut self) -> Result<(), Refusal> {
         self.observers.take();
         let probe = &self.shared.probe;
@@ -384,7 +376,7 @@ impl dokime_runtime::harmos::builtins::lifecycle::Policy for MissingSecrets {
     id = "missing_observer_secrets",
     requires(),
     contributions(dokime_runtime::Settings<MissingSecretSettings>),
-    restart = "never", description = "A plugin whose card requires a secret nobody bound.")]
+    restart = "never", description = "A plugin whose card requires an identifier absent from Secret Storage.")]
 impl dokime_runtime::Plugin for MissingSecrets {
     const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
 }
@@ -401,18 +393,6 @@ impl dokime_runtime::harmos::Lifecycle for MissingSecrets {
         };
         setup.resource::<()>(owner.resources());
         Ok(owner)
-    }
-
-    async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
-        Ok(())
-    }
-
-    async fn cleanup(&mut self) -> Result<(), Refusal> {
-        Ok(())
     }
 }
 
@@ -604,6 +584,7 @@ fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Syn
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn activation_starts_execution() {
     let probe = Arc::new(Probe::default());
@@ -635,7 +616,7 @@ async fn activation_starts_execution() {
     else {
         panic!("the required secret is absent");
     };
-    assert_eq!(refused.code(), dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE);
+    assert_eq!(refused.code(), dokime_domain::model::plugins::error::MISSING_SECRET_CODE);
     assert_eq!(refused.failure().detail("dokime.secret"), Some("token"));
     let previous = probe.secret_ticks.load(Ordering::Acquire);
     // The original observer ticks after another preparation fails.
@@ -650,6 +631,7 @@ async fn activation_starts_execution() {
     assert_eq!(probe.checks.load(Ordering::SeqCst), settled);
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_events_criterion() {
     let probe = Arc::new(Probe::default());
@@ -668,6 +650,7 @@ async fn template_events_criterion() {
     assert_eq!(probe.starts.load(Ordering::SeqCst), 0, "a template run starts no plugin observer");
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn observer_failure_event() {
     let probe = Arc::new(Probe::default());
@@ -684,6 +667,7 @@ async fn observer_failure_event() {
     assert!(!report.records::<SuiteObserved>().is_empty());
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cancellation_drops_cleanup() {
     let probe = Arc::new(Probe::default());

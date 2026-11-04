@@ -32,13 +32,13 @@ runtime = ["harmos/runtime", "dep:tonic"]
 dokime-domain = { workspace = true }
 
 # Git
+harmos = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
-harmos = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -65,6 +65,39 @@ tonic = { workspace = true, optional = true }
 # === Build Dependencies === #
 
 # === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+dokime-tracing = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Target Dependencies === #
 

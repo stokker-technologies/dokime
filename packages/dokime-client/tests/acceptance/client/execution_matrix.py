@@ -39,7 +39,9 @@ from dokime_client.client import DokimeClient, Execution, _wire
 
 async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
     client = DokimeClient(endpoint)
+    changes = None
     try:
+        changes = await client._transport.stream("Observation", "WatchRuntime", _wire.request("Observation", "WatchRuntime"))
         template = await client.template(contract["template"])
         (case,) = await template.materialize()
         control = Execution(case)
@@ -49,7 +51,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         execution_id = control.id
         while not (pending := [prompt async for prompt in run_cycle.pending_prompts()]):
             assert await control.checkpoint() is None
-            await asyncio.sleep(0.01)
+            await anext(changes)
         assert len(pending) == 1
 
         async def progress_at(completed: int) -> None:
@@ -97,17 +99,21 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         if scenario["action"] == "yes":
             while not (next_prompts := [item async for item in run_cycle.pending_prompts() if item.id != pending[0].id]):
                 assert await control.checkpoint() is None
-                await asyncio.sleep(0.01)
+                await anext(changes)
             await progress_at(1)
             await run_cycle.respond(next_prompts[0].id, action="yes")
-        status = await control.wait(poll_interval=0.02)
+        while await control.checkpoint() is None:
+            await anext(changes)
+        status = await control.wait()
         records = [item async for item in run_cycle.records()]
         rows = [item async for item in run_cycle.samples(streams=[contract["stream"]], page_size=1)]
         await run_cycle.seal()
         summary = await run_cycle.result()
         cycle_document = await run_cycle.document()
         inventory = await client._transport.unary("Content", "ListArtifacts", _wire.request("Content", "ListArtifacts"))
-        artifact = next(item for item in inventory.artifacts if item.filename.endswith("matrix.txt"))
+        artifact = next(
+            item for item in inventory.artifacts if item.filename.endswith("matrix.txt") and item.scope.execution_id == control.id
+        )
         assert artifact.scope.execution_id == control.id
         assert _wire.enum_name(artifact.state) == "complete"
         download = await client._transport.stream(
@@ -161,6 +167,8 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
             flush=True,
         )
     finally:
+        if changes is not None:
+            await changes.close()
         await client.close()
 
 

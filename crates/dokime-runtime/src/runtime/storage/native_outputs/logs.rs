@@ -251,7 +251,7 @@ impl ExecutionStorage {
                 super::store_descriptor(&close.path, output, Some(state))?;
                 output.captured = true;
                 let descriptor = output.descriptor.as_ref().ok_or_else(|| error("closed log segment has no saved descriptor"))?;
-                session.flush_until(&descriptor.file.position).await?;
+                session.flush_until(&descriptor.file().map_err(crate::storage::Error::from)?.position).await?;
             }
             Ok(())
         })

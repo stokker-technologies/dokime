@@ -103,7 +103,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
     observers = observers::Observers,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
 impl dokime::Plugin for Plugin {
-    const CATALOGS: &'static [dokime::harmos::Catalog] = &[domain::operations::Operations::CATALOG, listeners::Listeners::CATALOG];
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[domain::operations::Operations::CATALOG];
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
@@ -128,7 +128,7 @@ impl dokime::harmos::Lifecycle for Plugin {
                 bench: Arc::new(Bench {
                     sensor: bench::Sensor::open(port, AMBIENT_C),
                     units: Mutex::default(),
-                    // An unbound optional secret decodes as `None`, which is how "not
+                    // A missing optional store identifier decodes as `None`, which is how "not
                     // configured" is told apart from "configured and empty".
                     upload_configured: settings.chamber.cloud_token.is_some(),
                 }),
@@ -139,10 +139,6 @@ impl dokime::harmos::Lifecycle for Plugin {
         owner.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(<Self as Declared>::STREAMS)?);
         dokime::execution::prepare::<Self, suites::Suites>(setup)?;
         Ok(owner)
-    }
-
-    async fn initialize(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
-        Ok(())
     }
 
     async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {

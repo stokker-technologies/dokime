@@ -30,6 +30,22 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+## Cycle Lists And Restart Recovery
+
+The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
+current live cycles and durable sealed cycle headers as one list, with the same
+filter, ordering and continuation rules. A live cycle supersedes its saved
+checkpoint; each cycle appears once. Recent cycles remain visible after starting
+another cycle or restarting the desktop. Archive selection applies to both sources.
+
+`state.json` and `state.jsonl` under the data root recover current work. Sealed
+cycles are retired from that state to keep checkpoints bounded; their durable
+history remains the source for subsequent reads. Startup marks unfinished
+executions Interrupted, records the restart reason, and closes admission to their
+cycles before accepting new work. Interrupted cycles report Stopped. Pending
+report finalization resumes from its frozen terminal header; a failed seal stays
+retryable without reporting Running.
+
 ## Keyboard Focus And Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
@@ -59,13 +75,78 @@ HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
 
+## Telemetry Plots
+
+Live and frozen report plots retain samples from the selected execution,
+including shared streams captured by its leases. Authored stream aliases resolve
+to the captured producer streams. Running reports freeze one saved evidence cut;
+later samples stay outside that report. Plot previews remain bounded independently
+of raw evidence retention.
+
+An open plot settings dialog retains its edit draft while incoming payloads replace
+the loading, chart or error presentation. Closing it returns focus to its plot's
+settings control.
+
+The live viewer owns the time window for all plots in its view. The options are
+1 min, 2 min, 5 min, 10 min, 30 min, 1 h and All; the default is 5 min. Selection
+stays with that view across rerenders. Plot definitions carry no time window.
+Reports always show the full captured range, render once and omit live controls.
+
+Refresh sits to the left of the window slider and updates every plot in the view.
+Timed windows keep their automatic watch; Refresh requests fresh snapshots
+immediately. All uses one finite `Plots.QuerySnapshots` request per plot on entry
+and per button press, without polling, a plot watch or runtime-driven invalidation.
+Each plot has its own response budget and deadline; completed plots appear while
+others load, and a failed plot leaves the other plots available.
+Visibility, zoom and document updates do not reload All; changed query settings
+apply at the next explicit refresh. There is no background GUI plot prefetch.
+The button shows progress and is disabled while refreshing. Updated hh:mm:ss
+shows the last successful refresh time; failures use Notifications and leave
+that time unchanged.
+
+Live requests retain their display point budget for All (`src/plots/live-data.ts`).
+Declared All plots read the write-time report checkpoints in
+`crates/dokime-runtime/src/plot/preview.rs` and its `index.rs`. Their bounded exact
+samples, time envelopes and occupancy grids avoid repeated full-history scans.
+Checkpoints must match the plot inputs, scope and committed frontier.
+Current All reads capture the checkpoint and frontier in one SQLite snapshot;
+concurrent writes do not cause a raw-history fallback. Explicit historical cuts
+retain their requested frontier. Exact
+analyses refuse captures beyond the exact preview capacity. Markers share the
+display point budget. Exact zoom statistics are unavailable after a preview has
+reduced its raw samples. Timed windows retain their existing raw-query behavior.
+Numeric fields and plain same-stream field expressions use
+`crates/dokime-runtime/src/plot/stored.rs`; other raw projections use
+`crates/dokime-runtime/src/plot/payload/spilled/`. Field expressions with values
+outside the safe integer range retain the typed exact-statistics path.
+Ad hoc queries without a matching
+checkpoint, explicit unbounded queries and older historical frontiers still
+require raw evidence reads.
+
+Numeric time series and histograms show numeric statistics. XY scatter, XY line,
+XY interval, trajectory and heatmap plots omit the statistics block in both the
+desktop and report renderer. XY traces keep their ordinary legend.
+
+Time series of declared Boolean fields, including host `host.network.internet`,
+use a stepped state axis labeled **False** and **True**, without numeric statistics.
+The plot projection encodes false as 0 and true as 1; missing readings are gaps.
+Stored evidence retains its declared Boolean type. The live view and report use
+the captured column schema to select this presentation.
+
 ## Canonical Bindings And Transport
 
-- Rust `dokime-domain::operations` declarations own the wire shape; do not
-  maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings -- <compiler-messages.jsonl>` and `build:typescript`
-  select the build's `cargo-dokime` executable, export `bindings proto` and feed
-  its descriptors to Buf. The server build-script export supplies application settings
+- `mise run check:typescript:generated --source` checks locally prepared bindings
+  and GUI types. Without `--source`, the generated check restores staged Product
+  bindings for artifact validation. `mise run check:typescript` owns formatting
+  and lint.
+- Rust `dokime-operations` declarations own operation contracts and
+  `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
+- `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
+  together. The `prepare:generated` prerequisite checks those tracked clients,
+  builds `cargo-dokime` and the server export before report compilation,
+  exports `bindings proto` and feeds its descriptors to the message generator.
+  The Product frontend build runs the same generation from the Product build's `cargo-dokime`.
+  The server build-script export supplies application settings
   and remains the Python generator's input; no backend process runs for generation.
   Desktop wrappers bind the ordinary methods in the canonical contract inventory;
   Harmos's additional managed `Run…` RPCs remain transport projections.
@@ -74,10 +155,12 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
   typed status out, one Tauri channel per stream, fenced by the connection
   generation. The bridge never decodes or dispatches per operation; keep it so.
-  The WebView holds no endpoint or credential; they never belong in status, logs,
-  profiles, persisted browser storage or report output.
+  Native connection handles and credentials stay outside the WebView. Listener
+  status may expose this host's advertised addresses and adapter names for the
+  export preview; keep that preview transient and out of logs, persisted browser
+  storage and report output. Connection credentials never belong in status or profiles.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
-  artifact and recording bytes. Do not add ordinary calls to it.
+  artifact bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
   the install dialog and an error notification. Cancelling the picker installs
   nothing; a connection change cancels its owning request.
@@ -86,14 +169,34 @@ and filter controls remain usable. Preserve the case of unit symbols.
   bodies so nested runtime futures stay off that thread's stack. Native and RPC
   command futures have a 16 KiB
   regression budget; the plugin install guard also constructs the mock-runtime future.
-- Settings › Plugins keeps installed programs' settings and secrets editable
-  after startup fails. Their declared schema comes from the verified bundle
-  inventory; the page shows the recorded failure and offers an application
-  restart to retry with saved changes. Every owner in an inactive bundle is editable.
+- Settings › Plugins keeps installed programs' ordinary settings editable after
+  startup fails. Their declared schema comes from the verified bundle inventory.
+  Secret declarations show identifiers and availability read-only; Add In Secret
+  Storage opens the shared Add Secret dialog prefilled with the identifier.
+  Every owner in an inactive bundle remains visible. Add missing identifiers and
+  restart Dokime, or use the existing plugin Retry to read the store again.
+  Startup notifications and plugin views keep root prose separate from collapsed
+  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
+  the identifier prefilled; notification history retains the same destination.
+  Secret Storage References lists declaring plugins, including inactive programs.
+- Toast content and history rows open the shared notification details dialog through
+  native buttons (Enter/Space); the existing dialog handles Esc and focus return.
+  History retains serializable failure context, including field problems, root-first
+  causes, operation/request/invocation identifiers and optional backend diagnostics.
+  RPC adapters decode standard Status envelopes with canonical generated domain
+  error schemas. The server preserves redacted span/backtrace text in the captured
+  error's optional diagnostics field when it fits the bounded RPC status details.
+  Oversized technical text is omitted before the cause chain; the RPC code and
+  message remain available even when details cannot fit. Technical Details is collapsed by default;
+  Copy includes the complete record. Existing startup remediation actions remain
+  independent of opening details.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated
   message shapes into them; preserve that boundary in components.
+- Shared report components save bounded documents through
+  `src/lib/api/native-document-delivery.ts`, which has no runtime RPC or generated
+  message imports. File-backed artifact delivery remains in `native-delivery.ts`.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
@@ -107,3 +210,32 @@ events. These process-local traces are separate from saved execution evidence;
 restarting the desktop or standalone server process starts a new journal. Reconnects resume the scope cursor,
 replaying retained history if its epoch or cursor expires. Stream failures show
 the backend or transport cause beside the reconnect status.
+
+## Remote Access Files
+
+The owned local backend's Remote Access section checks inbound Windows Firewall
+policy for a running non-loopback listener. **Allow In Firewall…** is the only
+action that requests elevation; its rule uses the applied organization label and
+allows the installed executable's TCP listener port on the served adapters'
+active profiles, including a Public unidentified cable network, restricted to
+local-subnet peers. Specific binds select only their adapter's profile and local
+address; wildcard binds select active adapters in the listener's address family.
+The notice names the affected adapters, networks and categories. Outbound remote sessions
+have no firewall action. Disabling remote access attempts owned-rule removal
+without prompting and reports skipped cleanup. Installers never manage rules.
+
+Settings → Remote Access exports `.dokime-remote` through the native save adapter
+in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
+the secret warning when stopped; running listeners export directly. Labels and
+all candidate endpoints come from native owners. `RemoteListenerStatus.endpoints`
+provides the same ordered addresses used by exports, with adapter names, for the
+pre-export list. Physical IPv4 link-local follows routable addresses; IPv6
+link-local remains excluded because remote origins have no zone-ID support.
+Paired Clients permits rename.
+The file bytes and raw key stay native; the export action returns only a saved path.
+
+Picker imports and window drops share `src-tauri/src/connection/registry.rs`:
+validate, save the profile/keyring association, then connect. Native import events
+refresh the frontend session generation so the opaque bridge follows the new
+backend. The Rust client races candidates only after TLS and identity verification;
+profiles remember the winning endpoint without changing their keyring association.

@@ -34,7 +34,7 @@ export function BootstrapPaths() {
           Loading Paths…
         </p>
       )}
-      {Boolean(query.error) && <NotificationMessage>{String(query.error)}</NotificationMessage>}
+      {Boolean(query.error) && <NotificationMessage error={query.error}>{String(query.error)}</NotificationMessage>}
       {paths &&
         Object.entries(paths).map(([key, path]) => (
           <SettingsRow

@@ -19,7 +19,7 @@
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use super::{Endpoint, MUTATION, ORDINARY};
+use super::{MUTATION, ORDINARY};
 use dokime_domain::model::secrets::catalog::{Metadata, Snapshot, Value};
 use dokime_domain::model::secrets::transfer::{Archive, Choice, Preview as ImportPreview};
 
@@ -118,28 +118,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Endpoint for Lookup {
-    const PATH: &'static str = "/dokime.v1.Secrets/Lookup";
-}
-impl Endpoint for List {
-    const PATH: &'static str = "/dokime.v1.Secrets/List";
-}
-impl Endpoint for Put {
-    const PATH: &'static str = "/dokime.v1.Secrets/Put";
-}
-impl Endpoint for Remove {
-    const PATH: &'static str = "/dokime.v1.Secrets/Remove";
-}
-impl Endpoint for Export {
-    const PATH: &'static str = "/dokime.v1.Secrets/Export";
-}
-impl Endpoint for Preview {
-    const PATH: &'static str = "/dokime.v1.Secrets/Preview";
-}
-impl Endpoint for Import {
-    const PATH: &'static str = "/dokime.v1.Secrets/Import";
-}
 
 impl std::fmt::Debug for Put {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

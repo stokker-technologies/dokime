@@ -56,6 +56,9 @@ pub struct Appearance {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportDefaults {
+    pub source_bytes: u32,
+    pub value_depth: u32,
+    pub table_rows: u32,
     pub plot_points: u32,
     pub plot_downsample: DownsampleTechnique,
 }
@@ -66,6 +69,7 @@ pub struct ReportDefaults {
 pub struct ClientPreferences {
     pub connect_timeout_ms: u64,
     pub request_timeout_ms: u64,
+    pub endpoint_stagger_ms: u64,
 }
 
 #[harmos::message(skip_default)]
@@ -142,6 +146,9 @@ impl Default for Appearance {
 impl Default for ReportDefaults {
     fn default() -> Self {
         Self {
+            source_bytes: 64 * 1024 * 1024,
+            value_depth: 128,
+            table_rows: 32,
             plot_points: 2_000,
             plot_downsample: DownsampleTechnique::Auto,
         }
@@ -153,6 +160,7 @@ impl Default for ClientPreferences {
         Self {
             connect_timeout_ms: 10_000,
             request_timeout_ms: 30_000,
+            endpoint_stagger_ms: 250,
         }
     }
 }
@@ -168,6 +176,12 @@ impl ApplicationSettings {
         let invalid_family = self.appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256);
         if invalid_family {
             return Err("theme family must be nonempty and at most 256 bytes".into());
+        }
+        if self.report.source_bytes == 0 || self.report.value_depth == 0 {
+            return Err("report source bytes and value depth must be positive".into());
+        }
+        if self.report.table_rows == 0 {
+            return Err("report table rows must be positive".into());
         }
         if self.report.plot_points == 0 || self.report.plot_points > 100_000 {
             return Err("plot points must be between 1 and 100000".into());
@@ -199,7 +213,8 @@ impl ApplicationSettings {
 impl ClientPreferences {
     pub fn validate(&self) -> Result<(), String> {
         validate_duration(self.connect_timeout_ms)?;
-        validate_duration(self.request_timeout_ms)
+        validate_duration(self.request_timeout_ms)?;
+        validate_duration(self.endpoint_stagger_ms)
     }
 }
 

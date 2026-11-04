@@ -16,10 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { isValidElement, type ReactNode, useSyncExternalStore } from "react";
+import { createElement, isValidElement, type ReactNode, useSyncExternalStore } from "react";
 import { toast as displayToast, type ExternalToast } from "sonner";
 
 // Local Imports
+import { notificationFailure, type NotificationFailure } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -28,6 +29,10 @@ import { toast as displayToast, type ExternalToast } from "sonner";
 const PAGE_SIZE = 25;
 
 const listeners = new Set<() => void>();
+
+const detailsListeners = new Set<() => void>();
+
+let selectedNotification: NotificationRecord | null = null;
 
 let database: Promise<IDBDatabase> | undefined;
 
@@ -55,6 +60,9 @@ export type NotificationRecord = {
   title: string;
   description?: string;
   pluginSettings?: string;
+  missingSecret?: string;
+  consequences?: string[];
+  failure?: NotificationFailure;
   tone: NotificationTone;
   unread: 0 | 1;
 };
@@ -63,13 +71,34 @@ export type NotificationCursor = Pick<NotificationRecord, "at" | "id">;
 
 export type NotificationPage = { records: NotificationRecord[]; older: boolean; newer: boolean };
 
-type NotificationOptions = Omit<ExternalToast, "description"> & { description?: string | null; source?: string; pluginSettings?: string };
+type NotificationOptions = Omit<ExternalToast, "description"> & {
+  description?: string | null;
+  source?: string;
+  pluginSettings?: string;
+  missingSecret?: string;
+  consequences?: string[];
+  failure?: NotificationFailure;
+  error?: unknown;
+};
 
 type Summary = { count: number; unread: number; revision: number; error?: string };
 
 /* === Classes === */
 
 /* === Public Functions === */
+
+export function openNotificationDetails(record: NotificationRecord | null): void {
+  selectedNotification = record;
+  for (const listener of detailsListeners) listener();
+}
+
+export function useNotificationDetails(): NotificationRecord | null {
+  return useSyncExternalStore(subscribeDetails, getNotificationDetails, () => null);
+}
+
+export function getNotificationDetails(): NotificationRecord | null {
+  return selectedNotification;
+}
 
 export async function recordNotification(record: NotificationRecord): Promise<void> {
   const connection = await open();
@@ -214,11 +243,19 @@ function result<T>(request: IDBRequest<T>): Promise<T> {
 function historyFailure(error: unknown): void {
   summary = { ...summary, revision: summary.revision + 1, error: error instanceof Error ? error.message : String(error) };
   for (const listener of listeners) listener();
-  displayToast.error("Notification History Unavailable", {
-    id: "notification-history-unavailable",
-    description: error instanceof Error ? error.message : String(error),
-    duration: Infinity,
-  });
+  showNotification(
+    {
+      id: "notification-history-unavailable",
+      at: Date.now(),
+      source: "Notifications",
+      title: "Notification History Unavailable",
+      tone: "error",
+      unread: 1,
+      description: summary.error,
+      failure: notificationFailure(error),
+    },
+    { id: "notification-history-unavailable" },
+  );
 }
 
 async function refresh(): Promise<void> {
@@ -249,11 +286,10 @@ function subscribe(listener: () => void): () => void {
 }
 
 function publish(tone: NotificationTone, title: string, options: NotificationOptions = {}): string | number {
-  const { source, pluginSettings, ...display } = options;
+  const { source, pluginSettings, missingSecret, consequences, failure, error, ...display } = options;
   const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
-  const id = displayToast[tone](title, { ...display, ...(tone === "error" ? { duration: Infinity } : {}) });
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
-  void recordNotification({
+  const record: NotificationRecord = {
     id: identity,
     at: Date.now(),
     title,
@@ -262,8 +298,45 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
     source: origin && origin !== "/" ? origin : "Desktop",
     description: options.description ?? undefined,
     pluginSettings,
-  }).catch(historyFailure);
+    missingSecret,
+    consequences,
+    failure: failure ?? notificationFailure(error),
+  };
+  const id = showNotification(record, display);
+  void recordNotification(record).catch(historyFailure);
   return id;
+}
+
+function showNotification(record: NotificationRecord, options: ExternalToast = {}): string | number {
+  const content = createElement(
+    "button",
+    {
+      type: "button",
+      className:
+        "-m-1 grid min-w-0 cursor-pointer gap-1 rounded p-1 text-left outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+      "aria-haspopup": "dialog",
+      onClick: () => openNotificationDetails(record),
+    },
+    createElement("span", { className: "font-medium" }, record.title),
+    record.description &&
+      createElement(
+        "span",
+        { className: "line-clamp-3 whitespace-pre-wrap text-xs font-normal text-muted-foreground" },
+        record.description,
+      ),
+  );
+  return displayToast[record.tone](content, {
+    ...options,
+    description: undefined,
+    ...(record.tone === "error" ? { duration: Infinity } : {}),
+  });
+}
+
+function subscribeDetails(listener: () => void): () => void {
+  detailsListeners.add(listener);
+  return () => {
+    detailsListeners.delete(listener);
+  };
 }
 
 /* === Entry Point === */

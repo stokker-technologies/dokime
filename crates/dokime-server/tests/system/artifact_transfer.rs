@@ -96,6 +96,7 @@ fn failed(cycle: &model::execution::wire::CycleSummary) -> bool {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn artifact_transfer() {
     let root = tempfile::tempdir().unwrap();

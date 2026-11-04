@@ -165,7 +165,7 @@ pub struct OnDemandRefresh {}
 pub struct PluginRuntimeSettings {
     pub settings: Option<SettingsCatalog>,
     pub values: Option<Value>,
-    pub secret_bindings: Option<PluginRuntimeSecretBindings>,
+    pub secrets: Vec<SecretAvailability>,
 
     #[row(
         description = "Values a plugin's discovery routes computed, by setting id, for the fields nobody saved. A value here is shown on the card with a `Discovered` marker and is used by no run: saving it is what turns it into an edited value."
@@ -252,36 +252,14 @@ pub struct SecretSetting {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
-    pub default: Option<SecretReference>,
     pub required: bool,
 }
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct SecretReference {
-    pub kind: Option<SecretReferenceKind>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeSecretBindingsBindingsEntry {
-    pub key: String,
-    pub value: Option<RedactedSecretBinding>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeSecretBindings {
-    pub bindings: Vec<PluginRuntimeSecretBindingsBindingsEntry>,
-    pub missing_required: Vec<String>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RedactedSecretBinding {
-    pub secret_id: String,
-    pub backend: SecretBackendKind,
-    pub configured: bool,
+pub struct SecretAvailability {
+    pub identifier: String,
+    pub available: bool,
 }
 
 /* === Enums === */
@@ -307,13 +285,6 @@ pub enum SettingsCardState {
     Stale,
     Error,
     PermissionDenied,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SecretBackendKind {
-    Unspecified,
-    OsKeyring,
 }
 
 #[harmos::message]
@@ -348,14 +319,7 @@ pub enum SettingContributionKind {
     Path(PathSetting),
     Number(NumberSetting),
     MultipleChoice(MultipleChoiceSetting),
-    SecretReference(SecretSetting),
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum SecretReferenceKind {
-    Environment(String),
-    StoredSecret(String),
+    Secret(SecretSetting),
 }
 
 /* === Traits === */

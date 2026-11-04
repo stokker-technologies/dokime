@@ -167,7 +167,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
-inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
+inputs = ["build#cli", "build#gui", "build#plugins", "build#clients", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:unit"
@@ -179,11 +179,11 @@ inputs = ["build:python#python"]
 
 [[ci.jobs]]
 id = "test:python:acceptance"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
+inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 id = "test:python:coverage"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
+inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
@@ -257,6 +257,7 @@ inputs = []
 
 [[ci.jobs]]
 id = "release:publish:dry"
+pipelines = ["release", "nightly"]
 inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
@@ -289,7 +290,7 @@ platform = "unix"
 [conventions.testing.deadlines]
 acceptance = 900
 integration = 120
-system = 900
+system = 300
 unit = 120
 
 [conventions.testing.limits]
@@ -347,7 +348,7 @@ platforms = ["unix", "windows"]
 
 [release]
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
-dev_channel = true
+edge = true
 lock_commands = [
   [
     "cargo",

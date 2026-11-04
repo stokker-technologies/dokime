@@ -96,6 +96,12 @@ impl RuntimeHandle {
                     let samples = self
                         .collect_telemetry(&crate::evidence_runtime::TelemetrySelection {
                             streams: stream.clone().into_iter().map(Into::into).collect(),
+                            scope: query.scope.as_ref().map_or_else(Default::default, |scope| crate::evidence_runtime::ScopeSelection {
+                                test_execution_id: scope.test_execution_id.clone(),
+                                test_cycle_id: scope.test_cycle_id.clone(),
+                                test_case_id: scope.test_case_id.clone(),
+                                template_id: scope.template_id.clone(),
+                            }),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
                         .await?;

@@ -135,6 +135,11 @@ impl Artifacts {
     pub fn import(&self, path: impl AsRef<Path>, name: impl AsRef<str>) -> crate::Result<()> {
         let name = validated(name.as_ref())?;
         let mime = inferred_mime(&name)?;
+        self.import_with_mime(path, &name, mime)
+    }
+
+    pub(crate) fn import_with_mime(&self, path: impl AsRef<Path>, name: &str, mime: String) -> crate::Result<()> {
+        let name = validated(name)?;
         let mut source = std::fs::File::open(path.as_ref())?;
         let mut writer = self.opened(name, mime)?;
         loop {
@@ -281,14 +286,7 @@ pub(super) fn transfer_identity(token: &str, ordinals: &AtomicU64) -> String {
 }
 
 pub(super) fn validated(name: &str) -> io::Result<String> {
-    let escapes =
-        name.is_empty() || name.contains('\\') || name.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..");
-    if escapes {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("artifact name {name:?} must be a non-empty relative `/`-separated path with no empty, `.`, or `..` segment"),
-        ));
-    }
+    dokime_domain::model::artifacts::name::validate(name).map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
     Ok(name.to_owned())
 }
 
@@ -314,14 +312,8 @@ pub(crate) fn inferred_mime(name: &str) -> io::Result<String> {
         Some("mp4") => "video/mp4",
         Some("webm") => "video/webm",
         Some("bin") => "application/octet-stream",
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "artifact name {name:?} does not say what the content is: name it with an extension whose media type is known, such as `.json`, `.csv`, `.txt`, `.log`, `.png` or `.bin`"
-                ),
-            ));
-        }
+        Some(extension) if !extension.is_empty() => "application/octet-stream",
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("artifact name {name:?} needs a file extension"))),
     };
 
     Ok(mime.to_owned())

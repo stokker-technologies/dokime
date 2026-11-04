@@ -17,7 +17,6 @@ mod fixture;
 mod ingestion;
 mod metrics;
 mod query;
-mod transforms;
 mod waveforms;
 
 /* === Re-Exports === */
@@ -186,15 +185,6 @@ impl harmos::Lifecycle for Model {
         }
         Ok(Self)
     }
-    async fn initialize(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn stop(&mut self, _: &Self::Context) -> harmos::Result<()> {
-        Ok(())
-    }
-    async fn cleanup(&mut self) -> harmos::Result<()> {
-        Ok(())
-    }
 }
 
 /* === Public Functions === */
@@ -231,7 +221,6 @@ fn main() {
     group.finish();
     ingestion::run(&mut criterion, &executor);
     query::run(&mut criterion, &executor);
-    transforms::run(&mut criterion, &executor);
     files::run(&mut criterion, &executor);
     filesystem::run(&mut criterion, &executor);
     directories::run(&mut criterion, &executor);

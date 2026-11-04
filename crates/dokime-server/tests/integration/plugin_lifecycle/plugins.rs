@@ -193,10 +193,6 @@ impl dokime::harmos::Operation for DynamicDuplex {
     }
 }
 
-impl contracts::Endpoint for DynamicUnary {
-    const PATH: &'static str = "/fixture.dynamic.v1.Provider/Unary";
-}
-
 impl PluginLifecycle for DynamicHost {
     type Guest = DynamicResources;
     type Sidecar = DynamicResources;
@@ -473,7 +469,7 @@ pub(crate) async fn full_control_plugin_operations() {
         .unwrap()
         .unary(
             malformed,
-            <DynamicUnary as contracts::Endpoint>::PATH.parse().unwrap(),
+            dokime::operations::path::<DynamicUnary>().parse().unwrap(),
             direct.codec::<DynamicNumber, DynamicReplacement>().unwrap(),
         )
         .await

@@ -130,6 +130,7 @@ fn records(replies: &[EvidenceBatch]) -> Vec<RecordPublishRequest> {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_streams_outcome() {
     let workflow = workflow();
@@ -144,7 +145,12 @@ async fn execution_streams_outcome() {
 
     // The declared stream sampled until the step had what it waited for.
     assert!(samples.len() >= 3);
-    assert!(samples.iter().all(|sample| { sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) }));
+    assert!(samples.iter().all(|sample| {
+        sample
+            .scope
+            .as_ref()
+            .is_some_and(|scope| scope.test_execution_id.is_some() && matches!(scope.origin, dokime::EvidenceOrigin::Step { .. }))
+    }));
     assert!(samples.iter().all(|sample| { sample.stream.as_str() == <PulseRow as dokime::StreamSpec>::ID }));
     // The values are the sidecar's own deterministic function of the index,
     // compared with a tolerance because they round-trip through JSON.
@@ -172,6 +178,7 @@ async fn execution_streams_outcome() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn repeated_cursor_output() {
     let workflow = workflow();
@@ -203,6 +210,7 @@ async fn repeated_cursor_output() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn cancellation_measures_criterion() {
     let workflow = workflow();
@@ -236,6 +244,7 @@ async fn cancellation_measures_criterion() {
     workflow.shutdown().await;
 }
 
+#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn unknown_workflow_refused() {
     let workflow = workflow();

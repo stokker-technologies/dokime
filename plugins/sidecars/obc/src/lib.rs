@@ -22,8 +22,8 @@ pub mod suites;
 /* === Re-Exports === */
 
 pub use error::Error;
-pub use settings::BenchSettings;
-pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
+pub use settings::{BenchSettings, SAMPLE_INTERVAL_MS};
+pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, pulse_value};
 
 /* === Imports === */
 
@@ -101,7 +101,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for ObcPlugin {
 
 #[dokime::plugin(
     id = "plugin_obc",
-    requires(),
+    requires(plugin_host::host::cpu::load::LoadHold),
     contributions(
         dokime::Suites<suites::Suites>,
         dokime::Records<Records, listeners::Listeners>,

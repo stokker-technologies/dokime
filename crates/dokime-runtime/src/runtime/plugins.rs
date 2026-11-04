@@ -709,7 +709,10 @@ impl Runtime {
         }
         if !self.handle.state_read().cycles.is_empty() {
             self.handle
-                .commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() })
+                .commit(crate::transactions::RecoverInterruptedCycles {
+                    at: crate::model::time::now_utc(),
+                    record_interruptions: true,
+                })
                 .await
                 .map_err(operation)?;
         }
@@ -727,7 +730,13 @@ impl Runtime {
             self.handle.record_startup_seal_failure(&cycle, &error).await;
         }
         // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
-        self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
+        self.handle
+            .commit(crate::transactions::RecoverInterruptedCycles {
+                at: crate::model::time::now_utc(),
+                record_interruptions: true,
+            })
+            .await
+            .map_err(operation)?;
         Ok(())
     }
 }
@@ -859,6 +868,9 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, handle: &super:
             .map_err(operation)?;
         if executable.declaration() != declaration {
             return Err(operation(format!("extracted executable `{id}` has a different declaration than its verified bundle")));
+        }
+        if let Some(directory) = std::env::var_os("DOKIME_TEST_TRACE_DIR") {
+            executable = executable.variable("DOKIME_TEST_TRACE_DIR", directory);
         }
         if let Some(filter) = std::env::var_os(PLUGIN_LOG_VARIABLE) {
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
@@ -1138,6 +1150,7 @@ fn rejection(name: &str, reason: impl std::fmt::Display, code: Option<&str>) -> 
         message: format!("Plugin {name} could not start: {reason}"),
         code: code.map(str::to_owned),
         missing_secret: None,
+        consequences: Vec::new(),
         carrier: Vec::new(),
     }
 }
@@ -1146,7 +1159,7 @@ async fn refused(
     store: &PluginStore, input: &PluginBundle, failure: dokime_domain::model::plugins::wire::PluginStartFailure,
 ) -> Result<()> {
     if matches!(input.provenance, PluginProvenance::Configured) {
-        return Err(operation(&failure.message));
+        return Err(operation(&failure));
     }
     tracing::warn!(plugin_name = %failure.plugin_name, plugin_id = %failure.plugin_id, reason = %failure.message, "plugin was not admitted");
     record(store, input, Some(failure)).await;
@@ -1161,19 +1174,39 @@ async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_
     }
 }
 
-fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
     let cause = error.failure();
-    let missing_secret = cause
-        .filter(|failure| failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE))
-        .and_then(|failure| failure.detail("dokime.secret"))
-        .map(str::to_owned);
-    let message = cause.map(|failure| failure.cause().to_owned()).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string());
+    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
+    if let Some(failure) = cause {
+        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
+    }
+    let secret = |failure: &harmos::domain::Failure| {
+        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
+            .then(|| failure.detail("dokime.secret").map(str::to_owned))
+            .flatten()
+    };
+    let missing_secret =
+        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
+    let prose = |failure: &harmos::domain::Failure| {
+        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
+    };
+    let message = report
+        .as_ref()
+        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
+        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
+    let code = report
+        .as_ref()
+        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
+        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
     dokime_domain::model::plugins::wire::PluginStartFailure {
         plugin_id: plugin.to_owned(),
         plugin_name: name.to_owned(),
         message: format!("Plugin {name} could not start: {message}"),
-        code: cause.and_then(|failure| failure.refusal_code()).map(|code| code.to_string()),
+        code: code.map(|code| code.to_string()),
         missing_secret,
+        consequences: report
+            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
+            .unwrap_or_default(),
         carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
     }
 }
@@ -1475,15 +1508,15 @@ mod tests {
             operation: "harmos.initialize".into(),
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(received)),
         };
-        let admission = start_error("hcl", "HCL", &error);
-        assert_eq!(admission.plugin_id, "hcl");
-        assert_eq!(admission.plugin_name, "HCL");
+        let admission = start_error("example", "Example Plugin", &error);
+        assert_eq!(admission.plugin_id, "example");
+        assert_eq!(admission.plugin_name, "Example Plugin");
         assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
-        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE.to_string()));
+        assert_eq!(admission.code, Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()));
         let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
         assert_eq!(retained, failure);
         assert_eq!(retained.code(), harmos::operations::FailureKind::Permanent);
-        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_BINDING_CODE));
+        assert_eq!(retained.refusal_code(), Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE));
         assert!(!retained.diagnostics().unwrap().chain().is_empty());
     }
 
@@ -1500,10 +1533,70 @@ mod tests {
             operation: "harmos.initialize".into(),
             source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
         };
-        let admission = start_error("hcl", "HCL", &error);
-        assert_eq!(admission.plugin_id, "hcl");
-        assert_eq!(admission.plugin_name, "HCL");
+        let admission = start_error("example", "Example Plugin", &error);
+        assert_eq!(admission.plugin_id, "example");
+        assert_eq!(admission.plugin_name, "Example Plugin");
         assert!(admission.missing_secret.is_none());
         assert_eq!(harmos::domain::Failure::decode(&admission.carrier).unwrap(), failure);
+    }
+
+    #[test]
+    fn startup_report_admission() {
+        let refusal = crate::plugin::refusal::<(), _>(Err(crate::Error::UnavailableSecret("api_token".into()))).unwrap_err();
+        let root = harmos::domain::Failure::originate(
+            harmos::operations::FailureKind::Permanent,
+            &refusal,
+            harmos::domain::failure::Origin::Plugin,
+        );
+        let independent = harmos::domain::Failure::new(harmos::operations::FailureKind::Permanent, "equipment is offline");
+        let report = harmos::operations::StartupReport {
+            roots: vec![
+                harmos::operations::StartupIssue {
+                    failure: root.clone(),
+                    resource: None,
+                    operation: None,
+                },
+                harmos::operations::StartupIssue {
+                    failure: independent,
+                    resource: None,
+                    operation: None,
+                },
+            ],
+            consequences: (0..20)
+                .map(|index| harmos::operations::StartupIssue {
+                    failure: harmos::domain::Failure::new(
+                        harmos::operations::FailureKind::Permanent,
+                        format!("operation `suite.{index}.run` requires missing resource `Workflow`"),
+                    ),
+                    resource: Some("Workflow".to_owned()),
+                    operation: Some(format!("suite.{index}.run")),
+                })
+                .collect(),
+        };
+        let failure = report.clone().into_failure();
+        let error = harmos::Error::OperationFailed {
+            operation: "harmos.initialize".into(),
+            source: std::sync::Arc::new(harmos::operations::NativeError::Remote(failure.clone())),
+        };
+        let admission = start_error("example", "example-plugin", &error);
+        let missing = crate::Error::UnavailableSecret("api_token".into()).to_string();
+        assert!(admission.message.contains(&missing));
+        assert!(admission.message.contains("equipment is offline"));
+        assert!(!admission.message.contains("suite."));
+        assert!(!admission.message.contains("Runtime {"));
+        assert!(!admission.message.contains("Failure(Record"));
+        assert_eq!(admission.missing_secret.as_deref(), Some("api_token"));
+        assert_eq!(admission.code, root.refusal_code().map(|code| code.to_string()));
+        assert_eq!(admission.consequences.len(), 20);
+        assert!(admission.to_string().contains("20 operations unavailable because startup failed"));
+        let retained = harmos::domain::Failure::decode(&admission.carrier).unwrap();
+        assert_eq!(retained, failure);
+        assert_eq!(harmos::operations::StartupReport::from_failure(&retained), Some(report));
+        let runtime = Error::PluginStart {
+            plugin: "example".to_owned(),
+            source: Box::new(error),
+        };
+        assert!(runtime.to_string().contains(&missing));
+        assert!(!runtime.to_string().contains("MissingResource {"));
     }
 }

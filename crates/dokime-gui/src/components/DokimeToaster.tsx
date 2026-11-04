@@ -15,6 +15,7 @@ import { Toaster } from "sonner";
 /* === Local Imports === */
 
 import { useApplicationTheme } from "@/lib/application-theme";
+import { NotificationDetailsDialog } from "@/features/notifications/NotificationDetailsDialog";
 
 /* === Constants === */
 
@@ -30,10 +31,10 @@ const DOKIME_TOAST_CLASSES = {
   warning: "border-warning bg-popover",
   info: "border-info bg-popover",
   loading: "border-border bg-muted",
-  actionButton: "shrink-0 whitespace-nowrap rounded-lg bg-primary px-3 py-2 text-primary-foreground",
-  cancelButton: "rounded-lg bg-secondary px-2 py-1 text-secondary-foreground",
+  actionButton: "relative z-10 shrink-0 whitespace-nowrap rounded-lg bg-primary px-3 py-2 text-primary-foreground",
+  cancelButton: "relative z-10 rounded-lg bg-secondary px-2 py-1 text-secondary-foreground",
   closeButton:
-    "absolute top-2 right-2 grid size-6 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-popover-foreground [&>svg]:size-4",
+    "absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-popover-foreground [&>svg]:size-4",
 } as const;
 
 /* === Types === */
@@ -45,17 +46,20 @@ export function DokimeToaster() {
   const { resolvedTheme } = useApplicationTheme();
 
   return (
-    <Toaster
-      className="z-[100]"
-      closeButton
-      offset={{
-        bottom: "calc(var(--status-bar-height) + var(--shell-gap))",
-        right: "var(--shell-gap)",
-      }}
-      position="bottom-right"
-      style={{ "--width": "28rem" } as React.CSSProperties}
-      theme={resolvedTheme === "dark" ? "dark" : "light"}
-      toastOptions={{ unstyled: true, classNames: DOKIME_TOAST_CLASSES }}
-    />
+    <>
+      <Toaster
+        className="z-[100]"
+        closeButton
+        offset={{
+          bottom: "calc(var(--status-bar-height) + var(--shell-gap))",
+          right: "var(--shell-gap)",
+        }}
+        position="bottom-right"
+        style={{ "--width": "28rem" } as React.CSSProperties}
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        toastOptions={{ unstyled: true, classNames: DOKIME_TOAST_CLASSES }}
+      />
+      <NotificationDetailsDialog />
+    </>
   );
 }

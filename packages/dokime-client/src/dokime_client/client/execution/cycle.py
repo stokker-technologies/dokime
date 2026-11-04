@@ -42,6 +42,7 @@ from ..models import (
     SaveManifest,
     Value,
 )
+from ..query.evidence import cycle_records
 from .handle import Execution
 from .listeners import read_records, read_samples
 from .request import _identity
@@ -66,6 +67,8 @@ VALUE_DEPTH = 64
 
 class Cycle:
     """A live cycle; evidence includes all attempts unless execution_id narrows it."""
+
+    query_records = cycle_records
 
     def __init__(
         self,
@@ -136,7 +139,7 @@ class Cycle:
         return executions[0] if len(executions) == 1 else executions
 
     async def save(self, directory: str | Path, report: str | None = None) -> SaveManifest:
-        """Save Sealed Evidence And A Digest Manifest Into A Fresh Directory.
+        """Wait For Reports And Save Sealed Evidence With A Digest Manifest.
 
         Existing output files are refused. File paths in the manifest are
         relative to directory; manifest.json does not hash itself.
@@ -336,7 +339,8 @@ class Cycle:
 
         Event types filter on the server; occurrence IDs filter locally. Empty
         filters collect every captured record in scope, including records from
-        before subscription. Unscoped backend records are outside this scope.
+        before subscription. Observer records captured by the cycle's executions
+        are included with their original producer scopes.
         Read a fixed current frontier. No cross-restart replay.
         """
         await self._snapshot()

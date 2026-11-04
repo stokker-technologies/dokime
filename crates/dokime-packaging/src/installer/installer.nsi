@@ -107,16 +107,12 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
   !uninstfinalize '${UNINSTALLERSIGNCOMMAND}'
 !endif
 
-; Handle install mode, `perUser`, `perMachine` or `both`
-!if "${INSTALLMODE}" == "perMachine"
+; Handle install mode, `currentUser`, `perMachine` or `both`
+{{#if (eq install_mode "perMachine")}}
   RequestExecutionLevel admin
-!endif
-
-!if "${INSTALLMODE}" == "currentUser"
+{{else if (eq install_mode "currentUser")}}
   RequestExecutionLevel user
-!endif
-
-!if "${INSTALLMODE}" == "both"
+{{else if (eq install_mode "both")}}
   !define MULTIUSER_MUI
   !define MULTIUSER_INSTALLMODE_INSTDIR "${BUNDLEID}"
   !define MULTIUSER_INSTALLMODE_COMMANDLINE
@@ -131,7 +127,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
   !define MULTIUSER_INSTALLMODE_FUNCTION RestorePreviousInstallLocation
   !define MULTIUSER_EXECUTIONLEVEL Highest
   !include MultiUser.nsh
-!endif
+{{/if}}
 
 ; Installer icon
 !if "${INSTALLERICON}" != ""
