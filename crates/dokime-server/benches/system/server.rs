@@ -73,6 +73,10 @@ impl Server {
             .stdout(Stdio::piped())
             .stderr(stderr);
         if let Some(plugin) = plugin {
+            // The Development Bundle Admits Only With The Host Program's Telemetry Installed.
+            let plugins = root.path().join("plugins");
+            std::fs::create_dir_all(&plugins).unwrap();
+            std::fs::copy(artifact("fixtures/plugins/plugin-host.dokime"), plugins.join("plugin-host.dokime")).unwrap();
             command.arg("--plugin").arg(plugin);
         }
         let mut child = command.spawn().unwrap();
