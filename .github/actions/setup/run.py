@@ -214,6 +214,24 @@ def native_temporary_paths():
 
 
 def verify_temporary_exclusions(roots):
+    status = json.loads(
+        subprocess.check_output(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, OnAccessProtectionEnabled | ConvertTo-Json",
+            ],
+            text=True,
+            creationflags=spawn_flags(),
+        )
+    )
+    print("Native Scanner Status: " + json.dumps(status), flush=True)
+    # A Scanner That Does Not Scan On Access Has Nothing To Exclude, And Its Exclusion Check Reports Nothing Excluded.
+    if status.get("RealTimeProtectionEnabled") is False or status.get("OnAccessProtectionEnabled") is False:
+        print("Native Scanner Check: on-access scanning is off; the exclusions take effect if it is enabled", flush=True)
+        return
     scanner = Path(os.environ["ProgramFiles"]) / "Windows Defender/MpCmdRun.exe"
     for root in roots:
         for prefix in ("dokime-exclusion-", ".tmp", "project-tmp-"):
