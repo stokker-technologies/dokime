@@ -1382,6 +1382,14 @@ the configured release source. Ordinary restarts preserve removed plugins; a
 completed reconciliation is recorded against the installer's distribution digest.
 Only bundles in the installer's integrity index participate; leftover files from
 previous installers are ignored.
+Installer plugins are ordinary plugin installs that the installer pre-authorizes;
+there is no separate plugin kind. They are applied when a backend starts rather than
+when the installer runs, because every data folder needs them: Linux packages install
+system-wide without a user session, headless and service backends may use their own
+data folders, and `cargo dokime sidecar dev` starts with a fresh one. A development
+host therefore receives the installer's plugins, such as `plugin-host`, alongside the
+bundle under development, while plugins installed into your everyday data folder are
+not loaded there.
 Without bundled plugins, the runtime starts
 without host telemetry.
 
