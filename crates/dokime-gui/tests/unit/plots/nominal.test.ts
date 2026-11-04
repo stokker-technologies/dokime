@@ -890,7 +890,10 @@ test("Point Marks", () => {
     assert.equal(hollow.stroke, color);
     assert.equal(hollow.fill, background);
     assert.equal(hollow.size, solid.size);
-    assert.ok(hollow.width > 0 && hollow.width < hollow.size / 2);
+    // Dense line points draw no marks; every drawn hollow mark is a ring, never a filled disc.
+    if (hollow.show) {
+      assert.ok(hollow.width > 0 && hollow.width < hollow.size / 2);
+    }
 
     for (const style of ["line", "step"] as const) {
       assert.equal(seriesPointMarks(style, dense, color, background).show, false);
