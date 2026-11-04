@@ -21,13 +21,15 @@ use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
+use dokime_runtime::domains::installed_plugins::{PluginRestart, PluginSettingsUpdate};
 use dokime_runtime::execution::log::{Entry, Level};
+use dokime_runtime::harmos::plugin::PluginGeneration;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::transport::{
     EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
     TransportFuture,
 };
-use dokime_runtime::{InstalledPlugin, Refusal};
+use dokime_runtime::{InstalledPlugin, Refusal, Value};
 use {
     dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
     dokime_domain::model::execution::termination::TerminationReason, dokime_runtime::execution::Caller,
@@ -38,6 +40,8 @@ use {
 const SOURCE: &str = "fixture_sessions";
 const TEMPLATE: &str = "fixture.sessions.cancel";
 const PHASE: &str = "fixture.sessions.stream";
+const HOST: &str = "plugin_host";
+const SCAN_INTERVAL: &str = "minimum_scan_interval_s";
 
 /* === Macros === */
 
@@ -72,6 +76,8 @@ enum Settlement {
     RefusedPage,
     AbandonedAdmission,
     LiveReplay,
+    // The Run Stays Active Until Released, Then Passes.
+    Held,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -152,8 +158,12 @@ impl Runnable for Probe {
             .await
             .map_err(Refusal::of)?;
             self.entered.notify_one();
-            if self.mode == Settlement::LiveReplay {
-                self.row_received.notified().await;
+            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held) {
+                if self.mode == Settlement::Held {
+                    self.released.subscribe().wait_for(|released| *released).await.unwrap();
+                } else {
+                    self.row_received.notified().await;
+                }
                 let ended = TestStepAttempt {
                     attempt_id: start.attempt_id,
                     step_id: start.step_id,
@@ -376,6 +386,29 @@ impl EmbeddedProvider for Provider {
 /* === Public Functions === */
 
 /* === Private Functions === */
+async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
+    let host = identifier(HOST);
+    let mut values = runtime.plugin_settings(&host).await.unwrap().values;
+    values.insert(SCAN_INTERVAL.into(), dokime_runtime::Value::from(seconds));
+    runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
+}
+
+// What The Running Host Generation Was Prepared With, And What Is Saved.
+async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<PluginGeneration>, Value, Value) {
+    let status = owner.fixture_plugin_status(HOST).await.expect("the host plugin is admitted");
+    let definition = status.active_definition.expect("the host plugin runs a generation");
+    let configuration: dokime_runtime::plugin::Configuration = serde_json::from_slice(&definition.configuration).unwrap();
+    let saved = owner.handle().plugin_settings(&identifier(HOST)).await.unwrap().values[SCAN_INTERVAL].clone();
+    (status.generation, configuration.settings[SCAN_INTERVAL].clone(), saved)
+}
+
+async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
+    let files = runtime.execution_files(execution).await.unwrap();
+    let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) else { return String::new() };
+    let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    String::from_utf8_lossy(&content.bytes).into_owned()
+}
+
 async fn host_rows(runtime: &RuntimeHandle) -> usize {
     let selection = dokime_runtime::domains::evidence::TelemetrySelection {
         streams: vec![identifier("host.system").into()],
@@ -688,6 +721,62 @@ pub(crate) async fn provider_failure_releases() {
             .iter()
             .any(|error| error.code.as_deref() == Some("provider_execution_run"))
     );
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Saved Change Restarts The Idle Host Plugin With It; Saving It Again Restarts Nothing.
+pub(crate) async fn saved_change_restarts() {
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()])).await;
+    let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Restarting);
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
+    assert_ne!(restarted, generation, "the save started a new generation");
+    assert_ne!(applied, prepared);
+    assert_eq!(applied, saved, "the new generation prepared with the saved value");
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    assert_eq!(prepared_scan_interval(&owner).await.0, restarted, "an unchanged save keeps the running generation");
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Save While An Execution Is Active Waits For It: The Host Publishes Telemetry Any Run May Capture.
+// The Restart Follows Once, With The Latest Value.
+pub(crate) async fn saved_change_waits_for_execution() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Held));
+    let configuration =
+        config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()]).register(Arc::new(Provider(probe.clone())));
+    let (mut owner, handle) = started(configuration).await;
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
+    let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.restart", "Pending Restart"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Pending);
+    assert_eq!(save_scan_interval(&handle, 48).await, PluginRestart::Pending);
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    assert_eq!(prepared_scan_interval(&owner).await.0, generation, "the running execution keeps its host generation");
+
+    probe.released.send_replace(true);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    let execution = &cycle.test_executions[0];
+    let log = execution_log(&handle, &execution.test_execution_id).await;
+    assert_eq!(execution.status, ExecutionStatus::Passed, "the restart never touched the execution: {log}");
+    let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
+    assert_ne!(restarted, generation);
+    assert_ne!(applied, prepared);
+    assert_eq!(applied, saved, "the restart prepared with the latest saved value");
+    probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
 }

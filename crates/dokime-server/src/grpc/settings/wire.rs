@@ -32,6 +32,7 @@ use dokime::domain::model::appearance::HostCardKeyValue;
 use dokime::domain::model::appearance::HostCardMetric;
 use dokime::domain::model::appearance::HostCardTone;
 use dokime::domain::model::identity::Identifier;
+use dokime::domains::installed_plugins::PluginRestart;
 use dokime::domains::installed_plugins::RuntimePluginManagementError;
 use dokime::domains::installed_plugins::RuntimePluginSettings;
 use dokime::domains::settings::RuntimeSettingsCard;
@@ -104,6 +105,11 @@ pub(super) fn encode_plugin_settings(
                 available: secret.available,
             })
             .collect(),
+        restart: match settings.restart {
+            PluginRestart::Idle => dokime::domain::model::settings::wire::PluginRestart::Idle,
+            PluginRestart::Restarting => dokime::domain::model::settings::wire::PluginRestart::Restarting,
+            PluginRestart::Pending => dokime::domain::model::settings::wire::PluginRestart::Pending,
+        },
     };
     ensure_size(&response, max_message_bytes, "plugin settings response")?;
     Ok(response)

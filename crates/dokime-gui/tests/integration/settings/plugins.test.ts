@@ -207,6 +207,7 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
     secrets: [{ identifier: "api_token", available: false }],
     values: {},
     discovered: {},
+    restart: { HarmosVariant: { case: "Idle", value: {} } },
   });
   fixture.getInstallation.mockResolvedValueOnce(failed);
   const projected = await getNativePlugin(session, "install-1");

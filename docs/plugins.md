@@ -218,7 +218,7 @@ Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
 `plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations
 in Harmos. The bundle is `plugin-host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
-until an explicit reload or the next startup.
+until an explicit reload, a settings save that changes a value, or the next startup.
 
 Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
@@ -254,6 +254,10 @@ and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+A settings save that changes a value starts a new generation of that plugin and
+its dependents through the same reload, with a configuration built from the saved
+values, once no running or prepared execution uses them. A refused restart
+records its reason like a failed boot.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
 

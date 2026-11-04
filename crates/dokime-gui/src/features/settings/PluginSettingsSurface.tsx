@@ -32,6 +32,7 @@ import { InstalledPluginDetail } from "@/features/settings/installed-plugins/Ins
 import {
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
+  usePluginRestartRefresh,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { usePluginsQuery, useRestartAppMutation } from "@/features/settings/plugins/plugin-queries";
@@ -179,6 +180,7 @@ function PluginRestart() {
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
+  usePluginRestartRefresh(detailQuery.data?.restart);
   if (detailQuery.isPending) {
     return (
       <SettingsCard title="Settings">

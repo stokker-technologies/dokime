@@ -12,6 +12,7 @@
 /* === External Imports === */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 /* === Local Imports === */
 
@@ -22,6 +23,9 @@ import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
 import { updateNativePluginSettings } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/lib/appearance";
+import type { PluginRestart } from "@/lib/types/view-contracts";
+import { pluginQueryKeys as installationQueryKeys } from "@/features/settings/plugins/plugin-queries";
+import { useHubStore } from "@/stores/hub-store";
 
 /* === Query Keys === */
 
@@ -75,4 +79,22 @@ export function useInstalledPluginSettingsMutation() {
       ]);
     },
   });
+}
+
+/**
+ * While saved settings wait to restart their program, re-read the plugin
+ * views whenever the backend's operations change: the restart runs as one,
+ * and a failed restart is recorded like a failed startup.
+ */
+export function usePluginRestartRefresh(restart: PluginRestart | undefined) {
+  const queryClient = useQueryClient();
+  const operations = useHubStore((state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a changed operation set is what re-reads the views
+  useEffect(() => {
+    if (!restart || restart === "idle") return;
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: pluginQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: installationQueryKeys.all }),
+    ]);
+  }, [operations, queryClient, restart]);
 }

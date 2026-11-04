@@ -502,12 +502,25 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
+A program prepares with its saved settings when it starts. Saving a change in
+**Settings → Plugins** restarts that program, and the programs that depend on it,
+with the saved values; a save that changes nothing restarts nothing. The plugin
+page shows **Restarting…** while the new generation starts. While an execution
+that uses an affected program is running or prepared, the restart waits: the
+page shows **Restart Pending** and the restart follows once those executions
+finish. An execution uses the program that runs its case and every program
+publishing telemetry or records. Running executions are never stopped for a
+restart, and saves made while one waits apply together. A refused restart, such
+as values the plugin's preparation rejects, is reported like a failed startup;
+the saved values stay saved, and saving corrected values restarts it again.
+Programs that did not start with Dokime apply saved settings on the next start.
+
 #### Host Settings
 
 The host plugin declares its 20 settings in
 [`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
-Edit the host plugin form in **Settings → Plugins**, then use the existing
-Retry workflow or restart Dokime. Each startup resolves one settings snapshot.
+Saving a changed value in **Settings → Plugins** restarts the host plugin with it.
+Each start resolves one settings snapshot.
 Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
 `1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
 the native default.

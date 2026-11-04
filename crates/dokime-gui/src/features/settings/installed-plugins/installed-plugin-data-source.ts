@@ -12,9 +12,19 @@
 /* === Local Imports === */
 
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import type { PluginRestart } from "@/lib/types/view-contracts";
 import { listNativeAdmittedPlugins, listNativePlugins } from "@/lib/api/native-plugins";
 import { getNativePluginSettings } from "@/lib/api/native-settings";
 import type { SessionIdentity } from "@/lib/rpc/transport";
+
+/* === Constants === */
+
+/** A restart the saved settings asked for outranks the admitted status. */
+const RESTART_STATUS: Record<PluginRestart, string | null> = {
+  idle: null,
+  restarting: "restarting",
+  pending: "restart_pending",
+};
 
 /* === Public Functions === */
 
@@ -42,5 +52,5 @@ export async function getInstalledPluginDetail(session: SessionIdentity, pluginI
   }
   if (!plugin) return null;
   const config = await getNativePluginSettings(session, pluginId);
-  return { ...plugin, ...config };
+  return { ...plugin, ...config, status: RESTART_STATUS[config.restart] ?? plugin.status };
 }

@@ -55,6 +55,11 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
         <SettingsRow label="Status" error={detail.error}>
           <InstalledPluginRuntimeBadge runtime={detail.runtime} />
           <InstalledPluginStatusBadge status={detail.status} />
+          {detail.restart === "pending" ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Restart pending: applies when the running execution finishes.
+            </p>
+          ) : null}
         </SettingsRow>
         <SettingsRow label="Registration">
           <span className="min-w-0 text-sm">{registration}</span>

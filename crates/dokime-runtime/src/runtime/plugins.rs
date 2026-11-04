@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(super) mod lifecycle;
+pub(super) mod restarts;
 
 /* === Re-Exports === */
 
@@ -25,7 +26,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use super::{Runtime, progress::Operation};
+use super::progress::Operation;
 use crate::domains::installed_plugins::contributions::decode_registrations;
 use crate::plugins::{PluginBundle, PluginProvenance, PluginStore};
 use crate::plugins::{
@@ -51,6 +52,16 @@ const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 
 /* === Structs === */
 
+// Every Admitted Program And The Manager That Runs Them, Shared With The Settings Restarter.
+pub(super) struct PluginHost {
+    pub(super) handle: super::RuntimeHandle,
+    pub(super) publications: super::sidecars::PublicationIngest,
+    pub(super) plugins: BTreeMap<String, ActivePackage>,
+    pub(super) embedded: BTreeMap<String, super::embedded::Active>,
+    pub(super) pending_plugins: StagedPackages,
+    pub(super) plugin_manager: Option<lifecycle::Manager>,
+}
+
 struct Package {
     input: PluginBundle,
     catalog: BundleCatalog,
@@ -72,6 +83,11 @@ struct Program {
 
 #[derive(Clone)]
 struct Executable(harmos::sidecar::Executable);
+
+struct Reinitialization {
+    refreshed: Option<Program>,
+    reload: harmos::plugin::PluginReloadPlan,
+}
 
 struct Running {
     source: String,
@@ -181,7 +197,18 @@ impl ActivePackage {
     }
 }
 
-impl Runtime {
+impl PluginHost {
+    pub(super) fn new(handle: super::RuntimeHandle, publications: super::sidecars::PublicationIngest) -> Self {
+        Self {
+            handle,
+            publications,
+            plugins: BTreeMap::new(),
+            embedded: BTreeMap::new(),
+            pending_plugins: StagedPackages::default(),
+            plugin_manager: None,
+        }
+    }
+
     pub(super) async fn install_plugins(&mut self) -> Result<()> {
         let progress = self.handle.operation_progress().begin("Installing Plugins");
         let installed = self.install_plugins_with(&progress).await;
@@ -408,6 +435,7 @@ impl Runtime {
             record(&store, &input, None).await;
         }
         self.expose_plugins()?;
+        self.publish_hosted();
         Ok(())
     }
 
@@ -469,7 +497,7 @@ impl Runtime {
         Ok(())
     }
 
-    pub async fn register(&mut self, provider: Arc<dyn super::EmbeddedProvider>) -> Result<()> {
+    pub(super) async fn register(&mut self, provider: Arc<dyn super::EmbeddedProvider>) -> Result<()> {
         let candidate = super::embedded::Active::prepare(provider, self.handle.schema_settings())?;
         let source = candidate.definition.id.clone();
         let catalogs: Vec<ProviderCatalog> = self
@@ -509,7 +537,49 @@ impl Runtime {
         Ok(())
     }
 
-    pub async fn reinitialize_plugin(&mut self, plugin: &str) -> Result<()> {
+    pub(super) async fn reinitialize_plugin(&mut self, plugin: &str) -> Result<()> {
+        let planned = self.plan_reinitialization(plugin).await?;
+        self.apply_reinitialization(plugin, planned).await
+    }
+
+    // Restart One Program So It Prepares With Its Saved Settings, Unless Anything Uses It.
+    pub(super) async fn restart_with_saved_settings(&mut self, plugin: &str) -> restarts::Outcome {
+        let Some((input, name)) = self.program_package(plugin) else {
+            return restarts::Outcome::Unhosted;
+        };
+        // Deferring Before Planning Spares Re-Reading Settings And Secrets On Every State Change.
+        if let Some(settling) = self.handle.plugin_use(&self.restart_scope(plugin)) {
+            return restarts::Outcome::Deferred(settling);
+        }
+
+        // Values Saved From Here On Ask For One More Restart.
+        self.handle.plugin_restarts.begin(plugin);
+        let planned = match self.plan_reinitialization(plugin).await {
+            Ok(planned) => planned,
+            Err(error) => {
+                self.settle_restart(plugin, &input, Some(rejection(&name, &error, None))).await;
+                return restarts::Outcome::Settled;
+            }
+        };
+        if let Err(blocker) = self.handle.admit_plugin_restart(&planned.reload.affected()).await {
+            return restarts::Outcome::Deferred(blocker);
+        }
+        let progress = self.handle.operation_progress().begin(format!("Restarting {name}"));
+        let result = self.apply_reinitialization(plugin, planned).await;
+        let failure = result.as_ref().err().map(|error| {
+            let started = match error {
+                Error::Harmos(error) => start_failure(error).map(|(owner, source, _)| start_error(owner, &name, source)),
+                _ => None,
+            };
+            started.unwrap_or_else(|| rejection(&name, error, None))
+        });
+        self.settle_restart(plugin, &input, failure).await;
+        let _ = progress.track(result);
+        restarts::Outcome::Settled
+    }
+
+    // Prepare The New Generation From The Saved Values And Plan It Before Anything Stops.
+    async fn plan_reinitialization(&mut self, plugin: &str) -> Result<Reinitialization> {
         let owned = self.plugins.values().flat_map(|active| &active.package.programs).any(|program| program.executable.id() == plugin)
             || self.embedded.contains_key(plugin);
         if !owned {
@@ -528,7 +598,11 @@ impl Runtime {
             });
         let definitions = graph(programs, self.embedded.values(), [plugin.to_owned()])?;
         let reload = self.plugin_manager.as_ref().expect("manager initialized at startup").plan_reload(definitions)?;
+        Ok(Reinitialization { refreshed, reload })
+    }
 
+    async fn apply_reinitialization(&mut self, plugin: &str, planned: Reinitialization) -> Result<()> {
+        let Reinitialization { refreshed, reload } = planned;
         // Desired preparation changes only after complete descriptor preflight.
         // Existing physical backends retain their original admitted bytes.
         if let Some(refreshed) = refreshed {
@@ -548,12 +622,49 @@ impl Runtime {
             embedded: &mut self.embedded,
         };
         let manager = self.plugin_manager.as_mut().expect("manager initialized at startup");
-        manager.apply_reload(reload, &mut lifecycle).await.map_err(Error::from)?;
-
-        self.expose_plugins()
+        let applied = manager.apply_reload(reload, &mut lifecycle).await.map_err(Error::from);
+        // Programs That Are Ready Again Are Exposed Even When Another Affected One Failed.
+        let exposed = self.expose_plugins();
+        applied.and(exposed)
     }
 
-    pub async fn reload_plugin(&mut self, input: PluginBundle) -> Result<()> {
+    // Only Admitted Programs Restart With Saved Settings; Others Apply Them On The Next Start.
+    fn publish_hosted(&self) {
+        self.handle
+            .plugin_restarts
+            .host(self.plugins.values().flat_map(|active| &active.package.programs).map(|program| program.executable.id()));
+    }
+
+    // The Admitted Bundle That Runs `plugin`, And Its Display Name.
+    fn program_package(&self, plugin: &str) -> Option<(PluginBundle, String)> {
+        self.plugins
+            .values()
+            .find(|active| active.package.programs.iter().any(|program| program.executable.id() == plugin))
+            .map(|active| (active.package.input.clone(), active.package.catalog.package.clone()))
+    }
+
+    // A Restart Is Reported Like A Startup: The Admitted Catalogs And The Recorded Boot Follow It.
+    async fn settle_restart(
+        &mut self, plugin: &str, input: &PluginBundle, failure: Option<dokime_domain::model::plugins::wire::PluginStartFailure>,
+    ) {
+        if let Some(failure) = &failure {
+            tracing::warn!(plugin, reason = %failure.message, "plugin did not restart with its saved settings");
+        }
+        let providers = self.ready_catalogs();
+        if !self.handle.state_read().providers_current(&providers) {
+            if let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
+                tracing::error!(plugin, %error, "admitted catalogs were not reconciled after a plugin restart");
+            } else if let Err(error) = self.capture_ready_catalogs().await {
+                tracing::error!(plugin, %error, "restarted catalogs were not captured");
+            }
+        }
+        if let PluginProvenance::Installed { install_id, .. } = input.provenance {
+            self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, failure.is_none());
+        }
+        record(&self.handle.plugin_store(), input, failure).await;
+    }
+
+    pub(super) async fn reload_plugin(&mut self, input: PluginBundle) -> Result<()> {
         let extraction = extraction_root(&self.handle.config());
         // Development reload always re-reads and re-extracts: it exists
         // specifically to pick up bytes that just changed. The extraction
@@ -674,6 +785,7 @@ impl Runtime {
             .map_err(operation)?;
         self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
+        self.publish_hosted();
         std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
         for (record, version) in redefined {
             tracing::warn!(
@@ -1480,7 +1592,7 @@ mod tests {
                 .with_credential_store(keyring_core::mock::Store::new().unwrap())
         };
         let id = Identifier::new("capture_fixture").unwrap();
-        let mut first = Runtime::start(config()).await.unwrap();
+        let mut first = crate::Runtime::start(config()).await.unwrap();
         let handle = first.handle();
         handle.install_plugin(capture_bundle(id.as_str()), |_| Ok(())).await.unwrap();
         let mut values = handle.plugin_settings(&id).await.unwrap().values;
@@ -1490,18 +1602,20 @@ mod tests {
         first.shutdown().await.unwrap();
 
         // The Restarted Program Opens With What The Operator Saved.
-        let mut restarted = Runtime::start(config()).await.unwrap();
-        let program = restarted
+        let mut restarted = crate::Runtime::start(config()).await.unwrap();
+        let host = restarted.host.lock().await;
+        let program = host
             .plugins
             .values()
             .map(|active| &active.package)
-            .chain(&restarted.pending_plugins.0)
+            .chain(&host.pending_plugins.0)
             .flat_map(|package| &package.programs)
             .find(|program| program.executable.id() == id.as_str())
             .expect("the installed program is prepared at boot");
         let configuration: crate::plugin::Configuration = serde_json::from_slice(&program.definition.configuration).unwrap();
         assert!(configuration.settings::<CaptureSettings>().unwrap().capture.enabled);
         assert!(configuration.is_saved("enabled"));
+        drop(host);
         assert_eq!(restarted.handle().plugin_settings(&id).await.unwrap().values["enabled"], crate::Value::Bool(true));
         restarted.shutdown().await.unwrap();
     }
