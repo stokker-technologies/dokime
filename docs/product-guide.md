@@ -505,30 +505,33 @@ human display text. No `name` alias is accepted in secret contracts.
 A program prepares with its saved settings when it starts. Saving a change in
 **Settings → Plugins** restarts that program, and the programs that depend on it,
 with the saved values; a save that changes nothing restarts nothing. The plugin
-page shows **Restarting…** while the new generation starts. While an execution
-that uses an affected program is running or prepared, the restart waits: the
-page shows **Restart Pending** and the restart follows once those executions
-finish. An execution uses the program that runs its case and every program
-publishing telemetry or records. Running executions are never stopped for a
-restart, and saves made while one waits apply together. A restart refused before
+page shows **Restarting…** while the new generation starts. While any cycle is
+active, including between the cases it continues with automatically and while it
+finalizes, the restart waits: the page shows **Restart Pending** and the restart
+follows once no cycle is active. A cycle left open and idle is not active.
+Running executions are never stopped for a restart, and saves made while one
+waits apply together. A restart refused before
 the program stops, such as saved values or a missing secret its preparation
 rejects, keeps the running generation: the plugin shows **Active · Restart
 Refused** with the reason, the saved values stay saved, and saving corrected
 values or **Retry** restarts it. A new generation that fails to start is reported
 like a failed startup. Programs that are not running apply saved settings when
-they start, including through **Retry**.
+they start, including through **Retry**, which starts a plugin that does not run
+at once even while a cycle is active; retrying a running plugin restarts it once
+no cycle is active.
 
 ### Installing And Removing Plugins
 
 Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
 enabling, disabling or removing one, take effect in the running backend; nothing
 asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
-replaced or stops. While an execution that uses it runs or waits, the change shows
-**Restart Pending** and applies once that execution finishes; running executions
-are never stopped for it. If a reinstall or update is refused, the previous
+replaced or stops. While any cycle is active, the change shows **Restart
+Pending** and applies once no cycle is active; running executions are never
+stopped for it. If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
 **Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Retry**, which starts only that plugin again. See
+start offers **Retry**, which starts only that plugin again, at once even while
+a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 
 #### Host Settings
@@ -1253,7 +1256,7 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | --- | --- | --- |
 | `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
 | `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
-| `dokime plugin install` | Verify and install a bundle; the running backend starts it once no execution uses it. | Bundle path and backend selection |
+| `dokime plugin install` | Verify and install a bundle; the running backend starts it once no cycle is active. | Bundle path and backend selection |
 
 ### Plugin Authoring
 

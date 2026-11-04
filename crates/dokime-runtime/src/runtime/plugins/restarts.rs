@@ -26,7 +26,7 @@ use super::PluginHost;
 use crate::RuntimeHandle;
 use crate::domains::installed_plugins::PluginRestart;
 use crate::runtime::BackgroundTask;
-use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::{CyclePhase, CycleStatus};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -43,7 +43,14 @@ pub(in crate::runtime) struct Restarts {
     hosted: RwLock<Hosted>,
 
     // The installation each bundle was last asked to apply, by package.
-    requested: Mutex<BTreeMap<String, Uuid>>,
+    requested: Mutex<BTreeMap<String, Request>>,
+}
+
+// The Latest Change Asked Of A Bundle: The Installation To Apply, And Whether A Retry Asked For It.
+#[derive(Clone, Copy)]
+struct Request {
+    install: Uuid,
+    retry: bool,
 }
 
 // What Runs Now: Each Admitted Program's Package, And Each Package's Installation.
@@ -67,7 +74,7 @@ pub(in crate::runtime) enum Target {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
-    // Saved values wait for the restarter; `blocked` while something uses an affected program.
+    // Saved values wait for the restarter; `blocked` while a cycle is active.
     Waiting { blocked: bool },
 
     // A generation is starting; `again` when values were saved after it read them.
@@ -78,7 +85,7 @@ pub(in crate::runtime) enum Outcome {
     // The restart ran; its result is recorded like a startup's.
     Settled,
 
-    // Something uses an affected program; the restarter tries again once it settles.
+    // A cycle is active; the restarter tries again once it settles.
     Deferred(Option<CancellationToken>),
 
     // The program is not admitted; its saved values apply on the next start.
@@ -140,13 +147,23 @@ impl Restarts {
     }
 
     // A Store Change For `package`: The Restarter Applies `install`, The Latest One Asked For.
-    fn request_bundle(&self, package: &str, install: Uuid, blocked: bool) -> PluginRestart {
-        self.requested.lock().unwrap_or_else(PoisonError::into_inner).insert(package.to_owned(), install);
-        self.request(Target::Bundle(package.to_owned()), blocked)
+    fn request_bundle(&self, package: &str, install: Uuid, retry: bool, blocked: bool) -> PluginRestart {
+        self.requested.lock().unwrap_or_else(PoisonError::into_inner).insert(package.to_owned(), Request { install, retry });
+        let state = self.request(Target::Bundle(package.to_owned()), blocked);
+        // A Retry Joining A Waiting Change Is Weighed Again At Once: It May Start Without Waiting.
+        if retry {
+            self.phases.send_modify(|_| {});
+        }
+        state
     }
 
     fn requested(&self, package: &str) -> Option<Uuid> {
-        self.requested.lock().unwrap_or_else(PoisonError::into_inner).get(package).copied()
+        self.requested.lock().unwrap_or_else(PoisonError::into_inner).get(package).map(|request| request.install)
+    }
+
+    // Whether The Latest Change Asked Of `package` Is A Retry.
+    fn retrying(&self, package: &str) -> bool {
+        self.requested.lock().unwrap_or_else(PoisonError::into_inner).get(package).is_some_and(|request| request.retry)
     }
 
     fn state(&self, target: &Target) -> PluginRestart {
@@ -229,31 +246,19 @@ impl Restarts {
     }
 }
 
-impl PluginHost {
-    // The Program And Every Program That Restarts With It.
-    pub(super) fn restart_scope(&self, plugin: &str) -> BTreeSet<String> {
-        let manager = self.plugin_manager.as_ref().expect("manager initialized at startup");
-        let mut scope = BTreeSet::from([plugin.to_owned()]);
-        let mut frontier = vec![plugin.to_owned()];
-        while let Some(next) = frontier.pop() {
-            let dependents = manager.dependents(&next).unwrap_or_default();
-            frontier.extend(dependents.into_iter().filter(|dependent| scope.insert(dependent.clone())));
-        }
-        scope
-    }
-}
-
 impl RuntimeHandle {
-    // A Save That Changed Values: Restart The Program Now, Or Once Nothing Uses It.
+    // A Save That Changed Values: Restart The Program Now, Or Once No Cycle Is Active.
     pub(crate) fn request_plugin_restart(&self, plugin: &str) -> PluginRestart {
-        let blocked = self.plugin_use(&BTreeSet::from([plugin.to_owned()])).is_some();
+        let blocked = self.active_cycle().is_some();
         self.plugin_restarts.request(Target::Program(plugin.to_owned()), blocked)
     }
 
-    // A Store Change For `package`: Apply `install` Now, Or Once Nothing Uses Its Running Programs.
-    pub(crate) fn request_plugin_apply(&self, package: &str, install: Uuid) -> PluginRestart {
-        let blocked = self.plugin_use(&self.plugin_restarts.programs(package)).is_some();
-        self.plugin_restarts.request_bundle(package, install, blocked)
+    // A Store Change For `package`: Apply `install` Now, Or Once No Cycle Is Active.
+    // A retry of a package that does not run starts it at once.
+    pub(crate) fn request_plugin_apply(&self, package: &str, install: Uuid, retry: bool) -> PluginRestart {
+        let starts_only = retry && self.plugin_restarts.running(package).is_none();
+        let blocked = !starts_only && self.active_cycle().is_some();
+        self.plugin_restarts.request_bundle(package, install, retry, blocked)
     }
 
     // The Programs `package` Runs When It Runs `install` Now.
@@ -285,44 +290,36 @@ impl RuntimeHandle {
         self.plugin_restarts.settled(Target::Bundle(package.to_owned())).await;
     }
 
-    // Under Plugin Admission: Refuse While Anything Uses An Affected Program, Else Close Their Admission.
-    pub(in crate::runtime) async fn admit_plugin_restart(&self, affected: &[String]) -> Result<(), Option<CancellationToken>> {
-        let affected: BTreeSet<String> = affected.iter().cloned().collect();
+    // Under Plugin Admission: Refuse While Any Cycle Is Active, Else Close The Affected Programs'
+    // Admission. A retry that only starts programs which do not run is `starts_only` and never waits.
+    pub(in crate::runtime) async fn admit_plugin_restart(
+        &self, affected: &[String], starts_only: bool,
+    ) -> Result<(), Option<CancellationToken>> {
         let _admission = self.plugin_admission.lock().await;
-        if let Some(settling) = self.plugin_use(&affected) {
+        if !starts_only && let Some(settling) = self.active_cycle() {
             return Err(settling);
         }
 
-        self.unavailable_plugins.write().expect("plugin availability lock poisoned").extend(affected);
+        self.unavailable_plugins.write().expect("plugin availability lock poisoned").extend(affected.iter().cloned());
         Ok(())
     }
 
-    // `Some` While An Execution That Uses Any Of `sources` Is Running Or Prepared.
+    // `Some` While Any Cycle Is Active: Running, Paused Or Stopping, Sealing, Or Settling A Run.
     //
-    // An execution uses the program that runs its case, and every program
-    // publishing telemetry or records it may capture. The inner value is a
-    // provider run still settling, which the restarter can wait on.
-    pub(in crate::runtime) fn plugin_use(&self, sources: &BTreeSet<String>) -> Option<Option<CancellationToken>> {
-        let (publishing, executing) = {
-            let state = self.state_read();
-            let publishes = |plugin: &crate::InstalledPlugin| !plugin.telemetry_contracts.is_empty() || !plugin.record_contracts.is_empty();
-            let publishing = sources.iter().filter_map(|source| state.installed_plugins.get(source)).any(publishes);
-            let active = |status: &ExecutionStatus| matches!(status, ExecutionStatus::Pending | ExecutionStatus::Running);
-            let runs = |execution: &dokime_domain::model::execution::result::TestExecution| {
-                execution.snapshot.plugin().is_some_and(|plugin| sources.contains(&plugin.source))
-            };
-            let mut executions = state.executions.values().filter(|execution| execution.finished_at.is_none() && active(&execution.status));
-            (publishing, executions.any(|execution| publishing || runs(execution)))
-        };
-
-        // A Provider Run Settles Its Captured Telemetry After Its Execution Finishes.
+    // Every execution runs in a cycle, so this covers every running or prepared
+    // execution too. A provider run settles after its cycle returns to Ready and
+    // starts the cycle's next case before it does, so the gap between two cases
+    // counts. The inner value is such a run, which the restarter can wait on.
+    pub(in crate::runtime) fn active_cycle(&self) -> Option<Option<CancellationToken>> {
+        let cycling = self.state_read().cycles.values().any(|cycle| {
+            matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
+                || cycle.phase == CyclePhase::Sealing
+        });
         let settling = {
             let tasks = self.provider_tasks.lock().expect("provider task lock poisoned");
-            let uses = |source: &str| publishing || sources.contains(source);
-            let settling = tasks.iter().find(|task| uses(&task.source) && !task.settled.is_cancelled());
-            settling.map(|task| task.settled.clone())
+            tasks.iter().find(|task| !task.settled.is_cancelled()).map(|task| task.settled.clone())
         };
-        (settling.is_some() || executing).then_some(settling)
+        (cycling || settling.is_some()).then_some(settling)
     }
 }
 
@@ -330,7 +327,7 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-// One Restarter Per Runtime: Saves Queue Programs, Store Changes Queue Bundles; Each Applies Once Nothing Uses It.
+// One Restarter Per Runtime: Saves Queue Programs, Store Changes Queue Bundles; Each Applies Once No Cycle Is Active.
 pub(in crate::runtime) fn spawn(host: Arc<tokio::sync::Mutex<PluginHost>>, handle: RuntimeHandle) -> BackgroundTask {
     BackgroundTask(tokio::spawn(serve(host, handle)))
 }
@@ -365,7 +362,7 @@ async fn restart_waiting(
         }
 
         let outcome = match &target {
-            Target::Bundle(package) => host.apply_bundle(package, restarts.requested(package)).await,
+            Target::Bundle(package) => host.apply_bundle(package, restarts.requested(package), restarts.retrying(package)).await,
             Target::Program(plugin) => host.restart_with_saved_settings(plugin).await,
         };
         let Outcome::Deferred(provider) = outcome.settle(restarts, &target) else { continue };
@@ -452,9 +449,10 @@ mod tests {
         let bundle = Target::Bundle("capture-fixture".into());
         let (first, second) = (Uuid::now_v7(), Uuid::now_v7());
         restarts.request(program("capture"), true);
-        assert_eq!(restarts.request_bundle("capture-fixture", first, true), PluginRestart::Pending);
-        assert_eq!(restarts.request_bundle("capture-fixture", second, false), PluginRestart::Pending);
+        assert_eq!(restarts.request_bundle("capture-fixture", first, true, true), PluginRestart::Pending);
+        assert_eq!(restarts.request_bundle("capture-fixture", second, false, false), PluginRestart::Pending);
         assert_eq!(restarts.requested("capture-fixture"), Some(second));
+        assert!(!restarts.retrying("capture-fixture"), "the latest request decides whether a retry asked for it");
         assert_eq!(restarts.waiting(), [bundle.clone(), program("capture")]);
         restarts.begin(&bundle);
         assert_eq!(restarts.program_state("capture"), PluginRestart::Restarting);

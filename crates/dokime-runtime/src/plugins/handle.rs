@@ -87,16 +87,16 @@ impl RuntimeHandle {
         .await
         .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))??;
         let entry = store.install_checked(&bytes, &configured, &host_sources, validate).await?;
-        self.apply_plugin_change(&entry);
+        self.apply_plugin_change(&entry, false);
         Ok(entry)
     }
 
-    // Enable Or Disable An Installation; The Running Backend Starts Or Stops It Once Nothing Uses It.
+    // Enable Or Disable An Installation; The Running Backend Starts Or Stops It Once No Cycle Is Active.
     pub async fn set_plugin_enabled(&self, install: Uuid, enabled: bool) -> Result<PluginEntry, PluginError> {
         let store = self.plugin_store();
         store.set_enabled(install, enabled).await?;
         let entry = store.get(install).await?;
-        self.apply_plugin_change(&entry);
+        self.apply_plugin_change(&entry, false);
         Ok(entry)
     }
 
@@ -109,18 +109,18 @@ impl RuntimeHandle {
             Err(PluginError::Unknown(_)) => return Ok(None),
             Err(error) => return Err(error),
         };
-        self.apply_plugin_change(&entry);
+        self.apply_plugin_change(&entry, false);
         Ok(Some(entry))
     }
 
-    // Start An Installation Again Through The Same Path: Its Bundle Starts If It Does Not Run,
-    // And Programs That Run Restart With Their Saved Settings.
+    // Start An Installation Again Through The Same Path: Its Bundle Starts At Once If It Does Not Run,
+    // And Programs That Run Restart With Their Saved Settings Once No Cycle Is Active.
     pub async fn retry_plugin(&self, install: Uuid) -> Result<PluginEntry, PluginError> {
         let entry = self.plugin_store().get(install).await?;
         if entry.installation.state != PluginState::Installed {
             return Err(PluginError::NotInstalled(install));
         }
-        self.apply_plugin_change(&entry);
+        self.apply_plugin_change(&entry, true);
         let running = package(&entry).and_then(|package| self.plugin_runs(package, install));
         for program in running.into_iter().flatten() {
             self.request_plugin_restart(&program);
@@ -128,8 +128,8 @@ impl RuntimeHandle {
         Ok(entry)
     }
 
-    // A Store Change Reaches The Running Backend: The Restarter Applies It Once Nothing Uses The Package.
-    fn apply_plugin_change(&self, entry: &PluginEntry) {
+    // A Store Change Reaches The Running Backend: The Restarter Applies It Once No Cycle Is Active.
+    fn apply_plugin_change(&self, entry: &PluginEntry, retry: bool) {
         let install = entry.installation.install_id;
         let Some(package) = package(entry).map(str::to_owned).or_else(|| self.running_package(install)) else {
             return;
@@ -141,7 +141,7 @@ impl RuntimeHandle {
                 self.plugin_preferences().bind_install(&owner, install);
             }
         }
-        self.request_plugin_apply(&package, install);
+        self.request_plugin_apply(&package, install, retry);
     }
 }
 

@@ -55,12 +55,13 @@ enum Planned {
 /* === Implementations === */
 
 impl PluginHost {
-    // Bring `package` In Line With The Store: Start, Replace Or Stop Its Programs, Once Nothing Uses Them.
+    // Bring `package` In Line With The Store: Start, Replace Or Stop Its Programs, Once No Cycle Is Active.
     //
     // The store names what should run: the requested installation while it is
     // installed, else the running one while it still is, else nothing. The
-    // change is admitted like a startup, so it ends where a restart would.
-    pub(super) async fn apply_bundle(&mut self, package: &str, requested: Option<Uuid>) -> Outcome {
+    // change is admitted like a startup, so it ends where a restart would. A
+    // `retry` that only starts programs which do not run applies at once.
+    pub(super) async fn apply_bundle(&mut self, package: &str, requested: Option<Uuid>, retry: bool) -> Outcome {
         let store = self.handle.plugin_store();
         let running = self.plugins.get(package).map(|active| active.package.input.clone());
         // Configured Bundles Change Through Their Configuration Or A Development Reload.
@@ -79,20 +80,23 @@ impl PluginHost {
             return Outcome::Settled;
         }
         // Deferring Before Preparing Spares Re-Reading The Bundle On Every State Change.
-        if let Some(settling) = self.handle.plugin_use(&self.package_scope(package)) {
+        let retry = retry && !self.package_runs(package);
+        if !retry && let Some(settling) = self.handle.active_cycle() {
             return Outcome::Deferred(settling);
         }
 
         self.handle.plugin_restarts.begin(&Target::Bundle(package.to_owned()));
         match (desired, current) {
-            (Some(install), _) => self.start_bundle(&store, package, install, running).await,
+            (Some(install), _) => self.start_bundle(&store, package, install, running, retry).await,
             (None, Some(_)) => self.stop_bundle(&store, package).await,
             (None, None) => Outcome::Settled,
         }
     }
 
-    // Start `install` As `package`, Replacing What Runs Under That Name.
-    async fn start_bundle(&mut self, store: &PluginStore, package: &str, install: Uuid, running: Option<PluginBundle>) -> Outcome {
+    // Start `install` As `package`, Replacing What Runs Under That Name; A `retry` Stops Nothing That Runs.
+    async fn start_bundle(
+        &mut self, store: &PluginStore, package: &str, install: Uuid, running: Option<PluginBundle>, retry: bool,
+    ) -> Outcome {
         let input = match store.bundle(install).await {
             Ok(Some(input)) => input,
             Ok(None) => return Outcome::Settled,
@@ -119,7 +123,9 @@ impl PluginHost {
             Ok(Planned::Refused(failure)) => return self.refuse(store, package, &input, running.as_ref(), failure).await,
             Err(error) => return self.refuse(store, package, &input, running.as_ref(), refusal(package, &error)).await,
         };
-        if let Err(blocker) = self.handle.admit_plugin_restart(&reload.affected()).await {
+        let affected = reload.affected();
+        let starts_only = retry && self.none_run(&affected);
+        if let Err(blocker) = self.handle.admit_plugin_restart(&affected, starts_only).await {
             return Outcome::Deferred(blocker);
         }
 
@@ -181,7 +187,7 @@ impl PluginHost {
                 return Outcome::Settled;
             }
         };
-        if let Err(blocker) = self.handle.admit_plugin_restart(&reload.affected()).await {
+        if let Err(blocker) = self.handle.admit_plugin_restart(&reload.affected(), false).await {
             return Outcome::Deferred(blocker);
         }
 
@@ -338,10 +344,18 @@ impl PluginHost {
             .is_some_and(|active| active.package.programs.iter().all(|program| ready.contains(program.executable.id())))
     }
 
-    // The Package's Programs And Every Program That Restarts With Them.
-    fn package_scope(&self, package: &str) -> BTreeSet<String> {
+    // Whether Any Of The Package's Programs Runs.
+    fn package_runs(&self, package: &str) -> bool {
         let programs = self.plugins.get(package).into_iter().flat_map(|active| &active.package.programs);
-        programs.flat_map(|program| self.restart_scope(program.executable.id())).collect()
+        let programs: Vec<String> = programs.map(|program| program.executable.id().to_owned()).collect();
+        !self.none_run(&programs)
+    }
+
+    // Whether None Of `programs` Runs, So Starting Them Stops Nothing.
+    fn none_run(&self, programs: &[String]) -> bool {
+        let manager = self.plugin_manager.as_ref().expect("manager initialized at startup");
+        let ready: BTreeSet<_> = manager.ready().collect();
+        programs.iter().all(|program| !ready.contains(program.as_str()))
     }
 }
 

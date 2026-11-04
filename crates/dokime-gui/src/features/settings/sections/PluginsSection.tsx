@@ -232,7 +232,7 @@ export function PluginsSection() {
           <DialogHeader>
             <DialogTitle>Remove Plugin?</DialogTitle>
             <DialogDescription>
-              {`The plugin stops once no execution uses it. Its managed file is deleted when ${brand.label} next starts.`}
+              {`The plugin stops once no cycle is active. Its managed file is deleted when ${brand.label} next starts.`}
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (

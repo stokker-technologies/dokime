@@ -158,14 +158,14 @@ async fn execution_workflow_threaded() {
 #[tokio::test(flavor = "multi_thread")]
 async fn plugin_settings_restart() {
     session::saved_change_restarts().await;
-    session::saved_change_waits_for_execution().await;
+    session::saved_change_waits_for_cycle().await;
 }
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn plugin_hot_reload() {
     session::installs_apply_live().await;
-    session::replacement_waits_for_execution().await;
+    session::replacement_waits_for_cycle().await;
     session::refused_replacement_keeps_running().await;
     session::retry_restarts_one_plugin().await;
 }

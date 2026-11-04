@@ -481,13 +481,13 @@ impl PluginHost {
         self.apply_reinitialization(plugin, planned).await
     }
 
-    // Restart One Program So It Prepares With Its Saved Settings, Unless Anything Uses It.
+    // Restart One Program So It Prepares With Its Saved Settings, Once No Cycle Is Active.
     pub(super) async fn restart_with_saved_settings(&mut self, plugin: &str) -> restarts::Outcome {
         let Some((input, name)) = self.program_package(plugin) else {
             return restarts::Outcome::Unhosted;
         };
         // Deferring Before Planning Spares Re-Reading Settings And Secrets On Every State Change.
-        if let Some(settling) = self.handle.plugin_use(&self.restart_scope(plugin)) {
+        if let Some(settling) = self.handle.active_cycle() {
             return restarts::Outcome::Deferred(settling);
         }
 
@@ -503,7 +503,7 @@ impl PluginHost {
                 return restarts::Outcome::Settled;
             }
         };
-        if let Err(blocker) = self.handle.admit_plugin_restart(&planned.reload.affected()).await {
+        if let Err(blocker) = self.handle.admit_plugin_restart(&planned.reload.affected(), false).await {
             return restarts::Outcome::Deferred(blocker);
         }
         let progress = self.handle.operation_progress().begin(format!("Restarting {name}"));

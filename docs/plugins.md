@@ -257,7 +257,7 @@ unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
 A settings save that changes a value starts a new generation of that plugin and
 its dependents through the same reload, with a configuration built from the saved
-values, once no running or prepared execution uses them. A restart refused before
+values, once no cycle is active. A restart refused before
 the program stops, for example because its saved values or a required secret do
 not resolve, keeps the running generation and records why; one whose new
 generation then fails to start is recorded like a failed boot.
@@ -347,12 +347,17 @@ or circular contracts, and the packages that need a removed or refused provider.
 A package that loses a provider it requires stops with it and records why, so the
 running set matches what the next start would admit.
 
-While a running or prepared execution uses an affected program, the change waits
-and the plugin shows **Restart Pending**; it applies once those executions and
-their provider runs settle. An execution uses the program that runs its case, the
-programs that depend on it, and every program publishing telemetry or records it
-may capture. Executions are never stopped or disturbed for a change, and further
+While any cycle is active, every queued change, settings restarts included,
+waits: the plugin shows **Restart Pending** and the change applies automatically
+once no cycle is active. A cycle is active while it runs, is paused
+or stops, waits to continue automatically with its next case, finalizes its
+run's evidence, or seals. A cycle left open and idle is not active. Every
+execution runs in a cycle, so a change never applies while an execution runs or
+is prepared. Executions are never stopped or disturbed for a change, and further
 changes to the same package join the one that waits, applying the latest.
+**Retry** of a plugin that does not run starts it at once, even while a cycle is
+active, because nothing running stops; retrying a running plugin restarts it once
+no cycle is active.
 
 A replacement refused before anything stops, because its bundle, catalog,
 contracts, saved settings or secrets do not validate, leaves the previous

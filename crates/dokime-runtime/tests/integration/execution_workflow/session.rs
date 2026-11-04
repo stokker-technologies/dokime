@@ -77,7 +77,7 @@ enum Settlement {
     RefusedPage,
     AbandonedAdmission,
     LiveReplay,
-    // The Run Stays Active Until Released, Then Passes.
+    // Each Run Stays Active Until Released, Then Passes; The Next Run Waits For Its Own Release.
     Held,
     Ignored,
     IgnoredSignal,
@@ -162,6 +162,7 @@ impl Runnable for Probe {
             if matches!(self.mode, Settlement::LiveReplay | Settlement::Held) {
                 if self.mode == Settlement::Held {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
+                    self.released.send_replace(false);
                 } else {
                     self.row_received.notified().await;
                 }
@@ -745,9 +746,9 @@ pub(crate) async fn saved_change_restarts() {
     owner.shutdown().await.unwrap();
 }
 
-// A Save While An Execution Is Active Waits For It: The Host Publishes Telemetry Any Run May Capture.
-// The Restart Follows Once, With The Latest Value.
-pub(crate) async fn saved_change_waits_for_execution() {
+// A Save While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Restarts Once With
+// The Latest Value; With The Cycle Idle Again, A Save Restarts At Once.
+pub(crate) async fn saved_change_waits_for_cycle() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let configuration =
@@ -755,31 +756,51 @@ pub(crate) async fn saved_change_waits_for_execution() {
     let (mut owner, handle) = started(configuration).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     let (generation, prepared, _) = prepared_scan_interval(&owner).await;
-    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let cycle_id = start_cases(&handle, metadata("session.restart", "Pending Restart"), materialize_cases(SOURCE, &suite)).await;
-    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.restart", "Pending Restart")).await;
 
     assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Pending);
     assert_eq!(save_scan_interval(&handle, 48).await, PluginRestart::Pending);
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
-    assert_eq!(prepared_scan_interval(&owner).await.0, generation, "the running execution keeps its host generation");
+    next_case(&probe).await;
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    assert_eq!(prepared_scan_interval(&owner).await.0, generation, "the cycle keeps its host generation between cases");
 
     probe.released.send_replace(true);
-    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     handle.plugin_restart_settled(&identifier(HOST)).await;
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
-    let execution = &cycle.test_executions[0];
-    let log = execution_log(&handle, &execution.test_execution_id).await;
-    assert_eq!(execution.status, ExecutionStatus::Passed, "the restart never touched the execution: {log}");
+    for execution in &cycle.test_executions {
+        let log = execution_log(&handle, &execution.test_execution_id).await;
+        assert_eq!(execution.status, ExecutionStatus::Passed, "the restart never touched the cycle: {log}");
+    }
     let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
     assert_ne!(restarted, generation);
     assert_ne!(applied, prepared);
     assert_eq!(applied, saved, "the restart prepared with the latest saved value");
+
+    // The Idle Cycle Stays Open, Yet Nothing Is Active.
+    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Restarting);
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "a save with no active cycle restarts at once");
     probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
+}
+
+// A Cycle That Runs Its Case Twice, Continuing Automatically, Held In Its First Execution.
+async fn held_cycle(runtime: &RuntimeHandle, probe: &Probe, metadata: Metadata) -> TestCycleId {
+    let suite = runtime.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let case = materialize_cases(SOURCE, &suite).remove(0);
+    let cycle_id = start_cases(runtime, metadata, vec![case.clone(), case]).await;
+    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    cycle_id
+}
+
+// Release The Held Execution; The Cycle Continues With Its Next Case, Which Holds In Turn.
+async fn next_case(probe: &Probe) {
+    probe.released.send_replace(true);
+    probe.entered.notified().await;
 }
 
 // What The Store Says About One Installation, With What The Running Backend Does With It.
@@ -904,35 +925,33 @@ pub(crate) async fn installs_apply_live() {
     owner.shutdown().await.unwrap();
 }
 
-// A Replacement While An Execution Captures The Program's Telemetry Waits For It, Then Applies.
-pub(crate) async fn replacement_waits_for_execution() {
+// A Replacement While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Applies.
+pub(crate) async fn replacement_waits_for_cycle() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     let first = installed(&handle, host_bundle()).await;
     let generation = running_generation(&owner).await.expect("the installed program runs");
-    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let cycle_id = start_cases(&handle, metadata("session.replace", "Pending Replacement"), materialize_cases(SOURCE, &suite)).await;
-    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.replace", "Pending Replacement")).await;
 
     let replacement = handle.install_plugin(crate::service_support::bundles::host_plugin_version("99.0.0"), |_| Ok(())).await.unwrap();
     let pending = installation(&handle, replacement.installation.install_id).await;
     assert_eq!(pending.restart, PluginRestart::Pending);
     assert!(!pending.active);
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    next_case(&probe).await;
+    assert_eq!(installation(&handle, replacement.installation.install_id).await.restart, PluginRestart::Pending);
     assert!(installation(&handle, first.installation.install_id).await.active, "the previous version keeps running");
-    assert_eq!(running_generation(&owner).await, Some(generation), "the running execution keeps its generation");
+    assert_eq!(running_generation(&owner).await, Some(generation), "the cycle keeps its generation between cases");
 
     probe.released.send_replace(true);
-    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     let applied = settled(&handle, &replacement).await;
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
-    let execution = &cycle.test_executions[0];
-    let log = execution_log(&handle, &execution.test_execution_id).await;
-    assert_eq!(execution.status, ExecutionStatus::Passed, "the replacement never touched the execution: {log}");
+    for execution in &cycle.test_executions {
+        let log = execution_log(&handle, &execution.test_execution_id).await;
+        assert_eq!(execution.status, ExecutionStatus::Passed, "the replacement never touched the cycle: {log}");
+    }
     assert!(applied.active && applied.restart == PluginRestart::Idle);
     assert_ne!(running_generation(&owner).await.expect("the new version runs"), generation);
     probe.runtime.lock().unwrap().take();
@@ -974,9 +993,12 @@ pub(crate) async fn refused_replacement_keeps_running() {
 }
 
 // A Refused Restart Keeps The Running Generation; Retry Starts One Plugin Again Once The Cause Is Fixed.
+// While A Cycle Is Active, Retry Starts A Plugin That Did Not Start At Once, And Restarting One That Runs Waits.
 pub(crate) async fn retry_restarts_one_plugin() {
     let root = tempdir().unwrap();
-    let (mut owner, handle) = started(config(root.path())).await;
+    let probe = Arc::new(Probe::new(Settlement::Held));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
 
     // A Restart That Cannot Read Its Settings Is Refused While The Program Keeps Running.
     let host = installed(&handle, host_bundle()).await;
@@ -994,13 +1016,14 @@ pub(crate) async fn retry_restarts_one_plugin() {
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let retried = installation(&handle, install).await;
     assert!(retried.active && matches!(retried.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
-    assert_ne!(running_generation(&owner).await.expect("the retried program runs"), generation);
+    let generation = running_generation(&owner).await.expect("the retried program runs");
 
-    // A Plugin That Did Not Start Is Retried In Place: It Reads The Secret Stored Since.
+    // A Plugin That Did Not Start Is Retried In Place While A Cycle Runs: It Reads The Secret Stored Since.
     let failed = installed(&handle, secret_bundle("secret-fixture", "secret_fixture")).await;
     assert!(failed.boot_failed && !failed.active);
     let Some(PluginLastBoot::Failed { failure, .. }) = &failed.installation.last_boot else { panic!("the failed start is recorded") };
     assert_eq!(failure.missing_secret.as_deref(), Some("token"));
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During A Cycle")).await;
     handle
         .operations()
         .call::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
@@ -1015,10 +1038,22 @@ pub(crate) async fn retry_restarts_one_plugin() {
         .await
         .unwrap();
     let retried = handle.retry_plugin(failed.installation.install_id).await.unwrap();
+    assert_ne!(installation(&handle, retried.installation.install_id).await.restart, PluginRestart::Pending);
     let retried = settled(&handle, &retried).await;
     let Some(PluginLastBoot::Failed { failure, .. }) = &retried.installation.last_boot else { panic!("the inert program cannot start") };
     assert_eq!(failure.missing_secret, None, "the retry prepared with the stored secret");
     assert!(installation(&handle, install).await.active, "retrying one plugin leaves the others running");
+
+    // Retrying A Running Plugin Restarts It Once The Cycle Ends.
+    handle.retry_plugin(install).await.unwrap();
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    next_case(&probe).await;
+    assert_eq!(running_generation(&owner).await, Some(generation), "the running plugin keeps its generation during the cycle");
+    probe.released.send_replace(true);
+    wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert_ne!(running_generation(&owner).await.expect("the retried program runs"), generation);
+    probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
 }
