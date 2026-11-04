@@ -103,7 +103,6 @@ impl Service {
         setup.operations::<dokime::operations::plots::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::plugins::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::prompts::Operations>(dokime::app::Lanes::Open);
-        setup.operations::<dokime::operations::query::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::settings::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::telemetry::Operations>(dokime::app::Lanes::Open);
         Ok(())
