@@ -44,7 +44,7 @@ use dokime::domain::model::{
     values::Value,
 };
 use dokime::operations::{
-    Endpoint,
+    self,
     execution::{AppendExecutions, CreateCycle, ExecutionBinding, ListCycles, StartExecution},
     planning::MaterializeTemplate,
 };
@@ -192,8 +192,8 @@ impl Proxy {
 impl Gate {
     fn selects(&self, path: &str) -> bool {
         let selected = match self.boundary {
-            Boundary::Append => AppendExecutions::PATH,
-            Boundary::Start => StartExecution::PATH,
+            Boundary::Append => operations::path::<AppendExecutions>(),
+            Boundary::Start => operations::path::<StartExecution>(),
         };
         path == selected
     }
