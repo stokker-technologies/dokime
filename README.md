@@ -3,8 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
 [![Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
-[![crates.io](https://img.shields.io/badge/crates.io-unpublished-lightgrey)](#quick-start)
-[![PyPI](https://img.shields.io/badge/PyPI-unpublished-lightgrey)](#quick-start)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 <p align="center">
