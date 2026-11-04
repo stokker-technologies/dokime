@@ -19,8 +19,35 @@ concurrency:
   group: nightly-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
+  freshness:
+    name: Plan / Freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.freshness.outputs.build }}
+    steps:
+    - id: freshness
+      name: Skip An Unchanged Scheduled Nightly
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |-
+        build=true
+        if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+          published="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/nightly" --jq .object.sha 2>/dev/null || true)"
+          if [ "$published" = "$GITHUB_SHA" ]; then
+            build=false
+            echo "::notice::dev $GITHUB_SHA is already the published nightly; skipping the scheduled run"
+          fi
+        fi
+        echo "build=$build" >> "$GITHUB_OUTPUT"
   source:
     name: Check / Repository
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -96,6 +123,9 @@ jobs:
       cancel-in-progress: false
   check_python:
     name: Check / Python
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -156,6 +186,9 @@ jobs:
       cancel-in-progress: false
   check_typescript:
     name: Check / TypeScript
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -349,6 +382,9 @@ jobs:
       cancel-in-progress: false
   build_python_any:
     name: Build / Product / Python (any)
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -1533,6 +1569,9 @@ jobs:
       cancel-in-progress: false
   build_bench:
     name: Build / Bench
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -2057,6 +2096,9 @@ jobs:
       cancel-in-progress: false
   build_tests:
     name: Build / Tests (${{ matrix.platform }})
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.minutes }}
     steps:
@@ -2248,6 +2290,9 @@ jobs:
       cancel-in-progress: false
   check_rust:
     name: Check / Rust (${{ matrix.platform }})
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.minutes }}
     steps:
@@ -4222,3 +4267,122 @@ jobs:
         ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform
         }}-${{ github.run_id }}
       cancel-in-progress: false
+  publish:
+    name: Nightly / Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # Publication Waits Only For The Packages; Suites Run Beside It And May Fail.
+    needs:
+    - package_python
+    - package_rust
+    if: github.ref == 'refs/heads/dev'
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: nightly-publication
+      cancel-in-progress: false
+    steps:
+    - name: Configure Checkout Git
+      run: git config --global core.longpaths true
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - id: setup
+      uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        cache-backend: disk
+        cache-mode: >-
+          ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
+          github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-any
+        path: target/ci
+        github-token: ${{ github.token }}
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-rust-windows
+        path: target/ci
+        github-token: ${{ github.token }}
+    - name: Extract package:rust / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-rust-unix
+        path: target/ci
+        github-token: ${{ github.token }}
+    - name: Extract package:rust / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+    - name: Stage And Publish Nightly
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.release.nightly
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+    env:
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      SCCACHE_CACHE_SIZE: 2G
+      COMPILER_CACHE_MODE: >-
+        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
+        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+      RELEASE_PROFILE: release
+  report:
+    name: Nightly / Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - publish
+    - release_dry_nightly
+    - bench_rust_integration
+    - bench_rust_system
+    - bench_rust_unit
+    - validate_coverage_python
+    - validate_coverage_rust
+    - validate_test_python_acceptance
+    - validate_test_python_integration
+    - validate_test_python_unit
+    - validate_test_rust_acceptance
+    - validate_test_rust_integration
+    - validate_test_rust_starter
+    - validate_test_rust_system
+    - validate_test_rust_unit
+    - validate_test_typescript_integration
+    - validate_test_typescript_system
+    - validate_test_typescript_unit
+    if: always() && needs.publish.result == 'success'
+    permissions:
+      contents: write
+    steps:
+    - name: Record The Suite Result In The Nightly Notes
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NEEDS: ${{ toJSON(needs) }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |-
+        failed="$(jq -r 'del(.publish) | to_entries | map(select(.value.result != "success") | .key) | join(", ")' <<<"$NEEDS")"
+        if [ -z "$failed" ]; then
+          line="**Suite:** passed ([run]($RUN_URL))"
+        else
+          line="**Suite:** failed: $failed ([run]($RUN_URL))"
+        fi
+        notes="$(gh release view nightly --repo "$GITHUB_REPOSITORY" --json body --jq .body | grep -v '^[*][*]Suite:[*][*]' || true)"
+        printf '%s\n\n%s\n' "$notes" "$line" > "$RUNNER_TEMP/notes.md"
+        gh release edit nightly --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
+        echo "$line"

@@ -11,6 +11,7 @@
 
 # Standard Library Imports
 import copy
+import functools
 import hashlib
 import itertools
 import json
@@ -24,7 +25,7 @@ from unittest.mock import patch
 # Third Party Imports
 # Local Imports
 from dokime_tools.ci import impact, simulate
-from dokime_tools.release import edge, pins, policy, registry
+from dokime_tools.release import nightly, pins, policy, registry
 
 # Type Checking Imports
 
@@ -178,11 +179,28 @@ class PinTests(unittest.TestCase):
             preflight.assert_not_called()
 
 
-class EdgeTests(unittest.TestCase):
+def _publishers() -> list[tuple]:
+    # The Nightly Channel Publisher And The Starter Template's Edge Publisher Share One Contract.
+    template = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools/release/edge.py.tmpl"
+    rendered = runpy.run_path(str(template), run_name="dokime_tools.release.edge_template")
+    return [(functools.partial(nightly._github, channel=nightly.NIGHTLY), nightly.NIGHTLY.tag), (rendered["_github"], "edge")]
+
+
+class ChannelTests(unittest.TestCase):
+    def test_nightly_source(self):
+        base = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "42", "GITHUB_SHA": "a" * 40, "GITHUB_SERVER_URL": "https://github.com"}
+        expected = ("a" * 40, "42", "https://github.com/owner/repo/actions/runs/42")
+        for event in ("schedule", "workflow_dispatch"):
+            environment = {**base, "GITHUB_EVENT_NAME": event, "GITHUB_REF": "refs/heads/dev"}
+            with self.subTest(event=event), patch.dict(os.environ, environment, clear=True):
+                self.assertEqual(nightly._source(nightly.NIGHTLY, True), expected)
+
+        for event, ref in (("workflow_dispatch", "refs/heads/feature"), ("push", "refs/heads/dev")):
+            environment = {**base, "GITHUB_EVENT_NAME": event, "GITHUB_REF": ref}
+            with self.subTest(event=event, ref=ref), patch.dict(os.environ, environment, clear=True), self.assertRaises(policy.ToolError):
+                nightly._source(nightly.NIGHTLY, True)
+
     def test_publish_lookup(self):
-        template = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools/release/edge.py.tmpl"
-        rendered = runpy.run_path(str(template), run_name="dokime_tools.release.edge_template")
-        publishers = (edge._github, rendered["_github"])
         faults = (
             None,
             "missing",
@@ -197,16 +215,16 @@ class EdgeTests(unittest.TestCase):
             "wrong-size",
             "pending-asset",
         )
-        for publisher, missing_release, fault in itertools.product(publishers, (False, True), faults):
+        for (publisher, tag), missing_release, fault in itertools.product(_publishers(), (False, True), faults):
             with (
-                self.subTest(publisher=publisher.__module__, missing_release=missing_release, fault=fault),
+                self.subTest(tag=tag, missing_release=missing_release, fault=fault),
                 tempfile.TemporaryDirectory() as temporary,
             ):
                 directory = Path(temporary)
                 data = b"checksum"
                 (directory / "SHA256SUMS").write_bytes(data)
                 files = [{"name": "SHA256SUMS", "path": "SHA256SUMS", "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}]
-                release: dict = {} if missing_release else {"id": 17, "tag_name": edge.TAG, "draft": False}
+                release: dict = {} if missing_release else {"id": 17, "tag_name": tag, "draft": False}
                 assets: list[dict] = []
                 published: list[bool] = []
                 verified: list[str] = []
@@ -222,11 +240,12 @@ class EdgeTests(unittest.TestCase):
                     verified=verified,
                     fault=fault,
                     missing_release=missing_release,
+                    tag=tag,
                     **kwargs,
                 ):
                     if endpoint.startswith("actions/"):
                         return {"workflow_runs": []}
-                    if endpoint == "releases/tags/edge":
+                    if endpoint == f"releases/tags/{tag}":
                         if published:
                             verified.append(endpoint)
                             if fault == "missing":
@@ -241,7 +260,7 @@ class EdgeTests(unittest.TestCase):
                             }
                             if fault in changes:
                                 result[fault] = changes[fault]
-                            return result if result["tag_name"] == edge.TAG else None
+                            return result if result["tag_name"] == tag else None
                         return copy.deepcopy(release) if release else None
                     if endpoint == "releases" and method == "POST":
                         assert isinstance(body, dict)
@@ -253,13 +272,13 @@ class EdgeTests(unittest.TestCase):
                         if body.get("draft") is True:
                             release["tag_name"] = "untagged-placeholder"
                         if body.get("draft") is False:
-                            self.assertEqual(body["tag_name"], edge.TAG)
+                            self.assertEqual(body["tag_name"], tag)
                             self.assertEqual(body["target_commitish"], "a" * 40)
                             self.assertTrue(body["prerelease"])
                             self.assertEqual(body["make_latest"], "false")
                             published.append(True)
                         return copy.deepcopy(release)
-                    if endpoint == "git/ref/tags/edge":
+                    if endpoint == f"git/ref/tags/{tag}":
                         return None if missing_release else {"object": {"sha": "b" * 40}}
                     if endpoint.startswith("git/"):
                         return {}
@@ -305,29 +324,27 @@ class EdgeTests(unittest.TestCase):
                     patch.object(registry, "request", side_effect=request),
                 ):
                     if fault:
-                        with self.assertRaisesRegex(policy.ToolError, "edge"):
+                        with self.assertRaisesRegex(policy.ToolError, tag):
                             publisher(directory, {}, files, "a" * 40, "7", "notes")
                     else:
                         publisher(directory, {}, files, "a" * 40, "7", "notes")
-                self.assertEqual(verified, ["releases/tags/edge"])
+                self.assertEqual(verified, [f"releases/tags/{tag}"])
 
     def test_immutable_release(self):
-        template = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools/release/edge.py.tmpl"
-        rendered = runpy.run_path(str(template), run_name="dokime_tools.release.edge_template")
-        for publisher, stage in itertools.product((edge._github, rendered["_github"]), ("existing", "published")):
-            with self.subTest(publisher=publisher.__module__, stage=stage), tempfile.TemporaryDirectory() as temporary:
+        for (publisher, tag), stage in itertools.product(_publishers(), ("existing", "published")):
+            with self.subTest(tag=tag, stage=stage), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 data = b"checksum"
                 (directory / "SHA256SUMS").write_bytes(data)
                 files = [{"name": "SHA256SUMS", "path": "SHA256SUMS", "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}]
-                release = {"id": 17, "tag_name": edge.TAG, "draft": False, "immutable": stage == "existing"}
+                release = {"id": 17, "tag_name": tag, "draft": False, "immutable": stage == "existing"}
                 assets: list[dict] = []
                 uploads: list[str] = []
 
-                def document(settings, endpoint, method="GET", body=None, *, release=release, **kwargs):
+                def document(settings, endpoint, method="GET", body=None, *, release=release, tag=tag, **kwargs):
                     if endpoint.startswith("actions/"):
                         return {"workflow_runs": []}
-                    if endpoint == "releases/tags/edge":
+                    if endpoint == f"releases/tags/{tag}":
                         return copy.deepcopy(release)
                     if endpoint == "releases/17" and method == "PATCH":
                         assert isinstance(body, dict)
@@ -369,7 +386,7 @@ class EdgeTests(unittest.TestCase):
                     data = name.encode()
                     (directory / name).write_bytes(data)
                     files.append({"name": name, "path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
-                release = {} if missing_release else {"id": 17, "draft": False, "body": "", "tag_name": edge.TAG}
+                release = {} if missing_release else {"id": 17, "draft": False, "body": "", "tag_name": nightly.NIGHTLY.tag}
                 assets = [{"id": 1, "name": "obsolete.zip", "size": 3}]
                 tag_moves = []
                 published = []
@@ -388,22 +405,21 @@ class EdgeTests(unittest.TestCase):
                     missing_release=missing_release,
                     **kwargs,
                 ):
-                    if endpoint.startswith("actions/"):
-                        return {"workflow_runs": []}
-                    if endpoint == "releases/tags/edge":
+                    if endpoint == "releases/tags/nightly":
                         return None if not release or release["draft"] else copy.deepcopy(release)
                     if endpoint == "releases" and method == "POST":
-                        self.assertEqual(body["tag_name"], "edge")
+                        self.assertEqual(body["tag_name"], "nightly")
+                        self.assertEqual(body["name"], "Nightly")
                         self.assertTrue(body["draft"])
                         release.update({"id": 17, **body})
                         return copy.deepcopy(release)
-                    if endpoint == "git/ref/tags/edge":
+                    if endpoint == "git/ref/tags/nightly":
                         return None if missing_release else {"object": {"sha": "b" * 40}}
-                    if (endpoint == "git/refs/tags/edge" and method == "PATCH") or (endpoint == "git/refs" and method == "POST"):
+                    if (endpoint == "git/refs/tags/nightly" and method == "PATCH") or (endpoint == "git/refs" and method == "POST"):
                         self.assertTrue(release["draft"])
                         self.assertEqual({item["name"] for item in assets}, {item["name"] for item in files})
                         if method == "POST":
-                            self.assertEqual(body["ref"], "refs/tags/edge")
+                            self.assertEqual(body["ref"], "refs/tags/nightly")
                         tag_moves.append(body["sha"])
                         return {}
                     if endpoint == "releases/17" and method == "PATCH":
@@ -445,12 +461,12 @@ class EdgeTests(unittest.TestCase):
                 ):
                     if failing_upload:
                         with self.assertRaises(policy.ToolError):
-                            edge._github(directory, {}, files, "a" * 40, "7", "notes")
+                            nightly._github(directory, {}, files, "a" * 40, "7", "notes")
                         self.assertTrue(release["draft"])
                         self.assertEqual(tag_moves, [])
                         self.assertEqual(published, [])
                         failure[0] = None
-                    edge._github(directory, {}, files, "a" * 40, "7", "notes")
+                    nightly._github(directory, {}, files, "a" * 40, "7", "notes")
                 self.assertFalse(release["draft"])
                 self.assertEqual(tag_moves, ["a" * 40])
                 self.assertEqual(len(published), 1)

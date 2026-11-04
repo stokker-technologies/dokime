@@ -349,6 +349,7 @@ platforms = ["unix", "windows"]
 [release]
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
 edge = true
+nightly = true
 lock_commands = [
   [
     "cargo",

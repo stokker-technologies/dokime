@@ -70,7 +70,7 @@ jobs:
     - name: Stage And Publish Edge
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.release.edge
+        dokime_tools.release.nightly --channel edge
       env:
         GH_TOKEN: ${{ github.token }}
         GITHUB_TOKEN: ${{ github.token }}
