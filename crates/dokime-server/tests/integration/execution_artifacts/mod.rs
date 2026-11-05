@@ -60,3 +60,9 @@ async fn execution_artifacts() {
     Box::pin(media::media_capture_artifacts()).await;
     Box::pin(file_watch::file_watch_artifacts()).await;
 }
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn artifact_upload_idle_deadlines() {
+    content::artifact_upload_idle_deadlines().await;
+}

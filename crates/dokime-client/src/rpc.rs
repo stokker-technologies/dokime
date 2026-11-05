@@ -73,13 +73,13 @@ impl Client {
     pub async fn reports_download_cycle_report(
         &self, message: contracts::reports::DownloadCycleReport,
     ) -> Result<ResponseStream<dokime_domain::model::reports::wire::ReportHtmlFrame>> {
-        self.with_timeout(std::time::Duration::from_millis(300_000)).download::<contracts::reports::DownloadCycleReport>(message).await
+        self.download::<contracts::reports::DownloadCycleReport>(message).await
     }
 
     pub async fn reports_download_execution_report(
         &self, message: contracts::reports::DownloadExecutionReport,
     ) -> Result<ResponseStream<dokime_domain::model::reports::wire::ReportHtmlFrame>> {
-        self.with_timeout(std::time::Duration::from_millis(300_000)).download::<contracts::reports::DownloadExecutionReport>(message).await
+        self.download::<contracts::reports::DownloadExecutionReport>(message).await
     }
 
     pub fn content_upload_artifact_open(

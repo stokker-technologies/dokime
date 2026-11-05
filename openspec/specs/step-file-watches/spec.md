@@ -1,7 +1,7 @@
-# step-file-watches Specification
+# Step File Watches Specification
 
 ## Purpose
-TBD - created by archiving change watchfile-rules. Update Purpose after archive.
+Define bounded, recursive file discovery and capture for step watches while preserving relative paths, ordered filtering and safe artifact names.
 
 ## Requirements
 

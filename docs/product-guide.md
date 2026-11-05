@@ -1196,7 +1196,8 @@ The `dokime-cli` package installs the `dokime` executable.
 `dokime` connects to a backend; `cargo dokime sidecar` authors plugin bundles
 and `cargo dokime installer` assembles native distributions. Every
 command prints its full flags with `--help`. Backend RPC commands accept
-`--endpoint` or `--backend` and `--timeout-seconds`; most accept `--json` for scripts.
+`--endpoint` or `--backend` and `--timeout-seconds` for unary waits; streaming
+transfers use their operation idle policy. Most accept `--json` for scripts.
 
 ### Connection And Backends
 
@@ -2089,8 +2090,9 @@ Cancellation makes no report request. The native client streams to a unique
 adjacent temporary file, verifies length, contiguous frames and digest, syncs,
 and atomically publishes with overwrite consent. Failure, cancellation or a
 connection-generation change removes the temporary output and preserves an
-existing destination. Open uses the native cache. Report requests allow 300 s;
-ordinary requests keep their 30 s default. HTML bytes never cross the WebView.
+existing destination. Open uses the native cache. Report downloads permit 60 s
+of silence between frames under their transfer policy; ordinary requests keep
+their 30 s client default. HTML bytes never cross the WebView.
 Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
@@ -2122,3 +2124,14 @@ Sample and record listeners can reconnect once between successfully delivered
 pages, preserving stream/journal cursors and checking the backend epoch. Raw
 streams expose failures to their caller because arbitrary streams have no generic
 resume contract. Non-transient failures and exhausted retries remain visible.
+
+## Transfer Deadlines
+
+Artifact uploads, report and evidence downloads use their operation policy as an
+idle deadline. TRANSFER permits 60 seconds of silence between frames and while
+waiting for the final response. Each moving frame rearms the deadline; total
+transfer duration is unlimited while progress continues. Native client uploads
+send no total `grpc-timeout`; its request timeout preference does not replace
+stream policy.
+FOLLOW streams stay alive through heartbeats even when data is unchanged.
+Frame, artifact and bundle size caps are unchanged.

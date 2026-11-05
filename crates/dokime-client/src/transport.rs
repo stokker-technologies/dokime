@@ -66,7 +66,8 @@ impl Client {
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(response_bytes)
             .max_encoding_message_size(self.request_limit());
-        let incoming = self
+        let call = self.with_timeout(O::POLICY.timeout);
+        let incoming = call
             .execute(async {
                 client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
                 // A Stream Carries No Total Deadline: Opening Is Bounded Here, Each Later Frame By The Idle Deadline.
@@ -76,7 +77,7 @@ impl Client {
                     .map(tonic::Response::into_inner)
             })
             .await?;
-        let idle = self.timeout;
+        let idle = Some(O::POLICY.timeout);
         let frames = stream::unfold(Some(incoming), move |state| async move {
             let mut incoming = state?;
             let next = match idle_frame(idle, incoming.next()).await {
@@ -136,21 +137,23 @@ impl Client {
         E: Encode<Transcoded> + Sync,
         S: tokio_stream::Stream<Item = E> + Send + 'static,
     {
-        // The Response Arrives After The Upload; Its Wait Uses The Operation's Transfer Deadline.
-        let call = self.with_timeout(O::POLICY.timeout);
+        let call = Self { timeout: None, ..self.clone() };
         let codec = codec::<O::Response, E>(self.response_limit(), self.request_limit())?;
         let cancellation = self.inner.cancellation.child_token();
         let _cancel = cancellation.clone().drop_guard();
         let frames = Input::new(frames, cancellation);
+        let progress = frames.progress();
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(self.response_limit())
             .max_encoding_message_size(self.request_limit());
-        let reply = call
-            .execute(async {
-                client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                client.client_streaming(call.request(frames), method::<O>(), codec).await.map(tonic::Response::into_inner)
-            })
-            .await?;
+        let uploading = call.execute(async {
+            client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+            client
+                .client_streaming(request(frames, self.inner.authorization.as_ref()), method::<O>(), codec)
+                .await
+                .map(tonic::Response::into_inner)
+        });
+        let reply = self.guard(upload_idle(O::POLICY.timeout, O::ID, progress, uploading)).await??;
         value(reply)
     }
 }
@@ -222,6 +225,31 @@ pub(super) async fn retry_unavailable<T, F: Future<Output = Result<T>>>(path: &s
 }
 
 /* === Private Functions === */
+
+async fn upload_idle<T>(
+    idle: std::time::Duration, operation: &str, mut progress: tokio::sync::watch::Receiver<tokio::time::Instant>,
+    uploading: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    tokio::pin!(uploading);
+    let mut observing = true;
+    loop {
+        let last = *progress.borrow_and_update();
+        let remaining = idle.saturating_sub(tokio::time::Instant::now().saturating_duration_since(last));
+        if remaining.is_zero() {
+            return Err(Error::Rpc(tonic::Status::deadline_exceeded(format!("operation {operation}: upload idle deadline elapsed"))));
+        }
+        tokio::select! {
+            biased;
+            changed = progress.changed(), if observing => { observing = changed.is_ok(); }
+            _ = tokio::time::sleep(remaining) => {
+                if tokio::time::Instant::now().saturating_duration_since(*progress.borrow()) >= idle {
+                    return Err(Error::Rpc(tonic::Status::deadline_exceeded(format!("operation {operation}: upload idle deadline elapsed"))));
+                }
+            }
+            reply = &mut uploading => return reply,
+        }
+    }
+}
 
 fn method<O: OperationDeclaration>() -> tonic::codegen::http::uri::PathAndQuery {
     tonic::codegen::http::uri::PathAndQuery::try_from(dokime_operations::path::<O>()).expect("validated gRPC bindings are URI paths")

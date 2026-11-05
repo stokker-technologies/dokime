@@ -306,6 +306,15 @@ external bundle or sidecars archive inputs relative to the invocation directory.
 Names come from feed and product declarations; they do not depend on crate naming.
 See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 
+Plugin upload and installation use `Install::POLICY.timeout` as the maximum
+silence between frames and while waiting for the final installation response.
+Each pulled upload frame rearms the deadline, so active uploads can exceed that
+budget in total duration. The server and desktop derive their waits from the
+same operation policy; desktop and Rust client uploads carry no total
+`grpc-timeout`. The existing
+installation policy permits one hour of silence, including staging and
+activation after upload. Bundle and frame size caps are unchanged.
+
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then
 atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at

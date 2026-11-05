@@ -30,7 +30,6 @@ use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
 
 /* === Constants === */
 
-const INSTALL_DEADLINE: Duration = Duration::from_secs(300);
 // Each progress message re-renders the webview; bound how often one is sent.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 // A native drop is installed right after the webview sees it; an older one is stale.
@@ -157,7 +156,7 @@ pub(super) async fn install(
 
     // Stream The Advertised Chunk Size Over The Shared Client
     let frame_limit = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).ok_or("The desktop upload frame limit is invalid")?;
-    let client = lease.client().with_frame_limit(frame_limit).with_timeout(INSTALL_DEADLINE);
+    let client = lease.client().with_frame_limit(frame_limit);
     let mut reported: Option<Instant> = None;
     let report = move |sent: u64, total: u64| {
         if sent == total {
