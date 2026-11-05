@@ -46,9 +46,9 @@ const EXPORT_ROWS: u32 = 16_384;
 
 /* === Structs === */
 struct Fixture {
-    root: tempfile::TempDir,
     owner: Runtime,
     runtime: RuntimeHandle,
+    root: tempfile::TempDir,
 }
 
 struct ExportFixture {

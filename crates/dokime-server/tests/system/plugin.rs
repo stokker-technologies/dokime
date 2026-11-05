@@ -61,13 +61,13 @@ const HOST_STREAMS: &[&str] = &["host.system", "host.network", "host.wifi.link",
 // A Development Host Over A Private Copy Of The Built Bundle, With Its Runtime Watch Open.
 // Each Scene Owns A Fixture Starting From `Session::ready` Or `Session::launch`.
 struct Session {
-    root: tempfile::TempDir,
     bytes: Vec<u8>,
     bundle: PathBuf,
     home: PathBuf,
     host: Host,
     client: Client,
     changes: Changes,
+    root: tempfile::TempDir,
 }
 
 /* === Enums === */

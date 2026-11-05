@@ -45,13 +45,13 @@ use dokime_domain::model::{
 /* === Structs === */
 
 pub struct Fixture {
-    _root: tempfile::TempDir,
     state: State,
     pub config: QueryConfig,
     pub execution: TestExecutionId,
     pub second: TestExecutionId,
     pub cycle: TestCycleId,
     pub epoch: SessionId,
+    _root: tempfile::TempDir,
 }
 
 /* === Enums === */
@@ -287,3 +287,17 @@ impl Fixture {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn temporary_fixture_cleanup() {
+    for failure in [false, true] {
+        let fixture = Fixture::new(2).await;
+        let path = fixture._root.path().to_owned();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _fixture = fixture;
+            assert!(!failure, "injected fixture failure");
+        }));
+        assert_eq!(outcome.is_err(), failure);
+        assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+    }
+}

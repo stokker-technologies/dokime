@@ -70,9 +70,9 @@ pub struct ProgressRow {
 }
 
 pub struct TestEnvironment {
-    pub root: tempfile::TempDir,
     _runtime_owner: Runtime,
     pub runtime: RuntimeHandle,
+    pub root: tempfile::TempDir,
 }
 
 struct FakePythonExecutor;
@@ -233,7 +233,11 @@ pub fn fixture_suite(results: &[&str]) -> TestSuite {
         metadata: metadata("fixture.suite", "Fixture Suite"),
         tags: vec!["fixture".to_owned()],
         parameter_groups: Vec::new(),
-        test_case_templates: results.iter().enumerate().map(|(index, result)| case_template(index, result)).collect(),
+        test_case_templates: results
+            .iter()
+            .enumerate()
+            .map(|(index, result)| named_case_template("fixture.template", "Fixture Template", index, result))
+            .collect(),
     }
 }
 
@@ -474,10 +478,6 @@ fn cycle_suite_identifiers(cycle: &CycleView) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
-}
-
-fn case_template(index: usize, result: &str) -> TestCaseTemplate {
-    named_case_template("fixture.template", "Fixture Template", index, result)
 }
 
 fn named_case_template(identifier: &str, label: &str, index: usize, result: &str) -> TestCaseTemplate {
