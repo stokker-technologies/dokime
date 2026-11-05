@@ -55,7 +55,7 @@ pub(crate) async fn rebuild(
         return Ok(previews);
     }
     let mut telemetry = TelemetryReader::selected(view, local, None, None, 0, settings).await?;
-    let mut records = RecordReader::open(view).await?;
+    let mut records = RecordReader::selected(view, local)?;
     let mut samples = VecDeque::new();
     let mut events = VecDeque::new();
     let mut telemetry_done = false;

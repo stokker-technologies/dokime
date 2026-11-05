@@ -43,11 +43,16 @@ pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 /* === Structs === */
 
 pub struct RecordReader {
-    rows: harmos::storage::RecordReader<RecordRow>,
+    rows: Source,
     view: ExecutionView,
 }
 
 /* === Enums === */
+
+enum Source {
+    Context(Box<harmos::storage::RecordReader<RecordRow>>),
+    Selected { local: crate::storage::sqlite::State, after: u64 },
+}
 
 /* === Traits === */
 
@@ -73,7 +78,20 @@ impl RecordReader {
                 after: 0,
             })
             .await?;
-        Ok(Self { rows, view: view.clone() })
+        Ok(Self {
+            rows: Source::Context(Box::new(rows)),
+            view: view.clone(),
+        })
+    }
+
+    pub(crate) fn selected(view: &ExecutionView, local: &crate::storage::sqlite::State) -> Result<Self> {
+        if !view.saved().covers(view.evidence_through()?)? {
+            return Err(invalid("record evidence exceeds the original saved view"));
+        }
+        Ok(Self {
+            rows: Source::Selected { local: local.clone(), after: 0 },
+            view: view.clone(),
+        })
     }
 
     pub async fn next(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<ContextRecord>>>> {
@@ -90,11 +108,42 @@ impl RecordReader {
     }
 
     pub(super) async fn next_positioned(&mut self) -> Result<Option<harmos::storage::ReadBatch<Vec<PositionedRecord>>>> {
+        if let Source::Selected { local, after } = &mut self.rows {
+            let execution = self.view.execution();
+            let scope = crate::evidence_runtime::ScopeSelection {
+                test_execution_id: Some(execution.test_execution_id.clone()),
+                ..Default::default()
+            };
+            let rows = local.scoped_records(self.view.evidence_through()?.clone(), scope, None, *after, 0, u64::MAX).await?;
+            let Some(last) = rows.last() else { return Ok(None) };
+            *after = last.position;
+            let selected = harmos::storage::ReadBatch::new(rows).try_map(|rows| -> Result<_> {
+                let mut selected = Vec::new();
+                selected.try_reserve_exact(rows.len()).map_err(|_| invalid("record projection allocation failed"))?;
+                for row in rows {
+                    let mut record = row.record;
+                    apply_execution_scope(
+                        &mut record,
+                        &execution.records,
+                        &execution.test_cycle_id,
+                        &execution.test_case_id,
+                        &execution.test_execution_id,
+                    )?;
+                    selected.push(PositionedRecord {
+                        position: row.position,
+                        captured: ContextRecord { epoch: row.epoch, record },
+                    });
+                }
+                Ok(selected)
+            })?;
+            return Ok(Some(selected));
+        }
+        let Source::Context(rows) = &mut self.rows else { unreachable!() };
         loop {
-            let Some(rows) = self.rows.next().await? else {
+            let Some(page) = rows.next().await? else {
                 return Ok(None);
             };
-            let selected = rows.try_map(|rows| self.select(rows))?;
+            let selected = page.try_map(|page| Self::select(&self.view, page))?;
             if !selected.is_empty() {
                 return Ok(Some(selected));
             }
@@ -102,8 +151,8 @@ impl RecordReader {
     }
 
     // One Page's Rows Owned By The Execution, Or Its Shared Context When Requested.
-    fn select(&self, rows: Vec<StoredRecord<RecordRow>>) -> Result<Vec<PositionedRecord>> {
-        let execution = self.view.execution();
+    fn select(view: &ExecutionView, rows: Vec<StoredRecord<RecordRow>>) -> Result<Vec<PositionedRecord>> {
+        let execution = view.execution();
 
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {

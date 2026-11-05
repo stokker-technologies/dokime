@@ -120,30 +120,11 @@ impl RuntimeHandle {
                     // Documents embed telemetry, which lives on async durable streams —
                     // resolve it here so the live Document view stays byte-identical with
                     // the on-demand `resolve_cycle_document` route (same data seam).
-                    let session = self.storage().clone();
-                    let at = self.storage().cursor_saved();
-                    let telemetry = self
-                        .collect_telemetry_at_in(
-                            &session,
-                            &crate::evidence_runtime::TelemetrySelection {
-                                scope: crate::document::DocumentSelection {
-                                    scope: query.scope.clone().unwrap_or_default(),
-                                }
-                                .evidence_scope(),
-                                ..crate::evidence_runtime::TelemetrySelection::default()
-                            },
-                            None,
-                            None,
-                            &at,
-                        )
-                        .await?;
-                    let records = self.record_pages_at_in(&session, snapshot, &at).await?;
-                    let artifacts = self.artifacts_at_in(&session, &at).await?;
                     let state = snapshot.state();
-                    let data = crate::documents::RuntimeDocumentData { records, telemetry, artifacts };
                     let selection = crate::document::DocumentSelection {
                         scope: query.scope.clone().unwrap_or_default(),
                     };
+                    let data = self.document_data(&selection, snapshot).await?;
 
                     RuntimeViewPayload::Document {
                         frame: crate::queries::documents::resolved_document_frame(

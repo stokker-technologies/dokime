@@ -211,7 +211,7 @@ impl RuntimeHandle {
     pub(crate) async fn artifacts_at_in(
         &self, session: &crate::storage::Manager, at: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<ArtifactRecord>>> {
-        super::artifact_inventory::records_at_in(&self.execution_storage, session, at).await
+        super::artifact_inventory::records_at_in(&self.execution_storage, session, at, None).await
     }
 
     // Stores a finished local file as the artifact `name`, a relative path.
@@ -420,6 +420,12 @@ impl ExecutionStorage {
 
     pub(crate) async fn artifact_records(&self) -> Result<Vec<ArtifactRecord>> {
         super::artifact_inventory::records(self).await
+    }
+
+    pub(crate) async fn selected_artifact_records(
+        &self, session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, executions: &[TestExecutionId],
+    ) -> Result<harmos::storage::ReadBatch<Vec<ArtifactRecord>>> {
+        super::artifact_inventory::records_at_in(self, session, at, Some(executions)).await
     }
 
     pub(crate) async fn artifact_count(&self) -> Result<usize> {

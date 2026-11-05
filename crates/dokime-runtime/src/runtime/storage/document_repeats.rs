@@ -67,7 +67,7 @@ pub(crate) async fn resolve(
         },
     );
     if scan.needs_records() {
-        let mut reader = RecordReader::open(view).await?;
+        let mut reader = RecordReader::selected(view, local)?;
         while let Some(page) = reader.next().await? {
             let rows: Vec<_> = page.iter().map(|row| row.record.clone()).collect();
             scan.fold(

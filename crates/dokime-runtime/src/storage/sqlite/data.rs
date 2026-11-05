@@ -572,11 +572,14 @@ fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     let scoped = scan.filters.iter().any(|(column, _)| *column == "scope");
     let schema = scan.filters.iter().any(|(column, _)| *column == "schema_key");
     let stream = scan.filters.iter().any(|(column, _)| *column == "stream");
+    let object_key =
+        scan.filters.iter().any(|(column, _)| *column == "schema_id") && scan.filters.iter().any(|(column, _)| *column == "item");
     if scan.kind == "stream" {
         // SQLite Must Prove The Partial Index Predicate During Preparation.
         clauses.push("entries.kind='stream'".to_owned());
     }
     let index = match (scan.kind, scan.source_window.is_some(), schema, scoped) {
+        ("object", _, _, _) if object_key => "storage_data_object",
         ("stream", false, false, true) if stream => "storage_data_stream_owner",
         ("stream", true, true, true) => "storage_data_stream_scope_time",
         ("stream", true, true, false) => "storage_data_stream_time",
@@ -637,6 +640,41 @@ fn read_scan(connection: &Connection, scan: &Scan, metrics: &super::ReadMetrics)
 mod tests {
     use super::*;
     use std::num::NonZeroUsize;
+
+    #[test]
+    fn selected_object_seeks_past_unrelated_history() {
+        for count in [4096, 65536] {
+            let connection = Connection::open_in_memory().unwrap();
+            connection.execute_batch(SCHEMA).unwrap();
+            connection.execute(
+                "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<?1)
+                 INSERT INTO storage_data_entries(position,kind,identity,schema_id,schema_key,item,body,digest)
+                 SELECT printf('%016x',n),'object',printf('object-%d',n),'execution','v1',printf('owner-%d',n),x'00',zeroblob(32) FROM rows",
+                [count],
+            ).unwrap();
+            let page = ScanPage {
+                after: 0,
+                rows: NonZeroUsize::new(256).unwrap(),
+                bytes: NonZeroUsize::new(1048576).unwrap(),
+            };
+            let mut scan = Scan::new("object", count as u64, 0, page)
+                .filter("schema_key", Some("v1".into()))
+                .filter("schema_id", Some("execution".into()))
+                .filter("item", Some(format!("owner-{count}")));
+            scan.latest_objects = true;
+            let (sql, arguments) = scan_query(&scan).unwrap();
+            let mut query = connection.prepare(&sql).unwrap();
+            let positions = query
+                .query_map(rusqlite::params_from_iter(arguments), |row| row.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(positions, [position(count as u64)]);
+            assert_eq!(query.get_status(rusqlite::StatementStatus::FullscanStep), 0);
+            let work = query.get_status(rusqlite::StatementStatus::VmStep);
+            assert!(work < 512, "selected object query took {work} VM steps with {count} unrelated objects");
+        }
+    }
 
     #[test]
     fn retiring_metadata_does_not_scan_evidence_children() {

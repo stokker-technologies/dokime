@@ -43,10 +43,16 @@ use dokime_domain::model::execution::result::TestExecution;
 pub(crate) async fn executions(
     session: &crate::storage::Manager, at: harmos::storage::StorageCursor,
 ) -> Result<crate::storage::projection::Pages<ObjectRevision<TestExecution>>> {
+    selected_executions(session, at, None).await
+}
+
+pub(super) async fn selected_executions(
+    session: &crate::storage::Manager, at: harmos::storage::StorageCursor, key: Option<&str>,
+) -> Result<crate::storage::projection::Pages<ObjectRevision<TestExecution>>> {
     let rows = session
         .read_objects::<Execution>(ObjectRead {
             at,
-            key: None,
+            key,
             versions: ObjectVersions::Latest,
         })
         .await?
