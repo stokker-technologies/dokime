@@ -283,7 +283,12 @@ pub(super) fn report_record_rows(
         for selection in [
             "SELECT position FROM storage_record_visibility WHERE execution=?1",
             "SELECT position FROM storage_record_visibility WHERE cycle=?2 AND execution IS NULL",
-            "SELECT position FROM storage_record_visibility WHERE cycle IS NULL AND execution IS NULL",
+            "SELECT position FROM storage_record_visibility WHERE cycle IS NULL AND execution IS NULL
+                AND json_extract(scope,'$.test_case_id') IS NULL
+                AND json_extract(scope,'$.template_id') IS NULL
+                AND json_extract(scope,'$.suite_id') IS NULL
+                AND json_extract(scope,'$.step_id') IS NULL
+                AND json_extract(scope,'$.criterion_id') IS NULL",
             "SELECT position FROM storage_record_captures WHERE execution=?1",
         ] {
             let sql = format!(

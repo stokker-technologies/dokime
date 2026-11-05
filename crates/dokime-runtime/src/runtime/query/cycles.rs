@@ -45,6 +45,13 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
+pub struct ExecutionInspection {
+    pub snapshot: RuntimeStateSnapshot,
+    pub cycle: harmos::storage::ReadBatch<TestCycle>,
+    pub execution: harmos::storage::ReadBatch<dokime_domain::model::execution::result::TestExecution>,
+    pub ordinal: usize,
+}
+
 pub struct CycleListPage {
     pub cycles: Vec<ListedCycle>,
     pub next: Option<String>,
@@ -216,20 +223,55 @@ impl RuntimeHandle {
         Ok(RuntimeStateSnapshot::new(Arc::new(state), snapshot.revision()))
     }
 
-    pub async fn inspect_execution(&self, id: &TestExecutionId) -> Result<RuntimeStateSnapshot> {
+    pub async fn inspect_execution(&self, id: &TestExecutionId) -> Result<ExecutionInspection> {
         let snapshot = self.watch_state().latest();
-        if snapshot.state().executions.contains_key(id) {
-            return Ok(snapshot);
+        if let Some(member) = snapshot.state().executions.get(id) {
+            let cycle = snapshot
+                .state()
+                .cycles
+                .get(&member.test_cycle_id)
+                .ok_or_else(|| Error::conflict("execution_owner_missing", "execution cycle is unavailable"))?;
+            let ordinal = cycle
+                .execution_ids
+                .iter()
+                .position(|member| member == id)
+                .ok_or_else(|| Error::conflict("execution_membership_missing", "execution is absent from its cycle"))?;
+            let execution = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(member.clone()))?;
+            let cycle = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(cycle.clone()))?;
+            return Ok(ExecutionInspection { snapshot, execution, cycle, ordinal });
         }
-        let Some(member) = crate::storage::objects::execution::read(self.storage(), id, ObjectVersion::Latest).await? else {
-            return Ok(snapshot);
-        };
-        if member.value.saved.is_none() {
-            return Ok(snapshot);
+        let member = crate::storage::objects::execution::read(self.storage(), id, ObjectVersion::Latest)
+            .await?
+            .filter(|member| member.value.saved.is_some())
+            .ok_or_else(|| Error::not_found("execution_missing", "execution is unavailable"))?;
+        let cycle = crate::storage::objects::cycle::read(self.storage(), &member.value.test_cycle_id, ObjectVersion::Latest)
+            .await?
+            .ok_or_else(|| Error::conflict("execution_owner_missing", "execution cycle is unavailable"))?;
+        let seal = cycle
+            .value
+            .saved
+            .as_ref()
+            .ok_or_else(|| Error::conflict("execution_owner_unsealed", "historical execution cycle is unsealed"))?;
+        seal.validate(&cycle.value).map_err(crate::storage::Error::from)?;
+        let ordinal = cycle
+            .value
+            .execution_ids
+            .iter()
+            .position(|member| member == id)
+            .ok_or_else(|| Error::conflict("execution_membership_missing", "execution is absent from its cycle"))?;
+        let revision = &seal.executions[ordinal];
+        let member = crate::storage::objects::execution::read(self.storage(), id, ObjectVersion::Exact(revision.version.clone()))
+            .await?
+            .ok_or_else(|| Error::not_found("execution_missing", "exact execution revision is unavailable"))?;
+        if member.position != revision.position || member.value.test_cycle_id != cycle.value.test_cycle_id {
+            return Err(Error::conflict("invalid_cycle_membership", "execution revision differs from its owning cycle"));
         }
-        let cycle_id = member.value.test_cycle_id.clone();
-        drop(member);
-        self.inspect_cycle(&cycle_id).await
+        if cycle.value.memory_size().saturating_add(member.value.memory_size()) as u64 > self.query_config().limits().working_bytes {
+            return Err(Error::overload("execution_inspection_budget", "execution inspection exceeds the working budget"));
+        }
+        let execution = member.try_map(|member| Ok::<_, Error>(member.value))?;
+        let cycle = cycle.try_map(|cycle| Ok::<_, Error>(cycle.value))?;
+        Ok(ExecutionInspection { snapshot, execution, cycle, ordinal })
     }
 }
 

@@ -380,7 +380,8 @@ impl RuntimeHandle {
         let brand = Arc::new(RwLock::new(None));
         let process_id = crate::model::identity::new_id::<SessionId>();
         let requests_started = std::time::Instant::now();
-        let request_storage = crate::runtime::storage::requests::RequestStorage::new(storage.clone(), &node_identity.node_id)?;
+        let request_storage =
+            crate::runtime::storage::requests::RequestStorage::new(storage.clone(), local_state.clone(), &node_identity.node_id)?;
         request_storage
             .recover(|id| {
                 initial_state.run_requests.get(id).map(|request| &request.summary).filter(|summary| {

@@ -54,8 +54,12 @@ impl RuntimeHandle {
         let session = self.storage().clone();
         let payload = if let Some(mut payload) = state_payload(query, snapshot)? {
             if let RuntimeViewPayload::Overview { frame } = &mut payload {
-                frame.artifacts = self.execution_storage.artifact_count().await?;
-                if matches!(resolution, RuntimeResolution::Raw) {
+                frame.artifacts = if scope.is_some_and(|scope| !scope.is_empty()) {
+                    self.scoped_artifacts(scope).await?.len()
+                } else {
+                    self.execution_storage.artifact_count().await?
+                };
+                if matches!(resolution, RuntimeResolution::Raw) && scope.is_none_or(|scope| scope.is_empty()) {
                     frame.shell = Some(self.runtime_overview().await?);
                 }
                 frame.installed_plugins = self.state_read().installed_plugins.len();
@@ -82,7 +86,15 @@ impl RuntimeHandle {
                         scope.and_then(|scope| scope.test_execution_id.as_ref()),
                     );
                     let filter = crate::queries::records::view_filter(snapshot, scope, captured);
-                    let records = self.record_source.saved_filtered_records(&self.state_manager, snapshot.revision(), filter).await?;
+                    let at = self.saved_through(snapshot.revision()).await?;
+                    let mut records = harmos::storage::ReadBatch::new(Vec::new());
+                    self.visit_record_pages_at(scope, snapshot, &at, |page| {
+                        let page = page.try_map(|rows| Ok::<_, crate::runtime::Error>(rows.into_iter().filter(&filter).collect()))?;
+                        let previous = std::mem::replace(&mut records, harmos::storage::ReadBatch::new(Vec::new()));
+                        records = crate::storage::projection::push(previous, page)?;
+                        Ok(())
+                    })
+                    .await?;
                     let records = records.iter().flat_map(|page| page.iter());
                     let frame = crate::queries::records::record_frame(records, window, resolution, |record| {
                         captured.and_then(|captures| captures.captured_scope(record))
@@ -101,6 +113,7 @@ impl RuntimeHandle {
                                 test_cycle_id: scope.test_cycle_id.clone(),
                                 test_case_id: scope.test_case_id.clone(),
                                 template_id: scope.template_id.clone(),
+                                suite_id: scope.suite_id.clone(),
                             }),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
@@ -137,7 +150,7 @@ impl RuntimeHandle {
                     }
                 }
                 RuntimeViewTopic::Artifacts => {
-                    let artifacts = self.artifacts().await?.to_vec();
+                    let artifacts = self.scoped_artifacts(scope).await?;
 
                     RuntimeViewPayload::Artifacts {
                         frame: Box::new(crate::queries::artifacts::artifact_frame(artifacts.iter(), scope, window, resolution)),

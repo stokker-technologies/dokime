@@ -1966,6 +1966,43 @@ recordings keep a native file-backed adapter, because their bytes are hashed and
 patched in the shell rather than framed by the WebView.
 
 
+## Storage Read Isolation
+
+A cycle, execution, case or suite read selects its owners in storage before
+opening evidence values. Sealing and finalization, report and document reads,
+record and telemetry views and follows, artifact views and content, execution
+inspection, prompt condition checks, request-command recovery and evidence exports do not decode another
+cycle's evidence. Historical execution detail reads its cycle header and selected
+exact member while retaining its ordinal; full-cycle inspection still verifies
+every member. Case detail and parameter reads select only that case's attempts,
+using ownership metadata to retain its ordinal. Suite artifact reads use retained
+case ownership even after the suite is removed from the installed catalog.
+Execution exports also include the selected cycle's unowned
+records and application-wide records: those are shared context, so corruption in
+that context fails the export. Arrow files and batches shared by subscriptions
+are verified as complete immutable files; row decoding selects capture membership
+first. Corrupt bytes in a required shared batch still fail its consumers.
+
+Whole-root operations retain these explicit failure policies:
+
+| Operation | Corruption Policy | Reason |
+|---|---|---|
+| Execution browse | Return healthy entries, set `discovery_complete` false and identify each unreadable execution or cycle header in `issues` | Discovery remains useful without hiding missing evidence. |
+| Finite indexed history queries | Read saved catalog summaries without decoding historical evidence objects; fail on a corrupt required summary | A summary is independent of its evidence payload; its own identity and paging boundary must remain trustworthy. |
+| Cycle header lists and legacy cycle browse | Fail visibly on an unreadable required header | These contracts have no per-entry error representation; a partial list would imply complete discovery. |
+| Unscoped evidence, artifacts, overview totals and aggregates | Fail visibly | Counts and complete inventories must not silently omit corrupt evidence. Scoped requests select owners first. |
+| Shutdown's final whole-root overview | Fail visibly on an unreadable required inventory entry | Shutdown returns a complete final overview; it must not report incomplete totals as complete. Repair the entry before retrying shutdown. |
+| Startup state, settings, schema catalog, pending requests, record frontier and external-effect recovery | Fail startup on corrupt required data | Continuing could lose ownership, reuse identities or skip an outstanding device restoration. Terminal evidence objects are not decoded just to start another cycle. |
+| Storage and diagnostics archives | Fail the requested archive when required data cannot be read | These operations explicitly cover the whole root and promise a complete snapshot. |
+
+Corruption errors preserve the root for inspection. Development storage remains
+at v1: there are no migrations or automatic resets. Use a fresh storage root for
+incompatible earlier builds; isolation does not make their values compatible.
+Required ownership indexes and shared schema metadata still fail visibly when
+unreadable: a scoped request cannot safely infer membership from corrupt catalog data.
+Roots without indexed record producer scopes require a fresh root. This clean
+break retains the v1 baseline and does not upgrade or reset existing storage.
+
 ## Long-Running Evidence And Report Saves
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a

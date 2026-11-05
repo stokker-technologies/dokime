@@ -292,7 +292,7 @@ async fn build(
             return Err(Error::Cancelled);
         }
         let view = snapshot.execution(selected).await?;
-        let mut counts = database.execution(&view, &cancellation, &mut budget).await?;
+        let mut counts = database.execution(&view, &local, &cancellation, &mut budget).await?;
         let id = selected.execution_id.as_str();
         let cycle = matches!(snapshot.subject, EvidenceSubject::Cycle(_));
         for file in local.telemetry_files(id.to_owned(), view.evidence_through()?.clone()).await? {

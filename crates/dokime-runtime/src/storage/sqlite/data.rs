@@ -127,6 +127,111 @@ pub(super) struct Scan {
 /* === Implementations === */
 
 impl State {
+    // Enumerate Index Keys Without Opening Any Stored Value.
+    pub(crate) async fn object_keys(&self, at: StorageCursor, schema: String, prefix: String, after: String) -> Result<Vec<String>, Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let mut statement = connection.prepare(
+                    "SELECT DISTINCT item FROM storage_data_entries
+                     WHERE kind='object' AND schema_id=?1 AND position<=?2 AND retired_at IS NULL
+                     AND item>=?3 AND item<?4 AND item>?5 ORDER BY item LIMIT 256",
+                )?;
+                let end = format!("{prefix}\u{10ffff}");
+                let rows = statement.query_map(params![schema, position(at.sequence), prefix, end, after], |row| row.get(0))?;
+                rows.collect::<Result<Vec<_>, _>>().map_err(Error::from)
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn artifact_owner(&self, id: String) -> Result<Option<String>, Error> {
+        self.read(move |connection| {
+            use rusqlite::OptionalExtension;
+            Ok((|| {
+                let row = connection
+                    .query_row(
+                        "SELECT scope,body,digest FROM storage_data_entries WHERE kind='file' AND item=?1 ORDER BY position DESC LIMIT 1",
+                        [&id],
+                        |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, Vec<u8>>(2)?)),
+                    )
+                    .optional()?;
+                let Some((owner, body, digest)) = row else { return Ok(None) };
+                check_digest(&body, &digest)?;
+                let Entry::File(file) = Entry::decode("file", &body)? else { unreachable!() };
+                if file.metadata.id.as_str() != id || file.metadata.scope.as_ref().map(ToString::to_string) != owner {
+                    return Err(Error::Corrupt("artifact file owner differs from its index"));
+                }
+                Ok(owner)
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn selected_execution_ids(
+        &self, at: StorageCursor, scope: dokime_domain::model::execution::RecordScope, suite_cases: Vec<String>,
+    ) -> Result<Vec<dokime_domain::model::identity::TestExecutionId>, Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let mut sql = String::from(
+                    "SELECT h.id FROM query_history h WHERE h.kind='execution' AND h.position<=?1
+                    AND NOT EXISTS(SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id
+                    AND n.position<=?1 AND n.revision>h.revision)",
+                );
+                let mut args = vec![Value::Text(position(at.sequence))];
+                for (column, value) in [
+                    ("h.id", scope.test_execution_id.as_ref().map(ToString::to_string)),
+                    ("h.cycle", scope.test_cycle_id.as_ref().map(ToString::to_string)),
+                    ("json_extract(h.body,'$.case_id')", scope.test_case_id.as_ref().map(ToString::to_string)),
+                    ("h.template", scope.template_id.as_ref().map(ToString::to_string)),
+                ] {
+                    if let Some(value) = value {
+                        args.push(value.into());
+                        sql.push_str(&format!(" AND {column}=?{}", args.len()));
+                    }
+                }
+                if scope.suite_id.is_some() {
+                    sql.push_str(" AND json_extract(h.body,'$.case_id') IN (SELECT value FROM json_each(?))");
+                    args.push(serde_json::to_string(&suite_cases)?.into());
+                }
+                sql.push_str(" ORDER BY h.id");
+                let mut statement = connection.prepare(&sql)?;
+                let keys = statement.query_map(rusqlite::params_from_iter(args), |row| row.get::<_, String>(0))?;
+                keys.map(|key| dokime_domain::model::identity::TestExecutionId::from_uuid(key?).map_err(Error::from)).collect()
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn cycle_execution_cases(
+        &self, at: StorageCursor, cycle: String,
+    ) -> Result<std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::identity::CaseId>, Error>
+    {
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let mut statement = connection.prepare(
+                    "SELECT h.id,json_extract(h.body,'$.case_id') FROM query_history h
+                    WHERE h.kind='execution' AND h.cycle=?1 AND h.position<=?2
+                    AND NOT EXISTS(SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id
+                        AND n.position<=?2 AND n.revision>h.revision)",
+                )?;
+                let rows = statement
+                    .query_map(params![cycle, position(at.sequence)], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+                rows.map(|row| {
+                    let (execution, case) = row?;
+                    Ok((
+                        dokime_domain::model::identity::TestExecutionId::from_uuid(execution)?,
+                        dokime_domain::model::identity::CaseId::from_uuid(case)?,
+                    ))
+                })
+                .collect()
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
         let owner = self.0.clone();
         self.call(move |connection| {
@@ -245,11 +350,11 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
                 "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
                 "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
-                "SELECT sequence,epoch FROM storage_record_visibility LIMIT 0",
+                "SELECT sequence,epoch,scope FROM storage_record_visibility LIMIT 0",
             ] {
                 connection
                     .prepare(query)
-                    .map_err(|_| Error::Incompatible("local.sqlite requires a fresh storage root for Arrow telemetry".into()))?;
+                    .map_err(|_| Error::Incompatible("local.sqlite requires a fresh storage root for indexed evidence".into()))?;
             }
         }
         let format: Option<String> = connection
