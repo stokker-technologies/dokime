@@ -67,11 +67,16 @@ fn reports_version_identity() {
     assert!(output.stderr.is_empty());
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
+
+    let build = dokime::version::current();
+    assert_eq!(value["revision"].as_str(), build.revision.map(|revision| revision.full()).as_deref());
+    assert_eq!(value["channel"].as_str(), build.channel);
     assert_eq!(value["dev_protocol"], 4);
     assert!(value["sdk_revision"].is_null() || value["sdk_revision"].as_str().is_some_and(|value| value.len() == 40));
+
     let output = command().args(["version"]).output().unwrap();
     assert!(output.status.success());
-    assert_eq!(String::from_utf8(output.stdout).unwrap(), format!("{}\n", env!("CARGO_PKG_VERSION")));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), format!("{build}\n"));
 }
 
 fn stderr_color_policy() {
