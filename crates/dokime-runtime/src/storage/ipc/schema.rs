@@ -118,12 +118,12 @@ fn annotate(field: &Field, stream: &str) -> Field {
     };
     let mut metadata = field.metadata().clone();
     if !metadata.contains_key("unit") {
-        metadata.insert("unit", "null");
+        metadata.insert("unit".into(), "null".into());
     }
     if !metadata.contains_key("description") {
-        metadata.insert("description", "");
+        metadata.insert("description".into(), "".into());
     }
-    metadata.insert("stream_id", stream.to_owned());
+    metadata.insert("stream_id".into(), stream.to_owned());
     field.clone().with_data_type(kind).with_metadata(metadata)
 }
 

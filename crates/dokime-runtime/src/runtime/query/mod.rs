@@ -17,6 +17,8 @@ pub mod checkpoint_records;
 pub mod checkpoint_telemetry;
 pub mod cycle_history;
 pub mod cycles;
+#[cfg(feature = "native")]
+mod datafusion;
 pub(crate) mod documents;
 pub mod execution_history;
 pub mod executions;

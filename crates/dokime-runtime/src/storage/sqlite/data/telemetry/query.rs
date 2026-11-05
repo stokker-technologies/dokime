@@ -11,6 +11,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "native")]
+mod datafusion;
+
 /* === Re-Exports === */
 
 /* === Imports === */

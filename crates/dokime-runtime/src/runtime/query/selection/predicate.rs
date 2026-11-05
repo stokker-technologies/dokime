@@ -39,6 +39,7 @@ use dokime_domain::model::{
 
 /* === Structs === */
 
+#[derive(Clone)]
 pub(super) struct PreparedPredicate {
     pub(super) field: FieldRef,
     operator: Operator,

@@ -128,6 +128,40 @@ impl Selection {
         self.predicates.iter().all(|predicate| predicate.matches(value(&predicate.field)))
     }
 
+    pub(super) fn datafusion_filters(&self) -> Vec<harmos_storage::query::datafusion::engine::logical_expr::Expr> {
+        use harmos_storage::query::datafusion::engine::{
+            common::ScalarValue,
+            prelude::{col, lit},
+        };
+        let mut filters = self
+            .predicates
+            .iter()
+            .enumerate()
+            .map(|(index, predicate)| {
+                let column = self.required_fields.iter().position(|field| *field == predicate.field).expect("required predicate");
+                let predicate = predicate.clone();
+                super::datafusion::predicate(column, &format!("spike_predicate_{index}"), move |value| predicate.matches(value))
+            })
+            .collect::<Vec<_>>();
+        if let Some(window) = &self.window {
+            if let Some(start) = window.start {
+                filters.push(col("time").gt_eq(lit(ScalarValue::Decimal128(
+                    Some(start.to_datetime().expect("validated window").unix_timestamp_nanos()),
+                    38,
+                    0,
+                ))));
+            }
+            if let Some(end) = window.end {
+                filters.push(col("time").lt(lit(ScalarValue::Decimal128(
+                    Some(end.to_datetime().expect("validated window").unix_timestamp_nanos()),
+                    38,
+                    0,
+                ))));
+            }
+        }
+        filters
+    }
+
     fn prepare(mut schema: Schema, request: SelectionRequest<'_>, config: &QueryConfig, records: bool) -> Result<Self, Box<Failure>> {
         let mut predicates = Vec::with_capacity(request.predicates.len());
         let mut required_fields = Vec::new();
