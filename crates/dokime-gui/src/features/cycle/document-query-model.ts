@@ -18,6 +18,10 @@
  * failure is retried once, then shown with the backend's own words. The normalized record retains its diagnostic context through retries.
  */
 
+/* === Local Imports === */
+
+import { failureOf, type NotificationFailure } from "@/lib/notification-details";
+
 /* === Constants === */
 
 const GUI_RECONNECT_INITIAL_MS = 1_000;
@@ -91,4 +95,4 @@ export function evidencePaneState({
   return { kind: "document", staleReason: null };
 }
 
-/* === Private Functions === */ import { failureOf } from "@/lib/notification-details";
+/* === Private Functions === */

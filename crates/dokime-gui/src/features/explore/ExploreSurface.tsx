@@ -92,7 +92,10 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
   return (
     <PageShell trail={comparing ? ["History", "Compare"] : ["History"]}>
       {cyclesQuery.isError ? (
-        <ErrorCard failure={failureOf(cyclesQuery.error, "Cycles Unavailable")} onRetry={() => void cyclesQuery.refetch()} />
+        <ErrorCard
+          failure={failureOf(cyclesQuery.error, "Cycles Unavailable")}
+          onRetry={() => void queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all })}
+        />
       ) : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
         <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />

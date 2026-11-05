@@ -81,8 +81,6 @@ function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
   return session;
 }
 
-/** The error text, with the gRPC status name when the backend refused the call. */
-
 function describeStatus(status: ViewerStatus): string {
   switch (status.kind) {
     case "loading":
@@ -269,7 +267,8 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
 
     void run().catch((caught: unknown) => {
       if (!signal.aborted) {
-        setStatus({ kind: "error", message: describeReadError(caught), failure: caught });
+        const failure = failureOf(caught, "Artifact Unavailable");
+        setStatus({ kind: "error", message: failure.message, failure });
       }
     });
     return () => {

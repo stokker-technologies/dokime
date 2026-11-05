@@ -257,7 +257,7 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
-      if (awaitingRefresh) reportFailure(new Error("The plot stream ended before the view finished refreshing."));
+      if (awaitingRefresh) reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
       onRefreshChange?.({ refreshing: false });
       commit((current) =>
         Object.fromEntries(
