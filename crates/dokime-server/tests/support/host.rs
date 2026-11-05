@@ -51,12 +51,25 @@ pub struct Host {
 
 impl Drop for Host {
     fn drop(&mut self) {
-        if !std::thread::panicking() {
-            return;
+        if std::thread::panicking() {
+            let status = self.child.try_wait();
+            let diagnostics = self.diagnostics();
+            eprintln!("backend status at story failure: {status:?}\n{diagnostics}");
         }
-        let status = self.child.try_wait();
-        let diagnostics = self.diagnostics();
-        eprintln!("backend status at story failure: {status:?}\n{diagnostics}");
+        // Kill-On-Drop Requests Termination But Does Not Wait For Windows File Handles.
+        if let Err(error) = self.child.start_kill() {
+            eprintln!("backend teardown could not request termination: {error}");
+        }
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
+                Err(error) => {
+                    eprintln!("backend teardown could not reap its child: {error}");
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -179,8 +192,9 @@ impl Host {
     fn diagnostics(&self) -> String {
         let mut log = &self.stderr;
         let mut diagnostics = String::new();
-        log.rewind().unwrap();
-        log.read_to_string(&mut diagnostics).unwrap();
+        if let Err(error) = log.rewind().and_then(|()| log.read_to_string(&mut diagnostics).map(|_| ())) {
+            diagnostics.push_str(&format!("\nCannot read backend diagnostics: {error}"));
+        }
         diagnostics
     }
 }
@@ -190,3 +204,63 @@ impl Host {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn temporary_host_cleanup() {
+    for failure in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().to_owned();
+        let stderr = std::fs::File::create(path.join("child.stderr")).unwrap();
+        let log = std::fs::File::open(path.join("child.stderr")).unwrap();
+        let program = std::env::current_exe().unwrap();
+        let mut child = Command::from(dokime::domain::process::command(program))
+            .args(["--exact", "support::host::temporary_child_worker", "--nocapture"])
+            .env("DOKIME_TEMPORARY_CHILD_ROOT", &path)
+            .stdout(Stdio::piped())
+            .stderr(stderr)
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let replies = BufReader::new(child.stdout.take().unwrap()).lines();
+        let mut host = Host {
+            child,
+            finalize_reports: false,
+            endpoint: String::new(),
+            replies,
+            stderr: log,
+            _root: Some(root),
+        };
+        loop {
+            let line = host.replies.next_line().await.unwrap().expect("the child announces its open file");
+            if line == "temporary-child-ready" {
+                break;
+            }
+        }
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _host = host;
+            assert!(!failure, "injected host fixture failure");
+        }));
+        assert_eq!(outcome.is_err(), failure);
+        assert!(!path.exists(), "child files survived fixture teardown: {}", path.display());
+    }
+}
+
+#[test]
+fn temporary_child_worker() {
+    let Some(root) = std::env::var_os("DOKIME_TEMPORARY_CHILD_ROOT") else { return };
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(0);
+    }
+    let _held = options.open(std::path::Path::new(&root).join("held.file")).unwrap();
+    use std::io::Write;
+    std::io::stderr().write_all(&[0xff]).unwrap();
+    println!("temporary-child-ready");
+    std::io::stdout().flush().unwrap();
+    loop {
+        std::thread::park();
+    }
+}

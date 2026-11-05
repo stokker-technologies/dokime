@@ -113,3 +113,18 @@ RUSTC_WRAPPER= mise run build:rust
 In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
 the override with `Remove-Item Env:RUSTC_WRAPPER`. The build lock remains active.
 `mise run test:tooling` proves serialization and OS release after a holder dies.
+
+## Simulation Scratch Recovery
+
+Simulation scratch stays in the system temporary directory. Each workspace is
+published with a self-contained ownership marker before it receives source or
+build outputs. A native lease outside the disposable directory protects the
+owner through cleanup. Normal completion and failures preserve diagnostics in
+`target/ci/simulation/` and remove owned scratch. The next simulation recovers
+unlocked scratch after a crash, even when the original checkout's records are gone.
+
+Legacy, unmarked, linked, malformed or live scratch is retained with its path and
+an explanation. Inspect those paths and establish that their owner has stopped
+before removing them manually. New versioned stable paths allow simulations to
+start while unverifiable legacy directories remain. Never delete a native lease
+file or redirect TEMP into the checkout.

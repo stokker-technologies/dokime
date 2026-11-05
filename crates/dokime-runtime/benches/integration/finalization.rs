@@ -46,12 +46,12 @@ const START: u64 = 1_788_220_800;
 
 /* === Structs === */
 struct Fixture {
-    _root: tempfile::TempDir,
     owner: dokime_runtime::Runtime,
     runtime: RuntimeHandle,
     execution: TestExecutionId,
     pending: TestExecutionId,
     rows: u64,
+    _root: tempfile::TempDir,
 }
 
 /* === Enums === */

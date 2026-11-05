@@ -45,11 +45,11 @@ pub(crate) const OUTPUT: &str = "capture";
 /* === Structs === */
 // A runtime whose only execution stays running until released.
 pub(crate) struct Bench {
-    pub(crate) _root: tempfile::TempDir,
     pub(crate) owner: crate::service_support::system_reports::Runtime,
     pub(crate) handle: RuntimeHandle,
     pub(crate) executor: Arc<BlockingPublishingExecutor>,
     pub(crate) execution: String,
+    pub(crate) _root: tempfile::TempDir,
 }
 
 /* === Enums === */

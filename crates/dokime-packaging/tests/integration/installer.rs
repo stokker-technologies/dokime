@@ -153,13 +153,7 @@ async fn distribution_identity() {
         let text =
             format!("[installer]\nversion='1.2.3'\n{declaration}formats=[{formats}]\n[dokime]\nversion='1.2.3'\ntarget='{target}'\n");
         std::fs::write(&manifest, text).unwrap();
-        let packages = match package(&manifest, &options).await {
-            Ok(packages) => packages,
-            Err(error) => {
-                let retained = root.keep();
-                panic!("{error}; installer fixture retained at {}", retained.display());
-            }
-        };
+        let packages = package(&manifest, &options).await.unwrap_or_else(|error| panic!("{error}"));
         assert_eq!(packages.len(), if cfg!(windows) { 1 } else { 2 });
         for package in packages {
             let expected = match package.extension().unwrap().to_str().unwrap() {

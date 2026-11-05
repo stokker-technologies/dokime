@@ -40,9 +40,9 @@ const COUNTS: [u64; 3] = [500, 1_000, 2_000];
 
 /* === Structs === */
 struct Fixture {
-    _root: TempDir,
     owner: Runtime,
     handle: RuntimeHandle,
+    _root: TempDir,
 }
 
 /* === Enums === */
