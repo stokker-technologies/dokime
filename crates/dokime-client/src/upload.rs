@@ -31,6 +31,9 @@ const PLUGIN_CHUNK_BYTES: u64 = 65_536;
 
 /* === Type Aliases === */
 
+type Upload =
+    super::RequestStream<dokime_domain::model::content::wire::UploadArtifactFrame, dokime_domain::model::content::wire::ArtifactMetadata>;
+
 /* === Structs === */
 
 /* === Enums === */
@@ -77,16 +80,16 @@ impl Client {
             return Err(Error::Invalid("negotiated frame limit cannot carry upload data"));
         }
         let upload = self.content_upload_artifact_open()?;
-        let produce = async {
-            let completion = feed(file, header, chunk_bytes, |frame| upload.send(frame)).await?;
-            upload.end_input().await?;
-            Ok::<_, Error>(completion)
-        };
+        let producing = produce(&upload, file, header, chunk_bytes);
         let response = async { upload.response().await.map_err(Error::from) };
         // Both futures belong to this call; there is no detached file feeder.
-        let result = tokio::try_join!(biased; response, produce);
+        let (response, produced) = tokio::join!(response, producing);
         upload.close().await;
-        let (metadata, completion) = result?;
+        let (completion, metadata) = match (produced, response) {
+            // The Server Ended The Call Before Its Input; Its Status Carries The Reason.
+            (Err(error), Err(status)) if closed(&error) => return Err(status),
+            (produced, response) => (produced?, response?),
+        };
         if metadata.artifact_id.is_empty()
             || metadata.state != dokime_domain::model::content::wire::ArtifactState::Complete
             || metadata.size_bytes != completion.size_bytes
@@ -101,6 +104,29 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn closed(error: &Error) -> bool {
+    matches!(error, Error::Client(super::Error::Closed))
+}
+
+// A Local Failure Ends The Call, So Its Response Settles Instead Of Awaiting More Input.
+async fn produce(
+    upload: &Upload, source: tokio::fs::File, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
+) -> Result<dokime_domain::model::content::wire::ArtifactCompletion, Error> {
+    let ended = feed_all(upload, source, header, chunk_bytes).await;
+    if matches!(&ended, Err(error) if !closed(error)) {
+        upload.cancel();
+    }
+    ended
+}
+
+async fn feed_all(
+    upload: &Upload, source: tokio::fs::File, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
+) -> Result<dokime_domain::model::content::wire::ArtifactCompletion, Error> {
+    let completion = feed(source, header, chunk_bytes, |frame| upload.send(frame)).await?;
+    upload.end_input().await?;
+    Ok(completion)
+}
 
 async fn feed<F: Future<Output = super::Result<()>>>(
     mut source: impl AsyncRead + Unpin, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
