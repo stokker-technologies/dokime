@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 
 #[harmos::message]
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ApplicationSettings {
     pub appearance: Appearance,
     pub report: ReportDefaults,
@@ -46,7 +46,7 @@ pub struct ApplicationSettings {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct Appearance {
     pub theme_mode: ThemeMode,
     pub theme_family: Option<String>,
@@ -55,7 +55,7 @@ pub struct Appearance {
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ReportDefaults {
     pub source_bytes: u32,
     pub value_depth: u32,
@@ -66,7 +66,7 @@ pub struct ReportDefaults {
 
 #[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ClientPreferences {
     pub connect_timeout_ms: u64,
     pub request_timeout_ms: u64,
@@ -75,7 +75,7 @@ pub struct ClientPreferences {
 
 #[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct TelemetryPreferences {
     pub interval_ms: u64,
 }
@@ -83,7 +83,7 @@ pub struct TelemetryPreferences {
 // Host Budgets For Plugin Programs; A Change Applies To The Next Start, Restart Or Stop.
 #[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct PluginPreferences {
     pub startup_timeout_s: u32,
     pub stop_timeout_s: u32,
@@ -314,3 +314,49 @@ fn validate_duration(value: u64) -> Result<(), String> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_preference_sections_and_fields_use_defaults() {
+        let defaults = ApplicationSettings::default();
+        let mut saved = defaults.clone();
+        saved.report.plot_points = 321;
+        saved.client.request_timeout_ms = 4567;
+        saved.plugins.startup_timeout_s = 90;
+        saved.plugins.stop_timeout_s = 20;
+        let body = serde_json::to_value(&saved).unwrap();
+        let default_body = serde_json::to_value(&defaults).unwrap();
+
+        for (section, fields) in body.as_object().unwrap() {
+            let mut missing_section = body.clone();
+            missing_section.as_object_mut().unwrap().remove(section);
+            let mut expected = body.clone();
+            expected[section] = default_body[section].clone();
+            let loaded: ApplicationSettings = serde_json::from_value(missing_section).unwrap();
+            loaded.validate().unwrap();
+            assert_eq!(serde_json::to_value(loaded).unwrap(), expected);
+
+            for field in fields.as_object().unwrap().keys() {
+                let mut missing_field = body.clone();
+                missing_field[section].as_object_mut().unwrap().remove(field);
+                let mut expected = body.clone();
+                expected[section][field] = default_body[section][field].clone();
+                let loaded: ApplicationSettings = serde_json::from_value(missing_field).unwrap();
+                loaded.validate().unwrap();
+                assert_eq!(serde_json::to_value(loaded).unwrap(), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_zero_plugin_timeouts_are_not_defaulted() {
+        for field in ["startup_timeout_s", "stop_timeout_s"] {
+            let body = serde_json::json!({ "plugins": { (field): 0 } });
+            let loaded: ApplicationSettings = serde_json::from_value(body).unwrap();
+            assert!(loaded.validate().is_err());
+        }
+    }
+}
