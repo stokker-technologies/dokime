@@ -50,6 +50,10 @@ minisign = "0.12"
 # === Environment === #
 
 [env]
+RUSTC_WRAPPER = "{{ get_env(name='RUSTC_WRAPPER', default='') if get_env(name='CI', default='') else get_env(name='RUSTC_WRAPPER', default='sccache') }}"
+SCCACHE_DIR = "{{ get_env(name='SCCACHE_DIR', default='') if get_env(name='CI', default='') else (get_env(name='LOCALAPPDATA', default=env.HOME ~ '/AppData/Local') if os() == 'windows' else get_env(name='XDG_CACHE_HOME', default=env.HOME ~ '/.cache')) ~ '/sccache' }}"
+SCCACHE_CACHE_SIZE = "{{ get_env(name='SCCACHE_CACHE_SIZE', default='') if get_env(name='CI', default='') else '20G' }}"
+CARGO_INCREMENTAL = "{{ get_env(name='CARGO_INCREMENTAL', default='') if get_env(name='CI', default='') else '0' }}"
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
@@ -80,13 +84,13 @@ run = [
 description = "Build The Contract Generator And Generate TypeScript Modules"
 depends = ["prepare"]
 usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
-run = "{{vars.tools}} dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:bindings"]
 description = "Regenerate Canonical Python And TypeScript Contracts"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.prepare.generated --generate"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:desktop"]
@@ -168,7 +172,7 @@ run = [
 
 [tasks."lint:rust"]
 description = "Lint Rust"
-run = "{{vars.tools}} dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}}"
 env = { CARGO_BUILD_WARNINGS = "deny" }
 
 [tasks."lint:typescript"]
@@ -249,42 +253,42 @@ run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 description = "Build Shipping Native Executables And Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.rust --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
 
 [tasks."build:rust:bench"]
 description = "Build Benchmarks And Their Matching Native Fixtures"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.rust.bench"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:compatibility"]
 description = "Verify Local Extended Feature And Browser Configurations"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
 
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:contracts"]
 description = "Verify Rust Compile Contracts In Their Build Tree"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.rust.contracts --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.contracts --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]
 description = "Build The Desktop With Its Compiled Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.rust.desktop --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
 [tasks."build:rust:focused"]
 description = "Compile An Explicit Local Rust Selection"
-run = "{{vars.tools}} dokime_tools.build.cargo focused"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused"
 
 [tasks."build:rust:tests"]
 description = "Build Independent Test Archive And Compile Contracts"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}}",
   { task = "build:rust:contracts --profile {{usage.profile}}" },
 ]
 env.CARGO_INCREMENTAL = "0"
@@ -424,7 +428,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
 ]
 
 [tasks."test:rust:extended"]
@@ -433,7 +437,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "build --profile {{usage.profile}}" },
   { task = "build:rust:compatibility --profile {{usage.profile}}" },
-  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
   { task = "test:rust --profile {{usage.profile}}" },
 ]
 
@@ -442,7 +446,7 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:starter"]
 description = "Prove The Standalone Starter In Nightly Validation"
 usage = 'flag "--profile <profile>" default="release"'
-run = "{{vars.tools}} dokime_tools.test.rust.starter --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.rust.starter --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:tooling"]
@@ -578,7 +582,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
   "{{vars.tools}} dokime_tools.release.run crates-dry",
-  "{{vars.tools}} dokime_tools.test.publish --python packages/dokime-client",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.publish --python packages/dokime-client",
 ]
 
 [tasks."release:publish:finalize"]

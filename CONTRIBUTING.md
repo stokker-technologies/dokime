@@ -25,6 +25,10 @@ Native media capture also needs platform libraries. On Debian/Ubuntu, install
 `libasound2-dev`, `linux-libc-dev` and `libclang-dev`; Fedora uses
 `alsa-lib-devel`, `kernel-headers` and `clang`.
 
+Local native tasks serialize across repositories and worktrees and share a 20 GB
+sccache store; see [Workstation Builds](docs/tooling.md#workstation-builds) for
+the lock behavior and the per-run cache override.
+
 ## Development Workflow
 
 Keep a change focused and respect SDK, runtime, server, GUI and generated-client
