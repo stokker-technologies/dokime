@@ -52,6 +52,7 @@ async fn execution_artifacts() {
     Box::pin(content::small_frame_transfer()).await;
     Box::pin(content::large_frame_transfer()).await;
     Box::pin(content::artifact_upload_owned()).await;
+    Box::pin(content::artifact_upload_large()).await;
     Box::pin(content::artifact_upload_digest()).await;
     Box::pin(content::artifact_upload_match()).await;
     Box::pin(content::artifact_upload_completion()).await;

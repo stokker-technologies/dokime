@@ -332,8 +332,8 @@ async fn artifact_transfer(message_bytes: usize) {
         cli_server.shutdown().await.unwrap();
         assert!(cycle_export.is_file());
         assert!(!root.path().join("cycle.zip.part").exists());
-        // A sealed execution cannot acquire another mutable artifact producer.
-        assert!(
+        // A sealed execution cannot acquire another mutable artifact producer; the refusal is the server's status.
+        assert!(matches!(
             native
                 .upload_artifact_file(
                     &destination,
@@ -345,9 +345,9 @@ async fn artifact_transfer(message_bytes: usize) {
                         sha256: None,
                     },
                 )
-                .await
-                .is_err()
-        );
+                .await,
+            Err(dokime::client::UploadError::Client(dokime::client::Error::Rpc(_)))
+        ));
 
         let directory = root.path().join("publication-directory");
         std::fs::create_dir(&directory).unwrap();
@@ -728,9 +728,15 @@ pub(crate) async fn artifact_upload_owned() {
 
 async fn completion_harness()
 -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
+    upload_harness(keyed().with_max_message_bytes(4096)).await
+}
+
+async fn upload_harness(
+    config: dokime_server::grpc::Config,
+) -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
-    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(4096)).unwrap();
+    let prepared_owner = dokime_server::grpc::Service::prepare(config).unwrap();
     let owner = Runtime::with_execution_fixture(
         prepared_owner
             .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content"))),
@@ -809,6 +815,29 @@ async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate
     .await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
+}
+
+// Full-Size Chunks At The Default Message Limit Stream Through The Native Client.
+pub(crate) async fn artifact_upload_large() {
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed()).await;
+    let bytes = (0..8 * 1024 * 1024 + 321).map(|index| (index % 251) as u8).collect::<Vec<_>>();
+    let source = root.path().join("large-upload.bin");
+    std::fs::write(&source, &bytes).unwrap();
+    let native =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let header = model::content::wire::UploadArtifactHeader {
+        scope: Some(scope),
+        filename: "large-upload.bin".into(),
+        content_type: Some("application/octet-stream".into()),
+        size_bytes: 0,
+        sha256: None,
+    };
+    let uploaded = native.upload_artifact_file(&source, header).await.unwrap();
+    assert_eq!(uploaded.size_bytes, bytes.len() as u64);
+    assert_eq!(uploaded.sha256, Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+    assert_eq!(uploaded.state, model::content::wire::ArtifactState::Complete);
+    native.close_and_wait().await;
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
 
 pub(crate) async fn artifact_upload_digest() {
