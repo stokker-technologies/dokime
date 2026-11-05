@@ -13,13 +13,17 @@
 
 # Standard Library Imports
 import contextlib
+import copy
 import ctypes
 import io
+import json
 import os
 import runpy
 import subprocess
+import sys
 import tempfile
 import unittest
+from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -46,6 +50,68 @@ SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAcc
 
 
 class NativeSetupTests(unittest.TestCase):
+    def test_cache_order(self):
+        combinations = product(("Linux-X64", "Windows-X64"), ("dev", "release"), ("product", "tests", "bench"))
+        for platform, profile, kind in combinations:
+            product_prefix = f"ci-v5-sccache-{platform}-{profile}-toolchain-"
+            plan = {
+                "sccache": {"key": product_prefix + "dependencies", "restore-keys": product_prefix, "path": ".cache/sccache/"},
+                "mise": {"key": "tools", "path": "<MISE_DATA_DIR>"},
+            }
+            original = copy.deepcopy(plan)
+            resolved = SETUP["cache_plan"](plan, {"COMPILER_CACHE_KIND": kind})
+            self.assertEqual(plan, original)
+            self.assertEqual(resolved["mise"], plan["mise"])
+            compiler = resolved["sccache"]
+            self.assertEqual(compiler["path"], plan["sccache"]["path"])
+            if kind == "product":
+                self.assertEqual(resolved, plan)
+                self.assertEqual(SETUP["cache_plan"](plan, {}), original)
+                continue
+            build_profile = "bench" if kind == "bench" else profile
+            prefix = f"ci-v5-sccache-{platform}-{build_profile}-{kind}-toolchain-"
+            self.assertEqual(compiler["key"], prefix + "dependencies")
+            self.assertEqual(compiler["restore-keys"].splitlines(), [prefix, product_prefix + "dependencies", product_prefix])
+
+    def test_cache_locks(self):
+        keys = set()
+        combinations = product(("tests", "bench"), ("oldtools", "newtools"), ("oldcrates", "newcrates"))
+        for kind, toolchain, dependencies in combinations:
+            prefix = f"ci-v5-sccache-Linux-X64-release-{toolchain}-"
+            plan = {"sccache": {"key": prefix + dependencies, "restore-keys": prefix, "path": "compiler"}}
+            compiler = SETUP["cache_plan"](plan, {"COMPILER_CACHE_KIND": kind})["sccache"]
+            self.assertNotIn(compiler["key"], keys)
+            keys.add(compiler["key"])
+            restores = compiler["restore-keys"].splitlines()
+            self.assertTrue(all(f"-{toolchain}-" in restore for restore in restores))
+            self.assertEqual(restores[0], compiler["key"].removesuffix(dependencies))
+        self.assertEqual(SETUP["cache_plan"]({}, {"COMPILER_CACHE_KIND": "tests"}), {})
+        with self.assertRaises(ValueError):
+            SETUP["cache_plan"]({"sccache": {}}, {"COMPILER_CACHE_KIND": "unknown"})
+
+    def test_cache_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "outputs"
+            plan = {"sccache": {"key": "ci-v5-sccache-Linux-X64-dev-tools-crates", "restore-keys": "product-", "path": "compiler"}}
+            environment = {"CACHE_PLAN": json.dumps(plan), "COMPILER_CACHE_KIND": "tests", "GITHUB_OUTPUT": str(output)}
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.dict(SETUP_GLOBALS, {"rustup": lambda: None}),
+                patch.dict(SETUP["EXPORTED"], {}, clear=True),
+                patch.object(Path, "home", return_value=Path(directory) / "home"),
+                patch.object(sys, "argv", ["setup", "--roots-only"]),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                SETUP["main"]()
+            exported = output.read_text(encoding="utf-8")
+        expected = (
+            "sccache-path<<CACHE_VALUE\ncompiler\nCACHE_VALUE\n"
+            "sccache-key<<CACHE_VALUE\nci-v5-sccache-Linux-X64-dev-tests-tools-crates\nCACHE_VALUE\n"
+            "sccache-restore-keys<<CACHE_VALUE\nci-v5-sccache-Linux-X64-dev-tests-tools-\n"
+            "ci-v5-sccache-Linux-X64-dev-tools-crates\nproduct-\nCACHE_VALUE\n"
+        )
+        self.assertEqual(exported, expected)
+
     def test_setup_environment_round_trip_preserves_provider_guards(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1617,6 +1617,12 @@ jobs:
       with:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup.outputs.uv-path }}
+    - uses: ./.github/actions/save-caches
+      if: success()
+      with:
+        compiler-key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
+        compiler-path: ${{ steps.setup.outputs.sccache-path }}
+        compiler-hit: ${{ steps.setup.outputs.sccache-cache-hit }}
     - name: Cache Summary
       if: always()
       env:
@@ -1628,6 +1634,7 @@ jobs:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
+      COMPILER_CACHE_KIND: bench
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
@@ -2149,6 +2156,12 @@ jobs:
       with:
         key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.uv-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'unix' && (true) && (success())
+      with:
+        compiler-key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
+        compiler-path: ${{ steps.setup_unix.outputs.sccache-path }}
+        compiler-hit: ${{ steps.setup_unix.outputs.sccache-cache-hit }}
     - name: Cache Summary
       if: matrix.platform == 'unix' && (true) && (always())
       env:
@@ -2216,6 +2229,12 @@ jobs:
       with:
         key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.uv-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && (true) && (success())
+      with:
+        compiler-key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
+        compiler-path: ${{ steps.setup_windows.outputs.sccache-path }}
+        compiler-hit: ${{ steps.setup_windows.outputs.sccache-cache-hit }}
     - name: Cache Summary
       if: matrix.platform == 'windows' && (true) && (always())
       env:
@@ -2227,6 +2246,7 @@ jobs:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
+      COMPILER_CACHE_KIND: tests
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-

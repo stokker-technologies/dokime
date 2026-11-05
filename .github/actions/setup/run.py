@@ -359,6 +359,24 @@ def glab(version):
     export({"MISE_GLAB_VERSION": version})
 
 
+def cache_plan(caches, environment):
+    """Give Independent Compiler Builds Their Own Cache Before Product Fallbacks."""
+    kind = environment.get("COMPILER_CACHE_KIND", "product")
+    if kind == "product" or "sccache" not in caches:
+        return caches
+    if kind not in {"tests", "bench"}:
+        raise ValueError(f"unknown compiler cache kind: {kind}")
+
+    product = caches["sccache"]
+    prefix, toolchain, dependencies = product["key"].rsplit("-", 2)
+    if kind == "bench":
+        prefix = prefix.rsplit("-", 1)[0] + "-bench"
+    prefix = f"{prefix}-{kind}-{toolchain}-"
+    restore = [prefix, product["key"], *product.get("restore-keys", "").splitlines()]
+    compiler = product | {"key": prefix + dependencies, "restore-keys": "\n".join(restore)}
+    return caches | {"sccache": compiler}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -378,7 +396,8 @@ def main():
         rustup()
         if destination := os.environ.get("GITHUB_OUTPUT"):
             with Path(destination).open("a", encoding="utf-8") as stream:
-                for name, cache in json.loads(os.environ.get("CACHE_PLAN", "{}")).items():
+                caches = cache_plan(json.loads(os.environ.get("CACHE_PLAN", "{}")), os.environ)
+                for name, cache in caches.items():
                     for field in ("path", "key", "restore-keys"):
                         value = cache.get(field, "")
                         for variable in ("MISE_DATA_DIR", "MISE_ROOT_ID", "WORKSPACE_ROOT_ID", "RUNNER_IMAGE_ID"):

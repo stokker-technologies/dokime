@@ -37,6 +37,31 @@ Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
 Rust stories resolve those fixtures from the Tests export, so the archive owns
 the bundles its integration lane requires.
 
+## CI Compiler Caches
+
+Compiler caches are separated by OS, architecture, build profile and producer.
+All use `SCCACHE_CACHE_SIZE=8G`; archive-only test consumers need no compiler cache.
+The existing Product identities remain unchanged:
+
+```text
+Product: ci-v5-sccache-<os>-<arch>-<profile>-<hash(mise.lock)>-<hash(Cargo.lock)>
+Tests:   ci-v5-sccache-<os>-<arch>-<profile>-tests-<hash(mise.lock)>-<hash(Cargo.lock)>
+Bench:   ci-v5-sccache-<os>-<arch>-bench-bench-<hash(mise.lock)>-<hash(Cargo.lock)>
+```
+
+Each identity first restores its exact key, then its prefix ending before
+`hash(Cargo.lock)`. Tests and Bench then fall back to the matching Product exact
+key and prefix; Bench uses the release Product cache. This seeds new identities
+while preserving test-only and benchmark-only compilation units in later runs.
+
+Only the corresponding Build / Product, Build / Tests or Build / Bench job saves
+its cache, after a successful build and only on an exact-key miss. PRs restore
+only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
+`READ_WRITE` mode and saves release Product, release Tests and bench Bench caches.
+`.github/actions/setup/run.py` resolves `CACHE_PLAN` using the build job's
+`COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
+save policy. The workflows own producer selection.
+
 ## Focused Python Client Checks
 
 `mise run test:python:unit --select <expression>` checks current client source in
