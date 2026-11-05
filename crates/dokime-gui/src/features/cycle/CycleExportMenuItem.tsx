@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { failureOf } from "@/lib/notification-details";
 import { FileArchive } from "lucide-react";
 // Local Imports
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -47,12 +48,7 @@ export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
       .then((saved) => {
         if (saved) toast.success("Evidence Saved");
       })
-      .catch((error: unknown) =>
-        toast.error("Evidence Could Not Be Saved", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, "Evidence Could Not Be Saved")));
   };
   return (
     <DropdownMenuItem disabled={!sealed || exportEvidence.isPending} onSelect={save} title={title}>

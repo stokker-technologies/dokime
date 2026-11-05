@@ -27,6 +27,7 @@
 
 // Third Party Imports
 
+import { failureOf } from "@/lib/notification-details";
 import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "@/lib/notifications";
@@ -187,12 +188,7 @@ export function useExecutionActions({
       void commandOf(action)
         .run()
         .then(() => toast.success(report.done))
-        .catch((error: unknown) =>
-          toast.error(report.failed, {
-            error,
-            description: error instanceof Error ? error.message : String(error),
-          }),
-        );
+        .catch((error: unknown) => toast.error(failureOf(error, report.failed)));
     },
     state,
   };

@@ -9,9 +9,10 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { Clipboard, Download, FileText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -49,26 +50,6 @@ import { occurrenceKeys } from "@/lib/utils";
 
 /* === Constants === */
 
-const GRPC_STATUS_NAMES = [
-  "OK",
-  "CANCELLED",
-  "UNKNOWN",
-  "INVALID_ARGUMENT",
-  "DEADLINE_EXCEEDED",
-  "NOT_FOUND",
-  "ALREADY_EXISTS",
-  "PERMISSION_DENIED",
-  "RESOURCE_EXHAUSTED",
-  "FAILED_PRECONDITION",
-  "ABORTED",
-  "OUT_OF_RANGE",
-  "UNIMPLEMENTED",
-  "INTERNAL",
-  "UNAVAILABLE",
-  "DATA_LOSS",
-  "UNAUTHENTICATED",
-] as const;
-
 /* === Types === */
 
 type TextViewerArtifact = Pick<
@@ -101,15 +82,6 @@ function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
 }
 
 /** The error text, with the gRPC status name when the backend refused the call. */
-function describeReadError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const detail = (error as { kind?: unknown; detail?: { code?: unknown } } | null)?.detail;
-  if ((error as { kind?: unknown } | null)?.kind === "grpc" && typeof detail?.code === "number") {
-    const name = GRPC_STATUS_NAMES[detail.code] ?? `${detail.code}`;
-    return `${message} (gRPC ${name})`;
-  }
-  return message;
-}
 
 function describeStatus(status: ViewerStatus): string {
   switch (status.kind) {
@@ -400,7 +372,12 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
           </div>
         </DialogHeader>
         <div className="grid min-h-0 gap-0">
-          {status.kind === "error" ? <NotificationMessage error={status.failure}>{status.message}</NotificationMessage> : null}
+          {status.kind === "error" ? (
+            <ErrorCard
+              failure={failureOf(status.failure, "Artifact Unavailable")}
+              onRetry={() => setGeneration((current) => current + 1)}
+            />
+          ) : null}
           <section
             ref={textRef}
             aria-label="Text File Contents"

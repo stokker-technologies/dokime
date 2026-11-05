@@ -15,6 +15,8 @@
 
 // Standard Library Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useQuery } from "@tanstack/react-query";
 // Third Party Imports
 import { RefreshCw } from "lucide-react";
@@ -23,7 +25,6 @@ import { useState } from "react";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -115,11 +116,7 @@ export function RemoteSessionsCard({ session }: { session: ConnectedSession }) {
         getRowId={rowKey}
         title="Recent Remote Sessions"
       />
-      {query.error ? (
-        <NotificationMessage error={query.error}>
-          {query.error instanceof Error ? query.error.message : "Remote sessions are unavailable."}
-        </NotificationMessage>
-      ) : null}
+      {query.error ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
     </SettingsCard>
   );
 }

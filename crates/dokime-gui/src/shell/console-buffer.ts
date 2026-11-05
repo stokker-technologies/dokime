@@ -20,6 +20,7 @@
 
 /* === External Imports === */
 
+import type { NotificationFailure } from "@/lib/notification-details";
 import { createStore } from "zustand/vanilla";
 
 /* === Local Imports === */
@@ -40,6 +41,7 @@ export type ConsoleBuffer = {
   dropped: bigint;
   epoch: string | undefined;
   error: string | null;
+  failure?: NotificationFailure;
   records: HubRecord[];
 };
 
@@ -71,7 +73,7 @@ type ConsoleRecordsActions = {
    */
   rewind: (key: string) => void;
   receive: (key: string, page: ConsolePage, dropped: bigint) => void;
-  setError: (key: string, error: string | null) => void;
+  setError: (key: string, error: string | null, failure?: NotificationFailure) => void;
   setFilter: (filter: string) => void;
 };
 
@@ -155,11 +157,12 @@ export function createConsoleRecordsStore() {
             dropped,
             epoch: page.epoch,
             error: null,
+            failure: undefined,
             records: mergeConsoleRecords(held, page.records),
           };
         }),
       rewind: (key) => update(key, (buffer) => ({ ...buffer, afterSequence: 0n, dropped: 0n })),
-      setError: (key, error) => update(key, (buffer) => ({ ...buffer, error })),
+      setError: (key, error, failure) => update(key, (buffer) => ({ ...buffer, error, failure })),
       setFilter: (filter) => set({ filter }),
     };
   });
@@ -201,6 +204,7 @@ export type ConsoleRecords = {
   dropped: bigint;
   records: HubRecord[];
   error: string | null;
+  failure?: NotificationFailure;
 };
 
 /** One Per Window: The Console Rows Outlive Every Route. */

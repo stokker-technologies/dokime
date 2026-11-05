@@ -11,6 +11,8 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -19,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { formatUnitLabel } from "@/lib/format";
 import { toast } from "@/lib/notifications";
-import { preferencesError, usePreferences, useSavePreferences } from "./application-preferences";
+import { usePreferences, useSavePreferences } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsRow } from "./SettingsRow";
 import { createDebouncedWriter } from "./settings-autosave";
@@ -196,7 +198,7 @@ function ScopedPreferences({
         </p>
       ) : query.error ? (
         <div className="grid justify-items-start gap-3 p-4 text-sm">
-          <NotificationMessage error={query.error}>{preferencesError(query.error)}</NotificationMessage>
+          <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />
           <Button variant="outline" onClick={() => void query.refetch()}>
             Retry
           </Button>
@@ -302,7 +304,9 @@ function PreferencesForm({
     const name = `${field.group}.${field.key}`;
     const label = formatUnitLabel(field.label, field.unit);
     const value = (draft[field.group] as unknown as Record<string, string | number | boolean | string[] | null>)[field.key];
-    const error = invalid[name] ?? (edited.has(name) && (failure || save.error) ? preferencesError(failure ?? save.error) : null);
+    const error =
+      invalid[name] ??
+      (edited.has(name) && (failure || save.error) ? failureOf(failure ?? save.error, "Settings Operation Failed").message : null);
     const change = (next: string | number | boolean | string[] | null) => {
       if (validationFailure(failure ?? save.error)) {
         writer.current?.reset();
@@ -407,7 +411,9 @@ function PreferencesForm({
       )}
       {(failure || save.error) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <NotificationMessage error={failure ?? save.error}>{preferencesError(failure ?? save.error)}</NotificationMessage>
+          <NotificationMessage error={failure ?? save.error}>
+            {failureOf(failure ?? save.error, "Settings Operation Failed").message}
+          </NotificationMessage>
           <Button
             variant="outline"
             onClick={async () => {

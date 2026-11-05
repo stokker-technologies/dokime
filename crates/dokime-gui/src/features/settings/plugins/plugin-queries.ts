@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -51,13 +52,13 @@ export function PluginStartNotifications() {
       if (seen.current.has(key)) continue;
       seen.current.add(key);
       const failure = entry.last_boot.failure;
-      toast.error(title, {
+      toast.error(pluginStartFailure(entry, session.identity.generation), {
+        context: "background",
         description: failure.message,
         source: failure.plugin_name,
         pluginSettings: entry.install_id,
         missingSecret: failure.missing_secret ?? undefined,
         consequences: failure.consequences,
-        failure: { reason: failure.code ?? undefined, operation: "Plugin Startup", causes: [failure.message] },
         action:
           failure.missing_secret || (entry.metadata?.owners.length && entry.state !== "removal_pending")
             ? {
@@ -74,6 +75,15 @@ export function PluginStartNotifications() {
     }
   }, [query.data, session.identity.generation, navigate]);
   return null;
+}
+
+export function pluginStartFailure(entry: PluginEntry, generation: string) {
+  if (entry.last_boot?.state !== "failed") throw new Error("Plugin has no failed startup.");
+  return failureOf(
+    entry.last_boot.failure,
+    startNotification(entry) ?? "Plugin Startup Failed",
+    [generation, entry.install_id, entry.last_boot.at].join(":"),
+  );
 }
 
 /**

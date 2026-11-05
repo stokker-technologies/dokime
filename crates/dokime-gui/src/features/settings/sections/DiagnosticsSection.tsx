@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Download, TriangleAlert } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "@/lib/notifications";
@@ -109,10 +110,7 @@ export function DiagnosticsBundleRow() {
         },
       });
     } catch (failure: unknown) {
-      toast.error("The Diagnostics Bundle Could Not Be Saved", {
-        error: failure,
-        description: failure instanceof Error ? failure.message : String(failure),
-      });
+      toast.error(failureOf(failure, "The Diagnostics Bundle Could Not Be Saved"));
     } finally {
       setBusy(false);
     }

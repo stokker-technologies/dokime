@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
@@ -181,11 +182,11 @@ export function useLivePlotPayloads({
     let awaitingRefresh = true;
     onRefreshChange?.({ refreshing: true, ...(viewChanged ? { updatedAt: null } : {}) });
 
-    const reportFailure = (error: unknown) => {
+    const reportRefreshFailure = (error: unknown) => {
       received.clear();
       awaitingRefresh = false;
       onRefreshChange?.({ refreshing: false });
-      if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+      toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
       failed = true;
     };
 
@@ -223,10 +224,10 @@ export function useLivePlotPayloads({
       modelRef.current = applyMessageById(modelRef.current, message);
       const plotState = modelRef.current[message.plot_id];
       if (plotState?.status === "error") {
-        const error = new Error(plotState.error ?? "Plot refresh failed.");
-        if (automatic) reportFailure(error);
+        const error = plotState.failure ?? failureOf(plotState.error, "Plot Refresh Failed");
+        if (automatic) reportRefreshFailure(error);
         else {
-          if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+          toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
           failed = true;
         }
       } else {
@@ -284,15 +285,15 @@ export function useLivePlotPayloads({
         return;
       }
       const terminal = error instanceof NativeApiLimitError;
-      reportFailure(error);
-      console.error(`Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`);
+      reportRefreshFailure(error);
       commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => [
             plot.plot_id,
             {
               ...(current[plot.plot_id] ?? emptyLivePlotState()),
-              error: errorMessage(error),
+              error: failureOf(error, "Plot Stream Failed").message,
+              failure: failureOf(error, "Plot Stream Failed"),
               status: terminal ? ("error" as const) : ("reconnecting" as const),
             },
           ]),
@@ -371,14 +372,15 @@ export function useLivePlotPayloads({
             enqueue({ ...envelopes[0], kind: "snapshot" });
           } catch (error) {
             if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
-            if (!failed) toast.error("Plot Refresh Failed", { description: errorMessage(error), error });
+            toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
             failed = true;
             commit((current) => ({
               ...current,
               [plotId]: {
                 ...(current[plotId] ?? emptyLivePlotState()),
                 status: "error",
-                error: errorMessage(error),
+                error: failureOf(error, "Plot Stream Failed").message,
+                failure: failureOf(error, "Plot Stream Failed"),
                 summaryInFlight: false,
               },
             }));
@@ -466,7 +468,15 @@ function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamM
   try {
     return { ...current, [message.plot_id]: applyPlotMessages(previous, [message]) };
   } catch (failure) {
-    return { ...current, [message.plot_id]: { ...previous, status: "error", error: errorMessage(failure) } };
+    return {
+      ...current,
+      [message.plot_id]: {
+        ...previous,
+        status: "error",
+        error: failureOf(failure, "Plot Stream Failed").message,
+        failure: failureOf(failure, "Plot Stream Failed"),
+      },
+    };
   }
 }
 
@@ -517,17 +527,6 @@ function cloneRecordScope(scope: RecordScope | null): RecordScope | null {
 
 function isAbortError(value: unknown): boolean {
   return value instanceof DOMException && value.name === "AbortError";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** The gRPC status code a normalized native RPC error carries, when it does. */
-function grpcStatusCode(error: unknown): number | null {
-  if (!error || typeof error !== "object") return null;
-  const candidate = error as { kind?: unknown; detail?: { code?: unknown } };
-  return candidate.kind === "grpc" && typeof candidate.detail?.code === "number" ? candidate.detail.code : null;
 }
 
 function clearScheduledFlush(flushFrameRef: MutableRefObject<number | null>, flushTimerRef: MutableRefObject<number | null>): void {

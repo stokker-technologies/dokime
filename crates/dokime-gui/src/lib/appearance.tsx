@@ -9,6 +9,7 @@
 
 /* === Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
 import { toast } from "@/lib/notifications";
 
@@ -24,7 +25,7 @@ import {
   organizationPack,
   packLogos,
 } from "@/lib/brand";
-import { organizationPackError } from "@/lib/desktop/organization";
+
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import { applyBrandFavicon } from "@/lib/favicon";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
@@ -95,10 +96,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     if (!error || reportedOrganizationError) return undefined;
     reportedOrganizationError = true;
     // After The Commit, So The Toaster Mounted In The Same Render Is Listening.
-    const handle = window.setTimeout(
-      () => toast.error("Organization Pack Not Applied", { description: organizationPackError(error, organizationPack !== null), error }),
-      0,
-    );
+    const handle = window.setTimeout(() => toast.error(failureOf(error, "Organization Pack Not Applied"), { context: "background" }), 0);
     return () => window.clearTimeout(handle);
   }, []);
 

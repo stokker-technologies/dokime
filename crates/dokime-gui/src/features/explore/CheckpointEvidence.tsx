@@ -7,6 +7,8 @@
  * ***
  */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import type { Row6 as GeneratedHistoryIssue } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type {
   Row2 as GeneratedCheckpointContext,
@@ -17,7 +19,6 @@ import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,16 +85,7 @@ export function CheckpointEvidence({ checkpoint }: Props) {
 }
 
 function Failure({ error, retry }: { error: Error; retry: () => void }) {
-  return (
-    <div className="grid gap-2 text-sm">
-      <NotificationMessage source="Evidence" title="Evidence Could Not Load" error={error}>
-        {error.message}
-      </NotificationMessage>
-      <Button size="sm" variant="outline" className="justify-self-start" onClick={retry}>
-        Retry Read
-      </Button>
-    </div>
-  );
+  return <ErrorCard failure={failureOf(error, "Evidence Unavailable")} onRetry={retry} />;
 }
 
 function Diagnostics({ issues, truncated }: { issues: HistoryIssue[]; truncated: boolean }) {
@@ -300,7 +292,7 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
       >
         {busy ? "Downloading…" : name}
       </Button>
-      {Boolean(error) && <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage>}
+      {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage>}
     </div>
   );
 }

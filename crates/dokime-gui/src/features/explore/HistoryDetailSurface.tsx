@@ -7,13 +7,14 @@
  * ***
  */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, FileText, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   const [deleteTarget, setDeleteTarget] = useState<ExecutionBrowseEntry | null>(null);
   const [deleteRetries, setDeleteRetries] = useState<DeleteRetryRequests>({});
   const [deletePending, setDeletePending] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
   const actions = useMemo(() => (target.kind === "cycle" ? <CycleReportActions cycleId={target.id} /> : null), [target.kind, target.id]);
@@ -88,7 +89,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
       receipt = await deleteNativeExecution(session.identity, execution.checkpoint, requestIdentifier);
     } catch (error: unknown) {
       if (!session.identity.isCurrent()) return;
-      setDeleteError(error instanceof Error ? error.message : String(error));
+      setDeleteError(error);
       setDeletePending(false);
       return;
     }
@@ -117,9 +118,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
         {query.isPending ? <p>Loading executions…</p> : null}
-        {query.isError ? (
-          <NotificationMessage error={query.error}>Unable to load history: {query.error?.message}</NotificationMessage>
-        ) : null}
+        {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
           <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
         ) : null}
@@ -212,9 +211,8 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
           {deleteError ? (
-            <NotificationMessage>
-              <p>Unable to delete this execution: {deleteError}</p>
-              <p className="text-sm text-muted-foreground">Resolve the issue, then retry deletion.</p>
+            <NotificationMessage error={deleteError}>
+              {failureOf(deleteError, "Execution Could Not Be Deleted").message}
             </NotificationMessage>
           ) : null}
           <DialogFooter>
@@ -274,14 +272,16 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         Opening checkpoint…
       </p>
     );
-  if (query.isError) return <NotificationMessage error={query.error}>Unable to open checkpoint: {query.error.message}</NotificationMessage>;
+  if (query.isError) return <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />;
   const resolvedCheckpoint = query.data.checkpoint ?? checkpoint;
   if (!resolvedCheckpoint) {
-    return <NotificationMessage>Unable to open checkpoint: the checkpoint identity is missing.</NotificationMessage>;
+    return (
+      <ErrorCard failure={failureOf("The checkpoint identity is missing.", "Checkpoint Unavailable", "missing-checkpoint-identity")} />
+    );
   }
   const execution = query.data.document?.execution;
   if (!execution) {
-    return <NotificationMessage>Unable to open checkpoint: the execution document is missing.</NotificationMessage>;
+    return <ErrorCard failure={failureOf("The execution document is missing.", "Checkpoint Unavailable", "missing-checkpoint-document")} />;
   }
   return (
     <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Captured Execution">
@@ -350,7 +350,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+      {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
     </div>
   );
 }

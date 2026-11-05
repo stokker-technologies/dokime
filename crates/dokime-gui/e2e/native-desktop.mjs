@@ -192,7 +192,7 @@ const workflows = {
   },
   configuration: {
     title: "Desktop Plugin Installation And Settings",
-    journeys: new Set(["startup", "plugin-install", "idle", "settings"]),
+    journeys: new Set(["startup", "plugin-install", "idle", "settings", "failure-presentation"]),
   },
   appearance: {
     title: "Desktop Distribution And Organization",
@@ -3476,6 +3476,23 @@ async function remoteAccessJourney(recoveredReports) {
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
+async function failurePresentationJourney(session) {
+  await session.goto("/cycles/00000000-0000-0000-0000-000000000000");
+  const card = await until("unavailable cycle card", () => session.find("css selector", 'main section[role="alert"]'));
+  const before = await session.execute("return document.querySelectorAll('[data-sonner-toast][data-type=error]').length;");
+  const details = await session.find("css selector", 'main section[role="alert"] details');
+  assert.equal(await session.execute("return arguments[0].open;", [details]), false);
+  const record = await session.execute("return JSON.parse(arguments[0].querySelector('pre').textContent);", [card]);
+  assert.ok(record.id && record.title && record.message);
+  const buttons = await session.execute("return Array.from(arguments[0].querySelectorAll('button'));", [card]);
+  assert.equal(buttons.length, 2);
+  await session.click(buttons[0]);
+  await until("unavailable cycle retry", () => session.find("css selector", 'main section[role="alert"]'));
+  assert.equal(await session.execute("return document.querySelectorAll('[data-sonner-toast][data-type=error]').length;"), before);
+  await session.screenshot("gui-failure-presentation");
+  await session.goto("/cycles");
+}
+
 async function settingsJourney(session, notes) {
   const sections = [
     ["backends", "Backends"],
@@ -5138,6 +5155,7 @@ async function main() {
 
   await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
+  await journey("failure-presentation", () => failurePresentationJourney(session));
   await journey("distribution-identity", distributionIdentityJourney);
   await journey("organization", organizationJourney);
   await journey(

@@ -15,8 +15,7 @@
  * exponential backoff for as long as it is refused and the pane shows it as
  * pending, never as a failure. RESOURCE_EXHAUSTED alone is not busy: the
  * backend also answers it for fixed budgets no retry can satisfy. Any other
- * failure is retried once, then shown with the backend's own words. The module
- * has no application imports, so a node test can load it directly.
+ * failure is retried once, then shown with the backend's own words. The normalized record retains its diagnostic context through retries.
  */
 
 /* === Constants === */
@@ -28,16 +27,15 @@ const RETRY_INITIAL_MS = GUI_RECONNECT_INITIAL_MS;
 /** The longest wait between reads of a document resolver or plot stream. */
 export const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
 
-export const DOCUMENT_FAILED_FALLBACK = "The document could not be read from the backend.";
 export const BUSY_NOTICE = "The backend is busy; the document is read again shortly.";
 
 /* === Types === */
 
 export type EvidencePaneState =
-  | { kind: "document"; staleReason: string | null }
+  | { kind: "document"; staleReason: string | null; failure?: NotificationFailure }
   | { kind: "loading" }
   | { kind: "busy" }
-  | { kind: "failed"; message: string };
+  | { kind: "failed"; message: string; failure: NotificationFailure };
 
 /* === Public Functions === */
 
@@ -80,16 +78,17 @@ export function evidencePaneState({
   const busy = failure != null && isBusyRefusal(failure);
 
   if (hasDocument) {
-    return { kind: "document", staleReason: error != null && !busy ? failureMessage(error) : null };
+    return {
+      kind: "document",
+      staleReason: error != null && !busy ? failureOf(error, "Evidence Unavailable").message : null,
+      failure: error != null && !busy ? failureOf(error, "Evidence Unavailable") : undefined,
+    };
   }
   if (busy) return { kind: "busy" };
-  if (error != null) return { kind: "failed", message: failureMessage(error) };
+  if (error != null)
+    return { kind: "failed", message: failureOf(error, "Evidence Unavailable").message, failure: failureOf(error, "Evidence Unavailable") };
   if (pending) return { kind: "loading" };
   return { kind: "document", staleReason: null };
 }
 
-/* === Private Functions === */
-
-function failureMessage(error: unknown): string {
-  return error instanceof Error && error.message.trim() ? error.message : DOCUMENT_FAILED_FALLBACK;
-}
+/* === Private Functions === */ import { failureOf } from "@/lib/notification-details";
