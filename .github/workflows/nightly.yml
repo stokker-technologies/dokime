@@ -16,8 +16,8 @@ env:
   pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 concurrency:
-  group: nightly-${{ github.run_id }}
-  cancel-in-progress: false
+  group: nightly
+  cancel-in-progress: true
 jobs:
   freshness:
     name: Plan / Freshness
@@ -341,8 +341,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       RELEASE_PROFILE: release
     needs:
     - build_product
@@ -1632,8 +1631,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
     concurrency:
       group: ci-${{ github.workflow }}-build_bench-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -2053,8 +2051,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       MISE_TASK_SKIP: build:python
     needs:
     - build_python_any
@@ -2233,8 +2230,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -2385,8 +2381,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       fail-fast: false
       matrix:
@@ -4236,12 +4231,12 @@ jobs:
     needs:
     - package_python
     - package_rust
-    if: github.ref == 'refs/heads/dev'
+    if: always() && github.ref == 'refs/heads/dev' && needs.package_python.result == 'success' && needs.package_rust.result == 'success'
     permissions:
       actions: read
       contents: write
     concurrency:
-      group: nightly-publication
+      group: nightly-publish
       cancel-in-progress: false
     steps:
     - name: Configure Checkout Git
@@ -4299,8 +4294,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+        ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       RELEASE_PROFILE: release
   report:
     name: Nightly / Report
