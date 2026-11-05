@@ -89,6 +89,7 @@ pub(super) fn scope_selection(request: &PlotPayloadRequest) -> ScopeSelection {
         test_execution_id: scope.test_execution_id.clone(),
         test_case_id: scope.test_case_id.clone(),
         template_id: scope.template_id.clone(),
+        suite_id: scope.suite_id.clone(),
     })
 }
 

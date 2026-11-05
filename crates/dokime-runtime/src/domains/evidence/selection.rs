@@ -75,6 +75,7 @@ pub struct TelemetrySelection {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScopeSelection {
+    pub suite_id: Option<dokime_domain::model::identity::SuiteId>,
     pub test_cycle_id: Option<TestCycleId>,
     pub test_execution_id: Option<TestExecutionId>,
     pub test_case_id: Option<CaseId>,
@@ -163,19 +164,20 @@ impl TelemetrySelection {
 
 impl ScopeSelection {
     pub(crate) fn matches_evidence(&self, producer: Option<&RecordScope>, captures: &[RecordScope]) -> bool {
-        self.matches(producer)
-            || (self.test_execution_id.is_some() || self.test_cycle_id.is_some()) && captures.iter().any(|scope| self.matches(Some(scope)))
+        self.matches(producer) || captures.iter().any(|scope| self.matches(Some(scope)))
     }
 
     pub fn matches(&self, scope: Option<&RecordScope>) -> bool {
         let Some(scope) = scope else {
-            return self.test_cycle_id.is_none()
+            return self.suite_id.is_none()
+                && self.test_cycle_id.is_none()
                 && self.test_execution_id.is_none()
                 && self.test_case_id.is_none()
                 && self.template_id.is_none();
         };
 
-        self.test_cycle_id.as_ref().is_none_or(|value| scope.test_cycle_id.as_ref() == Some(value))
+        self.suite_id.as_ref().is_none_or(|value| scope.suite_id.as_ref() == Some(value))
+            && self.test_cycle_id.as_ref().is_none_or(|value| scope.test_cycle_id.as_ref() == Some(value))
             && self.test_execution_id.as_ref().is_none_or(|value| scope.test_execution_id.as_ref() == Some(value))
             && self.test_case_id.as_ref().is_none_or(|value| scope.test_case_id.as_ref() == Some(value))
             && self.template_id.as_ref().is_none_or(|value| scope.template_id.as_ref() == Some(value))

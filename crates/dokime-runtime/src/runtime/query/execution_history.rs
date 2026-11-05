@@ -277,7 +277,63 @@ impl RuntimeHandle {
             return Err(error("execution page exceeds the configured limit"));
         }
         let session = self.storage().clone();
-        let stored = stored_rows(crate::runtime::storage::history::executions(&session, self.storage().cursor_saved()).await?)?;
+        let at = self.storage().cursor_saved();
+        let scoped = !query.filter.cycle_ids.is_empty() || !query.filter.template_ids.is_empty();
+        let mut selected_keys = Vec::new();
+        if scoped {
+            let cycles = if query.filter.cycle_ids.is_empty() { vec![None] } else { query.filter.cycle_ids.iter().map(Some).collect() };
+            let templates =
+                if query.filter.template_ids.is_empty() { vec![None] } else { query.filter.template_ids.iter().map(Some).collect() };
+            for cycle in cycles {
+                for template in &templates {
+                    let scope = dokime_domain::model::execution::RecordScope {
+                        test_cycle_id: cycle
+                            .map(|id| TestCycleId::from_uuid(id.clone()))
+                            .transpose()
+                            .map_err(crate::storage::Error::from)?,
+                        template_id: template
+                            .map(|id| dokime_domain::model::identity::TemplateId::from_uuid(id.clone()))
+                            .transpose()
+                            .map_err(crate::storage::Error::from)?,
+                        ..Default::default()
+                    };
+                    selected_keys
+                        .extend(self.local_storage.selected_execution_ids(at.clone(), scope).await?.into_iter().map(|id| id.to_string()));
+                }
+            }
+            selected_keys.sort_unstable();
+            selected_keys.dedup();
+        }
+        let mut after = String::new();
+        let mut rows = harmos::storage::ReadBatch::new(Vec::new());
+        let mut issues = Vec::new();
+        loop {
+            let keys = if scoped {
+                std::mem::take(&mut selected_keys)
+            } else {
+                self.local_storage.object_keys(at.clone(), "dokime.object.execution".into(), String::new(), after.clone()).await?
+            };
+            let Some(last) = keys.last() else { break };
+            after = last.clone();
+            for key in keys {
+                match crate::runtime::storage::history::selected_executions(&session, at.clone(), Some(&key)).await {
+                    Ok(selected) => {
+                        for page in selected.iter() {
+                            rows = crate::storage::projection::push(rows, page.clone())?;
+                        }
+                    }
+                    Err(error) if entry_corrupt(&error) => {
+                        issues.push(ExecutionBrowseIssue {
+                            source: Some(key),
+                            dataset: Some("executions".into()),
+                            message: error.to_string(),
+                        });
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        let stored = stored_rows(rows)?;
         let mut page = {
             let state = self.state_read();
             self.execution_storage.with_active_membership(|active| {
@@ -315,6 +371,11 @@ impl RuntimeHandle {
                 })
             })?
         };
+        page = page.try_map(|mut page| -> Result<_> {
+            page.discovery_complete = issues.is_empty();
+            page.issues = issues;
+            Ok(page)
+        })?;
         // Keep Label Reads In The Same Admission Group As The Retained Response.
         for index in 0..page.cycles.len() {
             let from_live = {
@@ -333,14 +394,31 @@ impl RuntimeHandle {
             if from_live {
                 continue;
             }
-            if let Some(header) =
-                crate::storage::objects::cycle::read(&session, &page.cycles[index].cycle_id, harmos::storage::ObjectVersion::Latest).await?
-            {
-                page = page.try_map_with(header, |mut page, header| -> Result<_> {
-                    page.cycles[index].label = Some(header.value.metadata.label);
-                    page.cycles[index].phase = Some(header.value.phase);
-                    Ok(page)
-                })?;
+            let header =
+                crate::storage::objects::cycle::read(&session, &page.cycles[index].cycle_id, harmos::storage::ObjectVersion::Latest)
+                    .await
+                    .map_err(Error::from);
+            match header {
+                Ok(Some(header)) => {
+                    page = page.try_map_with(header, |mut page, header| -> Result<_> {
+                        page.cycles[index].label = Some(header.value.metadata.label);
+                        page.cycles[index].phase = Some(header.value.phase);
+                        Ok(page)
+                    })?;
+                }
+                Ok(None) => {}
+                Err(error) if entry_corrupt(&error) => {
+                    page = page.try_map(|mut page| -> Result<_> {
+                        page.discovery_complete = false;
+                        page.issues.push(ExecutionBrowseIssue {
+                            source: Some(page.cycles[index].cycle_id.to_string()),
+                            dataset: Some("cycles".into()),
+                            message: error.to_string(),
+                        });
+                        Ok(page)
+                    })?;
+                }
+                Err(error) => return Err(error),
             }
         }
         Ok(page)
@@ -451,6 +529,26 @@ fn projection_slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| Error::Operation("checkpoint projection allocation failed".into()))?;
     Ok(values)
+}
+
+fn entry_corrupt(error: &Error) -> bool {
+    match error {
+        Error::HarmosStorage(error) | Error::Storage(crate::storage::Error::HarmosStorage(error)) => {
+            error.backend_failure() == Some(harmos::BackendFailure::Corrupt)
+                || matches!(error, harmos::storage::Error::Domain(harmos::domain::Error::Corrupt { .. }))
+        }
+        Error::Storage(
+            crate::storage::Error::Invalid(_)
+            | crate::storage::Error::Corrupt(_)
+            | crate::storage::Error::Decode(_)
+            | crate::storage::Error::Json(_)
+            | crate::storage::Error::Saved(_)
+            | crate::storage::Error::Contract(_)
+            | crate::storage::Error::Identifier(_)
+            | crate::storage::Error::Timestamp(_),
+        ) => true,
+        _ => false,
+    }
 }
 
 fn stored_rows(

@@ -188,7 +188,7 @@ impl Fixture {
                 )?;
                 let scope = entry.scope.as_ref();
                 connection.execute(
-                    "INSERT INTO storage_record_visibility VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    "INSERT INTO storage_record_visibility VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
                     params![
                         position,
                         entry.record_id.as_str(),
@@ -196,7 +196,8 @@ impl Fixture {
                         scope.and_then(|s| s.test_cycle_id.as_ref()).map(|id| id.as_str()),
                         scope.and_then(|s| s.test_execution_id.as_ref()).map(|id| id.as_str()),
                         format!("{:016x}", entry.sequence),
-                        epoch.as_str()
+                        epoch.as_str(),
+                        scope.map(serde_json::to_string).transpose().unwrap()
                     ],
                 )?;
                 for scope in &entry.captured_scopes {

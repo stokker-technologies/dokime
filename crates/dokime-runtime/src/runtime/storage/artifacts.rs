@@ -199,7 +199,7 @@ impl ArtifactUpload {
             }
             // A successful publication can retire its process-local owner.
             // Exact finish retries resolve the persisted identity instead.
-            let stored = storage.find_artifact(&upload.id).await?.ok_or_else(|| error("artifact upload is missing"))?;
+            let stored = storage.find_artifact(&upload.execution, &upload.id).await?.ok_or_else(|| error("artifact upload is missing"))?;
             outcome(stored, complete)
         })
         .await
@@ -433,35 +433,46 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn artifact_reader(&self, id: &ArtifactId) -> Result<Option<ArtifactReader>> {
-        let session = self.storage.clone();
+        let owners = self.active.lock().await.values().cloned().collect::<Vec<_>>();
         let mut found = None;
-        super::artifact_inventory::inspect(self, |_, output| {
-            if matches!(&output.content, ExecutionOutputContent::Artifact { record, .. } if &record.artifact_id == id) {
-                let descriptor = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, harmos::Error>(output.clone()))?;
-                found = Some(descriptor);
+        for owner in owners {
+            let acquisition = owner.lock().await;
+            if let Some(upload) = acquisition.artifacts.get(id) {
+                found = upload.descriptor().cloned();
+                break;
             }
-            Ok(())
-        })
-        .await?;
+        }
+        if found.is_none()
+            && let Some(owner) = self.local.artifact_owner(id.to_string()).await?
+        {
+            let owner = TestExecutionId::from_uuid(owner).map_err(crate::storage::Error::from)?;
+            if let Some(view) = ExecutionView::open(&self.storage, &owner, harmos::storage::ObjectVersion::Latest).await? {
+                found = view
+                    .execution()
+                    .saved
+                    .as_ref()
+                    .and_then(|seal| {
+                        seal.source.outputs.iter().find(|output| {
+                    matches!(&output.content, ExecutionOutputContent::Artifact { record, .. } if &record.artifact_id == id)
+                })
+                    })
+                    .cloned();
+            }
+        }
         match found {
-            Some(output) => Ok(Some(ArtifactReader::from_output(session, output).await?)),
+            Some(output) => {
+                if let Some(file) = &output.file {
+                    self.storage.flush_until(&file.position).await?;
+                }
+                Ok(Some(ArtifactReader::from_output(self.storage.clone(), harmos::storage::ReadBatch::new(output)).await?))
+            }
             None => Ok(None),
         }
     }
 
-    async fn find_artifact(&self, id: &ArtifactId) -> Result<Option<ArtifactRecord>> {
-        let mut found = None;
-        super::artifact_inventory::inspect(self, |_, output| {
-            let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
-                unreachable!("inventory visits only artifact descriptors");
-            };
-            if &record.artifact_id == id {
-                found = Some(record.as_ref().clone());
-            }
-            Ok(())
-        })
-        .await?;
-        Ok(found)
+    async fn find_artifact(&self, owner: &TestExecutionId, id: &ArtifactId) -> Result<Option<ArtifactRecord>> {
+        let records = self.selected_artifact_records(&self.storage, &self.storage.cursor_saved(), std::slice::from_ref(owner)).await?;
+        Ok(records.iter().find(|record| &record.artifact_id == id).cloned())
     }
 }
 

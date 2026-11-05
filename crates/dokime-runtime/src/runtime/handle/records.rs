@@ -103,7 +103,12 @@ impl CapturedRecords {
     }
 
     pub async fn next(&self, after: u64, through: u64) -> Result<Option<CapturedRecord>> {
-        if self.scope.test_execution_id.is_some() || self.scope.test_cycle_id.is_some() {
+        if self.scope.test_execution_id.is_some()
+            || self.scope.test_cycle_id.is_some()
+            || self.scope.test_case_id.is_some()
+            || self.scope.template_id.is_some()
+            || self.scope.suite_id.is_some()
+        {
             if after > through {
                 return Err(crate::runtime::Error::Operation("invalid record capture range".into()));
             }

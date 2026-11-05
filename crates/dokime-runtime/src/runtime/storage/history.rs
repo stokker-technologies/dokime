@@ -46,7 +46,7 @@ pub(crate) async fn executions(
     selected_executions(session, at, None).await
 }
 
-pub(super) async fn selected_executions(
+pub(crate) async fn selected_executions(
     session: &crate::storage::Manager, at: harmos::storage::StorageCursor, key: Option<&str>,
 ) -> Result<crate::storage::projection::Pages<ObjectRevision<TestExecution>>> {
     let rows = session
