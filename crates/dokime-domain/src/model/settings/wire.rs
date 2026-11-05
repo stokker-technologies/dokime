@@ -12,8 +12,8 @@
 /* === Re-Exports === */
 
 pub use super::application::{
-    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsScope, SettingsSnapshot, TelemetryPreferences,
-    ThemeMode, UpdateSettings,
+    Appearance, ApplicationSettings, ClientPreferences, Density, PluginPreferences, ReportDefaults, SettingsScope, SettingsSnapshot,
+    TelemetryPreferences, ThemeMode, UpdateSettings,
 };
 
 /* === Imports === */

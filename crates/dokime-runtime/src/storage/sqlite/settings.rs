@@ -178,6 +178,8 @@ mod tests {
         let original = database.read_application_settings().await.unwrap();
         let mut settings = original.settings.clone();
         settings.report.plot_points = 321;
+        settings.plugins.startup_timeout_s = 90;
+        settings.plugins.stop_timeout_s = 20;
         let saved = database
             .update_application_settings(UpdateSettings {
                 expected_revision: original.revision,
@@ -186,6 +188,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(saved.revision, original.revision + 1);
+        assert_eq!(database.read_application_settings().await.unwrap(), saved);
         let conflict = database
             .update_application_settings(UpdateSettings {
                 expected_revision: original.revision,
@@ -206,6 +209,16 @@ mod tests {
             .await;
         assert!(matches!(invalid, Err(Error::InvalidSettings(_))));
         assert_eq!(database.read_application_settings().await.unwrap(), saved);
+
+        let mut unbounded = saved.settings.clone();
+        unbounded.plugins.startup_timeout_s = 0;
+        let unbounded = database
+            .update_application_settings(UpdateSettings {
+                expected_revision: saved.revision,
+                settings: unbounded,
+            })
+            .await;
+        assert!(matches!(unbounded, Err(Error::InvalidSettings(_))));
 
         database
             .call(|connection| {

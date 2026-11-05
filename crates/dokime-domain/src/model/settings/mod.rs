@@ -21,8 +21,8 @@ pub mod wire;
 /* === Re-Exports === */
 
 pub use application::{
-    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsConflict, SettingsScope, SettingsSnapshot,
-    TelemetryPreferences, ThemeMode, UpdateSettings,
+    Appearance, ApplicationSettings, ClientPreferences, Density, PluginPreferences, ReportDefaults, SettingsConflict, SettingsScope,
+    SettingsSnapshot, TelemetryPreferences, ThemeMode, UpdateSettings,
 };
 
 pub use boolean::Boolean;

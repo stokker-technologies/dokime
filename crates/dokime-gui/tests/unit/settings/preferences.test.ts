@@ -77,6 +77,7 @@ function snapshot(): SettingsSnapshot {
         authentication_enabled: false,
         certificate_names: ["fixture.local", "127.0.0.1"],
       },
+      plugins: { startup_timeout_s: 75, stop_timeout_s: 15 },
     },
   };
 }
@@ -158,6 +159,21 @@ test("Advanced Reveals Additional Preference Fields", () => {
   for (const value of ["dark", "compact", "lttb"]) assert.ok(advanced.includes(`value="${value}" selected=""`), value);
 });
 
+test("Plugins Section Edits Only The Backend Plugin Budgets", () => {
+  const simple = renderToStaticMarkup(createElement(ApplicationPreferences, { section: "plugins" }));
+  const advanced = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, section: "plugins" }));
+  const elsewhere = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
+  assert.ok(simple.includes('id="backend-plugins.startup_timeout_s"'));
+  assert.ok(simple.includes('value="75"'));
+  assert.ok(!simple.includes('id="backend-plugins.stop_timeout_s"'));
+  assert.ok(advanced.includes('id="backend-plugins.stop_timeout_s"'));
+  assert.ok(advanced.includes('value="15"'));
+  for (const id of ["local-appearance.theme_mode", "backend-report.plot_points", "backend-listener.enabled"])
+    assert.ok(!advanced.includes(`id="${id}"`), id);
+  for (const id of ["backend-plugins.startup_timeout_s", "backend-plugins.stop_timeout_s"])
+    assert.ok(!elsewhere.includes(`id="${id}"`), id);
+});
+
 test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
   for (const scope of ["local", "backend"] as const) {
     renderToStaticMarkup(createElement(SavePreferencesProbe, { scope }));
@@ -171,6 +187,7 @@ test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
     } else {
       settings.report = { ...settings.report, plot_points: 4000, plot_downsample: "raw" };
       settings.telemetry.interval_ms = 200;
+      settings.plugins = { startup_timeout_s: 120, stop_timeout_s: 30 };
       settings.listener = {
         enabled: false,
         address: "0.0.0.0:8766",
