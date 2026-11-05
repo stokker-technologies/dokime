@@ -29,8 +29,9 @@ use crate::{InstalledSidecar, RuntimeHandle, runtime::Error, runtime::Result};
 
 /* === Constants === */
 
-const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
 const NATIVE_INVOCATION_ITEMS: usize = 128;
+const STARTUP_SETTING: &str = "Settings › Plugins › Plugin Startup Timeout";
+const STOP_SETTING: &str = "Settings › Plugins › Plugin Stop Timeout";
 
 /* === Macros === */
 
@@ -174,7 +175,6 @@ impl Adapter<'_> {
         }
         // Keep every monitor registered until it has finished. Dropping a reload
         // future or failing cancellation must never detach shutdown-owned work.
-        let deadline = tokio::time::Instant::now() + FENCE_TIMEOUT;
         let completions: Vec<_> = self
             .handle
             .provider_tasks
@@ -184,12 +184,19 @@ impl Adapter<'_> {
             .filter(|task| sources.contains(&task.source))
             .map(|task| task.settled.clone())
             .collect();
-        for completion in completions {
-            if tokio::time::timeout_at(deadline, completion.cancelled()).await.is_err() {
-                return Err(Error::timeout(
-                    "plugin_drain_timeout",
-                    "affected executions did not settle within the plugin drain bound; existing owners remain registered",
-                ));
+        if !completions.is_empty() {
+            let budget = self.handle.read_application_settings().await?.settings.plugins.stop_timeout();
+            let deadline = tokio::time::Instant::now() + budget;
+            for completion in completions {
+                if tokio::time::timeout_at(deadline, completion.cancelled()).await.is_err() {
+                    return Err(Error::timeout(
+                        "plugin_drain_timeout",
+                        format!(
+                            "affected executions did not settle within {} s ({STOP_SETTING}); existing owners remain registered",
+                            budget.as_secs()
+                        ),
+                    ));
+                }
             }
         }
         self.handle.reconcile_listener_record_demand()?;
@@ -315,6 +322,8 @@ impl Sidecar {
         let program = &self.program;
         let executable = &program.executable.0;
         let source = program.executable.id().to_owned();
+        // Read At Each Attempt, So A Saved Budget Applies To The Next Start Or Restart.
+        let budget = handle.read_application_settings().await?.settings.plugins.startup_timeout();
         let logged_by = source.clone();
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
@@ -332,7 +341,8 @@ impl Sidecar {
                 .map(|contract| crate::runtime::sidecars::record_demand_key(contract.record_type.as_str())),
         )
         .routed(router)
-        .expected_registrations(&self.definition.contributions.registrations);
+        .expected_registrations(&self.definition.contributions.registrations)
+        .handshake(budget);
         let serving = sidecar.clone();
         let record_demands = sidecar.demands();
         let ready = sidecar.ready();
@@ -363,15 +373,7 @@ impl Sidecar {
             .map_err(Error::from)?;
         self.registered = true;
         self.lease = Some(self.services.submit_resident(&source).await?);
-        let native = Arc::new(
-            tokio::time::timeout(FENCE_TIMEOUT, serving.staged_operations())
-                .await
-                .map_err(|_| Error::PluginInitialization {
-                    plugin: source.clone(),
-                    reason: "native endpoint did not stage within its configured timeout".to_owned(),
-                })?
-                .map_err(operation)?,
-        );
+        let native = Arc::new(staged_within(budget, &source, serving.staged_operations()).await?.map_err(operation)?);
         let scope = native.scope().ok_or_else(|| operation("initialized native endpoint has no admitted plugin generation"))?;
         if !authority.matches_scope(scope, self.definition.kind(), harmos::plugin::PluginLifecyclePhase::Initialize) {
             return Err(operation("native initialization generation differs"));
@@ -449,6 +451,14 @@ impl Sidecar {
 
 /* === Private Functions === */
 
+// The Launch, Handshake And Staging Of A Native Endpoint Share The Configured Startup Budget.
+async fn staged_within<T>(budget: Duration, plugin: &str, staging: impl std::future::Future<Output = T>) -> Result<T> {
+    tokio::time::timeout(budget, staging).await.map_err(|_| Error::PluginInitialization {
+        plugin: plugin.to_owned(),
+        reason: format!("native endpoint did not become ready within {} s ({STARTUP_SETTING})", budget.as_secs()),
+    })
+}
+
 fn lifecycle_error(error: Error) -> harmos::Error {
     match error {
         Error::Harmos(error) => error,
@@ -490,3 +500,41 @@ fn severity(line: &str) -> Option<(&'static str, &str)> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::settings::PluginPreferences;
+
+    fn preferences(startup_timeout_s: u32) -> PluginPreferences {
+        PluginPreferences {
+            startup_timeout_s,
+            ..PluginPreferences::default()
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn staging_slower_than_ten_seconds_starts_within_its_budget() {
+        let budget = preferences(45).startup_timeout();
+        let started = tokio::time::Instant::now();
+        let staged = staged_within(budget, "fixture", async {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            "staged"
+        })
+        .await
+        .unwrap();
+        assert_eq!(staged, "staged");
+        assert_eq!(started.elapsed(), Duration::from_secs(30));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn staging_beyond_its_budget_fails_naming_the_budget_and_its_setting() {
+        let budget = preferences(45).startup_timeout();
+        let started = tokio::time::Instant::now();
+        let error = staged_within(budget, "fixture", std::future::pending::<()>()).await.unwrap_err();
+        assert_eq!(started.elapsed(), budget);
+        let Error::PluginInitialization { plugin, reason } = error else { panic!("{error:?}") };
+        assert_eq!(plugin, "fixture");
+        assert!(reason.contains("45 s") && reason.contains(STARTUP_SETTING), "{reason}");
+    }
+}

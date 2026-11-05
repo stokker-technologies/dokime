@@ -26,7 +26,7 @@ import { createDebouncedWriter } from "./settings-autosave";
 
 /* === Types === */
 
-type PreferencesSection = "appearance" | "remote";
+type PreferencesSection = "appearance" | "plugins" | "remote";
 type PreferenceGroup = keyof ApplicationSettings;
 type PreferenceField = {
   group: PreferenceGroup;
@@ -134,6 +134,23 @@ const FIELDS: PreferenceField[] = [
     kind: "list",
     advanced: true,
   },
+  {
+    group: "plugins",
+    key: "startup_timeout_s",
+    label: "Plugin Startup Timeout",
+    help: "Time a plugin program has to launch and become ready. Applies to its next start or restart.",
+    unit: "s",
+    max: 3600,
+  },
+  {
+    group: "plugins",
+    key: "stop_timeout_s",
+    label: "Plugin Stop Timeout",
+    help: "Time a stopping plugin's executions have to settle. Applies to its next stop or restart.",
+    unit: "s",
+    max: 3600,
+    advanced: true,
+  },
 ];
 const SELECT_CLASS =
   "h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
@@ -153,7 +170,7 @@ export function ApplicationPreferences({
 }) {
   return (
     <>
-      {section !== "remote" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
+      {section !== "remote" && section !== "plugins" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
       {!localOnly && <ScopedPreferences scope="backend" advanced={advanced} section={section} onPendingChange={onPendingChange} />}
     </>
   );
@@ -241,6 +258,7 @@ function PreferencesForm({
                   report: input.settings.report,
                   telemetry: input.settings.telemetry,
                   listener: input.settings.listener,
+                  plugins: input.settings.plugins,
                 };
           const saved = await saveRef.current({ previous, settings });
           baseline.current = saved;
@@ -273,11 +291,11 @@ function PreferencesForm({
     const local = field.group === "appearance" || field.group === "client";
     return (
       local === (scope === "local") &&
-      (section === "remote"
-        ? field.group === "listener"
+      (section === "remote" || section === "plugins"
+        ? field.group === (section === "remote" ? "listener" : "plugins")
         : section === "appearance"
           ? field.group === "appearance"
-          : field.group !== "listener")
+          : field.group !== "listener" && field.group !== "plugins")
     );
   });
   function row(field: PreferenceField) {

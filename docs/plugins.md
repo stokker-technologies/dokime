@@ -333,6 +333,31 @@ Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
 
+## Plugin Startup And Stop Budgets
+
+Two host settings bound a sidecar program's lifecycle outside its own code.
+They live in `PluginPreferences` in
+`crates/dokime-domain/src/model/settings/application.rs`, are edited under
+**Settings › Plugins** and are read again at every start, restart and stop, so a
+saved change applies to the next one, including live installation changes and
+settings restarts.
+
+| Setting | Default | Range | Bounds |
+| --- | --- | --- | --- |
+| Plugin Startup Timeout [s] | 60 | 1–3,600 | Launch, handshake and endpoint staging of each start attempt |
+| Plugin Stop Timeout [s] | 10 | 1–3,600 | Settling of the executions a stopping or replaced plugin owns |
+
+The startup budget covers what happens before the plugin's lifecycle code runs:
+the process launch, including the operating system loading the libraries it links,
+its handshake and the staging of its native endpoint. A program that exceeds it
+fails to start with `Plugin <id> could not initialize` and a cause naming the
+budget and this setting. `prepare` and `initialize` themselves run afterwards,
+bounded by the plugin's declared lifecycle `INITIALIZATION_POLICY` (and
+`SHUTDOWN_POLICY` for stop), a Harmos operation policy the plugin authors with
+its other declarations. A plugin that opens a slow vendor client during
+`initialize` declares a longer initialization policy; the host setting is not a
+per-plugin declaration.
+
 ## Live Installation Changes
 
 Installing, reinstalling or updating a bundle, and enabling, disabling or removing

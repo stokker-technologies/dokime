@@ -19,6 +19,7 @@ import { toast } from "@/lib/notifications";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { useInstalledPluginsQuery, usePluginRestartRefresh } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
@@ -41,7 +42,7 @@ import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Components === */
 
-export function PluginsSection() {
+export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
   const brand = useBrand();
   const desktop = isTauriDesktop();
   const navigate = useNavigate();
@@ -203,6 +204,7 @@ export function PluginsSection() {
           />
         </div>
       </SettingsCard>
+      <ApplicationPreferences section="plugins" advanced={advanced} />
       <Dialog open={installOpen} onOpenChange={setInstallOpen}>
         <DialogContent>
           <DialogHeader>

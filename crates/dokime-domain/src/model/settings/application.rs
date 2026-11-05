@@ -41,6 +41,7 @@ pub struct ApplicationSettings {
     pub client: ClientPreferences,
     pub telemetry: TelemetryPreferences,
     pub listener: RemoteListenerSettings,
+    pub plugins: PluginPreferences,
 }
 
 #[harmos::message]
@@ -77,6 +78,15 @@ pub struct ClientPreferences {
 #[serde(deny_unknown_fields)]
 pub struct TelemetryPreferences {
     pub interval_ms: u64,
+}
+
+// Host Budgets For Plugin Programs; A Change Applies To The Next Start, Restart Or Stop.
+#[harmos::message(skip_default)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginPreferences {
+    pub startup_timeout_s: u32,
+    pub stop_timeout_s: u32,
 }
 
 #[harmos::message]
@@ -165,6 +175,17 @@ impl Default for ClientPreferences {
     }
 }
 
+impl Default for PluginPreferences {
+    fn default() -> Self {
+        // Covers a sidecar that loads a large vendor library and opens its client
+        // before it announces, with headroom for on-access scanning on first launch.
+        Self {
+            startup_timeout_s: 60,
+            stop_timeout_s: 10,
+        }
+    }
+}
+
 impl Default for TelemetryPreferences {
     fn default() -> Self {
         Self { interval_ms: 1_000 }
@@ -192,6 +213,7 @@ impl ApplicationSettings {
         self.client.validate()?;
         self.telemetry.validate()?;
         self.listener.validate()?;
+        self.plugins.validate()?;
         Ok(())
     }
 
@@ -199,7 +221,10 @@ impl ApplicationSettings {
         self.validate()?;
         let allowed = match scope {
             SettingsScope::Local => {
-                self.report == previous.report && self.telemetry == previous.telemetry && self.listener == previous.listener
+                self.report == previous.report
+                    && self.telemetry == previous.telemetry
+                    && self.listener == previous.listener
+                    && self.plugins == previous.plugins
             }
             SettingsScope::Backend => self.appearance == previous.appearance && self.client == previous.client,
         };
@@ -221,6 +246,27 @@ impl ClientPreferences {
 impl TelemetryPreferences {
     pub fn validate(&self) -> Result<(), String> {
         validate_duration(self.interval_ms)
+    }
+}
+
+impl PluginPreferences {
+    /// The Longest Budget Either Field Accepts: One Hour.
+    pub const MAXIMUM_SECONDS: u32 = 3_600;
+
+    pub fn validate(&self) -> Result<(), String> {
+        let bounded = |seconds: u32| (1..=Self::MAXIMUM_SECONDS).contains(&seconds);
+        if !bounded(self.startup_timeout_s) || !bounded(self.stop_timeout_s) {
+            return Err(format!("plugin startup and stop timeouts must be between 1 and {} seconds", Self::MAXIMUM_SECONDS));
+        }
+        Ok(())
+    }
+
+    pub fn startup_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.startup_timeout_s.into())
+    }
+
+    pub fn stop_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.stop_timeout_s.into())
     }
 }
 

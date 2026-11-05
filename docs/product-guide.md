@@ -520,6 +520,19 @@ they start, including through **Retry**, which starts a plugin that does not run
 at once even while a cycle is active; retrying a running plugin restarts it once
 no cycle is active.
 
+### Plugin Startup And Stop Timeouts
+
+**Settings › Plugins** also holds the backend's **Plugin Startup Timeout [s]**
+(default 60 s), the time each plugin program has to launch and become ready, and,
+under Show Advanced, **Plugin Stop Timeout [s]** (default 10 s), the time a
+stopping plugin's executions have to settle. Both accept 1 to 3,600 seconds. A
+saved value applies to the next start, restart or stop; running programs are not
+restarted for it. A program that does not become ready in time fails to start with
+a cause naming the budget and this setting: raise the timeout and use **Retry**.
+Time spent in a plugin's own initialization is bounded by the plugin's declared
+initialization policy instead; see
+[Plugins](plugins.md#plugin-startup-and-stop-budgets).
+
 ### Installing And Removing Plugins
 
 Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
