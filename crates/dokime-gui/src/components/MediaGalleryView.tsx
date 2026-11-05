@@ -15,6 +15,9 @@
 
 // Standard Library Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import type { NotificationFailure } from "@/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { AudioLines, Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // Third Party Imports
@@ -73,11 +76,13 @@ export function MediaGallerySurface({
   const [nativeDownloadError, setNativeDownloadError] = useState<{
     artifactId: string;
     message: string;
+    failure: NotificationFailure;
   } | null>(null);
   const [nativeOpenArtifactId, setNativeOpenArtifactId] = useState<string | null>(null);
   const [nativeOpenError, setNativeOpenError] = useState<{
     artifactId: string;
     message: string;
+    failure: NotificationFailure;
   } | null>(null);
   const openArtifact = useCallback(
     async (artifact: MediaGalleryArtifact) => {
@@ -89,7 +94,8 @@ export function MediaGallerySurface({
       } catch (error) {
         setNativeOpenError({
           artifactId: artifact.artifact_id,
-          message: error instanceof Error ? error.message : "Unable to open this artifact.",
+          message: failureOf(error, "Artifact Action Failed").message,
+          failure: failureOf(error, "Artifact Action Failed"),
         });
       } finally {
         setNativeOpenArtifactId(null);
@@ -107,7 +113,8 @@ export function MediaGallerySurface({
       } catch (error) {
         setNativeDownloadError({
           artifactId: artifact.artifact_id,
-          message: error instanceof Error ? error.message : "Unable to download this artifact.",
+          message: failureOf(error, "Artifact Action Failed").message,
+          failure: failureOf(error, "Artifact Action Failed"),
         });
       } finally {
         setNativeDownloadArtifactId(null);
@@ -187,9 +194,7 @@ export function MediaGallerySurface({
                 ) : selectedArtifact.nativeTransfer && mediaBlobType(selectedArtifact) ? (
                   <div className="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                     {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <NotificationMessage error={preview?.failures?.[selectedArtifact.artifact_id]}>
-                        {preview?.errors[selectedArtifact.artifact_id]}
-                      </NotificationMessage>
+                      <ErrorCard failure={failureOf(preview?.failures?.[selectedArtifact.artifact_id], "Media Preview Unavailable")} />
                     ) : (
                       <p>Loading media preview…</p>
                     )}
@@ -254,10 +259,10 @@ export function MediaGallerySurface({
                     </>
                   ) : null}
                   {nativeOpenError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage error={nativeOpenError}>{nativeOpenError.message}</NotificationMessage>
+                    <NotificationMessage failure={nativeOpenError.failure}>{nativeOpenError.message}</NotificationMessage>
                   ) : null}
                   {nativeDownloadError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage error={nativeDownloadError}>{nativeDownloadError.message}</NotificationMessage>
+                    <NotificationMessage failure={nativeDownloadError.failure}>{nativeDownloadError.message}</NotificationMessage>
                   ) : null}
                 </div>
               </div>

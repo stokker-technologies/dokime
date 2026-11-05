@@ -1,3 +1,4 @@
+import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -39,7 +40,6 @@ import {
 } from "@/features/cycle/cycle-workspace-model";
 import {
   RECONNECT_MAX_MS,
-  DOCUMENT_FAILED_FALLBACK,
   documentRetry,
   documentRetryDelay,
   evidencePaneState,
@@ -585,10 +585,12 @@ test("Evidence Pane", () => {
   assert.deepEqual(pane({ hasDocument: true, failureReason: busy }), {
     kind: "document",
     staleReason: null,
+    failure: undefined,
   });
   assert.deepEqual(pane({ hasDocument: true, error: failed }), {
     kind: "document",
-    staleReason: "document scope is unknown",
+    staleReason: failed.message,
+    failure: failureOf(failed, "fixture"),
   });
 
   // Without A Document, Busy Is Pending And Only A Real Failure Is A Notice
@@ -597,11 +599,8 @@ test("Evidence Pane", () => {
   assert.deepEqual(pane({ pending: true }), { kind: "loading" });
   assert.deepEqual(pane({ error: failed }), {
     kind: "failed",
-    message: "document scope is unknown",
-  });
-  assert.deepEqual(pane({ error: new Error(" ") }), {
-    kind: "failed",
-    message: DOCUMENT_FAILED_FALLBACK,
+    message: failed.message,
+    failure: failureOf(failed, "fixture"),
   });
 });
 

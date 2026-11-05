@@ -19,6 +19,10 @@
 
 /* === External Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -53,6 +57,7 @@ type PluginSettingsSurfaceProps = {
 /* === Components === */
 
 export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
+  const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const settings = useSettingsSections();
   const pluginsQuery = usePluginsQuery();
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
@@ -90,7 +95,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <NotificationMessage error={settings.failure}>{settings.error}</NotificationMessage>
+              <ErrorCard failure={failureOf(settings.failure, "Data Unavailable")} />
               <Button onClick={settings.retry} size="sm" variant="outline">
                 Try Again
               </Button>
@@ -102,10 +107,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             {owning?.last_boot?.state === "failed" && (owning.boot_failed || owning.active) ? (
               <SettingsCard title={owning.boot_failed ? "Startup Failed" : "Restart Refused"}>
                 <SettingsRow label={owning.last_boot.failure.plugin_name}>
-                  <p role="alert" className="text-sm text-destructive">
-                    {owning.last_boot.failure.message}
-                    {owning.last_boot.failure.code ? <code className="block">{owning.last_boot.failure.code}</code> : null}
-                  </p>
+                  <ErrorCard failure={pluginStartFailure(owning, generation)} />
                   <FailureConsequences items={owning.last_boot.failure.consequences} />
                   {owning.last_boot.failure.missing_secret ? (
                     <Link
@@ -124,9 +126,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
               <PluginDetailCard key={owner} pluginId={owner} />
             ))}
             {owning && retryable(owning) ? <PluginRetry installId={owning.install_id} /> : null}
-            {!section && pluginsQuery.isError ? (
-              <NotificationMessage error={pluginsQuery.error}>{pluginsQuery.error.message}</NotificationMessage>
-            ) : null}
+            {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
             ) : pluginId || installation ? null : (
@@ -188,7 +188,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <NotificationMessage error={detailQuery.error}>{detailQuery.error.message}</NotificationMessage>
+          <ErrorCard failure={failureOf(detailQuery.error, "Data Unavailable")} />
         </SettingsRow>
       </SettingsCard>
     );

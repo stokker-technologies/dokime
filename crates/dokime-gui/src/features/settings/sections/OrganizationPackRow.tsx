@@ -1,3 +1,5 @@
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -58,7 +60,10 @@ export function OrganizationPackRow() {
   const restart = useMutation({ mutationFn: commands.desktopRestart });
   if (!status.data) {
     return (
-      <SettingsRow label="Organization Pack" failure={status.error} error={status.error ? message(status.error) : null}>
+      <SettingsRow label="Organization Pack">
+        {status.error ? (
+          <ErrorCard failure={failureOf(status.error, "Organization Pack Unavailable")} onRetry={() => void status.refetch()} />
+        ) : null}
         <span className="text-sm text-muted-foreground" role="status">
           {status.error ? "Unavailable" : "Reading the organization pack…"}
         </span>
@@ -70,7 +75,13 @@ export function OrganizationPackRow() {
       failure={choose.error ?? remove.error ?? restart.error}
       presentation={organizationPackPresentation(status.data)}
       choiceError={
-        choose.error ? message(choose.error) : remove.error ? message(remove.error) : restart.error ? message(restart.error) : null
+        choose.error
+          ? failureOf(choose.error, "Settings Operation Failed").message
+          : remove.error
+            ? failureOf(remove.error, "Settings Operation Failed").message
+            : restart.error
+              ? failureOf(restart.error, "Settings Operation Failed").message
+              : null
       }
       busy={choose.isPending || remove.isPending || restart.isPending}
       choose={() => choose.mutate()}
@@ -108,7 +119,3 @@ export function OrganizationPackView({ presentation, choiceError, failure, busy,
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : typeof error === "string" ? error : "The organization pack could not be changed.";
-}

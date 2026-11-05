@@ -16,6 +16,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "@/lib/notifications";
@@ -37,7 +38,7 @@ import {
 } from "@/components/ui/menubar";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { useAppearance } from "@/lib/appearance";
-import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
+import { useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { useApplicationTheme } from "@/lib/application-theme";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { DensityPreference, ThemeModePreference } from "@/lib/theme";
@@ -174,11 +175,7 @@ function LiveDensityGroup() {
     save.mutate(
       { density: value },
       {
-        onError: (error) =>
-          toast.error("Appearance Could Not Be Saved", {
-            error,
-            description: applicationSettingsError(error),
-          }),
+        onError: (error) => toast.error(failureOf(error, "Appearance Could Not Be Saved")),
       },
     );
   };
@@ -259,9 +256,6 @@ async function closeDesktopWindow(): Promise<void> {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
   } catch (error) {
-    toast.error("The Window Could Not Be Closed", {
-      error,
-      description: error instanceof Error ? error.message : String(error),
-    });
+    toast.error(failureOf(error, "The Window Could Not Be Closed"));
   }
 }

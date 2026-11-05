@@ -17,6 +17,10 @@
 
 /* === External Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -64,6 +68,7 @@ export function PluginList({
   changingEnabled,
   settingsSectionOf,
 }: PluginListProps) {
+  const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const rows = entries.map((entry): PluginTableRow => {
     const status = statusPresentation(entry);
     const removalPending = entry.state === "removal_pending";
@@ -74,9 +79,17 @@ export function PluginList({
     return {
       alert: status.reason ? (
         <div>
-          <p role="alert" className="text-sm text-destructive">
-            {status.reason}
-          </p>
+          {entry.restart === "pending" ? (
+            <p className="text-sm text-muted-foreground">{status.reason}</p>
+          ) : (
+            <ErrorCard
+              failure={
+                entry.last_boot?.state === "failed"
+                  ? pluginStartFailure(entry, generation)
+                  : failureOf({ message: status.reason }, "Plugin Unavailable", [generation, entry.install_id, status.reason].join(":"))
+              }
+            />
+          )}
           {entry.last_boot?.state === "failed" ? <FailureConsequences items={entry.last_boot.failure.consequences} /> : null}
         </div>
       ) : null,

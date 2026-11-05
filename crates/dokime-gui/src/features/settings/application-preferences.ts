@@ -15,7 +15,6 @@
 
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { connectionError } from "@/app/native-session/errors";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { useUiStore } from "@/stores/ui-store";
@@ -68,15 +67,6 @@ export function useSavePreferences(scope: SettingsScope) {
       void client.invalidateQueries({ queryKey: ["settings", "preferences"] });
     },
   });
-}
-
-export function preferencesError(error: unknown): string {
-  if (error && typeof error === "object" && "kind" in error) {
-    if (error.kind === "conflict") return "Settings changed elsewhere. Retry to review the latest settings before editing again.";
-    if (error.kind === "disconnected") return "The backend is disconnected. Local preferences remain available.";
-    if ("message" in error) return String(error.message);
-  }
-  return connectionError(error);
 }
 
 /* === Private Functions === */

@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -180,7 +181,7 @@ function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: R
               failure: error,
               generation: request.generation,
               key: request.key,
-              message: error instanceof Error ? error.message : "Unable to load this media preview.",
+              message: failureOf(error, "Operation Failed").message,
             });
             redraw((value) => value + 1);
           }

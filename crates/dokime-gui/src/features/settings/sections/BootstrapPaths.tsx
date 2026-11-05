@@ -11,8 +11,9 @@
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { SettingsCard } from "../SettingsCard";
 import { SettingsPathField } from "../SettingsPathField";
 import { SettingsRow } from "../SettingsRow";
@@ -34,7 +35,7 @@ export function BootstrapPaths() {
           Loading Paths…
         </p>
       )}
-      {Boolean(query.error) && <NotificationMessage error={query.error}>{String(query.error)}</NotificationMessage>}
+      {Boolean(query.error) && <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />}
       {paths &&
         Object.entries(paths).map(([key, path]) => (
           <SettingsRow

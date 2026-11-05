@@ -24,6 +24,7 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
@@ -81,18 +82,14 @@ export function CycleEvidenceView({
         {lead}
         {promptQueue ?? <PromptHistory records={cycleRecords} />}
         {pane.kind === "failed" ? (
-          <PaneNotice
-            action={onRetry ? { label: "Try Again", onClick: onRetry } : undefined}
-            message={pane.message}
-            title="Evidence Unavailable"
-          />
+          <ErrorCard failure={pane.failure} onRetry={onRetry} />
         ) : pane.kind === "busy" ? (
           <PaneNotice message={BUSY_NOTICE} title="Loading" />
         ) : pane.kind === "loading" ? (
           <PaneNotice message="Reading the document for this selection." title="Loading" />
         ) : (
           <div className="grid gap-6">
-            {pane.staleReason ? <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p> : null}
+            {pane.failure ? <ErrorCard failure={pane.failure} onRetry={onRetry} /> : null}
             <DocumentContent
               cardFilter={isDocumentCard}
               plotWindowControl={

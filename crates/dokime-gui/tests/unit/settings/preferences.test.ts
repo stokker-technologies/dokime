@@ -228,8 +228,8 @@ test("Offline Local Edits Remain Available While Backend Reads Fail", async () =
   fixture.backendError = { kind: "disconnected" };
   const html = renderToStaticMarkup(createElement(ApplicationPreferences));
   assert.ok(html.includes('aria-label="Theme Mode"'));
-  assert.ok(fixture.notices.mock.calls.length > 0);
-  assert.doesNotMatch(html, /role="alert"/);
+  assert.equal(fixture.notices.mock.calls.length, 0);
+  assert.match(html, /role="alert"/);
   assert.ok(!html.includes('aria-label="Report Points"'));
   usePreferences("local");
   const query = fixture.queries.at(-1);

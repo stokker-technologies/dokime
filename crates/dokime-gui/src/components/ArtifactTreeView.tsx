@@ -1,3 +1,4 @@
+import { toast } from "@/lib/notifications";
 /* ***
  *
  * Dokime
@@ -15,6 +16,8 @@
 
 /* === External Imports === */
 
+import type { NotificationFailure } from "@/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import {
   Boxes,
   ChevronDown,
@@ -93,11 +96,13 @@ function ArtifactFileBrowser({
   const [downloadError, setDownloadError] = useState<{
     artifactId: string;
     message: string;
+    failure: NotificationFailure;
   } | null>(null);
   const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
   const [openError, setOpenError] = useState<{
     artifactId: string;
     message: string;
+    failure: NotificationFailure;
   } | null>(null);
   const openArtifact = async (artifact: ArtifactTreeFile) => {
     if (!actions || openingArtifactId || downloadingArtifactId) return;
@@ -106,9 +111,11 @@ function ArtifactFileBrowser({
     try {
       await actions.open(artifact);
     } catch (error) {
+      toast.error(failureOf(error, "Artifact Could Not Be Opened"));
       setOpenError({
         artifactId: artifact.artifact_id,
-        message: error instanceof Error ? error.message : "Unable to open this artifact.",
+        message: failureOf(error, "Artifact Action Failed").message,
+        failure: failureOf(error, "Artifact Action Failed"),
       });
     } finally {
       setOpeningArtifactId(null);
@@ -121,9 +128,11 @@ function ArtifactFileBrowser({
     try {
       await actions.download(artifact);
     } catch (error) {
+      toast.error(failureOf(error, "Artifact Could Not Be Saved"));
       setDownloadError({
         artifactId: artifact.artifact_id,
-        message: error instanceof Error ? error.message : "Unable to download this artifact.",
+        message: failureOf(error, "Artifact Action Failed").message,
+        failure: failureOf(error, "Artifact Action Failed"),
       });
     } finally {
       setDownloadingArtifactId(null);

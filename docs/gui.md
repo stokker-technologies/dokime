@@ -231,6 +231,37 @@ the captured column schema to select this presentation.
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
 
+## Failure Presentation
+
+Every GUI failure enters `failureOf(error, title)` in
+`src/lib/notification-details.ts`. Its serializable `NotificationFailure` carries
+a title, root message, root-first causes, field problems, operation/request/invocation
+identifiers, the backend's redacted diagnostics and available client `Error.stack`.
+Canonical native/RPC adapters decode backend contracts; presentation leaves retain
+the stem record unchanged. Do not extract an error message in a component or add
+another failure formatter.
+
+`src/lib/failure-routing.ts` owns the routing rule:
+
+| Failure Origin | Destinations |
+|---|---|
+| A view cannot load its data | ErrorCard and console |
+| A user action fails | Toast, notification history and console |
+| Startup, plugin or stream background work fails | Notification history, toast and console |
+
+ErrorCard uses the destructive border and icon, independently of focus colors. It
+shows the record title/message, optional Try Again, collapsed Technical Details
+and Copy of the complete record. Loading and empty states retain ordinary notices.
+Toast/history details expose the same technical record and client stack. Existing
+remediation controls remain independent of opening details.
+
+`reportFailure(failure, context)` emits a collapsed console group containing the
+complete record through `console.error`. Console and notification delivery deduplicate
+by failure identity across rerenders and repeated leaves. Keep the originating Error
+or normalized record through state updates; a new failed retry creates a new
+occurrence. Replayed backend outcomes use an explicit event key. History-storage
+failures report to console and the history view without recursively writing history.
+
 ## Console Traces
 
 The desktop logger and its owned backend share one bounded trace journal,
