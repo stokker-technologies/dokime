@@ -549,6 +549,10 @@ Time spent in a plugin's own initialization is bounded by the plugin's declared
 initialization policy instead; see
 [Plugins](plugins.md#plugin-startup-and-stop-budgets).
 
+Saved preferences use the current defaults for absent sections or fields, so an
+existing backend data root starts with default plugin budgets until they are set.
+Explicit saved values remain in effect and must pass validation.
+
 ### Installing And Removing Plugins
 
 Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
