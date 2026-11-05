@@ -43,8 +43,10 @@ cycles are retired from that state to keep checkpoints bounded; their durable
 history remains the source for subsequent reads. Startup marks unfinished
 executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
-report finalization resumes from its frozen terminal header; a failed seal stays
-retryable without reporting Running.
+report finalization resumes from its frozen terminal header. A seal that cannot
+complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
+and the cycle's control card shows the cause with Retry Seal and Archive, each
+behind a confirmation. Startup does not retry a Seal Failed cycle.
 
 ## Keyboard Focus And Theme Colors
 

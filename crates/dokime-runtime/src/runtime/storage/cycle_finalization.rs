@@ -437,6 +437,7 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
         records: cycle.records.clone(),
         continue_automatically: cycle.continue_automatically,
         result: cycle.result.clone(),
+        seal_failure: None,
     }
 }
 

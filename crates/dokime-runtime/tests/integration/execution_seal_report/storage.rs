@@ -22,6 +22,7 @@ use sha2::{Digest, Sha256};
 use super::*;
 use dokime_domain::model::content::wire;
 use dokime_domain::model::execution::request::RunPhase;
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::TestExecution};
@@ -262,7 +263,7 @@ pub(crate) async fn terminal_capture_repaired() {
 
 // A diagnostic recorded after the report lifecycle froze never changes the frozen execution, and
 // a cycle that cannot be sealed at startup stays retryable instead of stopping the runtime boot.
-pub(crate) async fn unsealed_cycle_survives_restart() {
+pub(crate) async fn failed_seal_settles_across_restarts() {
     let root = tempdir().unwrap();
     let refuse = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let fixture = || Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()));
@@ -298,23 +299,36 @@ pub(crate) async fn unsealed_cycle_survives_restart() {
     owner.shutdown().await.unwrap();
     drop(owner);
 
-    // Still Unsealable: The Runtime Boots And Leaves The Cycle For A Later Seal.
+    // Still Unsealable: The Runtime Boots And Settles The Cycle As SealFailed With Its Cause.
     let (mut owner, runtime) = started_with_fixture(config(root.path()), fixture()).await;
     let reopened = runtime.watch_state().latest().state().cycle_view(&test_cycle_id).expect("the unsealed cycle stays live");
     assert!(reopened.saved.is_none());
-    assert!(reopened.test_executions[0].saved.is_none());
+    assert!(reopened.test_executions[0].saved.is_none(), "the member's evidence is kept unsealed");
+    let failed = runtime.watch_state().latest().state().cycles[&test_cycle_id].clone();
+    assert_eq!(failed.phase, CyclePhase::SealFailed);
+    assert!(failed.seal_failure.is_some());
+
+    // A Failed Seal Is Archivable Like A Sealed Cycle.
+    runtime.set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default()).await.unwrap();
+    runtime.set_cycle_archived(test_cycle_id.clone(), false, CommandContext::default()).await.unwrap();
     drop(runtime);
     owner.shutdown().await.unwrap();
     drop(owner);
 
-    // Once Reports Encode, Startup Seals The Member From Its Original Frozen Revision.
+    // Later Boots Keep The Settled Failure Instead Of Sealing Again, Even Once Reports Encode.
     refuse.store(false, std::sync::atomic::Ordering::SeqCst);
     let (mut owner, runtime) = started_with_fixture(config(root.path()), fixture()).await;
+    let rebooted = runtime.watch_state().latest().state().cycles[&test_cycle_id].clone();
+    assert_eq!(rebooted.phase, CyclePhase::SealFailed);
+    assert_eq!((&rebooted.seal_failure, &rebooted.updated_at), (&failed.seal_failure, &failed.updated_at));
+
+    // An Explicit Retry Seals The Member From Its Original Frozen Revision.
+    runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
     let sealed = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap();
-    assert!(sealed.value.saved.is_some(), "startup seals the retried cycle");
+    assert!(sealed.value.saved.is_some(), "the retry seals the cycle");
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &member.test_execution_id).await;
     let view = crate::service_support::native::open(&runtime, &checkpoint).await;
     let seal = view.execution().saved.clone().expect("the member is sealed");

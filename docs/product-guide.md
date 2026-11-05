@@ -97,10 +97,26 @@ Active. Select the destination cycle in the Library before adding attempts.
 
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
-be durably saved. The phase advances through **Sealing** to **Sealed**. Other
-cycles continue. Shutdown stops running executions without regenerating cycle
-reports. Startup seals previous-session Active cycles without replaying device
-operations.
+be durably saved. Other cycles continue. Shutdown stops running executions
+without regenerating cycle reports. Startup marks unfinished executions
+Interrupted and seals previous-session Active and Sealing cycles without
+replaying device operations.
+
+A cycle is in one of four phases:
+
+| Phase | Meaning | Operator Actions |
+| --- | --- | --- |
+| **Active** | Admits cases and runs executions. | Start, Stop, Seal Cycle |
+| **Sealing** | Admission is closed while work stops and evidence is saved. Startup resumes an interrupted seal. | None; it settles on its own |
+| **Sealed** | Every execution and the cycle report are durably saved and immutable. | Archive, Export, Open Report |
+| **Seal Failed** | The seal could not complete, for example because stored evidence was written by an incompatible build. The cause is shown with the cycle and recorded as a cycle finalization failure. All evidence is kept unsealed. | Retry Seal, Archive |
+
+Seal Failed is settled: later startups do not seal it again and it does not
+hold plugin reloads. Retry Seal resumes from the saved evidence and returns to
+Seal Failed with the new cause if the seal still cannot complete. Archive hides
+the cycle without deleting its evidence; Unarchive restores it. A cycle whose
+seal kept failing in an earlier build settles as Seal Failed on the first
+startup of this build.
 
 The desktop reads a bounded record tail, then appends changes from its stream.
 Execution files refresh with runtime changes; an idle view does not poll the

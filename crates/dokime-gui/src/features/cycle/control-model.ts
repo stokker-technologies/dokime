@@ -30,7 +30,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { TestExecution } from "@/lib/types";
+import type { TestCycle, TestExecution } from "@/lib/types";
 import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution } from "./cycle-workspace-model";
 
 /* === Re-Exports === */
@@ -70,12 +70,14 @@ export type ExecutionControlInput = {
 export type CycleControlState = {
   line: string;
   detail: string | null;
-  /** Seal Cycle while the cycle is Active, nothing once it seals. */
-  actions: "Seal Cycle"[];
+  /** Seal Cycle while the cycle is Active, Retry Seal and Archive once its seal failed, nothing once it seals. */
+  actions: CycleAction[];
 };
 
+export type CycleAction = "Seal Cycle" | "Retry Seal" | "Archive";
+
 export type CycleControlInput = {
-  phase: "active" | "sealing" | "sealed";
+  phase: TestCycle["phase"];
   /** The member running now, with its step's label and id. */
   running: { ordinal: number; step: string | null; stepId: string | null } | null;
 };
@@ -121,9 +123,14 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
   };
 }
 
-/** The cycle's card: the member running now, or that none is, and Seal Cycle while Active. */
+/**
+ * The cycle's card: the member running now, or that none is, and Seal Cycle
+ * while Active. A failed seal offers Retry Seal and Archive; its evidence
+ * stays saved either way, and the card states the cause beneath.
+ */
 export function cycleControlState({ phase, running }: CycleControlInput): CycleControlState {
   if (phase === "sealing") return { actions: [], detail: null, line: "Sealing · saving evidence" };
+  if (phase === "seal_failed") return { actions: ["Retry Seal", "Archive"], detail: null, line: "Seal failed · evidence kept" };
   if (phase === "sealed") return { actions: [], detail: null, line: "Sealed · evidence saved" };
   if (!running) return { actions: ["Seal Cycle"], detail: null, line: "Idle · no execution running" };
   return {

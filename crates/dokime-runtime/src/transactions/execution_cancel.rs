@@ -253,6 +253,7 @@ mod tests {
                 records: Default::default(),
                 continue_automatically: true,
                 result: None,
+                seal_failure: None,
             },
         );
         (state, cycle_id, ids)

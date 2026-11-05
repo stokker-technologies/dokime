@@ -688,6 +688,8 @@ function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLi
       return { icon: BellRing, label, tone: "warning" };
     case "Sealing":
       return { icon: LoaderCircle, label, spin: true, tone: "warning" };
+    case "Seal Failed":
+      return { icon: TriangleAlert, label, tone: "danger" };
     case "Sealed":
       return { icon: Check, label, tone: "muted" };
     default:

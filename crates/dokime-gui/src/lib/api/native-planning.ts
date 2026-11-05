@@ -44,6 +44,7 @@ import type {
   StepExecutionRecord,
   SuiteTemplateEntry,
   TestCase,
+  TestCycle,
   TestCyclePlan,
   TestCycleSelection,
   TestExecution,
@@ -216,6 +217,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
       continue_automatically: summary.continueAutomatically,
       started_at: timestampIso(summary.startedAt),
       finished_at: summary.phase?.HarmosVariant.case === "Sealed" ? timestampIso(summary.updatedAt) : null,
+      seal_failure: summary.sealFailure ?? null,
       duration_s: durationSeconds(summary.startedAt, summary.updatedAt),
       duration_delta_s: null,
       metadata: metadataJson(summary.metadata),
@@ -230,12 +232,14 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
   };
 }
 
-export function mapCyclePhase(phase: CycleSummary["phase"]): "active" | "sealing" | "sealed" {
+export function mapCyclePhase(phase: CycleSummary["phase"]): TestCycle["phase"] {
   switch (phase?.HarmosVariant.case) {
     case "Active":
       return "active";
     case "Sealing":
       return "sealing";
+    case "SealFailed":
+      return "seal_failed";
     case "Sealed":
       return "sealed";
     default:

@@ -62,16 +62,20 @@ impl RuntimeHandle {
         captured(self).ok_or_else(|| crate::runtime::Error::Operation("report lifecycle capture was not applied".into()))
     }
 
-    // The Unsealed Cycle Keeps Its Cause As Evidence While Its Members Stay Retryable.
-    pub(crate) async fn record_startup_seal_failure(&self, cycle: &TestCycleId, error: &Error) {
-        use crate::records::{BuiltinRecordType, RecordSeverity};
-
-        let record_type = BuiltinRecordType::TestCycleFinalizationFailed.identifier();
-        let mut request = dokime_domain::model::records::publication::RecordPublishRequest::new(record_type, RecordSeverity::Error);
-        request.scope = Some(dokime_domain::model::execution::RecordScope::default().with_cycle(cycle.clone()));
-        request.message = Some(format!("final cycle report was not sealed at startup: {error}"));
-        if let Err(failure) = self.publish_record(request).await {
-            tracing::error!(%cycle, %failure, "startup seal failure could not be recorded");
+    // A Seal That Cannot Complete Leaves Sealing As SealFailed With Its Cause; Its Evidence Stays.
+    // Shutdown Leaves The Cycle Sealing So The Next Startup Resumes It.
+    async fn fail_cycle_seal(&self, cycle: &TestCycleId, error: &Error) {
+        if matches!(error, Error::Admission(_) | Error::ShuttingDown | Error::Interrupted) || self.is_shutting_down() {
+            return;
+        }
+        tracing::error!(%cycle, %error, "cycle seal failed; the cycle keeps its evidence and waits for a retry or archive");
+        let failure = crate::transactions::FailCycleSeal {
+            test_cycle_id: cycle.clone(),
+            cause: seal_failure_cause(error),
+            at: crate::model::time::now_utc(),
+        };
+        if let Err(failure) = self.commit(failure).await {
+            tracing::warn!(%cycle, %failure, "cycle seal failure was not recorded; the cycle stays sealing");
         }
     }
 
@@ -439,7 +443,10 @@ impl RuntimeHandle {
             }
         }
         let cycle = self.state_read().cycle_view(&test_cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "cycle not found"))?;
-        self.finish_saved_members(&cycle).await.map_err(report_not_saved)?;
+        if let Err(error) = self.finish_saved_members(&cycle).await {
+            self.fail_cycle_seal(&test_cycle_id, &error).await;
+            return Err(report_not_saved(error));
+        }
 
         // A Queued Receipt Becomes Terminal Only After Its Selection Is Sealed.
         let finishing = self
@@ -463,7 +470,11 @@ impl RuntimeHandle {
             self.request_storage.update(&request_id, |receipt| receipt.summary = summary).await?;
         }
         self.dispatch_next_request().await;
-        self.seal_settled_cycle(&test_cycle_id).await
+        let sealed = self.seal_settled_cycle(&test_cycle_id).await;
+        if let Err(error) = &sealed {
+            self.fail_cycle_seal(&test_cycle_id, error).await;
+        }
+        sealed
     }
 
     async fn control_cycle(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {
@@ -604,6 +615,35 @@ fn report_not_saved(error: Error) -> Error {
         "report_not_saved",
         format!("The report could not be saved because {}. Details are in the application log.", report_failure_reason(&error)),
     )
+}
+
+// The Operator-Facing Cause: Undecodable Stored Evidence Names The Incompatible Build.
+fn seal_failure_cause(error: &Error) -> String {
+    let undecodable = match error {
+        Error::HarmosStorage(source) => undecodable(source),
+        Error::HarmosDomain(source) => undecodable(source),
+        error => undecodable(error),
+    };
+    let message = crate::runtime::error::chain_message(error);
+    if undecodable {
+        return format!("stored evidence could not be decoded; it was likely written by an incompatible Dokime build: {message}");
+    }
+    message
+}
+
+fn undecodable(error: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(Some(error), |error| error.source()).any(|error| {
+        matches!(error.downcast_ref::<harmos::domain::Error>(), Some(harmos::domain::Error::Corrupt { .. }))
+            || error.downcast_ref::<harmos::storage::Error>().and_then(harmos::storage::Error::backend_failure)
+                == Some(harmos::BackendFailure::Corrupt)
+            || matches!(
+                error.downcast_ref::<harmos::Error>(),
+                Some(harmos::Error::Backend {
+                    kind: harmos::BackendFailure::Corrupt,
+                    ..
+                })
+            )
+    })
 }
 
 fn report_failure_reason(error: &(dyn std::error::Error + 'static)) -> &'static str {

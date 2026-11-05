@@ -216,7 +216,7 @@ export type PreviewTestCycleResponse = {
 export type TestCycle = {
   test_cycle_id: string;
   title: string;
-  phase: "active" | "sealing" | "sealed";
+  phase: CyclePhase;
   status: "planned" | "running" | "paused" | "stopping" | "completed" | "failed" | "stopped" | "interrupted";
   case_count: number;
   queue_count: number;
@@ -233,7 +233,12 @@ export type TestCycle = {
   archived?: boolean;
   /** The cycle report is sealed, so its label no longer changes. */
   sealed?: boolean;
+  /** Why the last seal failed, while the phase is `seal_failed`. */
+  seal_failure?: string | null;
 };
+
+/** The cycle container's phase: Active admits work; the others have closed admission. */
+export type CyclePhase = "active" | "sealing" | "seal_failed" | "sealed";
 
 /**
  * Which case mutations the runtime would admit right now.
