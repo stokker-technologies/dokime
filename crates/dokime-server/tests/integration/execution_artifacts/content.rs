@@ -1053,3 +1053,99 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
 }
 
 /* === Tests === */
+
+pub(crate) async fn artifact_upload_idle_deadlines() {
+    use dokime::harmos::operations::OperationDeclaration;
+    use model::content::wire::{ArtifactChunk, UploadArtifactFrame, UploadArtifactFramePayload as Payload, UploadArtifactHeader};
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed()).await;
+    let native =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let idle = contracts::content::UploadArtifact::POLICY.timeout;
+    let bytes = b"abcd";
+    let mut progress = owner.handle().operation_progress().watch();
+    let upload = native.content_upload_artifact_open().unwrap();
+    upload
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Header(UploadArtifactHeader {
+                scope: Some(scope.clone()),
+                filename: "paced.bin".into(),
+                content_type: None,
+                size_bytes: bytes.len() as u64,
+                sha256: None,
+            })),
+        })
+        .await
+        .unwrap();
+    upload
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Chunk(ArtifactChunk { offset: 0, data: bytes[..1].to_vec() })),
+        })
+        .await
+        .unwrap();
+    let operation = support::operation_fraction(&mut progress, None, 0.25).await;
+    tokio::time::pause();
+    // Keep Real Socket And Filesystem Work From Auto-Advancing The Clock.
+    let awake = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
+    for offset in 1..bytes.len() {
+        tokio::time::advance(idle * 3 / 4).await;
+        upload
+            .send(UploadArtifactFrame {
+                payload: Some(Payload::Chunk(ArtifactChunk {
+                    offset: offset as u64,
+                    data: bytes[offset..offset + 1].to_vec(),
+                })),
+            })
+            .await
+            .unwrap();
+        support::operation_fraction(&mut progress, Some(&operation), (offset + 1) as f64 / bytes.len() as f64).await;
+    }
+    upload.end_input().await.unwrap();
+    let result = upload.response().await.unwrap();
+    assert_eq!(result.size_bytes, bytes.len() as u64);
+    assert_eq!(result.sha256, Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+    assert_eq!(result.state, model::content::wire::ArtifactState::Complete);
+    upload.close().await;
+    let destination = root.path().join("policy-download.bin");
+    let downloaded = native
+        .with_timeout(Duration::ZERO)
+        .download_artifact(contracts::content::DownloadArtifact { artifact_id: result.artifact_id.clone() }, destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(downloaded.size_bytes, bytes.len() as u64);
+    assert_eq!(std::fs::read(destination).unwrap(), bytes);
+
+    let stalled = native.content_upload_artifact_open().unwrap();
+    stalled
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Header(UploadArtifactHeader {
+                scope: Some(scope),
+                filename: "stalled.bin".into(),
+                content_type: None,
+                size_bytes: 4,
+                sha256: None,
+            })),
+        })
+        .await
+        .unwrap();
+    stalled
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Chunk(ArtifactChunk { offset: 0, data: vec![1] })),
+        })
+        .await
+        .unwrap();
+    // The Earlier Operation Is Complete At 1.0, So This Identifies The New Upload.
+    support::operation_fraction(&mut progress, None, 0.25).await;
+    tokio::time::advance(idle + Duration::from_secs(1)).await;
+    assert!(matches!(stalled.response().await, Err(dokime::client::Error::Rpc(status))
+        if status.code() == Code::DeadlineExceeded && status.message().contains(contracts::content::UploadArtifact::ID)));
+    stalled.close().await;
+    awake.abort();
+    let _ = awake.await;
+    tokio::time::resume();
+    native.close_and_wait().await;
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+}

@@ -18,10 +18,7 @@ mod wire;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Instant};
 
 // Third Party Imports
 use contract as v1;
@@ -45,7 +42,6 @@ use dokime::plugins::{PluginError, PluginStore};
 
 const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
-const SERVER_PLUGIN_UPLOAD_IDLE_MS: u64 = 30_000;
 
 /* === Macros === */
 
@@ -242,9 +238,7 @@ impl Resources {
         &self, input: &StreamInput<plugins_model::InstallPluginFrame>, operation: &dokime::runtime::progress::Operation,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let permit = self.admission.mutation().map_err(reject)?;
-        let first = message(input, SERVER_PLUGIN_UPLOAD_IDLE_MS)
-            .await?
-            .ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
+        let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
         let Some(plugins_model::InstallPluginFrameFrame::Header(header)) = &first.frame else {
             return Err(reject(Status::invalid_argument("first install frame must be a header")));
         };
@@ -260,7 +254,7 @@ impl Resources {
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(size_bytes as usize).map_err(|_| reject(Status::resource_exhausted("plugin upload memory unavailable")))?;
         let mut hash = Sha256::new();
-        while let Some(frame) = message(input, SERVER_PLUGIN_UPLOAD_IDLE_MS).await? {
+        while let Some(frame) = message(input).await? {
             let Some(plugins_model::InstallPluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument("only chunks may follow install header")));
             };
@@ -341,9 +335,9 @@ pub(super) fn prepare(
 /* === Private Functions === */
 
 async fn message(
-    input: &StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
+    input: &StreamInput<plugins_model::InstallPluginFrame>,
 ) -> Result<Option<StreamItem<plugins_model::InstallPluginFrame>>, Status> {
-    tokio::time::timeout(Duration::from_millis(idle_ms), input.recv())
+    tokio::time::timeout(<v1::Install as dokime::harmos::operations::OperationDeclaration>::POLICY.timeout, input.recv())
         .await
         .map_err(|_| reject(Status::deadline_exceeded("plugin upload idle deadline exceeded")))
 }
