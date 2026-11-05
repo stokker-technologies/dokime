@@ -32,7 +32,7 @@ Sampled peak process RSS during queries, in MiB:
 
 RSS was sampled every 20 ms with Windows `GetProcessMemoryInfo`, between query markers. It includes the runtime, resident fixture/catalog state, code pages, and allocator retention; it is not a query-allocation delta. The DataFusion pool is bounded independently of process RSS.
 
-These numbers measure the complete replacement path. They do not isolate DataFusion's contribution: native projected batch decoding replaces per-sample reconstruction, and percentile selection rescans a compact numeric spool instead of decoding the IPC evidence nine times. A batch-reader-only control was not measured.
+These numbers measure the complete replacement path. They do not isolate DataFusion's contribution: native projected batch decoding replaces per-sample reconstruction, and percentile selection rescans a compact numeric spool instead of decoding the IPC evidence nine times. A batch-reader-only control was not measured in the original experiment; the follow-up is recorded in [Control Measurement](#control-measurement).
 
 ## Implementation And Parity
 
@@ -147,3 +147,53 @@ mise run build:rust:focused -- test --locked -p harmos-storage --features datafu
 For final publication, Dokime pins the pushed Harmos revision `1a1089266651bfaaa733005cab55b11db135799c`. Its implementation commit is `b3c54121debc0b857036de342b11b372cbaf7f09`; the follow-up only orders module declarations for rustfmt. The ignored local override used for measurements is removed from the active configuration, and the committed lockfile resolves published git packages. Both branches are named `spike/datafusion`; no PR or merge is part of this spike.
 
 The final published-pin run passes all ten selected Dokime tests. Together with Harmos's three targeted tests, focused proof totals 13 passing tests (11 existing and two added). Changed Rust files pass rustfmt, the workstation Python changes pass Ruff and the lock serialization/crash-recovery probe, and whitespace/required-term diff scans are clean. Validation is limited to this Windows spike; full project CI and Linux lanes were not run.
+
+## Control Measurement
+
+### Sources And Method
+
+The measurement-only `spike/batch-control` branches are Dokime `80678774c04ac637da18eef9ace2371ee0a78e15` and Harmos `5530d0a8958bcb02047d3d07c24edbc8474ed3e7`. They start at the original pre-DataFusion revisions `766330b7342bb63790fbc6328399f883ed7f037b` and `ad18e90a3f4121da85743c73ead2d48818263548`, with the same Arrow `59.3.2` compatibility edits. Dokime pins the published Harmos control revision; the local integration override was removed before the measured benchmark and cold builds. Neither branch contains a DataFusion dependency. No PR or merge is part of this measurement.
+
+The control changes only the requested query execution paths. Projected IPC batches pass through the spike's catalog, capture-range, checksum, snapshot and scan-budget admission logic. Borrowed Arrow columns feed the existing sequential `Moments` and exponent-bin bucket sums, whose implementations are unchanged. Exact interior percentiles use the spike's compact numeric spool, moved into `crates/harmos-storage/src/query/quantiles.rs` with Harmos errors instead of DataFusion errors. The logical nine-scan work-budget charge remains unchanged. Generic Harmos query kernels are retained.
+
+The tracked `crates/dokime-runtime/benches/integration/samples.rs`, its fixture wiring, and the spike's numeric parity test are identical to the DataFusion spike sources. The control uses the same million-sample store, selections, ten flat Criterion samples, one-second warmup, three-second measurement target and bench profile described above. Fixture construction remains outside query timing. All Rust compilation ran through `mise run build:rust:focused`, with one compiler job and the machine build lock. The benchmark held that lock through fixture construction and every query; before starting, it waited for two consecutive one-second system-CPU samples below 5%. RSS used the unchanged 20 ms query-marker probe.
+
+Baseline and DataFusion columns below retain the original **completed** Arrow-59 measurements, including build costs and executable sizes. An additional baseline rerun was attempted under the lock but an aggregate iteration exceeded the existing five-second active-work deadline, so that rerun produced no complete benchmark result. Its log is preserved; no deadline, sample count or benchmark setting was changed. The table is therefore a new control against the original references, rather than a contemporaneous paired three-way run.
+
+### Comparison
+
+Latency cells show median and bootstrap 95% confidence interval in milliseconds. RSS is sampled peak whole-process working set during queries, including resident fixture state and allocator retention; it is not an allocation delta.
+
+| Metric | Baseline | Control | DataFusion |
+| --- | ---: | ---: | ---: |
+| Aggregate Median, ms | 2303.64 [2289.05, 2554.51] | 493.94 [470.99, 519.01] | 483.30 [462.71, 512.76] |
+| Bucketed Mean Median, ms | 2726.64 [2697.39, 3049.33] | 982.56 [959.23, 1023.12] | 615.20 [592.74, 626.39] |
+| Exact Median And p95, 50,000 Selected, ms | 1261.97 [1146.92, 1338.19] | 34.03 [31.82, 36.52] | 37.63 [36.63, 39.11] |
+| Aggregate Peak RSS, MiB | 123.78 | 137.16 | 136.86 |
+| Bucket Peak RSS, MiB | 127.80 | 138.31 | 137.36 |
+| Percentile Peak RSS, MiB | 127.94 | 138.34 | 137.46 |
+| Query Source Added / Removed | 0 / 0 | +746 / −258 | +1503 / −416 |
+| Net Query Source Lines | 0 | +488 | +1087 |
+| Whole-Workspace Lockfile Packages, Dokime / Harmos | 1057 / 370 | 1057 / 370 | 1112 / 468 |
+| Dev CLI/Server Executable, Bytes | 155961344 | 155921920 | 233488896 |
+| Dev CLI/Server Executable, MiB | 148.74 | 148.70 | 222.67 |
+| Cold Dev Runtime Task Including Clippy, s | 720.24 | 640.46 | 824.47 |
+| Dev CLI Task After Runtime Including Clippy, s | 1224.79 | 1119.08 | 1358.15 |
+
+Query source uses the original physical-line accounting, including comments and retired inline tests. It covers both repositories' query implementations, scanner and registrations; manifests, locks, Arrow compatibility, benchmark/parity fixtures and the copied machine-lock workflow are excluded. The control adds no packages. Lockfile counts include workspace, optional and target-specific packages, rather than only packages enabled by default metadata resolution.
+
+The control cold target was `target/spike-control-cold`: fresh compiler outputs, warm downloads/filesystem caches, `CARGO_BUILD_JOBS=1`, `CARGO_INCREMENTAL=0` and `SCCACHE_DISABLE=1`. Commands and default CLI/server configuration match the original build measurements. Lock waiting is excluded. The CLI task reuses the preceding runtime outputs and is not a separate cold CLI measurement. PDB files are excluded from executable size.
+
+### Parity And Evidence
+
+All 13 distinct focused tests pass: the same ten Dokime query cases and three Harmos cases listed above. The ten Dokime cases also pass after pinning the pushed Harmos revision and removing the local override. The control's three large-fixture fingerprints match the preserved spike fingerprints bit for bit, including statistics, quality counts, bucket values, versions and order. Expected values and tolerances were not changed. The spool test passes both in memory and with forced disk spilling. Rust formatting and whitespace/required-term diff scans are clean. This remains Windows-only measurement proof; full CI and Linux lanes were not run.
+
+Control evidence is retained under `dokime.wt/batch-control/target/benchmarks/batch-control/`: native Criterion estimates/samples, `control-rss.json` and its log, result fingerprints, source/fixture identity checks, source accounting, published dependency metadata, targeted-test logs, cold-build logs/JSON and the measured dev executable copy. `baseline-rerun-failed.log` records the supplemental deadline failure; the initial quiet-machine rejection and successful control idle samples are retained separately. Criterion output uses `CRITERION_HOME=target/benchmarks/batch-control/criterion` and `--bench spike_samples --noplot --save-baseline control` with the original focused benchmark producer and machine-lock wrapper.
+
+### Updated Recommendation
+
+**Adopt Control Only For These Paths.** This supersedes the original recommendation for the measured sample aggregate, bucket and percentile paths. The control alone gives **4.66x aggregate**, **2.78x bucket** and **37.08x percentile** speedups over baseline. Using `(baseline − control) / (baseline − DataFusion)`, it captures **99.4%**, **82.6%** and **100.3%** of the DataFusion spike's absolute latency savings, respectively. A value above 100% means the control median was faster.
+
+Aggregate medians are effectively comparable within the observed intervals, and the compact spool explains the percentile improvement without an engine. DataFusion retains a substantial bucket advantage: 615.20 ms versus 982.56 ms, or about 1.60x faster than the control. That remaining 367.35 ms saving does not justify this narrow prototype's extra 599 net query-source lines over the control, 55/98 additional resolved packages and approximately 74 MiB of executable growth. RSS shows no control memory advantage: both optimized paths are above the original baseline and close to each other.
+
+The broader claim that an engine could simplify complete relational kernel modules remains a separate, unmeasured justification. These results support the batching/spooling changes as the next implementation direction; neither measurement branch is a merge candidate, and the production-hardening limits described above still apply.
