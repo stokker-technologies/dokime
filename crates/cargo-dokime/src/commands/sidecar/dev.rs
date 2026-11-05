@@ -193,7 +193,7 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
         return Err(Error::Invalid("dev owns its isolated bundle output; use build --output for distribution files".into()));
     }
     let identity = inspect(&args.dokime).await?;
-    terminal.header("Dokime", env!("CARGO_PKG_VERSION"), "dev");
+    terminal.header("Dokime", dokime::version::label(), "dev");
     terminal.field("Host", format!("{} · through {}", identity.version, args.dokime.display()));
     let cwd = resolve_cwd(args.cwd.as_deref())?;
     args.env_file = resolve_env_file(args.env_file.as_deref())?;

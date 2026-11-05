@@ -42,11 +42,17 @@ export type BackendLimits = {
   maxStreamBufferItems: number | null;
 };
 
-export type BackendSnapshot = {
+/** The product version, source commit (`<commit>[-dirty]`) and publication channel of one build. */
+export type BuildIdentity = {
+  productVersion: string;
+  sourceRevision: string | null;
+  channel: string | null;
+};
+
+export type BackendSnapshot = BuildIdentity & {
   backendId: string;
   epoch: string;
   displayName: string;
-  productVersion: string;
   target: string;
   apiVersion: string;
   descriptorSha256: string;

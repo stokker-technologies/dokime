@@ -12,6 +12,16 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## About And Build Versions
+
+Settings › About shows **Desktop Version** from the native `desktop_build` command
+and, while connected, **Backend Version** from the backend identity, since a remote
+backend may run another build. Each reads `v0.1.2 · 766330b7 · nightly`: the short
+commit, `-dirty` for uncommitted local changes or `unknown`, then the channel when
+one is known. Clicking the short commit copies the full commit. Formatting lives in
+`src/features/settings/sections/build-version.ts`. A browser build without the
+native shell shows only the bundled frontend version.
+
 ## Desktop Launches And Storage Ownership
 
 Every launch opens its own desktop window. Launch arguments and deep links belong

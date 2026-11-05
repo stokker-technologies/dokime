@@ -44,16 +44,20 @@ pub struct Args {
 
 pub fn run(args: Args) {
     if args.json {
+        let build = dokime::version::current();
+        let revision = build.revision.map(|revision| revision.full());
         println!(
             "{}",
             serde_json::json!({
-                "version": env!("CARGO_PKG_VERSION"),
+                "version": build.version,
+                "revision": revision,
+                "channel": build.channel,
                 "sdk_revision": serde_json::Value::Null,
                 "dev_protocol": DEV_PROTOCOL,
             })
         );
     } else {
-        println!("{}", env!("CARGO_PKG_VERSION"));
+        println!("{}", dokime::version::label());
     }
 }
 

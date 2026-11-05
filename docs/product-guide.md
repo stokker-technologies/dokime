@@ -37,6 +37,16 @@ members and member SHA-256 hashes. Future target-independent guests use
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
 downloads. The `nightly` prerelease uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
+
+Every build also carries its source commit and, for published builds, its
+channel. `dokime --version` and `cargo dokime --version` print, for example,
+`dokime 0.1.2 (766330b7 nightly)`; `version --json` adds `revision` and `channel`.
+Backend `GetIdentity` returns them as `source_revision` and `channel`, and
+diagnostics bundles include them. The build script in `crates/dokime/build.rs`
+takes the commit from CI's `GITHUB_SHA`, otherwise from the Git checkout, marking
+uncommitted tracked changes `-dirty`; without either it reports `unknown`.
+Builds from `v*` tags are `release`, the nightly workflow's are `nightly`, and
+other builds name no channel.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
 

@@ -109,6 +109,7 @@ impl Collector<'_> {
                 "backend_id": self.identity.backend_id,
                 "epoch": self.identity.epoch,
                 "product_version": self.identity.product_version,
+                "source_revision": self.identity.source_revision,
                 "api_version": dokime::domain::model::backend::wire::API_VERSION,
                 "log_tail_ceiling_bytes": log_tail_bytes,
             }),
@@ -160,6 +161,7 @@ fn identity_json(identity: &dokime::domain::model::backend::wire::BackendIdentit
         "product_version": identity.product_version,
         "target": identity.target,
         "source_revision": identity.source_revision,
+        "channel": identity.channel,
         "sdk_revision": identity.sdk_revision,
         "display_name": identity.display_name,
     })
