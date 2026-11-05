@@ -297,13 +297,8 @@ impl RuntimeHandle {
                             .map_err(crate::storage::Error::from)?,
                         ..Default::default()
                     };
-                    selected_keys.extend(
-                        self.local_storage
-                            .selected_execution_ids(at.clone(), scope, Vec::new())
-                            .await?
-                            .into_iter()
-                            .map(|id| id.to_string()),
-                    );
+                    selected_keys
+                        .extend(self.local_storage.selected_execution_ids(at.clone(), scope).await?.into_iter().map(|id| id.to_string()));
                 }
             }
             selected_keys.sort_unstable();

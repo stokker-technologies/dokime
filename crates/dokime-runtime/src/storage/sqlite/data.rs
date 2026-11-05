@@ -169,7 +169,7 @@ impl State {
     }
 
     pub(crate) async fn selected_execution_ids(
-        &self, at: StorageCursor, scope: dokime_domain::model::execution::RecordScope, suite_cases: Vec<String>,
+        &self, at: StorageCursor, scope: dokime_domain::model::execution::RecordScope,
     ) -> Result<Vec<dokime_domain::model::identity::TestExecutionId>, Error> {
         self.read(move |connection| {
             Ok((|| {
@@ -185,15 +185,12 @@ impl State {
                     ("h.cycle", scope.test_cycle_id.as_ref().map(ToString::to_string)),
                     ("json_extract(h.body,'$.case_id')", scope.test_case_id.as_ref().map(ToString::to_string)),
                     ("h.template", scope.template_id.as_ref().map(ToString::to_string)),
+                    ("json_extract(h.body,'$.suite_id')", scope.suite_id.as_ref().map(ToString::to_string)),
                 ] {
                     if let Some(value) = value {
                         args.push(value.into());
                         sql.push_str(&format!(" AND {column}=?{}", args.len()));
                     }
-                }
-                if scope.suite_id.is_some() {
-                    sql.push_str(" AND json_extract(h.body,'$.case_id') IN (SELECT value FROM json_each(?))");
-                    args.push(serde_json::to_string(&suite_cases)?.into());
                 }
                 sql.push_str(" ORDER BY h.id");
                 let mut statement = connection.prepare(&sql)?;

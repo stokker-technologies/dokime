@@ -330,14 +330,7 @@ impl RuntimeHandle {
             return Ok(vec![id.clone()]);
         }
         let state = self.state_read();
-        let suite_cases = state
-            .suites
-            .cases()
-            .values()
-            .filter(|case| scope.suite_id.as_ref().is_some_and(|id| case.suite_id == id.as_str()))
-            .map(|case| case.test_case_id.to_string())
-            .collect();
-        let mut ids = self.local_storage.selected_execution_ids(at.clone(), scope.clone(), suite_cases).await?;
+        let mut ids = self.local_storage.selected_execution_ids(at.clone(), scope.clone()).await?;
         ids.extend(
             state
                 .executions

@@ -94,7 +94,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     other_suite.metadata = metadata("foreign.suite", "Foreign Suite");
     other_suite.test_case_templates[0].test_case_template_id = TemplateId::from_seed("foreign.template");
     register_python_suite_pair(&runtime, suite.clone(), other_suite.clone()).await;
-    let other_cycle_id = start_cycle(&runtime, other_suite).await;
+    let other_cycle_id = start_cycle(&runtime, other_suite.clone()).await;
     runtime.start_next_execution(other_cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_outcome(&runtime, &other_cycle_id, ResultStatus::Passed).await;
     let other_cycle = cycle_snapshot(&runtime, &other_cycle_id).await;
@@ -111,7 +111,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         )
         .await
         .unwrap();
-    let cycle_id = start_cycle(&runtime, suite).await;
+    let cycle_id = start_cycle(&runtime, suite.clone()).await;
     let cycle = cycle_snapshot(&runtime, &cycle_id).await;
     let execution_id = &cycle.test_executions[0].test_execution_id;
     runtime
@@ -167,6 +167,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         .summary
         .request_id
         .clone();
+    crate::service_support::waits::wait_for_run_settled(&runtime, &other_request).await;
     let command_id = dokime_domain::model::identity::CommandId::from_seed("corrupt-foreign-command");
     let command = dokime_runtime::storage::requests::Command::new(
         &other_request,
@@ -340,17 +341,14 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         .query_plot_payloads(
             vec![dokime_runtime::runtime::query::PlotPayloadRequest {
                 scope: Some(cycle.test_executions[0].scope.clone()),
-                y_expressions: vec![dokime_runtime::expressions::record("calibration.field.completed").count()],
+                marker_record_types: vec!["calibration.field.completed".into()],
                 ..Default::default()
             }],
             dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot,
         )
         .await
         .unwrap();
-    assert_eq!(
-        plots[0].payload.series.iter().flat_map(|series| series.points.iter().map(|point| point.y)).collect::<Vec<_>>(),
-        [Some(1.0)]
-    );
+    assert_eq!(plots[0].payload.markers.len(), 1);
     drop(plots);
     let aggregate = runtime
         .aggregate(dokime_runtime::runtime::query::aggregate::AggregateQuery {
@@ -530,6 +528,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     runtime.wait_execution_report(execution_id).await.unwrap();
+    crate::service_support::waits::wait_for_run_settled(&runtime, &request).await;
 
     runtime.inspect_execution(execution_id).await.unwrap();
     runtime.execution_saved_checkpoint(execution_id.clone()).await.unwrap();
@@ -540,8 +539,41 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     drop(bundle);
     let original = execution::read(runtime.storage(), execution_id, ObjectVersion::Latest).await.unwrap().unwrap();
     let original_execution = original.value.clone();
-    let mut expected = original_execution.clone();
     drop(original);
+    {
+        let suite_id = dokime_domain::model::identity::SuiteId::from_seed("frozen-artifact-suite");
+        let mut tagged = original_execution.clone();
+        tagged.scope.suite_id = Some(suite_id.clone());
+        for output in &mut tagged.saved.as_mut().unwrap().source.outputs {
+            if let ExecutionOutputContent::Artifact { record, .. } = &mut output.content {
+                record.scope.suite_id = Some(suite_id.clone());
+            }
+        }
+        let row = Execution::try_from(&tagged).unwrap();
+        let receipt = runtime.storage().write_object(&row).await.unwrap();
+        runtime.storage().flush_until(&receipt.position).await.unwrap();
+        runtime.remove_suites("provider:testdb").await.unwrap();
+        let frame = runtime
+            .query_runtime_view(RuntimeViewQuery {
+                scope: Some(RecordScope {
+                    suite_id: Some(suite_id),
+                    ..Default::default()
+                }),
+                topic: RuntimeViewTopic::Artifacts,
+                window: RuntimeWindow::Full,
+                resolution: RuntimeResolution::Raw,
+                cursor: None,
+            })
+            .await
+            .unwrap();
+        let RuntimeViewPayload::Artifacts { frame } = frame.payload else { panic!("expected artifacts") };
+        assert!(frame.artifacts.iter().any(|record| record.artifact_id == artifact.artifact_id));
+        register_python_suite_pair(&runtime, suite, other_suite).await;
+        let row = Execution::try_from(&original_execution).unwrap();
+        let receipt = runtime.storage().write_object(&row).await.unwrap();
+        runtime.storage().flush_until(&receipt.position).await.unwrap();
+    }
+    let mut expected = original_execution.clone();
     let seal = expected.saved.as_mut().unwrap();
     seal.source.outputs.push(ExecutionOutput {
         relative_path: "fixture/file.txt".into(),

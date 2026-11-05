@@ -1975,8 +1975,8 @@ inspection, prompt condition checks, request-command recovery and evidence expor
 cycle's evidence. Historical execution detail reads its cycle header and selected
 exact member while retaining its ordinal; full-cycle inspection still verifies
 every member. Case detail and parameter reads select only that case's attempts,
-using ownership metadata to retain its ordinal. Suite artifact reads use retained
-case ownership even after the suite is removed from the installed catalog.
+using ownership metadata to retain its ordinal. Suite artifact reads use the
+frozen execution scope even after the suite is removed from the installed catalog.
 Execution exports also include the selected cycle's unowned
 records and application-wide records: those are shared context, so corruption in
 that context fails the export. Arrow files and batches shared by subscriptions

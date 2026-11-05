@@ -98,7 +98,7 @@ pub(crate) async fn evaluate(storage: &super::executions::ExecutionStorage, quer
                 .map_err(crate::storage::Error::from)?,
             ..Default::default()
         };
-        Some(storage.local.selected_execution_ids(at.clone(), scope, Vec::new()).await?.into_iter().map(|id| id.to_string()).collect())
+        Some(storage.local.selected_execution_ids(at.clone(), scope).await?.into_iter().map(|id| id.to_string()).collect())
     } else {
         primary.as_ref().map(|id| vec![id.clone()])
     };
