@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import type { NotificationFailure } from "@/lib/notification-details";
 import type { SeriesSummary } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
@@ -61,6 +62,7 @@ export type PlotCardSpec = {
   referenceBands: DocumentReferenceBand[];
   stateLabel?: string;
   stateDetail?: string;
+  failure?: NotificationFailure;
   contextSummary?: string;
   context?: Record<string, unknown>;
   windowS?: number | null;

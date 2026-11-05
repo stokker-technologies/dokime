@@ -9,6 +9,9 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import type { NotificationFailure } from "@/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type uPlot from "uplot";
 
@@ -247,7 +250,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const redrawFrameRef = useRef<number | null>(null);
   const updateFrameRef = useRef<number | null>(null);
   const [uPlotConstructor, setUPlotConstructor] = useState<UPlotConstructor | null>(null);
-  const [plotLoadError, setPlotLoadError] = useState<string | null>(null);
+  const [plotLoadError, setPlotLoadError] = useState<NotificationFailure | null>(null);
   // Whether the canvas root has a width yet. A card mounts before the grid
   // has laid it out, and uPlot built at zero width computes a negative plot
   // area, whose tick search finds no increment and pushes splits until the
@@ -288,7 +291,8 @@ export const CartesianPlot = memo(function CartesianPlot({
     renderedSeries.some((item) => item.points.length > 0) || Boolean(backendCartesian?.series.some((item) => item.x.length > 0));
   const frameError =
     (cartesian != null || hasTimeline) && !backendCartesian ? "The plot data could not be rendered. Reload the plot to try again." : null;
-  const displayError = plotLoadError ?? frameError;
+  const displayError =
+    plotLoadError ?? (frameError ? failureOf(frameError, "Plot Unavailable", ["plot-frame", title, resetKey, frameError].join(":")) : null);
   const chartMode = chartFrame?.mode ?? null;
   const dataSignature = chartFrame?.signature ?? null;
   const renderedPointCount = chartFrame?.pointCount ?? 0;
@@ -311,7 +315,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         if (cancelled) {
           return;
         }
-        setPlotLoadError(error instanceof Error ? error.message : String(error));
+        setPlotLoadError(failureOf(error, "Plot Unavailable"));
       });
     return () => {
       cancelled = true;
@@ -564,7 +568,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
       plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root), zoom), root);
     } catch (error) {
-      setPlotLoadError(plotFailureMessage(error));
+      setPlotLoadError(failureOf(error, "Plot Unavailable"));
       return;
     }
     if (resetKeyRef.current !== resetKey || viewportModeRef.current !== viewportMode) {
@@ -606,7 +610,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.setSize(nextSize);
         if (zoom) plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
       } catch (error) {
-        setPlotLoadError(plotFailureMessage(error));
+        setPlotLoadError(failureOf(error, "Plot Unavailable"));
       }
     };
     const scheduleResize = () => {
@@ -793,7 +797,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           plot.setData(fullRange(), true);
         }
       } catch (error) {
-        setPlotLoadError(plotFailureMessage(error));
+        setPlotLoadError(failureOf(error, "Plot Unavailable"));
         return;
       }
       resetKeyRef.current = resetKey;
@@ -803,7 +807,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale, zoom]);
 
   const placeholder = displayError
-    ? plotUnavailableText(displayError)
+    ? plotUnavailableText(displayError.message)
     : !hasData
       ? hasTimeline
         ? plotPlaceholderText(
@@ -870,7 +874,9 @@ export const CartesianPlot = memo(function CartesianPlot({
           ) : null}
         </div>
       </div>
-      {placeholder ? (
+      {displayError ? (
+        <ErrorCard failure={displayError} />
+      ) : placeholder ? (
         <PlotPlaceholder {...placeholder} />
       ) : (
         <div className="relative min-w-0 max-w-full">
@@ -1148,11 +1154,6 @@ function windowServes(drawn: DrawnWindow, range: PlotViewportRange): boolean {
   // The whole-extent reduction serves only a view of the whole extent.
   const x = (drawn.source?.[0] ?? []) as number[];
   return x.length === 0 || (range.min <= x[0] && range.max >= x[x.length - 1]);
-}
-
-function plotFailureMessage(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error);
-  return `The plot could not be drawn: ${text}`;
 }
 
 function intervalRangeData(series: PlotSeries[], scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale }): IntervalRange[] {

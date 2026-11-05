@@ -39,6 +39,8 @@
 
 // Third Party Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import {
   BellRing,
@@ -178,12 +180,7 @@ export function CycleSidebarCasesView({
   const report = (outcome: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
       .then(() => toast.success(outcome.done))
-      .catch((error: unknown) =>
-        toast.error(outcome.failed, {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, outcome.failed)));
   };
 
   const select = (next: CycleSelection) => {
@@ -316,11 +313,9 @@ export function CycleSidebarCasesView({
               // biome-ignore lint/a11y/useSemanticElements: a tree node's children are an ARIA group, which no native element expresses.
               <ul className="grid min-w-0 gap-px" ref={rowWindow.anchor as RefObject<HTMLUListElement | null>} role="group">
                 {detailQuery.isError ? (
-                  <TreeNotice
-                    action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
-                    message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle's cases could not be read."}
-                    title="Cases Unavailable"
-                  />
+                  <li role="none">
+                    <ErrorCard failure={failureOf(detailQuery.error, "Cases Unavailable")} onRetry={() => void detailQuery.refetch?.()} />
+                  </li>
                 ) : rows.length === 0 ? (
                   <TreeNotice
                     action={
@@ -373,11 +368,9 @@ export function CycleSidebarCasesView({
             ) : null}
           </li>
         ) : detailQuery.isError ? (
-          <TreeNotice
-            action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
-            message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle could not be read."}
-            title="Cycle Unavailable"
-          />
+          <li role="none">
+            <ErrorCard failure={failureOf(detailQuery.error, "Cycle Unavailable")} onRetry={() => void detailQuery.refetch?.()} />
+          </li>
         ) : (
           <TreeNotice message="Reading this cycle's cases." title="Loading" />
         )}

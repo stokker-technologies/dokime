@@ -347,7 +347,10 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         )
         .await
         .unwrap();
-    assert!(!plots.is_empty());
+    assert_eq!(
+        plots[0].payload.series.iter().flat_map(|series| series.points.iter().map(|point| point.y)).collect::<Vec<_>>(),
+        [Some(1.0)]
+    );
     drop(plots);
     let aggregate = runtime
         .aggregate(dokime_runtime::runtime::query::aggregate::AggregateQuery {

@@ -17,6 +17,8 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { toast } from "@/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Mic, Monitor, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -80,7 +82,8 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
       setStatus(`Saved ${name}`);
       await refresh();
     } catch (error) {
-      setStatus(errorMessage(error));
+      toast.error(failureOf(error, "Media Capture Failed"));
+      setStatus(null);
     } finally {
       setActivity("idle");
     }
@@ -99,7 +102,8 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
       const name = await started.done;
       setStatus(name ? `Saved ${name}` : "Recording saved");
     } catch (error) {
-      setStatus(errorMessage(error));
+      toast.error(failureOf(error, "Media Capture Failed"));
+      setStatus(null);
     } finally {
       recording.current = null;
       setActivity("idle");
@@ -110,7 +114,7 @@ function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { iden
   async function stopRecording() {
     setActivity("stopping");
     stopRequested.current = true;
-    await recording.current?.stop().catch((error: unknown) => setStatus(errorMessage(error)));
+    await recording.current?.stop().catch((error: unknown) => toast.error(failureOf(error, "Audio Could Not Be Saved")));
   }
 
   return (
@@ -160,8 +164,4 @@ function formatElapsed(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -1,3 +1,4 @@
+import type { NotificationFailure } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -14,6 +15,7 @@
 // Third Party Imports
 
 // Local Imports
+import { failureOf } from "@/lib/notification-details";
 import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -29,7 +31,7 @@ export type NativeReportSource = Extract<ArtifactSource, { kind: "cycle_report" 
 
 export interface SavedReport {
   path: string;
-  openFailure: string | null;
+  openFailure: NotificationFailure | null;
 }
 
 /* === Classes === */
@@ -63,7 +65,7 @@ export async function downloadNativeReport(
     await commands.desktopOpenPath(delivered.path);
     return { path: delivered.path, openFailure: null };
   } catch (error) {
-    return { path: delivered.path, openFailure: error instanceof Error ? error.message : String(error) };
+    return { path: delivered.path, openFailure: failureOf(error, "The Saved Report Could Not Be Opened") };
   }
 }
 

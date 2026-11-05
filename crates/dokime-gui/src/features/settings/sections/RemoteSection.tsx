@@ -15,6 +15,8 @@
 
 // Standard Library Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -32,13 +34,7 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
 import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
-import {
-  commitListener,
-  type ListenerChange,
-  type ListenerStatus,
-  listenerError,
-  listenerRunning,
-} from "@/features/settings/sections/remote-listener";
+import { commitListener, type ListenerChange, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { toast } from "@/lib/notifications";
@@ -106,7 +102,8 @@ function ConnectedRemoteSection({
   if (query.error || !query.data.settings) {
     return (
       <SettingsCard title="Remote Access">
-        <SettingsRow label="Remote Settings" failure={query.error} error={message(query.error)}>
+        <SettingsRow label="Remote Settings">
+          <ErrorCard failure={failureOf(query.error, "Remote Settings Unavailable")} onRetry={() => void query.refetch()} />
           <Button variant="outline" onClick={() => void query.refetch()}>
             Try Again
           </Button>
@@ -132,7 +129,6 @@ function ListenerControls({
   const queryKey = ["settings", "remote-listener", session.identity.generation];
   const [busy, setBusy] = useState(false);
   const [clientsRevision, setClientsRevision] = useState(0);
-  const [pairingError, setPairingError] = useState<string | null>(null);
   const settings = status.settings;
   if (!settings) throw new Error("Backend omitted listener settings.");
   const running = listenerRunning(status);
@@ -143,7 +139,7 @@ function ListenerControls({
     return updated;
   };
   const fail = (title: string, description: string, error?: unknown) => {
-    toast.error(title, { description, error });
+    toast.error(failureOf(error, title), { description });
     void client.invalidateQueries({ queryKey });
   };
   const run = async <T,>(work: () => Promise<T>): Promise<T> => {
@@ -167,7 +163,6 @@ function ListenerControls({
     });
 
   async function createPairing() {
-    setPairingError(null);
     await run(async () => {
       try {
         const path = await commands.desktopPairingCreate();
@@ -178,8 +173,7 @@ function ListenerControls({
           setClientsRevision((revision) => revision + 1);
         }
       } catch (error) {
-        const reason = listenerError(error);
-        setPairingError(reason);
+        const reason = failureOf(error, "Settings Operation Failed").message;
         fail("Remote Access File Not Saved", reason, error);
         setClientsRevision((revision) => revision + 1);
       }
@@ -217,7 +211,7 @@ function ListenerControls({
                   try {
                     publish(await rpc.remoteRegenerateCertificate(session.identity, { certificateNames: settings.certificateNames }));
                   } catch (error) {
-                    fail("Certificate Generation Failed", listenerError(error), error);
+                    fail("Certificate Generation Failed", failureOf(error, "Settings Operation Failed").message, error);
                   }
                 })
               }
@@ -244,11 +238,6 @@ function ListenerControls({
               </li>
             ))}
           </ul>
-          {pairingError && (
-            <p role="alert" className="text-sm text-destructive">
-              {pairingError}
-            </p>
-          )}
           <Button disabled={busy || preferencesPending} onClick={() => void createPairing()}>
             Export Remote Access
           </Button>
@@ -384,7 +373,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           </Button>
         </form>
       )}
-      {Boolean(error) && <NotificationMessage error={error}>{listenerError(error)}</NotificationMessage>}
+      {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Settings Operation Failed").message}</NotificationMessage>}
       <div className="flex gap-2 p-4">
         <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>
           First Page
@@ -402,10 +391,6 @@ function PairedClients({ session }: { session: ConnectedSession }) {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : "Remote access settings are unavailable. Reconnect to the host and try again.";
-}
 
 function stale(): never {
   throw new Error("Backend connection changed; reconnect to check the remote settings.");

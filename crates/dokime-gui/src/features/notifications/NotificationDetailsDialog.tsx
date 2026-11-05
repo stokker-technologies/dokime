@@ -16,6 +16,9 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
+import { FailureDetails } from "@/components/FailureDetails";
 import { useRef, useState } from "react";
 
 // Local Imports
@@ -95,48 +98,8 @@ export function NotificationDetailsDialog() {
                   </div>
                 ))}
             </dl>
-            {!!failure?.causes?.length && (
-              <section aria-label="Causes">
-                <h3 className="mb-2 font-medium">Root Cause</h3>
-                <ol className="list-decimal space-y-2 pl-5">
-                  {detailEntries(failure.causes, (cause) => cause).map(({ key, value: cause }) => (
-                    <li key={key}>{cause}</li>
-                  ))}
-                </ol>
-              </section>
-            )}
-            {!!failure?.problems?.length && (
-              <section aria-label="Problems">
-                <h3 className="mb-2 font-medium">Problems</h3>
-                <ul className="list-disc space-y-3 pl-5">
-                  {detailEntries(failure.problems, (problem) => `${problem.label}:${problem.message}`).map(({ key, value: problem }) => (
-                    <li key={key}>
-                      <strong>{problem.label}</strong>: {problem.message}
-                      {!!problem.causes?.length && (
-                        <ol className="list-decimal pl-5">
-                          {detailEntries(problem.causes, (cause) => cause).map(({ key, value: cause }) => (
-                            <li key={key}>{cause}</li>
-                          ))}
-                        </ol>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
             <FailureConsequences items={record.consequences ?? []} />
-            {failure?.diagnostics && (
-              <details>
-                <summary className="cursor-pointer font-medium">Technical Details</summary>
-                <textarea
-                  readOnly
-                  aria-label="Backend Diagnostics"
-                  rows={10}
-                  className="mt-2 max-h-64 w-full resize-none overflow-auto rounded border bg-muted p-3 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={failure.diagnostics}
-                />
-              </details>
-            )}
+            {failure && <FailureDetails failure={failure} />}
           </div>
         )}
         <DialogFooter showCloseButton>
@@ -150,7 +113,8 @@ export function NotificationDetailsDialog() {
               try {
                 await navigator.clipboard.writeText(notificationDetailsText(record, relative));
                 setCopyStatus("Copied");
-              } catch {
+              } catch (error: unknown) {
+                toast.error(failureOf(error, "Could Not Copy Notification"));
                 setCopyStatus("Could not copy. Try again.");
               }
             }}
@@ -168,14 +132,3 @@ export function NotificationDetailsDialog() {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/** Repeated Causes Are Meaningful; Retain Each Occurrence Without Duplicate Keys. */
-function detailEntries<T>(values: readonly T[], identity: (value: T) => string): { key: string; value: T }[] {
-  const occurrences = new Map<string, number>();
-  return values.map((value) => {
-    const label = identity(value);
-    const occurrence = occurrences.get(label) ?? 0;
-    occurrences.set(label, occurrence + 1);
-    return { key: JSON.stringify([label, occurrence]), value };
-  });
-}

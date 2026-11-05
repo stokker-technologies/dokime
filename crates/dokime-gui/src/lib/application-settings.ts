@@ -17,7 +17,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { ApplicationSettings } from "@generated/application-settings";
 import defaults from "@generated/application-settings.json";
-import { preferencesError, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
+import { usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 
 /* === Types === */
 
@@ -87,8 +87,6 @@ export function useSaveAppearance() {
 export function useReportDefaults(): ReportDefaults {
   return useApplicationSettings().data?.report ?? BUILT_IN_REPORT_DEFAULTS;
 }
-
-export const applicationSettingsError = preferencesError;
 
 /* === Private Functions === */
 

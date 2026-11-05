@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import { toast } from "@/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -57,7 +59,8 @@ export function useRuntimeStream(): void {
     const documentRefresh = createThrottledRefresh(() => {
       invalidateRuntimeDocuments(queryClient).catch((error: unknown) => {
         if (!active || !session.identity.isCurrent()) return;
-        setHubState({ error: error instanceof Error ? error.message : String(error) });
+        toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
+        setHubState({ error: failureOf(error, "Runtime Stream Failed").message });
       });
     }, DOCUMENT_REFRESH_MS);
     const refreshCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
@@ -93,8 +96,9 @@ export function useRuntimeStream(): void {
         }
       } catch (error: unknown) {
         if (active && session.identity.isCurrent()) {
+          toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
           setHubState({
-            error: error instanceof Error ? error.message : String(error),
+            error: failureOf(error, "Operation Failed").message,
           });
         }
       } finally {
@@ -146,7 +150,8 @@ function handleRuntimeFrame(
       }) > 0;
     void refreshCoordinator.request({ ensureTrailing }).catch((error: unknown) => {
       if (!isActive()) return;
-      setHubState({ error: error instanceof Error ? error.message : String(error) });
+      toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
+      setHubState({ error: failureOf(error, "Runtime Stream Failed").message });
     });
   }
   return cursor ?? observed;

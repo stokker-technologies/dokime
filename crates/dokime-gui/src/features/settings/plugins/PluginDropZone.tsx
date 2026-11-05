@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
@@ -114,10 +115,7 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
       })
       .catch((error: unknown) => {
         if (disposed) return;
-        toast.error("Plugin File Drop Unavailable", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error(failureOf(error, "Plugin File Drop Unavailable"));
       });
     return () => {
       disposed = true;

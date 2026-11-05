@@ -20,6 +20,7 @@
 
 /* === Local Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { useSettingsFrameQuery } from "@/features/settings/settings-queries";
 import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/settings-sections";
@@ -45,7 +46,7 @@ export function useSettingsSections(enabled = true): SettingsSectionsState {
   const frame = query.data ?? null;
 
   return {
-    error: query.error instanceof Error ? query.error.message : query.isError ? "Settings could not be loaded." : null,
+    error: query.isError ? failureOf(query.error, "Settings Unavailable").message : null,
     failure: query.error,
     frame,
     loading: enabled && query.isPending,

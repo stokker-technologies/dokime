@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -88,10 +90,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
         setInstallOpen(false);
       }
     } catch (error) {
-      toast.error("Plugin Installation Failed", {
-        error,
-        description: errorMessage(error, "The plugin could not be installed.") ?? undefined,
-      });
+      toast.error(failureOf(error, "Plugin Installation Failed"));
     } finally {
       setUploadingFilename(null);
     }
@@ -116,7 +115,13 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           label="Organization Release Source"
           failure={releaseMutation.error}
           description="Discover compatible plugins from the source selected under Updates."
-          error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
+          error={
+            releaseMutation.isError
+              ? releaseMutation.error
+                ? failureOf(releaseMutation.error, "Plugin Operation Failed").message
+                : null
+              : null
+          }
         />
         {releaseMutation.data?.map((release) => (
           <SettingsRow
@@ -145,12 +150,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
             </div>
           ) : pluginsQuery.isError || programsQuery.isError ? (
             <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-              <div>
-                <p className="font-medium">Plugins could not be loaded</p>
-                <NotificationMessage>
-                  {errorMessage(pluginsQuery.error ?? programsQuery.error, "Try loading the plugin registry again.")}
-                </NotificationMessage>
-              </div>
+              <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
               <Button
                 onClick={() => {
                   void pluginsQuery.refetch();
@@ -186,11 +186,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
               enabledMutation.mutate(
                 { installId: entry.install_id, enabled },
                 {
-                  onError: (error) =>
-                    toast.error("Plugin Change Failed", {
-                      error,
-                      description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
-                    }),
+                  onError: (error) => toast.error(failureOf(error, "Plugin Change Failed")),
                 },
               )
             }
@@ -214,7 +210,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           <PluginDropZone
             failure={installMutation.error}
             disabled={installMutation.isPending}
-            error={errorMessage(installMutation.error, "The plugin could not be installed.")}
+            error={installMutation.error ? failureOf(installMutation.error, "Plugin Operation Failed").message : null}
             filename={uploadingFilename}
             onDrop={(filename) => void handleInstall("drop", filename)}
             onPick={() => void handleInstall("pick", null)}
@@ -239,7 +235,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
             <NotificationMessage error={removeMutation.error}>
-              {errorMessage(removeMutation.error, "The plugin could not be removed.")}
+              {removeMutation.error ? failureOf(removeMutation.error, "Plugin Operation Failed").message : null}
             </NotificationMessage>
           ) : null}
           <DialogFooter>
@@ -257,11 +253,3 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
 }
 
 /* === Private Functions === */
-
-function errorMessage(error: unknown, fallback: string): string | null {
-  if (!error) {
-    return null;
-  }
-  if (typeof error === "string" && error.trim()) return error;
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
-}

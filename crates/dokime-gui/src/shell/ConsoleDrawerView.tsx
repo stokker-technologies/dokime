@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { ErrorCard } from "@/components/ErrorCard";
 import { ArrowDownToLine, Eraser, X } from "lucide-react";
 import { type UIEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -177,7 +178,9 @@ export function LiveConsoleView({
 
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
         <div>
-          {streamed.error ? (
+          {streamed.failure ? (
+            <ErrorCard failure={streamed.failure} />
+          ) : streamed.error ? (
             <p role="status" className="px-[var(--shell-inset)] py-1 text-xs text-muted-foreground">
               {streamed.error}
             </p>

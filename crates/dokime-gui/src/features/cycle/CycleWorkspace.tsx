@@ -30,6 +30,8 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -205,12 +207,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           description: origin === "Current" ? "Generated from the run so far." : undefined,
         }),
       )
-      .catch((error: unknown) =>
-        toast.error("The Report Could Not Be Opened", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Opened")));
   };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
   const archiveAction = (
@@ -232,32 +229,20 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
       .then(() => toast.success(report.done))
-      .catch((error: unknown) =>
-        toast.error(report.failed, {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, report.failed)));
   };
 
   if (detailQuery.isError && !plan) {
-    return (
-      <WorkspaceNotice
-        action={{ label: "Try Again", onClick: () => void detailQuery.refetch() }}
-        message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle could not be read from the backend."}
-        title="Cycle Unavailable"
-      />
-    );
+    return <ErrorCard failure={failureOf(detailQuery.error, "Cycle Unavailable")} onRetry={() => void detailQuery.refetch?.()} />;
   }
 
   if (!plan) {
     return detailQuery.isPending ? (
       <WorkspaceNotice message="Reading this cycle from the backend." title="Loading" />
     ) : (
-      <WorkspaceNotice
-        action={{ label: "Go To Cycles", onClick: () => void navigate({ to: "/cycles" }) }}
-        message="This cycle could not be found on the connected backend. Return to Cycles or inspect its saved history."
-        title="Cycle Not Found"
+      <ErrorCard
+        failure={failureOf("This cycle could not be found on the connected backend.", "Cycle Not Found", `missing-cycle:${cycleId}`)}
+        onRetry={() => void detailQuery.refetch()}
       />
     );
   }
@@ -427,9 +412,13 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
                 state={control.line}
               >
                 {phase === "seal_failed" && plan.test_cycle.seal_failure ? (
-                  <p className="text-sm text-destructive" data-seal-failure>
-                    {plan.test_cycle.seal_failure}
-                  </p>
+                  <ErrorCard
+                    failure={failureOf(
+                      plan.test_cycle.seal_failure,
+                      "Cycle Finalization Failed",
+                      [cycleId, "seal", plan.test_cycle.seal_failure].join(":"),
+                    )}
+                  />
                 ) : null}
                 {waiting ? (
                   <p className="grid auto-cols-max grid-flow-col items-baseline gap-x-2 text-sm" data-input-needed>
