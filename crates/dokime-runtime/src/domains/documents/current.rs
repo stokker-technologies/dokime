@@ -165,7 +165,8 @@ impl PreparedCurrentDocument {
         };
         artifacts |= crate::document::binding::artifacts_needed(&self.definition);
         let records = crate::document::binding::records_needed(&self.definition);
-        let acquired = acquire(&self.runtime, &self.selection, &self.snapshot, records, telemetry, artifacts).await?;
+        let acquired = acquire(&self.runtime, &self.selection, &self.snapshot, records, telemetry, artifacts, None).await?;
+        let records: crate::storage::ReadRows<_> = acquired.records.into();
         let input = DocumentResolveInput {
             definition: self.definition,
             selection: self.selection,
@@ -176,12 +177,13 @@ impl PreparedCurrentDocument {
         if let Some(id) = &input.selection.scope.test_execution_id {
             let execution = self.snapshot.state().executions.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
             borrowed.data.records = crate::document::input::Records::Subscribed {
-                rows: (&acquired.records).into(),
+                rows: (&records).into(),
                 captures: &execution.records,
             };
         }
         borrowed.data.telemetry = acquired.telemetry.as_deref().map_or(&[], Vec::as_slice);
-        borrowed.data.artifacts = crate::document::input::Artifacts::Native(acquired.artifacts.as_deref().unwrap_or(&[]));
+        borrowed.data.artifacts =
+            crate::document::input::Artifacts::Native(acquired.artifacts.as_ref().map_or(&[], |records| records.as_slice()));
         let capture = capture_document_borrowed(borrowed, limits).map_err(|error| match error {
             crate::Error::Document(crate::document::DocumentFailure::Limit) => DocumentAcquisitionFailure::Limit,
             error => DocumentAcquisitionFailure::Source(error.to_string()),

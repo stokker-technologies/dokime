@@ -81,24 +81,8 @@ impl RuntimeHandle {
             selection.scope.test_cycle_id = Some(test_cycle_id.clone());
         }
         let snapshot = self.capture_state().await?;
-        let session = self.storage().clone();
-        let at = self.saved_through(snapshot.revision()).await?;
-        let telemetry = self
-            .collect_telemetry_at_in(
-                &session,
-                &crate::evidence_runtime::TelemetrySelection {
-                    scope: selection.evidence_scope(),
-                    ..Default::default()
-                },
-                None,
-                None,
-                &at,
-            )
-            .await?;
-        let records = self.record_pages_at_in(&session, &snapshot, &at).await?;
-        let artifacts = self.artifacts_at_in(&session, &at).await?;
+        let data = self.document_data(&selection, &snapshot).await?;
         let state = snapshot.state();
-        let data = crate::documents::RuntimeDocumentData { records, telemetry, artifacts };
         let Some(cycle) = state.cycles.get(test_cycle_id) else {
             return Ok(None);
         };
@@ -116,6 +100,29 @@ impl RuntimeHandle {
             return Ok(None);
         }
         Ok(Some(resolved.try_map(|document| -> Result<_> { Ok(document.expect("the retained document is present")) })?))
+    }
+
+    pub(crate) async fn document_data(
+        &self, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot,
+    ) -> Result<super::RuntimeDocumentData> {
+        let mut selection = selection.clone();
+        let execution = selection.scope.test_execution_id.as_ref().and_then(|id| snapshot.state().executions.get(id));
+        let cycle = selection.scope.test_cycle_id.as_ref().and_then(|id| snapshot.state().cycles.get(id));
+        let valid = cycle.is_some_and(|cycle| super::validate_selection(snapshot.state(), cycle, &selection.scope).is_ok());
+        let Some(execution) = execution.filter(|_| valid) else {
+            return Ok(super::RuntimeDocumentData {
+                records: harmos::storage::ReadBatch::new(Vec::new()),
+                telemetry: harmos::storage::ReadBatch::new(Vec::new()),
+                artifacts: harmos::storage::ReadBatch::new(Vec::new()),
+            });
+        };
+        super::normalize_execution_selection(execution, &mut selection.scope);
+        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, Some(Default::default())).await?;
+        Ok(super::RuntimeDocumentData {
+            records: acquired.records,
+            telemetry: acquired.telemetry.expect("telemetry was requested"),
+            artifacts: acquired.artifacts.expect("artifacts were requested"),
+        })
     }
 
     pub async fn execution_files(&self, test_execution_id: &TestExecutionId) -> Result<Vec<ExecutionFileEntry>> {

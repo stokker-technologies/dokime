@@ -2060,6 +2060,10 @@ first/last rows in one committed storage snapshot, shared across active cycle
 members. They show an **As Of** time and the saved evidence frontier for that cut;
 ingestion can continue while the report renders. Final reports retain their exact
 frozen cut.
+Live documents and HTML document replays read artifact owners and indexed records
+within their selected execution or cycle, including subscribed captures. Corrupt
+evidence outside that selection does not prevent the document from opening;
+corrupt evidence or inconsistent ownership within the selection still fails.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 

@@ -116,15 +116,29 @@ impl super::State {
                     }
                     check_digest(body, blob(row, 2)?)?;
                     let Entry::Record(record) = Entry::decode("record", body)? else { unreachable!() };
+                    at.history.check(&record.position.history)?;
+                    if record.schema != crate::storage::records::schema() {
+                        return Err(Error::Corrupt("record capture schema differs from its index"));
+                    }
                     let indexed = super::sequence(&row.get::<_, String>(0)?)?;
                     if record.position.sequence != indexed {
                         return Err(Error::Corrupt("record capture index position differs"));
                     }
                     let epoch = record.scope.as_ref().ok_or(Error::Corrupt("captured record has no process epoch"))?;
+                    if epoch.as_str().bytes().any(|byte| byte.is_ascii_uppercase())
+                        || record.source.is_some()
+                        || record.source_time.is_some()
+                    {
+                        return Err(Error::Corrupt("captured record envelope differs from its declared schema"));
+                    }
+                    let entry = RecordRow::decode_entry(&record.payload)?;
+                    if record.item.as_str() != entry.record_id.as_str() {
+                        return Err(Error::Corrupt("captured record key differs from payload identity"));
+                    }
                     output.push(ScopedRecord {
                         position: indexed,
                         epoch: dokime_domain::model::identity::SessionId::from_uuid(epoch.as_str())?,
-                        record: RecordRow::decode_entry(&record.payload)?,
+                        record: entry,
                     });
                     bytes += body.len();
                 }
