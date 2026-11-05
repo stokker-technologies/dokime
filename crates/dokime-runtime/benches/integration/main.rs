@@ -15,11 +15,16 @@
 mod capture;
 mod finalization;
 mod plots;
+mod samples;
 mod telemetry;
 
 #[path = "../../tests/support/services/mod.rs"]
 #[allow(dead_code)]
 pub mod service_support;
+
+#[path = "../../tests/support/query_telemetry.rs"]
+#[allow(dead_code)]
+mod query_telemetry;
 
 /* === Re-Exports === */
 
@@ -34,7 +39,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
+criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark, samples::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

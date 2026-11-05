@@ -819,7 +819,7 @@ fn scope_terms(scope: Option<&dokime_domain::model::execution::RecordScope>, ter
     Ok(true)
 }
 
-fn index(row: &rusqlite::Row<'_>) -> rusqlite::Result<ipc::BatchIndex> {
+pub(super) fn index(row: &rusqlite::Row<'_>) -> rusqlite::Result<ipc::BatchIndex> {
     Ok(ipc::BatchIndex {
         offset: catalog::unsigned(row, 0)?,
         metadata_bytes: row.get(1)?,

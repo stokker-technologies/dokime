@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Local Imports
 use super::{
+    batches::{Batch, Cell},
     samples::{self, Plan},
     snapshots::{QuerySnapshot, Seek},
     statistics::{finite, numeric_field},
@@ -39,7 +40,6 @@ use dokime_domain::model::{
         reduction::{Bucket, BucketValue, StatisticValue},
         schema::FieldType,
     },
-    values::numeric_value,
 };
 use dokime_operations::query::ListSamples;
 
@@ -116,87 +116,99 @@ impl RuntimeHandle {
         let selection = plan.selection.clone();
         let execution = request.execution_id.clone();
         let stream = request.stream.clone();
-        let (buckets, work, _) = self
+        let (buckets, work) = self
             .local_storage
-            .query_telemetry(plan.read, QueryWork::new(config.clone(), operation), Buckets::default(), move |state, _, sample| {
-                if !samples::matches(&selection, &sample) {
-                    return Ok(None);
-                }
-                let time = sample
-                    .timestamp
-                    .to_datetime()
-                    .map_err(|_| Failure::new(Reason::Corruption, operation, "Invalid bucket input timestamp"))?
-                    .unix_timestamp_nanos();
-                let start = aligned(time, every);
-                let partition = String::from_utf8(tokens::bounded_json(
-                    &[execution.as_str(), stream.as_str(), sample.source.as_str()],
-                    config.limits().token_bytes,
-                    operation,
-                )?)
-                .expect("UTF-8 partition");
-                if !state.partitions.contains(&partition) {
-                    config.bound(state.partitions.len() + 1, config.limits().partitions, "partitions", operation)?;
-                    state.partitions.insert(partition.clone());
-                }
-                let key = Key { start, partition };
-                if !state.groups.contains_key(&key) {
-                    if state.groups.len() >= config.limits().buckets {
-                        let mut failure =
-                            Failure::new(Reason::BucketLimit, operation, "Bucket state exhausted; narrow the window or increase every");
-                        failure.limit = Some(EffectiveLimit {
-                            name: "buckets".into(),
-                            value: config.limits().buckets as u64,
-                        });
-                        return Err(failure);
-                    }
-                    let bytes = selection.schema().fields.len().saturating_mul(std::mem::size_of::<Reduction>())
-                        + key.partition.len() * 2
-                        + sample.source.len()
-                        + selection.schema().versions.len() * 64
-                        + 512;
-                    config.bound(
-                        state.memory.saturating_add(bytes),
-                        config.limits().working_bytes as usize / 4,
-                        "working_bytes",
-                        operation,
-                    )?;
-                    state.memory += bytes;
-                    let fields = selection.schema().fields.iter().map(|_| Reduction::default()).collect();
-                    state.groups.insert(
-                        key.clone(),
-                        Group {
-                            samples: 0,
-                            source: sample.source.clone(),
-                            versions: BTreeSet::new(),
-                            fields,
-                        },
-                    );
-                }
-                let group = state.groups.get_mut(&key).expect("admitted bucket");
-                group.samples += 1;
-                group.versions.insert(sample.schema_version);
-                for (field, reduction) in selection.schema().fields.iter().zip(&mut group.fields) {
-                    let Some(value) = sample.values.get(&field.id).and_then(numeric_value) else {
-                        continue;
-                    };
-                    let value = if value == 0.0 { 0.0 } else { value };
-                    reduction.moments.push(value).map_err(|_| Failure::new(Reason::WorkLimit, operation, "Bucket counter overflow"))?;
-                    if matches!(aggregate, harmos::Aggregate::Sum | harmos::Aggregate::Mean) {
-                        let (exponent, mantissa) = Sum::parts(value);
-                        if !reduction.sum.bins.contains_key(&exponent) {
+            .query_native_batches(
+                plan.read,
+                QueryWork::new(config.clone(), operation),
+                Buckets::default(),
+                move |state, input, contract| {
+                    let batch = Batch::new(&input, &contract, operation);
+                    let columns = selection.schema().fields.iter().map(|field| batch.column(&field.id)).collect::<Vec<_>>();
+                    for row in 0..input.num_rows() {
+                        if !batch.matches(&selection, row)? {
+                            continue;
+                        }
+                        let source = batch.source(row);
+                        let time = batch.time("timestamp", row)?.unix_timestamp_nanos();
+                        let start = aligned(time, every);
+                        let partition = String::from_utf8(tokens::bounded_json(
+                            &[execution.as_str(), stream.as_str(), source],
+                            config.limits().token_bytes,
+                            operation,
+                        )?)
+                        .expect("UTF-8 partition");
+                        if !state.partitions.contains(&partition) {
+                            config.bound(state.partitions.len() + 1, config.limits().partitions, "partitions", operation)?;
+                            state.partitions.insert(partition.clone());
+                        }
+                        let key = Key { start, partition };
+                        if !state.groups.contains_key(&key) {
+                            if state.groups.len() >= config.limits().buckets {
+                                let mut failure = Failure::new(
+                                    Reason::BucketLimit,
+                                    operation,
+                                    "Bucket state exhausted; narrow the window or increase every",
+                                );
+                                failure.limit = Some(EffectiveLimit {
+                                    name: "buckets".into(),
+                                    value: config.limits().buckets as u64,
+                                });
+                                return Err(failure);
+                            }
+                            let bytes = selection.schema().fields.len().saturating_mul(std::mem::size_of::<Reduction>())
+                                + key.partition.len() * 2
+                                + source.len()
+                                + selection.schema().versions.len() * 64
+                                + 512;
                             config.bound(
-                                state.memory.saturating_add(128),
+                                state.memory.saturating_add(bytes),
                                 config.limits().working_bytes as usize / 4,
                                 "working_bytes",
                                 operation,
                             )?;
-                            state.memory += 128;
+                            state.memory += bytes;
+                            let fields = selection.schema().fields.iter().map(|_| Reduction::default()).collect();
+                            state.groups.insert(
+                                key.clone(),
+                                Group {
+                                    samples: 0,
+                                    source: source.to_owned(),
+                                    versions: BTreeSet::new(),
+                                    fields,
+                                },
+                            );
                         }
-                        reduction.sum.push(exponent, mantissa, operation)?;
+                        let group = state.groups.get_mut(&key).expect("admitted bucket");
+                        group.samples += 1;
+                        group.versions.insert(contract.schema_version);
+                        for (column, reduction) in columns.iter().zip(&mut group.fields) {
+                            let Cell::Number(value) = column.cell(row) else {
+                                continue;
+                            };
+                            let value = if value == 0.0 { 0.0 } else { value };
+                            reduction
+                                .moments
+                                .push(value)
+                                .map_err(|_| Failure::new(Reason::WorkLimit, operation, "Bucket counter overflow"))?;
+                            if matches!(aggregate, harmos::Aggregate::Sum | harmos::Aggregate::Mean) {
+                                let (exponent, mantissa) = Sum::parts(value);
+                                if !reduction.sum.bins.contains_key(&exponent) {
+                                    config.bound(
+                                        state.memory.saturating_add(128),
+                                        config.limits().working_bytes as usize / 4,
+                                        "working_bytes",
+                                        operation,
+                                    )?;
+                                    state.memory += 128;
+                                }
+                                reduction.sum.push(exponent, mantissa, operation)?;
+                            }
+                        }
                     }
-                }
-                Ok(None)
-            })
+                    Ok(())
+                },
+            )
             .await?;
         work.check()?;
         let mut schema = plan.selection.schema().clone();
