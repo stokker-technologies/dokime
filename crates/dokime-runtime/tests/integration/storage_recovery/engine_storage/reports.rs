@@ -115,6 +115,7 @@ pub(crate) async fn report_publication_reopens() {
         records: Default::default(),
         continue_automatically: false,
         result: None,
+        seal_failure: None,
     };
     let input = reports::Input {
         owner: reports::Owner::Cycle(&owner),

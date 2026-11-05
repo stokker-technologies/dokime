@@ -26,7 +26,6 @@ use super::PluginHost;
 use crate::RuntimeHandle;
 use crate::domains::installed_plugins::PluginRestart;
 use crate::runtime::BackgroundTask;
-use dokime_domain::model::execution::result::{CyclePhase, CycleStatus};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -305,16 +304,14 @@ impl RuntimeHandle {
     }
 
     // `Some` While Any Cycle Is Active: Running, Paused Or Stopping, Sealing, Or Settling A Run.
+    // A Failed Seal Has Settled And Holds Nothing.
     //
     // Every execution runs in a cycle, so this covers every running or prepared
     // execution too. A provider run settles after its cycle returns to Ready and
     // starts the cycle's next case before it does, so the gap between two cases
     // counts. The inner value is such a run, which the restarter can wait on.
     pub(in crate::runtime) fn active_cycle(&self) -> Option<Option<CancellationToken>> {
-        let cycling = self.state_read().cycles.values().any(|cycle| {
-            matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
-                || cycle.phase == CyclePhase::Sealing
-        });
+        let cycling = self.state_read().cycles.values().any(crate::transactions::lifecycle::cycle_in_flight);
         let settling = {
             let tasks = self.provider_tasks.lock().expect("provider task lock poisoned");
             tasks.iter().find(|task| !task.settled.is_cancelled()).map(|task| task.settled.clone())

@@ -236,7 +236,7 @@ impl RuntimeHandle {
                 if let Err(failure) = runtime
                     .commit(crate::transactions::FailReport {
                         execution: execution.test_execution_id.clone(),
-                        cause: error.to_string(),
+                        cause: crate::runtime::error::chain_message(&error),
                     })
                     .await
                 {

@@ -353,6 +353,7 @@ impl RuntimeState {
                 records: view.records,
                 continue_automatically: view.continue_automatically,
                 result: view.result,
+                seal_failure: None,
             },
         );
         Ok(())

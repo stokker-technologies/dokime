@@ -460,6 +460,7 @@ fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, s
         CyclePhase::Active => "active",
         CyclePhase::Sealing => "sealing",
         CyclePhase::Sealed => "sealed",
+        CyclePhase::SealFailed => "seal_failed",
     };
     assert_eq!(stored, expected, "cycle context in {}", path.display());
 

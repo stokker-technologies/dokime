@@ -34,7 +34,7 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
-  phase: "active" | "sealing" | "sealed" | null;
+  phase: "active" | "sealing" | "seal_failed" | "sealed" | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;
@@ -66,7 +66,7 @@ export type ExecutionBrowseCycle = {
   cycle_id: TestCycleId;
   /** The cycle's own label; null once its header is no longer readable. */
   label: string | null;
-  phase: "active" | "sealing" | "sealed" | null;
+  phase: "active" | "sealing" | "seal_failed" | "sealed" | null;
   lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
   result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
   case_count: number;

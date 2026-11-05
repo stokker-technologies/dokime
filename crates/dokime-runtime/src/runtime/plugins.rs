@@ -786,18 +786,25 @@ impl PluginHost {
                 .await
                 .map_err(operation)?;
         }
-        let cycles = self.handle.state_read().cycles.keys().cloned().collect::<Vec<_>>();
+        // A Failed Seal Already Settled; Only An Explicit Retry Seals It Again.
+        let cycles = self
+            .handle
+            .state_read()
+            .cycles
+            .values()
+            .filter(|cycle| cycle.phase != dokime_domain::model::execution::result::CyclePhase::SealFailed)
+            .map(|cycle| cycle.test_cycle_id.clone())
+            .collect::<Vec<_>>();
         if cycles.is_empty() {
             return Ok(());
         }
-        // One Unsealable Cycle Stays Retryable And Recorded; It Never Stops The Runtime From Booting.
+        // An Unsealable Cycle Settles As SealFailed With Its Cause; It Never Stops The Runtime From Booting.
         for cycle in cycles {
             let Err(error) = self.handle.seal_cycle_inner(cycle.clone(), crate::CommandContext::default()).await else { continue };
             if self.handle.is_shutting_down() {
                 return Err(error);
             }
-            tracing::error!(%cycle, %error, "cycle could not be sealed at startup; it stays open for a later seal");
-            self.handle.record_startup_seal_failure(&cycle, &error).await;
+            tracing::error!(%cycle, %error, "cycle could not be sealed at startup");
         }
         // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
         self.handle
