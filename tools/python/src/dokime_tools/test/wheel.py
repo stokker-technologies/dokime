@@ -41,6 +41,7 @@ from ..process import spawn_flags
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
+    parser.add_argument("--stubs", action="store_true")
     options = parser.parse_args()
     root = Path.cwd()
     wheels = list((paths.output(root, "build", options.profile) / "python").glob("*.whl"))
@@ -54,7 +55,15 @@ def main() -> None:
         python = install / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         commands = [
             ["uv", "venv", str(install), "--python", sys.executable],
-            ["uv", "pip", "install", "--python", str(python), "--no-deps", str(wheels[0])],
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python),
+                str(wheels[0]),
+                *(["mypy==2.4.1", "types-protobuf"] if options.stubs else []),
+            ],
             [
                 str(python),
                 "-I",
@@ -68,6 +77,9 @@ def main() -> None:
                 ),
             ],
         ]
+        if options.stubs:
+            commands.append(["uv", "pip", "install", "--python", str(python), "polars>=2.1,<3", "pandas>=3,<4", "pandas-stubs"])
+            commands.append([str(python), "-I", str(Path(__file__).with_name("stubs.py")), "dokime"])
         for command in commands:
             result = subprocess.run(
                 command, cwd=install, env=environment, creationflags=spawn_flags(), capture_output=True, text=True, check=False

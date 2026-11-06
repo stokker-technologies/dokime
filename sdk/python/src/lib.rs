@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod client;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -21,7 +23,6 @@
 use pyo3::prelude::*;
 
 // Local Imports
-use dokime as _;
 use dokime_server as _;
 
 /* === Constants === */
@@ -44,7 +45,8 @@ use dokime_server as _;
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add("__version__", env!("CARGO_PKG_VERSION"))
+    module.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    client::register(module)
 }
 
 /* === Tests === */

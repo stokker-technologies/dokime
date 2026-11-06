@@ -4,7 +4,6 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
 [![Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
-[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 <p align="center">
@@ -117,7 +116,7 @@ Click either to inspect the full message, failure causes and available technical
 Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
 `cargo dokime installer` to package prebuilt binaries with an organization pack.
-`cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
+`cargo dokime bindings proto` exports protobuf contracts. The [CLI reference](docs/product-guide.md#cli-reference)
 contains the complete workflow, including
 [finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
@@ -134,23 +133,23 @@ dokime operation list --backend lab
 The async Python client controls a running backend with owned cycle contexts,
 terminal evidence iterators and saved bundles with digest manifests. Lazy history
 and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
-bounded dataframes with captured types. The distribution is `dokime-client`; imports use `dokime_client`.
+bounded dataframes with captured types. The distribution is `dokime-python`; imports use `dokime`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
-Development candidates currently carry the native SDK foundation. Use the released
-`dokime-client` for the client API below until its replacement is complete.
+The native SDK wraps the Rust client. Its provisional distribution is
+`dokime-python`; registry publication awaits the naming decision.
 
-Install the released client matching your backend, selecting the optional
+Install the native wheel matching your backend and platform, selecting the optional
 extra for this dataframe example:
 
 ```sh
-uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
+uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars
 ```
 
 ```python
-from dokime_client import DokimeClient, ExecutionStatus
+from dokime import DokimeClient, ExecutionStatus
 
 async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
@@ -159,8 +158,8 @@ async with DokimeClient.from_pairing("lab.dokime-remote") as client:
             print(frame, samples.metadata, samples.complete)
 ```
 
-The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles, [query limits and dataframe types](packages/dokime-client/README.md#optional-dataframes).
+The [Python client guide](sdk/python/README.md) covers authentication,
+backend profiles, [query limits and dataframe types](sdk/python/README.md#optional-dataframes).
 The example requires the corresponding installed template and stream; finite
 queries never follow or change execution state. The [remote guide](docs/remote/python.md)
 retains the complete setup and runnable lifecycle examples.

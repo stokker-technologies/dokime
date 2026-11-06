@@ -144,7 +144,7 @@ async fn verify_arrow_archive(path: &Path) {
     let python = project.join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" });
     let proof = tokio::process::Command::from(dokime_domain::process::command(python))
         .kill_on_drop(true)
-        .arg(project.join("packages/dokime-client/tests/integration/client/arrow_archive.py"))
+        .arg(project.join("sdk/python/tests/integration/client/arrow_archive.py"))
         .arg(path)
         .output()
         .await

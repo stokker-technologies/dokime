@@ -9,11 +9,11 @@
 
 ## 2. Client Parity
 
-- [ ] 2.1 Wrap the Rust client with awaitable, cancellable Python operations and typed errors.
-- [ ] 2.2 Port evidence queries, finite readers, dataframes, profiles and pairing behaviour.
-- [ ] 2.3 Write stubs for the client surface and wire stubtest against the built extension.
-- [ ] 2.4 Move the client tests to the new package, removing redundant ones.
-- [ ] 2.5 Delete `packages/dokime-client`, its generated wire code and its tooling; migrate consumers.
+- [x] 2.1 Wrap the Rust client with awaitable, cancellable Python operations and typed errors.
+- [x] 2.2 Port evidence queries, finite readers, dataframes, profiles and pairing behaviour.
+- [x] 2.3 Write stubs for the client surface and wire stubtest against the built extension.
+- [x] 2.4 Move the client tests to the new package, removing redundant ones.
+- [x] 2.5 Delete `packages/dokime-client`, its generated wire code and its tooling; migrate consumers.
 
 ## 3. Backend
 
@@ -44,8 +44,8 @@
 
 ## Workflow Follow-Up
 
-- This slice owns 1.1–1.4 only: runtime storage identity and refusal tests; `sdk/python`; Cargo/maturin manifests and locks; build, package, release and native CI wiring; affected tooling documentation. One writer owns the combined `feat/dokime-python` tree. Storage and package foundations precede targeted proof and branch delivery; later tasks remain open.
-- Slice proof: focused storage refusal tests, built-wheel import on Windows, `check:rust`, repository checks and the required diff scan. Record measurements and implementation decisions in `design.md`. Push the branch without a PR, merge or full simulation.
+- This slice owns 2.1–2.5: `sdk/python` native client wrappers, Python contexts/readers/conversions, stubs, moved client tests/examples; removal of `packages/dokime-client` and its generated wire/tooling; all referring consumers, manifests, locks, CI/task configuration and affected documentation. One writer owns `feat/dokime-python`; Rust transport precedes Python conversion, consumer migration and targeted proof.
+- Slice proof: moved client tests, built-extension stubtest, built-wheel import on Windows, `check:rust`, repository checks and the required diff scan. Record measurements and decisions in `design.md`. Push without a PR, merge or full simulation. Task 1.1 and its untracked drafts stay parked and untouched; later tasks remain open.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.
 - Depends on the separate rule that completed executions and cycles do not depend on their plugins.

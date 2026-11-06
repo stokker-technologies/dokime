@@ -824,7 +824,7 @@ jobs:
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels
-    - run: mise run check:python:generated --profile ${{ env.PROFILE }}
+    - run: mise run check:python:bindings --profile ${{ env.PROFILE }}
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=

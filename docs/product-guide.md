@@ -294,7 +294,7 @@ asynchronous connection lifecycle:
 ```python
 import asyncio
 from pathlib import Path
-from dokime_client import DokimeClient
+from dokime import DokimeClient
 
 async def main() -> int:
     async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
@@ -317,7 +317,7 @@ The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted o
 cancelled. A template expansion returns an ordered tuple of all execution handles.
 `cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
 manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
-are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
+are refused. See the [Python client guide](../sdk/python/README.md#creating-cycles).
 
 All clients try endpoint candidates in parallel with a short stagger configured
 by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
@@ -772,7 +772,7 @@ The [Remote CLI Workflows](remote/cli.md) include
 linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
-[Python examples](../packages/dokime-client/examples/remote/python/control-test.py).
+[Python examples](../sdk/python/examples/remote/python/control-test.py).
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
 The [candidate walkthrough](remote/overview.md) explains
@@ -1195,7 +1195,7 @@ snapshot. These reads never start, stop, seal or follow an execution. Existing
 `records()`/`samples()` still replay and follow through the execution seal.
 
 ```python
-from dokime_client import DokimeClient
+from dokime import DokimeClient
 
 async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
     async for execution in client.executions(template="example.measurement", status="failed"):
@@ -1208,9 +1208,9 @@ async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
 
 The selected template/stream must be installed. Install the optional helper from
 the same matching wheel, for example
-`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+`uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars`; use `--extra pandas`
 and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
-The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+The [client guide](../sdk/python/README.md#optional-dataframes) describes
 declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
 
 Factories are lazy; `pages()` pulls on demand and exposes effective limits,
@@ -1256,8 +1256,8 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 
 ### Cycles And Executions
 
-Exercised by [control-test](../packages/dokime-client/examples/remote/cli/control-test.sh)
-and [control-prompt](../packages/dokime-client/examples/remote/cli/control-prompt.sh).
+Exercised by [control-test](../sdk/python/examples/remote/cli/control-test.sh)
+and [control-prompt](../sdk/python/examples/remote/cli/control-prompt.sh).
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1331,7 +1331,7 @@ Use the generic operation command for [first and next pages](query-api.md#transp
 Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
 over those same contracts.
 
-Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
+Exercised by [control-device](../sdk/python/examples/remote/cli/control-device.sh).
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1668,7 +1668,7 @@ policies remain declared operation contracts.
 | `dokime-cli` | Installs the `dokime` command; owns parsing and commands. |
 | `dokime-domain` | Internal pure definitions, exposed as `dokime::domain`. |
 | `dokime-runtime` | Internal runtime implementation, re-exported by `dokime`. |
-| `dokime-client` | Remote implementation, exposed as `dokime::client`. |
+| `dokime-python` | Remote implementation, exposed as `dokime::client`. |
 | `dokime-server` | Shared server library embedded by CLI and GUI. |
 | `dokime-gui` | Native desktop and embedded local server ownership. |
 | `dokime-packaging`, `cargo-dokime` | Sidecar and native-installer packaging and authoring tools. |

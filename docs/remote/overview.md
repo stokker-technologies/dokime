@@ -50,7 +50,7 @@ and transfer `target/build/dev/<target>/fixtures/plugins/plugin-obc.dokime`
 when running the OBC walkthrough below.
 
 Tutorials and Python distributions are not release downloads. Check out the
-recorded candidate SHA and copy `packages/dokime-client/examples/remote/` to
+recorded candidate SHA and copy `sdk/python/examples/remote/` to
 `remote-demo/` on the remote PC. For Python, follow the
 [local wheel setup](python.md#prepare-the-environment) before transferring
 the complete tree. Keep its `cli/`, `python/` and prepared `wheels/` directories together.

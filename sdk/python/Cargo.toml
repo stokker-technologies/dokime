@@ -36,10 +36,19 @@ media-native = ["dokime-server/media-native"]
 dokime = { workspace = true, features = ["client", "native"] }
 dokime-server = { workspace = true }
 pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
+pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
 
 # === Build Dependencies === #
 
 # === Dev Dependencies === #
+
+[dev-dependencies]
+serde = { workspace = true }
 
 # === Target Dependencies === #
 
@@ -48,6 +57,10 @@ pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
 # === Bench Targets === #
 
 # === Example Targets === #
+
+[[example]]
+name = "client-contracts"
+path = "tests/fixtures/contracts.rs"
 
 # === Workspace Lints === #
 

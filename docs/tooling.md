@@ -29,8 +29,7 @@ descendants are terminated even when their leader already exited.
 
 Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`check:python:generated` type-checks the client package after the build has
-verified its generated modules.
+`check:python:bindings` checks the hand-maintained client stubs against the built extension with mypy stubtest and type-checks the SDK.
 
 `mise run build:rust:tests` packages the host and OBC fixture bundles from the
 Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
@@ -64,11 +63,7 @@ save policy. The workflows own producer selection.
 
 ## Native Python SDK Builds
 
-`sdk/python` is the native SDK foundation. Its `dokime-python` distribution and
-`dokime` import names are provisional; registry publication is refused until the
-owner settles naming. Client and backend wrappers remain in the later slices of
-`openspec/changes/dokime-python/`. The released pure client remains the public
-interface documented in the README until that replacement is complete.
+`sdk/python` contains the native Rust client wrappers and Python contexts/readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled. Backend and plugin-authoring wrappers remain in later slices of `openspec/changes/dokime-python/`.
 
 ```sh
 mise run build --profile dev
@@ -95,11 +90,19 @@ and imports the native extension with isolated Python path handling.
 
 ## Focused Python Client Checks
 
-`mise run test:python:unit --select <expression>` checks current client source in
-the root environment without a staged wheel. A focused integration selection uses
-`mise run test:python:integration --select <expression>` and also checks source.
-Full Python unit and integration tasks retain their native-wheel input while
-the client test migration remains in tasks 2.4–2.5.
+`mise run test:python:unit --select <expression>` and `mise run test:python:integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build:python`. `check:python:bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
+
+For client acceptance without the desktop or Rust test archive, build the focused
+native inputs and select their fixture root:
+
+```sh
+mise run build:python:fixtures
+mise run test:python:acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+```
+
+Use the corresponding native target directory on Linux. The foreign-operation
+socket fixtures come from Rust contract construction; refresh their JSON with
+`mise run build:rust:focused -- run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
 
 ## Hosted-Runner Test Budgets
 
