@@ -50,6 +50,12 @@ use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Enums === */
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Report,
+    FreezeAnalyses,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -76,6 +82,33 @@ pub(crate) async fn execution(
 pub(crate) async fn execution_with_evidence(
     ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation, evidence: Evidence,
 ) -> Result<ReadBatch<CapturedExecutionReportInput>> {
+    materialize_execution(ctx, inspection, final_report, operation, evidence, Mode::Report).await
+}
+
+pub(crate) async fn freeze_analyses(
+    ctx: &Scope, inspection: &ExecutionView, operation: &Operation,
+) -> Result<BTreeMap<String, super::value::Value>> {
+    let captured = inspection.source_snapshot()?;
+    let requested = captured.context.execution_documents.values().any(|document| {
+        document
+            .cards
+            .iter()
+            .map(|card| &card.body)
+            .chain(document.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)))
+            .any(|body| matches!(body, crate::document::DocumentCardBody::Plot { plot } if plot.analysis.is_some()))
+    });
+    if !requested {
+        return Ok(BTreeMap::new());
+    }
+    let request = evidence_request(inspection, false)?;
+    let mut evidence = ctx.storage.report_evidence(vec![request]).await?;
+    let report = materialize_execution(ctx, inspection, true, operation, evidence.remove(0), Mode::FreezeAnalyses).await?;
+    Ok(report.input.case_documents.iter().flat_map(|document| document.plots.clone()).collect())
+}
+
+async fn materialize_execution(
+    ctx: &Scope, inspection: &ExecutionView, final_report: bool, operation: &Operation, evidence: Evidence, mode: Mode,
+) -> Result<ReadBatch<CapturedExecutionReportInput>> {
     operation.phase("Materializing Evidence");
     // SQLite Commits Before The Manager Publishes Its Saved Acknowledgement.
     inspection.session().flush_until(&evidence.through).await?;
@@ -86,12 +119,18 @@ pub(crate) async fn execution_with_evidence(
     }
     let execution = inspection.execution();
     #[cfg(feature = "testing")]
-    if final_report {
+    if final_report && mode == Mode::Report {
         crate::domains::execution::run::testing::record(&execution.test_execution_id, "report");
     }
     #[cfg(feature = "testing")]
-    crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
+    if mode == Mode::Report {
+        crate::domains::execution::run::testing::before_report(&execution.test_execution_id).await?;
+    }
     let mut captured = captured.clone();
+    // Retry May Raise Processing Budgets Without Changing Frozen Presentation Or Evidence.
+    let limits = ctx.storage.read_application_settings().await?.settings.report;
+    captured.report_defaults.source_bytes = limits.source_bytes;
+    captured.report_defaults.value_depth = limits.value_depth;
     captured.evidence_through = evidence.through;
     if !final_report && execution.finished_at.is_none() {
         captured.captured_at = evidence.captured_at;
@@ -183,6 +222,9 @@ pub(crate) async fn execution_with_evidence(
                         .unwrap_or(captured.report_defaults.plot_points as usize)
                         .min(captured.report_defaults.plot_points as usize),
                 );
+                if mode == Mode::FreezeAnalyses && request.analysis.is_none() {
+                    return None;
+                }
                 Some((descriptor.clone(), request))
             })
             .collect();
@@ -190,7 +232,9 @@ pub(crate) async fn execution_with_evidence(
         let replayed: Vec<_> = requests
             .iter()
             .filter(|(descriptor, request)| {
-                !evidence.plots.contains_key(descriptor.plot_id.as_str()) && !crate::plot::preview::index::uses_numeric_mean(request)
+                !captured.frozen_plots.contains_key(descriptor.plot_id.as_str())
+                    && !evidence.plots.contains_key(descriptor.plot_id.as_str())
+                    && !crate::plot::preview::index::uses_numeric_mean(request)
             })
             .map(|(_, request)| request.clone())
             .collect();
@@ -199,6 +243,15 @@ pub(crate) async fn execution_with_evidence(
                 .await?
                 .into_iter();
         for (descriptor, request) in requests {
+            if let Some(payload) = captured.frozen_plots.get(descriptor.plot_id.as_str()) {
+                if plots.insert(descriptor.plot_id.to_string(), payload.clone()).is_some() {
+                    return Err(invalid("report contains duplicate plot identifiers"));
+                }
+                continue;
+            }
+            if final_report && mode == Mode::Report && request.analysis.is_some() {
+                return Err(invalid("final report analysis was not frozen before completion"));
+            }
             let indexed = match evidence.plots.get(descriptor.plot_id.as_str()) {
                 Some(checkpoint) if !crate::plot::preview::index::uses_numeric_mean(&request) => Some(checkpoint.payload(
                     &request,

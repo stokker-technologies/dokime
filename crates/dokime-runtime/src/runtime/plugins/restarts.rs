@@ -303,15 +303,15 @@ impl RuntimeHandle {
         Ok(())
     }
 
-    // `Some` While Any Cycle Is Active: Running, Paused Or Stopping, Sealing, Or Settling A Run.
-    // A Failed Seal Has Settled And Holds Nothing.
+    // `Some` While Work Can Reach A Plugin: Running, Paused, Stopping Or Draining.
+    // Completed Work Holds No Plugin, Even While Unsealed Or Publishing A Report.
     //
     // Every execution runs in a cycle, so this covers every running or prepared
     // execution too. A provider run settles after its cycle returns to Ready and
     // starts the cycle's next case before it does, so the gap between two cases
     // counts. The inner value is such a run, which the restarter can wait on.
     pub(in crate::runtime) fn active_cycle(&self) -> Option<Option<CancellationToken>> {
-        let cycling = self.state_read().cycles.values().any(crate::transactions::lifecycle::cycle_in_flight);
+        let cycling = self.state_read().cycles.values().any(crate::transactions::lifecycle::cycle_has_plugin_work);
         let settling = {
             let tasks = self.provider_tasks.lock().expect("provider task lock poisoned");
             tasks.iter().find(|task| !task.settled.is_cancelled()).map(|task| task.settled.clone())

@@ -230,7 +230,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           <DialogHeader>
             <DialogTitle>Remove Plugin?</DialogTitle>
             <DialogDescription>
-              {`The plugin stops once no cycle is active. Its managed file is deleted when ${brand.label} next starts.`}
+              The plugin stops once execution cleanup and plugin streams finish, then its managed file is deleted.
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (

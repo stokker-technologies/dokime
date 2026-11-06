@@ -103,20 +103,11 @@ pub fn host_plugin_bundle() -> std::path::PathBuf {
 
 // The Host Plugin Bundle Under Another Package Version: The Same Programs In Changed Bytes.
 pub fn host_plugin_version(version: &str) -> Vec<u8> {
-    let bytes = std::fs::read(host_plugin_bundle()).unwrap();
-    let bundle = Bundle::inspect(&bytes, Limits::default()).unwrap();
-    let mut identity = bundle.manifest().identity.clone();
-    identity.version = version.parse().unwrap();
-    let mut sources = Vec::new();
-    for file in &bundle.manifest().files {
-        let bytes = bundle.file(&file.path).expect("the manifest names its files");
-        sources.push(Source {
-            path: &file.path,
-            bytes,
-            executable: file.executable.clone(),
-        });
-    }
-    Bundle::build(identity, &sources, Limits::default()).unwrap().bytes().to_vec()
+    bundle_version(host_plugin_bundle(), version)
+}
+
+pub fn plugin_obc_version(version: &str) -> Vec<u8> {
+    bundle_version(plugin_obc_bundle(), version)
 }
 
 pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {
@@ -153,5 +144,22 @@ fn built_bundle(relative: &str) -> std::path::PathBuf {
 }
 
 /* === Private Functions === */
+
+fn bundle_version(path: std::path::PathBuf, version: &str) -> Vec<u8> {
+    let bytes = std::fs::read(path).unwrap();
+    let bundle = Bundle::inspect(&bytes, Limits::default()).unwrap();
+    let mut identity = bundle.manifest().identity.clone();
+    identity.version = version.parse().unwrap();
+    let mut sources = Vec::new();
+    for file in &bundle.manifest().files {
+        let bytes = bundle.file(&file.path).expect("the manifest names its files");
+        sources.push(Source {
+            path: &file.path,
+            bytes,
+            executable: file.executable.clone(),
+        });
+    }
+    Bundle::build(identity, &sources, Limits::default()).unwrap().bytes().to_vec()
+}
 
 /* === Tests === */

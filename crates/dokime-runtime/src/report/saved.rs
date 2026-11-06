@@ -275,11 +275,24 @@ impl CapturedExecutionReportInput {
             record_contracts: self.record_contracts.clone(),
             telemetry_contracts: self.telemetry_contracts.clone(),
             outputs: outputs.to_vec(),
+            frozen_plots: self.input.case_documents.iter().flat_map(|document| document.plots.clone()).collect(),
         }
     }
 }
 
 impl PreparedExecutionReport {
+    pub(crate) fn reuse_context(&mut self, context: FileReference) -> Result<()> {
+        if context.metadata.scope.as_ref().map(|scope| scope.as_str()) != Some(self.captured.execution_id.as_str())
+            || context.metadata.media_type != MEDIA_TYPE
+            || !context.position.covers(&self.captured.evidence_through)?
+            || self.outputs.iter().filter_map(|output| output.file.as_ref()).any(|output| output.metadata.id == context.metadata.id)
+        {
+            return Err(report_invalid("frozen report context belongs to another owner or evidence boundary"));
+        }
+        self.context.finished = Some(context);
+        Ok(())
+    }
+
     pub(crate) fn captured_input(&self) -> &harmos::storage::ReadBatch<CapturedExecutionReportInput> {
         &self.captured
     }
@@ -526,6 +539,13 @@ impl Write for ReportWriter {
 }
 
 /* === Public Functions === */
+
+pub(crate) async fn save_context(manager: &Manager, captured: &CapturedSource) -> Result<FileReference> {
+    let mut file = ReportFile::context(captured, uuid::Uuid::now_v7())?;
+    let context = file.finish(manager).await?;
+    manager.flush_until(&context.position).await?;
+    Ok(context)
+}
 
 /* === Private Functions === */
 
