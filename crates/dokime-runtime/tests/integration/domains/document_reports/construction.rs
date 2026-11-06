@@ -403,6 +403,7 @@ pub(super) async fn summary_queries() {
         capture::CardBindingResult,
     };
     use dokime_runtime::expressions::telemetry;
+    use harmos::Message;
     for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
@@ -467,7 +468,16 @@ pub(super) async fn summary_queries() {
                     );
                     sample.scope = Some(execution.scope.clone());
                     sample.values.insert("value".into(), Value::Number(index as f64));
-                    crate::service_support::contracts::typed_fixture_sample(sample)
+                    sample.storage_payload = Some(
+                        crate::service_support::contracts::FixtureValueRow {
+                            timestamp: sample.timestamp.as_str().to_owned(),
+                            value: Some(index as f64),
+                            sample_index: None,
+                            ordinal: None,
+                        }
+                        .encode(),
+                    );
+                    sample
                 })
                 .collect();
             let batch = TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("fixture.telemetry"), samples);
