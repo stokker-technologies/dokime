@@ -96,6 +96,9 @@ native_commands! {
         () -> Result<crate::native_session::launch::DesktopLaunch, String>
         => crate::native_session::launch::desktop_session_launch;
 
+    // This desktop's own build, shown beside the connected backend's.
+    sync desktop_build [] () -> crate::app::desktop::DesktopBuild => crate::app::desktop::desktop_build;
+
     // Select the native desktop backend.
     async desktop_session_select
         [state: tauri::State<'_, crate::native_session::DesktopSessionControl>]

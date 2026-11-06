@@ -12,6 +12,8 @@
 
 /* === External Imports === */
 
+import type { NotificationFailure } from "@/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
@@ -60,7 +62,7 @@ type ParameterOverridesStore = ParameterOverridesStoreState & {
 let pending: ParameterOverrides | null = null;
 let writing: Promise<void> | null = null;
 
-export const useParameterOverridesStatus = create<{ ready: boolean; error: string | null }>(() => ({
+export const useParameterOverridesStatus = create<{ ready: boolean; error: NotificationFailure | null }>(() => ({
   ready: false,
   error: null,
 }));
@@ -145,7 +147,7 @@ export const useParameterOverridesStore = create<ParameterOverridesStore>()(
         return (_state, error) => {
           useParameterOverridesStatus.setState({
             ready: !error,
-            error: error ? `Could not load remembered parameters: ${String(error)}. Editing is disabled.` : null,
+            error: error ? failureOf(error, "Remembered Parameters Unavailable") : null,
           });
         };
       },
@@ -165,7 +167,7 @@ function writeDesktop(values: ParameterOverrides): Promise<void> {
         try {
           await commands.desktopParametersWrite(next);
         } catch (error) {
-          toast.error("Could Not Save Remembered Parameters", { description: String(error), error });
+          toast.error(failureOf(error, "Could Not Save Remembered Parameters"));
         }
       }
     })().finally(() => {

@@ -71,6 +71,7 @@ impl RuntimeHandle {
             values: resolved.values,
             discovered: resolved.discovered,
             secrets,
+            restart: self.plugin_restart(plugin_id.as_str()),
         })
     }
 
@@ -106,7 +107,14 @@ impl RuntimeHandle {
         &self, plugin_id: &Identifier, update: PluginSettingsUpdate,
     ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         let settings = self.plugin_settings_schema(plugin_id).await?;
+        let before = self.plugin_preferences().read(plugin_id, &settings).await?;
         self.plugin_preferences().write_values(plugin_id, &settings, update.values).await?;
+        let after = self.plugin_preferences().read(plugin_id, &settings).await?;
+
+        // A Program Prepares With Its Saved Values, So Changing One Restarts It.
+        if (&before.values, &before.saved) != (&after.values, &after.saved) {
+            self.request_plugin_restart(plugin_id.as_str());
+        }
         self.plugin_settings(plugin_id).await
     }
 

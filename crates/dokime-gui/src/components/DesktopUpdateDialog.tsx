@@ -9,10 +9,10 @@
 
 /* === Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { useEffect, useState } from "react";
 // Standard Library Imports
 // Third Party Imports
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
@@ -131,7 +131,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             ) : null}
           </div>
         ) : null}
-        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
         <DialogFooter>
           <Button
             variant="outline"

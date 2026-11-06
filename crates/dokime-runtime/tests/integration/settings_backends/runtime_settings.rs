@@ -419,3 +419,40 @@ pub(crate) async fn application_preferences_reopen_and_reject_stale_or_invalid_u
     assert_eq!(reopened.handle().read_application_settings().await.unwrap(), saved);
     reopened.shutdown().await.unwrap();
 }
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn saved_preferences_without_plugins_start_backend() {
+    use dokime_domain::model::settings::{PluginPreferences, UpdateSettings};
+    use dokime_runtime::storage::sqlite::rusqlite;
+
+    let root = tempfile::tempdir().unwrap();
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata("preferences.fixture", "Preferences"));
+    let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
+    let mut saved = runtime.handle().read_application_settings().await.unwrap();
+    saved.settings.report.plot_points = 321;
+    saved.settings.client.request_timeout_ms = 4567;
+    saved = runtime
+        .handle()
+        .update_application_settings(UpdateSettings {
+            expected_revision: saved.revision,
+            settings: saved.settings,
+        })
+        .await
+        .unwrap();
+    runtime.shutdown().await.unwrap();
+
+    // Store The Preference Shape Written Before Plugin Budgets Were Added.
+    let mut body = serde_json::to_value(&saved.settings).unwrap();
+    assert!(body.as_object_mut().unwrap().remove("plugins").is_some());
+    let connection = rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
+    connection.execute("UPDATE application_settings SET body=?1 WHERE id=1", [serde_json::to_vec(&body).unwrap()]).unwrap();
+    connection.close().unwrap();
+
+    let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
+    let loaded = reopened.handle().read_application_settings().await.unwrap();
+    assert_eq!(loaded.settings.plugins, PluginPreferences::default());
+    assert_eq!(loaded, saved);
+    assert!(!reopened.handle().runtime_overview().await.unwrap().shutting_down);
+    reopened.shutdown().await.unwrap();
+}

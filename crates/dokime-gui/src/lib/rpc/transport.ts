@@ -9,7 +9,7 @@ import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/prot
 /* === Local Imports === */
 import { settleUnlessStopping } from "../desktop/stopping";
 import * as transport from "./ipc";
-import { notificationFailure } from "../notification-details";
+import type { NotificationFailure } from "../notification-details";
 import { operationIds } from "./generated/operations";
 
 /* === Types === */
@@ -103,7 +103,7 @@ function stoppableStream<T>(stream: NativeStream<T>, path: string, request: obje
 function operationFailure(error: unknown, path: string, request: object): unknown {
   if (!(error instanceof Error)) return error;
   const identifiers = request as { operationId?: string; requestId?: string; invocationId?: string };
-  const failure = notificationFailure(error);
+  const failure = (error as Error & { notificationFailure?: Partial<NotificationFailure> }).notificationFailure;
   Object.assign(error, {
     notificationFailure: {
       ...failure,

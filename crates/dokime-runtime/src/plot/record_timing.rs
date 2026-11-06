@@ -46,7 +46,6 @@ pub(super) struct RecordPairLookup<'a> {
 
 #[derive(Clone, Copy)]
 pub(super) struct RecordPair<'a> {
-    pub(super) start: &'a RecordEntry,
     pub(super) end: &'a RecordEntry,
     pub(super) seconds: f64,
 }
@@ -79,7 +78,7 @@ impl<'a> RecordFilterLookup<'a> {
 
         self.filters.iter().all(|(filter, lookup)| {
             lookup
-                .nearest_at_or_before(record.scope.as_ref(), timestamp)
+                .latest_until(record.scope.as_ref(), timestamp)
                 .is_some_and(|sample| super::payload::sample_matches_filters(sample.sample, std::slice::from_ref(*filter)))
         })
     }
@@ -120,7 +119,7 @@ impl<'a> RecordPairLookup<'a> {
             };
             let start = self.records.get(self.starts.find(&side)?)?.1;
             let seconds = start.timestamp.millis_until(&record.timestamp)?.0 as f64 / 1_000.0;
-            Some(RecordPair { start, end: record, seconds })
+            Some(RecordPair { end: record, seconds })
         })
     }
 }

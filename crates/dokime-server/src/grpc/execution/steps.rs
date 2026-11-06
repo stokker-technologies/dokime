@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::detail::{diagnostic, execution, metadata};
+use super::detail::{diagnostic, metadata};
 use super::*;
 use dokime::domain::model::execution::result::CriterionResult;
 use dokime::domain::model::execution::result::CriterionStatus;
@@ -54,8 +54,9 @@ pub(super) async fn list(
 ) -> Result<execution_model::ListExecutionStepsReply, Status> {
     let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
         .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
-    let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
+    let inspection = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
+    let snapshot = inspection.snapshot;
+    let execution = &*inspection.execution;
     let page = page(&snapshot, &request.execution_id, request.limit, request.cursor.as_ref(), execution.steps.len())?;
     let mut budget = value::Budget::new()?;
     let count = page.end - page.start;

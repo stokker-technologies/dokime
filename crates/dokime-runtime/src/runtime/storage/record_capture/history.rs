@@ -70,21 +70,6 @@ pub(super) enum Start {
 /* === Implementations === */
 
 impl Source {
-    pub(crate) async fn saved_filtered_records(
-        &self, state_manager: &crate::app::StateManager, through: u64, select: impl Fn(&RecordEntry) -> bool,
-    ) -> Result<crate::storage::projection::Pages<RecordEntry>> {
-        self.saved_filtered_records_in(&self.storage.clone(), state_manager, through, select).await
-    }
-
-    pub(crate) async fn saved_filtered_records_in(
-        &self, session: &crate::storage::Manager, state_manager: &crate::app::StateManager, through: u64,
-        select: impl Fn(&RecordEntry) -> bool,
-    ) -> Result<crate::storage::projection::Pages<RecordEntry>> {
-        self.wait_through(state_manager, through).await?;
-        let at = self.save_accepted(state_manager).await?;
-        self.saved_filtered_records_at_in(session, through, &at, select).await
-    }
-
     pub(crate) async fn saved_filtered_records_at_in(
         &self, session: &crate::storage::Manager, through: u64, at: &harmos::storage::StorageCursor, select: impl Fn(&RecordEntry) -> bool,
     ) -> Result<crate::storage::projection::Pages<RecordEntry>> {

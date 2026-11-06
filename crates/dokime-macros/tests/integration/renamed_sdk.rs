@@ -42,8 +42,8 @@ use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Pu
 
 /* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
-    timeout: std::time::Duration::from_secs(120),
-    attempt_timeout: std::time::Duration::from_secs(120),
+    timeout: std::time::Duration::from_secs(240),
+    attempt_timeout: std::time::Duration::from_secs(240),
     cancellation_timeout: std::time::Duration::ZERO,
     retries: RetryPolicy::Never,
 };

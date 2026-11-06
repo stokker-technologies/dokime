@@ -98,13 +98,18 @@ impl<'a> SharedBindings<'a> {
     }
 
     fn validate(&self, definition: &DocumentDefinition) -> crate::Result<()> {
+        self.validate_expanding(definition, self.rows)
+    }
+
+    // Repeats Resolved Ahead Of The Capture May Expand Beyond Its Own Rows.
+    fn validate_expanding(&self, definition: &DocumentDefinition, instances: usize) -> crate::Result<()> {
         let bytes = document_size(definition, self.limits.source_bytes, self.limits.depth.saturating_sub(1))
             .map_err(|_| super::DocumentFailure::Limit)?;
         let total = self.bytes.checked_add(b",\"definition\":".len()).and_then(|total| total.checked_add(bytes));
         if total.is_none_or(|total| total > self.limits.source_bytes) {
             return Err(super::DocumentFailure::Limit.into());
         }
-        preflight_definition(definition, self.rows, self.limits, bytes).map_err(|_| super::DocumentFailure::Limit)?;
+        preflight_definition(definition, instances.max(self.rows), self.limits, bytes).map_err(|_| super::DocumentFailure::Limit)?;
         let context_work = bytes.checked_mul(self.data.context.len()).and_then(|work| work.checked_mul(self.rows.max(1)));
         if context_work.is_none_or(|work| work > self.limits.evaluation_work) {
             return Err(super::DocumentFailure::Limit.into());
@@ -112,14 +117,18 @@ impl<'a> SharedBindings<'a> {
         Ok(())
     }
 
-    pub(crate) fn capture(&self, definition: &'a DocumentDefinition) -> crate::Result<crate::document::capture::Capture> {
-        self.validate(definition)?;
+    /// Captures the definition; repeats resolved ahead of it, if given, expand
+    /// over those values instead of over this capture's own rows.
+    pub(crate) fn capture(
+        &self, definition: &'a DocumentDefinition, repeats: Option<&super::resolve::RepeatValues>,
+    ) -> crate::Result<crate::document::capture::Capture> {
+        self.validate_expanding(definition, repeats.map_or(0, super::resolve::RepeatValues::instances))?;
         let input = BorrowedInput {
             definition,
             selection: self.selection,
             data: self.data,
         };
-        let captured = super::resolve::capture_borrowed(input, self.limits)?;
+        let captured = super::resolve::capture_borrowed(input, self.limits, repeats)?;
         document_size(&captured, self.limits.materialized_bytes, self.limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
         Ok(captured)
     }
@@ -201,7 +210,7 @@ pub(super) fn resolve_bounded(
 pub(crate) fn capture_document_borrowed(
     input: BorrowedInput<'_>, limits: DocumentLimits,
 ) -> crate::Result<crate::document::capture::Capture> {
-    SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition)
+    SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition, None)
 }
 
 /* === Private Functions === */
@@ -312,6 +321,54 @@ mod tests {
             let result =
                 SharedBindings::new(borrowed.selection, borrowed.data, limits).and_then(|bindings| bindings.validate(borrowed.definition));
             assert_eq!(result.is_ok(), source_bytes == length);
+        }
+    }
+
+    #[test]
+    fn time_between_repeats_are_refused_naming_their_section() {
+        use crate::document::{DocumentFailure, DocumentSection, DocumentSectionNode, DocumentSectionRepeat};
+        use crate::expressions::{record, telemetry};
+        use dokime_domain::model::identity::{Identifier, Metadata};
+
+        // Authored Through The Builder: Elapsed Time Is The Repeated Value.
+        let mut authored = DocumentDefinition::new("repeats.authored", "Authored");
+        let mut laps = DocumentSection::new("Laps");
+        laps.id("fixture.laps");
+        laps.each(record("fixture.end").time_between("fixture.start"), "Lap {value}");
+        authored.section(laps);
+
+        // Stored Or Wire Layout: Elapsed Time Orders A Row-Local Value.
+        let section = Identifier::new("fixture.channels").unwrap();
+        let mut stored = DocumentDefinition::new("repeats.stored", "Stored");
+        stored.layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode {
+            node_id: section.clone(),
+            metadata: Metadata::new(section, "Channels", None),
+            repeat: Some(DocumentSectionRepeat {
+                value: telemetry("wifi", "channel"),
+                label_template: "Channel {value}".into(),
+                id_template: None,
+                order_by: Some(record("fixture.end").time_between("fixture.start")),
+                filters: Vec::new(),
+            }),
+            children: Vec::new(),
+        })));
+
+        for (definition, section) in [(authored, "fixture.laps"), (stored, "fixture.channels")] {
+            let input = DocumentResolveInput {
+                definition,
+                selection: DocumentSelection::default(),
+                data: Default::default(),
+            };
+            let captured = capture_document_borrowed(input.borrowed(), DocumentLimits::default()).map(|_| ());
+            let resolved = crate::document::resolve_document(input, DocumentLimits::default()).map(|_| ());
+            for result in [captured, resolved] {
+                match result {
+                    Err(crate::Error::Document(DocumentFailure::CorrelatedRepeat { section: refused })) => {
+                        assert_eq!(refused.as_str(), section)
+                    }
+                    other => panic!("expected the repeat of {section} to be refused, got {other:?}"),
+                }
+            }
         }
     }
 

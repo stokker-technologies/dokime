@@ -9,9 +9,10 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -137,13 +138,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
   return (
     <PageShell actions={actions} trail={["Library"]}>
-      {active.failed ? <NotificationMessage>Open cycles could not be read. Reconnect and try again.</NotificationMessage> : null}
+      {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
-      {suitesQuery.isError ? (
-        <NotificationMessage source="Library" title="Could Not Load Suites" error={suitesQuery.error}>
-          {suitesQuery.error.message}
-        </NotificationMessage>
-      ) : null}
+      {suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
       <DataTable
         aria-label="Library"
         columns={columns}

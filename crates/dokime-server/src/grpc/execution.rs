@@ -329,6 +329,7 @@ fn cycle_summary(
         result: cycle.result.as_ref().map(detail::result),
         running_count: tally.running,
         queued_count: tally.queued,
+        seal_failure: cycle.seal_failure.clone(),
     })
 }
 

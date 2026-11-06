@@ -53,11 +53,11 @@ const POLL: Duration = Duration::from_millis(20);
 /* === Structs === */
 
 struct MaterializationFixture {
-    _root: tempfile::TempDir,
     owner: Runtime,
     runtime: RuntimeHandle,
     cycle: TestCycleId,
     request: MaterializeReport,
+    _root: tempfile::TempDir,
 }
 
 /* === Enums === */

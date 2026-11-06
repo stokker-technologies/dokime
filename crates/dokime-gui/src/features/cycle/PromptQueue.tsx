@@ -156,7 +156,7 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
         values={values}
       />
       {responseMutation.isError ? (
-        <NotificationMessage source="Prompts" title="Response Not Accepted">
+        <NotificationMessage source="Prompts" title="Response Not Accepted" error={responseMutation.error}>
           Check the values and submit again.
         </NotificationMessage>
       ) : null}

@@ -164,27 +164,25 @@ pub(super) async fn undeclared_records_settle() {
     // The Run Fails Publication; The Container Retains Its Truthful Outcome.
     wait_for_record_type(&handle, "test.cycle.finalization.failed").await;
     let settled = wait_for_cycle_lifecycle(&handle, &id, CycleStatus::Stopped).await;
-    assert_eq!(settled.phase, dokime_domain::model::execution::result::CyclePhase::Sealing);
+    assert_eq!(settled.phase, dokime_domain::model::execution::result::CyclePhase::SealFailed);
     assert!(settled.saved.is_none(), "an unsealable cycle claims no report");
+    let cause = handle.watch_state().latest().state().cycles[&id].seal_failure.clone();
+    assert!(cause.as_deref().is_some_and(|cause| cause.contains(UNDECLARED)), "the failed seal names the type: {cause:?}");
     let evidence = handle.evidence_snapshot().await.unwrap();
-    for (record_type, scoped) in
-        [("test.execution.finalization.failed", Some(&execution.test_execution_id)), ("test.cycle.finalization.failed", None)]
-    {
-        let record = evidence
-            .records
-            .iter()
-            .find(|record| {
-                record.record_type.as_str() == record_type
-                    && record.scope.as_ref().is_some_and(|scope| scope.test_cycle_id.as_ref() == Some(&id))
-            })
-            .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
-        assert_eq!(record.severity, RecordSeverity::Error);
-        assert_eq!(record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()), scoped, "{record_type} scope");
-        assert!(
-            record.message.as_deref().is_some_and(|message| message.contains(UNDECLARED)),
-            "{record_type} names the undeclared type: {record:?}"
-        );
-    }
-    // The Stop Leaves The Failed Seal Where It Is; The Next Start Retries It.
+    let record = evidence
+        .records
+        .iter()
+        .find(|record| {
+            record.record_type.as_str() == "test.cycle.finalization.failed"
+                && record.scope.as_ref().is_some_and(|scope| scope.test_cycle_id.as_ref() == Some(&id))
+        })
+        .expect("the failed seal is recorded as evidence");
+    assert_eq!(record.severity, RecordSeverity::Error);
+    assert_eq!(record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()), None);
+    assert!(
+        record.message.as_deref().is_some_and(|message| message.contains(UNDECLARED)),
+        "the record names the undeclared type: {record:?}"
+    );
+    // The Failed Seal Is Settled; Only An Explicit Retry Seals It Again.
     owner.shutdown().await.unwrap();
 }

@@ -63,7 +63,8 @@ test("Unsupported Browser Storage", async () => {
   fixture.write.mockClear();
   await useParameterOverridesStore.persist.rehydrate();
   assert.equal(useParameterOverridesStatus.getState().ready, false);
-  assert.match(useParameterOverridesStatus.getState().error ?? "", /Unsupported browser-owned remembered parameters/);
+  assert.ok(useParameterOverridesStatus.getState().error?.id);
+  assert.ok(useParameterOverridesStatus.getState().error?.stack);
   assert.equal(fixture.values.get(PARAMETER_OVERRIDES_STORAGE_KEY), saved);
   assert.equal(fixture.write.mock.calls.length, 0);
 });

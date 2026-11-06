@@ -19,6 +19,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Download } from "lucide-react";
 import { toast } from "@/lib/notifications";
 
@@ -53,14 +54,9 @@ export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReport
       .then((saved) => {
         if (!saved) return;
         toast.success("Report Saved");
-        if (saved.openFailure) toast.warning("The Saved Report Could Not Be Opened", { description: saved.openFailure });
+        if (saved.openFailure) toast.error(saved.openFailure);
       })
-      .catch((error: unknown) =>
-        toast.error("The Report Could Not Be Saved", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Saved")));
   };
   return (
     <DropdownMenuItem disabled={state.disabled} onSelect={save} title={state.title}>

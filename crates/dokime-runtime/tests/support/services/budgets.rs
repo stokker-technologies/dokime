@@ -28,6 +28,8 @@ use std::path::PathBuf;
 use dokime_runtime::Metadata;
 use dokime_runtime::RuntimeConfig;
 use dokime_runtime::config::StorageSettings;
+use dokime_runtime::harmos::operations::OperationPolicy;
+use dokime_runtime::harmos::operations::RetryPolicy;
 
 /* === Constants === */
 

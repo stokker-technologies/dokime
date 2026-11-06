@@ -257,14 +257,16 @@ class Row16(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row48, _Mapping]] = ..., Pending: _Optional[_Union[Row49, _Mapping]] = ..., Passed: _Optional[_Union[Row50, _Mapping]] = ..., Failed: _Optional[_Union[Row51, _Mapping]] = ..., Blocked: _Optional[_Union[Row52, _Mapping]] = ..., Cancelled: _Optional[_Union[Row53, _Mapping]] = ...) -> None: ...
 
 class Row17(_message.Message):
-    __slots__ = ("Active", "Sealing", "Sealed")
+    __slots__ = ("Active", "Sealing", "Sealed", "SealFailed")
     ACTIVE_FIELD_NUMBER: _ClassVar[int]
     SEALING_FIELD_NUMBER: _ClassVar[int]
     SEALED_FIELD_NUMBER: _ClassVar[int]
+    SEALFAILED_FIELD_NUMBER: _ClassVar[int]
     Active: Row54
     Sealing: Row55
     Sealed: Row56
-    def __init__(self, Active: _Optional[_Union[Row54, _Mapping]] = ..., Sealing: _Optional[_Union[Row55, _Mapping]] = ..., Sealed: _Optional[_Union[Row56, _Mapping]] = ...) -> None: ...
+    SealFailed: Row57
+    def __init__(self, Active: _Optional[_Union[Row54, _Mapping]] = ..., Sealing: _Optional[_Union[Row55, _Mapping]] = ..., Sealed: _Optional[_Union[Row56, _Mapping]] = ..., SealFailed: _Optional[_Union[Row57, _Mapping]] = ...) -> None: ...
 
 class Row18(_message.Message):
     __slots__ = ()
@@ -352,9 +354,9 @@ class Row36(_message.Message):
     __slots__ = ("history", "sequence")
     HISTORY_FIELD_NUMBER: _ClassVar[int]
     SEQUENCE_FIELD_NUMBER: _ClassVar[int]
-    history: Row57
+    history: Row58
     sequence: int
-    def __init__(self, history: _Optional[_Union[Row57, _Mapping]] = ..., sequence: _Optional[int] = ...) -> None: ...
+    def __init__(self, history: _Optional[_Union[Row58, _Mapping]] = ..., sequence: _Optional[int] = ...) -> None: ...
 
 class Row37(_message.Message):
     __slots__ = ()
@@ -437,6 +439,10 @@ class Row56(_message.Message):
     def __init__(self) -> None: ...
 
 class Row57(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row58(_message.Message):
     __slots__ = ("store", "epoch")
     STORE_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]

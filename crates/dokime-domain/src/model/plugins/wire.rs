@@ -51,7 +51,9 @@ pub struct InstallationPage {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovePluginReply {
-    #[row(description = "RemovalPending persists until the next boot; the active process is untouched.")]
+    #[row(
+        description = "RemovalPending is discarded with its bundle after the live stop once no cycle is active; failed boots remain visible until the next start."
+    )]
     pub installation: Option<PluginInstallation>,
 }
 
@@ -134,7 +136,12 @@ pub struct PluginInstallation {
 
     pub error: Option<String>,
     pub active: bool,
-    pub restart_required: bool,
+
+    #[row(
+        description = "Whether the running backend still applies this installation: it starts, replaces or stops the bundle now, or once the executions that use it finish."
+    )]
+    pub restart: crate::model::settings::wire::PluginRestart,
+
     pub boot_failed: bool,
 }
 
@@ -246,7 +253,8 @@ mod tests {
         let mut failure = PluginStartFailure {
             plugin_id: "example".to_owned(),
             plugin_name: "example-plugin".to_owned(),
-            message: "Plugin example-plugin could not start: secret `api_token` is not in Secret Storage; add it and restart".to_owned(),
+            message: "Plugin example-plugin could not start: secret `api_token` is not in Secret Storage; add it and retry the plugin"
+                .to_owned(),
             code: Some("10001".to_owned()),
             missing_secret: Some("api_token".to_owned()),
             carrier: vec![1, 2, 3],

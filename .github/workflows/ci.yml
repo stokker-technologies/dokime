@@ -270,7 +270,7 @@ jobs:
           ${{ github.event_name == 'pull_request' && github.base_ref != '' &&
           !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) || false
           && github.event.before || '' }}
-        scope: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'package' || '' }}
+        scope: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && 'build' || '' }}
     if: >-
       (true) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
@@ -378,7 +378,7 @@ jobs:
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-release-publish-dry-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -437,13 +437,6 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.sccache-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
         'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
       with:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
@@ -456,11 +449,11 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
         ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
@@ -1258,8 +1251,7 @@ jobs:
         summary-module: ""
     if: >-
       (((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'push' && github.ref == 'refs/heads/dev'))) &&
+      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')) &&
       needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs),
       'package:python')) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
@@ -1377,11 +1369,12 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        free-disk: "true"
         cache-backend: disk
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
@@ -1571,7 +1564,7 @@ jobs:
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
@@ -1758,7 +1751,7 @@ jobs:
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
         ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
@@ -1805,11 +1798,12 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        free-disk: "true"
         cache-backend: disk
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
@@ -1870,19 +1864,18 @@ jobs:
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.uv-path }}
+    - uses: ./.github/actions/save-caches
+      if: >-
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success())
+      with:
+        compiler-key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
+        compiler-path: ${{ steps.setup_unix.outputs.sccache-path }}
+        compiler-hit: ${{ steps.setup_unix.outputs.sccache-cache-hit }}
     - name: Cache Summary
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
@@ -1900,7 +1893,7 @@ jobs:
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-build-rust-tests-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
@@ -1961,19 +1954,18 @@ jobs:
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
         && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.uv-path }}
+    - uses: ./.github/actions/save-caches
+      if: >-
+        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success())
+      with:
+        compiler-key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
+        compiler-path: ${{ steps.setup_windows.outputs.sccache-path }}
+        compiler-hit: ${{ steps.setup_windows.outputs.sccache-cache-hit }}
     - name: Cache Summary
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
@@ -1987,8 +1979,9 @@ jobs:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
+      COMPILER_CACHE_KIND: tests
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
         ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
@@ -2037,7 +2030,7 @@ jobs:
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
@@ -2082,15 +2075,6 @@ jobs:
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_unix.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
@@ -2112,7 +2096,7 @@ jobs:
         cache-mode: >-
           ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}-\\nci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-check-rust-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
@@ -2157,15 +2141,6 @@ jobs:
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
         (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
         steps.setup_windows.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
@@ -2184,7 +2159,7 @@ jobs:
         aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: >-
         ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
         github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
@@ -2245,8 +2220,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2258,8 +2232,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2271,8 +2244,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2284,8 +2256,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2297,8 +2268,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2310,8 +2280,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2323,8 +2292,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2336,8 +2304,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2349,8 +2316,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2362,8 +2328,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2375,8 +2340,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2385,8 +2349,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2398,8 +2361,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2414,8 +2376,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2424,8 +2385,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2439,8 +2399,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2454,8 +2413,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2469,8 +2427,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2484,8 +2441,7 @@ jobs:
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
         github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2506,8 +2462,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2519,8 +2474,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2532,8 +2486,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2545,8 +2498,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2558,8 +2510,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2571,8 +2522,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2584,8 +2534,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2597,8 +2546,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2610,8 +2558,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2623,8 +2570,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2636,8 +2582,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2646,8 +2591,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2659,8 +2603,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2675,8 +2618,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2685,8 +2627,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2700,8 +2641,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2715,8 +2655,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2730,8 +2669,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2745,8 +2683,7 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-        'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
         needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
         !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
         'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -2758,16 +2695,14 @@ jobs:
         summary-module: ""
     if: >-
       ((((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) &&
+      startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
       (!startsWith(github.ref, 'refs/tags/') || needs.source.outputs.stable_release == 'true' ||
       github.workflow == 'Nightly') && !(needs.source.outputs.stable_release ==
       'true' && contains(fromJSON('["windows"]'), 'unix') && github.workflow != 'CI /
       Nightly')) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) || (((github.event_name == 'schedule' ||
       github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-      github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref ==
-      'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
       needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
       !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'windows')
       && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
@@ -3281,10 +3216,25 @@ jobs:
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (true)
+    - name: Disk Counters / Start
+      uses: ./.github/actions/disk-counters
+      with:
+        mode: start
+      if: >-
+        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (true)
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (true)
+    - name: Disk Counters / Stop
+      uses: ./.github/actions/disk-counters
+      with:
+        mode: stop
+        name: disk-counters-test_rust_integration-${{ env.PROFILE }}-windows
+      if: >-
+        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (always())
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&

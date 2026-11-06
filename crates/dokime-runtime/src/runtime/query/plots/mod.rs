@@ -374,8 +374,7 @@ async fn query_spilled_plot(
         let mut records_at = at.clone();
         records_at.sequence = records_at.sequence.min(session.cursor_saved().sequence);
         runtime
-            .record_source
-            .visit_saved_records_at_in(session, context.snapshot.revision(), &records_at, |page| {
+            .visit_record_pages_at(request.scope.as_ref(), &context.snapshot, &records_at, |page| {
                 for record in page.iter() {
                     let subscribed = captured.and_then(|captures| captures.captured_scope(record));
                     if !visible(record)

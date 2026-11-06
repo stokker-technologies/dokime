@@ -289,6 +289,8 @@ impl Resources {
             .submit::<native::GetIdentity>(native::GetIdentity {})
             .map_err(health_failure)?;
         let identity = dokime::harmos::grpc::response(instance).await.map_err(health_failure)?;
+        // The runtime answering here is linked into this server binary, so the server's build is its build.
+        let build = dokime::version::current();
         let identity = produce(self.maximum, || {
             dokime::domain::model::backend::wire::BackendIdentity {
                 backend_id: identity.backend_id.clone(),
@@ -299,7 +301,8 @@ impl Resources {
                     descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
                 }),
                 product_version: identity.product_version.clone(),
-                source_revision: None,
+                source_revision: build.revision.map(|revision| revision.full()),
+                channel: build.channel.map(str::to_owned),
                 sdk_revision: None,
                 // Listener Start Time Is Not The Original Runtime's Boot Time.
                 started_at: None,

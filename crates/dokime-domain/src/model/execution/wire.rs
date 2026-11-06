@@ -195,6 +195,9 @@ pub struct CycleSummary {
     pub running_count: u64,
 
     pub queued_count: u64,
+
+    #[row(description = "Why the cycle's seal failed while its phase is SealFailed; its evidence is kept.")]
+    pub seal_failure: Option<String>,
 }
 
 #[harmos::message]

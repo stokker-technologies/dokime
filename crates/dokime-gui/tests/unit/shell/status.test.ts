@@ -134,14 +134,16 @@ test("Brand Label", () => {
   } as unknown as RuntimeInstalledPluginRecord;
   assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Built-in · v1.2.0");
 
-  // A Pending Removal Waits For The Brand To Restart
+  // A Removal Waits For The Running Execution, Then Stops The Plugin Without A Restart
   const entry = {
     active: true,
     installed_at: "2026-10-25T00:00:00Z",
     error: null,
     state: "removal_pending",
+    restart: "pending",
   } as unknown as Parameters<typeof statusPresentation>[0];
-  assert.equal(statusPresentation(entry, "Stokker Technologies").reason, "Active until Stokker Technologies restarts.");
+  assert.ok(statusPresentation(entry).reason);
+  assert.equal(statusPresentation({ ...entry, active: false, restart: "idle" }).reason, null);
 });
 
 test("Plugin Rows Open Their Own Settings Page", () => {

@@ -70,9 +70,9 @@ pub struct ProgressRow {
 }
 
 pub struct TestEnvironment {
-    pub root: tempfile::TempDir,
     _runtime_owner: Runtime,
     pub runtime: RuntimeHandle,
+    pub root: tempfile::TempDir,
 }
 
 struct FakePythonExecutor;
@@ -233,7 +233,11 @@ pub fn fixture_suite(results: &[&str]) -> TestSuite {
         metadata: metadata("fixture.suite", "Fixture Suite"),
         tags: vec!["fixture".to_owned()],
         parameter_groups: Vec::new(),
-        test_case_templates: results.iter().enumerate().map(|(index, result)| case_template(index, result)).collect(),
+        test_case_templates: results
+            .iter()
+            .enumerate()
+            .map(|(index, result)| named_case_template("fixture.template", "Fixture Template", index, result))
+            .collect(),
     }
 }
 
@@ -432,6 +436,25 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
     }
 }
 
+pub async fn operation_fraction(watch: &mut dokime::runtime::progress::OperationWatch, operation: Option<&str>, fraction: f64) -> String {
+    loop {
+        let snapshot = watch.latest();
+        if let Some(entry) = snapshot.operations().iter().find(|entry| {
+            operation.is_none_or(|id| entry.operation_id == id)
+                && matches!(entry.outcome, dokime::runtime::progress::OperationOutcome::Running)
+                && entry.fraction == Some(fraction)
+        }) {
+            return entry.operation_id.clone();
+        }
+        if let Some(entry) = snapshot.operations().iter().find(|entry| {
+            operation == Some(entry.operation_id.as_str()) && !matches!(entry.outcome, dokime::runtime::progress::OperationOutcome::Running)
+        }) {
+            panic!("operation {} settled before fraction {fraction}: {:?}", entry.operation_id, entry.outcome);
+        }
+        watch.next().await.expect("operation progress remains open");
+    }
+}
+
 /* === Private Functions === */
 
 fn settled_view(cycle: &CycleView, outcome: &dokime::domain::model::execution::result::ResultStatus) -> bool {
@@ -455,10 +478,6 @@ fn cycle_suite_identifiers(cycle: &CycleView) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
-}
-
-fn case_template(index: usize, result: &str) -> TestCaseTemplate {
-    named_case_template("fixture.template", "Fixture Template", index, result)
 }
 
 fn named_case_template(identifier: &str, label: &str, index: usize, result: &str) -> TestCaseTemplate {

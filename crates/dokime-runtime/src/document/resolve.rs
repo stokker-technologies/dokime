@@ -69,12 +69,29 @@ struct DocumentMaterializer<'a> {
     plot_inputs: &'a mut Vec<crate::document::definition::PlotInput>,
     selection: &'a crate::document::input::DocumentSelection,
     evidence: Evidence<'a>,
+    repeats: Option<&'a RepeatValues>,
 }
 
-#[derive(Clone)]
-struct RepeatValue<'a> {
-    value: Cow<'a, Value>,
-    order: Option<Cow<'a, Value>>,
+/// The distinct values each repeated section expands over, resolved ahead of a
+/// capture whose own rows are a bounded preview of the evidence.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RepeatValues(Vec<(DocumentSectionRepeat, Vec<Value>)>);
+
+/// Folds the distinct values of every repeat of a document across evidence
+/// pages, in evidence order, as one complete read would.
+pub(crate) struct RepeatScan {
+    repeats: Vec<(DocumentSectionRepeat, Distinct)>,
+}
+
+#[derive(Default)]
+struct Distinct {
+    values: Vec<DistinctValue>,
+    rows: usize,
+}
+
+struct DistinctValue {
+    value: Value,
+    order: Option<Value>,
     first_index: usize,
 }
 
@@ -313,7 +330,10 @@ impl DocumentMaterializer<'_> {
         let Some(repeat) = section.repeat.as_ref() else {
             return vec![section];
         };
-        let values = repeat_values(repeat, self.evidence);
+        let values = match self.repeats.and_then(|repeats| repeats.get(repeat)) {
+            Some(values) => values.to_vec(),
+            None => repeat_values(repeat, self.evidence),
+        };
         if let Some(capture) = self.capture.as_mut()
             && capture.repeats.insert(section.node_id.clone(), Vec::with_capacity(values.len())).is_some()
         {
@@ -340,14 +360,14 @@ impl DocumentMaterializer<'_> {
 
         values
             .into_iter()
-            .map(|repeat_value| {
-                let suffix = identifier_segment(&value_label(&repeat_value.value));
-                let label = render_template(&repeat.label_template, &repeat.value, &repeat_value.value);
-                let identifier = render_template(&identifier_template, &repeat.value, &repeat_value.value);
+            .map(|value| {
+                let suffix = identifier_segment(&value_label(&value));
+                let label = render_template(&repeat.label_template, &repeat.value, &value);
+                let identifier = render_template(&identifier_template, &repeat.value, &value);
                 let repeat_filter = DocumentFilter {
                     expression: repeat.value.clone(),
                     operator: FilterOperator::Eq,
-                    value: Some(repeat_value.value.into_owned()),
+                    value: Some(value),
                 };
 
                 let node_id = Identifier::new(&identifier).unwrap_or_else(|_| identifier_segment_identifier(&identifier));
@@ -418,16 +438,163 @@ impl DocumentMaterializer<'_> {
     }
 }
 
+impl RepeatValues {
+    fn get(&self, repeat: &DocumentSectionRepeat) -> Option<&[Value]> {
+        self.0.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
+    }
+
+    /// The most instances any one repeat expands into.
+    pub(crate) fn instances(&self) -> usize {
+        self.0.iter().map(|(_, values)| values.len()).max().unwrap_or(0)
+    }
+}
+
+impl RepeatScan {
+    /// Every distinct repeat the definitions declare, at any depth. A repeat
+    /// selecting on a correlated transform is refused before any evidence is read.
+    pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Result<Self> {
+        fn nodes(items: &[DocumentNode], repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>) -> Result<()> {
+            for node in items {
+                let DocumentNode::Section(section) = node else { continue };
+                if let Some(repeat) = &section.repeat {
+                    insert(&section.node_id, repeat, repeats)?;
+                }
+                nodes(&section.children, repeats)?;
+            }
+            Ok(())
+        }
+        fn insert(
+            section: &Identifier, repeat: &DocumentSectionRepeat, repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>,
+        ) -> Result<()> {
+            binding::validate_repeat_selector(section, repeat)?;
+            if !repeats.iter().any(|(candidate, _)| candidate == repeat) {
+                repeats.push((repeat.clone(), Distinct::default()));
+            }
+            Ok(())
+        }
+        let mut repeats = Vec::new();
+        for definition in definitions {
+            for section in &definition.sections {
+                if let Some(repeat) = &section.repeat {
+                    insert(&section.metadata.identifier, repeat, &mut repeats)?;
+                }
+            }
+            nodes(&definition.layout.nodes, &mut repeats)?;
+        }
+        Ok(Self { repeats })
+    }
+
+    fn expressions(&self) -> impl Iterator<Item = &DataExpression> {
+        self.repeats.iter().flat_map(|(repeat, _)| {
+            std::iter::once(&repeat.value).chain(&repeat.order_by).chain(repeat.filters.iter().map(|filter| &filter.expression))
+        })
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.repeats.is_empty()
+    }
+
+    pub(crate) fn needs_records(&self) -> bool {
+        self.expressions().any(|expression| matches!(expression.source, DataSource::Record { .. }))
+    }
+
+    pub(crate) fn needs_telemetry(&self, context: super::input::Context<'_>) -> bool {
+        self.expressions().any(|expression| binding::expression_needs_telemetry(expression, context))
+    }
+
+    /// The one telemetry stream every telemetry-reading repeat selects, when
+    /// they agree, so a scan need not read the execution's other streams.
+    pub(crate) fn telemetry_stream(&self, context: super::input::Context<'_>) -> Option<&str> {
+        let mut streams =
+            self.expressions().filter(|expression| binding::expression_needs_telemetry(expression, context)).map(|expression| {
+                match &expression.source {
+                    DataSource::Telemetry { stream, .. } => Some(stream.as_str()),
+                    _ => None,
+                }
+            });
+        let first = streams.next()??;
+        streams.all(|stream| stream == Some(first)).then_some(first)
+    }
+
+    /// Folds one evidence page; pages arrive in evidence order.
+    pub(crate) fn fold(&mut self, selection: &crate::document::DocumentSelection, data: BorrowedData<'_>) {
+        let evidence = Evidence {
+            records: data.records,
+            artifacts: data.artifacts,
+            telemetry: data.telemetry,
+            context: data.context,
+            selection: Some(selection),
+        };
+        for (repeat, values) in &mut self.repeats {
+            values.fold(repeat, evidence);
+        }
+    }
+
+    pub(crate) fn finish(self) -> RepeatValues {
+        RepeatValues(
+            self.repeats
+                .into_iter()
+                .map(|(repeat, values)| {
+                    let values = values.finish(&repeat);
+                    (repeat, values)
+                })
+                .collect(),
+        )
+    }
+}
+
+impl Distinct {
+    fn fold(&mut self, repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) {
+        let offset = self.rows;
+        for (index, sample) in evidence.rows(&repeat.value).enumerate() {
+            self.rows = offset.saturating_add(index).saturating_add(1);
+            if !row_matches_filters(sample, repeat.filters.iter(), evidence) {
+                continue;
+            }
+            let Some(value) = expression_value(sample, &repeat.value, evidence).filter(|value| traceable_value(value)) else {
+                continue;
+            };
+            let order = repeat.order_by.as_ref().and_then(|expression| expression_value(sample, expression, evidence));
+
+            if let Some(existing) = self.values.iter_mut().find(|candidate| values_equal(&candidate.value, &value)) {
+                if existing.order.is_none() {
+                    existing.order = order.map(Cow::into_owned);
+                }
+                continue;
+            }
+
+            self.values.push(DistinctValue {
+                value: value.into_owned(),
+                order: order.map(Cow::into_owned),
+                first_index: offset.saturating_add(index),
+            });
+        }
+    }
+
+    fn finish(mut self, repeat: &DocumentSectionRepeat) -> Vec<Value> {
+        // Without An Explicit Order The Repeated Value Orders Itself, Ascending.
+        // Each Distinct Value Has A Unique First Index, So No Further Tie Is Possible.
+        let by_value = repeat.order_by.is_none();
+        self.values.sort_unstable_by(|left, right| {
+            let (left_order, right_order) =
+                if by_value { (Some(&left.value), Some(&right.value)) } else { (left.order.as_ref(), right.order.as_ref()) };
+            compare_values(left_order, right_order).unwrap_or(Ordering::Equal).then_with(|| left.first_index.cmp(&right.first_index))
+        });
+        self.values.into_iter().map(|value| value.value).collect()
+    }
+}
+
 /* === Public Functions === */
 
 pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> Result<DocumentPayload> {
     super::bounded::resolve_bounded(input, limits, true)
 }
 
-pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits) -> Result<Capture> {
+pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>) -> Result<Capture> {
     let (mut cards, layout) = input.definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
+    binding::validate_repeat_selectors(&layout.nodes)?;
     // Captures Freeze Stored IDs And Discard Builder-Only Automatic ID State.
     for card in &mut cards {
         if let DocumentCardBody::Plot { plot } = &mut card.body {
@@ -470,6 +637,7 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits)
             context: input.data.context,
             selection: Some(input.selection),
         },
+        repeats,
     };
     materializer.capture_nodes(definition.layout.nodes.clone())?;
     if capture.identity_collision {
@@ -568,6 +736,7 @@ pub(crate) fn resolve_normalized(
                 context: data.context,
                 selection: Some(&selection),
             },
+            repeats: None,
         };
         let layout = materializer.materialize_layout(layout_definition)?;
         (materializer.card_payloads, layout)
@@ -601,37 +770,10 @@ fn warnings(
     }])
 }
 
-fn repeat_values<'a>(repeat: &DocumentSectionRepeat, evidence: Evidence<'a>) -> Vec<RepeatValue<'a>> {
-    let mut values = Vec::<RepeatValue<'a>>::with_capacity(evidence.upper_rows());
-
-    for (index, sample) in evidence.rows(&repeat.value).enumerate() {
-        if !row_matches_filters(sample, repeat.filters.iter(), evidence) {
-            continue;
-        }
-        let Some(value) = expression_value(sample, &repeat.value, evidence).filter(|value| traceable_value(value)) else {
-            continue;
-        };
-        let order = repeat.order_by.as_ref().and_then(|expression| expression_value(sample, expression, evidence));
-
-        if let Some(existing) = values.iter_mut().find(|candidate| values_equal(&candidate.value, &value)) {
-            if existing.order.is_none() {
-                existing.order = order;
-            }
-            continue;
-        }
-
-        values.push(RepeatValue { value, order, first_index: index });
-    }
-
-    // Without An Explicit Order The Repeated Value Orders Itself, Ascending.
-    // Each Distinct Value Has A Unique First Index, So No Further Tie Is Possible.
-    let by_value = repeat.order_by.is_none();
-    values.sort_unstable_by(|left, right| {
-        let (left_order, right_order) =
-            if by_value { (Some(&*left.value), Some(&*right.value)) } else { (left.order.as_deref(), right.order.as_deref()) };
-        compare_values(left_order, right_order).unwrap_or(Ordering::Equal).then_with(|| left.first_index.cmp(&right.first_index))
-    });
-    values
+fn repeat_values(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> Vec<Value> {
+    let mut values = Distinct::default();
+    values.fold(repeat, evidence);
+    values.finish(repeat)
 }
 
 fn repeated_card(mut card: DocumentCard, repeat_filter: &DocumentFilter, suffix: &str) -> DocumentCard {

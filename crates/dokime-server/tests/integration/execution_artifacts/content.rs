@@ -332,8 +332,8 @@ async fn artifact_transfer(message_bytes: usize) {
         cli_server.shutdown().await.unwrap();
         assert!(cycle_export.is_file());
         assert!(!root.path().join("cycle.zip.part").exists());
-        // A sealed execution cannot acquire another mutable artifact producer.
-        assert!(
+        // A sealed execution cannot acquire another mutable artifact producer; the refusal is the server's status.
+        assert!(matches!(
             native
                 .upload_artifact_file(
                     &destination,
@@ -345,9 +345,9 @@ async fn artifact_transfer(message_bytes: usize) {
                         sha256: None,
                     },
                 )
-                .await
-                .is_err()
-        );
+                .await,
+            Err(dokime::client::UploadError::Client(dokime::client::Error::Rpc(_)))
+        ));
 
         let directory = root.path().join("publication-directory");
         std::fs::create_dir(&directory).unwrap();
@@ -728,17 +728,23 @@ pub(crate) async fn artifact_upload_owned() {
 
 async fn completion_harness()
 -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
+    upload_harness(keyed().with_max_message_bytes(4096), tokio::runtime::Handle::current()).await
+}
+
+async fn upload_harness(
+    config: dokime_server::grpc::Config, storage_runtime: tokio::runtime::Handle,
+) -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
-    let prepared_owner = dokime_server::grpc::Service::prepare(keyed().with_max_message_bytes(4096)).unwrap();
-    let owner = Runtime::with_execution_fixture(
-        prepared_owner
-            .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content"))),
-        "fixture",
-        gate.clone(),
-    )
-    .boxed_local()
+    let prepared_owner = dokime_server::grpc::Service::prepare(config).unwrap();
+    let config = prepared_owner
+        .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content")));
+    let fixture = gate.clone();
+    let owner = tokio::task::spawn_blocking(move || {
+        storage_runtime.block_on(Runtime::with_execution_fixture(config, "fixture", fixture).boxed_local())
+    })
     .await
+    .unwrap()
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
@@ -809,6 +815,30 @@ async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate
     .await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
+}
+
+// Full-Size Chunks At The Default Message Limit Stream Through The Native Client.
+pub(crate) async fn artifact_upload_large() {
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) =
+        upload_harness(keyed(), tokio::runtime::Handle::current()).await;
+    let bytes = (0..8 * 1024 * 1024 + 321).map(|index| (index % 251) as u8).collect::<Vec<_>>();
+    let source = root.path().join("large-upload.bin");
+    std::fs::write(&source, &bytes).unwrap();
+    let native =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let header = model::content::wire::UploadArtifactHeader {
+        scope: Some(scope),
+        filename: "large-upload.bin".into(),
+        content_type: Some("application/octet-stream".into()),
+        size_bytes: 0,
+        sha256: None,
+    };
+    let uploaded = native.upload_artifact_file(&source, header).await.unwrap();
+    assert_eq!(uploaded.size_bytes, bytes.len() as u64);
+    assert_eq!(uploaded.sha256, Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+    assert_eq!(uploaded.state, model::content::wire::ArtifactState::Complete);
+    native.close_and_wait().await;
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
 
 pub(crate) async fn artifact_upload_digest() {
@@ -1024,3 +1054,102 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
 }
 
 /* === Tests === */
+
+pub(crate) async fn artifact_upload_idle_deadlines() {
+    use dokime::harmos::operations::OperationDeclaration;
+    use model::content::wire::{ArtifactChunk, UploadArtifactFrame, UploadArtifactFramePayload as Payload, UploadArtifactHeader};
+    // Storage Keeps Its Real I/O Clock While Server And Client Transfer Time Advances.
+    let io = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed(), io.handle().clone()).await;
+    let native =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let idle = contracts::content::UploadArtifact::POLICY.timeout;
+    let bytes = b"abcd";
+    let mut progress = owner.handle().operation_progress().watch();
+    let upload = native.content_upload_artifact_open().unwrap();
+    upload
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Header(UploadArtifactHeader {
+                scope: Some(scope.clone()),
+                filename: "paced.bin".into(),
+                content_type: None,
+                size_bytes: bytes.len() as u64,
+                sha256: None,
+            })),
+        })
+        .await
+        .unwrap();
+    upload
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Chunk(ArtifactChunk { offset: 0, data: bytes[..1].to_vec() })),
+        })
+        .await
+        .unwrap();
+    let operation = support::operation_fraction(&mut progress, None, 0.25).await;
+    tokio::time::pause();
+    // Keep Real Socket And Filesystem Work From Auto-Advancing The Clock.
+    let awake = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
+    for offset in 1..bytes.len() {
+        tokio::time::advance(idle * 3 / 4).await;
+        upload
+            .send(UploadArtifactFrame {
+                payload: Some(Payload::Chunk(ArtifactChunk {
+                    offset: offset as u64,
+                    data: bytes[offset..offset + 1].to_vec(),
+                })),
+            })
+            .await
+            .unwrap();
+        support::operation_fraction(&mut progress, Some(&operation), (offset + 1) as f64 / bytes.len() as f64).await;
+    }
+    upload.end_input().await.unwrap();
+    let result = upload.response().await.unwrap();
+    assert_eq!(result.size_bytes, bytes.len() as u64);
+    assert_eq!(result.sha256, Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+    assert_eq!(result.state, model::content::wire::ArtifactState::Complete);
+    upload.close().await;
+    let destination = root.path().join("policy-download.bin");
+    let downloaded = native
+        .with_timeout(Duration::ZERO)
+        .download_artifact(contracts::content::DownloadArtifact { artifact_id: result.artifact_id.clone() }, destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(downloaded.size_bytes, bytes.len() as u64);
+    assert_eq!(std::fs::read(destination).unwrap(), bytes);
+
+    let stalled = native.content_upload_artifact_open().unwrap();
+    stalled
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Header(UploadArtifactHeader {
+                scope: Some(scope),
+                filename: "stalled.bin".into(),
+                content_type: None,
+                size_bytes: 4,
+                sha256: None,
+            })),
+        })
+        .await
+        .unwrap();
+    stalled
+        .send(UploadArtifactFrame {
+            payload: Some(Payload::Chunk(ArtifactChunk { offset: 0, data: vec![1] })),
+        })
+        .await
+        .unwrap();
+    // The Earlier Operation Is Complete At 1.0, So This Identifies The New Upload.
+    support::operation_fraction(&mut progress, None, 0.25).await;
+    tokio::time::advance(idle + Duration::from_secs(1)).await;
+    assert!(matches!(stalled.response().await, Err(dokime::client::Error::Rpc(status))
+        if status.code() == Code::DeadlineExceeded && status.message().contains(contracts::content::UploadArtifact::ID)));
+    stalled.close().await;
+    awake.abort();
+    let _ = awake.await;
+    tokio::time::resume();
+    native.close_and_wait().await;
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+    io.shutdown_background();
+}

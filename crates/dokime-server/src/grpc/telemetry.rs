@@ -387,6 +387,7 @@ fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelectio
         test_execution_id: scope.test_execution_id,
         test_case_id: scope.test_case_id,
         template_id: scope.template_id,
+        suite_id: scope.suite_id,
     })
 }
 

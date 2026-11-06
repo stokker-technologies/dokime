@@ -36,7 +36,7 @@ use dokime_domain::model::{
         wire::{self, ArchiveScope},
     },
     history::wire::ExecutionAvailability,
-    identity::wire::Timestamp,
+    identity::{SuiteId, wire::Timestamp},
     query::{
         page::{CycleSummary, ExecutionSummary},
         selection::{CycleSelection, ExecutionSelection, Window},
@@ -83,6 +83,13 @@ pub struct Key {
     pub missing: bool,
     pub time: Vec<u8>,
     pub id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ExecutionProjection {
+    #[serde(flatten)]
+    summary: ExecutionSummary,
+    suite_id: Option<SuiteId>,
 }
 
 #[derive(Clone)]
@@ -208,7 +215,10 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
                 summary.template_id.clone(),
                 serde_json::to_string(&summary.status)?,
                 summary.started_at,
-                serde_json::to_vec(&summary)?,
+                serde_json::to_vec(&ExecutionProjection {
+                    summary,
+                    suite_id: execution.scope.suite_id,
+                })?,
             )
         }
         "dokime.object.cycle" => {

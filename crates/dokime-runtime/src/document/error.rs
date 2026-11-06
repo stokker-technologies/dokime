@@ -18,6 +18,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -37,6 +38,9 @@ pub enum DocumentFailure {
     Evaluation { message: &'static str },
     InvalidIdentifier { source: dokime_domain::Error },
     InvalidDefinition { issues: Vec<String> },
+    // A repeated section must select row-local values; `time_between` reads
+    // across rows, so it cannot name the instances of a section.
+    CorrelatedRepeat { section: Identifier },
 }
 
 /* === Traits === */
@@ -60,6 +64,9 @@ impl std::fmt::Display for DocumentFailure {
             Self::InvalidDefinition { issues } => {
                 write!(formatter, "invalid document definition: {issues:?}")
             }
+            Self::CorrelatedRepeat { section } => {
+                write!(formatter, "repeated section {section} cannot select on time_between; repeat selectors must be row-local")
+            }
         }
     }
 }
@@ -68,7 +75,7 @@ impl std::error::Error for DocumentFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidIdentifier { source } => Some(source),
-            Self::InvalidDefinition { .. } | Self::Evaluation { .. } | Self::Limit => None,
+            Self::InvalidDefinition { .. } | Self::Evaluation { .. } | Self::Limit | Self::CorrelatedRepeat { .. } => None,
         }
     }
 }

@@ -29,7 +29,7 @@ use dokime::client::contracts;
 
 /* === Constants === */
 
-const STOP_GUARD: Duration = Duration::from_secs(120);
+const STOP_GUARD: Duration = crate::support::budgets::settings::STORY_BOUND;
 
 /* === Macros === */
 

@@ -26,7 +26,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 // Local Imports
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
+import { statusPresentation } from "@/features/settings/plugins/PluginList";
 import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
+import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
@@ -46,6 +48,7 @@ const fixture = vi.hoisted(() => ({
   buttons: [] as (() => void)[],
   hash: "",
   navigate: vi.fn(),
+  retry: vi.fn(),
 }));
 const session = { generation: "1", isCurrent: () => true };
 const entry: PluginEntry = {
@@ -71,7 +74,7 @@ const entry: PluginEntry = {
     size_bytes: 1,
   },
   active: false,
-  restart_required: false,
+  restart: "idle",
   boot_failed: true,
   error: null,
 };
@@ -107,7 +110,7 @@ vi.mock("react", async (original) => {
 });
 vi.mock("@/components/ui/button", () => ({
   Button: ({ onClick, ...props }: ComponentProps<"button">) => {
-    if (onClick) fixture.buttons.push(() => onClick({} as never));
+    if (onClick && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
     return createElement("button", { type: "button", ...props });
   },
 }));
@@ -137,10 +140,12 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
   useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
+  usePluginRestartRefresh: vi.fn(),
 }));
-vi.mock("@/features/settings/plugins/plugin-queries", () => ({
+vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
+  ...(await original<typeof import("@/features/settings/plugins/plugin-queries")>()),
   usePluginsQuery: fixture.installations,
-  useRestartAppMutation: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useRetryPluginMutation: () => ({ mutate: fixture.retry, isPending: false, isError: false }),
 }));
 vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSections: () => ({ frame: { sections: [], cards: [] } }) }));
 vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
@@ -163,6 +168,7 @@ beforeEach(() => {
     values: { address: "corrected" },
     discovered: {},
     secrets: [],
+    restart: "idle",
   });
 });
 
@@ -242,7 +248,7 @@ test("Failed Forms Editable", () => {
     fixture.detail.mock.calls.map(([id]) => id),
     entry.metadata?.owners,
   );
-  assert.equal((html.match(/startup-refused/g) ?? []).length, 1);
+  assert.ok(html.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
   assert.ok(html.includes('href="/settings/secrets#add-secret=token"'));
   assert.ok(html.includes("<details"));
   assert.equal(html.includes("<details open"), false);
@@ -250,18 +256,18 @@ test("Failed Forms Editable", () => {
   assert.ok(html.includes('id="plugin-settings-equipment.main"'));
   assert.equal((html.match(/<textarea/g) ?? []).length, 2);
   assert.equal((html.match(/type="password"/g) ?? []).length, 0);
-  assert.equal((html.match(/Add In Secret Storage/g) ?? []).length, 2);
-  assert.equal((html.match(/<button/g) ?? []).length, 3);
   assert.equal(html.includes("disabled="), false);
   assert.equal((html.match(/>corrected<\/textarea>/g) ?? []).length, 2);
   assert.equal(entry.last_boot?.state, "failed");
   if (entry.last_boot?.state !== "failed") throw new Error("fixture must have a boot failure");
   for (const code of ["plugin_contract_unavailable", "plugin_contract_cycle"]) {
     fixture.installations.mockReturnValue({
-      data: [{ ...entry, last_boot: { ...entry.last_boot, failure: { ...entry.last_boot.failure, code, missing_secret: null } } }],
+      data: [
+        { ...entry, last_boot: { ...entry.last_boot, at: code, failure: { ...entry.last_boot.failure, code, missing_secret: null } } },
+      ],
     });
     const refused = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-    assert.equal((refused.match(/startup-refused/g) ?? []).length, 1);
+    assert.ok(refused.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
     assert.equal((refused.match(/type="password"/g) ?? []).length, 0);
     assert.ok(refused.includes(code));
     assert.equal(refused.includes('href="/settings/secrets#'), false);
@@ -283,6 +289,7 @@ test("Declared Secret Add", () => {
     error: null,
     values: {},
     discovered: {},
+    restart: "idle",
     settings: {
       contributions: [
         { kind: "secret", id: "api_token", title: "API Token", description: null, required: true },
@@ -313,6 +320,45 @@ test("Declared Secret Add", () => {
   assert.ok(opened.includes('type="password"'));
 });
 
+test("Restart States", async () => {
+  const plugin = { plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null };
+  fixture.admitted.mockResolvedValue([plugin]);
+  const expected = { idle: "ready", restarting: "restarting", pending: "restart_pending" } as const;
+  for (const [restart, status] of Object.entries(expected)) {
+    fixture.settings.mockResolvedValueOnce({ settings: { contributions: [] }, values: {}, discovered: {}, secrets: [], restart });
+    const detail = await getInstalledPluginDetail(session, plugin.plugin_id);
+    assert.equal(detail?.restart, restart);
+    assert.equal(detail?.status, status);
+  }
+});
+
+test("Pending Restart Explained", () => {
+  const detail: PluginDetail = {
+    plugin_id: "equipment.main",
+    owner: null,
+    label: "Equipment",
+    version: "1.0.0",
+    enabled: true,
+    runtime: "code",
+    status: "restart_pending",
+    error: null,
+    values: {},
+    discovered: {},
+    restart: "pending",
+    settings: { contributions: [] },
+    secrets: [],
+  };
+  const statuses = (restart: PluginDetail["restart"]) =>
+    (
+      renderToStaticMarkup(createElement(InstalledPluginDetail, { detail: { ...detail, restart }, onSaveSettings: async () => {} })).match(
+        /role="status"/g,
+      ) ?? []
+    ).length;
+  assert.equal(statuses("pending"), 1);
+  assert.equal(statuses("restarting"), 0);
+  assert.equal(statuses("idle"), 0);
+});
+
 test("Missing Secret Action", () => {
   fixture.hash = "add-secret=api_token";
   const html = renderToStaticMarkup(createElement(SecretsSection));
@@ -322,4 +368,72 @@ test("Missing Secret Action", () => {
   fixture.hash = "";
   const ordinary = renderToStaticMarkup(createElement(SecretsSection));
   assert.equal(ordinary.includes('role="dialog"'), false);
+});
+
+test("Live Installation States", () => {
+  const presented = (changes: Partial<PluginEntry>) => statusPresentation({ ...entry, boot_failed: false, last_boot: null, ...changes });
+  const states = {
+    restarting: presented({ restart: "restarting" }),
+    pending: presented({ restart: "pending" }),
+    activePending: presented({ restart: "pending", active: true }),
+    active: presented({ active: true }),
+    refusedRestart: presented({ active: true, last_boot: entry.last_boot }),
+    refusedUpdate: presented({ state: "removal_pending", boot_failed: true, last_boot: entry.last_boot }),
+    removed: presented({ state: "removal_pending" }),
+    failed: presented({ boot_failed: true, last_boot: entry.last_boot }),
+    notRunning: presented({}),
+    disabled: presented({ state: "disabled" }),
+  };
+  assert.equal(new Set(Object.values(states).map((state) => state.label)).size, Object.keys(states).length);
+  assert.ok(states.pending.reason && states.activePending.reason);
+  assert.equal(states.active.variant, "success");
+  for (const refused of [states.refusedRestart, states.refusedUpdate, states.failed]) {
+    assert.equal(refused.reason, "startup-refused");
+  }
+  assert.equal(states.refusedRestart.variant, "warning");
+  assert.equal(states.refusedUpdate.variant, "destructive");
+  assert.equal(states.removed.reason, null);
+});
+
+test("Refused Restart Notifies", () => {
+  const failed = startNotification(entry);
+  const refused = startNotification({ ...entry, active: true, boot_failed: false });
+  assert.ok(failed && refused);
+  assert.notEqual(failed, refused);
+  assert.equal(startNotification({ ...entry, boot_failed: false }), null);
+  assert.equal(startNotification({ ...entry, last_boot: null }), null);
+});
+
+test("Retry Starts One Plugin", () => {
+  fixture.detail.mockReturnValue({ data: null });
+  for (const installation of [entry, { ...entry, active: true, boot_failed: false }]) {
+    fixture.buttons.length = 0;
+    fixture.retry.mockClear();
+    fixture.installations.mockReturnValue({ data: [installation] });
+    const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
+    assert.ok(html.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
+    assert.ok(fixture.buttons.length);
+    fixture.buttons.at(-1)?.();
+    assert.deepEqual(fixture.retry.mock.calls, [[entry.install_id]]);
+  }
+  for (const installation of [
+    { ...entry, active: true, boot_failed: false, last_boot: null },
+    { ...entry, restart: "pending" as const },
+  ]) {
+    fixture.buttons.length = 0;
+    fixture.installations.mockReturnValue({ data: [installation] });
+    renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
+    assert.equal(fixture.buttons.length, 0);
+  }
+});
+
+test("Installed Program Applying", async () => {
+  for (const [restart, status] of [
+    ["restarting", "restarting"],
+    ["pending", "restart_pending"],
+  ] as const) {
+    fixture.installed.mockResolvedValueOnce([{ ...entry, boot_failed: false, restart }]);
+    const detail = await getInstalledPluginDetail(session, "equipment.main");
+    assert.equal(detail?.status, status);
+  }
 });

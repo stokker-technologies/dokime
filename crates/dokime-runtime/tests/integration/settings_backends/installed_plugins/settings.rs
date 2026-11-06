@@ -243,22 +243,12 @@ async fn non_admitted_settings() {
     let schema = settings_artifact().settings;
     let bytes = crate::service_support::bundles::bundle_with_settings("failed-settings", "settings_fixture", schema.clone());
     let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
+    // The Install Starts The Bundle Live; Its Failed Start Is Recorded Before It Settles.
+    let package = &entry.metadata.as_ref().unwrap().identity.name;
+    runtime.plugin_bundle_settled(package).await;
     let store = runtime.plugin_store();
-    store
-        .record_boot(
-            entry.installation.install_id,
-            Some(dokime_domain::model::plugins::wire::PluginStartFailure {
-                plugin_id: "fixture".into(),
-                plugin_name: "Fixture".into(),
-                message: "startup-refused".into(),
-                code: None,
-                missing_secret: None,
-                consequences: Vec::new(),
-                carrier: Vec::new(),
-            }),
-        )
-        .await
-        .unwrap();
+    let boot = store.get(entry.installation.install_id).await.unwrap().installation.last_boot;
+    assert!(matches!(boot, Some(dokime_runtime::plugins::PluginLastBoot::Failed { .. })), "{boot:?}");
     let id = Identifier::new("settings_fixture").unwrap();
     let frame = runtime
         .query_runtime_view(RuntimeViewQuery {

@@ -61,13 +61,13 @@ const HOST_STREAMS: &[&str] = &["host.system", "host.network", "host.wifi.link",
 // A Development Host Over A Private Copy Of The Built Bundle, With Its Runtime Watch Open.
 // Each Scene Owns A Fixture Starting From `Session::ready` Or `Session::launch`.
 struct Session {
-    root: tempfile::TempDir,
     bytes: Vec<u8>,
     bundle: PathBuf,
     home: PathBuf,
     host: Host,
     client: Client,
     changes: Changes,
+    root: tempfile::TempDir,
 }
 
 /* === Enums === */
@@ -349,7 +349,7 @@ async fn scene_clean_stop(session: Session) {
 // Prompting Member's Admission, To Its Pending Question, And Both Reports Open While That
 // Question Waits Without Answering It.
 async fn scene_open_report_while_cycle_runs(session: &mut Session) {
-    const BOUND: Duration = Duration::from_secs(120);
+    const BOUND: Duration = crate::support::budgets::settings::STORY_BOUND;
     let client = session.client.clone();
     let changes = &mut session.changes;
 
@@ -760,7 +760,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     let telemetry = client.clone();
     // Bounded readiness poll: the plugin process exposes no signal for its
     // first observer sample.
-    let live_deadline = Instant::now() + Duration::from_secs(120);
+    let live_deadline = Instant::now() + crate::support::budgets::settings::STORY_BOUND;
     let live_samples = loop {
         let page = telemetry
             .call(contracts::telemetry::ListSamples {
@@ -794,7 +794,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     // time can advance faster than the host collector's wall-clock cadence.
     // Bounded readiness poll: host collectors tick on wall time and expose no
     // signal per row.
-    let host_deadline = Instant::now() + Duration::from_secs(120);
+    let host_deadline = Instant::now() + crate::support::budgets::settings::STORY_BOUND;
     loop {
         let page = telemetry
             .call(contracts::telemetry::ListSamples {
@@ -1213,26 +1213,34 @@ async fn store() {
     let root = tempfile::tempdir().unwrap();
     let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
 
-    // An Installed Plugin Activates Only After A Restart
+    // An Installed Plugin Starts In The Running Backend, And Again On The Next Boot
     let store = root.path().join("store");
     std::fs::create_dir_all(store.join("plugins")).unwrap();
     std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
+    let mut changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
     assert!(!serves_startup(&client).await);
     let installation = install(&client, &bytes).await;
-    assert!(!installation.active && installation.restart_required);
-    assert!(!serves_startup(&client).await);
+    let started = on_change(&mut changes, "the installed plugin starting", async || {
+        installations(&client).await.into_iter().find(|listed| listed.install_id == installation.install_id && listed.active)
+    })
+    .await;
+    assert_eq!(started.restart, model::settings::wire::PluginRestart::Idle);
+    assert!(serves_startup(&client).await);
+    status_ready(&client).await;
+    drop(changes);
     host.stop(false).await;
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
     let listed = installations(&client).await;
     assert_eq!(listed.len(), 1);
-    assert!(listed[0].active && !listed[0].restart_required);
+    assert!(listed[0].active && listed[0].restart == model::settings::wire::PluginRestart::Idle);
     assert!(serves_startup(&client).await);
     status_ready(&client).await;
 
-    // Scene: Removal Keeps The Live Plugin Until The Next Boot Drops It
+    // Scene: Removal Stops The Live Plugin, And The Next Boot Deletes It
+    let mut changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
     let removed = client
         .call(contracts::plugins::Remove {
             install_id: installation.install_id.clone(),
@@ -1240,10 +1248,14 @@ async fn store() {
         .await
         .unwrap()
         .installation
-        .expect("a installed installation stays pending removal");
+        .expect("a removed installation stays pending removal");
     assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
-    assert!(removed.active && removed.restart_required);
-    assert!(serves_startup(&client).await);
+    on_change(&mut changes, "the removed plugin stopping", async || {
+        let stopped = installations(&client).await.iter().all(|listed| !listed.active);
+        (stopped && !serves_startup(&client).await).then_some(())
+    })
+    .await;
+    drop(changes);
     host.stop(false).await;
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;

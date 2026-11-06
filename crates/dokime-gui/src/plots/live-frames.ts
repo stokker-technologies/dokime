@@ -15,6 +15,7 @@
 
 /* === Local Imports === */
 
+import { failureOf, type NotificationFailure } from "@/lib/notification-details";
 import { summaryInFlight } from "@/lib/statistics";
 import type { PlotPayload, PlotPayloadDiagnostics, PlotPayloadStreamMessage } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export type LivePlotState = {
   selection: string | null;
   status: LivePlotStatus;
   error: string | null;
+  failure?: NotificationFailure;
   droppedBatches: number;
   /** A window, zoom or plot change asked for summaries not yet delivered. */
   summaryInFlight: boolean;
@@ -98,6 +100,7 @@ export function applyPlotMessages(current: LivePlotState, messages: readonly Plo
     if (message.kind === "error") {
       next = {
         ...next,
+        failure: failureOf({ message: message.warnings[0] ?? "Plot stream returned an error." }, "Plot Stream Failed"),
         error: message.warnings[0] ?? "Plot stream returned an error.",
         status: "error",
         summaryInFlight: summaryInFlight("failed"),

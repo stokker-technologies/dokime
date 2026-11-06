@@ -84,7 +84,10 @@ pub struct BackendIdentity {
 
     pub api: Option<ApiIdentity>,
     pub product_version: String,
+    #[row(description = "Source commit of the backend build, suffixed -dirty for uncommitted changes; absent when unknown.")]
     pub source_revision: Option<String>,
+    #[row(description = "Publication channel of the backend build, such as nightly or release; absent for other builds.")]
+    pub channel: Option<String>,
     pub sdk_revision: Option<String>,
     pub started_at: Option<Timestamp>,
     pub display_name: String,

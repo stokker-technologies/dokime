@@ -319,6 +319,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             |scan| {
                 let mut scan = scan
                     .filter("schema_key", selection.schema.as_ref().map(serde_json::to_string).transpose()?)
+                    .filter("schema_id", selection.schema.as_ref().map(|schema| key(schema.id.as_str())).transpose()?)
                     .filter("item", selection.key.as_ref().map(|value| key(value.as_str())).transpose()?);
                 scan.latest_objects = selection.versions == ObjectVersions::Latest;
                 Ok(scan)

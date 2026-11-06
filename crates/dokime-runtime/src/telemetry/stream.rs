@@ -248,9 +248,21 @@ impl Streams {
             // Observer Runtimes End Before Execution Teardown Drains These Publications.
             runtime.spawn(async move {
                 tokio::task::yield_now().await;
-                streams.flushing.store(false, std::sync::atomic::Ordering::Release);
-                streams.flush().await;
+                streams.flush_while_buffering().await;
             });
+        }
+    }
+
+    // One Flusher At A Time: Rows Pushed During A Host Call Join The Next One.
+    #[cfg(feature = "native")]
+    async fn flush_while_buffering(&self) {
+        use std::sync::atomic::Ordering;
+        self.flush().await;
+        self.flushing.store(false, Ordering::Release);
+        // A Producer That Saw The Cleared Flag Starts Its Own Flusher.
+        while self.sink.buffering() && !self.flushing.swap(true, Ordering::AcqRel) {
+            self.flush().await;
+            self.flushing.store(false, Ordering::Release);
         }
     }
 }
@@ -365,5 +377,85 @@ mod tests {
         .unwrap();
 
         assert_eq!(receiver.recv().await, Some(payload));
+    }
+
+    // Each Flush Takes Every Buffered Row, Records It As One Batch, Then Waits For The Gate.
+    struct GatedSink {
+        pending: std::sync::Mutex<Vec<u8>>,
+        batches: std::sync::Mutex<Vec<Vec<u8>>>,
+        gate: tokio::sync::Semaphore,
+    }
+
+    impl GatedSink {
+        fn new() -> Self {
+            Self {
+                pending: Default::default(),
+                batches: Default::default(),
+                gate: tokio::sync::Semaphore::new(0),
+            }
+        }
+    }
+
+    impl SampleSink for GatedSink {
+        fn publish<'a>(
+            &'a self, _: &'a Identifier, _: BTreeMap<String, Value>, payload: Option<Vec<u8>>,
+        ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
+            Box::pin(async move {
+                self.pending.lock().unwrap().extend(payload.unwrap());
+                Ok(())
+            })
+        }
+
+        fn produced(&self, _: &str) -> u64 {
+            0
+        }
+
+        fn buffering(&self) -> bool {
+            !self.pending.lock().unwrap().is_empty()
+        }
+
+        fn flush(&self) -> crate::transport::TransportFuture<'_, Result<(), (Identifier, String)>> {
+            Box::pin(async move {
+                let batch = std::mem::take(&mut *self.pending.lock().unwrap());
+                self.batches.lock().unwrap().push(batch);
+                self.gate.acquire().await.unwrap().forget();
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn rows_published_during_a_flush_join_the_next_one() {
+        let sink = Arc::new(GatedSink::new());
+        let streams = Streams::new(Arc::clone(&sink) as Arc<dyn SampleSink>);
+        let stream = Identifier::new("fixture.samples").unwrap();
+        let flushes = |count: usize| {
+            let sink = Arc::clone(&sink);
+            async move {
+                while sink.batches.lock().unwrap().len() < count {
+                    tokio::task::yield_now().await;
+                }
+            }
+        };
+
+        streams.published_as(&stream, BTreeMap::new(), Some(vec![0]), "fixture").await;
+        flushes(1).await;
+
+        // Rows Published Meanwhile Wait; No Second Flush Overlaps The One In Flight.
+        for row in [1, 2] {
+            streams.published_as(&stream, BTreeMap::new(), Some(vec![row]), "fixture").await;
+        }
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(sink.batches.lock().unwrap().len(), 1);
+
+        sink.gate.add_permits(2);
+        flushes(2).await;
+        while sink.gate.available_permits() > 0 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(*sink.batches.lock().unwrap(), [vec![0], vec![1, 2]]);
+        assert!(!sink.buffering());
     }
 }

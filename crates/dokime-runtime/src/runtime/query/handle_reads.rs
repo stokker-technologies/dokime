@@ -215,7 +215,12 @@ impl RuntimeHandle {
 
     pub async fn selected_records(&self, selection: crate::evidence_runtime::RecordSelection) -> crate::runtime::Result<Vec<RecordEntry>> {
         let snapshot = self.capture_state().await?;
-        if selection.scope.test_execution_id.is_some() || selection.scope.test_cycle_id.is_some() {
+        if selection.scope.test_execution_id.is_some()
+            || selection.scope.test_cycle_id.is_some()
+            || selection.scope.test_case_id.is_some()
+            || selection.scope.template_id.is_some()
+            || selection.scope.suite_id.is_some()
+        {
             let at = self.saved_through(snapshot.revision()).await?;
             let mut after = 0;
             let mut records = Vec::new();
@@ -318,6 +323,78 @@ impl RuntimeHandle {
         crate::queries::plots::query_plot_stream_batches(self, requests).await
     }
 
+    pub(crate) async fn scope_executions(
+        &self, scope: &dokime_domain::model::execution::RecordScope, at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<Vec<dokime_domain::model::identity::TestExecutionId>> {
+        if let Some(id) = &scope.test_execution_id {
+            return Ok(vec![id.clone()]);
+        }
+        let state = self.state_read();
+        let mut ids = self.local_storage.selected_execution_ids(at.clone(), scope.clone()).await?;
+        ids.extend(
+            state
+                .executions
+                .values()
+                .filter(|execution| execution.scope.is_visible_in(scope))
+                .map(|execution| execution.test_execution_id.clone()),
+        );
+        ids.sort_unstable();
+        ids.dedup();
+        Ok(ids)
+    }
+
+    pub(crate) async fn scoped_artifacts(
+        &self, scope: Option<&dokime_domain::model::execution::RecordScope>,
+    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<ArtifactRecord>>> {
+        let Some(scope) = scope.filter(|scope| !scope.is_empty()) else {
+            return Ok(harmos::storage::ReadBatch::new(self.artifacts().await?));
+        };
+        let at = self.storage().flush().await?;
+        let ids = self.scope_executions(scope, &at).await?;
+        self.execution_storage.selected_artifact_records(self.storage(), &at, &ids).await
+    }
+
+    pub(crate) async fn visit_record_pages_at(
+        &self, scope: Option<&dokime_domain::model::execution::RecordScope>, snapshot: &RuntimeStateSnapshot,
+        at: &harmos::storage::StorageCursor,
+        mut visit: impl FnMut(harmos::storage::ReadBatch<Vec<RecordEntry>>) -> crate::runtime::Result<()>,
+    ) -> crate::runtime::Result<()> {
+        let Some(scope) = scope.filter(|scope| !scope.is_empty()) else {
+            return self.record_source.visit_saved_records_at_in(self.storage(), snapshot.revision(), at, visit).await;
+        };
+        if scope.test_execution_id.is_none()
+            && scope.test_cycle_id.is_none()
+            && scope.test_case_id.is_none()
+            && scope.template_id.is_none()
+            && scope.suite_id.is_none()
+        {
+            return self.record_source.visit_saved_records_at_in(self.storage(), snapshot.revision(), at, visit).await;
+        }
+        let selection = crate::evidence_runtime::ScopeSelection {
+            test_execution_id: scope.test_execution_id.clone(),
+            test_cycle_id: scope.test_cycle_id.clone(),
+            test_case_id: scope.test_case_id.clone(),
+            template_id: scope.template_id.clone(),
+            suite_id: scope.suite_id.clone(),
+        };
+        let mut after = 0;
+        loop {
+            let rows = self.local_storage.scoped_records(at.clone(), selection.clone(), None, after, 0, u64::MAX).await?;
+            let Some(last) = rows.last() else { break };
+            after = last.position;
+            let page = harmos::storage::ReadBatch::new(rows).try_map(|rows| {
+                let records = rows
+                    .into_iter()
+                    .filter(|row| row.epoch != self.process_epoch() || row.record.sequence <= snapshot.revision())
+                    .map(|row| row.record)
+                    .collect();
+                Ok::<_, crate::runtime::Error>(records)
+            })?;
+            visit(page)?;
+        }
+        Ok(())
+    }
+
     pub async fn artifacts(&self) -> crate::runtime::Result<Vec<ArtifactRecord>> {
         self.execution_storage.artifact_records().await
     }
@@ -366,16 +443,11 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn evidence_memory() -> crate::runtime::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "evidence snapshot construction",
-    }
-    .into()
-}
-
 fn evidence_clone_rows<'a, T: Clone + 'a>(count: usize, rows: impl Iterator<Item = &'a T>) -> crate::runtime::Result<Vec<T>> {
     let mut result = Vec::new();
-    result.try_reserve_exact(count).map_err(|_| evidence_memory())?;
+    result.try_reserve_exact(count).map_err(|_| harmos::Error::ResourceExhausted {
+        resource: "evidence snapshot construction",
+    })?;
     result.extend(rows.cloned());
     Ok(result)
 }

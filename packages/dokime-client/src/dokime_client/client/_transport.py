@@ -271,6 +271,7 @@ class Transport:
                     frozenset(availability.methods),
                     product_version=identity.product_version,
                     source_revision=identity.source_revision if identity.HasField("source_revision") else None,
+                    channel=identity.channel if identity.HasField("channel") else None,
                     sdk_revision=identity.sdk_revision if identity.HasField("sdk_revision") else None,
                     descriptor_sha256=bytes(identity.api.descriptor_sha256),
                     max_evidence_bytes=availability.limits.max_evidence_bytes

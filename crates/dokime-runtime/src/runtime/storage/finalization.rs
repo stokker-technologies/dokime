@@ -197,6 +197,8 @@ impl RuntimeHandle {
             self.execution_storage.acquire(cycle, execution).await?;
         }
         self.execution_storage.finish_outputs(id).await?;
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_report_request(id).await;
         let evidence_at = self.storage().flush().await?;
         if !self.state_read().report_finalizations.contains_key(id) {
             self.commit(crate::transactions::RequestReportFinalization {
@@ -222,6 +224,8 @@ impl RuntimeHandle {
         let workers = self.execution_storage.report_workers.clone();
         let job = tokio::spawn(async move {
             let _worker = workers.acquire_owned().await.expect("report workers remain open");
+            #[cfg(feature = "testing")]
+            crate::domains::execution::run::testing::before_report_job(&execution.test_execution_id).await;
             let rendered = std::panic::AssertUnwindSafe(runtime.materialize_saved_execution(&cycle, &execution)).catch_unwind().await;
             let rendered = rendered.unwrap_or_else(|_| Err(Error::Operation("report worker panicked".into())));
             if let Err(error) = rendered {
@@ -232,7 +236,7 @@ impl RuntimeHandle {
                 if let Err(failure) = runtime
                     .commit(crate::transactions::FailReport {
                         execution: execution.test_execution_id.clone(),
-                        cause: error.to_string(),
+                        cause: crate::runtime::error::chain_message(&error),
                     })
                     .await
                 {
@@ -355,7 +359,8 @@ impl RuntimeHandle {
 
     pub(crate) async fn complete_report_publication(&self, id: &TestExecutionId) -> Result<()> {
         self.execution_storage.seal_final_report(id).await?;
-        let seal = self.execution_storage.durable_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
+        // The Acquisition Retains The Exact Seal Whose Receipt Reached Native Durability.
+        let seal = self.execution_storage.final_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
         #[cfg(feature = "testing")]
         crate::domains::execution::run::testing::before_seal_adoption(id).await;
         self.commit_admitted_seal(seal).await?;

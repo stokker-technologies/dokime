@@ -34,6 +34,7 @@
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { TraceabilityDocumentContent } from "@/components/document/DocumentSurfaceView";
@@ -43,7 +44,6 @@ import { FrozenOperatorNotes } from "@/components/document/OperatorNotesView";
 import { MarkdownText } from "@/components/MarkdownText";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
-import { Button } from "@/components/ui/button";
 import { parseTimestampMs } from "@/lib/time-format";
 import type { DocumentViewCard, TestCyclePlan, TestExecution } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
@@ -163,22 +163,14 @@ export function ExecutionSectionsView({
         </ExecutionSectionCard>
 
         {!started ? null : pane.kind === "failed" ? (
-          <ExecutionSectionCard
-            action={
-              <Button onClick={onRetry} size="sm" variant="outline">
-                Try Again
-              </Button>
-            }
-            empty={pane.message}
-            title="Evidence Unavailable"
-          />
+          <ErrorCard failure={pane.failure} onRetry={onRetry} />
         ) : pane.kind === "busy" ? (
           <ExecutionSectionCard empty={BUSY_NOTICE} title="Loading" />
         ) : pane.kind === "loading" ? (
           <ExecutionSectionCard empty="Reading the document for this execution." title="Loading" />
         ) : (
           <>
-            {pane.staleReason ? <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p> : null}
+            {pane.failure ? <ErrorCard failure={pane.failure} onRetry={onRetry} /> : null}
             {present.has("steps-criteria") ? (
               <ExecutionSectionCard
                 empty={view.stepRecords.length || view.criterionRecords.length ? null : "No steps or criteria recorded yet."}

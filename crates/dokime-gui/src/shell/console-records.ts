@@ -15,12 +15,13 @@
  */
 
 /* === External Imports === */
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import { useCallback, useEffect } from "react";
 import { useStore } from "zustand";
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { connectionError } from "@/app/native-session/errors";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
 import { normalizeRpcError } from "@/lib/rpc/errors";
 import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
@@ -95,22 +96,24 @@ export function useConsoleRecords({
       } catch (failure) {
         if (!active || !session.identity.isCurrent()) return;
         const code = grpcCode(failure);
-        const cause = connectionError(normalizeRpcError(failure));
+        const record = failureOf(normalizeRpcError(failure), "Trace Stream Failed");
+        toast.error(record, { context: "background" });
+        const cause = record.message;
         if (code === 11) {
           afterSequence = 0n;
           epoch = undefined;
           priorDropped = 0n;
           streamDropped = 0n;
           store().rewind(key);
-          store().setError(key, `Trace history expired; replaying retained events. ${cause}`);
+          store().setError(key, `Trace history expired; replaying retained events. ${cause}`, record);
         } else if (code === 12 || unavailable(failure)) {
           reconnect = false;
-          store().setError(key, `Tracing is not available for this connection. ${cause}`);
+          store().setError(key, `Tracing is not available for this connection. ${cause}`, record);
         } else if (code === 3 || code === 7 || code === 16 || code === 8) {
           reconnect = false;
-          store().setError(key, `Trace subscription was refused by the backend. ${cause}`);
+          store().setError(key, `Trace subscription was refused by the backend. ${cause}`, record);
         } else {
-          store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`);
+          store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`, record);
         }
       } finally {
         const closing = stream;
@@ -132,7 +135,7 @@ export function useConsoleRecords({
 
   const clear = useCallback(() => consoleRecordsStore.getState().clear(key), [key]);
 
-  return { clear, dropped: buffer.dropped, error: buffer.error, records: buffer.records };
+  return { clear, dropped: buffer.dropped, error: buffer.error, failure: buffer.failure, records: buffer.records };
 }
 
 /* === Private Functions === */

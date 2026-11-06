@@ -37,6 +37,7 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 // Rows of one stream that publish together without waiting for the window.
+const HOST_BATCH_ROWS: usize = 100;
 
 /* === Macros === */
 
@@ -67,9 +68,19 @@ pub(crate) struct ExecutionSampleSink<T: crate::execution::SidecarTemplate> {
     host: Option<crate::execution::SampleOutput>,
     template: std::marker::PhantomData<fn() -> T>,
     publisher: Option<crate::execution::SamplePublisher>,
-    // One lock over every buffered row and every flush, so one stream's rows
-    // reach the host in order and never through two calls at once.
-    pending: tokio::sync::Mutex<Pending>,
+    rows: HostRows,
+}
+
+// Rows bound for the host. Producers keep buffering while one host call is in
+// flight, so the next call carries everything produced meanwhile, up to one
+// batch; a producer that fills a batch waits for that call, bounding memory.
+struct HostRows {
+    batch_rows: usize,
+    // Held only to add or take rows, never across a host call.
+    pending: std::sync::Mutex<Pending>,
+    // Held across every host call, so one stream's rows reach the host in
+    // order and never through two calls at once.
+    sending: tokio::sync::Mutex<()>,
 }
 
 // Rows produced for the host, per stream, waiting for one batch publication.
@@ -166,7 +177,7 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
             host,
             template: std::marker::PhantomData,
             publisher,
-            pending: tokio::sync::Mutex::new(Pending::default()),
+            rows: HostRows::new(HOST_BATCH_ROWS),
         }
     }
 
@@ -195,12 +206,82 @@ impl Pending {
         buffered.rows.len()
     }
 
-    fn take(&mut self, stream: &Identifier) -> Vec<crate::execution::StampedRow> {
-        self.streams.get_mut(stream).map(|buffered| std::mem::take(&mut buffered.rows)).unwrap_or_default()
+    // The stream's oldest rows, at most `limit` of them, in production order.
+    fn take(&mut self, stream: &Identifier, limit: usize) -> Vec<crate::execution::StampedRow> {
+        let Some(buffered) = self.streams.get_mut(stream) else {
+            return Vec::new();
+        };
+        let count = limit.min(buffered.rows.len());
+        buffered.rows.drain(..count).collect()
+    }
+
+    fn len(&self, stream: &Identifier) -> usize {
+        self.streams.get(stream).map_or(0, |buffered| buffered.rows.len())
+    }
+
+    // How many rows each stream holds now; a flush publishes exactly these.
+    fn due(&self) -> Vec<(Identifier, usize)> {
+        let counts = self.streams.iter().map(|(stream, buffered)| (stream.clone(), buffered.rows.len()));
+        counts.filter(|(_, rows)| *rows > 0).collect()
     }
 
     fn is_empty(&self) -> bool {
         self.streams.values().all(|buffered| buffered.rows.is_empty())
+    }
+}
+
+impl HostRows {
+    fn new(batch_rows: usize) -> Self {
+        Self {
+            batch_rows,
+            pending: Default::default(),
+            sending: Default::default(),
+        }
+    }
+
+    fn pending(&self) -> MutexGuard<'_, Pending> {
+        self.pending.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    // Buffer one row. A producer that fills a batch waits for the host call
+    // in flight, then publishes the batch itself unless a flush already did.
+    async fn publish<'s>(
+        &self, stream: &Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
+        send: impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'s, Result<(), String>>,
+    ) -> Result<(), String> {
+        if self.pending().push(stream, values, storage_payload) < self.batch_rows {
+            return Ok(());
+        }
+        let _sending = self.sending.lock().await;
+        if self.pending().len(stream) < self.batch_rows {
+            return Ok(());
+        }
+        let rows = self.pending().take(stream, self.batch_rows);
+        send(stream.clone(), rows).await
+    }
+
+    // Publish every row buffered when the flush starts, in batches, and
+    // report the first refusal; later rows wait for the next flush.
+    async fn flush<'s>(
+        &self, send: impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'s, Result<(), String>>,
+    ) -> Result<(), (Identifier, String)> {
+        let _sending = self.sending.lock().await;
+        let due = self.pending().due();
+        let batches_of = |(stream, rows): (Identifier, usize)| std::iter::repeat_n(stream, rows.div_ceil(self.batch_rows));
+        let batches = due.into_iter().flat_map(batches_of);
+        let mut refused = None;
+        for stream in batches {
+            let batch = self.pending().take(&stream, self.batch_rows);
+            let Err(error) = send(stream.clone(), batch).await else {
+                continue;
+            };
+            refused.get_or_insert((stream, error));
+        }
+        refused.map_or(Ok(()), Err)
+    }
+
+    fn buffering(&self) -> bool {
+        !self.pending().is_empty()
     }
 }
 
@@ -255,13 +336,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             }
             if let Some(output) = self.host_output() {
                 let (host, publish) = output?;
-                let mut pending = self.pending.lock().await;
-                let batch_rows = 100;
-                if (pending.push(stream, values, storage_payload) as u64) < batch_rows {
-                    return Ok(());
-                }
-                let rows = pending.take(stream);
-                return publish(host, &self.token, stream, &rows).await;
+                return self.rows.publish(stream, values, storage_payload, host_send(host, &self.token, publish)).await;
             }
             if let Some(crate::execution::SampleOutput::Embedded(publisher)) = &self.host {
                 return publisher.publish(
@@ -297,24 +372,12 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             let Some(Ok((host, publish))) = self.host_output() else {
                 return Ok(());
             };
-            let mut pending = self.pending.lock().await;
-            let mut refused = None;
-            let streams = pending.streams.keys().cloned().collect::<Vec<_>>();
-            for stream in streams {
-                let rows = pending.take(&stream);
-                if rows.is_empty() {
-                    continue;
-                }
-                if let Err(error) = publish(host, &self.token, &stream, &rows).await {
-                    refused.get_or_insert((stream, error));
-                }
-            }
-            refused.map_or(Ok(()), Err)
+            self.rows.flush(host_send(host, &self.token, publish)).await
         })
     }
 
     fn buffering(&self) -> bool {
-        self.pending.try_lock().map_or(true, |pending| !pending.is_empty())
+        self.rows.buffering()
     }
 }
 
@@ -531,6 +594,13 @@ impl LeaseRelease for FrameLeaseRelease {
 
 /* === Private Functions === */
 
+// One host call publishing a batch of one stream's rows.
+fn host_send<'s>(
+    host: &'s harmos::sidecar::Supervisor, token: &'s str, publish: crate::execution::SamplePublisher,
+) -> impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'s, Result<(), String>> {
+    move |stream, rows| Box::pin(async move { publish(host, token, &stream, &rows).await })
+}
+
 // The publication clock Harmos stamps rows with: system time in Unix
 // microseconds, negative before the epoch.
 fn unix_micros() -> i64 {
@@ -641,6 +711,162 @@ mod tests {
         }
         assert!(matches!(waiting.await.unwrap(), Err(crate::Error::PromptCancelled)));
         assert_eq!(tokio::time::Instant::now(), before);
+    }
+
+    // A Host That Records Every Call, Fails On Request And Can Hold Calls Open.
+    struct Host {
+        calls: std::sync::Mutex<Vec<Vec<String>>>,
+        in_flight: std::sync::atomic::AtomicUsize,
+        refusing: std::sync::atomic::AtomicBool,
+        gated: bool,
+        gate: tokio::sync::Semaphore,
+    }
+
+    impl Host {
+        fn new(gated: bool) -> Arc<Self> {
+            Arc::new(Self {
+                calls: Default::default(),
+                in_flight: Default::default(),
+                refusing: Default::default(),
+                gated,
+                gate: tokio::sync::Semaphore::new(0),
+            })
+        }
+
+        async fn receive(&self, rows: Vec<crate::execution::StampedRow>) -> Result<(), String> {
+            use std::sync::atomic::Ordering;
+            assert_eq!(self.in_flight.fetch_add(1, Ordering::AcqRel), 0, "host calls never overlap");
+            let names = rows.iter().map(|row| String::from_utf8(row.storage_payload.clone().unwrap()).unwrap()).collect();
+            self.calls.lock().unwrap().push(names);
+            if self.gated {
+                self.gate.acquire().await.unwrap().forget();
+            } else {
+                tokio::task::yield_now().await;
+            }
+            self.in_flight.fetch_sub(1, Ordering::AcqRel);
+            if self.refusing.load(Ordering::Acquire) { Err("host refused the batch".into()) } else { Ok(()) }
+        }
+
+        fn calls(&self) -> Vec<Vec<String>> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    fn sender(host: &Arc<Host>) -> impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'static, Result<(), String>> {
+        let host = Arc::clone(host);
+        move |_, rows| {
+            let host = Arc::clone(&host);
+            Box::pin(async move { host.receive(rows).await })
+        }
+    }
+
+    async fn produce(rows: &HostRows, host: &Arc<Host>, name: &str) -> Result<(), String> {
+        let stream = Identifier::new("fixture.samples").unwrap();
+        rows.publish(&stream, BTreeMap::new(), Some(name.as_bytes().to_vec()), sender(host)).await
+    }
+
+    // Yields Until The Host Has Received `count` Calls.
+    async fn called(host: &Host, count: usize) {
+        while host.calls.lock().unwrap().len() < count {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_producers_keep_stream_order_without_loss() {
+        let rows = Arc::new(HostRows::new(16));
+        let host = Host::new(false);
+        let producers = (0..4)
+            .map(|producer| {
+                let (rows, host) = (Arc::clone(&rows), Arc::clone(&host));
+                tokio::spawn(async move {
+                    for sequence in 0..500 {
+                        produce(&rows, &host, &format!("{producer}:{sequence}")).await.unwrap();
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        let flusher = {
+            let (rows, host) = (Arc::clone(&rows), Arc::clone(&host));
+            tokio::spawn(async move {
+                for _ in 0..200 {
+                    rows.flush(sender(&host)).await.unwrap();
+                    tokio::task::yield_now().await;
+                }
+            })
+        };
+        for producer in producers {
+            producer.await.unwrap();
+        }
+        flusher.await.unwrap();
+        rows.flush(sender(&host)).await.unwrap();
+        assert!(!rows.buffering());
+
+        let calls = host.calls();
+        assert!(calls.iter().all(|call| !call.is_empty() && call.len() <= 16), "every call carries one bounded batch");
+        let delivered = calls.into_iter().flatten().collect::<Vec<_>>();
+        assert_eq!(delivered.len(), 2_000);
+        for producer in 0..4 {
+            let sequences = delivered
+                .iter()
+                .filter_map(|name| name.strip_prefix(&format!("{producer}:")))
+                .map(|sequence| sequence.parse::<u32>().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(sequences, (0..500).collect::<Vec<_>>(), "producer {producer} rows arrive once, in order");
+        }
+    }
+
+    #[tokio::test]
+    async fn rows_coalesce_behind_a_slow_host_up_to_one_bounded_batch() {
+        let rows = Arc::new(HostRows::new(4));
+        let host = Host::new(true);
+        produce(&rows, &host, "0").await.unwrap();
+        let flush = {
+            let (rows, host) = (Arc::clone(&rows), Arc::clone(&host));
+            tokio::spawn(async move { rows.flush(sender(&host)).await })
+        };
+        called(&host, 1).await;
+
+        // Producers Keep Buffering While The Host Call Is In Flight.
+        for name in ["1", "2", "3"] {
+            produce(&rows, &host, name).await.unwrap();
+        }
+        // The Producer That Fills The Batch Waits, So The Buffer Stays Bounded.
+        let filling = {
+            let (rows, host) = (Arc::clone(&rows), Arc::clone(&host));
+            tokio::spawn(async move { produce(&rows, &host, "4").await })
+        };
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert!(!filling.is_finished());
+        assert_eq!(rows.pending().len(&Identifier::new("fixture.samples").unwrap()), 4);
+
+        host.gate.add_permits(2);
+        flush.await.unwrap().unwrap();
+        filling.await.unwrap().unwrap();
+        assert_eq!(host.calls(), [vec!["0"], vec!["1", "2", "3", "4"]]);
+        assert!(!rows.buffering());
+    }
+
+    #[tokio::test]
+    async fn host_refusals_surface_and_later_rows_still_publish() {
+        use std::sync::atomic::Ordering;
+        let rows = HostRows::new(2);
+        let host = Host::new(false);
+        host.refusing.store(true, Ordering::Release);
+        produce(&rows, &host, "a").await.unwrap();
+        assert_eq!(produce(&rows, &host, "b").await, Err("host refused the batch".to_owned()));
+
+        host.refusing.store(false, Ordering::Release);
+        produce(&rows, &host, "c").await.unwrap();
+        rows.flush(sender(&host)).await.unwrap();
+
+        host.refusing.store(true, Ordering::Release);
+        produce(&rows, &host, "d").await.unwrap();
+        let (stream, error) = rows.flush(sender(&host)).await.unwrap_err();
+        assert_eq!((stream.as_str(), error.as_str()), ("fixture.samples", "host refused the batch"));
+        assert_eq!(host.calls(), [vec!["a", "b"], vec!["c"], vec!["d"]]);
     }
 
     // Yields Until The Spawned Prompts Have Raised `count` Request Frames.

@@ -220,6 +220,7 @@ impl FixtureUnary for backend::GetIdentity {
             target: "x86_64-unknown-linux-gnu".into(),
             started_at: None,
             source_revision: None,
+            channel: None,
             sdk_revision: None,
             api: Some(model::backend::wire::ApiIdentity {
                 package: service.api_package,
@@ -387,7 +388,7 @@ impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamIte
                 metadata: None,
                 error: None,
                 active: false,
-                restart_required: false,
+                restart: model::settings::wire::PluginRestart::Idle,
                 boot_failed: false,
             })))
         })

@@ -34,18 +34,19 @@ use serde::{Deserialize, Serialize};
 
 #[harmos::message]
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ApplicationSettings {
     pub appearance: Appearance,
     pub report: ReportDefaults,
     pub client: ClientPreferences,
     pub telemetry: TelemetryPreferences,
     pub listener: RemoteListenerSettings,
+    pub plugins: PluginPreferences,
 }
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct Appearance {
     pub theme_mode: ThemeMode,
     pub theme_family: Option<String>,
@@ -54,7 +55,7 @@ pub struct Appearance {
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ReportDefaults {
     pub source_bytes: u32,
     pub value_depth: u32,
@@ -65,7 +66,7 @@ pub struct ReportDefaults {
 
 #[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct ClientPreferences {
     pub connect_timeout_ms: u64,
     pub request_timeout_ms: u64,
@@ -74,9 +75,18 @@ pub struct ClientPreferences {
 
 #[harmos::message(skip_default)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct TelemetryPreferences {
     pub interval_ms: u64,
+}
+
+// Host Budgets For Plugin Programs; A Change Applies To The Next Start, Restart Or Stop.
+#[harmos::message(skip_default)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PluginPreferences {
+    pub startup_timeout_s: u32,
+    pub stop_timeout_s: u32,
 }
 
 #[harmos::message]
@@ -165,6 +175,17 @@ impl Default for ClientPreferences {
     }
 }
 
+impl Default for PluginPreferences {
+    fn default() -> Self {
+        // Covers a sidecar that loads a large vendor library and opens its client
+        // before it announces, with headroom for on-access scanning on first launch.
+        Self {
+            startup_timeout_s: 60,
+            stop_timeout_s: 10,
+        }
+    }
+}
+
 impl Default for TelemetryPreferences {
     fn default() -> Self {
         Self { interval_ms: 1_000 }
@@ -192,6 +213,7 @@ impl ApplicationSettings {
         self.client.validate()?;
         self.telemetry.validate()?;
         self.listener.validate()?;
+        self.plugins.validate()?;
         Ok(())
     }
 
@@ -199,7 +221,10 @@ impl ApplicationSettings {
         self.validate()?;
         let allowed = match scope {
             SettingsScope::Local => {
-                self.report == previous.report && self.telemetry == previous.telemetry && self.listener == previous.listener
+                self.report == previous.report
+                    && self.telemetry == previous.telemetry
+                    && self.listener == previous.listener
+                    && self.plugins == previous.plugins
             }
             SettingsScope::Backend => self.appearance == previous.appearance && self.client == previous.client,
         };
@@ -221,6 +246,27 @@ impl ClientPreferences {
 impl TelemetryPreferences {
     pub fn validate(&self) -> Result<(), String> {
         validate_duration(self.interval_ms)
+    }
+}
+
+impl PluginPreferences {
+    /// The Longest Budget Either Field Accepts: One Hour.
+    pub const MAXIMUM_SECONDS: u32 = 3_600;
+
+    pub fn validate(&self) -> Result<(), String> {
+        let bounded = |seconds: u32| (1..=Self::MAXIMUM_SECONDS).contains(&seconds);
+        if !bounded(self.startup_timeout_s) || !bounded(self.stop_timeout_s) {
+            return Err(format!("plugin startup and stop timeouts must be between 1 and {} seconds", Self::MAXIMUM_SECONDS));
+        }
+        Ok(())
+    }
+
+    pub fn startup_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.startup_timeout_s.into())
+    }
+
+    pub fn stop_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.stop_timeout_s.into())
     }
 }
 
@@ -268,3 +314,49 @@ fn validate_duration(value: u64) -> Result<(), String> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_preference_sections_and_fields_use_defaults() {
+        let defaults = ApplicationSettings::default();
+        let mut saved = defaults.clone();
+        saved.report.plot_points = 321;
+        saved.client.request_timeout_ms = 4567;
+        saved.plugins.startup_timeout_s = 90;
+        saved.plugins.stop_timeout_s = 20;
+        let body = serde_json::to_value(&saved).unwrap();
+        let default_body = serde_json::to_value(&defaults).unwrap();
+
+        for (section, fields) in body.as_object().unwrap() {
+            let mut missing_section = body.clone();
+            missing_section.as_object_mut().unwrap().remove(section);
+            let mut expected = body.clone();
+            expected[section] = default_body[section].clone();
+            let loaded: ApplicationSettings = serde_json::from_value(missing_section).unwrap();
+            loaded.validate().unwrap();
+            assert_eq!(serde_json::to_value(loaded).unwrap(), expected);
+
+            for field in fields.as_object().unwrap().keys() {
+                let mut missing_field = body.clone();
+                missing_field[section].as_object_mut().unwrap().remove(field);
+                let mut expected = body.clone();
+                expected[section][field] = default_body[section][field].clone();
+                let loaded: ApplicationSettings = serde_json::from_value(missing_field).unwrap();
+                loaded.validate().unwrap();
+                assert_eq!(serde_json::to_value(loaded).unwrap(), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_zero_plugin_timeouts_are_not_defaulted() {
+        for field in ["startup_timeout_s", "stop_timeout_s"] {
+            let body = serde_json::json!({ "plugins": { (field): 0 } });
+            let loaded: ApplicationSettings = serde_json::from_value(body).unwrap();
+            assert!(loaded.validate().is_err());
+        }
+    }
+}

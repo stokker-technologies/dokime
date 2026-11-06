@@ -337,12 +337,13 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
 
 /**
  * Why a node cannot be archived yet, or `undefined` once it can: a cycle
- * once it is sealed, an execution once its attempt has ended.
+ * once its seal has settled, sealed or failed, an execution once its attempt
+ * has ended.
  */
 export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
   if (allowed) return undefined;
   return subject === "cycle"
-    ? "Archiving becomes available once the cycle is sealed."
+    ? "Archiving becomes available once the cycle is sealed or its seal has failed."
     : "Archiving becomes available once the run has ended.";
 }
 
@@ -370,31 +371,33 @@ export function isCycleInFlight(status: CycleLifecycle): boolean {
 }
 
 /** Every label `cycleState` gives, longest first; the Status column fits the first. */
-export const CYCLE_STATE_LABELS = ["Active · Waiting", "Active · Running", "Active · Idle", "Sealing", "Sealed"] as const;
+export const CYCLE_STATE_LABELS = ["Active · Waiting", "Active · Running", "Active · Idle", "Seal Failed", "Sealing", "Sealed"] as const;
 
 export type CycleState = {
   label: (typeof CYCLE_STATE_LABELS)[number];
-  variant: "default" | "secondary" | "warning" | "outline";
+  variant: "default" | "secondary" | "warning" | "outline" | "destructive";
 };
 
 /**
  * The cycle's own state, as its pill and label say it.
  *
- * An Active cycle is Idle, Running or Waiting for an operator; Sealing and
- * Sealed close it. An execution's outcome never reaches this label: a stopped
+ * An Active cycle is Idle, Running or Waiting for an operator; Sealing,
+ * Sealed and Seal Failed close it. Seal Failed keeps the evidence and waits
+ * for the operator to retry the seal or archive the cycle. An execution's outcome never reaches this label: a stopped
  * or finished run leaves its Active cycle Idle.
  */
 export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
   if (phase === "sealing") return { label: "Sealing", variant: "warning" };
+  if (phase === "seal_failed") return { label: "Seal Failed", variant: "destructive" };
   if (phase === "sealed") return { label: "Sealed", variant: "secondary" };
   if (waiting) return { label: "Active · Waiting", variant: "warning" };
   if (isCycleInFlight(lifecycle)) return { label: "Active · Running", variant: "default" };
   return { label: "Active · Idle", variant: "outline" };
 }
 
-/** Whether the cycle has closed: prompts end with it, and only a sealed cycle archives. */
-export function isCycleSealed(phase: TestCycle["phase"]): boolean {
-  return phase === "sealed";
+/** Whether the cycle's seal has settled, sealed or failed: only then does it archive. */
+export function isCycleArchivable(phase: TestCycle["phase"]): boolean {
+  return phase === "sealed" || phase === "seal_failed";
 }
 
 export function executionStatusLabel(status: TestExecution["status"]): string {

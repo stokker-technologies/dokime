@@ -15,6 +15,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -312,8 +313,8 @@ async function copyParameterId(parameterId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(parameterId);
     toast.success("Parameter ID Copied");
-  } catch {
-    toast.error("Could Not Copy Parameter ID");
+  } catch (error: unknown) {
+    toast.error(failureOf(error, "Could Not Copy Parameter ID"));
   }
 }
 

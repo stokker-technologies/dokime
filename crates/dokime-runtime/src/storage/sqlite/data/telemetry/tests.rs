@@ -51,12 +51,12 @@ struct Config {
 }
 
 struct Fixture {
-    root: tempfile::TempDir,
     local: State,
     storage: Manager,
     runtime: Runtime<App>,
     codec: Arc<telemetry::TypedCodec>,
     execution: TestExecutionId,
+    root: tempfile::TempDir,
 }
 
 #[harmos::message]

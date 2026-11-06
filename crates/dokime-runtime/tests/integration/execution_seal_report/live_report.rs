@@ -61,47 +61,28 @@ async fn publish(runtime: &RuntimeHandle, scope: Option<&RecordScope>, values: &
     runtime.storage().flush().await.unwrap();
 }
 
-fn assert_cut(payload: &serde_json::Value, expected: &[f64]) {
-    let samples = payload["snapshot"]["telemetry"]
-        .as_object()
-        .unwrap()
-        .values()
-        .flat_map(|stream| stream["samples"].as_array().unwrap())
-        .collect::<Vec<_>>();
-    let rows = samples.iter().map(|sample| sample["distance_m"].as_f64().unwrap()).collect::<Vec<_>>();
-    assert_eq!(rows, expected);
-    let plot = payload["case_runs"][0]["plots"].as_object().unwrap().values().next().unwrap();
-    let series = plot["series"].as_array().unwrap();
-    assert_eq!(series.len(), 1, "the report retains the telemetry trace: {plot}");
-    assert_eq!(series[0]["raw_points"].as_u64().unwrap() as usize, expected.len());
-    let points = series[0]["points"].as_array().unwrap();
-    assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), expected);
-    let summary = &plot["summaries"][0];
-    assert_eq!(summary["count"].as_u64().unwrap() as usize, rows.len());
-    assert_eq!(summary["min"].as_f64().unwrap(), rows.iter().copied().fold(f64::INFINITY, f64::min));
-    assert_eq!(summary["max"].as_f64().unwrap(), rows.iter().copied().fold(f64::NEG_INFINITY, f64::max));
-    assert_eq!(summary["mean"].as_f64().unwrap(), rows.iter().sum::<f64>() / rows.len() as f64);
-}
-
-/* === Tests === */
-
-#[dokime_tracing::trace_test]
-#[tokio::test(flavor = "multi_thread")]
-async fn live_report() {
-    let root = tempdir().unwrap();
+// One Running-Capable Cycle Whose Member Document Plots The Tracking Stream.
+async fn plotted_cycle(
+    root: &std::path::Path,
+) -> (
+    crate::service_support::system_reports::Runtime,
+    RuntimeHandle,
+    Arc<BlockingPublishingExecutor>,
+    TestCycleId,
+    dokime_domain::model::identity::TestExecutionId,
+) {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let mut contract = crate::service_support::contracts::tracking_contract();
     contract.stream = identifier("example.tracking");
     contract.interval = Some(dokime_runtime::DurationMillis(1_000));
-    let configuration = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
+    let configuration = config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
         source: "example-plugin".into(),
         version: "test".into(),
         enabled: true,
-        telemetry_contracts: vec![contract.clone()],
+        telemetry_contracts: vec![contract],
         ..Default::default()
     }]);
-    let (mut owner, runtime) = started_with_fixture(configuration, executor.clone()).await;
-    publish(&runtime, None, &[101.0], 0).await;
+    let (owner, runtime) = started_with_fixture(configuration, executor.clone()).await;
     let mut suite = custom_suite();
     let mut plot = PlotDefinition::with_type("Distance", PlotType::TimeSeries);
     plot.id("live.distance");
@@ -131,10 +112,13 @@ async fn live_report() {
         runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
     let cycle = start_cycle(&runtime, admitted).await;
     let execution = runtime.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
-    runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
-    executor.wait_until_entered().await;
-    let scope = runtime.watch_state().latest().state().executions[&execution].scope.clone();
-    let leases = runtime
+    (owner, runtime, executor, cycle, execution)
+}
+
+async fn lease_tracking(
+    runtime: &RuntimeHandle, cycle: &TestCycleId, execution: &dokime_domain::model::identity::TestExecutionId, scope: &RecordScope,
+) -> Vec<String> {
+    runtime
         .lease_streams(
             dokime_runtime::telemetry::SamplingScope {
                 test_cycle_id: Some(cycle.to_string()),
@@ -145,7 +129,43 @@ async fn live_report() {
             "testdb",
         )
         .await
-        .unwrap();
+        .unwrap()
+}
+
+fn assert_cut(payload: &serde_json::Value, expected: &[f64]) {
+    let samples = payload["snapshot"]["telemetry"]
+        .as_object()
+        .unwrap()
+        .values()
+        .flat_map(|stream| stream["samples"].as_array().unwrap())
+        .collect::<Vec<_>>();
+    let rows = samples.iter().map(|sample| sample["distance_m"].as_f64().unwrap()).collect::<Vec<_>>();
+    assert_eq!(rows, expected);
+    let plot = payload["case_runs"][0]["plots"].as_object().unwrap().values().next().unwrap();
+    let series = plot["series"].as_array().unwrap();
+    assert_eq!(series.len(), 1, "the report retains the telemetry trace: {plot}");
+    assert_eq!(series[0]["raw_points"].as_u64().unwrap() as usize, expected.len());
+    let points = series[0]["points"].as_array().unwrap();
+    assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), expected);
+    let summary = &plot["summaries"][0];
+    assert_eq!(summary["count"].as_u64().unwrap() as usize, rows.len());
+    assert_eq!(summary["min"].as_f64().unwrap(), rows.iter().copied().fold(f64::INFINITY, f64::min));
+    assert_eq!(summary["max"].as_f64().unwrap(), rows.iter().copied().fold(f64::NEG_INFINITY, f64::max));
+    assert_eq!(summary["mean"].as_f64().unwrap(), rows.iter().sum::<f64>() / rows.len() as f64);
+}
+
+/* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn live_report() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
+    publish(&runtime, None, &[101.0], 0).await;
+    runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    let scope = runtime.watch_state().latest().state().executions[&execution].scope.clone();
+    let leases = lease_tracking(&runtime, &cycle, &execution, &scope).await;
     publish(&runtime, Some(&scope), &[2.0, 5.0], 0).await;
     let stale = runtime.storage().cursor_saved();
     publish(&runtime, None, &[11.0], 2).await;
@@ -200,5 +220,156 @@ async fn live_report() {
     let mut second = runtime.open_cycle_report(&cycle).await.unwrap();
     assert_eq!(second.file, first_file);
     assert_eq!(crate::service_support::reports::opened_bytes(&mut second).await, bytes);
+    owner.shutdown().await.unwrap();
+}
+
+// A Member Persists Its Finalization Boundary While An Open Cycle Report Admits It.
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn finalization_during_cycle_report() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
+
+    // The Member Has Finished But Not Yet Persisted Its Finalization Boundary
+    let request = dokime_runtime::testing::hold_report_request(&execution);
+    let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+    executor.release();
+    request.entered().await;
+    {
+        let snapshot = runtime.watch_state().latest();
+        assert!(snapshot.state().executions[&execution].finished_at.is_some());
+        assert!(!snapshot.state().report_finalizations.contains_key(&execution));
+    }
+
+    // The Report Reads The Cycle, Then The Boundary Lands Beyond Its Cursor Before The Member Is Captured
+    let capture = dokime_runtime::testing::hold_member_capture(&execution);
+    let task_runtime = runtime.clone();
+    let task_cycle = cycle.clone();
+    let mut open = tokio::spawn(async move { task_runtime.open_cycle_report(&task_cycle).await });
+    tokio::select! {
+        () = capture.entered() => {},
+        result = &mut open => panic!("the cycle report settled before its member capture: {:?}", result.map(|result| result.map(|_| ()))),
+    }
+    publish(&runtime, None, &[7.0], 0).await;
+    request.release();
+    let mut watch = runtime.watch_state();
+    loop {
+        if watch.latest().state().report_finalizations.contains_key(&execution) {
+            break;
+        }
+        watch.next().await.expect("the runtime keeps publishing state");
+    }
+    capture.release();
+
+    let mut opened = open.await.unwrap().unwrap();
+    assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Current);
+    assert!(!crate::service_support::reports::opened_bytes(&mut opened).await.is_empty());
+    runtime.wait_execution_report(&execution).await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+// A Member That Finished Before Persisting Its Boundary Reports Its Settled Evidence At Any Earlier Cursor.
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn settling_member_report() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
+
+    // The Member's Last Samples Persist After A Report Cursor Was Chosen
+    let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+    let scope = runtime.watch_state().latest().state().executions[&execution].scope.clone();
+    let leases = lease_tracking(&runtime, &cycle, &execution, &scope).await;
+    publish(&runtime, Some(&scope), &[2.0, 5.0], 0).await;
+    let earlier = runtime.storage().cursor_saved();
+    publish(&runtime, Some(&scope), &[11.0], 2).await;
+    runtime.release_stream_leases(leases).await.unwrap();
+
+    // It Finishes, And Its Finalization Has Not Persisted A Boundary Yet
+    let request = dokime_runtime::testing::hold_report_request(&execution);
+    executor.release();
+    request.entered().await;
+    {
+        let snapshot = runtime.watch_state().latest();
+        assert!(snapshot.state().executions[&execution].finished_at.is_some());
+        assert!(!snapshot.state().report_finalizations.contains_key(&execution));
+    }
+    for subject in [ReportSubject::Execution(execution.to_string()), ReportSubject::Cycle(cycle.to_string())] {
+        let report = runtime.operations().call::<MaterializeReport>(MaterializeReport { subject, at: earlier.clone() }).await.unwrap();
+        let payload = crate::service_support::reports::payload(runtime.storage(), &report.report).await;
+        assert_cut(&payload, &[2.0, 5.0, 11.0]);
+    }
+    request.release();
+    runtime.wait_execution_report(&execution).await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+// A Running Member Freezes Its Terminal Lifecycle While An Open Cycle Report Admits It.
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn lifecycle_during_cycle_report() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
+    let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+
+    // The Report Reads The Running Member, Which Then Finishes And Freezes Its Lifecycle
+    let capture = dokime_runtime::testing::hold_member_capture(&execution);
+    let task_runtime = runtime.clone();
+    let task_cycle = cycle.clone();
+    let mut open = tokio::spawn(async move { task_runtime.open_cycle_report(&task_cycle).await });
+    tokio::select! {
+        () = capture.entered() => {},
+        result = &mut open => panic!("the cycle report settled before its member capture: {:?}", result.map(|result| result.map(|_| ()))),
+    }
+    executor.release();
+    let mut watch = runtime.watch_state();
+    loop {
+        if watch.latest().state().report_finalizations.get(&execution).is_some_and(|intent| intent.lifecycle.is_some()) {
+            break;
+        }
+        watch.next().await.expect("the runtime keeps publishing state");
+    }
+    capture.release();
+
+    let mut opened = open.await.unwrap().unwrap();
+    assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Current);
+    assert!(!crate::service_support::reports::opened_bytes(&mut opened).await.is_empty());
+    runtime.wait_execution_report(&execution).await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+// An Execution Report Requested At An Earlier Cursor Uses The Finalization Its Member Froze Since.
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn finalizing_member_execution_report() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
+    let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+    let scope = runtime.watch_state().latest().state().executions[&execution].scope.clone();
+    let leases = lease_tracking(&runtime, &cycle, &execution, &scope).await;
+    publish(&runtime, Some(&scope), &[2.0, 5.0], 0).await;
+    let earlier = runtime.storage().cursor_saved();
+    publish(&runtime, Some(&scope), &[11.0], 2).await;
+    runtime.release_stream_leases(leases).await.unwrap();
+
+    // Its Lifecycle Is Frozen, But Its Background Report Has Not Started
+    let job = dokime_runtime::testing::hold_report_job(&execution);
+    executor.release();
+    job.entered().await;
+    assert!(runtime.watch_state().latest().state().report_finalizations[&execution].lifecycle.is_some());
+    let subject = ReportSubject::Execution(execution.to_string());
+    let report = runtime.operations().call::<MaterializeReport>(MaterializeReport { subject, at: earlier }).await.unwrap();
+    let payload = crate::service_support::reports::payload(runtime.storage(), &report.report).await;
+    assert_cut(&payload, &[2.0, 5.0, 11.0]);
+    job.release();
+    runtime.wait_execution_report(&execution).await.unwrap();
+    assert_eq!(runtime.watch_state().latest().state().executions[&execution].saved.as_ref().map(|seal| &seal.report), Some(&report.report));
     owner.shutdown().await.unwrap();
 }

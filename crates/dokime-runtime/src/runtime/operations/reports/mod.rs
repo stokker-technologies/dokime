@@ -156,6 +156,10 @@ async fn execution(
     }
     let gate = resources.execution_storage.materialization_gate(id).await?;
     let _guard = gate.lock().await;
+    // A Persisted Finalization Boundary Is The Report's Boundary, Also One Persisted After
+    // The Caller Chose `at`; Its Lifecycle Is Read Before The Member So Both Agree.
+    let intent = resources.execution_storage.report_finalization(id).await?;
+    let at = intent.as_ref().map_or(at, |intent| &intent.evidence_at);
     // Recheck Mutable Lifecycle After Admission; Sealing Uses This Same Gate.
     let source = resources.execution_storage.report_member_source(id).await?;
     let member = source
@@ -176,8 +180,7 @@ async fn execution(
         resources.runtime.complete_report_publication(id).await?;
         return Ok(report);
     }
-    let has_lifecycle = resources.execution_storage.has_report_lifecycle(id).await?;
-    let final_report = has_lifecycle
+    let final_report = intent.as_ref().is_some_and(|intent| intent.lifecycle.is_some())
         && member.finished_at.is_some()
         && member.active_step_attempt.is_none()
         && !matches!(
@@ -195,12 +198,12 @@ async fn execution(
     let defaults = resources.settings.read_application_settings().await?.settings.report;
     let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
 
-    if inspection.evidence_through()? != at {
+    if *inspection.evidence_through()? != inputs.through {
         return Err(invalid("capture changed requested report boundary"));
     }
     let storage = &resources.execution_storage.storage;
     let captured = tokio::select! {
-        result = crate::report::materialize::execution(ctx, &inspection, final_report, progress) => result?,
+        result = crate::report::materialize::execution(ctx, &inspection, final_report, inputs.current, progress) => result?,
         _ = shutdown.wait_for(|requested| *requested) => return Err(Error::ShuttingDown),
     };
     progress.phase("Rendering");
@@ -214,12 +217,12 @@ async fn execution(
     };
     progress.phase("Publishing Report");
     if final_report {
-        let report = resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await?;
+        let report = resources.execution_storage.materialize_final_report(inspection, prepared, crate::model::time::now_utc()).await?;
         resources.runtime.complete_report_publication(id).await?;
         Ok(report)
     } else {
         let revision = resources.execution_storage.publication_revision(inspection.execution()).await?;
-        prepared.publish_current(storage, &revision, &ctx.resources().schema_settings).await
+        prepared.publish_current(storage, &revision).await
     }
 }
 

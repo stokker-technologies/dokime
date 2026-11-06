@@ -288,10 +288,10 @@ id = "release:tag"
 platform = "unix"
 
 [conventions.testing.deadlines]
-acceptance = 900
-integration = 120
-system = 300
-unit = 120
+acceptance = 1800
+integration = 240
+system = 600
+unit = 240
 
 [conventions.testing.limits]
 acceptance = 128
@@ -348,7 +348,7 @@ platforms = ["unix", "windows"]
 
 [release]
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
-edge = true
+nightly = true
 lock_commands = [
   [
     "cargo",

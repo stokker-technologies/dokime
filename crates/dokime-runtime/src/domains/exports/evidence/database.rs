@@ -147,7 +147,8 @@ impl Writer {
     }
 
     pub async fn execution(
-        &mut self, view: &ExecutionView, cancellation: &CancellationToken, _budget: &mut InventoryBudget,
+        &mut self, view: &ExecutionView, local: &crate::storage::sqlite::State, cancellation: &CancellationToken,
+        _budget: &mut InventoryBudget,
     ) -> Result<Counts> {
         cancelled(cancellation)?;
         self.header(view)?;
@@ -160,7 +161,7 @@ impl Writer {
             records: 0,
             samples: 0,
         };
-        let mut reader = view.context_records().await?;
+        let mut reader = view.context_records(local)?;
         while let Some(records) = tokio::select! {
             biased;
             _ = cancellation.cancelled() => return Err(Error::Cancelled),

@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::state::RuntimeState;
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestCycleId;
@@ -59,8 +60,8 @@ impl Transaction<RuntimeState> for SetArchived {
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         match &self.subject {
             ArchiveSubject::Cycle(id) => match state.cycles.get(id) {
-                Some(cycle) if cycle.phase != dokime_domain::model::execution::result::CyclePhase::Sealed => {
-                    Err("only a sealed cycle can be archived or unarchived".to_owned())
+                Some(cycle) if !cycle_settled(cycle.phase) => {
+                    Err("only a sealed cycle or one whose seal failed can be archived or unarchived".to_owned())
                 }
                 _ => Ok(()),
             },
@@ -77,7 +78,10 @@ impl Transaction<RuntimeState> for SetArchived {
         match (&self.subject, self.archived) {
             (ArchiveSubject::Cycle(id), true) => {
                 state.archived_cycles.insert(id.clone());
-                state.cycle_report_finalizations.remove(id);
+                // A Failed Seal Keeps Its Frozen Header So A Later Retry Resumes From It.
+                if state.cycles.get(id).is_none_or(|cycle| cycle.phase != CyclePhase::SealFailed) {
+                    state.cycle_report_finalizations.remove(id);
+                }
                 if let Some(cycle) = state.cycles.get(id) {
                     for member in &cycle.execution_ids {
                         if state.executions.get(member).is_some_and(|execution| execution.saved.is_some()) {
@@ -103,6 +107,11 @@ impl Transaction<RuntimeState> for SetArchived {
 }
 
 /* === Public Functions === */
+
+/// Whether the cycle's seal has settled: sealed, or failed with its cause recorded.
+pub fn cycle_settled(phase: CyclePhase) -> bool {
+    matches!(phase, CyclePhase::Sealed | CyclePhase::SealFailed)
+}
 
 pub fn cycle_terminal(lifecycle: CycleStatus) -> bool {
     matches!(lifecycle, CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopped)

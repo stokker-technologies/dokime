@@ -68,6 +68,8 @@ function connected(generation = "8"): DesktopSessionSnapshot {
         epoch: "epoch",
         displayName: "Fixture",
         productVersion: "1",
+        sourceRevision: null,
+        channel: null,
         target: "fixture",
         apiVersion: "1",
         descriptorSha256: "a".repeat(64),

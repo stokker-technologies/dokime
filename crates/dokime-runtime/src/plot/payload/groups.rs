@@ -217,10 +217,7 @@ fn operation(request: &PlotPayloadRequest) -> Option<Operation<'_>> {
     // Record Correlation Has Priority Over Telemetry Aggregates In The Shared Projection.
     let record = request.y_expressions.iter().any(|expression| {
         matches!(expression.source, DataSource::Record { .. })
-            && expression
-                .transforms
-                .iter()
-                .any(|transform| matches!(transform, DataTransform::TimeBetween { .. } | DataTransform::TelemetryAtOrBefore { .. }))
+            && expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TimeBetween { .. }))
     });
     if record {
         return None;
@@ -307,6 +304,7 @@ fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &P
     })?;
     let mut series = vector(count)?;
     let z = super::request_z_index(telemetry, request);
+    let input_count = inputs(request).count();
     for input in inputs(request) {
         for group in &plan.groups {
             let count = plan.count(group, input);
@@ -325,7 +323,7 @@ fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &P
                     z: z.resolve(row.sample),
                 });
             }
-            let (key, label) = labels(input, &plan.rows[group.start].key, request.y_keys.len());
+            let (key, label) = labels(input, &plan.rows[group.start].key, input_count);
             series.push(series_entry(join(&key)?, join(&label)?, request.unit.as_deref(), points)?);
         }
     }
@@ -359,16 +357,29 @@ fn build_aggregates(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request
     Ok(series)
 }
 
-fn labels<'a>(input: Input<'a>, group: &'a str, fields: usize) -> ([&'a str; 3], [&'a str; 3]) {
+fn labels<'a>(input: Input<'a>, group: &'a str, inputs: usize) -> ([&'a str; 3], [&'a str; 3]) {
     match input {
-        Input::Field(_) if fields == 1 => ([group, "", ""], [group, "", ""]),
-        Input::Field(field) => ([field, ":", group], [field, " ", group]),
-        Input::Expression(expression) => ([super::expression_field_name(expression).unwrap_or("value"), ":", group], [group, "", ""]),
+        Input::Field(field) => trace_names(field, group, inputs, false),
+        Input::Expression(expression) => trace_names(super::expression_field_name(expression).unwrap_or("value"), group, inputs, true),
     }
 }
 
 fn parts_length(parts: &[&str]) -> Result<usize> {
     parts.iter().try_fold(0usize, |length, part| length.checked_add(part.len()).ok_or_else(memory))
+}
+
+/// One grouped trace's key and label parts. Several y inputs name the input
+/// with the group, key `<input>:<group>` and label `<input> <group>`, so every
+/// trace stays distinct. One input labels its traces by the bare group, and
+/// keys them so too unless `named_key` keeps the input's name in the key.
+pub(super) fn trace_names<'a>(input: &'a str, group: &'a str, inputs: usize, named_key: bool) -> ([&'a str; 3], [&'a str; 3]) {
+    let bare = [group, "", ""];
+    let key = [input, ":", group];
+    match inputs {
+        1 if named_key => (key, bare),
+        1 => (bare, bare),
+        _ => (key, [input, " ", group]),
+    }
 }
 
 pub(super) fn join(parts: &[&str]) -> Result<String> {

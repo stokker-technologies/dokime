@@ -49,7 +49,6 @@ export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "r
 export type DataTransform =
   | { type: "aggregate"; aggregate: Aggregate }
   | { type: "time_between"; previous_record_type: string }
-  | { type: "telemetry_at_or_before"; stream: string; field: string }
   | { type: "detail"; name: string }
   | { type: "per_case" };
 

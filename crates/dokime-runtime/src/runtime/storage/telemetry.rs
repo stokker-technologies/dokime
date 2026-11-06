@@ -608,6 +608,9 @@ async fn visit_positioned(
         if let Some(visible) = visible {
             indexed_scope.test_execution_id = indexed_scope.test_execution_id.or_else(|| visible.test_execution_id.clone());
             indexed_scope.test_cycle_id = indexed_scope.test_cycle_id.or_else(|| visible.test_cycle_id.clone());
+            indexed_scope.test_case_id = indexed_scope.test_case_id.or_else(|| visible.test_case_id.clone());
+            indexed_scope.template_id = indexed_scope.template_id.or_else(|| visible.template_id.clone());
+            indexed_scope.suite_id = indexed_scope.suite_id.or_else(|| visible.suite_id.clone());
             if source.scope.is_none() {
                 source.scope = indexed_scope
                     .test_execution_id
@@ -833,6 +836,7 @@ fn telemetry_terms<'a>(
         ("payload.metadata.scope.test_cycle_id", selected.test_cycle_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.test_case_id", selected.test_case_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.template_id", selected.template_id.as_ref().map(|id| id.as_str())),
+        ("payload.metadata.scope.suite_id", selected.suite_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.session_id", visible.and_then(|s| s.session_id.as_ref()).map(|id| id.as_str())),
         ("payload.metadata.scope.test_cycle_id", visible.and_then(|s| s.test_cycle_id.as_ref()).map(|id| id.as_str())),
         ("payload.metadata.scope.test_case_id", visible.and_then(|s| s.test_case_id.as_ref()).map(|id| id.as_str())),
@@ -1011,11 +1015,17 @@ mod admission_tests {
         let a = RecordScope {
             test_execution_id: Some(TestExecutionId::from_seed("capture-a")),
             test_cycle_id: Some(TestCycleId::from_seed("cycle-a")),
+            test_case_id: Some(dokime_domain::model::identity::CaseId::from_seed("case-a")),
+            template_id: Some(dokime_domain::model::identity::TemplateId::from_seed("template-a")),
+            suite_id: Some(dokime_domain::model::identity::SuiteId::from_seed("suite-a")),
             ..Default::default()
         };
         let b = RecordScope {
             test_execution_id: Some(TestExecutionId::from_seed("capture-b")),
             test_cycle_id: Some(TestCycleId::from_seed("cycle-b")),
+            test_case_id: Some(dokime_domain::model::identity::CaseId::from_seed("case-b")),
+            template_id: Some(dokime_domain::model::identity::TemplateId::from_seed("template-b")),
+            suite_id: Some(dokime_domain::model::identity::SuiteId::from_seed("suite-b")),
             ..Default::default()
         };
         let mut references = Vec::new();
@@ -1174,6 +1184,81 @@ mod admission_tests {
                 .unwrap();
             assert_eq!(prior.iter().map(|(_, entry)| entry.ordinal).collect::<Vec<_>>(), [2]);
         }
+        let foreign = b.test_execution_id.as_ref().unwrap().to_string();
+        let original_contract = local
+            .read(move |connection| {
+                connection.query_row("SELECT contract FROM streams WHERE execution=?1", [foreign], |row| row.get::<_, String>(0))
+            })
+            .await
+            .unwrap();
+        let foreign = b.test_execution_id.as_ref().unwrap().to_string();
+        local
+            .call(move |connection| connection.execute("UPDATE streams SET contract='invalid' WHERE execution=?1", [foreign]))
+            .await
+            .unwrap();
+        for scope in [
+            ScopeSelection {
+                test_execution_id: a.test_execution_id.clone(),
+                ..Default::default()
+            },
+            ScopeSelection {
+                test_cycle_id: a.test_cycle_id.clone(),
+                ..Default::default()
+            },
+            ScopeSelection {
+                test_case_id: a.test_case_id.clone(),
+                ..Default::default()
+            },
+            ScopeSelection {
+                template_id: a.template_id.clone(),
+                ..Default::default()
+            },
+            ScopeSelection {
+                suite_id: a.suite_id.clone(),
+                ..Default::default()
+            },
+        ] {
+            let selection = TelemetrySelection { scope, ..Default::default() };
+            let page = collect_page(&storage, &at, &selection, &Default::default(), Default::default(), &local).await.unwrap();
+            assert_eq!(
+                page.samples.iter().map(|sample| sample.values["value"].clone()).collect::<Vec<_>>(),
+                [dokime_domain::model::values::Value::Number(1.0), dokime_domain::model::values::Value::Number(2.0)]
+            );
+            assert_eq!(
+                local
+                    .latest_telemetry_time(at.clone(), codec.schema().clone(), Vec::new(), selection.clone(), (*codec).clone())
+                    .await
+                    .unwrap(),
+                Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(2))
+            );
+            let (_, prior) = local
+                .telemetry_predecessor_page(
+                    at.clone(),
+                    codec.schema().clone(),
+                    selection,
+                    Vec::new(),
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(3),
+                    String::new(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(prior.iter().map(|(_, entry)| entry.ordinal).collect::<Vec<_>>(), [2]);
+        }
+        let selection = TelemetrySelection {
+            scope: ScopeSelection {
+                test_execution_id: b.test_execution_id.clone(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(collect_page(&storage, &at, &selection, &Default::default(), Default::default(), &local).await.is_err());
+        let foreign = b.test_execution_id.as_ref().unwrap().to_string();
+        local
+            .call(move |connection| {
+                connection.execute("UPDATE streams SET contract=?1 WHERE execution=?2", rusqlite::params![original_contract, foreign])
+            })
+            .await
+            .unwrap();
         let selected = TelemetrySelection {
             scope: ScopeSelection {
                 test_execution_id: a.test_execution_id.clone(),

@@ -73,11 +73,7 @@ pub struct Runtime {
     harmos: HarmosRuntime,
     background: Vec<Box<dyn Send>>,
     background_tasks: Vec<BackgroundTask>,
-    plugins: BTreeMap<String, plugins::ActivePackage>,
-    embedded: BTreeMap<String, embedded::Active>,
-    pending_plugins: plugins::StagedPackages,
-    plugin_manager: Option<plugins::lifecycle::Manager>,
-    publications: sidecars::PublicationIngest,
+    host: Arc<tokio::sync::Mutex<plugins::PluginHost>>,
     shutdown: Shutdown,
 }
 
@@ -138,8 +134,8 @@ impl Runtime {
             }
         }
 
-        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
-        runtime.embedded = providers;
+        let runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
+        runtime.host.lock().await.embedded = providers;
         runtime.finish_start().await
     }
 
@@ -192,7 +188,7 @@ impl Runtime {
         let mut starting = Starting(Some(self));
         let runtime = starting.0.as_mut().expect("startup owns its runtime");
         let plugins_started = std::time::Instant::now();
-        let outcome = runtime.install_plugins().await;
+        let outcome = runtime.host.lock().await.install_plugins().await;
         tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
         if let Err(source) = outcome {
             if let Err(cleanup) = runtime.shutdown().await {
@@ -206,6 +202,8 @@ impl Runtime {
             starting.0 = None;
             return Err(source);
         }
+        let restarter = plugins::restarts::spawn(Arc::clone(&runtime.host), runtime.handle.clone());
+        runtime.background_tasks.push(restarter);
         Ok(starting.0.take().expect("startup owns its runtime"))
     }
 
@@ -216,24 +214,38 @@ impl Runtime {
         handle.record_ingress.attach(handle.clone());
         let lease_gaps = sidecars::spawn_lease_gap_watch(handle.clone(), harmos.operations.watch_residents());
         Self {
-            handle,
             harmos,
             background: Vec::new(),
             background_tasks: vec![ingest, forwarding, lease_gaps],
-            publications,
-            plugins: BTreeMap::new(),
-            embedded: BTreeMap::new(),
-            pending_plugins: plugins::StagedPackages::default(),
-            plugin_manager: None,
+            host: Arc::new(tokio::sync::Mutex::new(plugins::PluginHost::new(handle.clone(), publications))),
+            handle,
             shutdown: Shutdown::default(),
         }
     }
 
     pub fn fixture_operation_caller(&self, owner: &str) -> Result<harmos::operations::Caller> {
+        let host = self.host.try_lock().map_err(|_| crate::runtime::Error::Operation("plugin host is busy".into()))?;
         let manager =
-            self.plugin_manager.as_ref().ok_or_else(|| crate::runtime::Error::Operation("plugin manager is not installed".into()))?;
+            host.plugin_manager.as_ref().ok_or_else(|| crate::runtime::Error::Operation("plugin manager is not installed".into()))?;
         let source = manager.caller(owner)?;
         self.harmos.operations.caller(&source).map_err(Into::into)
+    }
+
+    // The Running Generation Of `owner`, With The Definition It Was Prepared From.
+    pub async fn fixture_plugin_status(&self, owner: &str) -> Option<harmos::plugin::PluginStatus> {
+        self.host.lock().await.plugin_manager.as_ref()?.status(owner)
+    }
+
+    pub async fn register(&mut self, provider: Arc<dyn EmbeddedProvider>) -> Result<()> {
+        self.host.lock().await.register(provider).await
+    }
+
+    pub async fn reinitialize_plugin(&mut self, plugin: &str) -> Result<()> {
+        self.host.lock().await.reinitialize_plugin(plugin).await
+    }
+
+    pub async fn reload_plugin(&mut self, input: crate::plugins::PluginBundle) -> Result<()> {
+        self.host.lock().await.reload_plugin(input).await
     }
 
     pub fn retain<T: Send + 'static>(&mut self, integration: T) {
@@ -315,12 +327,14 @@ impl Runtime {
             // So A Stop Never Renders A Cycle Report Its Members Already Wrote.
 
             self.shutdown.stage = "stopping plugins";
-            if let Some(manager) = &mut self.plugin_manager {
+            let mut host = self.host.lock().await;
+            let host = &mut *host;
+            if let Some(manager) = &mut host.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
-                    handle: &self.handle,
-                    publications: &self.publications,
-                    packages: &mut self.plugins,
-                    embedded: &mut self.embedded,
+                    handle: &host.handle,
+                    publications: &host.publications,
+                    packages: &mut host.plugins,
+                    embedded: &mut host.embedded,
                 };
                 // A plugin that outstays its grace loses its sidecar: dropping the manager ends it.
                 let grace_ms = 5000;
@@ -330,8 +344,8 @@ impl Runtime {
                     Err(_) => tracing::warn!(grace_ms, "plugins did not stop in time; ending their sidecars"),
                 }
             }
-            self.embedded.clear();
-            self.plugin_manager = None;
+            host.embedded.clear();
+            host.plugin_manager = None;
             self.background.clear();
             self.handle.record_ingress.detach();
 
@@ -348,7 +362,7 @@ impl Runtime {
                     self.shutdown.task_failure.get_or_insert(source);
                 }
             }
-            for package in self.plugins.values_mut() {
+            for package in host.plugins.values_mut() {
                 package.release_dispatchers(&self.handle);
             }
             self.shutdown.prepared = true;
@@ -385,14 +399,15 @@ impl Runtime {
             self.shutdown.stopped = true;
         }
 
-        while let Some((name, package)) = self.plugins.iter_mut().next() {
+        let mut host = self.host.lock().await;
+        while let Some((name, package)) = host.plugins.iter_mut().next() {
             package
                 .close()
                 .await
                 .map_err(|error| crate::runtime::Error::Operation(format!("failed to remove extracted plugin `{name}`: {error}",)))?;
-            self.plugins.pop_first();
+            host.plugins.pop_first();
         }
-        self.pending_plugins
+        host.pending_plugins
             .close()
             .await
             .map_err(|error| crate::runtime::Error::Operation(format!("failed to remove staged plugin extraction: {error}",)))?;

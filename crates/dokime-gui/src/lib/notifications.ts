@@ -20,13 +20,16 @@ import { createElement, isValidElement, type ReactNode, useSyncExternalStore } f
 import { toast as displayToast, type ExternalToast } from "sonner";
 
 // Local Imports
-import { notificationFailure, type NotificationFailure } from "@/lib/notification-details";
+import { failureOf, type NotificationFailure } from "@/lib/notification-details";
+
+import { routeFailure, type FailureContext } from "@/lib/failure-routing";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
 const PAGE_SIZE = 25;
+const delivered = new Set<string>();
 
 const listeners = new Set<() => void>();
 
@@ -43,7 +46,7 @@ let refreshing: Promise<void> | undefined;
 let dirty = false;
 
 export const toast = {
-  error: (title: string, options?: NotificationOptions) => publish("error", title, options),
+  error: (failure: NotificationFailure, options?: NotificationOptions) => publish("error", failure.title, { ...options, failure }),
   info: (title: string, options?: NotificationOptions) => publish("info", title, options),
   success: (title: string, options?: NotificationOptions) => publish("success", title, options),
   warning: (title: string, options?: NotificationOptions) => publish("warning", title, options),
@@ -78,10 +81,10 @@ type NotificationOptions = Omit<ExternalToast, "description"> & {
   missingSecret?: string;
   consequences?: string[];
   failure?: NotificationFailure;
-  error?: unknown;
+  context?: FailureContext;
 };
 
-type Summary = { count: number; unread: number; revision: number; error?: string };
+type Summary = { count: number; unread: number; revision: number; error?: NotificationFailure };
 
 /* === Classes === */
 
@@ -240,22 +243,24 @@ function result<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
-function historyFailure(error: unknown): void {
-  summary = { ...summary, revision: summary.revision + 1, error: error instanceof Error ? error.message : String(error) };
-  for (const listener of listeners) listener();
-  showNotification(
-    {
-      id: "notification-history-unavailable",
+function historyFailure(error: unknown, context: FailureContext = "view"): void {
+  const failure = failureOf(error, "Notification History Unavailable");
+  const destinations = routeFailure(failure, context);
+  if (destinations.toast && !delivered.has(failure.id)) {
+    delivered.add(failure.id);
+    showNotification({
+      id: failure.id,
       at: Date.now(),
+      title: failure.title,
+      description: failure.message,
       source: "Notifications",
-      title: "Notification History Unavailable",
       tone: "error",
       unread: 1,
-      description: summary.error,
-      failure: notificationFailure(error),
-    },
-    { id: "notification-history-unavailable" },
-  );
+      failure,
+    });
+  }
+  summary = { ...summary, revision: summary.revision + 1, error: failure };
+  for (const listener of listeners) listener();
 }
 
 async function refresh(): Promise<void> {
@@ -286,24 +291,30 @@ function subscribe(listener: () => void): () => void {
 }
 
 function publish(tone: NotificationTone, title: string, options: NotificationOptions = {}): string | number {
-  const { source, pluginSettings, missingSecret, consequences, failure, error, ...display } = options;
+  const { source, pluginSettings, missingSecret, consequences, failure, context = "action", ...display } = options;
+  if (failure) {
+    const destinations = routeFailure(failure, context);
+    if (!destinations.toast) return failure.id;
+    if (delivered.has(failure.id)) return failure.id;
+    delivered.add(failure.id);
+  }
   const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
   const record: NotificationRecord = {
-    id: identity,
+    id: failure?.id ?? identity,
     at: Date.now(),
-    title,
+    title: failure?.title ?? title,
     tone,
     unread: 1,
     source: origin && origin !== "/" ? origin : "Desktop",
-    description: options.description ?? undefined,
+    description: failure?.message ?? options.description ?? undefined,
     pluginSettings,
     missingSecret,
     consequences,
-    failure: failure ?? notificationFailure(error),
+    failure,
   };
   const id = showNotification(record, display);
-  void recordNotification(record).catch(historyFailure);
+  void recordNotification(record).catch((error: unknown) => historyFailure(error, "background"));
   return id;
 }
 

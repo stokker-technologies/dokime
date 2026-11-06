@@ -62,13 +62,13 @@ struct BlockingStop {
 }
 
 struct Gated {
-    root: tempfile::TempDir,
     gate: Arc<Gate>,
     owner: crate::support::system_reports::Runtime,
     service: dokime_server::grpc::Service,
     server: Server,
     execution: WireClient,
     cycle: String,
+    root: tempfile::TempDir,
 }
 
 /* === Enums === */

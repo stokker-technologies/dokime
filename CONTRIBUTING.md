@@ -25,6 +25,10 @@ Native media capture also needs platform libraries. On Debian/Ubuntu, install
 `libasound2-dev`, `linux-libc-dev` and `libclang-dev`; Fedora uses
 `alsa-lib-devel`, `kernel-headers` and `clang`.
 
+Local native tasks serialize across repositories and worktrees and share a 20 GB
+sccache store; see [Workstation Builds](docs/tooling.md#workstation-builds) for
+the lock behavior and the per-run cache override.
+
 ## Development Workflow
 
 Keep a change focused and respect SDK, runtime, server, GUI and generated-client
@@ -59,36 +63,41 @@ its other checks, builds, packages, suites and benchmarks.
 
 Dokime owns its workflows, composite actions and CI/release tooling. The Hub
 provides editable baselines; CI changes are authored and reviewed here. PRs run
-the selected suites. Pushes to dev select package dependencies (checks, Product
-and Tests compilation, and both native platforms' packages), skipping suites,
-fixture preparation and Release / Dry. Dev merges remain ungated.
+the selected suites. Pushes to dev select only checks and Product and Tests
+compilation; they package and publish nothing and skip suites, fixture
+preparation and Release / Dry. Dev merges remain ungated.
 Linux Build / Product and Package / Rust run on Ubuntu 22.04, the oldest supported
 distribution, so shipped binaries and packages keep its glibc and dependency
 names; other Linux jobs use the latest runner image.
 
-Edge publishes only after a green dev build-and-package run supplies both
-platforms and the Python package. One serialized publisher drafts the channel,
-uploads and verifies every asset including SHA256SUMS, moves `edge` once,
-then publishes the complete set. Downloads are temporarily unavailable while the
-channel is drafted; a failed upload leaves it drafted for the next successful
-publication instead of exposing incomplete downloads.
+Nightly runs on its schedule and on manual dispatch. A scheduled run skips when
+dev HEAD is already the commit the `nightly` tag points at; a manual run always
+builds. On dev, Nightly / Publish depends only on the build and package jobs:
+tests, benchmarks and coverage run beside it and may fail. One serialized
+publisher drafts the channel, uploads and verifies every release-profile asset
+including SHA256SUMS, moves `nightly` once, then publishes the complete set.
+Downloads are temporarily unavailable while the channel is drafted; a failed
+upload leaves it drafted for the next successful publication instead of exposing
+incomplete downloads. Nightly / Report then appends whether the suite passed,
+naming any failed jobs, and the run URL to the release notes. Benchmark results
+remain CI artifacts.
 
-The rolling GitHub prerelease is titled `Edge` under the `edge` tag. Publication
-sets that tag explicitly and then verifies the release and every asset at
-`releases/tags/edge`. A rolling release must stay replaceable: with GitHub
-release immutability enabled, the publisher fails and names the owner setting
-(Settings > General > Releases > Enable release immutability) instead of
+The mutable GitHub prerelease is titled `Nightly` under the `nightly` tag.
+Publication sets that tag explicitly and then verifies the release and every
+asset at `releases/tags/nightly`. A mutable release must stay replaceable: with
+GitHub release immutability enabled, the publisher fails and names the owner
+setting (Settings > General > Releases > Enable release immutability) instead of
 publishing a frozen release.
 
-Every project uses the workflows `CI`, `Nightly`, `Edge`, `Release` and
-`Mirror`. Run names read `<Workflow> / <Purpose>`: `CI / Validation`,
-`CI / Draft Review`, `CI / Closed Review`, `Nightly / Validation`,
-`Edge / Publication`, `Release / Preparation`, `Release / Tagging`,
-`Release / Publication` and `Mirror / Synchronization`. Job names read
-`<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as `Check / Python`,
-`Test / Rust / Unit (windows)`, `Release / Tag`, `Edge / Publish` or
-`Mirror / Push`; `CI / Required` is the aggregate gate. Release starts only for
-manual preparation, `v*` tag pushes and merged PRs into dev that change
+Every project uses the workflows `CI`, `Nightly`, `Release` and `Mirror`. Run
+names read `<Workflow> / <Purpose>`: `CI / Validation`, `CI / Draft Review`,
+`CI / Closed Review`, `Nightly / Validation`, `Release / Preparation`,
+`Release / Tagging`, `Release / Publication` and `Mirror / Synchronization`.
+Job names read `<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as
+`Check / Python`, `Test / Rust / Unit (windows)`, `Release / Tag`,
+`Nightly / Publish` or `Mirror / Push`; `CI / Required` is the aggregate gate.
+Release starts only for manual preparation, `v*` tag pushes and merged PRs into
+dev that change
 `tools/project.toml`, which every release review does; its jobs still require
 a `release/v*` head, so ordinary merges start no Release run.
 
@@ -165,8 +174,9 @@ mise run ci:simulate
 ```
 
 The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs independent jobs concurrently in dependency order without CPU, memory
-or thread limits. Changes limited to skills, agent guidance, README or
+is only partial proof. Local simulation runs independent jobs concurrently in dependency order by default.
+Use `mise run ci:simulate --jobs 1` to execute the same complete graph one job at a time on machines that need serial validation.
+Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
 policy changes retain full selection.

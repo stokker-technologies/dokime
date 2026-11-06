@@ -160,11 +160,6 @@ fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str))
         if let DataSource::Telemetry { stream, .. } = &expression.source {
             visit(stream);
         }
-        for transform in &expression.transforms {
-            if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
-                visit(stream);
-            }
-        }
     }
 }
 
@@ -392,7 +387,6 @@ pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<Aggregate>
     expression.transforms.iter().find_map(|transform| match transform {
         DataTransform::Aggregate(aggregate) => Some(*aggregate),
         DataTransform::TimeBetween { .. } => None,
-        DataTransform::TelemetryAtOrBefore { .. } => None,
         // Neither folds the values of one series: `detail` selects what is
         // read off a record, and `per_case` widens which executions are
         // read, before any aggregate over the result.
