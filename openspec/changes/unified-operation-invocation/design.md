@@ -22,4 +22,6 @@ Use `pub trait Called<C, Proof = Declared> {}` with an inferred proof parameter 
 
 ## Delivery and Retirement
 
+The owner accepted the existing repository-wide convention baseline (about 1,780 findings across 567 files) for this scoped delivery. Leave the baseline for its later convention sweep, preserve it outside the invocation migration and disclose it in the PR.
+
 Archive this change with `stkr specification finish unified-operation-invocation` before the final candidate commit so its contracts travel in the feature PR. After the requested focused proofs, starter task, Rust checks and repository checks, push the complete candidate, verify its remote SHA, create one ready PR into `dev` and squash immediately without waiting for CI. Use `gh pr merge --squash --subject "refactor!: unify operation invocation (#N)"` with the actual PR number. No full simulation is requested. Preserve the validation results in the review description, clean the owned Cargo outputs and retire the exact integrated `dokime.wt/invocation` and `harmos.wt/invocation` worktrees and their task branches. Do not modify the private plugin repository.

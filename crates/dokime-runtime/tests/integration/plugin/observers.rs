@@ -28,7 +28,7 @@ use dokime_runtime::Value;
 use dokime_runtime::execution::{CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
-use dokime_runtime::{Refusal, Supervisor};
+use dokime_runtime::{Publishable, Refusal, Supervisor};
 
 /* === Constants === */
 const SUITE: &str = "observer.checks";
@@ -367,7 +367,12 @@ impl Watch {
         self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;
         ctx.publish_on::<ObservationRow>(&ObservationRow { index }).await?;
-        dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(Observed { index }).await?;
+        let record = Observed { index };
+        let request = dokime_runtime::records::RecordPublication {
+            request_json: serde_json::to_string(&record.publication()).expect("the declared record serializes"),
+            produced_at: dokime_runtime::model::time::now_utc().as_str().to_owned(),
+        };
+        ctx.operation(request).await?;
         self.0.samples.lock().unwrap().push(self.1);
         self.0.bump(&self.0.checks);
         Ok(())
