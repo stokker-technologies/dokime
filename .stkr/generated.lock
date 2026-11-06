@@ -3,7 +3,7 @@
   "files": {
     ".claude/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
     ".claude/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
-    ".claude/skills/dokime-authoring/references/plugins.md": "77ae53a0590934cc47c47f5ecd972d1d3ee011ece314ec060012b89aa69a9d48",
+    ".claude/skills/dokime-authoring/references/plugins.md": "bcb9cdd775f355f327037929f7ecff43804f24654aca2535e0a31f1c9987f17e",
     ".claude/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".claude/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",
     ".github/actionlint.yaml": "043fee51748318a45d03a2294b5484906b557974f0b563978916cecb708b7859",
@@ -24,7 +24,7 @@
     ".github/renovate.json5": "9bcbd7257b2502274c89f3fdadc9ef8c20fbf8094b484637553ad883db6232fd",
     ".github/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
     ".github/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
-    ".github/skills/dokime-authoring/references/plugins.md": "77ae53a0590934cc47c47f5ecd972d1d3ee011ece314ec060012b89aa69a9d48",
+    ".github/skills/dokime-authoring/references/plugins.md": "bcb9cdd775f355f327037929f7ecff43804f24654aca2535e0a31f1c9987f17e",
     ".github/skills/dokime-authoring/references/suites.md": "4b234fdc7fd384d78a6a2601dc69d246abd22cdc22e72fa779d28b30a458a0b9",
     ".github/skills/dokime-conventions/SKILL.md": "4b9e835c36124537bd6b42d8a1b98f5e88c896f489227047569a766b427b665c",
     ".github/workflows/ci.yml": "63f5e4d53371bcfcb6c230ec73c6aa3da1e8c4d9c85c4ab40e799408e2902c27",
