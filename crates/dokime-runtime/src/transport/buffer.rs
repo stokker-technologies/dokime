@@ -460,11 +460,14 @@ impl ExecutionState {
             Ok(false) => return false,
             Err(message) => {
                 self.cancel();
-                self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
-                    passed: false,
-                    message: Some(message),
-                    ..Default::default()
-                }));
+                self.push(BufferedFrame::terminal(
+                    SidecarExecutionOutcome {
+                        passed: false,
+                        message: Some(message),
+                        ..Default::default()
+                    },
+                    false,
+                ));
                 return false;
             }
         }
@@ -1042,11 +1045,12 @@ impl BufferedFrame {
         }
     }
 
-    pub(crate) fn terminal(outcome: SidecarExecutionOutcome) -> Self {
+    pub(crate) fn terminal(outcome: SidecarExecutionOutcome, cancelled: bool) -> Self {
+        let informational = outcome.passed || (cancelled && outcome.failed_in.is_none() && outcome.detail_json.is_none());
         Self {
             diagnostic: outcome.message.clone().map(|message| {
                 crate::execution::log::Entry::new(
-                    if outcome.passed { crate::execution::log::Level::Info } else { crate::execution::log::Level::Error },
+                    if informational { crate::execution::log::Level::Info } else { crate::execution::log::Level::Error },
                     message,
                 )
             }),
@@ -1179,6 +1183,27 @@ mod tests {
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
+
+    #[test]
+    fn terminal_severity() {
+        use crate::execution::log::Level;
+        use crate::transport::SidecarExecutionOutcome;
+
+        let outcome = SidecarExecutionOutcome {
+            message: Some("stopped".into()),
+            ..Default::default()
+        };
+        let stopped = super::BufferedFrame::terminal(outcome.clone(), true);
+        assert_eq!(stopped.diagnostic.unwrap().level, Level::Info as i32);
+        let failed = super::BufferedFrame::terminal(outcome.clone(), false);
+        assert_eq!(failed.diagnostic.unwrap().level, Level::Error as i32);
+        let cleanup = SidecarExecutionOutcome {
+            detail_json: Some("{}".into()),
+            ..outcome
+        };
+        let failed_cleanup = super::BufferedFrame::terminal(cleanup, true);
+        assert_eq!(failed_cleanup.diagnostic.unwrap().level, Level::Error as i32);
+    }
 
     #[test]
     fn output_wakes_readers() {

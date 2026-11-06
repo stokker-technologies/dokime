@@ -60,7 +60,7 @@ import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
-import { drawMarkerKinds, markerKinds, markerLegendRows, nearestMarker } from "@/plots/markers";
+import { drawMarkerKinds, markerKinds, markerLegendRows, markerTooltip, nearestMarker } from "@/plots/markers";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
@@ -939,6 +939,76 @@ test("Marker Kind Legend And Visibility", () => {
   assert.deepEqual(markerKinds([], []), []);
   assert.deepEqual(markerKinds([{ ...markers[0], x: null }], []), []);
   assert.deepEqual(markerLegendRows([], hidden, range, []), []);
+});
+
+test("Event And Prompt Markers Share Tooltip State At Every Card Edge", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  for (const width of [120, 320, 680]) {
+    const card = { left: 137, width };
+    const areaWidth = width - 60;
+    for (const [left, top] of [
+      [0, 0],
+      [areaWidth, 0],
+      [0, 200],
+      [areaWidth, 200],
+      [areaWidth / 2, 100],
+    ]) {
+      const plot = {
+        cursor: { left, top },
+        over: { clientWidth: areaWidth, getBoundingClientRect: () => ({ left: card.left + 40 }) },
+        valToPos: () => left,
+      } as unknown as uPlot;
+      const states = kinds.map((kind) => {
+        const tooltip = markerTooltip(plot, [kind], new Set(), card);
+        assert.ok(tooltip);
+        assert.equal(tooltip.label, kind.moments[0].label);
+        assert.ok(tooltip.left >= 0);
+        assert.ok(tooltip.width > 0);
+        assert.ok(tooltip.left + tooltip.width <= card.width);
+        assert.equal(markerTooltip(plot, [kind], new Set([kind.key]), card), null);
+        return { left: tooltip.left, width: tooltip.width };
+      });
+      assert.deepEqual(states[0], states[1]);
+      assert.deepEqual(states[0], states[2]);
+      plot.cursor.left = -1;
+      assert.equal(markerTooltip(plot, kinds, new Set(), card), null);
+    }
+  }
+});
+
+test("Marker Canvas Draws Glyphs Without Text", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  const ctx = {
+    save() {},
+    restore() {},
+    setLineDash() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    closePath() {},
+    stroke: vi.fn(),
+    fill: vi.fn(),
+    fillText: vi.fn(),
+    strokeText: vi.fn(),
+  };
+  const plot = { ctx, bbox: { left: 0, top: 0, width: 400, height: 200 }, valToPos: () => 100 } as unknown as uPlot;
+  drawMarkerKinds(plot, kinds, new Set(), []);
+  assert.ok(ctx.stroke.mock.calls.length >= kinds.length);
+  assert.ok(ctx.fill.mock.calls.length > 0);
+  assert.equal(ctx.fillText.mock.calls.length, 0);
+  assert.equal(ctx.strokeText.mock.calls.length, 0);
 });
 
 test("Marker Rows Follow Traces On Both Surfaces", () => {

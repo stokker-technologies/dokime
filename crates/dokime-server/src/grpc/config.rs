@@ -169,8 +169,6 @@ impl Config {
                 opening_timeout: Duration::from_millis(SERVER_OPENING_TIMEOUT_MS),
             },
             reflection: false,
-            web: false,
-            allowed_origins: Vec::new(),
             tls: None,
             connections: NonZeroUsize::new(SERVER_CONNECTIONS as usize).unwrap(),
             calls_per_connection: NonZeroUsize::new(SERVER_CALLS_PER_CONNECTION as usize).unwrap(),

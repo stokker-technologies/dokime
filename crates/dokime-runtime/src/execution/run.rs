@@ -669,7 +669,8 @@ fn encoded(detail: &Diagnostic) -> String {
 fn report(executions: &Executions, token: &str, outcome: SidecarExecutionOutcome) {
     if let Some(state) = lock(executions).get_mut(token) {
         state.controls.close();
-        state.push(BufferedFrame::terminal(outcome));
+        let cancelled = state.cancelled();
+        state.push(BufferedFrame::terminal(outcome, cancelled));
     }
 }
 

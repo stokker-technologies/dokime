@@ -203,6 +203,40 @@ test("Sparse Samples On Live And Frozen Canvas", async () => {
           ["0", "1", "1", "1"],
         );
       }
+    for (const zoom of [false, true]) {
+      for (const width of [200, 800]) {
+        await evaluate(
+          `document.getElementById('root').style.width = '${width}px'; window.canvasFixture.mount("points", false, ${zoom}, false, true)`,
+        );
+        const area = (await evaluate(
+          `(() => { const box = document.querySelector('.u-over').getBoundingClientRect(); return { x: box.left, y: box.top, width: box.width, height: box.height }; })()`,
+        )) as { x: number; y: number; width: number; height: number };
+        for (const index of [4, 6, 12, 14]) {
+          for (const y of [area.y + 1, area.y + area.height - 1]) {
+            await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: area.x + (area.width * index) / 19, y });
+            const result = await evaluate(`(async () => {
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const tooltip = document.querySelector('[role="tooltip"]');
+              if (!tooltip) return null;
+              const box = tooltip.getBoundingClientRect();
+              const card = tooltip.parentElement.getBoundingClientRect();
+              const first = document.createRange();
+              first.setStart(tooltip.firstChild, 0);
+              first.setEnd(tooltip.firstChild, 1);
+              const start = first.getBoundingClientRect();
+              const style = getComputedStyle(tooltip);
+              return {
+                inside: box.left >= card.left && box.right <= card.right && box.top >= card.top && box.bottom <= card.bottom,
+                startVisible: start.left >= box.left && start.right <= box.right && start.top >= box.top && start.bottom <= box.bottom,
+                wraps: box.height > parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 2,
+                truncated: tooltip.scrollHeight > tooltip.clientHeight,
+              };
+            })()`);
+            assert.deepEqual(result, { inside: true, startVisible: true, wraps: true, truncated: true });
+          }
+        }
+      }
+    }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
     if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });

@@ -506,6 +506,9 @@ fn forward_plugin_line(plugin: &str, line: &str) {
 }
 
 fn severity(line: &str) -> Option<(&'static str, &str)> {
+    if let Some(message) = line.trim_start().strip_prefix("error:") {
+        return Some(("ERROR", message.trim_start()));
+    }
     let (token, rest) = line.trim_start().split_once(' ')?;
     let level = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"].into_iter().find(|level| *level == token)?;
 
@@ -518,6 +521,13 @@ fn severity(line: &str) -> Option<(&'static str, &str)> {
 mod tests {
     use super::*;
     use dokime_domain::model::settings::PluginPreferences;
+
+    #[test]
+    fn stderr_severity() {
+        assert_eq!(severity("error: connection failed\n  caused by: offline"), Some(("ERROR", "connection failed\n  caused by: offline")));
+        assert_eq!(severity(" WARN probe unavailable"), Some(("WARN", "probe unavailable")));
+        assert_eq!(severity("worker started"), None);
+    }
 
     fn preferences(startup_timeout_s: u32) -> PluginPreferences {
         PluginPreferences {

@@ -34,7 +34,7 @@ import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
-import { drawMarkerKinds, type MarkerRange, markerKinds, markerLegendRows, nearestMarker } from "@/plots/markers";
+import { drawMarkerKinds, type MarkerRange, type MarkerTooltip, markerKinds, markerLegendRows, markerTooltip } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PromptMarker } from "@/plots/prompt-markers";
@@ -243,7 +243,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
-  const [hoveredMarker, setHoveredMarker] = useState<{ label: string; left: number } | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<MarkerTooltip | null>(null);
   const referenceLinesRef = useRef<DocumentReferenceLine[]>(referenceLines);
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
@@ -432,12 +432,12 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
-            const marker = left != null && left >= 0 ? nearestMarker(plot, kindsRef.current, hiddenMarkersRef.current, left) : null;
+            const nextTooltip = markerTooltip(plot, kindsRef.current, hiddenMarkersRef.current, root.getBoundingClientRect());
             setHoveredMarker((current) => {
-              if (!marker) return current ? null : current;
-              const offset = plot.over.getBoundingClientRect().left - root.getBoundingClientRect().left;
-              const next = { label: marker.label, left: offset + marker.left };
-              return current?.label === next.label && current.left === next.left ? current : next;
+              if (!nextTooltip) return current ? null : current;
+              return current?.label === nextTooltip.label && current.left === nextTooltip.left && current.width === nextTooltip.width
+                ? current
+                : nextTooltip;
             });
             if (!tableLegend || left == null || left < 0) return;
             const next = {
@@ -614,6 +614,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       if (plot.width === nextSize.width && plot.height === nextSize.height) {
         return;
       }
+      setHoveredMarker(null);
       try {
         plot.setSize(nextSize);
         if (zoom) plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
@@ -891,9 +892,9 @@ export const CartesianPlot = memo(function CartesianPlot({
           <div ref={rootRef} className="min-h-60 min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
           {hoveredMarker ? (
             <div
-              className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
+              className="pointer-events-none absolute top-1 z-10 box-border line-clamp-3 wrap-anywhere rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
               role="tooltip"
-              style={{ left: `${hoveredMarker.left}px` }}
+              style={{ left: hoveredMarker.left, width: hoveredMarker.width }}
             >
               {hoveredMarker.label}
             </div>

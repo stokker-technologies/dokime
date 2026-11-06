@@ -162,7 +162,11 @@ filled caps matching the canvas. Marker rows leave cursor and statistics cells
 empty. Clicking a row hides or restores only that kind; visibility belongs to
 the plot card, like trace visibility. Frozen HTML reports retain these toggles.
 Marker colors come from the theme's plot palette, and hovering a visible marker
-shows its recorded label. There is no separate prompt-marker control.
+shows its recorded label through the same tooltip for events and prompts; markers
+never draw permanent canvas labels. The tooltip stays inside the plot card,
+wraps long labels and ellipsizes after three lines while retaining the start.
+Live plots and frozen HTML reports share this behavior. There is no separate
+prompt-marker control.
 
 Point styles draw samples independently of hover. Line, stepped and line-point
 styles also mark lone samples between gaps, including nullable XY coordinates.
