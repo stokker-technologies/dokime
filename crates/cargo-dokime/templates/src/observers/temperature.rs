@@ -20,7 +20,6 @@
 // Local Imports
 use crate::domain::model::chamber::TemperatureRow;
 use crate::operations::ReadChamber;
-use dokime::harmos::operations::Host;
 use dokime::harmos::sidecar::{ObserverContext, Publisher};
 
 /* === Constants === */

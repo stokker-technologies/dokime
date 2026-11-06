@@ -20,7 +20,6 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::OperationHost as _;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
@@ -363,7 +362,7 @@ impl Watch {
     }
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
-        let secrets = ctx.operation::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
+        let secrets = ctx.operation(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
         self.0.secrets.store(secrets, Ordering::Release);
         self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;

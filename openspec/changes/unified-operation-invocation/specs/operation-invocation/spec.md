@@ -8,6 +8,10 @@ Templates, criteria and observers SHALL expose `ctx.operation(request)` returnin
 - **WHEN** a template invokes a declared operation or an existing exempt built-in
 - **THEN** the shared builder routes it with the stage's authority; an undeclared ordinary operation fails compilation.
 
+#### Scenario: Redundant Built-In Requirement
+- **WHEN** a template lists an unconditional built-in in its requires catalog, including a nested catalog
+- **THEN** compilation rejects that declaration with a diagnostic explaining the redundant built-in requirement.
+
 ### Requirement: Scoped Policy And Evidence
 
 No-option calls SHALL use the operation declaration policy unchanged. Configured retry overrides SHALL affect only one call, retain operation deadlines and record every actual attempt. Unknown replay safety SHALL refuse retry-enabling overrides. Routing, harness selection, readiness and cancellation SHALL remain owned by StepOperationHost.

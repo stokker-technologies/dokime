@@ -13,8 +13,8 @@ A template lists its calls in its `requires` catalog. Its plugin's own `Private`
 Use `ctx.operation(request).await?` on every authoring surface. Await returns
 `Response<T>`: read it through Deref, or call `into_owned()` to move the value.
 Use `.start().await?` to retain a scoped instance. Built-ins such as WatchFile and
-RunProcess use that method without a template `requires` entry. The operation
-macro owns default timeouts, delays and retries. A builder option overrides one
+RunProcess use that method without a template `requires` entry. Redundant built-in requirements are compile errors.
+The operation macro owns default timeouts, delays and retries. A builder option overrides one
 call; retry choices come from settings, parameters or configuration and require
 declared replay safety when enabled. Every attempt is recorded and attempt
 deadlines are never raised. Import `OperationHost` on carrier hosts; there is no
@@ -91,7 +91,7 @@ For traceability, fetch the data before building and publishing each section:
 async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     // Get Diagnostics
     let operation = GetDiagnostics {};
-    let diagnostics = ctx.call(operation).await?;
+    let diagnostics = ctx.operation(operation).await?;
 
     // === Device Under Test === //
     let mut section = TraceabilitySection::new("dut", "Device Under Test");

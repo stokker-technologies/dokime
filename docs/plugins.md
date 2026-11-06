@@ -391,8 +391,8 @@ The operation macro owns default timeouts, delays and retries. `.retry(settings.
 overrides one call, using settings, parameters or configuration. Enabled overrides
 require declared replay safety, preserve attempt deadlines and record every attempt.
 Template built-ins such as WatchFile and RunProcess use the same method without a
-`requires` entry. Import `OperationHost` for carrier hosts; SDK `Host` and Dokime
-`StepHost` are retired. Rebuild sidecars and guests together for child-call envelope v2.
+`requires` entry; listing an unconditional built-in there is a compile error.
+Import `OperationHost` for carrier hosts; SDK `Host` and Dokime `StepHost` are retired. Rebuild sidecars and guests together for child-call envelope v2.
 
 ## Operation Boundaries
 

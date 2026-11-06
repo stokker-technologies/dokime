@@ -19,7 +19,6 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::operations::OperationHost;
 use harmos::plugin::Declared;
 
 // Local Imports
@@ -101,7 +100,7 @@ impl Capture {
     #[dokime_runtime::step(label = "Capture Files")]
     async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let watch = ctx
-            .operation::<WatchFile>(WatchFile {
+            .operation(WatchFile {
                 recursive: true,
                 rules: vec![FileRule {
                     glob: "**/*.log".into(),

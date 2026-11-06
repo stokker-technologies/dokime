@@ -14,7 +14,6 @@
 /* === Imports === */
 
 use crate::Error;
-use dokime::harmos::operations::OperationHost;
 use dokime::prelude::*;
 use plugin_host::host::cpu::load::{LoadControl, LoadHold, LoadTarget};
 use std::time::Duration;
@@ -71,7 +70,7 @@ impl CpuLoad {
     #[dokime::step(label = "Hold Host CPU Load")]
     async fn hold(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let load = ctx
-            .operation::<LoadHold>(LoadHold {
+            .operation(LoadHold {
                 target: LoadTarget::Percent(ctx.parameters().target_percent),
                 threads: None,
             })

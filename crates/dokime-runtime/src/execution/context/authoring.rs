@@ -142,10 +142,10 @@ pub trait Required {
 // The bound sits on the operation, so a one-member `requires` catalog never
 // lets inference pick the operation before it reads the request.
 #[diagnostic::on_unimplemented(
-    message = "`{T}` does not list `{Self}` in its `requires` catalog",
+    message = "`{C}` does not list `{Self}` in its `requires` catalog",
     label = "add this operation to the template's `requires = ...` catalog"
 )]
-pub trait Called<T, Proof = Declared> {}
+pub trait Called<C, Proof = Declared> {}
 
 /* === Implementations === */
 

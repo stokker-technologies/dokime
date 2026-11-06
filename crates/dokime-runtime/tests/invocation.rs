@@ -80,12 +80,24 @@ impl Probe {
         Ok(Self)
     }
 
-    #[dokime_runtime::step(label = "Read A Value")]
+    #[dokime_runtime::step(label = "Read a Value")]
     async fn read(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let response = ctx.operation(Read { value: 42 }).await?;
         assert_eq!(response.value, 43);
         let value = response.into_owned();
         assert_eq!(value.value, 43);
+        Ok(())
+    }
+
+    #[dokime_runtime::step(label = "Run a Built-In")]
+    async fn built_in(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
+        // List Tests Through the Built-In Process Operation
+        let program = std::env::current_exe().unwrap();
+        let request = dokime_runtime::operations::process::RunProcess::new(program.to_str().unwrap()).arg("--list");
+        let running = ctx.operation(request).start().await?;
+        let exit = running.join().await?;
+        assert!(exit.success());
+        assert!(!exit.cancelled);
         Ok(())
     }
 }
