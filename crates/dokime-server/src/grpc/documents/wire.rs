@@ -72,7 +72,7 @@ impl Frames {
         let budget = self.budget.take();
         native::capture::CardFailure {
             code: budget.as_ref().map_or("document_card_failed", |budget| budget.name.as_str()).to_owned(),
-            message: error.message().to_owned(),
+            message: if budget.is_some() { error.message().to_owned() } else { format!("card {}: {}", self.card, error.message()) },
             budget,
         }
     }
@@ -189,12 +189,13 @@ impl Stream {
             if let Err(error) = declaration(&mut encoded, card.clone(), &capture.selection) {
                 self.failed.insert(source.clone(), encoded.failure(error));
                 encoded = Frames::new(self.limit);
-                let mut metadata = canonical::metadata(&card.metadata)?;
+                let mut metadata = card.metadata.clone();
                 metadata.label = source.clone();
                 metadata.description = None;
                 metadata.tags.clear();
+                metadata.attributes.clear();
                 encoded.push(Frame::Card(contract::DocumentCard {
-                    metadata: Some(metadata),
+                    metadata: Some(canonical::metadata(&metadata)?),
                     filters: Vec::new(),
                     body: Some(contract::DocumentCardBody::Markdown(String::new())),
                 }))?;
@@ -237,10 +238,7 @@ impl Stream {
         if let Err(error) = append_binding(&mut output, binding.clone()) {
             let failure = output.failure(error);
             output = Frames::new(self.limit);
-            binding.result = native::capture::CardBindingResult::Failed { failure };
-            binding.metadata.label = binding.metadata.identifier.to_string();
-            binding.metadata.description = None;
-            binding.metadata.tags.clear();
+            binding = failed_binding(binding, failure);
             append_binding(&mut output, binding.clone())?;
         }
         output.push(Frame::CardComplete(id))?;
@@ -264,7 +262,7 @@ impl Stream {
                     card_id: binding.metadata.identifier.to_string(),
                 }),
             };
-            binding.result = native::capture::CardBindingResult::Failed { failure };
+            binding = failed_binding(binding, failure);
             append_binding(&mut output, binding.clone())?;
             output.push(Frame::CardComplete(binding.metadata.identifier.to_string()))?;
             return Ok(output.frames);
@@ -500,6 +498,15 @@ fn append_binding(output: &mut Frames, binding: native::capture::CardBinding) ->
     Ok(())
 }
 
+fn failed_binding(mut binding: native::capture::CardBinding, failure: native::capture::CardFailure) -> native::capture::CardBinding {
+    binding.result = native::capture::CardBindingResult::Failed { failure };
+    binding.metadata.label = binding.metadata.identifier.to_string();
+    binding.metadata.description = None;
+    binding.metadata.tags.clear();
+    binding.metadata.attributes.clear();
+    binding
+}
+
 fn card_failure(failure: &native::capture::CardFailure) -> contract::DocumentCardFailure {
     contract::DocumentCardFailure {
         code: failure.code.clone(),
@@ -697,6 +704,26 @@ mod tests {
             artifacts_sha256: None,
         };
         let limit = 4096;
+        let input = "payload".repeat(4096);
+        let (_, healthy) = summary("fixture.healthy", Some(Value::Integer(7)));
+        for value in [Value::Text(input.clone()), Value::Array(vec![Value::Null; input.len()])] {
+            let mut oversized_metadata = document.clone();
+            oversized_metadata.capture.definition.cards[0].metadata.attributes.insert("fixture.payload".into(), value);
+            oversized_metadata.capture.cards[0].metadata = oversized_metadata.capture.definition.cards[0].metadata.clone();
+            let mut metadata_stream = Stream::new(limit);
+            let frames = metadata_stream
+                .event(CurrentDocumentEvent::Structure {
+                    document: oversized_metadata,
+                    pending_repeats: false,
+                    partial: false,
+                })
+                .unwrap();
+            assert!(frames.iter().any(|frame| matches!(&frame.frame, Some(Frame::Binding(binding)) if
+                binding.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "fixture.large" && metadata.attributes.is_empty()) &&
+                matches!(&binding.result, Some(contract::DocumentBindingResult::Failure(_))))));
+            let frames = metadata_stream.event(CurrentDocumentEvent::Card(healthy.clone())).unwrap();
+            assert!(frames.iter().any(|frame| matches!(&frame.frame, Some(Frame::SummaryTile(tile)) if tile.value.is_some())));
+        }
         let mut stream = Stream::new(limit);
         stream
             .event(CurrentDocumentEvent::Structure {
@@ -705,7 +732,6 @@ mod tests {
                 partial: false,
             })
             .unwrap();
-        let input = "payload".repeat(4096);
         let (_, large) = summary("fixture.large", Some(Value::Text(input.clone())));
         let frames = stream.event(CurrentDocumentEvent::Card(large)).unwrap();
         let failure = frames
@@ -723,7 +749,6 @@ mod tests {
         assert_eq!(budget.limit, limit as u64);
         assert!(budget.reached >= input.len() as u64 && budget.reached > budget.limit);
         assert_eq!(budget.card_id, "fixture.large");
-        let (_, healthy) = summary("fixture.healthy", Some(Value::Integer(7)));
         let frames = stream.event(CurrentDocumentEvent::Card(healthy)).unwrap();
         assert!(frames.iter().any(|frame| matches!(&frame.frame, Some(Frame::Binding(binding)) if matches!(binding.result, Some(contract::DocumentBindingResult::Summary(_))))));
         assert!(frames.iter().any(|frame| matches!(&frame.frame, Some(Frame::SummaryTile(tile)) if tile.value.is_some())));
