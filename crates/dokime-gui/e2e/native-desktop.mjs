@@ -396,6 +396,9 @@ async function checkParameterGeometry(session) {
 }
 
 async function promptHoverLabels() {
+  document
+    .querySelector('[data-plot-viewport="obc.charger.startup.sequence.signals"]')
+    ?.scrollIntoView({ block: "center", behavior: "instant" });
   const frame = document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"]');
   const overlay = frame?.querySelector(".u-over");
   if (!overlay) return [];
@@ -436,6 +439,9 @@ function assertPromptHovers(labels) {
 }
 
 function histogramPresentation() {
+  document
+    .querySelector('[data-plot-viewport="obc.charger.startup.sequence.voltage_distribution"]')
+    ?.scrollIntoView({ block: "center", behavior: "instant" });
   const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] section');
   if (!plot) return null;
   const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) =>
@@ -2521,9 +2527,10 @@ async function cycleJourney(session, cycleId) {
     "the plot identity to configure",
     () =>
       session.execute(`
-    return document.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+    const viewport = document.querySelector('[data-plot-viewport]');
+    viewport?.scrollIntoView({ block: "center", behavior: "instant" });
+    return viewport?.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
   `),
-    WAIT_MS,
   );
   const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
   const settingsText = await openPlotSettings(session, settingsSelector);
@@ -2561,13 +2568,14 @@ async function cycleJourney(session, cycleId) {
     () =>
       session.execute(
         `
+    const viewport = document.querySelector('[data-plot-viewport=' + JSON.stringify(arguments[0]) + ']');
+    viewport?.scrollIntoView({ block: "center", behavior: "instant" });
     const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
       .find((node) => node.dataset.plotId === arguments[0]);
     return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot Settings For "]'));
   `,
         [plotId],
       ),
-    WAIT_MS,
   );
   await openPlotSettings(session, settingsSelector);
   const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
