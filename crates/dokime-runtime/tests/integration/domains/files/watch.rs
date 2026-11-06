@@ -1227,6 +1227,81 @@ async fn live_artifact_tree() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn live_media_upload() {
+    use dokime_runtime::ExecutionFileStreamState;
+    use dokime_runtime::artifacts::ArtifactUploadInput;
+
+    let bench = Bench::start(|config, _| config).await;
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let scope = bench.handle.watch_state().latest().state().executions[&execution].scope.clone();
+    // A Valid One-Pixel PNG Is Saved While The Execution Remains Blocked.
+    let png: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4, 0, 0, 0, 181, 28, 12, 2, 0, 0, 0, 11,
+        73, 68, 65, 84, 120, 218, 99, 100, 248, 15, 0, 1, 5, 1, 1, 39, 24, 227, 102, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+    let stem = "capture-".repeat(28);
+    let names = [format!("{stem}.png"), format!("{stem}.2.png"), format!("{stem}.2.2.png"), format!("{stem}.3.png")];
+    let mut uploads = Vec::new();
+    for requested in [&names[0], &names[0], &names[1], &names[0]] {
+        let upload = bench
+            .handle
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope: scope.clone(),
+                filename: requested.clone(),
+                content_type: Some("image/png".into()),
+                size_bytes: png.len() as u64,
+                sha256: None,
+            })
+            .await
+            .unwrap();
+        upload.send(png.to_vec()).await.unwrap();
+        uploads.push(upload);
+    }
+    for (upload, name) in uploads.iter().zip(&names) {
+        let record = upload.finish().await.unwrap();
+        assert_eq!(&record.filename, name);
+        let path = format!("media/{name}");
+        let files = bench.handle.execution_files(&execution).await.unwrap();
+        let file = files.iter().find(|file| file.relative_path == path).unwrap();
+        assert_eq!(file.artifact_id, record.artifact_id.to_string());
+        assert_eq!(file.content_type.as_deref(), Some("image/png"));
+        assert_eq!(file.stream_state, ExecutionFileStreamState::Finalized);
+        let content = bench.handle.execution_file_content(&execution, path, 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.content_type.as_deref(), Some("image/png"));
+        assert_eq!(content.bytes, png);
+        assert!(bench.handle.artifacts().await.unwrap().iter().any(|entry| entry.artifact_id == record.artifact_id));
+    }
+    assert!(bench.handle.watch_state().latest().state().executions[&execution].saved.is_none());
+    drop(uploads);
+    bench.executor.release();
+    crate::service_support::native::checkpoint(&bench.handle, &execution).await;
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    assert_eq!(files.iter().filter(|file| file.relative_path.starts_with("media/")).count(), 4);
+    let mut report = bench.handle.open_execution_report(&execution).await.unwrap();
+    let html = crate::service_support::reports::opened_bytes(&mut report).await;
+    let evidence = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tests/media");
+    std::fs::create_dir_all(&evidence).unwrap();
+    std::fs::write(evidence.join("report.html"), &html).unwrap();
+    let payload = crate::service_support::reports::parse(std::str::from_utf8(&html).unwrap());
+    let artifacts = payload["snapshot"]["artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 4);
+    for artifact in artifacts {
+        assert!(artifact["path"].as_str().unwrap().starts_with("media/"));
+        let path = artifact["path"].as_str().unwrap();
+        let href = artifact["href"].as_str().unwrap();
+        assert_eq!(href, format!("outputs/{path}"));
+        let content = bench.handle.execution_file_content(&execution, path.to_owned(), 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.bytes, png);
+        let destination = evidence.join(href);
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        std::fs::write(destination, &content.bytes).unwrap();
+        assert_eq!(artifact["downloadHref"], href);
+    }
+    bench.stop().await;
+}
+
 #[cfg(feature = "testing")]
 #[dokime_tracing::trace_test]
 #[tokio::test]

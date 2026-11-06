@@ -68,6 +68,7 @@ zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization
 base64 = { workspace = true }
+image = { workspace = true, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -79,6 +80,7 @@ dotenv = { workspace = true }
 tempfile = { workspace = true }
 
 # Parsing
+percent-encoding = { workspace = true }
 
 # Concurrency
 
