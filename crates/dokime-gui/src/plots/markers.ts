@@ -133,14 +133,17 @@ export function nearestMarker(
 ): { label: string; left: number } | null {
   let best: { label: string; left: number } | null = null;
   let distance = 6;
+  let event = false;
   for (const kind of kinds) {
     if (hidden.has(kind.key)) continue;
     for (const marker of kind.moments) {
       const position = plot.valToPos(marker.x, "x");
       const gap = Math.abs(position - left);
-      if (Number.isFinite(position) && position >= 0 && position <= plot.over.clientWidth && gap < distance) {
+      const preferred = gap < distance || (gap === distance && event && kind.glyph !== "event");
+      if (Number.isFinite(position) && position >= 0 && position <= plot.over.clientWidth && preferred) {
         best = { label: marker.label, left: position };
         distance = gap;
+        event = kind.glyph === "event";
       }
     }
   }

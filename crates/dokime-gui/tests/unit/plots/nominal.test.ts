@@ -936,6 +936,8 @@ test("Marker Kind Legend And Visibility", () => {
   assert.deepEqual(stems, [7]);
   assert.equal(nearestMarker(plot, kinds.slice(0, 2), hidden, 5)?.label, markers[3].label);
   assert.equal(nearestMarker(plot, kinds.slice(0, 2), new Set(), 5)?.label, markers[1].label);
+  assert.equal(nearestMarker(plot, kinds, new Set(), 5)?.label, promptMarkerLabel(prompts[0]));
+  assert.equal(nearestMarker(plot, kinds, new Set(["prompt:asked"]), 5)?.label, markers[1].label);
   assert.deepEqual(markerKinds([], []), []);
   assert.deepEqual(markerKinds([{ ...markers[0], x: null }], []), []);
   assert.deepEqual(markerLegendRows([], hidden, range, []), []);

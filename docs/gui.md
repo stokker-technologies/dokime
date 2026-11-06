@@ -164,6 +164,7 @@ the plot card, like trace visibility. Frozen HTML reports retain these toggles.
 Marker colors come from the theme's plot palette, and hovering a visible marker
 shows its recorded label through the same tooltip for events and prompts; markers
 never draw permanent canvas labels. The tooltip stays inside the plot card,
+and prompt labels take precedence over event labels at the same position. It
 wraps long labels and ellipsizes after three lines while retaining the start.
 Live plots and frozen HTML reports share this behavior. There is no separate
 prompt-marker control.

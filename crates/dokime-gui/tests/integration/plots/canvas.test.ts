@@ -226,13 +226,14 @@ test("Sparse Samples On Live And Frozen Canvas", async () => {
               const start = first.getBoundingClientRect();
               const style = getComputedStyle(tooltip);
               return {
+                prompt: ${index} !== 6 || tooltip.textContent.startsWith("Prompt asked:"),
                 inside: box.left >= card.left && box.right <= card.right && box.top >= card.top && box.bottom <= card.bottom,
                 startVisible: start.left >= box.left && start.right <= box.right && start.top >= box.top && start.bottom <= box.bottom,
                 wraps: box.height > parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 2,
                 truncated: tooltip.scrollHeight > tooltip.clientHeight,
               };
             })()`);
-            assert.deepEqual(result, { inside: true, startVisible: true, wraps: true, truncated: true });
+            assert.deepEqual(result, { prompt: true, inside: true, startVisible: true, wraps: true, truncated: true });
           }
         }
       }
