@@ -491,9 +491,9 @@ a running plugin remains its responsibility.
 
 A declared secret's identifier is its Secret Storage identifier. At plugin start,
 Dokime reads each declaration directly from the store. A missing required secret
-fails startup with ``secret `api_token` is not in Secret Storage; add it and retry the plugin``
+fails startup with ``secret `api_token` is not in Secret Storage; add it and reload the plugin``
 (the identifier varies). Optional secrets are absent when missing. Add the exact
-identifier in Secret Storage, then use **Retry** on the plugin page to read the
+identifier in Secret Storage, then use **Reload** on the plugin page to read the
 store again; only that plugin restarts. There are no per-plugin bindings,
 environment-variable sources, automatic retries or fallback identifiers.
 
@@ -539,24 +539,20 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
-A program prepares with its saved settings when it starts. Saving a change in
-**Settings → Plugins** restarts that program, and the programs that depend on it,
-with the saved values; a save that changes nothing restarts nothing. The plugin
-page shows **Restarting…** while the new generation starts. While work can still
-reach a plugin, including a paused or stopping run, the gap before automatic
-continuation and draining plugin streams, the page shows **Restart Pending**.
-The restart follows once that work completes. An idle open cycle, sealing and
-report publication after completion hold no plugin.
-Running executions are never stopped for a restart, and saves made while one
-waits apply together. A restart refused before
-the program stops, such as saved values or a missing secret its preparation
-rejects, keeps the running generation: the plugin shows **Active · Restart
-Refused** with the reason, the saved values stay saved, and saving corrected
-values or **Retry** restarts it. A new generation that fails to start is reported
-like a failed startup. Programs that are not running apply saved settings when
-they start, including through **Retry**, which starts a plugin that does not run
-at once even while a cycle is active; retrying a running plugin restarts it once
-no work can reach a plugin.
+Saving a changed value in **Settings → Plugins** keeps the program running with
+its startup values. The backend compares saved values against that generation
+and marks differing fields **Applied On Reload** with a warning highlight.
+These marks survive navigation, a GUI restart and another attached GUI. A backend
+restart starts programs with their saved settings.
+
+Use **Reload** on the plugin page or table to apply saved settings and restart
+all of the plugin's observers, including plugin-activated ones, at their newly
+configured intervals. The plugin shows **Restarting…** while it starts. Active
+work retains **Restart Pending** until the existing restart admission permits it;
+executions are never stopped for a reload. A refused preparation keeps the running
+generation, saved settings and field marks, with **Restart Refused** and its reason.
+A plugin with no running program starts immediately, including during an active
+cycle. An idle open cycle, sealing and completed report publication hold no plugin.
 
 ### Plugin Startup And Stop Timeouts
 
@@ -566,7 +562,7 @@ under Show Advanced, **Plugin Stop Timeout [s]** (default 10 s), the time a
 stopping plugin's executions have to settle. Both accept 1 to 3,600 seconds. A
 saved value applies to the next start, restart or stop; running programs are not
 restarted for it. A program that does not become ready in time fails to start with
-a cause naming the budget and this setting: raise the timeout and use **Retry**.
+a cause naming the budget and this setting: raise the timeout and use **Reload**.
 Time spent in a plugin's own initialization is bounded by the plugin's declared
 initialization policy instead; see
 [Plugins](plugins.md#plugin-startup-and-stop-budgets).
@@ -587,7 +583,7 @@ installation's row and bundle are deleted. If deletion fails, its row retains
 the error until startup retries. If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
 **Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Retry**, which starts only that plugin again, at once even while
+start offers **Reload**, which starts only that plugin again, at once even while
 a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 
@@ -595,7 +591,7 @@ a cycle is active. See
 
 The host plugin declares its 20 settings in
 [`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
-Saving a changed value in **Settings → Plugins** restarts the host plugin with it.
+Save host settings in **Settings → Plugins**, then use **Reload** to apply them.
 Each start resolves one settings snapshot.
 Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
 `1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
@@ -1945,7 +1941,7 @@ summary in the desktop to inspect each unavailable operation without mixing it i
 
 A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
 **Add Secret** dialog with that identifier prefilled, including after a failed start.
-Save the correction, then use **Retry** on the plugin page to start that plugin again.
+Save the correction, then use **Reload** on the plugin page to start that plugin again.
 All owners in an inactive bundle keep their ordinary settings editable; secret
 declarations show their identifiers read-only.
 

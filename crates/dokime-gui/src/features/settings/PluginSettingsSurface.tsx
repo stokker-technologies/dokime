@@ -11,7 +11,7 @@
  *
  * A plugin does not earn a place in the shell's navigation; it earns a page
  * under Plugins. The page bar carries the breadcrumb and its own Back chevron,
- * so this page publishes no action of its own, and the
+ * and the
  * body is the artifact's own editable settings and declared secrets followed by the
  * status cards it contributes. The Plugins list therefore stays one row per
  * plugin, with nothing nested inside it.
@@ -38,14 +38,13 @@ import {
   usePluginRestartRefresh,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
-import { usePluginsQuery, useRetryPluginMutation } from "@/features/settings/plugins/plugin-queries";
+import { usePluginsQuery, useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
-import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
 
@@ -70,9 +69,11 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const owning =
     installation ??
     (pluginId
-      ? (pluginsQuery.data?.find((entry) => entry.state === "installed" && entry.metadata?.owners.includes(pluginId)) ?? null)
+      ? (pluginsQuery.data?.find((entry) => entry.state !== "removal_pending" && entry.metadata?.owners.includes(pluginId)) ?? null)
       : null);
 
+  const reload = useReloadPluginMutation();
+  const reloadable = owning ? owning.state === "installed" && owning.restart === "idle" : Boolean(pluginId);
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
     title: `Settings › Plugins › ${section?.label ?? installation?.metadata?.identity.name ?? sectionId}`,
@@ -103,6 +104,21 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
           </SettingsCard>
         ) : (
           <>
+            <SettingsCard title="Reload">
+              <SettingsRow label="Plugin" description="Apply saved settings and restart this plugin and all its observers.">
+                <Button
+                  disabled={reload.isPending || !reloadable}
+                  onClick={() => {
+                    if (owning) reload.mutate({ installId: owning.install_id });
+                    else if (pluginId) reload.mutate({ pluginId });
+                  }}
+                  variant="outline"
+                >
+                  Reload
+                </Button>
+                {reload.isError ? <NotificationMessage error={reload.error}>{reload.error.message}</NotificationMessage> : null}
+              </SettingsRow>
+            </SettingsCard>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
             {owning?.last_boot?.state === "failed" && (owning.boot_failed || owning.active) ? (
               <SettingsCard title={owning.boot_failed ? "Startup Failed" : "Restart Refused"}>
@@ -125,7 +141,6 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             {installation?.metadata?.owners.map((owner) => (
               <PluginDetailCard key={owner} pluginId={owner} />
             ))}
-            {owning && retryable(owning) ? <PluginRetry installId={owning.install_id} /> : null}
             {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
@@ -144,29 +159,6 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 }
 
 /* === Private Components === */
-
-/** Starts this one installation again with its saved settings and secrets; nothing else restarts. */
-function PluginRetry({ installId }: { installId: string }) {
-  const retry = useRetryPluginMutation();
-  return (
-    <SettingsCard title="Retry" description="Saved settings and secrets apply when the plugin starts again.">
-      <SettingsRow label="Retry Startup">
-        <Button disabled={retry.isPending} onClick={() => retry.mutate(installId)} variant="outline">
-          {retry.isPending ? "Retrying…" : "Retry"}
-        </Button>
-        {retry.isError ? <NotificationMessage error={retry.error}>{retry.error.message}</NotificationMessage> : null}
-      </SettingsRow>
-    </SettingsCard>
-  );
-}
-
-/* === Private Functions === */
-
-/** An installed plugin that does not run, or kept its generation after a refused restart, can start again. */
-function retryable(installation: PluginEntry): boolean {
-  if (installation.state !== "installed" || installation.restart !== "idle") return false;
-  return !installation.active || installation.last_boot?.state === "failed";
-}
 
 /** The artifact's settings and read-only secret requirements. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {

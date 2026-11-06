@@ -60,8 +60,8 @@ impl PluginHost {
     // The store names what should run: the requested installation while it is
     // installed, else the running one while it still is, else nothing. The
     // change is admitted like a startup, so it ends where a restart would. A
-    // `retry` that only starts programs which do not run applies at once.
-    pub(super) async fn apply_bundle(&mut self, package: &str, requested: Option<Uuid>, retry: bool) -> Outcome {
+    // reload that only starts programs which do not run applies at once.
+    pub(super) async fn apply_bundle(&mut self, package: &str, requested: Option<Uuid>, explicit: bool) -> Outcome {
         let store = self.handle.plugin_store();
         let running = self.plugins.get(package).map(|active| active.package.input.clone());
         // Configured Bundles Change Through Their Configuration Or A Development Reload.
@@ -76,26 +76,26 @@ impl PluginHost {
                 return Outcome::Settled;
             }
         };
-        if desired == current && (desired.is_none() || self.package_ready(package)) {
+        if desired == current && (desired.is_none() || (!explicit && self.package_ready(package))) {
             return Outcome::Settled;
         }
         // Deferring Before Preparing Spares Re-Reading The Bundle On Every State Change.
-        let retry = retry && !self.package_runs(package);
-        if !retry && let Some(settling) = self.handle.active_cycle() {
+        let explicit = explicit && !self.package_runs(package);
+        if !explicit && let Some(settling) = self.handle.active_cycle() {
             return Outcome::Deferred(settling);
         }
 
         self.handle.plugin_restarts.begin(&Target::Bundle(package.to_owned()));
         match (desired, current) {
-            (Some(install), _) => self.start_bundle(&store, package, install, running, retry).await,
+            (Some(install), _) => self.start_bundle(&store, package, install, running, explicit).await,
             (None, Some(_)) => self.stop_bundle(&store, package).await,
             (None, None) => Outcome::Settled,
         }
     }
 
-    // Start `install` As `package`, Replacing What Runs Under That Name; A `retry` Stops Nothing That Runs.
+    // Start `install` As `package`, Replacing What Runs Under That Name; Starting An Inactive Bundle Stops Nothing That Runs.
     async fn start_bundle(
-        &mut self, store: &PluginStore, package: &str, install: Uuid, running: Option<PluginBundle>, retry: bool,
+        &mut self, store: &PluginStore, package: &str, install: Uuid, running: Option<PluginBundle>, explicit: bool,
     ) -> Outcome {
         let input = match store.bundle(install).await {
             Ok(Some(input)) => input,
@@ -124,7 +124,7 @@ impl PluginHost {
             Err(error) => return self.refuse(store, package, &input, running.as_ref(), refusal(package, &error)).await,
         };
         let affected = reload.affected();
-        let starts_only = retry && self.none_run(&affected);
+        let starts_only = explicit && self.none_run(&affected);
         if let Err(blocker) = self.handle.admit_plugin_restart(&affected, starts_only).await {
             return Outcome::Deferred(blocker);
         }

@@ -22,7 +22,7 @@ import {
   installNativePlugin,
   listNativePlugins,
   removeNativePlugin,
-  retryNativePlugin,
+  reloadNativePlugin,
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
@@ -143,14 +143,15 @@ export function useRemovePluginMutation() {
   });
 }
 
-/** Starts one installation again through the running backend; nothing else restarts. */
-export function useRetryPluginMutation() {
+/** Reloads a plugin and its observers using saved settings. */
+export function useReloadPluginMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (installId: string) => retryNativePlugin(session.identity, installId),
+    mutationFn: (target: { installId: string } | { pluginId: string }) => reloadNativePlugin(session.identity, target),
+    onError: (error) => toast.error(failureOf(error, "Plugin Reload Failed")),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
   });
 }

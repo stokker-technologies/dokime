@@ -43,6 +43,9 @@ use dokime_domain::model::values::Value;
 
 impl RuntimeHandle {
     pub(crate) async fn settings_snapshot(&self, plugin: &InstalledPlugin) -> Result<SettingValues> {
+        if let Some(values) = self.running_plugin_settings(&plugin.source) {
+            return Ok(values);
+        }
         self.resolved_settings(plugin).await.map(|resolved| resolved.0)
     }
 
@@ -95,6 +98,9 @@ fn apply_configured_settings(
             .ok_or_else(|| operation(format!("configured plugin {:?} sets unknown setting {id:?}", plugin.source)))?;
         let value = Value::from_plain_json(value.clone()).map_err(operation)?;
         entry.validate_value(&value).map_err(operation)?;
+        if saved.contains(id) {
+            continue;
+        }
         settings.insert(id.clone(), value);
         // A configured bundle seeds a value the way an operator would, so it
         // is a filled-in setting rather than a default a discovery route may

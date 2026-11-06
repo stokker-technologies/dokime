@@ -195,6 +195,14 @@ impl<A: Attach> Native<A> {
         }
     }
 
+    pub(super) async fn reload(&mut self, configuration: Vec<u8>) {
+        let mut definitions: Vec<_> = self.plugins.definitions().cloned().collect();
+        assert_eq!(definitions.len(), 1);
+        definitions[0].configuration = configuration;
+        let rebuilt: Vec<_> = definitions.iter().map(|definition| definition.id.clone()).collect();
+        self.plugins.reload(PluginDefinitions::new(definitions, rebuilt).unwrap(), &mut self.lifecycle).await.unwrap();
+    }
+
     pub(super) async fn retire(&mut self) {
         if !self.retired {
             self.plugins.shutdown(&mut self.lifecycle).await.unwrap();

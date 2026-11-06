@@ -65,6 +65,7 @@ export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSett
     discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
     secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
     restart: mapPluginRestart(settings.restart),
+    unapplied: settings.unapplied,
   };
 }
 
