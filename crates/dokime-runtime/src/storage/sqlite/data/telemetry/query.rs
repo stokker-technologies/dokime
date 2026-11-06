@@ -120,7 +120,11 @@ impl QueryWork {
             (self.bytes, self.config.limits().scanned_bytes, "scanned_bytes"),
         ] {
             if used > maximum {
-                let mut failure = Failure::new(Reason::WorkLimit, self.operation, "Query scan budget exhausted; narrow the selection");
+                let mut failure = Failure::new(
+                    Reason::WorkLimit,
+                    self.operation,
+                    format!("Query budget {name} exceeded (limit {maximum}, reached {used})"),
+                );
                 failure.limit = Some(EffectiveLimit { name: name.into(), value: maximum });
                 return Err(failure);
             }

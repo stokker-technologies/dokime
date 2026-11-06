@@ -165,7 +165,7 @@ pub(super) fn query(
         // Capture Ranges Are Bounded By The Admitted Batch, Never By History Length.
         let ranges = (|| -> Result<_> {
             let mut statement = connection.prepare_cached(
-                "SELECT first_row,rows FROM stream_captures WHERE execution=?1 AND file_id=?2 AND batch=?3 ORDER BY first_row",
+                "SELECT first_row,rows,scope FROM stream_captures WHERE execution=?1 AND file_id=?2 AND batch=?3 ORDER BY first_row",
             )?;
             let mut rows = statement.query(rusqlite::params![read.execution, id, batch_number])?;
             let mut ranges = Vec::new();
@@ -175,17 +175,24 @@ pub(super) fn query(
                 }
                 let first = catalog::unsigned(row, 0)?;
                 let count = catalog::unsigned(row, 1)?;
-                ranges.push((first, first.saturating_add(count)));
+                let scope: dokime_domain::model::execution::RecordScope =
+                    serde_json::from_str(row.get_ref(2)?.as_str().map_err(|_| Error::Corrupt("invalid capture scope"))?)?;
+                ranges.push((first, first.saturating_add(count), scope));
             }
             Ok(ranges)
         })()
         .map_err(|e| storage_error(e, operation))?;
         for row in 0..batch.num_rows() {
             work.check()?;
-            if !ranges.iter().any(|(first, end)| *first <= row as u64 && (row as u64) < *end) {
+            if !ranges.iter().any(|(first, end, _)| *first <= row as u64 && (row as u64) < *end) {
                 continue;
             }
             let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract).map_err(|e| storage_error(e, operation))?;
+            entry.sample.captured_scopes = ranges
+                .iter()
+                .filter(|(first, end, _)| *first <= row as u64 && (row as u64) < *end)
+                .map(|(_, _, scope)| scope.clone())
+                .collect();
             if position <= read.after || position > read.cut.at.sequence {
                 continue;
             }
