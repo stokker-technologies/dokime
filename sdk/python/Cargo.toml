@@ -1,0 +1,60 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Native Dokime Python SDK."
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+# === Features === #
+
+[features]
+# Match The Product Server's Optional Release Capture Support.
+media-native = ["dokime-server/media-native"]
+
+# === Dependencies === #
+
+[dependencies]
+dokime = { workspace = true, features = ["client", "native"] }
+dokime-server = { workspace = true }
+pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

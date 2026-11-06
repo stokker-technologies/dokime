@@ -19,15 +19,14 @@ proto = true
 # === === Languages === === #
 
 [languages.rust]
-roots = ["crates", "plugins"]
+roots = ["crates", "plugins", "sdk/python"]
 # The domain crate also builds for the browser.
 targets = ["wasm32-unknown-unknown"]
 # The GUI's Node dependencies and the starter templates are not workspace Rust sources.
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
 [languages.python]
-build_target = "any"
-roots = ["tools/python", "packages"]
+roots = ["tools/python", "packages", "sdk/python"]
 generated = [
   "packages/dokime-client/src/dokime_client/_wire",
   "packages/dokime-client/src/dokime_client/operation.py",
@@ -128,7 +127,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "build"
-inputs = ["build:python#python"]
+inputs = []
 
 [[ci.jobs]]
 id = "build:rust:tests"
@@ -137,8 +136,8 @@ outputs.tests = ["target/build/{profile}/{target}/tests", "target/build/{profile
 
 [[ci.jobs]]
 id = "build:python"
-inputs = []
-outputs.python = ["target/build/{profile}/any/python"]
+inputs = ["build#cli", "build#packaging"]
+outputs.python = ["target/build/{profile}/{target}/python"]
 
 [[ci.jobs]]
 id = "build"
@@ -290,7 +289,7 @@ outputs.package = ["target/package/{profile}/{target}/rust"]
 [[ci.jobs]]
 id = "package:python"
 inputs = ["build:python#python"]
-outputs.package = ["target/package/{profile}/any/python"]
+outputs.package = ["target/package/{profile}/{target}/python"]
 
 [[ci.jobs]]
 id = "package:rust"
@@ -355,7 +354,13 @@ integration = 120
 acceptance = 900
 system = 900
 
+[conventions.rust]
+# The Owner-Locked SDK Lives Beside The Other SDKs And Depends On The Facade And Server.
+bindings = ["dokime-python"]
+
 [conventions.rust.source_roots]
+# Owner-Locked Layout Exception To The crates/<project>-python Convention.
+dokime-python = "sdk/python/src"
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"
 
@@ -655,3 +660,14 @@ targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-
 release = true
 verify = ["--version"]
 installers = ["mise"]
+
+# === === PyO3 === === #
+
+[[pyo3.modules]]
+name = "_native"
+crate = "dokime-python"
+module_rename = "_native"
+rust = "sdk/python/src"
+stub = "sdk/python/python/dokime/__init__.pyi"
+import = "dokime._native"
+root = true

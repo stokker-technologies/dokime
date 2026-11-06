@@ -69,7 +69,7 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
     compiler_profile = "test"
     clippy(
         directory,
-        ["--locked", "--workspace", "--tests", "--profile", compiler_profile, *extra],
+        ["--locked", "--workspace", "--exclude", "dokime-python", "--tests", "--profile", compiler_profile, *extra],
     )
     command = [
         "cargo",
@@ -77,6 +77,8 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "archive",
         "--locked",
         "--workspace",
+        "--exclude",
+        "dokime-python",
         "--tests",
         "--cargo-profile",
         compiler_profile,

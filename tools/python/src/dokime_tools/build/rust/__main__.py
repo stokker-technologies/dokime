@@ -42,7 +42,7 @@ def build(profile: str) -> list[str]:
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
-    arguments = ["--locked", "--workspace", "--profile", profile, *configuration.features(profile)]
+    arguments = ["--locked", "--workspace", "--exclude", "dokime-python", "--profile", profile, *configuration.features(profile)]
     # The desktop embeds the frontend at compile time. Building it here against a placeholder keeps one
     # feature resolution for both steps, so the desktop step recompiles only dokime-gui.
     dist = frontend.WEB_ROOT / "dist"

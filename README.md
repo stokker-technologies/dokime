@@ -139,7 +139,10 @@ Follow the [locked remote tutorial](docs/remote/python.md) for a complete exampl
 
 #### Examples
 
-Install the wheel from the same candidate as your backend, selecting the optional
+Development candidates currently carry the native SDK foundation. Use the released
+`dokime-client` for the client API below until its replacement is complete.
+
+Install the released client matching your backend, selecting the optional
 extra for this dataframe example:
 
 ```sh

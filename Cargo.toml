@@ -25,6 +25,25 @@ members = [
   "crates/dokime-server",
   "plugins/sidecars/obc",
   "plugins/sidecars/obc/runtime",
+  "sdk/python",
+]
+# Native Python Is Built Only By Its Explicit Producer.
+default-members = [
+  "crates/dokime",
+  "crates/dokime-tracing",
+  "crates/dokime-cli",
+  "crates/dokime-runtime",
+  "crates/dokime-client",
+  "crates/dokime-domain",
+  "crates/dokime-operations",
+  "crates/cargo-dokime",
+  "crates/dokime-packaging",
+  "crates/dokime-gui/src-tauri",
+  "plugins/sidecars/host",
+  "crates/dokime-macros",
+  "crates/dokime-server",
+  "plugins/sidecars/obc",
+  "plugins/sidecars/obc/runtime",
 ]
 resolver = "2"
 

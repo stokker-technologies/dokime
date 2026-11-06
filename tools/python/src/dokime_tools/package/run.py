@@ -103,8 +103,7 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
     substitutions = {"profile": profile, "target": target, "version": policy.config(directory).get("version", {}).get("value")}
     if language in {"python", "typescript"}:
         source = build / {"python": "python", "typescript": "web"}[language]
-        canonical = policy.config(directory).get("languages", {}).get("python", {}).get("build_target") == "any"
-        if (target != "any" or language == "python" and canonical) and not source.is_dir():
+        if target != "any" and not source.is_dir():
             raise policy.ToolError(f"missing Product Build input: {source}")
         for entry in source.rglob("*"):
             if entry.is_symlink():
@@ -310,8 +309,9 @@ def main() -> None:
     target = options.target or paths.target()
     language = "rust" if options.language == "native" else options.language
     products = definitions(directory, options.profile, target)
-    canonical = policy.config(directory).get("languages", {}).get("python", {}).get("build_target") == "any"
-    if target == "any" and not any(item["language"] == language for item in products) and not (language == "python" and canonical):
+    if language == "python" and target == "any":
+        raise policy.ToolError("Python packaging requires a native target")
+    if target == "any" and not any(item["language"] == language for item in products):
         with temporary.directory() as staging:
             paths.replace(directory, staging, destination / language, origin=staging)
         return

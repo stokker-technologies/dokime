@@ -62,12 +62,44 @@ only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
 `COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
 save policy. The workflows own producer selection.
 
+## Native Python SDK Builds
+
+`sdk/python` is the native SDK foundation. Its `dokime-python` distribution and
+`dokime` import names are provisional; registry publication is refused until the
+owner settles naming. Client and backend wrappers remain in the later slices of
+`openspec/changes/dokime-python/`. The released pure client remains the public
+interface documented in the README until that replacement is complete.
+
+```sh
+mise run build --profile dev
+mise run build:python --profile dev
+mise run test:python:wheel --profile dev
+mise run package:python --profile dev
+```
+
+The explicit Python producer uses maturin and PyO3's Python 3.13+ stable ABI.
+Ordinary Rust Product, Tests and Bench producers exclude `dokime-python`; Cargo's
+`default-members` also omit it. The SDK depends on `dokime` and `dokime-server` by
+the owner-locked exception to facade-only bindings, and its source-root exception
+is declared in `.stkr/project.toml`.
+
+CI builds Product and then Python on Linux and Windows, restoring the matching
+Product compiler cache. Both use the native Cargo target directory and the same
+profile; release wheels enable the server's native media feature. Shared Cargo
+units reuse only when their resolved dependency features match. The wheel and
+package exports use `target/{build,package}/<profile>/<native-target>/python/`.
+Package copies the built wheel and never compiles it. Release assets collect both
+native wheels; no source distribution or platform-independent wheel is produced.
+`test:python:wheel` installs into a disposable environment outside the checkout
+and imports the native extension with isolated Python path handling.
+
 ## Focused Python Client Checks
 
 `mise run test:python:unit --select <expression>` checks current client source in
 the root environment without a staged wheel. A focused integration selection uses
 `mise run test:python:integration --select <expression>` and also checks source.
-Full Python unit and integration tasks retain their built-wheel input.
+Full Python unit and integration tasks retain their native-wheel input while
+the client test migration remains in tasks 2.4–2.5.
 
 ## Hosted-Runner Test Budgets
 

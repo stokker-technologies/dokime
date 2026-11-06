@@ -43,7 +43,7 @@ def build(profile: str) -> list[str]:
         raise ValueError("build the matching frontend before compiling the desktop")
     sync_output(output / "web", frontend.WEB_ROOT / "dist")
     messages = output / "product/desktop-compiler.json"
-    arguments = ["--locked", "--workspace", "--profile", profile, *configuration.features(profile)]
+    arguments = ["--locked", "--workspace", "--exclude", "dokime-python", "--profile", profile, *configuration.features(profile)]
     # generate_context! does not track the frontend, so only a clean desktop unit picks up the real one.
     subprocess.run(
         ["cargo", "clean", "--locked", "--package", "dokime-gui", "--profile", profile],

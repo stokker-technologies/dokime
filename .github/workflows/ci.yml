@@ -265,7 +265,7 @@ jobs:
     - id: impact
       uses: ./.github/actions/plan-impact
       with:
-        plan: "{\"rules\":[{\"include\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"exclude\":[],\"jobs\":[]},{\"include\":[\"^docs(?:/|/.*/).*\\\\.md$\"],\"exclude\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"jobs\":[\"check:repository\"]}],\"dependencies\":{\"bench:rust:integration\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:system\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:unit\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"build\":[\"build:python\"],\"build:python\":[],\"build:rust:bench\":[],\"build:rust:tests\":[],\"check:python\":[],\"check:python:generated\":[\"build:python\"],\"check:repository\":[],\"check:rust\":[],\"check:typescript\":[],\"check:typescript:generated\":[\"build\"],\"package:python\":[\"build:python\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"package:rust\":[\"build\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"release:prepare\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish:dry\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:rehearse\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:tag\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:verify\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"test:python:acceptance\":[\"build\",\"build:python\"],\"test:python:coverage\":[\"build\",\"build:python\"],\"test:python:integration\":[\"build:python\"],\"test:python:unit\":[\"build:python\"],\"test:rust:acceptance\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:coverage\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:integration\":[\"build:rust:tests\"],\"test:rust:starter\":[\"build\"],\"test:rust:system\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:unit\":[\"build:rust:tests\"],\"test:typescript:integration\":[\"build\"],\"test:typescript:system\":[\"build\",\"build:rust:tests\"],\"test:typescript:unit\":[\"build\"]}}"
+        plan: "{\"rules\":[{\"include\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"exclude\":[],\"jobs\":[]},{\"include\":[\"^docs(?:/|/.*/).*\\\\.md$\"],\"exclude\":[\"^(?:/?|.*/)skills/.*$\",\"^(?:/?|.*/)\\\\.skills/.*$\",\"^(?:/?|.*/)\\\\.agents/.*$\",\"^(?:/?|.*/)\\\\.codex/.*$\",\"^(?:/?|.*/)\\\\.claude/.*$\",\"^(?:/?|.*/)\\\\.cursor/.*$\",\"^(?:/?|.*/)\\\\.gemini/.*$\",\"^(?:/?|.*/)\\\\.opencode/.*$\",\"^(?:/?|.*/)\\\\.github/agents/.*$\",\"^(?:/?|.*/)\\\\.github/instructions/.*$\",\"^(?:/?|.*/)\\\\.github/prompts/.*$\",\"^(?:/?|.*/)\\\\.mcp\\\\.json$\",\"^(?:/?|.*/)AGENTS\\\\.md$\",\"^(?:/?|.*/)CLAUDE\\\\.md$\",\"^(?:/?|.*/)\\\\.github/copilot\\\\-instructions\\\\.md$\",\"^(?:/?|.*/)README\\\\.md$\",\"^(?:/?|.*/)readme\\\\.md$\",\"^(?:/?|.*/)CONTRIBUTING\\\\.md$\",\"^(?:/?|.*/)contributing\\\\.md$\",\"^(?:/?|.*/)LICENSE.*$\",\"^(?:/?|.*/)LICENCE.*$\",\"^(?:/?|.*/)license.*$\",\"^(?:/?|.*/)licence.*$\",\"^(?:/?|.*/)COPYING.*$\",\"^(?:/?|.*/)NOTICE.*$\"],\"jobs\":[\"check:repository\"]}],\"dependencies\":{\"bench:rust:integration\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:system\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"bench:rust:unit\":[\"build:rust:bench\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"build\":[],\"build:python\":[\"build\"],\"build:rust:bench\":[],\"build:rust:tests\":[],\"check:python\":[],\"check:python:generated\":[\"build:python\"],\"check:repository\":[],\"check:rust\":[],\"check:typescript\":[],\"check:typescript:generated\":[\"build\"],\"package:python\":[\"build:python\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"package:rust\":[\"build\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\"],\"release:prepare\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:publish:dry\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:rehearse\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:tag\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"release:verify\":[\"bench:rust:integration\",\"bench:rust:system\",\"bench:rust:unit\",\"build\",\"build:python\",\"build:rust:bench\",\"build:rust:tests\",\"check:python\",\"check:python:generated\",\"check:repository\",\"check:rust\",\"check:typescript\",\"check:typescript:generated\",\"package:python\",\"package:rust\",\"release:publish:dry\",\"release:rehearse\",\"test:python:acceptance\",\"test:python:coverage\",\"test:python:integration\",\"test:python:unit\",\"test:rust:acceptance\",\"test:rust:coverage\",\"test:rust:integration\",\"test:rust:starter\",\"test:rust:system\",\"test:rust:unit\",\"test:typescript:integration\",\"test:typescript:system\",\"test:typescript:unit\"],\"test:python:acceptance\":[\"build\",\"build:python\"],\"test:python:coverage\":[\"build\",\"build:python\"],\"test:python:integration\":[\"build:python\"],\"test:python:unit\":[\"build:python\"],\"test:rust:acceptance\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:coverage\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:integration\":[\"build:rust:tests\"],\"test:rust:starter\":[\"build\"],\"test:rust:system\":[\"build\",\"build:python\",\"build:rust:tests\"],\"test:rust:unit\":[\"build:rust:tests\"],\"test:typescript:integration\":[\"build\"],\"test:typescript:system\":[\"build\",\"build:rust:tests\"],\"test:typescript:unit\":[\"build\"]}}"
         target: >-
           ${{ github.event_name == 'pull_request' && github.base_ref != '' &&
           !startsWith(github.head_ref, 'release/') && format('origin/{0}', github.base_ref) || false
@@ -280,85 +280,242 @@ jobs:
         && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-  build_python_any:
-    name: Build / Product / Python (any)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+  build_python:
+    name: Build / Python (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
-    - id: setup
+    - id: setup_unix
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        cache-backend: ""
-        cache-mode: ""
-        caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
-        bootstrap: "[]"
-    - run: mise run build:python --profile ${{ env.PROFILE }}
+        free-disk: 'true'
+        cache-backend: disk
+        cache-mode: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE' ||
+          'READ_ONLY' }}
+        caches: '{"cargo_downloads":{"key":"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(''Cargo.lock'') }}","path":".cache/cargo/registry/\n.cache/cargo/git/"},"mise":{"key":"ci-v5-mise-${{
+          runner.os }}-${{ runner.arch }}-${{ hashFiles(''mise.lock'') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{
+          hashFiles(''mise.lock'') }}","path":"<MISE_DATA_DIR>"},"pnpm":{"key":"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(''mise.lock'')
+          }}-${{ hashFiles(''crates/dokime-gui/pnpm-lock.yaml'', ''mise.lock'') }}","path":".cache/pnpm/"},"sccache":{"key":"ci-v5-sccache-${{ runner.os
+          }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles(''mise.lock'') }}-${{ hashFiles(''Cargo.lock'') }}","path":".cache/sccache/","restore-keys":"ci-v5-sccache-${{
+          runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles(''mise.lock'') }}-"},"uv":{"key":"ci-v5-uv-${{ runner.os }}-${{ runner.arch
+          }}-${{ hashFiles(''mise.lock'') }}-${{ hashFiles(''uv.lock'', ''mise.lock'') }}","path":".cache/uv/"}}'
+        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-cli-${{ env.PROFILE }}-unix
+        path: target/ci
+      if: matrix.platform == 'unix'
+    - name: Extract Product cli
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-cli-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'unix'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-packaging-${{ env.PROFILE }}-unix
+        path: target/ci
+      if: matrix.platform == 'unix'
+    - name: Extract Product packaging
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-packaging-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'unix'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-cli-${{ env.PROFILE }}-windows
+        path: target/ci
+      if: matrix.platform == 'windows'
+    - name: Extract Product cli
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-cli-${{
+          env.PROFILE }}-windows.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-packaging-${{ env.PROFILE }}-windows
+        path: target/ci
+      if: matrix.platform == 'windows'
+    - name: Extract Product packaging
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-packaging-${{
+          env.PROFILE }}-windows.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'windows'
+    - name: Build Native Wheel
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task
+        build:python
     - name: Archive python
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","pack","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}","--paths","5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f707974686f6e225d"]'
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
-        path: target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
+        path: target/ci/build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
     - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_unix.outputs.cargo_downloads-cache-hit
+        != 'true')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
+        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
+        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
     - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_unix.outputs.mise-cache-hit != 'true')
       with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
+        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
+        path: ${{ steps.setup_unix.outputs.mise-path }}
     - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_unix.outputs.pnpm-cache-hit != 'true')
       with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
+        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
+        path: ${{ steps.setup_unix.outputs.pnpm-path }}
     - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_unix.outputs.sccache-cache-hit !=
+        'true')
       with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
+        key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
+        path: ${{ steps.setup_unix.outputs.sccache-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_unix.outputs.uv-cache-hit != 'true')
+      with:
+        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
+        path: ${{ steps.setup_unix.outputs.uv-path }}
     - name: Cache Summary
-      if: always()
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (always())
       env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
+        CACHE_RESTORES: '{"Mise":"${{ steps.setup_unix.outputs.mise-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_unix.outputs.mise-cache-hit
+          == ''false'' && ''Partial Hit'' || steps.setup_unix.outputs.mise-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","Cargo":"${{
+          steps.setup_unix.outputs.cargo_downloads-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_unix.outputs.cargo_downloads-cache-hit ==
+          ''false'' && ''Partial Hit'' || steps.setup_unix.outputs.cargo_downloads-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","UV":"${{
+          steps.setup_unix.outputs.uv-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_unix.outputs.uv-cache-hit == ''false'' && ''Partial Hit''
+          || steps.setup_unix.outputs.uv-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","PNPM":"${{ steps.setup_unix.outputs.pnpm-cache-hit
+          == ''true'' && ''Exact Hit'' || steps.setup_unix.outputs.pnpm-cache-hit == ''false'' && ''Partial Hit'' || steps.setup_unix.outputs.pnpm-outcome
+          == ''success'' && ''Miss'' || ''Unavailable'' }}","Compiler":"${{ steps.setup_unix.outputs.sccache-cache-hit == ''true'' && ''Exact Hit''
+          || steps.setup_unix.outputs.sccache-cache-hit == ''false'' && ''Partial Hit'' || steps.setup_unix.outputs.sccache-outcome == ''success''
+          && ''Miss'' || ''Unavailable'' }}"}'
       uses: ./.github/actions/save-caches
       with:
-        summary-module: ""
+        summary-module: ''
+    - id: setup_windows
+      uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        cache-backend: disk
+        cache-mode: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE' ||
+          'READ_ONLY' }}
+        caches: '{"cargo_downloads":{"key":"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(''Cargo.lock'') }}","path":".cache/cargo/registry/\n.cache/cargo/git/"},"mise":{"key":"ci-v5-mise-${{
+          runner.os }}-${{ runner.arch }}-${{ hashFiles(''mise.lock'') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{
+          hashFiles(''mise.lock'') }}","path":"<MISE_DATA_DIR>"},"pnpm":{"key":"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(''mise.lock'')
+          }}-${{ hashFiles(''crates/dokime-gui/pnpm-lock.yaml'', ''mise.lock'') }}","path":".cache/pnpm/"},"sccache":{"key":"ci-v5-sccache-${{ runner.os
+          }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles(''mise.lock'') }}-${{ hashFiles(''Cargo.lock'') }}","path":".cache/sccache/","restore-keys":"ci-v5-sccache-${{
+          runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles(''mise.lock'') }}-"},"uv":{"key":"ci-v5-uv-${{ runner.os }}-${{ runner.arch
+          }}-${{ hashFiles(''mise.lock'') }}-${{ hashFiles(''uv.lock'', ''mise.lock'') }}","path":".cache/uv/"}}'
+        bootstrap: '[]'
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (true)
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_windows.outputs.cargo_downloads-cache-hit
+        != 'true')
+      with:
+        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
+        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_windows.outputs.mise-cache-hit !=
+        'true')
+      with:
+        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
+        path: ${{ steps.setup_windows.outputs.mise-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_windows.outputs.pnpm-cache-hit !=
+        'true')
+      with:
+        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
+        path: ${{ steps.setup_windows.outputs.pnpm-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_windows.outputs.sccache-cache-hit
+        != 'true')
+      with:
+        key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
+        path: ${{ steps.setup_windows.outputs.sccache-path }}
+    - uses: ./.github/actions/save-caches
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') && steps.setup_windows.outputs.uv-cache-hit != 'true')
+      with:
+        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
+        path: ${{ steps.setup_windows.outputs.uv-path }}
+    - name: Cache Summary
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build:python'))
+        && (always())
+      env:
+        CACHE_RESTORES: '{"Mise":"${{ steps.setup_windows.outputs.mise-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_windows.outputs.mise-cache-hit
+          == ''false'' && ''Partial Hit'' || steps.setup_windows.outputs.mise-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","Cargo":"${{
+          steps.setup_windows.outputs.cargo_downloads-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_windows.outputs.cargo_downloads-cache-hit
+          == ''false'' && ''Partial Hit'' || steps.setup_windows.outputs.cargo_downloads-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","UV":"${{
+          steps.setup_windows.outputs.uv-cache-hit == ''true'' && ''Exact Hit'' || steps.setup_windows.outputs.uv-cache-hit == ''false'' && ''Partial
+          Hit'' || steps.setup_windows.outputs.uv-outcome == ''success'' && ''Miss'' || ''Unavailable'' }}","PNPM":"${{ steps.setup_windows.outputs.pnpm-cache-hit
+          == ''true'' && ''Exact Hit'' || steps.setup_windows.outputs.pnpm-cache-hit == ''false'' && ''Partial Hit'' || steps.setup_windows.outputs.pnpm-outcome
+          == ''success'' && ''Miss'' || ''Unavailable'' }}","Compiler":"${{ steps.setup_windows.outputs.sccache-cache-hit == ''true'' && ''Exact Hit''
+          || steps.setup_windows.outputs.sccache-cache-hit == ''false'' && ''Partial Hit'' || steps.setup_windows.outputs.sccache-outcome == ''success''
+          && ''Miss'' || ''Unavailable'' }}"}'
+      uses: ./.github/actions/save-caches
+      with:
+        summary-module: ''
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc
+      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      COMPILER_CACHE_BACKEND: disk
+      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+      SCCACHE_CACHE_SIZE: 8G
+      COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
+        || 'READ_ONLY' }}
     needs:
+    - build_product
     - impact
     if: >-
       ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'build:python')) && (github.event_name != 'pull_request' ||
       (github.event.action != 'closed' && !github.event.pull_request.draft))
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ''
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ''
     concurrency:
-      group: >-
-        ci-${{ github.workflow }}-build_python_any-shared-${{ github.event_name ==
-        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-        github.run_id }}
+      group: ci-${{ github.workflow }}-build_python-${{ matrix.platform }}-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+        == 'push' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   release_dry:
     name: Release / Dry
@@ -382,13 +539,14 @@ jobs:
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         github-token: ${{ github.token }}
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -450,13 +608,11 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
-      MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+      COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
+        || 'READ_ONLY' }}
     if: >-
       ((always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (github.event_name == 'pull_request' && github.base_ref == 'dev' &&
@@ -468,7 +624,7 @@ jobs:
       contents: read
     needs:
     - build_product
-    - build_python_any
+    - build_python
     - build_tests
     - check_generated_python
     - check_generated_typescript
@@ -515,13 +671,14 @@ jobs:
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         github-token: ${{ github.token }}
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -578,7 +735,6 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
-      MISE_TASK_SKIP: package:python,package:rust
     if: >-
       ((always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (github.event_name == 'pull_request' && github.base_ref == 'dev'
@@ -596,7 +752,7 @@ jobs:
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs:
     - build_product
-    - build_python_any
+    - build_python
     - build_tests
     - check_generated_python
     - check_generated_typescript
@@ -618,9 +774,9 @@ jobs:
     - validate_test_typescript_system
     - validate_test_typescript_unit
   check_generated_python:
-    name: Check / Python / Generated
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    name: Check / Python / Generated (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -637,12 +793,14 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
+    - run: mise run test:python:wheel --profile ${{ env.PROFILE }}
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels
@@ -683,19 +841,32 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:python
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
-    - build_python_any
+    - build_python
     - impact
     if: >-
       ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'check:python:generated')) && (github.event_name != 'pull_request'
       || (github.event.action != 'closed' && !github.event.pull_request.draft))
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ""
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-check_generated_python-shared-${{ github.event_name
+        ci-${{ github.workflow }}-check_generated_python-${{ matrix.platform }}-${{ github.event_name
         == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -765,9 +936,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,prepare:generated
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - impact
@@ -782,9 +951,9 @@ jobs:
         github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   validate_test_python_unit:
-    name: Test / Python / Unit
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    name: Test / Python / Unit (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -801,17 +970,18 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
     - run: mise run test:python:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_python_unit-${{ env.PROFILE }}-unix
+        name: junit-test_python_unit-${{ env.PROFILE }}-${{ matrix.platform }}
         path: |-
           target/tests/${{ env.PROFILE }}/*/unit-python/
           target/traces/${{ env.PROFILE }}/*/unit-python/
@@ -855,26 +1025,39 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:python
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
-    - build_python_any
+    - build_python
     - impact
     if: >-
       ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:unit')) && (github.event_name != 'pull_request' ||
       (github.event.action != 'closed' && !github.event.pull_request.draft))
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ""
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_unit-shared-${{
+        ci-${{ github.workflow }}-validate_test_python_unit-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   validate_test_python_acceptance:
-    name: Test / Python / Acceptance
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    name: Test / Python / Acceptance (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -891,41 +1074,42 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-cli-${{ env.PROFILE }}-unix
+        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-plugins-${{ env.PROFILE }}-unix
+        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-tests-${{ env.PROFILE }}-unix
+        name: build-tests-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: mise run test:python:acceptance --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_python_acceptance-${{ env.PROFILE }}-unix
+        name: junit-test_python_acceptance-${{ env.PROFILE }}-${{ matrix.platform }}
         path: |-
           target/tests/${{ env.PROFILE }}/*/acceptance-python/
           target/traces/${{ env.PROFILE }}/*/acceptance-python/
@@ -969,21 +1153,34 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,build:python,build:rust:tests
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
-    - build_python_any
+    - build_python
     - build_tests
     - impact
     if: >-
       ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:acceptance')) && (github.event_name != 'pull_request'
       || (github.event.action != 'closed' && !github.event.pull_request.draft))
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ""
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_acceptance-shared-${{
+        ci-${{ github.workflow }}-validate_test_python_acceptance-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
         && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -1061,9 +1258,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,prepare:generated
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - impact
@@ -1078,9 +1273,9 @@ jobs:
         github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   validate_test_python_integration:
-    name: Test / Python / Integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    name: Test / Python / Integration (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -1097,17 +1292,18 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-unix.tar.zst","--profile","${{ env.PROFILE }}"]'
     - run: mise run test:python:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_python_integration-${{ env.PROFILE }}-unix
+        name: junit-test_python_integration-${{ env.PROFILE }}-${{ matrix.platform }}
         path: |-
           target/tests/${{ env.PROFILE }}/*/integration-python/
           target/traces/${{ env.PROFILE }}/*/integration-python/
@@ -1151,28 +1347,41 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:python
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
-    - build_python_any
+    - build_python
     - impact
     if: >-
       ((true) && needs.impact.result == 'success' &&
       contains(fromJSON(needs.impact.outputs.jobs), 'test:python:integration')) && (github.event_name != 'pull_request'
       || (github.event.action != 'closed' && !github.event.pull_request.draft))
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ""
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ""
     concurrency:
       group: >-
-        ci-${{ github.workflow }}-validate_test_python_integration-shared-${{
+        ci-${{ github.workflow }}-validate_test_python_integration-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
         && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   package_python:
-    name: Package / Python
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    name: Package / Python (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.minutes }}
     needs:
-    - build_python_any
+    - build_python
     - check_generated_python
     - check_generated_typescript
     - check_python
@@ -1196,21 +1405,23 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}"]'
     - run: mise run package:python --profile ${{ env.PROFILE }}
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","pack","--archive","target/ci/package-${{
+          env.PROFILE }}-python-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}","--paths","5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f707974686f6e225d"]'
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: package-${{ env.PROFILE }}-python-any
-        path: target/ci/package-${{ env.PROFILE }}-python-any.tar.zst
+        name: package-${{ env.PROFILE }}-python-${{ matrix.platform }}
+        path: target/ci/package-${{ env.PROFILE }}-python-${{ matrix.platform }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
@@ -1256,15 +1467,26 @@ jobs:
       'package:python')) && (github.event_name != 'pull_request' || (github.event.action !=
       'closed' && !github.event.pull_request.draft))
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:python
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     concurrency:
-      group: >-
-        ci-${{ github.workflow }}-package_python-shared-${{ github.event_name ==
-        'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-        github.run_id }}
+      group: ci-${{ github.workflow }}-package_python-${{ matrix.platform }}-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+        == 'push' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - unix
+        - windows
+        include:
+        - platform: unix
+          runner: ubuntu-22.04
+          minutes: 120
+          container: ''
+        - platform: windows
+          runner: windows-latest
+          minutes: 120
+          container: ''
   validate_test_typescript_integration:
     name: Test / TypeScript / Integration
     runs-on: ubuntu-latest
@@ -1339,9 +1561,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,prepare:generated
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - impact
@@ -1376,20 +1596,6 @@ jobs:
           github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
         caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"sccache\":{\"key\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/sccache/\",\"restore-keys\":\"ci-v5-sccache-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ hashFiles('mise.lock') }}-\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-any
-        path: target/ci
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
-    - name: Extract build:python / python
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1569,20 +1775,6 @@ jobs:
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-any
-        path: target/ci
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
-    - name: Extract build:python / python
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
     - name: Product Build
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -1747,17 +1939,13 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
-      MISE_TASK_SKIP: build:python
+      COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
+        || 'READ_ONLY' }}
     needs:
-    - build_python_any
     - impact
     if: >-
       (((true) && needs.impact.result == 'success' &&
@@ -2710,9 +2898,7 @@ jobs:
       (github.event_name != 'pull_request' || (github.event.action != 'closed' &&
       !github.event.pull_request.draft))
     env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
-      MISE_TASK_SKIP: build
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
     strategy:
       fail-fast: false
       matrix:
@@ -2813,18 +2999,17 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+        && (true)
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+        && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-unix
@@ -2970,18 +3155,17 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+        && (true)
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance'))
+        && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
@@ -3061,12 +3245,10 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,build:python,build:rust:tests
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
-    - build_python_any
+    - build_python
     - build_tests
     - impact
     if: >-
@@ -3296,9 +3478,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:rust:tests
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_tests
     - impact
@@ -3378,18 +3558,17 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+        && (true)
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+        && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-unix
@@ -3507,18 +3686,17 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
+        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+        && (true)
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/build-product-python-${{
+          env.PROFILE }}-${{ matrix.platform }}.tar.zst","--profile","${{ env.PROFILE }}"]'
+      if: matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system'))
+        && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
@@ -3596,12 +3774,10 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,build:python,build:rust:tests
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
-    - build_python_any
+    - build_python
     - build_tests
     - impact
     if: >-
@@ -3814,9 +3990,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build:rust:tests
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_tests
     - impact
@@ -4146,9 +4320,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
-      MISE_TASK_SKIP: build,build:rust:tests,prepare:generated
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - build_tests
@@ -4187,7 +4359,7 @@ jobs:
     - check_python
     - check_typescript
     - impact
-    - build_python_any
+    - build_python
     - release_dry
     - release_rehearsal
     - check_generated_python
@@ -4235,142 +4407,74 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - group: >-
-            ci-${{ github.workflow }}-source-shared-${{ github.event_name == 'pull_request'
-            && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_python-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_typescript-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-impact-shared-${{ github.event_name == 'pull_request'
-            && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-build_python_any-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-release_dry-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-release_rehearsal-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref
-            || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_generated_python-shared-${{ github.event_name
-            == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_generated_typescript-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_python_unit-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_python_acceptance-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+        - group: ci-${{ github.workflow }}-source-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
             && github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_typescript_unit-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_python_integration-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
+        - group: ci-${{ github.workflow }}-check_python-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-check_typescript-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-impact-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
             && github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-package_python-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_typescript_integration-shared-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name ==
+        - group: ci-${{ github.workflow }}-build_python-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-release_dry-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-release_rehearsal-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-check_generated_python-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-check_generated_typescript-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_python_unit-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_python_acceptance-shared-${{ github.event_name == 'pull_request' && github.event.number ||
+            github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_typescript_unit-shared-${{ github.event_name == 'pull_request' && github.event.number ||
+            github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_python_integration-shared-${{ github.event_name == 'pull_request' && github.event.number
+            || github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-package_python-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_typescript_integration-shared-${{ github.event_name == 'pull_request' && github.event.number
+            || github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-build_product-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-build_product-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-build_tests-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name ==
             'push' && github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-build_product-unix-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-build_product-windows-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-build_tests-unix-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-build_tests-windows-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_rust-unix-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-check_rust-windows-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-package_rust-unix-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-package_rust-windows-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_acceptance-unix-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_acceptance-windows-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_integration-unix-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_integration-windows-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
-            && github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_system-unix-${{ github.event_name
-            == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_system-windows-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_unit-unix-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_rust_unit-windows-${{ github.event_name
-            == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_typescript_system-unix-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
-            github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-validate_test_typescript_system-windows-${{
-            github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
-            && github.ref || github.run_id }}
-        - group: >-
-            ci-${{ github.workflow }}-required-shared-${{ github.event_name ==
-            'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
-            github.run_id }}
+        - group: ci-${{ github.workflow }}-build_tests-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-check_rust-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name ==
+            'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-check_rust-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-package_rust-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name ==
+            'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-package_rust-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_acceptance-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_acceptance-windows-${{ github.event_name == 'pull_request' && github.event.number ||
+            github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_integration-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_integration-windows-${{ github.event_name == 'pull_request' && github.event.number ||
+            github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_system-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_system-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_unit-unix-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_rust_unit-windows-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
+            == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_typescript_system-unix-${{ github.event_name == 'pull_request' && github.event.number ||
+            github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-validate_test_typescript_system-windows-${{ github.event_name == 'pull_request' && github.event.number
+            || github.event_name == 'push' && github.ref || github.run_id }}
+        - group: ci-${{ github.workflow }}-required-shared-${{ github.event_name == 'pull_request' && github.event.number || github.event_name ==
+            'push' && github.ref || github.run_id }}
     concurrency:
       group: ${{ matrix.group }}
       cancel-in-progress: true

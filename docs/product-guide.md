@@ -47,8 +47,10 @@ takes the commit from CI's `GITHUB_SHA`, otherwise from the Git checkout, markin
 uncommitted tracked changes `-dirty`; without either it reports `unknown`.
 Builds from `v*` tags are `release`, the nightly workflow's are `nightly`, and
 other builds name no channel.
-OBC and remote examples remain candidate/source fixtures. Python distributions
-publish to PyPI. CI's `upload.json` is not a release download.
+OBC and remote examples remain candidate/source fixtures. Native SDK wheels are
+packaged per platform and attached to releases. Registry publication is refused
+until the owner settles the Python package and import name. CI's `upload.json`
+is not a release download.
 
 `mise run release:rehearse` consumes existing release-profile packages for every
 configured target and runs staging and registry dry runs with credentials

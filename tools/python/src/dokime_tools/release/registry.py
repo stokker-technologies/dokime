@@ -30,7 +30,7 @@ from typing import Any
 from ..process import spawn_flags
 
 # isort: split
-from ..build import storage
+from ..build import paths, storage
 from ..package import changelog
 from . import pins, policy
 
@@ -133,24 +133,22 @@ def crate_published(name: str, version: str | None = None) -> bool:
 def python(directory: Path, settings: dict, *, dry_run: bool) -> None:
     """Upload The Release Python Packages: PyPI For GitHub Products, The Project Registry On GitLab."""
     profile = policy.profile()
-    selected = sorted(str(path.relative_to(directory)) for path in directory.glob(f"target/package/{profile}/*/python/*") if path.is_file())
+    selected = []
+    for target in settings["targets"]:
+        root = paths.output(directory, "package", profile, target) / "python"
+        if not root.is_dir():
+            continue
+        wheels = sorted(root.glob("*.whl"))
+        if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+            raise policy.ToolError(f"expected one native abi3 wheel for {target}")
+        selected.append(wheels[0].relative_to(directory).as_posix())
     if not selected:
         raise policy.ToolError(f"release:publish:python has no {profile} Python packages")
     if dry_run:
         # Build and check only: uv validates every file without credentials or upload.
         policy.execute(directory, ["uv", "publish", "--dry-run", "--trusted-publishing", "never", *selected])
         return
-    if settings["provider"] == "github":
-        policy.execute(directory, ["uv", "publish", "--trusted-publishing", "always", *selected])
-        return
-    base = os.environ.get("CI_API_V4_URL", settings.get("api_url", "https://gitlab.com/api/v4"))
-    project = settings.get("project_id", os.environ.get("CI_PROJECT_ID"))
-    token = os.environ.get("CI_JOB_TOKEN")
-    if not token or not project:
-        raise policy.ToolError("GitLab Python publication requires the native CI_JOB_TOKEN")
-    destination = f"{base}/projects/{urllib.parse.quote(str(project), safe='')}/packages/pypi"
-    command = ["uv", "publish", "--publish-url", destination, "--username", "gitlab-ci-token", "--password", token, *selected]
-    policy.execute(directory, command)
+    raise policy.ToolError("native Python publication requires the owner to settle the PyPI and import name")
 
 
 def request(

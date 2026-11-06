@@ -50,6 +50,8 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
         [
             "--locked",
             "--workspace",
+            "--exclude",
+            "dokime-python",
             "--bins",
             "--benches",
             "--profile",
@@ -62,6 +64,8 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
         "build",
         "--locked",
         "--workspace",
+        "--exclude",
+        "dokime-python",
         "--bins",
         "--benches",
         "--profile",

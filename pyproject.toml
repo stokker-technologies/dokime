@@ -22,7 +22,7 @@ test = [
   "pytest-timeout==2.4.0",
   "pytest-xdist==3.8.0",
 ]
-dev = ["dokime-client", "dokime-tools", "ruff==0.17.0", "ty==0.0.86"]
+dev = ["dokime-client", "dokime-tools", "ruff==0.17.0", "ty==0.0.86", "maturin==1.14.0"]
 
 [tool.uv]
 package = false
@@ -30,6 +30,8 @@ system-certs = true
 
 [tool.uv.workspace]
 members = ["packages/dokime-client", "tools/python"]
+# The Native Extension Is Built By build:python, Never By Environment Preparation.
+exclude = ["sdk/python"]
 
 [[tool.uv.index]]
 name = "pypi"

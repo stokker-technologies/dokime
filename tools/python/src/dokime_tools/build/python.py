@@ -33,7 +33,7 @@ ROOT = configuration.ROOT
 
 
 def build(profile: str) -> list[str]:
-    """Build The Client Distributions Without Tutorial Artifacts."""
+    """Build The Native Python SDK Wheel."""
     distributions = wheel.build(ROOT, profile)
     return configuration.relative(distributions)
 
