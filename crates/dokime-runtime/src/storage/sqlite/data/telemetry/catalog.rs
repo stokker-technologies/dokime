@@ -81,11 +81,6 @@ CREATE TABLE IF NOT EXISTS stream_captures (
 CREATE INDEX IF NOT EXISTS stream_capture_cycle ON stream_captures(cycle,file_id,batch,first_row);
 CREATE INDEX IF NOT EXISTS stream_capture_execution ON stream_captures(execution,file_id,batch,first_row);
 CREATE INDEX IF NOT EXISTS stream_capture_batch ON stream_captures(file_id,batch);
-CREATE TABLE IF NOT EXISTS stream_summaries (
-    file_id TEXT NOT NULL REFERENCES streams(file_id), signal TEXT NOT NULL,
-    count INTEGER NOT NULL, minimum REAL NOT NULL, maximum REAL NOT NULL, sum REAL NOT NULL,
-    PRIMARY KEY(file_id,signal)
-) WITHOUT ROWID;
 ";
 
 /* === Macros === */

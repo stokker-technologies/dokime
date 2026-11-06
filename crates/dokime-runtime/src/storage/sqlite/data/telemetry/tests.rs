@@ -1001,3 +1001,20 @@ async fn stream_watermarks_cover_saved_tail_and_historical_frontiers() {
     assert!(fixture.local.telemetry_streams_between(first.clone(), first).await.unwrap().is_empty());
     fixture.finish().await;
 }
+
+#[tokio::test]
+async fn native_inventory_uses_the_execution_numeric_summary() {
+    let fixture = Fixture::new(1024).await;
+    let at = fixture.admit(&[(1, 1), (2, 2), (3, 3)]).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    fixture.local.finalize_telemetry(fixture.execution.to_string()).await.unwrap();
+    let files = fixture.local.telemetry_files(fixture.execution.to_string(), at).await.unwrap();
+    assert_eq!(files.len(), 1);
+    let summary = &files[0].summaries[0];
+    assert_eq!(summary.signal, "value");
+    assert_eq!((summary.count, summary.minimum, summary.maximum, summary.sum), (3, 1.0, 3.0, 6.0));
+    let numeric = fixture.local.numeric_summaries(fixture.execution.to_string()).await.unwrap();
+    assert_eq!(numeric.len(), 1);
+    assert!(numeric[0].statistics.contains(&("sum".into(), summary.sum)));
+    fixture.finish().await;
+}

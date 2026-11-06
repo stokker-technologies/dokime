@@ -270,7 +270,6 @@ impl Store {
                             )?;
                         }
                     }
-                    summaries(&transaction, &id, chunk)?;
                     stored_rows += index.rows;
                 }
                 let checkpoint = stream.writer.checkpoint();
@@ -465,31 +464,6 @@ fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<h
         next += 1;
     }
     Ok(Schema { root: 0, definitions })
-}
-
-fn summaries(connection: &Connection, file: &str, entries: &[(u64, Admitted)]) -> Result<()> {
-    let mut summaries: BTreeMap<&str, (u64, f64, f64, f64)> = BTreeMap::new();
-    for (_, entry) in entries {
-        for (signal, value) in &entry.sample.values {
-            let Some(value) = dokime_domain::model::values::numeric_value(value).filter(|value| value.is_finite()) else {
-                continue;
-            };
-            let summary = summaries.entry(signal).or_insert((0, value, value, 0.0));
-            summary.0 += 1;
-            summary.1 = summary.1.min(value);
-            summary.2 = summary.2.max(value);
-            summary.3 += value;
-        }
-    }
-    let mut statement = connection.prepare_cached(
-        "INSERT INTO stream_summaries VALUES (?1,?2,?3,?4,?5,?6)
-        ON CONFLICT(file_id,signal) DO UPDATE SET count=count+excluded.count,minimum=min(minimum,excluded.minimum),
-        maximum=max(maximum,excluded.maximum),sum=sum+excluded.sum",
-    )?;
-    for (signal, (count, min, max, sum)) in summaries {
-        statement.execute(params![file, signal, catalog::integer(count)?, min, max, sum])?;
-    }
-    Ok(())
 }
 
 /* === Tests === */
