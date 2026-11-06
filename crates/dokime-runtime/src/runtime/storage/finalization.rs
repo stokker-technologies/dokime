@@ -201,8 +201,6 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        let gate = self.execution_storage.materialization_gate(id).await?;
-        let _capture = gate.lock().await;
         self.execution_storage.finish_outputs(id).await?;
         #[cfg(feature = "testing")]
         crate::domains::execution::run::testing::before_report_request(id).await;
@@ -221,6 +219,8 @@ impl RuntimeHandle {
             .map_err(|error| Error::Operation(error.to_string()))?;
         }
         self.capture_report_lifecycle(execution).await?;
+        let gate = self.execution_storage.materialization_gate(id).await?;
+        let _capture = gate.lock().await;
         let at = self.state_read().report_finalizations[id].evidence_at.clone();
         // Freeze And Drain Native Evidence Before Returning; HTML Is Independent.
         let inputs = self.execution_storage.prepare_capture(cycle, execution, &at, true).await?;

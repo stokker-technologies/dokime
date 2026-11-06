@@ -101,6 +101,7 @@ pub(crate) struct Acquisition {
     execution_owner: ReadBatch<Arc<TestExecution>>,
     pub(super) gate: Arc<Mutex<()>>,
     materialization_gate: Arc<Mutex<()>>,
+    lifecycle_gate: Arc<Mutex<()>>,
     pub(super) finish_requested: bool,
     pub(super) outputs_sealed: bool,
     pub(super) outputs_quiescent: bool,
@@ -360,6 +361,12 @@ impl ExecutionStorage {
     pub(crate) async fn materialization_gate(&self, execution: &TestExecutionId) -> Result<Arc<Mutex<()>>> {
         let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report has no acquisition owner"))?;
         let gate = owner.lock().await.materialization_gate.clone();
+        Ok(gate)
+    }
+
+    pub(crate) async fn lifecycle_gate(&self, execution: &TestExecutionId) -> Result<Arc<Mutex<()>>> {
+        let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report has no acquisition owner"))?;
+        let gate = owner.lock().await.lifecycle_gate.clone();
         Ok(gate)
     }
 
@@ -817,6 +824,7 @@ impl ExecutionStorage {
             execution_owner,
             gate: Arc::new(Mutex::new(())),
             materialization_gate: Arc::new(Mutex::new(())),
+            lifecycle_gate: Arc::new(Mutex::new(())),
             finish_requested: false,
             outputs_sealed: false,
             outputs_quiescent: false,

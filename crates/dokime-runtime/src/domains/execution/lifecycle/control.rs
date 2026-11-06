@@ -43,6 +43,8 @@ impl RuntimeHandle {
     pub(crate) async fn capture_report_lifecycle(
         &self, execution: &dokime_domain::model::execution::result::TestExecution,
     ) -> crate::runtime::Result<crate::transactions::ReportLifecycle> {
+        let gate = self.execution_storage.lifecycle_gate(&execution.test_execution_id).await?;
+        let _capture = gate.lock().await;
         let captured = |runtime: &Self| {
             runtime.state_read().report_finalizations.get(&execution.test_execution_id).and_then(|intent| intent.lifecycle.clone())
         };
