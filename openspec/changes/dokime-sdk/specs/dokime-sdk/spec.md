@@ -30,12 +30,10 @@ required command-line tools through mise.
 ### Requirement: Project Creation
 `dokime new <name> --lang <language>` SHALL create a plugin project, defaulting to Rust and
 supporting every language with an SDK, without needing a Rust toolchain for other languages.
-`cargo dokime sidecar new` SHALL stay for Rust, harmonized with `cargo harmos sidecar new`, and
-both commands SHALL share one implementation.
 
 #### Scenario: Default Language
 - **WHEN** a developer runs `dokime new my-plugin`
-- **THEN** it creates the same Rust project as `cargo dokime sidecar new`
+- **THEN** it creates a plain Rust project that builds with `cargo build`
 
 #### Scenario: Minimal Tools
 - **WHEN** a project is created for a language
@@ -44,3 +42,27 @@ both commands SHALL share one implementation.
 #### Scenario: Unsupported Language
 - **WHEN** `--lang` names a language with no SDK
 - **THEN** the command fails, lists the supported languages and creates nothing
+
+### Requirement: One Command-Line Tool
+Plugin authoring, installer packaging and binding generation SHALL live in the `dokime` CLI, and
+`cargo-dokime` SHALL no longer exist.
+
+#### Scenario: Removed Tool
+- **WHEN** the change completes
+- **THEN** no project file, template, workflow or document refers to `cargo dokime`
+
+#### Scenario: Any Language Bundles Alike
+- **WHEN** a Rust, C++ or Go project has been built with its own toolchain
+- **THEN** `dokime plugin package` bundles it from the same collected-build input
+
+### Requirement: Pure Starters
+Each starter SHALL be an ordinary project in its language with a mise task wrapping the build and
+the shared packaging step.
+
+#### Scenario: Plain Build
+- **WHEN** a developer runs the language's normal build command in a new starter
+- **THEN** it builds without any Dokime command
+
+#### Scenario: Bundle
+- **WHEN** the developer runs the starter's bundle task
+- **THEN** a `.dokime` bundle is produced

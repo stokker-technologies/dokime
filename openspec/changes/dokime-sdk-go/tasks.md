@@ -3,10 +3,10 @@
 ## 1. Implementation
 
 - [ ] 1.1 Add the SDK over Harmos's Go SDK with the shared concept names.
-- [ ] 1.2 Add `cargo dokime` support for building and bundling a Go plugin.
+- [ ] 1.2 Add `dokime plugin` support for building and bundling a Go plugin.
 - [ ] 1.3 Add a sample plugin, a starter template and documentation.
 - [ ] 1.4 Add the Nightly system test and update the README comparison table.
-- [ ] 1.5 Add the `dokime new --lang go` template, and teach `sidecar dev` and `sidecar package` the Go build through its collected-build file.
+- [ ] 1.5 Add the `dokime new --lang go` template, and teach `dokime plugin dev` and `dokime plugin package` the Go build through its collected-build file.
 
 ## 2. Final Validation
 
