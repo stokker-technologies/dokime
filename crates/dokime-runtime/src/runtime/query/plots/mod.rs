@@ -80,19 +80,7 @@ impl RuntimeHandle {
         if !at.covers(after)? {
             return Err(crate::runtime::Error::Operation("plot frontier moved backwards".into()));
         }
-        let mut position = after.sequence;
-        let mut streams = std::collections::BTreeSet::new();
-        while position < at.sequence {
-            let page = self.local_storage.telemetry_page(at.clone(), position, None, None).await?;
-            if page.is_empty() {
-                break;
-            }
-            for (at, entry) in page {
-                position = at;
-                streams.insert(entry.sample.stream.to_string());
-            }
-        }
-        Ok(streams)
+        Ok(self.local_storage.telemetry_streams_between(after.clone(), at.clone()).await?)
     }
 }
 
@@ -245,14 +233,14 @@ async fn query_plot_payloads_with_context(
         .collect::<Vec<_>>();
     let mut saved = session.cursor_saved();
     saved.sequence = saved.sequence.min(at.sequence);
-    let codecs = if streams.is_empty() {
-        harmos::storage::ReadBatch::new(Vec::new())
-    } else {
-        crate::runtime::storage::telemetry::saved_codecs(session, &saved, None, runtime.schema_settings(), |id, _| {
-            crate::storage::telemetry::selected_schema(id, &streams)
-        })
-        .await?
-    };
+    let schemas = if streams.is_empty() { Vec::new() } else { runtime.local_storage.telemetry_schemas(saved, streams).await? };
+    let mut codecs = schemas
+        .into_iter()
+        .map(|(key, graph)| crate::storage::telemetry::TypedCodec::from_stored(key, graph, runtime.schema_settings()))
+        .collect::<Result<Vec<_>, _>>()?;
+    codecs
+        .sort_unstable_by(|left, right| left.schema().id.cmp(&right.schema().id).then(left.schema().version.cmp(&right.schema().version)));
+    let codecs = harmos::storage::ReadBatch::new(codecs);
     let work = unique.into_iter().zip(previews).map(|(request, preview)| {
         let codecs = &codecs;
         async move {

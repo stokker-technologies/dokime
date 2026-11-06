@@ -469,8 +469,8 @@ async fn stage_saved_tail() {
     // Model A Durable Prefix Whose In-Memory Retirement Has Not Yet Run.
     {
         let mut tail = fixture.local.0.telemetry_tail.lock().unwrap();
-        tail.entries.insert(second.sequence - 1, (tokio::time::Instant::now(), fixture.row(1, 10).1));
-        tail.entries.insert(second.sequence, (tokio::time::Instant::now(), fixture.row(2, 20).1));
+        tail.insert(second.sequence - 1, fixture.row(1, 10).1);
+        tail.insert(second.sequence, fixture.row(2, 20).1);
         tail.running = true;
     }
     let third = fixture.admit(&[(3, 30)]).await;
@@ -977,5 +977,27 @@ async fn query_cut_excludes_live_and_late_arrivals_across_restart() {
     let fixture = Fixture::with_root(root, 2).await;
     assert!(fixture.local.snapshot_available(cut.clone()).await.unwrap());
     assert_eq!(fixture.read(&cut.at, fixture.selection()).await.len(), 2);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn stream_watermarks_cover_saved_tail_and_historical_frontiers() {
+    let fixture = Fixture::new(1024).await;
+    let initial = fixture.storage.cursor_saved();
+    let pattern = vec![dokime_domain::model::identity::IdentifierPattern::new("arrow.fixture").unwrap()];
+    let mut before_schema = initial.clone();
+    before_schema.sequence = 0;
+    assert!(fixture.local.telemetry_schemas(before_schema, pattern.clone()).await.unwrap().is_empty());
+    assert_eq!(
+        fixture.local.telemetry_schemas(initial.clone(), pattern).await.unwrap().into_iter().map(|(key, _)| key).collect::<Vec<_>>(),
+        [fixture.codec.schema().clone()]
+    );
+    let first = fixture.admit(&[(1, 10)]).await;
+    let second = fixture.admit(&[(2, 20)]).await;
+    let streams = fixture.local.telemetry_streams_between(initial.clone(), first.clone()).await.unwrap();
+    assert_eq!(streams, [fixture.row(1, 10).1.sample.stream.to_string()].into());
+    fixture.storage.flush_until(&second).await.unwrap();
+    assert_eq!(fixture.local.telemetry_streams_between(initial, first.clone()).await.unwrap(), streams);
+    assert!(fixture.local.telemetry_streams_between(first.clone(), first).await.unwrap().is_empty());
     fixture.finish().await;
 }

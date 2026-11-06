@@ -115,11 +115,12 @@ async fn batch_replacement_requests() {
         let before = runtime.storage_read_counters().data_scan_rows;
         let absent = runtime.query_plot_payloads(vec![missing.clone()], mode).await.unwrap();
         assert!(absent[0].payload.series.iter().all(|series| series.raw_points == 0));
-        let catalog_work = runtime.storage_read_counters().data_scan_rows - before;
-        assert!(catalog_work > 0);
+        assert_eq!(runtime.storage_read_counters().data_scan_rows - before, 0);
         let before = runtime.storage_read_counters().data_scan_rows;
-        runtime.query_plot_payloads(vec![first.clone()], mode).await.unwrap();
+        let single = runtime.query_plot_payloads(vec![first.clone()], mode).await.unwrap();
         let single_work = runtime.storage_read_counters().data_scan_rows - before;
+        let catalog_work = single_work - single[0].payload.series[0].raw_points as u64;
+        assert!(catalog_work > 0);
         let before = runtime.storage_read_counters().data_scan_rows;
         runtime.query_plot_payloads(vec![narrow.clone()], mode).await.unwrap();
         let narrow_work = runtime.storage_read_counters().data_scan_rows - before;

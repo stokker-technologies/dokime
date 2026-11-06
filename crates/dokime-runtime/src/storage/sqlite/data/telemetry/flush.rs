@@ -37,6 +37,7 @@ use crate::storage::{Error, Manager, Result, telemetry::TelemetryEntry};
 #[derive(Default)]
 pub(crate) struct Tail {
     pub entries: BTreeMap<u64, (Instant, TelemetryEntry)>,
+    streams: BTreeMap<String, u64>,
     pub readable: tokio::sync::watch::Sender<u64>,
     pub running: bool,
     pub force: bool,
@@ -57,7 +58,50 @@ struct Flush {
 /* === Implementations === */
 
 impl Tail {
+    pub(super) fn select(
+        &self, after: u64, at: u64, mut matches: impl FnMut(&TelemetryEntry) -> Result<bool>,
+    ) -> Result<Vec<(u64, TelemetryEntry)>> {
+        if after >= at {
+            return Ok(Vec::new());
+        }
+        self.entries
+            .range((std::ops::Bound::Excluded(after), std::ops::Bound::Included(at)))
+            .filter_map(|(position, (_, entry))| match matches(entry) {
+                Ok(true) => Some(Ok((*position, entry.clone()))),
+                Ok(false) => None,
+                Err(error) => Some(Err(error)),
+            })
+            .collect()
+    }
+
+    pub(super) fn streams_between(&self, after: u64, at: u64) -> std::collections::BTreeSet<String> {
+        if after >= at {
+            return Default::default();
+        }
+        self.streams
+            .iter()
+            .filter(|(stream, latest)| {
+                **latest > after
+                    && (**latest <= at
+                        || self
+                            .entries
+                            .range((std::ops::Bound::Excluded(after), std::ops::Bound::Included(at)))
+                            .any(|(_, (_, entry))| entry.sample.stream.as_str() == stream.as_str()))
+            })
+            .map(|(stream, _)| stream.clone())
+            .collect()
+    }
+
+    pub(super) fn insert(&mut self, position: u64, entry: TelemetryEntry) {
+        if self.entries.contains_key(&position) {
+            return;
+        }
+        self.streams.entry(entry.sample.stream.to_string()).and_modify(|latest| *latest = (*latest).max(position)).or_insert(position);
+        self.entries.insert(position, (Instant::now(), entry));
+    }
+
     fn discard_saved(&mut self, through: u64) {
+        self.streams.retain(|_, latest| *latest > through);
         while self.entries.first_key_value().is_some_and(|(position, _)| *position <= through) {
             self.entries.pop_first();
         }
@@ -72,13 +116,8 @@ impl Tail {
         let deadline = started.checked_add(settings.telemetry_interval).ok_or(Error::Invalid("telemetry flush deadline overflows"))?;
         let mut counts = BTreeMap::new();
         for (_, entry) in self.entries.values() {
-            let owner = entry
-                .sample
-                .scope
-                .as_ref()
-                .and_then(|scope| scope.test_execution_id.as_ref())
-                .map(ToString::to_string)
-                .unwrap_or_else(|| entry.epoch.to_string());
+            let owner = entry.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref())
+                .map(ToString::to_string).unwrap_or_else(|| entry.epoch.to_string());
             *counts.entry((owner, entry.sample.stream.as_str())).or_insert(0_usize) += 1;
         }
         through.sequence = *self.entries.last_key_value().unwrap().0;
@@ -113,7 +152,7 @@ impl State {
                         let position = first + index as u64;
                         if position > saved.sequence {
                             store.prepare_tail(&mut entry)?;
-                            tail.entries.entry(position).or_insert((Instant::now(), entry));
+                            tail.insert(position, entry);
                         }
                     }
                     // Publish Read Progress Only After Every Row Is In The Tail Or Saved.
@@ -189,11 +228,9 @@ mod tests {
         use dokime_domain::model::identity::{SessionId, TelemetrySampleId};
         let epoch = SessionId::from_seed("flush-session");
         let mut tail = Tail { running: true, ..Default::default() };
-        for ordinal in 1..=4 {
-            tail.entries.insert(
+        for ordinal in 1..=3 {
+            tail.insert(
                 ordinal,
-                (
-                    Instant::now(),
                     TelemetryEntry {
                         epoch: epoch.clone(),
                         ordinal,
@@ -205,10 +242,9 @@ mod tests {
                             "observer",
                         ),
                     },
-                ),
             );
         }
-        let fourth = tail.entries.remove(&4).unwrap();
+        let fourth = tail.entries[&3].1.clone();
         let saved = StorageCursor {
             history: harmos::storage::StoreHistory {
                 store: harmos::Identifier::new("store").unwrap(),
@@ -224,7 +260,7 @@ mod tests {
         assert!(!cut.full);
         assert_eq!(cut.through.sequence, 3);
         assert_eq!(tail.entries.keys().copied().collect::<Vec<_>>(), [3]);
-        tail.entries.insert(4, fourth);
+        tail.insert(4, fourth);
         let cut = tail.cut(saved, settings).unwrap().unwrap();
         assert!(cut.full);
         assert_eq!(cut.through.sequence, 4);
