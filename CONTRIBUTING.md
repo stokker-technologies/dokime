@@ -321,8 +321,9 @@ before and after results; these timings are not correctness-test deadlines.
 ### Sidecar Stream Ingestion
 
 The `system-runtime` target includes `sidecar_ingest`: the real OBC plugin
-publishes scalar and 16-field rows through its sidecar into durable storage,
-with zero, one and 64 document plots. Each iteration uses a fresh root and
+publishes scalar, 16-field, 4 KiB and 64 KiB rows through its sidecar into durable storage,
+with zero, one and 64 document plots for numeric cases and zero plots for the
+payload fixtures. Each iteration uses a fresh root and
 checks the durable row count. Runtime startup and fixture registration are outside
 the interval; publication, preview checkpoints and the final storage flush are inside.
 
@@ -334,11 +335,27 @@ mise run bench:rust:system -- --binary system-runtime -- sidecar_ingest
 For one diagnostic pass per case, append `--test` after `sidecar_ingest`.
 These passes retain explicit measurements without producing a Criterion estimate.
 `DOKIME_INGEST_ROWS` selects the row count (default 100,000, maximum 1,000,000);
-`DOKIME_INGEST_PROFILE=1` enables inclusive writer-stage spans. Profiling adds
+`DOKIME_INGEST_PAYLOAD_ROWS` selects the 4 KiB and 64 KiB case row count (default
+10,000). Each payload contains an f64 and deterministic, row-varying printable
+text; the benchmark rereads durable Arrow batches and verifies the total byte
+length outside the timed interval. Payload MiB/s excludes metadata and framing
+and measures admitted logical bytes, independently of Arrow compression.
+`DOKIME_INGEST_PROFILE=1` enables inclusive admission, host, writer, normalization,
+IPC write/hash/sync and catalog-stage spans. Profiling adds
 overhead and must be compared separately from ordinary throughput runs.
-Each measurement prints JSON containing elapsed time, rows/s, numeric-payload
-MiB/s, process-tree CPU per 100,000 rows, Arrow/catalog/WAL bytes and SQLite
-table allocation. Numeric payload excludes timestamps and framing. Repeat on a
+Each measurement prints JSON containing elapsed time, rows/s, payload MiB/s,
+CPU milliseconds by live process/PID and per 100,000 rows, Arrow/catalog/WAL bytes
+and SQLite table allocation. It also records telemetry writer flush calls, Arrow
+sync calls, SQLite VFS sync calls (with a separate WAL count), explicit catalog
+commits and cumulative lock-wait nanoseconds for admission, the SQLite writer,
+the telemetry store and the tail. The benchmark-only VFS observer delegates each
+sync unchanged; these are successful native sync requests, not inferred counts
+from the commit cadence. Counts cover the host's SQLite and Arrow durability
+calls inside the measured interval; sidecar CPU is measured separately, while
+sidecar-internal sync calls are outside that observer. Scalar/wide payload rates
+still count only 8/128 numeric bytes per row. Inclusive stage times overlap and
+must not be added; async spans sum active poll/thread time, while lock waits and
+`ingest.host.stage.elapsed` include suspension. Repeat on a
 busy workstation and retain each result, rather than interpreting contention as
 a product regression. See [Measured Stream Performance](docs/product-guide.md#measured-stream-performance).
 

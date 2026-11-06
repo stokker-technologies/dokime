@@ -323,7 +323,9 @@ impl State {
             drop(permits);
             drop(std::mem::take(&mut *readers.idle.lock().unwrap()));
         }
+        let waiting = std::time::Instant::now();
         let mut live = self.0.live.clone().lock_owned().await;
+        tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
             if let Some(live) = live.as_mut() {
@@ -351,7 +353,9 @@ impl State {
         // Acquire before spawning: a cancelled caller cannot leave a queued
         // older write that overtakes its retry or a subsequent transition.
         let parent = tracing::Span::current();
+        let waiting = std::time::Instant::now();
         let mut live = self.0.live.clone().lock_owned().await;
+        tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         tokio::task::spawn_blocking(move || {
             let _parent = parent.enter();
             let _execute = tracing::debug_span!("storage.sqlite.execute").entered();
@@ -415,6 +419,7 @@ pub fn counters() -> StorageCounters {
 /* === Private Functions === */
 
 fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
+    let _span = tracing::debug_span!("ingest.catalog.commit").entered();
     transaction.commit()?;
     COMMITTED_TRANSACTIONS.fetch_add(1, Ordering::Relaxed);
     Ok(())

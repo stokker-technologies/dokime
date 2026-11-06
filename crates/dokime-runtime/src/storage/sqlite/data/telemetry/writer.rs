@@ -92,6 +92,7 @@ impl Store {
     pub(super) fn prepare_tail(&self, entry: &mut crate::storage::telemetry::TelemetryEntry) -> Result<()> {
         let key = serde_json::to_string(&super::reader::key(entry)?)?;
         let (_, field) = self.contracts.get(&key).ok_or(Error::Invalid("telemetry tail contract is not registered"))?;
+        let _span = tracing::debug_span!("ingest.normalize.tail").entered();
         ipc::normalize_values(field, &mut entry.sample.values)
     }
 
@@ -132,7 +133,10 @@ impl Store {
                 return Err(Error::Conflict("stream contract changed within its execution"));
             }
             let mut entry = stream.codec.decode_admission(row)?;
-            ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
+            {
+                let _span = tracing::debug_span!("ingest.normalize.writer").entered();
+                ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
+            }
             plots.sample(connection, row, &entry.entry.sample)?;
             groups.entry(id).or_default().push((row.record.position.sequence, entry));
             head.sequence = row.record.position.sequence;

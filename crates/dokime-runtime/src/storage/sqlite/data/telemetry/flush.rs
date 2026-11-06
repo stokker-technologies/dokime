@@ -158,19 +158,28 @@ impl State {
         let state = self.clone();
         let end = through.sequence;
         let first = end.checked_sub(entries.len() as u64).ok_or(Error::Invalid("telemetry admission cursor underflows"))? + 1;
+        let waiting = std::time::Instant::now();
         let settings = self.0.telemetry.lock().unwrap().settings;
+        tracing::debug!(name: "ingest.lock.store.settings", elapsed_ns = waiting.elapsed().as_nanos() as u64);
+        let staging = std::time::Instant::now();
         let start = self
             .call(move |connection| {
+                let _span = tracing::debug_span!("ingest.host.stage").entered();
                 Ok((|| -> Result<bool> {
                     let saved = super::super::saved(connection)?;
                     saved.history.check(&through.history)?;
+                    let waiting = std::time::Instant::now();
                     let store = state.0.telemetry.lock().unwrap();
+                    tracing::debug!(name: "ingest.lock.store", elapsed_ns = waiting.elapsed().as_nanos() as u64);
+                    let waiting = std::time::Instant::now();
                     let mut tail = state.0.telemetry_tail.lock().unwrap();
+                    tracing::debug!(name: "ingest.lock.tail", elapsed_ns = waiting.elapsed().as_nanos() as u64);
                     tail.discard_saved(saved.sequence);
                     for (index, mut entry) in entries.into_iter().enumerate() {
                         let position = first + index as u64;
                         if position > saved.sequence {
                             store.prepare_tail(&mut entry)?;
+                            let _span = tracing::debug_span!("ingest.tail.insert").entered();
                             tail.insert(position, entry);
                         }
                     }
@@ -191,6 +200,7 @@ impl State {
                 })())
             })
             .await??;
+        tracing::debug!(name: "ingest.host.stage.elapsed", elapsed_ns = staging.elapsed().as_nanos() as u64);
         if !start {
             return Ok(());
         }

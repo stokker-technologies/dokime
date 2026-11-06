@@ -17,3 +17,13 @@ Persistent numeric rank tries are deleted. Exact percentiles use the complete ty
 ## Validation
 
 A native OBC benchmark fixture publishes scalar and wide rows through the sidecar transport to the saved barrier, including 0, 1 and 64 plots. Record wall and CPU time, rows and logical MiB per second, raw Arrow/catalog/WAL bytes and cost attribution, repeating measurements on this potentially busy machine. Focused tests verify evidence, ordering, shared state and report results. Review README impact; performance facts belong in docs/product-guide.md.
+
+## Measurement Follow-Up
+
+The ingest2 follow-up keeps production cadence, durability points, deadlines and budgets. Benchmark-only SQLite VFS observation delegates the original xSync unchanged and counts successful sync requests, separating WAL requests. Arrow sync spans and writer-call counts cover the host durability boundary; explicit catalog commit counters remain distinct from VFS sync counts. Live process CPU is reported per PID/name rather than attributing process-tree CPU to the writer. Inclusive span time is active thread/poll wall time, including preemption; lock-wait events include suspension. These quantities overlap and are not a serial budget.
+
+Payload fixtures carry an f64 plus row-varying printable text totaling exactly 4 KiB or 64 KiB per row. Durable Arrow replay verifies byte length outside the timed interval. They measure logical admitted payload throughput, with compressed Arrow bytes reported separately.
+
+Trim eligibility requires measured benefit and exact existing semantics. Tail normalization applies to a separate in-memory representation after original-frame encoding; the writer decodes that original frame, so removing its normalization is not inherently safe. Whole-file SHA-256 and independently verifiable batch SHA-256 have different hash states; hashing each byte only once cannot preserve both digests. TelemetrySampleId preserves UUID letter case; blindly packing to 16 bytes would collapse currently distinct IDs. No identity, digest or normalization contract changes are authorized by this follow-up.
+
+Benchmark-feature plugin builds retain the steady suite used by report benches and the benchmark suite, excluding unused product example suites. Shipping builds retain the complete product catalog. Ingest fixtures keep static 0/1/64-plot documents, and the benchmark checks durable plot bindings as well as row counts. Payload cases select zero plots. This keeps the fixture within unchanged state-record budgets; expanded-catalog startup and dynamic-document diagnostics that failed are retained as failed runs, not throughput evidence.

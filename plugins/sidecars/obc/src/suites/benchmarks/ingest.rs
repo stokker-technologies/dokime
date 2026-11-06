@@ -38,6 +38,8 @@ pub struct ScalarMany;
 pub struct WideZero;
 pub struct WideOne;
 pub struct WideMany;
+pub struct Payload4kZero;
+pub struct Payload64kZero;
 
 #[dokime::parameters]
 pub struct Parameters {
@@ -70,12 +72,19 @@ pub struct Wide {
     pub o: f64,
 }
 
+#[dokime::stream(id = "obc.benchmarks.payload", window = 4096, label = "Payload Ingest")]
+pub struct Payload {
+    pub value: f64,
+    pub data: String,
+}
+
 /* === Enums === */
 
 #[dokime::catalog]
 pub enum Streams {
     Scalar(Scalar),
     Wide(Wide),
+    Payload(Payload),
 }
 
 #[dokime::catalog]
@@ -88,7 +97,7 @@ pub enum Prompts {
 /* === Implementations === */
 
 macro_rules! fixture {
-    ($name:ident, $id:literal, $wide:expr, $plots:expr) => {
+    ($name:ident, $id:literal, $wide:expr, $plots:expr, $payload:expr) => {
         #[dokime::template(id = $id, label = "Stream Ingest", parameters = Parameters, streams = Streams, prompts = Prompts)]
         impl $name {
             async fn initialize(_: &Parameters, _: &mut InitializationContext<'_>) -> Result<Self, Error> {
@@ -96,7 +105,13 @@ macro_rules! fixture {
             }
 
             fn document() -> Document {
-                let stream = if $wide { "obc.benchmarks.wide" } else { "obc.benchmarks.scalar" };
+                let stream = if $payload > 0 {
+                    "obc.benchmarks.payload"
+                } else if $wide {
+                    "obc.benchmarks.wide"
+                } else {
+                    "obc.benchmarks.scalar"
+                };
                 let mut section = Section::new("Ingest");
                 for (index, ()) in std::iter::repeat_n((), $plots).enumerate() {
                     let mut plot = Plot::time_series(format!("Value {index}"));
@@ -113,7 +128,19 @@ macro_rules! fixture {
             async fn publish(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
                 for index in 0..ctx.parameters().rows {
                     let value = index as f64;
-                    if $wide {
+                    if $payload > 0 {
+                        // Different Deterministic Printable Bytes For Every Row, Including The Scalar In The Payload Size.
+                        let mut state = index.wrapping_add(1).wrapping_mul(0x9e3779b97f4a7c15);
+                        let data = (0..($payload as usize).saturating_sub(8))
+                            .map(|_| {
+                                state ^= state << 13;
+                                state ^= state >> 7;
+                                state ^= state << 17;
+                                (32 + state % 95) as u8 as char
+                            })
+                            .collect();
+                        ctx.stream::<Payload>().open().push(Payload { value, data }).await;
+                    } else if $wide {
                         ctx.stream::<Wide>()
                             .open()
                             .push(Wide {
@@ -151,12 +178,15 @@ macro_rules! fixture {
     };
 }
 
-fixture!(ScalarZero, "obc.benchmarks.ingest_scalar0", false, 0);
-fixture!(ScalarOne, "obc.benchmarks.ingest_scalar1", false, 1);
-fixture!(ScalarMany, "obc.benchmarks.ingest_scalar64", false, 64);
-fixture!(WideZero, "obc.benchmarks.ingest_wide0", true, 0);
-fixture!(WideOne, "obc.benchmarks.ingest_wide1", true, 1);
-fixture!(WideMany, "obc.benchmarks.ingest_wide64", true, 64);
+fixture!(ScalarZero, "obc.benchmarks.ingest_scalar0", false, 0, 0);
+fixture!(ScalarOne, "obc.benchmarks.ingest_scalar1", false, 1, 0);
+fixture!(ScalarMany, "obc.benchmarks.ingest_scalar64", false, 64, 0);
+fixture!(WideZero, "obc.benchmarks.ingest_wide0", true, 0, 0);
+fixture!(WideOne, "obc.benchmarks.ingest_wide1", true, 1, 0);
+fixture!(WideMany, "obc.benchmarks.ingest_wide64", true, 64, 0);
+
+fixture!(Payload4kZero, "obc.benchmarks.ingest_payload4096_0", false, 0, 4096);
+fixture!(Payload64kZero, "obc.benchmarks.ingest_payload65536_0", false, 0, 65536);
 
 /* === Public Functions === */
 

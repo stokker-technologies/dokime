@@ -8,8 +8,16 @@
 - [x] 1.4 Share bounded field projections across plots, remove duplicated row folding and static checkpoint rewrites, and write only dirty compact state.
 - [x] 1.5 Verify touched behavior with focused tests and document measured performance and storage contracts; review README impact.
 
-## Final Validation and Delivery
+- [x] 1.6 Measure actual flush, Arrow sync, SQLite VFS sync and catalog commit counts; lock wait and admission/host/writer stages in the existing system benchmark. Separate host and sidecar CPU. Own benches/system/ingest.rs, storage/ipc.rs, storage/sqlite.rs, telemetry/flush.rs and admission span sites.
+- [x] 1.7 Add deterministic 4 KiB and 64 KiB payload fixtures in OBC benchmarks, select their required benchmark-only suite catalog and measure delivered payload bytes at fresh-root durable barriers.
+- [ ] 1.8 Evaluate each requested trim against repeated measurements, retaining supported changes as separate commits: IPC buffering/hash work; duplicate normalization; Tail allocations; sample identity representation and exact receipt queries. Preserve durability, cadence, exact retry/replay and storage v1; no migrations.
+- [ ] 1.9 Update CONTRIBUTING.md and docs/product-guide.md with measurement definitions, spread and decisions; README claims reviewed.
 
-- [ ] 2.1 Finish the fixture-backed workflow rerun, repeat before/after benchmark and run check:rust; inspect forbidden-term diff. Measured candidate 658c45b9b passed; finish the follow-up checks for dev's object-memory-accounting integration, whose ingest/projection/transport/benchmark sources are unchanged.
-- [ ] 2.2 Push verified candidate, create PR to dev and immediately squash with requested subject.
-- [ ] 2.3 Preserve evidence, cargo clean owned target and retire owned worktree and branch.
+## Final Validation
+
+- [ ] 2.1 Run focused storage/telemetry tests, exact report replay, repeated benchmark runs and check:rust; inspect the forbidden-term diff. No full simulation, as explicitly requested.
+- [ ] 2.2 Rebase the combined candidate on fresh origin/dev and revalidate affected behavior before authorized delivery.
+
+## Workflow Follow-Up
+
+- Authorized delivery is one PR to dev, immediately squash-merged without waiting for CI. Preserve measurement evidence outside the owned worktree, cargo clean its target and retire its worktree and branch.

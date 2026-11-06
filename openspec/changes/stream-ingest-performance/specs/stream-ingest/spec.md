@@ -4,12 +4,22 @@
 
 ### Requirement: Measured Durable Sidecar Ingest
 
-The benchmark SHALL publish scalar and wide rows through a real native plugin and sidecar transport to a durable storage barrier and report rows/s, logical numeric MiB/s, process-tree CPU per 100,000 rows and Arrow/catalog/WAL byte attribution.
+The benchmark SHALL publish scalar and wide rows through a real native plugin and sidecar transport to a durable storage barrier and report rows/s, logical numeric MiB/s, CPU by host/sidecar process and per 100,000 rows, observed flush/sync/catalog-commit counts, lock-wait time and Arrow/catalog/WAL byte attribution. Additional 4 KiB and 64 KiB fixtures SHALL carry actual payload bytes verified by rereading durable Arrow batches; their MiB/s SHALL use those bytes rather than a numeric-row-rate multiplier.
 
 #### Scenario: Repeated Busy-Machine Measurement
 
 - **WHEN** the benchmark measures the before and after candidates
 - **THEN** repeated scalar/wide and 0/1/64-plot results identify machine provenance and separate unprofiled throughput from inclusive instrumented stage timing
+
+#### Scenario: Observe Durability Without Changing It
+
+- **WHEN** a native fixture reaches its durable barrier
+- **THEN** the benchmark reports observed host Arrow and SQLite VFS sync requests, telemetry writer calls and explicit catalog commits inside that interval, preserving the existing cadence and durability points
+
+#### Scenario: Measure Payload And Contention
+
+- **WHEN** the benchmark measures 4 KiB and 64 KiB rows on a busy machine
+- **THEN** it verifies durable payload lengths, separates host and live sidecar CPU, records admission/SQLite/store/tail lock waits and distinguishes inclusive active-stage timing from elapsed waits
 
 ### Requirement: Shared Bounded Plot Projections
 

@@ -35,24 +35,25 @@ pub mod steady;
 
 // The Catalog Attribute Requires Unconditional Variants.
 macro_rules! suites {
-    ($($extra:tt)*) => {
+    ($($entry:tt)*) => {
         #[dokime::catalog]
         pub enum Suites {
-            ObcChecks(checks::ObcChecks),
-            StartupSuite(startup::StartupSuite),
-            SteadySuite(steady::SteadySuite),
-            ProtectionSuite(protection::Suite),
-            RecoverySuite(recovery::Suite),
-            $($extra)*
+            $($entry)*
         }
     };
 }
 
 #[cfg(feature = "benchmarks")]
-suites!(BenchmarkSuite(benchmarks::Suite),);
+suites!(SteadySuite(steady::SteadySuite), BenchmarkSuite(benchmarks::Suite),);
 
 #[cfg(not(feature = "benchmarks"))]
-suites!();
+suites!(
+    ObcChecks(checks::ObcChecks),
+    StartupSuite(startup::StartupSuite),
+    SteadySuite(steady::SteadySuite),
+    ProtectionSuite(protection::Suite),
+    RecoverySuite(recovery::Suite),
+);
 
 /* === Type Aliases === */
 
