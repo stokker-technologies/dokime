@@ -12,7 +12,36 @@ A template lists its calls in its `requires` catalog. Its plugin's own `Private`
 
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `RunStart` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 
-The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
+The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers acquire measurements through operations using their execution context. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
+
+## Operation Boundaries
+
+Templates and observers import only operations, `domain`, Dokime and the standard
+library; they never import driver or library crates. Wrap driver or library work
+in an operation and import that operation. Steps sequence operations and may use
+returned values for records and criteria; criteria decide from captured evidence.
+
+Keep operations thin and fast. Observers read through operations; return batches
+when the acquisition rate needs them so fast streams remain viable.
+
+Each `operations/<domain>/<operation>.rs` is a self-contained vertical slice:
+request, response, policy, handler and private helpers live together. It may
+import other operations, `domain`, Dokime, std and the driver or library it uses.
+`domain/` holds shared data only; do not create `domain/operations/`. Operations
+called by other plugins keep their handler and driver imports behind the
+`runtime` feature in that same file. Requests and responses contain no driver
+types: responses are plugin-owned, serializable wrappers over driver results,
+and driver errors become `Refusal`.
+
+Resources belong to the plugin instance, never a template or `domain`. Prepare
+and retain them on the plugin through `Lifecycle`, register the same shared state
+with `Setup::resource`, and retrieve it in handlers with `ctx.resource::<T>()`.
+Use the existing mechanism; if it cannot reach the needed plugin-owned state,
+stop and report rather than inventing an API.
+
+Operation calls form a linear tree without cycles: higher-level operations call
+lower-level operations, never the reverse. These are authoring conventions, not
+a Hub rule or project check.
 
 ## Hand-Authored Steps
 
@@ -35,6 +64,10 @@ async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     let operation = WaitUntilChamberReady {};
     ctx.call(operation).await?;
 
+    // Read Chamber Temperature
+    let operation = ReadChamber {};
+    let reading = ctx.call(operation).await?;
+
     Ok(())
 }
 ```
@@ -43,8 +76,13 @@ async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
 
 ```text
 src/
-  domain/                       Plugin-Owned Contracts
-  operations/                   Provided Handlers
+  lib.rs                        Plugin Instance And Lifecycle
+  domain/                       Shared Data Only
+  operations/
+    mod.rs                      Provided Operation Catalog
+    <domain>/
+      mod.rs                    Operation Modules
+      <operation>.rs            Request, Response, Policy, Handler And Helpers
   observers/
   listeners/
   records/
@@ -57,9 +95,11 @@ src/
       <template>.rs             Template Declaration
 ```
 
-Use unprefixed suite names and only populated modules. Keep the selected repository skeleton and all its section markers. Keep declarations explicit, with no prelude modules or placeholder suites.
+Use unprefixed suite names and only populated modules. Keep the selected
+repository skeleton and all its section markers. Keep declarations explicit,
+with no prelude modules or placeholder suites.
 
-The host sidecar keeps request definitions in `host/<domain>/mod.rs`:
+The existing host sidecar keeps request definitions in `host/<domain>/mod.rs`:
 request structs, ids, policies, responses and contract tests. `host/controls`
 shares native state capture, inverse transactions and backend journal callbacks
 for radio, adapter and power writes. Construct `RadioSet` with
@@ -71,8 +111,7 @@ unknown closed-set values with `plugin_host::Error::UnknownValue`; do not add
 string request aliases. Runtime implementations
 live in parallel `windows.rs` and `unix.rs` modules selected only by
 `#[cfg(all(feature = "runtime", target_os = "windows"))] mod windows;` and
-`#[cfg(all(feature = "runtime", unix))] mod unix;`. Gate module declarations and
-re-exports, never implementations or catalog variants. `host/catalog.rs` assembles collection and stream declarations;
+`#[cfg(all(feature = "runtime", unix))] mod unix;`. These module gates describe the existing host layout. `host/catalog.rs` assembles collection and stream declarations;
 `host/operations.rs` assembles Public queries and controls on both platforms.
 `host/observers.rs` selects runtime observers, including stateful native
 notification ownership; cancelling its demand activation drops registrations.

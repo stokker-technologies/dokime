@@ -382,6 +382,35 @@ Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
 
+## Operation Boundaries
+
+Templates and observers import only operations, `domain`, Dokime and the standard
+library; they never import driver or library crates. Wrap driver or library work
+in an operation and import that operation. Steps sequence operations and may use
+returned values for records and criteria; criteria decide from captured evidence.
+
+Keep operations thin and fast. Observers read through operations; return batches
+when the acquisition rate needs them so fast streams remain viable.
+
+Each `operations/<domain>/<operation>.rs` is a self-contained vertical slice:
+request, response, policy, handler and private helpers live together. It may
+import other operations, `domain`, Dokime, std and the driver or library it uses.
+`domain/` holds shared data only; do not create `domain/operations/`. Operations
+called by other plugins keep their handler and driver imports behind the
+`runtime` feature in that same file. Requests and responses contain no driver
+types: responses are plugin-owned, serializable wrappers over driver results,
+and driver errors become `Refusal`.
+
+Resources belong to the plugin instance, never a template or `domain`. Prepare
+and retain them on the plugin through `Lifecycle`, register the same shared state
+with `Setup::resource`, and retrieve it in handlers with `ctx.resource::<T>()`.
+Use the existing mechanism; if it cannot reach the needed plugin-owned state,
+stop and report rather than inventing an API.
+
+Operation calls form a linear tree without cycles: higher-level operations call
+lower-level operations, never the reverse. These are authoring conventions, not
+a Hub rule or project check.
+
 ## Hand-Authored Steps
 
 A hand-authored step reads as a list of operations. Each action is a Title Case
@@ -403,9 +432,40 @@ async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     let operation = WaitUntilChamberReady {};
     ctx.call(operation).await?;
 
+    // Read Chamber Temperature
+    let operation = ReadChamber {};
+    let reading = ctx.call(operation).await?;
+
     Ok(())
 }
 ```
+
+## Layout
+
+```text
+src/
+  lib.rs                        Plugin Instance And Lifecycle
+  domain/                       Shared Data Only
+  operations/
+    mod.rs                      Provided Operation Catalog
+    <domain>/
+      mod.rs                    Operation Modules
+      <operation>.rs            Request, Response, Policy, Handler And Helpers
+  observers/
+  listeners/
+  records/
+  streams/
+  settings/
+  suites/
+    mod.rs                      Suites Catalog
+    <suite>/
+      mod.rs                    Suite Declaration
+      <template>.rs             Template Declaration
+```
+
+Use unprefixed suite names and only populated modules. Keep the selected
+repository skeleton and all its section markers. Keep declarations explicit,
+with no prelude modules or placeholder suites.
 
 ## Plugin Startup And Stop Budgets
 
