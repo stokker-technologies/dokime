@@ -24,7 +24,18 @@ operating conditions, and review the evidence behind each result.
 
 ![A charger test running in Dokime with live measurements and execution progress](screenshots/cycle.png)
 
-## Why Dokime?
+## Features
+
+- **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
+- **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
+- **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
+- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
+- **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
+- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
+- **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
+- **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
+
+### Why Dokime?
 
 Engineering tests need a procedure, an operator, high-rate data and evidence
 someone can trust. Existing tools cover parts of that, so teams glue together
@@ -68,17 +79,6 @@ structure, so you can use any instrument library.
 
 Dokime is young. Choose an established test executive if you need mature
 production-line tooling or ready-made instrument drivers today.
-
-## Features
-
-- **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
-- **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
-- **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
-- **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
-- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
-- **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
-- **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
 ## Interfaces
 
