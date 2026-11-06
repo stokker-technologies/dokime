@@ -30,7 +30,11 @@ already completed cards available. Avoid a persistent capture registry or a seco
 query scheduler. Cancellation belongs to the existing request/session owner.
 Typed selector queries reuse bounded storage readers and scalar query accumulators
 so integer values remain lossless; live and frozen contexts compose that same
-query owner. Median scratch remains bounded and may spill.
+query owner. Median scratch remains bounded and may spill. Summary reads project
+only their selected Arrow columns; decoded buffers are bounded by the card payload
+budget. Buffer admission charges encoded and declared decoded bytes, with no
+per-source-row object estimate. Document scans retain cancellation, deadlines and bounded buffers without a
+source-row admission ceiling. Public finite-query policies retain their limits.
 
 ## Replacement And Delivery
 

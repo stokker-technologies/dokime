@@ -197,7 +197,8 @@ impl PreparedCurrentDocument {
         let at = acquired.at;
         let telemetry_queries = crate::document::binding::telemetry_needed(&input.definition, data.context);
         crate::document::query::summaries(&self.runtime, &self.snapshot, &input.selection, &at, queries, &mut capture, data).await?;
-        document_size(&capture, limits.materialized_bytes, limits.depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
+        crate::document::bounded::card_size(&capture, limits.materialized_bytes, limits.depth, capture.definition.document_id.as_str())
+            .map_err(|error| DocumentAcquisitionFailure::Budget(error.to_string()))?;
         Ok(CurrentDocumentCapture {
             capture,
             process_epoch: self.snapshot.state().process_epoch().to_string(),

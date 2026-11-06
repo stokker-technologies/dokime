@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use arrow_array::{Array, StringArray, StructArray, UInt64Array};
 
 // Local Imports
 use super::{DocumentCardBody, DocumentCardDefinition, DocumentSelection, TelemetrySummaryGroupPayload};
@@ -27,7 +28,7 @@ use super::{
     input::BorrowedData,
 };
 use crate::expressions::{DataSource, DataTransform};
-use crate::storage::sqlite::{QueryRead, QueryWork, snapshots::Scope};
+use crate::storage::sqlite::{QueryProjection, QueryRead, QueryWork, snapshots::Scope};
 use crate::{RuntimeHandle, queries::RuntimeStateSnapshot};
 use dokime_domain::model::values::Value;
 
@@ -39,11 +40,76 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
+struct ProjectedRow<'a> {
+    metadata: &'a StructArray,
+    values: &'a StructArray,
+    index: usize,
+    stream: &'a str,
+    context: Option<super::context::Entry<'a>>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl ProjectedRow<'_> {
+    fn value(
+        &self, expression: &crate::expressions::DataExpression,
+    ) -> Result<Option<Value>, Box<dokime_domain::model::query::error::Failure>> {
+        let operation = "dokime.documents.summary";
+        let contextual = self.context.and_then(|context| context.value(&expression.source));
+        let value = if let Some(value) = contextual {
+            Some(value.clone())
+        } else {
+            let field = match &expression.source {
+                DataSource::Telemetry { stream, field } if super::plot_inputs::stream_matches_alias(self.stream, stream) => field,
+                DataSource::Dimension { name } => name,
+                _ => return Ok(None),
+            };
+            let column =
+                self.values.column_by_name(field).or_else(|| field.rsplit_once('.').and_then(|(_, name)| self.values.column_by_name(name)));
+            if let Some(column) = column {
+                Some(
+                    crate::storage::ipc::cell(column, self.index)
+                        .map_err(|error| crate::storage::sqlite::storage_error(error, operation))?,
+                )
+            } else if field == "timestamp" {
+                let column = self
+                    .metadata
+                    .column_by_name("timestamp")
+                    .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                    .filter(|column| !column.is_null(self.index))
+                    .ok_or_else(|| {
+                        dokime_domain::model::query::error::Failure::new(
+                            dokime_domain::model::query::error::Reason::Corruption,
+                            operation,
+                            "Document timestamp projection is absent",
+                        )
+                    })?;
+                let timestamp = dokime_domain::model::time::Timestamp::new(column.value(self.index)).to_datetime().map_err(|_| {
+                    dokime_domain::model::query::error::Failure::new(
+                        dokime_domain::model::query::error::Reason::Corruption,
+                        operation,
+                        "Document timestamp is invalid",
+                    )
+                })?;
+                Some(Value::Datetime(timestamp))
+            } else {
+                None
+            }
+        };
+        let Some(mut value) = value else { return Ok(None) };
+        for transform in &expression.transforms {
+            let DataTransform::Detail { name } = transform else { break };
+            let Value::Object(mut fields) = value else { return Ok(None) };
+            let Some(selected) = fields.remove(name) else { return Ok(None) };
+            value = selected;
+        }
+        Ok(Some(value))
+    }
+}
 
 /* === Public Functions === */
 
@@ -209,64 +275,108 @@ async fn telemetry(
         .snapshot_capture(scope, Some(at.clone()), None, expires, bytes, Some(snapshot.revision()))
         .await?
         .ok_or_else(|| crate::runtime::Error::Operation("document query cut unavailable".into()))?;
-    let contextual = snapshot.state().executions.get(execution).is_some_and(|execution| {
-        super::input::Context::new(std::slice::from_ref(execution), &selection.scope).supplies(&expression.source)
+    let execution_context = snapshot.state().executions.get(execution).map_or_else(super::input::Context::default, |execution| {
+        super::input::Context::new(std::slice::from_ref(execution), &selection.scope)
     });
+    let contextual = execution_context.supplies(&expression.source);
     let mut state = (super::frame::Fold::new(&expression)?, false);
     for stream in streams {
         let versions =
             contracts.iter().filter(|contract| contract.stream.as_str() == stream).map(|contract| contract.schema_version).collect();
-        let fields = contracts
-            .iter()
-            .filter(|contract| contract.stream.as_str() == stream)
-            .flat_map(|contract| contract.columns.iter().map(|column| column.metadata.identifier.to_string()))
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect();
+        let selectors = std::iter::once(&expression).chain(filters.iter().map(|filter| &filter.expression));
+        let mut fields = std::collections::BTreeSet::new();
+        let mut metadata = vec!["position"];
+        for selector in selectors {
+            if !binding::expression_needs_telemetry(selector, execution_context) {
+                continue;
+            }
+            let field = match &selector.source {
+                DataSource::Telemetry { stream: declared, field } if super::plot_inputs::stream_matches_alias(&stream, declared) => field,
+                DataSource::Dimension { name } => name,
+                _ => continue,
+            };
+            for contract in contracts.iter().filter(|contract| contract.stream.as_str() == stream) {
+                let column = contract.columns.iter().find(|column| column.metadata.identifier.as_str() == field).or_else(|| {
+                    field
+                        .rsplit_once('.')
+                        .and_then(|(_, name)| contract.columns.iter().find(|column| column.metadata.identifier.as_str() == name))
+                });
+                if let Some(column) = column {
+                    fields.insert(column.metadata.identifier.to_string());
+                } else if field == "timestamp" && !metadata.contains(&"timestamp") {
+                    metadata.push("timestamp");
+                }
+            }
+        }
         let read = QueryRead {
             cut: cut.clone(),
             execution: execution.to_string(),
             stream,
             versions,
-            fields,
+            fields: fields.into_iter().collect(),
             between: None,
             after: 0,
             chunk: None,
+        };
+        let projection = QueryProjection {
+            metadata,
+            decoded_bytes: super::bounded::DocumentLimits::default().materialized_bytes,
         };
         let selected = selection.clone();
         let snapshot = snapshot.clone();
         let filters = filters.clone();
         let expression = expression.clone();
-        let (result, _, _) = runtime
+        let (result, _) = runtime
             .local_storage
-            .query_telemetry(
+            .query_native_batches(
                 read,
-                QueryWork::new(runtime.query_config().clone(), operation),
+                QueryWork::document(runtime.query_config().clone(), operation),
                 state,
-                move |(fold, seen), position, mut sample| {
-                    if contextual && *seen {
-                        return Ok(None);
-                    }
-                    if !selected.matches_sample(&sample) {
-                        return Ok(None);
-                    }
-                    if let Some(scope) = selected.captured_sample_scope(&sample) {
-                        sample.scope = Some(scope.clone());
-                    }
+                Some(projection),
+                move |(fold, seen), input, contract, work| {
+                    let corrupt = || {
+                        dokime_domain::model::query::error::Failure::new(
+                            dokime_domain::model::query::error::Reason::Corruption,
+                            operation,
+                            "Document projection layout differs",
+                        )
+                    };
+                    let metadata = input.column(0).as_any().downcast_ref::<StructArray>().ok_or_else(corrupt)?;
+                    let values = input.column(1).as_any().downcast_ref::<StructArray>().ok_or_else(corrupt)?;
+                    let positions = metadata
+                        .column_by_name("position")
+                        .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
+                        .ok_or_else(corrupt)?;
                     let execution = selected.scope.test_execution_id.as_ref().and_then(|id| snapshot.state().executions.get(id));
                     let context = execution.map_or_else(super::input::Context::default, |execution| {
                         super::input::Context::new(std::slice::from_ref(execution), &selected.scope)
                     });
-                    let evidence = Evidence {
-                        telemetry: std::slice::from_ref(&sample),
-                        context,
-                        selection: Some(&selected),
-                        ..Default::default()
-                    };
-                    let row = evidence.sample(&sample);
-                    if super::resolve::row_matches_filters(row, filters.iter(), evidence) {
-                        let value = binding::row(row, &expression, evidence);
-                        fold.push_at(position, value.as_deref()).map_err(|error| {
+                    let context = context.entries().next();
+                    for index in 0..input.num_rows() {
+                        work.check()?;
+                        if contextual && *seen {
+                            break;
+                        }
+                        let row = ProjectedRow {
+                            metadata,
+                            values,
+                            index,
+                            stream: contract.stream.as_str(),
+                            context,
+                        };
+                        let mut matches = true;
+                        for filter in &filters {
+                            let actual = row.value(&filter.expression)?;
+                            if !super::resolve::value_matches_operator(actual.as_ref(), filter.operator.clone(), filter.value.as_ref()) {
+                                matches = false;
+                                break;
+                            }
+                        }
+                        if !matches {
+                            continue;
+                        }
+                        let value = row.value(&expression)?;
+                        fold.push_at(positions.value(index), value.as_ref()).map_err(|error| {
                             dokime_domain::model::query::error::Failure::new(
                                 dokime_domain::model::query::error::Reason::InvalidSelection,
                                 operation,
@@ -275,7 +385,7 @@ async fn telemetry(
                         })?;
                         *seen = true;
                     }
-                    Ok(None)
+                    Ok(())
                 },
             )
             .await

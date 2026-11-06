@@ -1,9 +1,9 @@
 ## Slice 1: Static Structure And Query Summaries
 
-- [ ] 1.1 Runtime documents/current, document/bounded/binding/resolve: static structure and query-backed summaries/statistics; preserve plot path.
-- [ ] 1.2 Remove estimated row-work admission and source-row ceilings; enforce actual output/expansion budgets with card diagnostics.
-- [ ] 1.3 Add deterministic short-run large-document, beyond-old-limits and exact-statistics proof; review README and update product/query guides.
-- [ ] 1.4 Run focused proof, check:rust and bindings generation if wire contracts change; scan diff for forbidden terms.
+- [x] 1.1 Runtime documents/current, document/bounded/binding/resolve: static structure and query-backed summaries/statistics; preserve plot path.
+- [x] 1.2 Remove estimated row-work admission and source-row ceilings; enforce actual output/expansion budgets with card diagnostics.
+- [x] 1.3 Add deterministic short-run large-document, beyond-old-limits and exact-statistics proof; review README and update product/query guides.
+- [x] 1.4 Run focused proof, check:rust and bindings generation if wire contracts change; scan diff for forbidden terms.
 
 ## Slice 2: Independent Cards
 

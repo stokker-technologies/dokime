@@ -403,7 +403,7 @@ pub(super) async fn summary_queries() {
         capture::CardBindingResult,
     };
     use dokime_runtime::expressions::telemetry;
-    for (plot_count, total) in [(64, 3_001), (0, 250_003)] {
+    for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
         let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
@@ -425,6 +425,9 @@ pub(super) async fn summary_queries() {
         let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Queries");
         let mut section = dokime_runtime::document::DocumentSection::new("Measurements");
         section.card(DocumentCard::telemetry_summary(summary));
+        if text_bytes != 0 {
+            section.card(DocumentCard::text("fixture.context", "Context", "x".repeat(text_bytes)));
+        }
         for index in 0..plot_count {
             let mut plot = Plot::time_series(format!("Signal {index}"));
             plot.id(format!("signal.{index}"));
