@@ -2163,7 +2163,10 @@ does not cancel sealing; later Stop or shutdown calls await that work. Closing
 capture admission refuses new capture producers, and successful provider cleanup
 stages remain complete across retries.
 
-Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
+Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
+`execution.3.log` and the next free collision suffix. The log retains the plain
+name when a step uploads an artifact named `execution.log`. Logs segment at
+64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
 evidence is lost; bounded retries preserve acknowledged offsets.

@@ -95,6 +95,31 @@ impl ExecutionStorage {
         .map_err(error)?
     }
 
+    pub(crate) async fn reserve_execution_log_segment(self: &Arc<Self>, execution: &TestExecutionId, mut segment: u32) -> Result<u32> {
+        let storage = self.clone();
+        let execution = execution.clone();
+        tokio::spawn(async move {
+            let owner = storage.acquisition(&execution).await.ok_or_else(|| error("log execution has no admitted producer owner"))?;
+            let mut acquisition = owner.lock().await;
+            if acquisition.finish_requested || acquisition.outputs_sealed {
+                return Err(error("log producer admission is closed"));
+            }
+            loop {
+                let name = crate::artifacts::name::collision_name("execution.log", u64::from(segment) + 1);
+                let path = format!("artifacts/{name}");
+                if acquisition.output(&path).is_none() {
+                    let mut output = NativeOutput::new(&path)?;
+                    output.log = Some(LogPrefix { acknowledged: 0, closed: None });
+                    acquisition.native_outputs.insert(path, output);
+                    return Ok(segment);
+                }
+                segment = segment.checked_add(1).ok_or_else(|| error("log segment identity exhausted"))?;
+            }
+        })
+        .await
+        .map_err(error)?
+    }
+
     pub(crate) async fn log_prefix(&self, execution: &TestExecutionId, path: &str) -> Result<u64> {
         let owner = self.acquisition(execution).await;
         let Some(owner) = owner else {
@@ -237,7 +262,7 @@ impl ExecutionStorage {
             };
             let state =
                 *log.closed.get_or_insert(if close.interrupted { SavedStreamState::Interrupted } else { SavedStreamState::Finalized });
-            if close.path.rsplit('/').next().is_some_and(|name| name.starts_with("stream.") && name.ends_with(".log")) {
+            if execution_segment(&close.path) {
                 if output.production.is_some() {
                     super::follow::capture(&close.path, output, Some(state)).await?;
                 } else {
@@ -276,6 +301,14 @@ impl crate::RuntimeHandle {
 
 /* === Private Functions === */
 
+fn execution_segment(path: &str) -> bool {
+    path == "artifacts/execution.log"
+        || path
+            .strip_prefix("artifacts/execution.")
+            .and_then(|name| name.strip_suffix(".log"))
+            .is_some_and(|suffix| suffix.parse::<u64>().is_ok_and(|number| number >= 2))
+}
+
 fn retryable(source: &std::io::Error) -> bool {
     matches!(source.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut)
 }
@@ -300,7 +333,7 @@ mod tests {
         file.write_all(b"saved.partial").unwrap();
         let append = Append {
             execution: TestExecutionId::from_seed("log.retry"),
-            path: "workflow/stream.000000.log".into(),
+            path: "artifacts/execution.log".into(),
             bytes: b"complete".to_vec(),
         };
         append.write(file.try_clone().unwrap(), 6).unwrap();
