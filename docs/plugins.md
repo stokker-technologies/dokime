@@ -263,8 +263,46 @@ restarts the program, its dependents and all their observers, including
 `activation = "plugin"` observers, which resolve their new collection intervals.
 A reload refused before the program stops keeps the running generation and its
 pending setting marks; a generation that fails to start is recorded like a failed boot.
+An unrelated plugin's retained cleanup failure does not join that reload. The failed
+owner and plugins that depend on it still require successful cleanup before replacement.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
+
+### Observer Refusals And Diagnostics
+
+Harmos refusal `-32607` means the operation or route deadline elapsed. It does
+not identify a restart or a retired generation: operation execution, lane admission,
+device contention and an unavailable remote application can all spend the same
+budget. The diagnostic retains the called operation and underlying cause. Calls
+keep their authored policies, and uncertain writes are never replayed automatically.
+
+Reload fences ordinary callers and joins the old observers before shutdown and
+generation retirement. Their owned calls can settle against that generation.
+A confirmed carrier exit during shutdown is successful physical termination;
+an authored cleanup error still fails cleanup. A disconnected observer host ends
+its activation. Repeated identical callback failures log once until success or a
+different failure; recovery has its own record.
+
+An observer awaits each callback serially and skips missed ticks. A remote call
+that uses its whole 30 s deadline therefore delays that observer's next sample;
+changing cadence alone cannot shorten it. For SDK evolution, an optional per-call
+budget capped by the operation policy, or a separately owned connection sampler
+with a cached availability snapshot, could support faster failure. Neither is
+implemented here; plugin code and operation deadlines are unchanged.
+
+Sidecar stderr groups continuation lines into bounded records and preserves
+severity, including `error:` diagnostics. Operator cancellation logs at INFO;
+step and cleanup failures remain ERROR. Routine file producer completion is DEBUG.
+
+The unresolved-symbol backtrace hint means the matching debug information is
+absent. Release builds can retain symbols separately: matching PDBs on Windows
+and split debug information on Linux can be optional diagnostic downloads, keeping
+normal installers small. In-process Windows symbol resolution needs the matching
+PDB beside the executable; offline symbolization needs the exact binary and its
+symbols. Current bundles do not promise these symbol artifacts. See the
+[Cargo profile reference](https://doc.rust-lang.org/cargo/reference/profiles.html#debug)
+for debug information and splitting controls; adding symbol publication is a
+separate packaging change.
 
 
 Cargo supplies package identity, version and description. Suite declarations
