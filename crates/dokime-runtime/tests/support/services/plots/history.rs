@@ -57,6 +57,12 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
     // Markers And Samples Read The Same Saved Storage Cut.
     request.marker_record_types = vec!["test.cycle.started".to_owned()];
     // This runtime's own storage counts its scan, apart from any other runtime in the process.
+    let mut missing = request.clone();
+    missing.stream = "missing".into();
+    let before = runtime.storage_read_counters().data_scan_rows;
+    let empty = runtime.query_plot_payloads(vec![missing], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert!(empty[0].payload.series.iter().all(|series| series.raw_points == 0));
+    let catalog_work = runtime.storage_read_counters().data_scan_rows - before;
     let before = runtime.storage_read_counters().data_scan_rows;
     let mut equivalent = request.clone();
     equivalent.plot_id = Some("equivalent".into());
@@ -64,16 +70,15 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
         .query_plot_payloads(vec![request, equivalent], RuntimePlotQueryMode::Snapshot)
         .await
         .expect("a large sample set plots within its display points");
-    let scanned = runtime.storage_read_counters().data_scan_rows - before;
+    let scanned = runtime.storage_read_counters().data_scan_rows - before - catalog_work;
     assert_eq!(envelopes.len(), 2);
     assert_eq!(envelopes[0].payload.series, envelopes[1].payload.series);
     let series = &envelopes[0].payload.series[0];
     assert_eq!(series.raw_points, samples);
     assert!(series.downsampled);
     assert!(series.points.len() <= display_points);
-    // Equivalent Requests Reuse One Evidence Scan, Including Bounded Marker Work.
-    let bound = (samples + samples / SAMPLE_BATCH) as u64;
-    assert!((samples as u64..=bound).contains(&scanned), "{scanned} rows scanned for {samples} samples");
+    // Equivalent Requests Reuse One Telemetry Scan Beyond Their Shared Catalog Read.
+    assert_eq!(scanned, samples as u64);
     let baseline = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap().len();
 
     let mut window_work = None;

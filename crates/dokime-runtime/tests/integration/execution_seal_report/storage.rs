@@ -174,7 +174,7 @@ pub(crate) async fn execution_save_sealing() {
     drop(content);
     assert!(large_reader.next_chunk(large_maximum).await.unwrap().is_none());
     drop(large_reader);
-    assert!(handle.cycles().await.iter().all(|cycle| cycle.test_cycle_id != cycle_id), "sealed cycle stays in saved history");
+    assert!(handle.cycles().await.unwrap().iter().all(|cycle| cycle.test_cycle_id != cycle_id), "sealed cycle stays in saved history");
     let saved_cycle = dokime_runtime::storage::objects::cycle::read(handle.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()

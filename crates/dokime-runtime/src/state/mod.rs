@@ -134,6 +134,15 @@ pub enum RuntimeStateInstallError {
 /* === Implementations === */
 
 impl RuntimeState {
+    // Sealed Payloads Are Read From Their Durable Execution Revision. Keep The
+    // Frozen Plan For Copying And The Control Fields Used By Active Containers.
+    pub(crate) fn sealed_projection(execution: &mut dokime_domain::model::execution::result::TestExecution) {
+        if let Some(seal) = &mut execution.saved {
+            seal.source.outputs.clear();
+            execution.output_parameters.retain(|_, parameter| parameter.source != crate::definition::ParameterSource::Telemetry);
+        }
+    }
+
     // Catalog Validation Needs Cross-Provider Definitions, Never Execution Evidence.
     pub(crate) fn catalog_candidate(&self) -> Self {
         Self {
@@ -266,13 +275,20 @@ impl RuntimeState {
     // Retire Sealed Cycles From Live State; Their Saved Closure Stays In Native History
     pub fn retire_sealed_cycles(&mut self) {
         let sealed: Vec<_> = self.cycles.values().filter(|cycle| cycle.saved.is_some()).map(|cycle| cycle.test_cycle_id.clone()).collect();
+        let mut cases = std::collections::BTreeSet::new();
         for id in sealed {
             let cycle = self.cycles.remove(&id).expect("selected sealed cycle");
+            self.run_requests.retain(|_, request| request.summary.cycle_id != id);
             for execution_id in &cycle.execution_ids {
-                self.retired_executions.insert(execution_id.clone());
-                self.executions.remove(execution_id);
+                // Native History Rejects Reuse Of These Durably Saved Identities.
+                self.retired_executions.remove(execution_id);
+                if let Some(execution) = self.executions.remove(execution_id) {
+                    cases.insert(execution.test_case_id);
+                }
             }
         }
+        cases.retain(|id| !self.executions.values().any(|execution| &execution.test_case_id == id));
+        self.suites.retire_cases(&cases);
     }
 
     pub fn validate_cycle_view(&self, view: &dokime_domain::model::execution::result::CycleView) -> Result<(), String> {

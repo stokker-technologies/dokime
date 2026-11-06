@@ -55,6 +55,11 @@ pub struct SuiteRegistry {
 /* === Implementations === */
 
 impl SuiteRegistry {
+    pub(crate) fn retire_cases(&mut self, ids: &std::collections::BTreeSet<CaseId>) {
+        self.cases.retain(|id, _| !ids.contains(id));
+        self.case_revisions.retain(|id, _| !ids.contains(id));
+        self.registrations.retain(|_, members| members.iter().all(|id| !ids.contains(id)));
+    }
     // The Registry's Parts, For The State Encoding That Stores Each Suite Once
     pub(crate) fn snapshots(&self) -> &BTreeMap<String, SuiteSnapshot> {
         &self.suites

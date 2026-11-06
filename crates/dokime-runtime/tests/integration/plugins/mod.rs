@@ -7,13 +7,13 @@
  * ***
  */
 
+// Installed Plugin Recovery Stories.
+
 /* === Modules === */
 
-mod handle;
+mod recovery;
 
 /* === Re-Exports === */
-
-pub(crate) use handle::ScopedParameterUpdate;
 
 /* === Imports === */
 

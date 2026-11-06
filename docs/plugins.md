@@ -382,6 +382,31 @@ Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
 
+## Hand-Authored Steps
+
+A hand-authored step reads as a list of operations. Each action is a Title Case
+comment, a `let operation` binding and one `ctx.call`, with a blank line between
+actions:
+
+```rust
+#[dokime::step(label = "Prepare")]
+async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
+    // Enable Remote Control
+    let operation = SetChamberSettings::from([("RemoteControl", "true")]);
+    ctx.call(operation).await?;
+
+    // Start Chamber Service
+    let operation = StartChamberService {};
+    ctx.call(operation).await?;
+
+    // Wait Until Chamber Is Ready
+    let operation = WaitUntilChamberReady {};
+    ctx.call(operation).await?;
+
+    Ok(())
+}
+```
+
 ## Plugin Startup And Stop Budgets
 
 Two host settings bound a sidecar program's lifecycle outside its own code.

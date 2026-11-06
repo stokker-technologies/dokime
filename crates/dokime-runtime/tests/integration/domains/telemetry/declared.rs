@@ -270,7 +270,7 @@ async fn template_declarations_register() {
         .await
         .unwrap();
     assert_eq!(rows.len(), 2, "both templates publish the shared stream");
-    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
+    let ended = handle.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert!(
         ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );

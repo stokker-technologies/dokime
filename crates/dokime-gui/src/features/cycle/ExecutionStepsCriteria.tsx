@@ -103,7 +103,7 @@ function RecordRow({ live, ordinal, record }: { live: boolean; ordinal: string; 
       </div>
       <span className="text-xs text-muted-foreground tabular-nums">{duration}</span>
       <Badge className={`${LIST_STATUS_PILL_CLASS} gap-1 capitalize`} variant={stepBadgeVariant(record.status)}>
-        {running ? <LoaderCircle aria-hidden className="animate-spin" size={10} /> : null}
+        {running ? <LoaderCircle aria-hidden className="animate-spin motion-reduce:animate-none" size={10} /> : null}
         {record.status}
       </Badge>
     </li>

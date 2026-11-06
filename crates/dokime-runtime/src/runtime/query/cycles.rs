@@ -189,8 +189,25 @@ impl RuntimeHandle {
     // Historical Inspection Is A Read-Only Projection; Never Reinsert Retired Work Into Managed State.
     pub async fn inspect_cycle(&self, id: &TestCycleId) -> Result<RuntimeStateSnapshot> {
         let snapshot = self.watch_state().latest();
-        if snapshot.state().cycles.contains_key(id) {
-            return Ok(snapshot);
+        if let Some(cycle) = snapshot.state().cycles.get(id) {
+            let mut state = snapshot.state().clone();
+            let mut bytes = 0usize;
+            for member in &cycle.execution_ids {
+                let projection = &snapshot.state().executions[member];
+                if projection.saved.is_none() {
+                    continue;
+                }
+                let saved = self
+                    .known_execution(member)
+                    .await?
+                    .ok_or_else(|| Error::not_found("cycle_member_missing", "saved cycle member is unavailable"))?;
+                bytes = bytes.saturating_add(saved.memory_size());
+                if bytes as u64 > self.query_config().limits().working_bytes {
+                    return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+                }
+                state.executions.insert(member.clone(), saved);
+            }
+            return Ok(RuntimeStateSnapshot::new(Arc::new(state), snapshot.revision()));
         }
         let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
             return Ok(snapshot);
@@ -236,7 +253,14 @@ impl RuntimeHandle {
                 .iter()
                 .position(|member| member == id)
                 .ok_or_else(|| Error::conflict("execution_membership_missing", "execution is absent from its cycle"))?;
-            let execution = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(member.clone()))?;
+            let execution = match &member.saved {
+                Some(_) => self
+                    .known_execution(id)
+                    .await?
+                    .ok_or_else(|| Error::not_found("execution_missing", "sealed execution is unavailable"))?,
+                None => member.clone(),
+            };
+            let execution = harmos::storage::ReadBatch::new(execution);
             let cycle = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(cycle.clone()))?;
             return Ok(ExecutionInspection { snapshot, execution, cycle, ordinal });
         }

@@ -387,7 +387,7 @@ pub async fn contended_reads(size: Contention) {
         }
         for _ in 0..10 {
             handle.run_request(&case_run.as_ref().unwrap().command_id).await.unwrap().expect("admitted request stays queryable");
-            assert!(handle.cycles().await.iter().any(|cycle| cycle.test_cycle_id == queued));
+            assert!(handle.cycles().await.unwrap().iter().any(|cycle| cycle.test_cycle_id == queued));
         }
         barrier.wait().await;
     }
