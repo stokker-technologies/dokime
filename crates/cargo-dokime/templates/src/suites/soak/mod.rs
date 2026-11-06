@@ -13,7 +13,7 @@ mod hold;
 
 /* === Re-Exports === */
 
-pub use hold::{Hold, HoldReached, SoakRow};
+pub use hold::{HoldReached, Row, Template};
 
 /* === Imports === */
 
@@ -37,7 +37,7 @@ pub struct SoakSuite;
 
 #[dokime::catalog]
 pub enum Templates {
-    Hold(hold::Hold),
+    Hold(hold::Template),
 }
 
 /* === Traits === */

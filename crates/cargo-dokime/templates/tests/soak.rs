@@ -48,15 +48,15 @@ fn bench() -> Harness {
     let measured = Arc::clone(&temperature);
     Harness::template("{{crate}}.soak.hold")
         .answering::<OpenHeater, _>(|operation| HeaterIdentity {
-            serial: format!("SIM-{}", operation.port),
-            firmware: "sim-1.0".to_owned(),
+            serial_number: format!("SIM-{}", operation.port),
+            firmware_version: "sim-1.0".to_owned(),
         })
         .answering::<SetTarget, _>(move |operation| {
-            *temperature.lock().unwrap() = operation.celsius;
+            *temperature.lock().unwrap() = operation.temperature_c;
             TargetSet {}
         })
         .answering::<ReadChamber, _>(move |_| ChamberReading {
-            celsius: *measured.lock().unwrap(),
+            temperature_c: *measured.lock().unwrap(),
             sensor: "simulated sensor".to_owned(),
         })
         .answering::<ReleaseChamber, _>(|_| ChamberReleased {})
@@ -88,11 +88,11 @@ async fn soak_holds_band() {
         .expect("the soak runs");
 
     assert!(report.passed(), "{}", report.diagnostics());
-    assert_eq!(report.traceability("dut").row("firmware").text(), "sim-1.0");
+    assert_eq!(report.traceability("dut").row("firmware_version").text(), "sim-1.0");
     assert_eq!(report.traceability("bench").row("target_c").number(), 60.0);
     // The stream is the row type that declared it, so the test names no id and
     // reads the fields the declaration named.
-    let samples = report.samples::<{{crate}}::suites::soak::SoakRow>();
+    let samples = report.samples::<{{crate}}::suites::soak::Row>();
     assert!(samples.len() >= 3);
 
     let log = String::from_utf8(report.artifact("heater.log").bytes.clone()).expect("the chamber log is text");
@@ -115,11 +115,11 @@ async fn unavailable_target_operation_run() {
     let observed = Arc::clone(&released);
     let report = Harness::template("{{crate}}.soak.hold")
         .answering::<OpenHeater, _>(|_| HeaterIdentity {
-            serial: "SIM-1".into(),
-            firmware: "sim-1.0".into(),
+            serial_number: "SIM-1".into(),
+            firmware_version: "sim-1.0".into(),
         })
         .answering::<ReadChamber, _>(|_| ChamberReading {
-            celsius: 22.0,
+            temperature_c: 22.0,
             sensor: "simulated sensor".into(),
         })
         .answering::<ReleaseChamber, _>(move |_| {
@@ -142,7 +142,7 @@ fn soak_document_wraps() {
     use dokime::definition::DeclaredTemplate;
     use dokime::document::{DocumentCardBody, DocumentNode};
 
-    let declaration = <{{crate}}::suites::soak::Hold as DeclaredTemplate>::declaration();
+    let declaration = <{{crate}}::suites::soak::Template as DeclaredTemplate>::declaration();
     let document = declaration.document.as_ref().expect("the soak template authors its document");
 
     assert_eq!(document.document_id.to_string(), "default");

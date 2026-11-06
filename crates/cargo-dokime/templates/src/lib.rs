@@ -151,11 +151,16 @@ impl dokime::harmos::Lifecycle for Plugin {
     async fn cleanup(&mut self) -> std::result::Result<(), Refusal> {
         self.observers.take();
         let mut heater = self.bench.heater.lock().await;
-        if let Some(current) = heater.as_ref() {
-            dokime::plugin::refusal(current.off().await)?;
+        let result = match heater.as_ref() {
+            Some(current) => current.off().await,
+            None => Ok(()),
+        };
+        if let Err(error) = &result {
+            tracing::warn!("could not turn off heater: {error}");
         }
         heater.take();
         self.bench.sensor.close();
+        dokime::plugin::refusal(result)?;
         Ok(())
     }
 }

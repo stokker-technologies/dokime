@@ -51,7 +51,7 @@ pub struct TargetSet {}
 )]
 #[derive(Clone, PartialEq)]
 pub struct SetTarget {
-    pub celsius: f64,
+    pub temperature_c: f64,
 }
 
 /* === Enums === */
@@ -67,7 +67,7 @@ impl Operation for SetTarget {
         let bench = ctx.resource::<Bench>();
         let current = bench.heater.lock().await;
         let heater = current.as_ref().ok_or_else(|| Refusal::new(-32_000, "the heater is not open"))?;
-        dokime::plugin::refusal(heater.set_target(self.celsius).await)?;
+        dokime::plugin::refusal(heater.set_target(self.temperature_c).await)?;
         Ok(Response::new(TargetSet {}))
     }
 }

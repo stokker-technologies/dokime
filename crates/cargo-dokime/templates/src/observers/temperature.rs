@@ -46,7 +46,7 @@ impl Temperature {
         // Read Chamber Temperature
         let operation = ReadChamber {};
         let reading = dokime::plugin::refusal(ctx.host().supervisor().call::<ReadChamber>(operation).await)?;
-        let row = TemperatureRow { celsius: reading.celsius };
+        let row = TemperatureRow { temperature_c: reading.temperature_c };
         dokime::plugin::refusal(ctx.publish_on::<TemperatureRow>(&row).await)?;
         Ok(())
     }

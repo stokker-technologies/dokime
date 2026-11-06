@@ -376,6 +376,9 @@ required-features = ["native"]
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #

@@ -169,6 +169,9 @@ windows-sys = { workspace = true, features = ["Win32_System_Console"] }
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #

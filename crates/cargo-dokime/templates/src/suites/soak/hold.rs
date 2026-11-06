@@ -17,6 +17,7 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -36,48 +37,49 @@ use dokime::prelude::*;
 
 /* === Structs === */
 
-// A record is a type, declared once, in the file of whatever publishes it —
-// here, beside the step that files it. The struct's fields *are* the contract's
-// fields, so there is no id to keep in agreement with a separate declaration
-// and no detail that can be published without being declared. The template
-// names it once in `records = Records` below, which is what binds the
-// contract to this template and tells the host what to expect. Its explicit `description` is the
-// text the host shows.
-#[record(id = "{{crate}}.soak.held", label = "Hold reached", severity = info, description = "One completed hold, with what it measured.")]
+#[record(id = "{{crate}}.soak.held", label = "Hold Reached", severity = info, description = "One completed hold, with what it measured.")]
 #[derive(Clone, Debug)]
 pub struct HoldReached {
     #[record(description = "How many samples the chamber was held for.")]
     pub samples: u64,
+
     #[record(unit = "°C", description = "What it was at when the hold ended.")]
-    pub celsius: f64,
+    pub temperature_c: f64,
+
     #[record(description = "The unit the bench was told about, when it was told about one.")]
     pub unit: Option<String>,
 }
 
 #[parameters]
-pub struct SoakParameters {
+pub struct Parameters {
     #[parameter(
-        label = "Target temperature",
+        label = "Target Temperature",
         unit = "°C",
         default = 60.0,
         description = "What the chamber is driven to. Deliberately unbounded above: a target the bench cannot reach is something this procedure *discovers*, and refusing it at admission would hide the failure the run is there to find."
     )]
     pub target_c: f64,
-    #[parameter(label = "Allowed band", unit = "°C", default = 1.5, min = 0.0)]
+
+    #[parameter(label = "Allowed Band", unit = "°C", default = 1.5, min = 0.0)]
     pub band_c: f64,
-    #[parameter(label = "Samples to hold", default = 5, min = 1)]
+
+    #[parameter(label = "Samples to Hold", default = 5, min = 1)]
     pub hold_samples: u64,
-    #[parameter(label = "Heater port", default = "/dev/ttyUSB0")]
+
+    #[parameter(label = "Heater Port", default = "/dev/ttyUSB0")]
     pub heater_port: String,
-    #[parameter(label = "Seconds to wait for the unit", unit = "s", default = 0.5, min = 0.0)]
+
+    #[parameter(label = "Seconds to Wait for the Unit", unit = "s", default = 0.5, min = 0.0)]
     pub connect_budget_s: f64,
-    #[parameter(label = "Highest host CPU load allowed", unit = "%", default = 100.0, min = 0.0, max = 100.0)]
-    pub host_cpu_limit: f64,
-    #[parameter(label = "Ask the operator to sign off", default = false)]
+
+    #[parameter(label = "Highest Host CPU Load Allowed", unit = "%", default = 100.0, min = 0.0, max = 100.0)]
+    pub host_cpu_limit_percent: f64,
+
+    #[parameter(label = "Ask the Operator to Sign Off", default = false)]
     pub attended: bool,
 }
 
-pub struct Hold {
+pub struct Template {
     unit: Option<String>,
     note: Option<String>,
 }
@@ -86,23 +88,16 @@ pub struct SoakResources {
     holding: AtomicBool,
 }
 
-// The row names its home, which is the only place this stream's id is
-// written: a step waits on these by type with `ctx.listen::<SoakRow>()`, a
-// criterion reads them with `ctx.samples::<SoakRow>()`, and the
-// `#[observer]` below adds only the cadence it publishes them on.
-// `#[stream]` writes the columns as well, so this does not also derive
-// `#[dokime::row]`, and every column comes with a handle a document names
-// it by — rename `celsius` and the plot above stops compiling rather than
-// quietly drawing nothing.
 #[stream(
     id = "{{crate}}.soak.samples",
     window = 4096,
     label = "Soak Samples",
     description = "The chamber, once per interval, for the length of the attempt."
 )]
-pub struct SoakRow {
+pub struct Row {
     #[row(unit = "°C", format = fixed(1))]
-    pub celsius: f64,
+    pub temperature_c: f64,
+
     #[row(role = state)]
     pub holding: bool,
 }
@@ -135,8 +130,8 @@ pub enum Inputs {
 }
 
 #[dokime::catalog]
-pub enum ObserverStreams {
-    SoakRow(SoakRow),
+pub enum Streams {
+    Row(Row),
 }
 
 /* === Traits === */
@@ -147,51 +142,29 @@ pub enum ObserverStreams {
     id = "{{crate}}.soak.hold",
     label = "Hold at Temperature",
     tags = ["thermal", "soak"],
-    // The operations this template calls. A template never names the plugin it
-    // runs under: it names the operation types it will call, and the plugin
-    // serving this suite is checked, once, against exactly this list.
     requires = Required,
-    // The question the operator check asks, named by its type the way the
-    // records are: the struct in `prompts/checkpoint.rs` is the declaration.
     prompts = Prompts,
-    // What this template's steps publish. The contract comes off the struct in
-    // this file, so this list is the whole declaration.
     records = Records,
-    // The global streams the host leases for every execution of this
-    // template, named by type the way this template's own rows are. Each
-    // stream's observer declared how often it measures, so nothing here
-    // states a cadence and every run leasing the same stream shares one
-    // running instance and its tick.
-    //
-    // `plugin_host::System` is the machine itself: cpu, memory and battery. The other
-    // five — `plugin_host::Network`, `plugin_host::WifiLink`, `plugin_host::WifiScan`, `plugin_host::WifiLatency`,
-    // `plugin_host::Bluetooth` — are what a bench adds
-    // when it is correlating the machine's radios against the unit.
     subscribes = Inputs,
-    // The inputs, named once. The struct above is the declaration; every stage
-    // reads the decoded value through `ctx.parameters()`.
-    parameters = SoakParameters, description = "Drive the chamber to the target and hold it for the requested samples.")]
-impl Hold {
+    parameters = Parameters, description = "Drive the chamber to the target and hold it for the requested samples.")]
+impl Template {
     fn document() -> Document {
         let mut temperature = Plot::time_series("Temperature");
         temperature.id("{{crate}}.soak.temperature");
         temperature.unit("°C");
-        temperature.y(SoakRow::column_celsius());
-        // The row timestamp is automatic and is never named on the axis — a
-        // `time_series` plot always draws against it. `x_format` only says how
-        // that axis is *read*: seconds since this attempt started, rather than
-        // a wall clock.
-        temperature.x_format(format::elapsed_seconds());
-        temperature.y_format(format::fixed(1));
-        // The band is this case's own `target_c ± band_c`, so a plot drawn for
-        // one case shows the band it was held to. Both are named by their typed
-        // handles, the way the axes are named by their columns.
-        temperature.reference_band(
-            "target ± band",
-            SoakRow::column_celsius(),
-            Band::around(SoakParameters::target_c(), SoakParameters::band_c()),
-        );
-        temperature.marker_records([HoldReached::marker()]);
+        let temperature_c = Row::column_temperature_c();
+        temperature.y(temperature_c);
+        let elapsed_seconds = format::elapsed_seconds();
+        temperature.x_format(elapsed_seconds);
+        let fixed = format::fixed(1);
+        temperature.y_format(fixed);
+        let target_c = Parameters::target_c();
+        let band_c = Parameters::band_c();
+        let band = Band::around(target_c, band_c);
+        let temperature_c = Row::column_temperature_c();
+        temperature.reference_band("Target ± Band", temperature_c, band);
+        let marker = HoldReached::marker();
+        temperature.marker_records([marker]);
 
         let mut signals = Section::new("Soak");
         signals.id("{{crate}}.soak.signals");
@@ -203,7 +176,7 @@ impl Hold {
         document
     }
 
-    async fn initialize(_: &SoakParameters, _: &mut InitializationContext<'_>) -> Result<(Self, SoakResources), Error> {
+    async fn initialize(_: &Parameters, _: &mut InitializationContext<'_>) -> Result<(Self, SoakResources), Error> {
         let template = Self { unit: None, note: None };
         let shared = SoakResources { holding: AtomicBool::new(false) };
         Ok((template, shared))
@@ -214,7 +187,7 @@ impl Hold {
         description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so."
     )]
     async fn connected(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // Open Heater And Read Identity
+        // Open Heater and Read Identity
         let operation = OpenHeater {
             port: ctx.parameters().heater_port.clone(),
         };
@@ -224,19 +197,30 @@ impl Hold {
         let operation = ReadChamber {};
         let reading = ctx.call(operation).await?;
 
-        // Device Under Test
-        let mut dut = TraceabilitySection::new("dut", "Device under test");
-        dut.row(TraceabilityRow::text("serial_number", "Serial number", identity.serial));
-        dut.row(TraceabilityRow::text("firmware", "Firmware", identity.firmware));
+        // === Device Under Test === //
+        let mut section = TraceabilitySection::new("dut", "Device Under Test");
 
-        // Bench
-        let mut bench_section = TraceabilitySection::new("bench", "Bench");
-        bench_section.row(TraceabilityRow::text("sensor", "Sensor", reading.sensor));
-        bench_section.row(TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c).unit("°C"));
+        let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &identity.serial_number);
+        section.row(serial_number);
 
-        ctx.traceability().section(dut);
-        ctx.traceability().section(bench_section);
+        let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &identity.firmware_version);
+        section.row(firmware_version);
 
+        ctx.traceability().section(section);
+
+        // === Test Bench === //
+        let mut section = TraceabilitySection::new("bench", "Test Bench");
+
+        let sensor = TraceabilityRow::text("sensor", "Sensor", &reading.sensor);
+        section.row(sensor);
+
+        let target_c = TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c);
+        let target_c = target_c.unit("°C");
+        section.row(target_c);
+
+        ctx.traceability().section(section);
+
+        // Wait for the Unit
         let budget = Duration::from_secs_f64(ctx.parameters().connect_budget_s);
         match ctx.listen::<ToolConnectionAcquired>().timeout(budget).next().await {
             Some(Ok(connected)) => {
@@ -254,23 +238,28 @@ impl Hold {
 
     #[step(label = "Reach Target", description = "Drives the chamber until it is inside the band.")]
     async fn reach(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
-
-        // Set The Target
-        let operation = SetTarget { celsius: target_c };
+        // Set the Target
+        let operation = SetTarget { temperature_c: ctx.parameters().target_c };
         ctx.call(operation).await?;
-        ctx.traceability().row("bench", TraceabilityRow::number("target_c", "Target", target_c).unit("°C"));
-        dokime::info!(ctx, "heater set to {target_c:.1} °C");
+        dokime::info!(ctx, "heater set to {:.1} °C", ctx.parameters().target_c);
 
-        // Wait For The Band
-        let mut measurements = ctx.listen::<SoakRow>();
+        // Update Target Traceability
+        let target_c = TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c);
+        let target_c = target_c.unit("°C");
+        ctx.traceability().row("bench", target_c);
+
+        // Wait for the Band
+        let parameters = ctx.parameters();
+        let target_c = parameters.target_c;
+        let band_c = parameters.band_c;
+        let mut measurements = ctx.listen::<Row>();
         while let Some(reading) = measurements.next().await {
-            if (reading.celsius - target_c).abs() <= band_c {
-                dokime::info!(ctx, "target reached at {:.2} °C", reading.celsius);
+            if (reading.temperature_c - target_c).abs() <= band_c {
+                dokime::info!(ctx, "target reached at {:.2} °C", reading.temperature_c);
                 return Ok(());
             }
         }
-        Err(Error::Unmeasured("celsius"))
+        Err(Error::Unmeasured("temperature_c"))
     }
 
     #[step(
@@ -278,69 +267,62 @@ impl Hold {
         description = "Holds, writing the chamber log as it goes.\nThe step waits on its own observer by the type it publishes — an exact number of rows rather than a length of time, so what the run measured does not depend on how quickly it got going — and appends one line per row through an artifact writer, so the evidence reaches the host while the hold is still running rather than all at once at the end. The row carries the measurement, so the step reads the chamber once, in the observer, rather than twice. What it measured is published as one `HoldReached`, which is a struct rather than a map of details nothing checks until admission."
     )]
     async fn hold(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Open The Chamber Log === //
-
+        // === Open the Chamber Log === //
         let mut log = ctx.artifacts().create("heater.log")?;
-        // Subscribed before the chamber is marked as holding, so the very next
-        // row the observer measures is one this step counts. A stream is a
-        // stream of measurements, so a subscription sees what is measured after
-        // it is taken and nothing before it.
-        let mut held = ctx.listen::<SoakRow>();
+        let mut held = ctx.listen::<Row>();
         ctx.resources().holding.store(true, Ordering::Release);
 
-        // === Count The Hold === //
-
+        // === Count the Hold === //
         let wanted = ctx.parameters().hold_samples;
-        let mut celsius = ctx.parameters().target_c;
+        let mut temperature_c = ctx.parameters().target_c;
         let mut sample = 0;
         while sample < wanted {
             let Some(row) = held.next().await else { break };
             sample += 1;
-            celsius = row.celsius;
-            writeln!(log, "{sample},{celsius:.2}")?;
+            temperature_c = row.temperature_c;
+            writeln!(log, "{sample},{temperature_c:.2}")?;
         }
-        // A subscription that fell behind lost rows, and this hold counted
-        // fewer than it measured. Worth saying so rather than reporting a
-        // shorter hold as if it were the one that was asked for.
         if held.missed() > 0 {
             dokime::warn!(ctx, "the hold missed {} rows it measured", held.missed());
         }
         log.finish()?;
-        dokime::info!(ctx, "held for {sample} samples, ending at {celsius:.2} °C");
+        dokime::info!(ctx, "held for {sample} samples, ending at {temperature_c:.2} °C");
 
-        // === Publish What It Measured === //
+        // === Publish Measurements === //
+        let summary = Summary {
+            target_c: ctx.parameters().target_c,
+            band_c: ctx.parameters().band_c,
+            hold_samples: ctx.parameters().hold_samples,
+            final_c: temperature_c,
+            unit: self.unit.clone(),
+            operator_note: self.note.clone(),
+        };
 
         // Encode Summary
-        let operation = EncodeSummary {
-            summary: self.summary(ctx.parameters(), celsius),
-        };
+        let operation = EncodeSummary { summary };
         let summary = ctx.call(operation).await?;
         ctx.artifacts().write("summary.json", summary.json)?;
-        // One verb publishes both kinds of evidence, and the declaration decides
-        // which this is: `HoldReached` is a record, `SoakRow` is a measurement,
-        // and neither call site repeats where it goes.
-        ctx.publish(HoldReached {
+        let record = HoldReached {
             samples: wanted,
-            celsius,
+            temperature_c,
             unit: self.unit.clone(),
-        })
-        .await;
+        };
+        ctx.publish(record).await;
 
         Ok(())
     }
 
     #[step(label = "Operator Check", description = "Asks the operator to sign off, on a bench that has one.")]
     async fn check(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // === Skip An Unattended Bench === //
-
+        // Skip an Unattended Bench
         if !ctx.parameters().attended {
             ctx.info("unattended bench: no operator was asked");
             return Ok(());
         }
 
-        // === Ask The Operator === //
-
-        let answer = ctx.ask(SoakCheckpoint::default()).await?;
+        // Ask the Operator
+        let prompt = SoakCheckpoint::default();
+        let answer = ctx.ask(prompt).await?;
         dokime::info!(ctx, "operator note: {}", answer.note);
         self.note = Some(answer.note);
         if !answer.accepted {
@@ -350,14 +332,14 @@ impl Hold {
         Ok(())
     }
 
-    #[observer(interval_ms = 100, streams = ObserverStreams)]
+    #[observer(interval_ms = 100, streams = Streams)]
     async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         // Read Chamber Temperature
         let operation = ReadChamber {};
         let reading = ctx.call(operation).await?;
 
-        let row = SoakRow {
-            celsius: reading.celsius,
+        let row = Row {
+            temperature_c: reading.temperature_c,
             holding: ctx.resources().holding.load(Ordering::Acquire),
         };
         ctx.publish(row).await;
@@ -367,68 +349,56 @@ impl Hold {
 
     #[criterion(
         id = "{{crate}}.soak.in_band",
-        label = "Temperature stayed in band",
+        label = "Temperature Stayed in Band",
         description = "Did the chamber stay in band for the whole hold?\nA criterion reads captured evidence and nothing else: the handles are released before it runs, so what it did not measure during the steps it cannot go and look at now."
     )]
     fn in_band(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
-        let mut held = 0;
-        for row in ctx.samples::<SoakRow>().iter() {
-            // The ramp is not the hold, and the observer said which is which.
-            if !row.holding {
-                continue;
-            }
-            if (row.celsius - target_c).abs() > band_c {
-                return Ok(false);
-            }
-            held += 1;
-        }
+        let rows = ctx.samples::<Row>();
+        let parameters = ctx.parameters();
 
-        Ok(held > 0)
+        // Check / Number of Rows
+        let number_ok = rows.iter().any(|row| row.holding);
+
+        // Check / Temperature in Band
+        let temperature_ok = rows.iter().filter(|row| row.holding).all(|row| {
+            (row.temperature_c - parameters.target_c).abs().partial_cmp(&parameters.band_c) != Some(std::cmp::Ordering::Greater)
+        });
+
+        Ok(number_ok && temperature_ok)
     }
 
     #[criterion(
         id = "{{crate}}.soak.host_quiet",
-        label = "Host stayed under its CPU limit",
+        label = "Host Stayed Under Its CPU Limit",
         description = "Was the machine quiet enough for the measurement to mean anything?\nHost rows are evidence like any other stream, which is what makes this a criterion rather than a note. The limit is a parameter because what counts as quiet is the bench's business: the starter ships it at 100%, which admits anything the host can report, so tighten it to what your own measurement needs rather than to whatever the machine happened to be doing. A host row whose load the runtime could not read is indeterminate rather than a pass — a criterion that cannot read its evidence has decided nothing — and a run that captured no host rows at all has nothing to contradict."
     )]
     fn host_quiet(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        let limit = ctx.parameters().host_cpu_limit;
-        for row in ctx.samples::<System>().iter() {
-            let Some(load) = row.cpu_load_percent else {
-                return Err(Error::Unmeasured("cpu_load_percent"));
-            };
-            if load > limit {
-                return Ok(false);
-            }
-        }
+        let rows = ctx.samples::<System>();
+        let limit = ctx.parameters().host_cpu_limit_percent;
 
-        Ok(true)
+        // Check / Host CPU Load
+        let load_ok = match rows.iter().find(|row| row.cpu_load_percent.is_none_or(|load| load > limit)) {
+            Some(row) => {
+                row.cpu_load_percent.ok_or(Error::Unmeasured("cpu_load_percent"))?;
+                false
+            }
+            None => true,
+        };
+
+        Ok(load_ok)
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         // Release Chamber
         let operation = ReleaseChamber {};
-        ctx.call(operation).await?;
-        dokime::info!(ctx, "chamber released after {:?}", ctx.reason());
+        let result = ctx.call(operation).await;
+        if let Err(error) = &result {
+            dokime::warn!(ctx, "could not release chamber: {error}");
+        }
+        dokime::info!(ctx, "chamber cleanup finished after {:?}", ctx.reason());
+        result?;
 
         Ok(())
-    }
-}
-
-// A private helper, not a stage or a marker: it lives on a second inherent
-// impl, beside the declared one instead of inside it, the way any other
-// method the macro does not read has to.
-impl Hold {
-    fn summary(&self, parameters: &SoakParameters, celsius: f64) -> Summary {
-        Summary {
-            target_c: parameters.target_c,
-            band_c: parameters.band_c,
-            hold_samples: parameters.hold_samples,
-            final_c: celsius,
-            unit: self.unit.clone(),
-            operator_note: self.note.clone(),
-        }
     }
 }
 

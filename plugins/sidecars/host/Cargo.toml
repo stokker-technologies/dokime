@@ -231,6 +231,9 @@ required-features = ["runtime"]
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #
