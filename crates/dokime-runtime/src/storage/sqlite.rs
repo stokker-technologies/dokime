@@ -22,7 +22,7 @@ pub use catalog::Source;
 pub use data::Backend;
 pub(crate) use data::telemetry::StreamFile;
 pub(crate) use data::telemetry::aggregates::Moments;
-pub(crate) use data::telemetry::query::{QueryRead, QueryWork, storage_error};
+pub(crate) use data::telemetry::query::{QueryProjection, QueryRead, QueryWork, storage_error};
 pub use rusqlite;
 
 /* === Imports === */
@@ -283,7 +283,7 @@ impl State {
         let has_tail = !self.0.telemetry_tail.lock().unwrap().entries.is_empty();
         if has_tail {
             let saved = self.data_saved().await?;
-            self.0.telemetry_tail.lock().unwrap().entries.retain(|position, _| *position > saved.sequence);
+            self.0.telemetry_tail.lock().unwrap().discard_saved(saved.sequence);
         }
         {
             let mut tail = self.0.telemetry_tail.lock().unwrap();
@@ -310,7 +310,7 @@ impl State {
         if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
             let saved = self.data_saved().await?;
             let mut tail = self.0.telemetry_tail.lock().unwrap();
-            tail.entries.retain(|position, _| *position > saved.sequence);
+            tail.discard_saved(saved.sequence);
             if !tail.entries.is_empty() {
                 return Err(transient_failure.unwrap_or(Error::Conflict("unflushed telemetry prevents closing")));
             }

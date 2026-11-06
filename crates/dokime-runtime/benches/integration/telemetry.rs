@@ -30,7 +30,7 @@ use futures_util::FutureExt;
 use dokime_domain::model::exports::EvidenceSubject;
 use dokime_runtime::runtime::{
     command::{CommandContext, CommandStatus},
-    query::{PlotPayloadRequest, RuntimePlotQueryMode},
+    query::PlotPayloadRequest,
 };
 use dokime_runtime::{Runtime, RuntimeHandle};
 
@@ -147,6 +147,7 @@ impl ExportFixture {
                     .runtime
                     .cycles()
                     .await
+                    .unwrap()
                     .into_iter()
                     .find(|stored| stored.test_cycle_id == cycle)
                     .is_some_and(|stored| stored.test_executions.first().is_some_and(|execution| execution.saved.is_some()));
@@ -158,7 +159,7 @@ impl ExportFixture {
         };
         let deadline = <dokime_runtime::operations::reports::MaterializeReport as harmos::OperationDeclaration>::POLICY.timeout;
         tokio::time::timeout(deadline, settle).await.expect("benchmark execution finalizes");
-        let cycles = fixture.runtime.cycles().await;
+        let cycles = fixture.runtime.cycles().await.unwrap();
         let execution = &cycles.iter().find(|stored| stored.test_cycle_id == cycle).unwrap().test_executions[0];
         assert_eq!(execution.status, dokime_runtime::ExecutionStatus::Passed);
         let subject = EvidenceSubject::Execution(execution.test_execution_id.to_string());
@@ -216,8 +217,7 @@ pub fn benchmark(criterion: &mut Criterion) {
                         ..Default::default()
                     };
                     let started = Instant::now();
-                    let result =
-                        fixture.runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).boxed_local().await.unwrap();
+                    let result = fixture.runtime.query_plot_payloads(vec![request]).boxed_local().await.unwrap();
                     elapsed += started.elapsed();
                     assert_eq!(result[0].payload.series[0].raw_points, QUERY_ROWS);
                     assert!(result[0].payload.series[0].points.len() <= 1_500);

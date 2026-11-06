@@ -135,7 +135,7 @@ Build / Product (each platform) -> Build / Python (each platform) -> Python test
 - The crate is outside the workspace `default-members`, so ordinary builds skip it.
 - Reuse needs the same features, profile and target folder as the product build, because
   Cargo resolves features per invocation. Task 1.3 measures the reuse.
-- `build:python` takes the machine build lock like every other compile task.
+- `build:python` runs through the machine wrapper like every other compile task.
 
 ## Inherited Mechanisms
 

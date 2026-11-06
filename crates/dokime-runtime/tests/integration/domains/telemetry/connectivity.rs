@@ -22,7 +22,7 @@
 // Local Imports
 use super::*;
 use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
-use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
+use dokime_runtime::runtime::query::PlotPayloadRequest;
 
 /* === Constants === */
 
@@ -104,16 +104,11 @@ async fn boolean_connectivity() {
         scope: Some(scope),
         ..Default::default()
     };
-    // The Live Tail And Saved Reads Use The Same Declared Boolean Encoding.
-    for _ in 0..2 {
-        let live = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
-        assert_eq!(live[0].payload.series[0].raw_points, 4);
-        assert_eq!(
-            live[0].payload.series[0].points.iter().map(|point| point.y).collect::<Vec<_>>(),
-            [Some(0.0), Some(1.0), None, Some(0.0)]
-        );
-        runtime.storage().flush().await.unwrap();
-    }
+    // Saved Snapshots And Reports Preserve The Declared Boolean Encoding.
+    runtime.storage().flush().await.unwrap();
+    let saved = runtime.query_plot_payloads(vec![request]).await.unwrap();
+    assert_eq!(saved[0].payload.series[0].raw_points, 4);
+    assert_eq!(saved[0].payload.series[0].points.iter().map(|point| point.y).collect::<Vec<_>>(), [Some(0.0), Some(1.0), None, Some(0.0)]);
     let mut report = runtime.open_execution_report(&execution).await.unwrap();
     let bytes = crate::service_support::reports::opened_bytes(&mut report).await;
     assert_states(&crate::service_support::reports::parse(std::str::from_utf8(&bytes).unwrap()));

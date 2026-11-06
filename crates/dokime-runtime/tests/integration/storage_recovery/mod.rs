@@ -58,7 +58,7 @@ async fn storage_recovery() {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn storage_recovery_requests() {
-    runtime_storage::recovery::skipped_snapshot_recovery().await;
+    runtime_storage::recovery::bounded_snapshot_recovery().await;
     runtime_storage::requests::prepared_start_refusal().await;
     runtime_storage::requests::receipt_initialize_storage().await;
     runtime_storage::requests::admitted_progress_stop().await;

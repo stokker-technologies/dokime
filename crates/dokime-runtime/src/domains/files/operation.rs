@@ -31,6 +31,7 @@ use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::runtime::operations::reports::status;
 use crate::{RuntimeHandle, runtime::Error};
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::files::wire::FileWatchArmed;
 use dokime_domain::model::files::wire::FileWatchGap;
 use dokime_domain::model::files::wire::WatchFileOutcome;
@@ -116,6 +117,7 @@ impl Watching {
         // Poll Until Complete, Bounded, Or Sealed By The Execution
         let mut events = Vec::new();
         let mut gaps = Vec::new();
+        let mut failure = None;
         loop {
             let polled = tokio::select! {
                 result = watch.poll(&mut events) => result,
@@ -123,12 +125,8 @@ impl Watching {
             };
             if let Err(source) = polled {
                 self.ready.send_replace(Some(Err(source.to_string())));
-                let sealed = watch.seal(&mut events).await;
-                self.watch = None;
-                if let Err(seal) = sealed {
-                    tracing::warn!(error = %seal, "failed file watch did not seal every file");
-                }
-                return Err(source);
+                failure = Some(source);
+                break;
             }
             for event in &events {
                 if let WatchEvent::Armed { baseline } = event {
@@ -152,24 +150,61 @@ impl Watching {
             }
         }
 
-        // Seal, Then Answer With Every Sealed Artifact
-        let sealed = watch.seal(&mut events).await;
-        collect_gaps(&mut events, &mut gaps);
-        sealed?;
+        // The Seal Survives Cancellation Or Release Of The Reply Waiter.
+        let mut watch = self.watch.take().expect("the running watch is owned until sealing");
+        let execution = watch.execution().clone();
+        let mut sealing = runtime.owned_work.spawn(async move {
+            let sealed = watch.seal(&mut events).await;
+            if let Err(error) = &sealed {
+                tracing::warn!(%error, "file watch did not seal every file");
+            }
+            collect_gaps(&mut events, &mut gaps);
+            sealed?;
+            let artifacts = watch
+                .sealed()
+                .iter()
+                .map(|record| WatchedArtifact {
+                    artifact: record.filename.clone(),
+                    size_bytes: record.size_bytes,
+                })
+                .collect();
+            Ok(WatchFileOutcome { artifacts, gaps })
+        });
+        let stopped = async {
+            ctx.cancelled().await;
+            let mut changes = runtime.watch_state();
+            changes
+                .wait_until(|snapshot| {
+                    let state = snapshot.state();
+                    state.shutting_down
+                        || state
+                            .run_requests
+                            .values()
+                            .any(|request| request.summary.stop_requested && request.selected_execution_ids.contains(&execution))
+                        || state
+                            .executions
+                            .get(&execution)
+                            .is_none_or(|view| state.cycles.get(&view.test_cycle_id).is_none_or(|cycle| cycle.phase != CyclePhase::Active))
+                })
+                .await;
+        };
+        let outcome = tokio::select! {
+            result = &mut sealing => result.map_err(|error| Error::Operation(format!("file watch seal task: {error}")))?,
+            () = stopped => {
+                #[cfg(feature = "testing")]
+                crate::domains::execution::run::testing::record(&execution, "watch_stop_reply");
+                return Err(failure.unwrap_or_else(|| Error::cancelled(
+                    "file_watch_cancelled", "file watch cancelled with its execution; captured files are still sealing",
+                )));
+            },
+        };
+        if let Some(source) = failure {
+            return Err(source);
+        }
         if ctx.cancellation_requested() && self.ready.borrow().is_none() {
-            self.watch = None;
             return Err(Error::cancelled("file_watch_cancelled", "file watch was cancelled before capture was armed"));
         }
-        let artifacts = watch
-            .sealed()
-            .iter()
-            .map(|record| WatchedArtifact {
-                artifact: record.filename.clone(),
-                size_bytes: record.size_bytes,
-            })
-            .collect();
-        self.watch = None;
-        Ok(WatchFileOutcome { artifacts, gaps })
+        outcome
     }
 }
 
@@ -201,7 +236,12 @@ impl Serve<WatchFile> for Files {
             // A Step's Call Carries Its Execution
             let scoped = execution_of(ctx.call());
             let mut watching = Watching::register(&self.0, &ctx).map_err(status)?;
-            watching.run(request, scoped.as_deref(), &ctx).await.map(Into::into).map_err(status)
+            watching.run(request, scoped.as_deref(), &ctx).await.map(Into::into).map_err(|error| {
+                if error.code() == Some("file_watch_cancelled") {
+                    return tonic::Status::cancelled(error.to_string());
+                }
+                status(error)
+            })
         })
     }
 }

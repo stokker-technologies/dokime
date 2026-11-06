@@ -53,7 +53,7 @@ impl RuntimeHandle {
 
     pub async fn plugin_settings(&self, plugin_id: &Identifier) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         let settings = self.plugin_settings_schema(plugin_id).await?;
-        let resolved = self.plugin_preferences().read(plugin_id, &settings).await?;
+        let mut resolved = self.plugin_preferences().read(plugin_id, &settings).await?;
         let mut secrets = Vec::new();
         for declaration in settings.secrets() {
             let available = self
@@ -66,8 +66,10 @@ impl RuntimeHandle {
                 available,
             });
         }
+        let unapplied = self.plugin_settings_application(plugin_id.as_str(), &mut resolved.values, &resolved.saved);
         Ok(RuntimePluginSettings {
             settings,
+            unapplied,
             values: resolved.values,
             discovered: resolved.discovered,
             secrets,
@@ -107,14 +109,7 @@ impl RuntimeHandle {
         &self, plugin_id: &Identifier, update: PluginSettingsUpdate,
     ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         let settings = self.plugin_settings_schema(plugin_id).await?;
-        let before = self.plugin_preferences().read(plugin_id, &settings).await?;
         self.plugin_preferences().write_values(plugin_id, &settings, update.values).await?;
-        let after = self.plugin_preferences().read(plugin_id, &settings).await?;
-
-        // A Program Prepares With Its Saved Values, So Changing One Restarts It.
-        if (&before.values, &before.saved) != (&after.values, &after.saved) {
-            self.request_plugin_restart(plugin_id.as_str());
-        }
         self.plugin_settings(plugin_id).await
     }
 

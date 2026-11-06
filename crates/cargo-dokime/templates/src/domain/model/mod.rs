@@ -11,6 +11,7 @@
 pub mod chamber;
 pub mod prompts;
 pub mod settings;
+pub mod soak;
 
 /* === Re-Exports === */
 

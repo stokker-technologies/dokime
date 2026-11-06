@@ -20,12 +20,6 @@ pub mod storage;
 pub use contract::*;
 pub use owner::DesktopSession;
 
-/* === Constants === */
-
-const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
-
-pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
-
 /* === Imports === */
 
 // Standard Library Imports
@@ -35,6 +29,10 @@ pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
 // Local Imports
 
 /* === Constants === */
+
+const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
+
+pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
 
 /* === Macros === */
 
@@ -111,13 +109,16 @@ pub async fn desktop_reset_local_storage(
 
 pub async fn desktop_storage_backup_destination(
     window: tauri::WebviewWindow, app: tauri::AppHandle, choose: bool,
-) -> Result<Option<String>, DesktopSessionError> {
+) -> Result<Option<StorageBackupDestination>, DesktopSessionError> {
     use tauri_plugin_dialog::DialogExt;
 
     let root = owned_storage_root(&window)?;
     let default = root.backup_destination(time::OffsetDateTime::now_utc());
     if !choose {
-        return Ok(Some(default.display().to_string()));
+        return Ok(Some(StorageBackupDestination {
+            directory: root.path().display().to_string(),
+            archive: default.display().to_string(),
+        }));
     }
     let failed = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::Failed,
@@ -136,13 +137,23 @@ pub async fn desktop_storage_backup_destination(
     })
     .await
     .map_err(|error| failed(error.to_string()))?;
-    selected.map(|path| path.into_path().map(|path| path.display().to_string()).map_err(|error| failed(error.to_string()))).transpose()
+    selected
+        .map(|path| {
+            path.into_path()
+                .map(|path| StorageBackupDestination {
+                    directory: root.path().display().to_string(),
+                    archive: path.display().to_string(),
+                })
+                .map_err(|error| failed(error.to_string()))
+        })
+        .transpose()
 }
 
 pub async fn desktop_backup_reset_local_storage(
-    window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, archive: String,
+    window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, directory: String, archive: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
     let root = owned_storage_root(&window)?;
+    root.verify(std::path::Path::new(&directory))?;
     tracing::warn!(archive, "local storage backup and reset requested");
     state.0.backup_and_reset_local_storage(root, std::path::PathBuf::from(archive)).await
 }

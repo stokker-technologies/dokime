@@ -23,8 +23,9 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
 /* === Types === */
@@ -32,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 export type PluginTableRow = {
   /** Rendered under the name when the plugin reports a problem. */
   alert?: ReactNode;
-  /** Trailing content on the name column, such as a state pill. */
+  /** Status in its own aligned column. */
   badge?: ReactNode;
   /** Absent when this plugin cannot be enabled or disabled here. */
   enabled?: { checked: boolean; disabled?: boolean; onChange: (next: boolean) => void };
@@ -58,13 +59,18 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
           <span className="truncate text-sm font-medium" title={row.original.name}>
             {row.original.name}
           </span>
-          {row.original.badge}
         </div>
         {row.original.alert}
       </div>
     ),
     header: "Plugin",
     meta: { filter: "text", label: "Plugin" },
+  }),
+  column.display({
+    id: "status",
+    header: "Status",
+    cell: ({ row }) => row.original.badge,
+    meta: { label: "Status", width: "w-48" },
   }),
   column.accessor("source", {
     cell: ({ getValue }) => <span className="text-xs text-muted-foreground">{getValue()}</span>,
@@ -91,17 +97,19 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (
-      <DataTableRowActions
-        label={row.original.name}
-        primary={{
-          label: "Settings",
-          icon: Settings2,
-          disabled: !row.original.onOpenSettings,
-          onSelect: () => row.original.onOpenSettings?.(),
-        }}
-      >
+      <div className="flex items-center justify-center gap-1">
+        <Button
+          aria-label="Settings"
+          title="Settings"
+          size="icon-sm"
+          variant="ghost"
+          disabled={!row.original.onOpenSettings}
+          onClick={row.original.onOpenSettings}
+        >
+          <Settings2 />
+        </Button>
         {row.original.trailing}
-      </DataTableRowActions>
+      </div>
     ),
   }),
 ]);

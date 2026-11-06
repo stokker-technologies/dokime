@@ -98,6 +98,7 @@ pub struct CaptureReportLifecycle {
 pub struct ReportLifecycle {
     pub id: uuid::Uuid,
     pub execution: dokime_domain::model::execution::saved::ExecutionRevision,
+    pub context: Option<harmos::storage::FileReference>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -340,7 +341,10 @@ impl Transaction<RuntimeState> for SealExecution {
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let id = &self.seal.source.execution.execution_id;
         let execution = state.executions.get(id).ok_or("execution seal owner is missing")?;
-        if execution.saved.as_ref().is_some_and(|saved| saved != &self.seal) {
+        let mut projected = execution.clone();
+        projected.saved = Some(self.seal.clone());
+        RuntimeState::sealed_projection(&mut projected);
+        if execution.saved.as_ref().is_some_and(|saved| Some(saved) != projected.saved.as_ref()) {
             return Err("execution already has a different immutable seal".into());
         }
         self.seal.validate(execution).map_err(|error| error.to_string())
@@ -348,7 +352,9 @@ impl Transaction<RuntimeState> for SealExecution {
 
     fn apply(&self, state: &mut RuntimeState) {
         let id = &self.seal.source.execution.execution_id;
-        state.executions.get_mut(id).expect("checked execution owner").saved = Some(self.seal.clone());
+        let execution = state.executions.get_mut(id).expect("checked execution owner");
+        execution.saved = Some(self.seal.clone());
+        RuntimeState::sealed_projection(execution);
         state.report_finalizations.remove(id);
     }
 }
@@ -471,8 +477,17 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
         if owner.saved.is_some() {
             return Err("report lifecycle must be unsealed".into());
         }
-        if intent.lifecycle.as_ref().is_some_and(|lifecycle| lifecycle.execution != self.lifecycle.execution) {
+        if intent.lifecycle.as_ref().is_some_and(|lifecycle| {
+            lifecycle.execution != self.lifecycle.execution
+                || lifecycle.id != self.lifecycle.id
+                || lifecycle.context.as_ref().is_some_and(|context| Some(context) != self.lifecycle.context.as_ref())
+        }) {
             return Err("report lifecycle is already frozen to another terminal revision".into());
+        }
+        if let Some(context) = &self.lifecycle.context
+            && !context.position.covers(&intent.evidence_at).map_err(|error| error.to_string())?
+        {
+            return Err("report context precedes its evidence boundary".into());
         }
         if self.lifecycle.id.is_nil() {
             return Err("report lifecycle identity is empty".into());
@@ -484,7 +499,7 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
     fn apply(&self, state: &mut RuntimeState) {
         let intent =
             state.report_finalizations.get_mut(&self.lifecycle.execution.execution_id).expect("checked report finalization intent exists");
-        intent.lifecycle.get_or_insert_with(|| self.lifecycle.clone());
+        intent.lifecycle = Some(self.lifecycle.clone());
     }
 }
 
@@ -526,6 +541,7 @@ impl Transaction<RuntimeState> for StartShutdown {
 
     fn apply(&self, state: &mut RuntimeState) {
         state.shutting_down = true;
+        state.retire_sealed_cycles();
     }
 }
 
@@ -635,11 +651,12 @@ pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Di
     dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
 }
 
-/// Whether the cycle still holds work: running, paused or stopping, or sealing. A sealed cycle and
-/// one whose seal failed have settled.
-pub(crate) fn cycle_in_flight(cycle: &dokime_domain::model::execution::result::TestCycle) -> bool {
+/// Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
+/// drain have settled and report context and plugin analysis results are frozen durably.
+/// Durable report publication and sealing do not keep plugins live.
+/// Provider tasks separately protect draining work and the gap before automatic continuation.
+pub(crate) fn cycle_has_plugin_work(cycle: &dokime_domain::model::execution::result::TestCycle) -> bool {
     matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
-        || cycle.phase == dokime_domain::model::execution::result::CyclePhase::Sealing
 }
 
 /// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
@@ -774,13 +791,13 @@ mod tests {
     #[test]
     fn interrupted_cycle_settles_when_its_seal_fails() {
         let (mut state, cycle_id, execution_id) = interrupted_cycle();
-        assert!(cycle_in_flight(&state.cycles[&cycle_id]));
+        assert!(cycle_has_plugin_work(&state.cycles[&cycle_id]));
 
         // The Next Boot Interrupts The Member And Closes Admission; The Seal Is Still In Flight.
         boot(&mut state);
         assert_eq!(state.executions[&execution_id].status, ExecutionStatus::Interrupted);
         assert_eq!(state.cycles[&cycle_id].phase, CyclePhase::Sealing);
-        assert!(cycle_in_flight(&state.cycles[&cycle_id]));
+        assert!(!cycle_has_plugin_work(&state.cycles[&cycle_id]));
 
         // A Seal That Cannot Complete Settles With Its Cause And A Record; It Holds Nothing.
         let cause = "stored evidence could not be decoded";
@@ -796,7 +813,7 @@ mod tests {
         assert_eq!(settled.phase, CyclePhase::SealFailed);
         assert_eq!(settled.seal_failure.as_deref(), Some(cause));
         assert!(crate::transactions::archive::cycle_terminal(settled.lifecycle));
-        assert!(!cycle_in_flight(&settled));
+        assert!(!cycle_has_plugin_work(&settled));
         assert_eq!(state.record_count, records + 1);
         assert!(settled.phase.ensure_active().is_err());
 

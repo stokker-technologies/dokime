@@ -21,14 +21,15 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import { Trash2 } from "lucide-react";
+import { RotateCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
 import { Badge } from "@/components/ui/badge";
 import { FailureConsequences } from "@/components/FailureConsequences";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
 import type { PluginEntry } from "@/lib/types/view-contracts";
@@ -68,6 +69,7 @@ export function PluginList({
   changingEnabled,
   settingsSectionOf,
 }: PluginListProps) {
+  const reload = useReloadPluginMutation();
   const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const rows = entries.map((entry): PluginTableRow => {
     const status = statusPresentation(entry);
@@ -106,15 +108,28 @@ export function PluginList({
       onOpenSettings: configurable ? () => onOpenSettings(entry) : undefined,
       source: entrySource(entry),
       trailing: (
-        <DropdownMenuItem
-          aria-label={`Remove ${name}`}
-          disabled={removalPending || removingId === entry.install_id}
-          onSelect={() => onRemove(entry)}
-          variant="destructive"
-        >
-          <Trash2 />
-          {removalPending ? "Removed" : removingId === entry.install_id ? "Removing…" : "Remove"}
-        </DropdownMenuItem>
+        <>
+          <Button
+            aria-label={`Reload ${name}`}
+            title="Reload"
+            size="icon-sm"
+            variant="ghost"
+            disabled={entry.state !== "installed" || entry.restart !== "idle" || reload.isPending}
+            onClick={() => reload.mutate({ installId: entry.install_id })}
+          >
+            <RotateCw />
+          </Button>
+          <Button
+            aria-label={`Delete ${name}`}
+            title="Delete"
+            size="icon-sm"
+            variant="ghost"
+            disabled={removalPending || removingId === entry.install_id}
+            onClick={() => onRemove(entry)}
+          >
+            <Trash2 />
+          </Button>
+        </>
       ),
     };
   });
@@ -141,7 +156,7 @@ export function statusPresentation(entry: PluginEntry): StatusPresentation {
   if (entry.restart === "pending") {
     return {
       label: entry.active ? "Active · Restart Pending" : "Restart Pending",
-      reason: "Applies when no cycle is active.",
+      reason: "Applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.",
       variant: "warning",
     };
   }

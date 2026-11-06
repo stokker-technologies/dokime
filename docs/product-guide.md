@@ -105,6 +105,14 @@ natural completion and evidence drain; it defaults to false. Stop durably disabl
 continuation policy. Each execution saves and seals its evidence while its cycle stays
 Active. Select the destination cycle in the Library before adding attempts.
 
+After an execution seals, managed recovery state keeps its control summary and
+frozen plan. Generated telemetry outputs and artifact inventories remain in native
+execution storage. Complete inspection reads that durable revision. Retiring a
+sealed cycle also releases its completed requests and consumed case registrations;
+saved cases can be reused without retaining every earlier cycle in recovery state.
+Development roots without durable case registration revisions require a fresh
+storage root. Existing roots are never reset automatically; storage remains v1.
+
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
 be durably saved. Other cycles continue. Shutdown stops running executions
@@ -121,8 +129,19 @@ A cycle is in one of four phases:
 | **Sealed** | Every execution and the cycle report are durably saved and immutable. | Archive, Export, Open Report |
 | **Seal Failed** | The seal could not complete, for example because stored evidence was written by an incompatible build. The cause is shown with the cycle and recorded as a cycle finalization failure. All evidence is kept unsealed. | Retry Seal, Archive |
 
-Seal Failed is settled: later startups do not seal it again and it does not
-hold plugin reloads. Retry Seal resumes from the saved evidence and returns to
+Completed work no longer depends on its plugin, even while unsealed. Completion
+means a terminal execution outcome, settled plugin cleanup and stream drain, and
+durably frozen report inputs. The provider task also protects the gap before
+automatic continuation starts the next case. Sealing and report publication after
+completion do not hold plugin reload, reinstall or removal. Reports, Retry Seal
+and history reads use frozen documents, appearance, schemas, plugin analysis
+results and stored evidence.
+Starting an unrun case in an open cycle after its plugin is removed fails clearly
+with `execution_plugin_unavailable`; install the original revision or add a case
+from an available plugin.
+
+Seal Failed is settled: later startups do not seal it again. Retry Seal resumes
+from the saved evidence, without requiring the plugin, and returns to
 Seal Failed with the new cause if the seal still cannot complete. Archive hides
 the cycle without deleting its evidence; Unarchive restores it. A cycle whose
 seal kept failing in an earlier build settles as Seal Failed on the first
@@ -188,8 +207,7 @@ Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
 `endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
 `ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
 unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
-origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
-and the old single `endpoint` format are unsupported. The remote security store
+origins and inconsistent TLS/CA combinations are rejected. The remote security store
 also keeps format v1; old stores require a fresh application root and are never
 silently reset.
 
@@ -480,9 +498,9 @@ a running plugin remains its responsibility.
 
 A declared secret's identifier is its Secret Storage identifier. At plugin start,
 Dokime reads each declaration directly from the store. A missing required secret
-fails startup with ``secret `api_token` is not in Secret Storage; add it and retry the plugin``
+fails startup with ``secret `api_token` is not in Secret Storage; add it and reload the plugin``
 (the identifier varies). Optional secrets are absent when missing. Add the exact
-identifier in Secret Storage, then use **Retry** on the plugin page to read the
+identifier in Secret Storage, then use **Reload** on the plugin page to read the
 store again; only that plugin restarts. There are no per-plugin bindings,
 environment-variable sources, automatic retries or fallback identifiers.
 
@@ -528,23 +546,20 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
-A program prepares with its saved settings when it starts. Saving a change in
-**Settings → Plugins** restarts that program, and the programs that depend on it,
-with the saved values; a save that changes nothing restarts nothing. The plugin
-page shows **Restarting…** while the new generation starts. While any cycle is
-active, including between the cases it continues with automatically and while it
-finalizes, the restart waits: the page shows **Restart Pending** and the restart
-follows once no cycle is active. A cycle left open and idle is not active.
-Running executions are never stopped for a restart, and saves made while one
-waits apply together. A restart refused before
-the program stops, such as saved values or a missing secret its preparation
-rejects, keeps the running generation: the plugin shows **Active · Restart
-Refused** with the reason, the saved values stay saved, and saving corrected
-values or **Retry** restarts it. A new generation that fails to start is reported
-like a failed startup. Programs that are not running apply saved settings when
-they start, including through **Retry**, which starts a plugin that does not run
-at once even while a cycle is active; retrying a running plugin restarts it once
-no cycle is active.
+Saving a changed value in **Settings → Plugins** keeps the program running with
+its startup values. The backend compares saved values against that generation
+and marks differing fields **Applied On Reload** with a warning highlight.
+These marks survive navigation, a GUI restart and another attached GUI. A backend
+restart starts programs with their saved settings.
+
+Use **Reload** on the plugin page or table to apply saved settings and restart
+all of the plugin's observers, including plugin-activated ones, at their newly
+configured intervals. The plugin shows **Restarting…** while it starts. Active
+work retains **Restart Pending** until the existing restart admission permits it;
+executions are never stopped for a reload. A refused preparation keeps the running
+generation, saved settings and field marks, with **Restart Refused** and its reason.
+A plugin with no running program starts immediately, including during an active
+cycle. An idle open cycle, sealing and completed report publication hold no plugin.
 
 ### Plugin Startup And Stop Timeouts
 
@@ -554,7 +569,7 @@ under Show Advanced, **Plugin Stop Timeout [s]** (default 10 s), the time a
 stopping plugin's executions have to settle. Both accept 1 to 3,600 seconds. A
 saved value applies to the next start, restart or stop; running programs are not
 restarted for it. A program that does not become ready in time fails to start with
-a cause naming the budget and this setting: raise the timeout and use **Retry**.
+a cause naming the budget and this setting: raise the timeout and use **Reload**.
 Time spent in a plugin's own initialization is bounded by the plugin's declared
 initialization policy instead; see
 [Plugins](plugins.md#plugin-startup-and-stop-budgets).
@@ -575,7 +590,7 @@ installation's row and bundle are deleted. If deletion fails, its row retains
 the error until startup retries. If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
 **Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Retry**, which starts only that plugin again, at once even while
+start offers **Reload**, which starts only that plugin again, at once even while
 a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 
@@ -583,7 +598,7 @@ a cycle is active. See
 
 The host plugin declares its 20 settings in
 [`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
-Saving a changed value in **Settings → Plugins** restarts the host plugin with it.
+Save host settings in **Settings → Plugins**, then use **Reload** to apply them.
 Each start resolves one settings snapshot.
 Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
 `1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
@@ -1027,7 +1042,20 @@ let captured = watch.cancel().await?.into_owned();
 ```
 
 Stream captures existing files from their arm-point length and later arrivals
-from byte zero. To mirror only ZIP archives anywhere below the same root,
+from byte zero. Existing files that contribute no bytes produce no artifact;
+new empty files are retained. Captured Stream files appear immediately in the
+live artifact tree at `artifacts/<output>/<relative path>`, with their growing
+size and content available before sealing. Their viewer shows Finished after
+capture closes. UUIDs remain internal artifact identities.
+
+Step uploads use the same `artifacts/<requested path>` rule. Within one execution,
+paths are reserved in admission order: repeated `logs/device.log` becomes
+`artifacts/logs/device.2.log`, then `.3.log`, choosing the first free suffix.
+Replacement and copy-truncate segments retain their `.segmentN` names before
+collision suffixing. This changes development stored paths without migration;
+existing storage is never silently reset.
+
+To mirror only ZIP archives anywhere below the same root,
 use `policy: FileWatchPolicy::Mirror` and
 `rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
 Directory watches require `artifact: None`; `output` is the artifact prefix.
@@ -1064,7 +1092,11 @@ report saving. Storage failures outside artifact content capture still fail the 
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
-Processes return their exit status; file watches finish capturing before replying.
+Processes return their exit status; cancelling a file watch on its own waits for
+captured files to seal before replying.
+When stopping an execution, cancelled watch calls acknowledge cancellation while
+their registered captures finish sealing under that execution's capture barrier.
+Stop still waits for all captured files and the durable execution seal.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
@@ -1151,6 +1183,18 @@ boundary for report finalization. If publication fails, the recorded test
 verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
+
+The document page shows its authored structure immediately. Data cards load and
+refresh independently, so a slow median or a failing card leaves the others
+available. An error stays inside its affected card and can be retried there.
+
+Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
+retain bounded working state, and exact median/percentile values spill rank scratch
+instead of collecting a run's samples into the document. Record summaries seek
+indexed record pages. Building a document no longer estimates evaluation cost from
+its definition size multiplied by source rows, and there is no document source-row
+ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
+card budget identifies the card, budget, limit and reached amount.
 
 ## Finite Evidence Queries
 
@@ -1920,7 +1964,7 @@ summary in the desktop to inspect each unavailable operation without mixing it i
 
 A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
 **Add Secret** dialog with that identifier prefilled, including after a failed start.
-Save the correction, then use **Retry** on the plugin page to start that plugin again.
+Save the correction, then use **Reload** on the plugin page to start that plugin again.
 All owners in an inactive bundle keep their ordinary settings editable; secret
 declarations show their identifiers read-only.
 
@@ -2009,14 +2053,19 @@ break retains the v1 baseline and does not upgrade or reset existing storage.
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a
 ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
-and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
-with the unflushed tail; historical reads retain their requested saved frontier.
+and advancing saved progress. Timed live plot watches merge indexed saved batches
+with the unflushed admission tail, independently of the save interval. This tail
+covers every unsaved row even when a stream's declared window is smaller;
+updates coalesce under the plot throttle. Finite queries, explicit All refreshes
+and frozen reports read saved data at their captured frontier.
 Changing a display window never deletes raw evidence. Only flushed batches are
 durable; accepted tail rows can be lost in a crash.
 
 `RuntimeConfig.local_storage.telemetry_rows` and `telemetry_interval` configure
 row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
-five seconds. Explicit evidence barriers and shutdown also drain pending rows.
+five seconds. Harmos may save pending writes earlier through its periodic or
+batch-pressure policy. These save clocks do not set the cadence of timed live
+plot frames. Explicit evidence barriers and shutdown also drain pending rows.
 Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
 session-scoped files for telemetry outside executions. Finalize writes only the
 footer from the retained batch descriptors. Capture ranges link executions and
@@ -2107,8 +2156,11 @@ Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
 Stop closes and drains evidence, then waits for the execution's durable seal,
-joining report publication already in flight. A report failure fails Stop without
-changing the execution result. Cancel and natural completion publish HTML in the
+joining report publication already in flight. A report failure is returned after
+Stop settles its request and preserves the execution result and evidence. Technical
+Details identifies the report finalization stage, execution and redacted cause chain.
+Seal the cycle, or use Retry Seal after a failed seal, to retry report publication
+from the original frozen evidence. Cancel and natural completion publish HTML in the
 background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
@@ -2123,7 +2175,10 @@ does not cancel sealing; later Stop or shutdown calls await that work. Closing
 capture admission refuses new capture producers, and successful provider cleanup
 stages remain complete across retries.
 
-Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
+Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
+`execution.3.log` and the next free collision suffix. The log retains the plain
+name when a step uploads an artifact named `execution.log`. Logs segment at
+64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
 evidence is lost; bounded retries preserve acknowledged offsets.

@@ -58,12 +58,13 @@ struct Probe {
     cancellation: tokio::sync::watch::Sender<bool>,
     token: Mutex<String>,
     // Like A Sidecar Receiver: Rows In Arrival Order, And Whether Settlement Began.
-    arrivals: Mutex<Vec<(String, String)>>,
+    arrivals: Mutex<std::collections::BTreeMap<String, Vec<(String, String)>>>,
     settling: std::sync::atomic::AtomicBool,
     settlement_signals: std::sync::atomic::AtomicUsize,
     record_ordinal: std::sync::atomic::AtomicU64,
     // The Live Replay Story Reads Host Rows Through Its Runtime And Clears It Before Shutdown.
     runtime: Mutex<Option<RuntimeHandle>>,
+    hosts: Mutex<std::collections::BTreeMap<String, Arc<dyn ExecutionHost>>>,
 }
 
 struct Provider(Arc<Probe>);
@@ -79,6 +80,7 @@ enum Settlement {
     LiveReplay,
     // Each Run Stays Active Until Released, Then Passes; The Next Run Waits For Its Own Release.
     Held,
+    HeldStreams,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -97,16 +99,18 @@ impl Probe {
             released: tokio::sync::watch::Sender::new(false),
             cancellation: tokio::sync::watch::Sender::new(false),
             token: Mutex::new(String::new()),
-            arrivals: Mutex::new(Vec::new()),
+            arrivals: Mutex::new(std::collections::BTreeMap::new()),
             settling: std::sync::atomic::AtomicBool::new(false),
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
             record_ordinal: std::sync::atomic::AtomicU64::new(0),
             runtime: Mutex::new(None),
+            hosts: Mutex::new(std::collections::BTreeMap::new()),
         }
     }
 
-    fn receive(&self, encoded: &[String]) {
-        let mut arrivals = self.arrivals.lock().unwrap();
+    fn receive(&self, token: &str, encoded: &[String]) {
+        let mut executions = self.arrivals.lock().unwrap();
+        let arrivals = executions.entry(token.to_owned()).or_default();
         for sample in encoded {
             let sample: dokime_runtime::telemetry::TelemetrySample = serde_json::from_str(sample).unwrap();
             let (stream, id) = (sample.stream.to_string(), sample.sample_id.to_string());
@@ -121,8 +125,9 @@ impl Probe {
     }
 
     // The Receipt Names The Row That Arrived Last On Each Stream, As A Sidecar Receiver Does.
-    fn receipts(&self) -> Vec<dokime_runtime::transport::protocol::SampleReceipt> {
-        let arrivals = self.arrivals.lock().unwrap();
+    fn receipts(&self, token: &str) -> Vec<dokime_runtime::transport::protocol::SampleReceipt> {
+        let executions = self.arrivals.lock().unwrap();
+        let Some(arrivals) = executions.get(token) else { return Vec::new() };
         let mut receipts: Vec<dokime_runtime::transport::protocol::SampleReceipt> = Vec::new();
         for (stream, sample_id) in arrivals.iter() {
             receipts.retain(|receipt| &receipt.stream != stream);
@@ -144,6 +149,9 @@ impl Runnable for Probe {
         &self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller,
     ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         Box::pin(async move {
+            if self.mode == Settlement::Ignored {
+                self.hosts.lock().unwrap().insert(request.execution_token.clone(), host.clone());
+            }
             *self.token.lock().unwrap() = request.execution_token;
             let start = StepAttemptStart {
                 attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepAttemptId>(),
@@ -159,8 +167,8 @@ impl Runnable for Probe {
             .await
             .map_err(Refusal::of)?;
             self.entered.notify_one();
-            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held) {
-                if self.mode == Settlement::Held {
+            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held | Settlement::HeldStreams) {
+                if matches!(self.mode, Settlement::Held | Settlement::HeldStreams) {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
                     self.released.send_replace(false);
                 } else {
@@ -304,20 +312,22 @@ impl Runnable for Probe {
                 self.record_ordinal.fetch_max(record.ordinal, std::sync::atomic::Ordering::SeqCst);
             }
             let record_ordinal = self.record_ordinal.load(std::sync::atomic::Ordering::SeqCst);
+            if let Some(delivery) = &signal.samples {
+                self.receive(&signal.execution_token, &delivery.samples);
+            }
             if self.mode == Settlement::LiveReplay {
                 let settling = self.settling.load(std::sync::atomic::Ordering::SeqCst);
                 match &signal.samples {
-                    Some(delivery) => self.receive(&delivery.samples),
                     // The Second Settlement Signal Asks For The Receipt After The Replay Cut; Collection Keeps Ticking.
                     None if settling && self.settlement_signals.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 => {
                         let runtime = self.runtime.lock().unwrap().clone().expect("the live replay story binds its runtime");
                         let from = host_rows(&runtime).await;
                         until_telemetry(&runtime, || async { (host_rows(&runtime).await >= from + 3).then_some(()) }).await;
                     }
-                    None => {}
+                    _ => {}
                 }
                 return Ok(SignalReply {
-                    samples: self.receipts(),
+                    samples: self.receipts(&signal.execution_token),
                     record_ordinal,
                     ..Default::default()
                 });
@@ -332,7 +342,11 @@ impl Runnable for Probe {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
                 }
             }
-            Ok(SignalReply { record_ordinal, ..Default::default() })
+            Ok(SignalReply {
+                samples: self.receipts(&signal.execution_token),
+                record_ordinal,
+                ..Default::default()
+            })
         })
     }
 
@@ -360,7 +374,7 @@ impl EmbeddedProvider for Provider {
         template.phases[0].step_id = dokime_runtime::StepId::from_seed(PHASE);
         // The failing provider samples host telemetry, so its run holds a stream
         // lease the failure cleanup has to close.
-        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
+        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay | Settlement::HeldStreams) {
             template.subscriptions = vec![dokime_runtime::definition::Subscription::Stream(identifier("host.system"))];
         }
         let mut definition = TestSuiteDefinition::new(SOURCE, suite).unwrap();
@@ -390,8 +404,7 @@ impl EmbeddedProvider for Provider {
 /* === Private Functions === */
 async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
     let host = identifier(HOST);
-    let mut values = runtime.plugin_settings(&host).await.unwrap().values;
-    values.insert(SCAN_INTERVAL.into(), dokime_runtime::Value::from(seconds));
+    let values = std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), dokime_runtime::Value::Number(f64::from(seconds)))]);
     runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
 }
 
@@ -406,7 +419,7 @@ async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<Plug
 
 async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
     let files = runtime.execution_files(execution).await.unwrap();
-    let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) else { return String::new() };
+    let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") else { return String::new() };
     let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     String::from_utf8_lossy(&content.bytes).into_owned()
 }
@@ -448,6 +461,75 @@ fn without_timestamps(log: &str) -> String {
 }
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn settled_run_fenced() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Ignored));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let first = start_cases(&handle, metadata("session.old", "Old Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(first.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let old_token = probe.token.lock().unwrap().clone();
+    let old_host = probe.hosts.lock().unwrap()[&old_token].clone();
+
+    tokio::time::pause();
+    let stop = {
+        let handle = handle.clone();
+        let first = first.clone();
+        tokio::spawn(async move { handle.seal_cycle(first, CommandContext::default()).await.unwrap() })
+    };
+    probe.cancelled.notified().await;
+    // Auto-Advance Only While Idle, So In-Flight Storage Keeps Its Own Deadlines.
+    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
+    tokio::time::resume();
+    stop.await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let closed_id = TestExecutionId::from_uuid(old_token.clone()).unwrap();
+    let checkpoint = handle.execution_saved_checkpoint(closed_id.clone()).await.unwrap();
+    let closed = crate::service_support::native::open(&handle, &checkpoint).await;
+    assert_eq!(closed.execution().status, ExecutionStatus::Cancelled);
+    drop(closed);
+    probe.cancellation.send_replace(false);
+
+    let following = start_cases(&handle, metadata("session.next", "Following Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(following.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let following_token = probe.token.lock().unwrap().clone();
+    assert_ne!(following_token, old_token);
+    let following_host = probe.hosts.lock().unwrap()[&following_token].clone();
+    let late = EvidenceBatch {
+        cursor: 2,
+        phase: PHASE.into(),
+        diagnostics: vec![Entry::new(Level::Info, "late old run")],
+        ..Default::default()
+    };
+    assert!(
+        following_host
+            .push(EvidenceBatch {
+                cursor: 2,
+                diagnostics: vec![Entry::new(Level::Info, "following run remains active")],
+                ..Default::default()
+            })
+            .await
+            .is_ok()
+    );
+    let before = cycle_snapshot(&handle, &following).await;
+    assert!(old_host.push(late).await.is_err());
+    assert_eq!(cycle_snapshot(&handle, &following).await, before);
+    assert_eq!(handle.execution_saved_checkpoint(closed_id).await.unwrap(), checkpoint);
+    assert!(!execution_log(&handle, &before.test_executions[0].test_execution_id).await.contains("late old run"));
+    probe.released.send_replace(true);
+    probe.cancellation.send_replace(true);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    probe.hosts.lock().unwrap().clear();
+    owner.shutdown().await.unwrap();
+}
+
 // The Host Preserves Cancellation Verdicts And All Diagnostic Levels From Its Provider.
 pub(crate) async fn cancellation_retains_verdict() {
     for mode in [Settlement::Complete, Settlement::Deferred, Settlement::Refused] {
@@ -490,7 +572,7 @@ pub(crate) async fn cancellation_retains_verdict() {
             assert_eq!(criteria[0].message.as_deref(), Some("cancelled before deciding"));
         }
         let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-        let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+        let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
         let content =
             handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
         let log_path = log.relative_path.clone();
@@ -573,7 +655,7 @@ async fn ignored_stop(mode: Settlement) {
     assert!(cycle.saved.is_some(), "host settlement seals the final cycle report");
     assert!(handle.pending_prompt_projection().await.is_empty());
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     assert!(std::str::from_utf8(&log.bytes).unwrap().contains(&format!(
         "the run did not answer its stop within {} seconds",
@@ -599,7 +681,7 @@ pub(crate) async fn refused_settlement_winds_down() {
     let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Stopped).await;
     let execution = &cycle.test_executions[0];
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("invalid step attempt"), "{log}");
@@ -624,7 +706,7 @@ pub(crate) async fn abandoned_admission_closes() {
     let execution = &cycle.test_executions[0];
     assert_eq!(execution.status, ExecutionStatus::Cancelled);
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("fixture cancellation settled"), "the run's cleanup page is admitted: {log}");
@@ -658,7 +740,7 @@ pub(crate) async fn live_replay_settles() {
     let execution = &cycle.test_executions[0];
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
     let mut log = String::new();
-    if let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) {
+    if let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") {
         let path = file.relative_path.clone();
         let content = handle.execution_file_content(&execution.test_execution_id, path, 0, 4096).await.unwrap().unwrap();
         log = String::from_utf8(content.bytes.to_vec()).unwrap();
@@ -727,16 +809,48 @@ pub(crate) async fn provider_failure_releases() {
     owner.shutdown().await.unwrap();
 }
 
-// A Saved Change Restarts The Idle Host Plugin With It; Saving It Again Restarts Nothing.
-pub(crate) async fn saved_change_restarts() {
+// Saved Values Wait For Explicit Reload And Are Visible To Independent Readers.
+pub(crate) async fn saved_change_waits_for_reload() {
     let root = tempdir().unwrap();
     let (mut owner, handle) = started(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()])).await;
     let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
 
-    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Restarting);
+    let equivalent = Value::Integer(dokime_domain::model::values::numeric_value(&prepared).unwrap() as i64);
+    handle
+        .save_plugin_settings(
+            &identifier(HOST),
+            PluginSettingsUpdate {
+                values: std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), equivalent)]),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    let unchanged = prepared_scan_interval(&owner).await;
+    assert_eq!(unchanged.0, generation);
+    assert_eq!(unchanged.1, prepared);
+    for reader in [handle.clone(), owner.handle()] {
+        assert_eq!(reader.plugin_settings(&identifier(HOST)).await.unwrap().unapplied, [SCAN_INTERVAL]);
+    }
+    handle
+        .save_plugin_settings(
+            &identifier(HOST),
+            PluginSettingsUpdate {
+                values: std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), prepared.clone())]),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
+    assert_eq!(prepared_scan_interval(&owner).await.0, generation);
+    save_scan_interval(&handle, 47).await;
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Restarting);
     handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
     let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
-    assert_ne!(restarted, generation, "the save started a new generation");
+    assert_ne!(restarted, generation, "reload started a new generation");
     assert_ne!(applied, prepared);
     assert_eq!(applied, saved, "the new generation prepared with the saved value");
 
@@ -746,9 +860,8 @@ pub(crate) async fn saved_change_restarts() {
     owner.shutdown().await.unwrap();
 }
 
-// A Save While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Restarts Once With
-// The Latest Value; With The Cycle Idle Again, A Save Restarts At Once.
-pub(crate) async fn saved_change_waits_for_cycle() {
+// Reload Waits Across Active Cases And Applies The Latest Saved Values.
+pub(crate) async fn reload_waits_for_cycle() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let configuration =
@@ -758,7 +871,8 @@ pub(crate) async fn saved_change_waits_for_cycle() {
     let (generation, prepared, _) = prepared_scan_interval(&owner).await;
     let cycle_id = held_cycle(&handle, &probe, metadata("session.restart", "Pending Restart")).await;
 
-    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Pending);
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Pending);
     assert_eq!(save_scan_interval(&handle, 48).await, PluginRestart::Pending);
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
     next_case(&probe).await;
@@ -778,9 +892,10 @@ pub(crate) async fn saved_change_waits_for_cycle() {
     assert_eq!(applied, saved, "the restart prepared with the latest saved value");
 
     // The Idle Cycle Stays Open, Yet Nothing Is Active.
-    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Restarting);
+    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Idle);
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Restarting);
     handle.plugin_restart_settled(&identifier(HOST)).await;
-    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "a save with no active cycle restarts at once");
+    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "reload with no active cycle restarts at once");
     probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -908,7 +1023,7 @@ pub(crate) async fn installs_apply_live() {
     assert_ne!(replaced, started);
 
     // A Retry Starts Only This Plugin Again.
-    let retried = handle.retry_plugin(second.installation.install_id).await.unwrap();
+    let retried = handle.reload_installed_plugin(second.installation.install_id).await.unwrap();
     settled(&handle, &retried).await;
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let restarted = running_generation(&owner).await.expect("the retried program runs");
@@ -934,10 +1049,11 @@ pub(crate) async fn installs_apply_live() {
 // A Replacement While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Applies.
 pub(crate) async fn replacement_waits_for_cycle() {
     let root = tempdir().unwrap();
-    let probe = Arc::new(Probe::new(Settlement::Held));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let probe = Arc::new(Probe::new(Settlement::HeldStreams));
+    let (mut owner, handle) = started(config(root.path())).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     let first = installed(&handle, host_bundle()).await;
+    owner.register(Arc::new(Provider(probe.clone()))).await.unwrap();
     let generation = running_generation(&owner).await.expect("the installed program runs");
     let cycle_id = held_cycle(&handle, &probe, metadata("session.replace", "Pending Replacement")).await;
 
@@ -953,7 +1069,22 @@ pub(crate) async fn replacement_waits_for_cycle() {
     assert!(installation(&handle, first.installation.install_id).await.active, "the previous version keeps running");
     assert_eq!(running_generation(&owner).await, Some(generation), "the cycle keeps its generation between cases");
 
+    #[cfg(feature = "testing")]
+    let drain = {
+        let cycle = cycle_snapshot(&handle, &cycle_id).await;
+        dokime_runtime::testing::hold_stream_drain(&cycle.test_executions[1].test_execution_id)
+    };
     probe.released.send_replace(true);
+    #[cfg(feature = "testing")]
+    {
+        drain.entered().await;
+        assert_eq!(installation(&handle, replacement.installation.install_id).await.restart, PluginRestart::Pending);
+        assert_eq!(running_generation(&owner).await, Some(generation));
+        let cycle = cycle_snapshot(&handle, &cycle_id).await;
+        let leases = handle.stream_leases_for(&cycle.test_executions[1].scope).await;
+        assert!(leases.iter().any(|lease| lease.closed_at.is_none()), "the plugin stream still belongs to this execution");
+        drain.release();
+    }
     let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     let applied = settled(&handle, &replacement).await;
     for execution in &cycle.test_executions {
@@ -1014,7 +1145,7 @@ pub(crate) async fn refused_replacement_keeps_running() {
 
 // A Refused Restart Keeps The Running Generation; Retry Starts One Plugin Again Once The Cause Is Fixed.
 // While A Cycle Is Active, Retry Starts A Plugin That Did Not Start At Once, And Restarting One That Runs Waits.
-pub(crate) async fn retry_restarts_one_plugin() {
+pub(crate) async fn reload_restarts_one_plugin() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
@@ -1025,14 +1156,14 @@ pub(crate) async fn retry_restarts_one_plugin() {
     let install = host.installation.install_id;
     let generation = running_generation(&owner).await.expect("the installed program runs");
     save_unresolvable(&handle, install, true).await;
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let refused = installation(&handle, install).await;
     assert!(refused.active && !refused.boot_failed, "the previous generation still runs");
     assert!(matches!(refused.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
     assert_eq!(running_generation(&owner).await, Some(generation));
     save_unresolvable(&handle, install, false).await;
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let retried = installation(&handle, install).await;
     assert!(retried.active && matches!(retried.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
@@ -1057,7 +1188,7 @@ pub(crate) async fn retry_restarts_one_plugin() {
         })
         .await
         .unwrap();
-    let retried = handle.retry_plugin(failed.installation.install_id).await.unwrap();
+    let retried = handle.reload_installed_plugin(failed.installation.install_id).await.unwrap();
     assert_ne!(installation(&handle, retried.installation.install_id).await.restart, PluginRestart::Pending);
     let retried = settled(&handle, &retried).await;
     let Some(PluginLastBoot::Failed { failure, .. }) = &retried.installation.last_boot else { panic!("the inert program cannot start") };
@@ -1065,7 +1196,7 @@ pub(crate) async fn retry_restarts_one_plugin() {
     assert!(installation(&handle, install).await.active, "retrying one plugin leaves the others running");
 
     // Retrying A Running Plugin Restarts It Once The Cycle Ends.
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
     next_case(&probe).await;
     assert_eq!(running_generation(&owner).await, Some(generation), "the running plugin keeps its generation during the cycle");

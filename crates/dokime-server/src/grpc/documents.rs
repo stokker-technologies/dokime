@@ -67,27 +67,50 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
                     None => runtime.prepare_current_cycle_document(&cycle, &id),
                 }
                 .map_err(super::execution::status)?;
+                let query = dokime::CurrentDocumentQuery {
+                    structure_only: request.structure_only,
+                    cards: request
+                        .card_ids
+                        .iter()
+                        .map(|id| Identifier::new(id).map_err(|_| Status::invalid_argument("invalid card ID")))
+                        .collect::<Result<_, _>>()?,
+                };
                 let cancel = CancellationToken::new();
                 let _cancel_on_drop = cancel.clone().drop_guard();
                 let handle = tokio::runtime::Handle::current();
                 let maximum = self.maximum;
-                let frames = tokio::task::spawn_blocking(move || {
-                    let captured = handle.block_on(async {
-                        tokio::select! { biased;
-                            _ = cancel.cancelled() => Err(Status::cancelled("document request cancelled")),
-                            result = prepared.capture() => result.map_err(super::execution::status),
+                let (sender, mut frames) = tokio::sync::mpsc::channel(1);
+                let worker = tokio::task::spawn_blocking(move || {
+                    handle.block_on(async move {
+                        let (events, mut received) = tokio::sync::mpsc::channel(1);
+                        let mut capture = Some(Box::pin(prepared.query_stream(query, events)));
+                        let mut stream = wire::Stream::new(maximum);
+                        let mut closed = false;
+                        while capture.is_some() || !closed {
+                            tokio::select! { biased;
+                                _ = cancel.cancelled() => return Err(Status::cancelled("document request cancelled")),
+                                event = received.recv(), if !closed => {
+                                    match event {
+                                        Some(event) => for frame in stream.event(event)? {
+                                            sender.send(frame).await.map_err(|_| Status::cancelled("document receiver closed"))?;
+                                        },
+                                        None => closed = true,
+                                    }
+                                },
+                                result = async { capture.as_mut().expect("capture is running").await }, if capture.is_some() => {
+                                    result.map_err(super::execution::status)?;
+                                    capture = None;
+                                },
+                            }
                         }
-                    })?;
-                    if cancel.is_cancelled() {
-                        return Err(Status::cancelled("document request cancelled"));
-                    }
-                    wire::frames(captured, maximum)
-                })
-                .await
-                .map_err(|_| Status::internal("document worker failed"))??;
-                for frame in frames {
+                        sender.send(stream.completion()).await.map_err(|_| Status::cancelled("document receiver closed"))?;
+                        Ok::<_, Status>(())
+                    })
+                });
+                while let Some(frame) = frames.recv().await {
                     ctx.streams().send_owned(frame.into()).await.map_err(crate::grpc::chunked::output_failure)?;
                 }
+                worker.await.map_err(|_| Status::internal("document worker failed"))??;
                 Ok(().into())
             })
             .await

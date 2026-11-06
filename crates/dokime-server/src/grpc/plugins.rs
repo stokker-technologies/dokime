@@ -200,12 +200,28 @@ impl Serve<v1::Remove> for Resources {
     }
 }
 
-impl Serve<v1::Retry> for Resources {
-    fn serve<'a>(&'a self, request: v1::Retry, _: Context<'a, v1::Retry>) -> Served<'a, plugins_model::PluginInstallation> {
+impl Serve<v1::Reload> for Resources {
+    fn serve<'a>(&'a self, request: v1::Reload, _: Context<'a, v1::Reload>) -> Served<'a, ()> {
         Box::pin(async move {
-            let id = id(&request.install_id)?;
-            let entry = self.change(self.admission.mutation()?, move |runtime| async move { runtime.retry_plugin(id).await }).await?;
-            self.entry(entry).await
+            let _permit = self.admission.mutation().map_err(reject)?;
+            let runtime = dokime::app::live_runtime(&self.runtime).await?;
+            match (request.install_id, request.plugin_id) {
+                (Some(install), None) => {
+                    runtime
+                        .reload_installed_plugin(id(&install)?)
+                        .await
+                        .map_err(|error| failure(error, SERVER_DIAGNOSTIC_TEXT_BYTES as usize))?;
+                }
+                (None, Some(plugin)) => {
+                    let plugin = dokime::domain::model::identity::Identifier::new(plugin)
+                        .map_err(|error| reject(Status::invalid_argument(error.to_string())))?;
+                    if runtime.reload_plugin_program(&plugin) == dokime::plugins::PluginRestart::Idle {
+                        return Err(reject(Status::not_found("plugin program is not hosted")));
+                    }
+                }
+                _ => return Err(reject(Status::invalid_argument("exactly one plugin reload target is required"))),
+            }
+            self.produce(|| Ok(()))
         })
     }
 }
@@ -314,7 +330,7 @@ pub(super) fn prepare(
     setup.resource::<Host<v1::Install>>(Host::<v1::Install>::new(served.clone()));
     setup.resource::<Host<v1::SetEnabled>>(Host::<v1::SetEnabled>::new(served.clone()));
     setup.resource::<Host<v1::Remove>>(Host::<v1::Remove>::new(served.clone()));
-    setup.resource::<Host<v1::Retry>>(Host::<v1::Retry>::new(served.clone()));
+    setup.resource::<Host<v1::Reload>>(Host::<v1::Reload>::new(served.clone()));
     setup.resource::<Host<v1::ListAdmittedPlugins>>(Host::<v1::ListAdmittedPlugins>::new(served.clone()));
 
     Ok(())

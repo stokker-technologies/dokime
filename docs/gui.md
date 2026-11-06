@@ -40,6 +40,27 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+After Start Local Backend fails, including corrupt data, decode errors or an
+incompatible storage format, the connection screen offers **Back Up And Reset**.
+It is absent for `BackendRunning`. The confirmation names the data folder and
+timestamped ZIP destination beside it, and explains that the folder's contents
+will be removed after backup. Cancelling changes nothing. A failed backup never
+deletes data. The existing reset steps report stopping, archiving (with bytes),
+deleting, reinstalling plugins and starting. Success shows the archive path in
+Notifications; a later restart failure retains it on the connection screen.
+
+Recovery copies installed bundles before clearing execution storage and restores
+their readable enabled state and settings that the current declarations accept.
+It reads plugin metadata independently of execution schema validation; when that
+metadata is unreadable, bundle files are recovered with default enabled state and
+settings. Readable metadata limits restoration to recorded installations; removed
+installations and orphan bundle files stay uninstalled. Bundled plugins use normal startup
+installation. Each restored bundle passes ordinary verification and admission:
+a refused bundle stays visible with its failure in Settings › Plugins and does
+not prevent recovery or startup. Credentials are untouched; readable node identity
+and the secret catalog survive so existing secrets remain addressable. The ZIP
+retains the original files even when their metadata cannot be decoded.
+
 ## Cycle Lists And Restart Recovery
 
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
@@ -50,8 +71,16 @@ another cycle or restarting the desktop. Archive selection applies to both sourc
 
 `state.json` and `state.jsonl` under the data root recover current work. Sealed
 cycles are retired from that state to keep checkpoints bounded; their durable
-history remains the source for subsequent reads. Startup marks unfinished
-executions Interrupted, records the restart reason, and closes admission to their
+history remains the source for subsequent reads.
+
+Sealed executions retain their control summary and frozen plan in managed state;
+generated telemetry outputs and artifact inventories are read from their durable
+execution revisions. Completed request receipts and consumed case registrations
+leave managed state with their sealed cycle. Reusing a case reloads its saved
+definition and revision; retirement never permits reusing an execution identity.
+The final shutdown checkpoint also retires the latest sealed cycle.
+
+Startup marks unfinished executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
 report finalization resumes from its frozen terminal header. A seal that cannot
 complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
@@ -86,6 +115,22 @@ plot titles and axes, legends and stat labels. The live GUI and runtime report
 HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
+
+## Document Summaries
+
+Document structure commits before the saved-evidence wait. Each pending binding
+uses an independent query through the existing document capture operation, with
+its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
+card reads, so fast cards keep refreshing while an exact median is still loading.
+A completed card remains visible when another card or transfer fails. Failed
+bindings render the existing ErrorCard with their native diagnostic and budget
+fields. Repeated sections keep a loading identity until their expansion arrives.
+
+Live document summary tiles query one saved evidence cut using bounded folds and
+exact order statistics. They do not load the run's telemetry into a document input
+array or reject estimated definition-size-times-row work. Plots retain their
+existing independent query path. Actual output and expansion limits report the
+budget, limit, amount reached and affected card.
 
 ## Telemetry Plots
 
@@ -135,15 +180,76 @@ Ad hoc queries without a matching
 checkpoint, explicit unbounded queries and older historical frontiers still
 require raw evidence reads.
 
+Timed plot watches merge saved telemetry with the bounded, unflushed admission
+tail. They follow accepted publications independently of the disk save interval,
+coalescing updates with the existing 100 ms throttle rather than sending a frame
+per row. The admission tail covers every unsaved row, including rows older than a
+stream's declared window. A flush moves those rows into saved batches without a
+gap or duplicate. Tail rows shown live can be lost in a crash. Finite queries,
+All refreshes and frozen reports retain saved evidence cuts.
+
 Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
+
+Event markers join the plot's legend table after the traces, one row per record
+type, with a matching dashed-line glyph and the number of markers in the shown
+x window. Prompt Asked and Prompt Answered have their own rows, with hollow and
+filled caps matching the canvas. Marker rows leave cursor and statistics cells
+empty. Clicking a row hides or restores only that kind; visibility belongs to
+the plot card, like trace visibility. Frozen HTML reports retain these toggles.
+Marker colors come from the theme's plot palette, and hovering a visible marker
+shows its recorded label through the same tooltip for events and prompts; markers
+never draw permanent canvas labels. The tooltip stays inside the plot card,
+and prompt labels take precedence over event labels at the same position. It
+wraps long labels and ellipsizes after three lines while retaining the start.
+Live plots and frozen HTML reports share this behavior. There is no separate
+prompt-marker control.
+
+Point styles draw samples independently of hover. Line, stepped and line-point
+styles also mark lone samples between gaps, including nullable XY coordinates.
+Window reduction retains gap separators so retained samples never gain a line
+across missing evidence. Live and frozen plots share this drawing path.
 
 Time series of declared Boolean fields, including host `host.network.internet`,
 use a stepped state axis labeled **False** and **True**, without numeric statistics.
 The plot projection encodes false as 0 and true as 1; missing readings are gaps.
 Stored evidence retains its declared Boolean type. The live view and report use
 the captured column schema to select this presentation.
+
+## Live Artifact Files
+
+The execution artifact tree uses mirrored `artifacts/<output>/<relative path>`
+paths, including step uploads, without upload or UUID folders. Same-path uploads
+reserve deterministic `.2`, `.3` suffixes before the final extension. Existing
+replacement/copy-truncate `.segmentN` names remain intact.
+
+Stream files appear when captured bytes are saved. Tree rows show Live beside
+current size, then Finished or Interrupted after capture closes. The existing execution-file
+follower shows growing text with its live size, then Finished after sealing,
+without changing the file identity. Pausing or closing a viewer does not stop
+capture. Read frames, tail offsets and retained text keep their existing budgets.
+Runtime operation changes refresh the file list and size without idle polling.
+Untouched baseline files do not clutter the tree; new empty files remain visible.
+
+## Media Capture And Live Artifacts
+
+Screenshot, Photo and Record Audio save execution uploads under `media/`,
+preserving their relative names and the existing `.2`, `.3` collision suffixes.
+The Media card and artifact tree refresh after a capture is saved, while the
+execution is still running; runtime file updates also refresh the same inventory.
+Other uploads retain their `artifacts/` paths. Captured bytes are readable before
+execution completion.
+
+Desktop previews use the generation-owned native media cache. The scheme handler
+decodes Tauri's encoded cache path before validating its generation and key.
+Preview preparation uses closed files and refreshes when their saved state changes.
+Images are decoded on a blocking native worker with dimension and allocation
+limits, then reduced to at most 960 × 960 pixels before the WebView reads them.
+Audio and video expose playback controls with bounded native range reads.
+Names ellipsize, retain their full text as a tooltip, and occupy a separate row
+from Inspect. Frozen HTML retains its original media and download links under
+`outputs/media/`, independently of the desktop preview cache.
 
 ## Canonical Bindings And Transport
 
@@ -189,17 +295,18 @@ the captured column schema to select this presentation.
   Secret declarations show identifiers and availability read-only; Add In Secret
   Storage opens the shared Add Secret dialog prefilled with the identifier.
   Every owner in an inactive bundle remains visible. Add missing identifiers, then
-  use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
-- A saved settings change restarts its program. The plugin's status badge reads
-  Restarting… while the new generation starts, and Restart Pending, explained as
-  applying when no cycle is active, while any cycle runs, pauses, continues to its
-  next case or finalizes. Both states come from `PluginRuntimeSettings.restart`;
-  while one holds, the page re-reads the plugin views whenever the backend's
-  operations change, since the restart runs as one. A restart refused before the
-  program stopped shows **Restart Refused** with **Retry** while the plugin stays
-  active; a failed new generation surfaces like a failed startup. **Retry** starts
-  a plugin that does not run at once, even during a cycle; retrying a running one
-  shows Restart Pending until no cycle is active.
+  use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
+- Saving plugin settings keeps its running generation unchanged. Fields whose saved
+  values differ from its startup settings show **Applied On Reload** with a warning
+  highlight. The backend computes these marks, so reopening the view, restarting
+  the GUI or attaching another GUI preserves them. Restarting the backend starts
+  programs with saved values. Every plugin page offers **Reload**, and the plugin
+  table puts status in its own column beside direct Settings, Reload and Delete
+  actions. Reload applies saved settings and restarts all observers, including
+  plugin-activated observers. It waits as **Restart Pending** while active work
+  owns the plugin; preparation refusal keeps the running generation and marks,
+  with **Restart Refused** and its reason. A plugin that does not run starts at
+  once. A successful reload clears marks for the values it applied.
 - Install, reinstall, update, enable, disable and remove apply in the running
   backend; no plugin action prompts to restart the application. After a successful
   live stop, removed or replaced installations disappear with their bundles.
@@ -214,6 +321,11 @@ the captured column schema to select this presentation.
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.
   Secret Storage References lists declaring plugins, including inactive programs.
+- Completed executions and cycles retain their evidence and reports after plugin
+  reload, reinstall or removal, even before sealing. Retry Seal and history reads
+  use frozen report inputs, including plugin analysis results. In an open cycle,
+  starting an unrun case whose plugin was removed reports that its plugin is no
+  longer available; install its original revision or add a case from an available plugin.
 - Toast content and history rows open the shared notification details dialog through
   native buttons (Enter/Space); the existing dialog handles Esc and focus return.
   History retains serializable failure context, including field problems, root-first

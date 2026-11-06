@@ -24,6 +24,8 @@ pub(crate) mod resources;
 pub(crate) mod sdk_error;
 pub(crate) mod shared_calls;
 pub(crate) mod stream_admission;
+#[cfg(feature = "testing")]
+mod watch_stop;
 
 /* === Re-Exports === */
 

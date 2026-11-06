@@ -20,14 +20,20 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
-import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
+import {
+  DESKTOP_SESSION_STATUS_EVENT,
+  type DesktopLaunch,
+  type DesktopSessionSnapshot,
+  type StorageBackupDestination,
+} from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
-import { connectionError, startupDiagnostics } from "./errors";
+import { connectionError, startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
 
 /* === Constants === */
 
@@ -35,9 +41,8 @@ import { connectionError, startupDiagnostics } from "./errors";
  * them. The wire carries only the phase it is in, so the order lives here. */
 const STARTUP_PHASES = ["storage", "plugins", "requests"] as const;
 
-/** The steps a local storage reset reports. The shell reports the first three
- * itself; every backend startup phase after them belongs to "Starting". */
-const RESET_PHASES = ["stopping", "deleting", "starting"] as const;
+/** The shell's reset phases; backend startup phases belong to Starting. */
+const RESET_PHASES = ["stopping", "archiving", "deleting", "reinstalling", "starting"] as const;
 
 /* === Components === */
 
@@ -46,13 +51,32 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
   const [settings, setSettings] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
+  const [archivedBytes, setArchivedBytes] = useState<number | null>(null);
+  const [backup, setBackup] = useState<StorageBackupDestination | null>(null);
+  const [backupError, setBackupError] = useState<unknown>(null);
+  const [preparingBackup, setPreparingBackup] = useState(false);
   const statusRevision = useRef(-1);
   const localAttempt = useRef(false);
   const [failedEndpoint, setFailedEndpoint] = useState<string | null>(null);
   const busy = state.phase === "connecting";
-  const reset = state.phase === "connecting" && state.reset;
+  const reset = state.phase === "connecting" && state.reset !== false;
+  const backingUp = state.phase === "connecting" && state.reset === "backup";
   const error = state.phase === "failed" ? state.error : (launchError ?? launch?.error);
   const diagnostics = startupDiagnostics(error);
+  const recoverable = storageRecoveryAvailable(error, localAttempt.current, launch?.localBackendAvailable ?? false);
+  const archive = storageRecoveryArchive(error);
+
+  async function prepareBackup() {
+    setPreparingBackup(true);
+    setBackupError(null);
+    try {
+      setBackup(await commands.desktopStorageBackupDestination());
+    } catch (failure) {
+      setBackupError(failure);
+    } finally {
+      setPreparingBackup(false);
+    }
+  }
   useEffect(() => {
     if (!error) return;
     let active = true;
@@ -78,6 +102,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
       if (!active || status.statusRevision < statusRevision.current) return;
       statusRevision.current = status.statusRevision;
       setPhase(status.phase);
+      setArchivedBytes(status.archivedBytes ?? null);
     };
     const readCurrentStatus = () =>
       commands
@@ -115,9 +140,9 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
 
         {busy && (
           <>
-            {reset ? <ResetSteps current={phase} /> : <StartupSteps current={phase} />}
+            {reset ? <ResetSteps current={phase} archivedBytes={archivedBytes} backup={backingUp} /> : <StartupSteps current={phase} />}
             <div className="grid w-full gap-3">
-              <Button className="w-full" onClick={() => void owner.disconnect()} variant="outline">
+              <Button className="w-full" disabled={reset} onClick={() => void owner.disconnect()} variant="outline">
                 Cancel
               </Button>
             </div>
@@ -195,6 +220,62 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
             </Button>
           </div>
         )}
+        {!busy && archive && <PathPill value={archive} />}
+        {!busy && recoverable && (
+          <div className="grid gap-3">
+            <Button variant="destructive" disabled={preparingBackup} onClick={() => void prepareBackup()} data-action="backup-reset">
+              Back Up And Reset
+            </Button>
+            {backupError ? <p role="alert">{connectionError(backupError)}</p> : null}
+          </div>
+        )}
+        <Dialog
+          open={backup !== null && !busy && recoverable}
+          onOpenChange={(open) => {
+            if (!open) setBackup(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Back Up And Reset</DialogTitle>
+              <DialogDescription>
+                Back up the data folder to this archive, then remove the folder's contents and restart the local backend. Installed bundles
+                will be restored with readable enabled states and valid settings. If saved plugin preferences cannot be recovered, bundles
+                are enabled with default settings. Credentials remain in secret storage. If the backup fails, nothing is removed.
+              </DialogDescription>
+            </DialogHeader>
+            {backup && (
+              <div className="grid gap-3 text-left text-sm">
+                <div className="grid gap-1">
+                  <span>Data Folder</span>
+                  <PathPill value={backup.directory} />
+                </div>
+                <div className="grid gap-1">
+                  <span>Backup Archive</span>
+                  <PathPill value={backup.archive} />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBackup(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                data-action="confirm-backup-reset"
+                onClick={() => {
+                  if (!backup) return;
+                  const confirmed = backup;
+                  setBackup(null);
+                  localAttempt.current = true;
+                  void owner.backupAndResetLocalStorage(confirmed.directory, confirmed.archive);
+                }}
+              >
+                Back Up And Reset
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <footer>
           <Button variant="link" disabled={busy} onClick={() => setSettings(true)}>
             Settings
@@ -224,15 +305,21 @@ function StartupSteps({ current }: { current: string | null }) {
   );
 }
 
-/** A local storage reset's steps: stop, delete, then start again. */
-function ResetSteps({ current }: { current: string | null }) {
-  const phases: readonly string[] = RESET_PHASES;
-  // Any phase past the shell's own is the backend starting on the empty root.
-  const index = current === null ? 0 : phases.includes(current) ? phases.indexOf(current) : 2;
+/** An explicit reset reports backup and installation restoration before startup. */
+function ResetSteps({ current, archivedBytes, backup }: { current: string | null; archivedBytes: number | null; backup: boolean }) {
+  const phases: readonly string[] = RESET_PHASES.filter((phase) => backup || phase !== "archiving");
+  // Backend phases follow the shell's reset work.
+  const index = current === null ? 0 : phases.includes(current) ? phases.indexOf(current) : phases.length - 1;
   return (
     <ol aria-label="Reset Steps" className="grid w-full gap-2 text-left">
       {phases.map((name, position) => (
-        <Step active={position === index} done={position < index} key={name} label={phaseLabel(name)} />
+        <Step
+          active={position === index}
+          done={position < index}
+          key={name}
+          label={phaseLabel(name)}
+          detail={name === "archiving" && archivedBytes !== null ? `${archivedBytes.toLocaleString()} B` : null}
+        />
       ))}
     </ol>
   );
@@ -277,10 +364,14 @@ function phaseLabel(phase: string): string {
       return "Starting Sidecars";
     case "stopping":
       return "Stopping Backend";
+    case "archiving":
+      return "Backing Up Local Storage";
     case "deleting":
       return "Deleting Local Storage";
     case "starting":
       return "Starting Backend";
+    case "reinstalling":
+      return "Reinstalling Plugins";
     default:
       return "Starting Backend";
   }

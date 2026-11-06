@@ -83,7 +83,7 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
       surface={surface}
       pane={pane}
       plotWindow={plotWindow}
-      onRetry={() => void documentQuery.refetch()}
+      onRetry={(cardId) => void documentQuery.retryCard(cardId)}
       documentView={DocumentView}
       lead={lead}
       pageActions={pageActions}

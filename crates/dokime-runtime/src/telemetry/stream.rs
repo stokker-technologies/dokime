@@ -110,7 +110,7 @@ impl Streams {
             #[cfg(feature = "native")]
             failure: tokio::sync::watch::channel(None).0,
             #[cfg(feature = "native")]
-            listening: crate::execution::listening_rows(1024),
+            listening: crate::execution::listening_rows(crate::execution::listen::EVIDENCE_ROWS),
             #[cfg(feature = "native")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
 

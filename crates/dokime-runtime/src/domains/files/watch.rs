@@ -8,10 +8,10 @@
  */
 
 // One running file watch. Each tracked file owns a private spool that holds
-// exactly its captured bytes; sealing uploads the spool as the artifact
-// `<output>/<relative path>`, so length and SHA-256 come from the artifact
-// path. The caller drives the watch: `poll` on changes or at its interval, `seal` at the
-// end. Closing the execution asks the watch to seal, and dropping an unsealed
+// exactly its captured bytes. Stream captures publish committed ranges into
+// one live artifact; sealing finishes that same identity. Mirror captures
+// upload their final successful spool under `<output>/<relative path>`.
+// The caller drives `poll` on changes or at its interval, and `seal` at the end. Closing the execution asks the watch to seal, and dropping an unsealed
 // watch seals it in the background. A watch with line matchers offers each
 // line the Stream policy captures to them, publishing rows to the matched
 // streams and markers as records in the watched execution's scope.
@@ -37,10 +37,11 @@ use tokio::{io::AsyncSeekExt, sync::oneshot};
 // Local Imports
 use super::source::{Entry, Listing, ReadFailure, Source};
 use super::{GapReason, Phase, Policy, Selection, Settings, capped, invalid, unreachable_source};
-use crate::artifacts::ArtifactRecord;
+use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use crate::execution_runtime::outputs::media_type_for_path;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 use crate::records::RecordSeverity;
+use crate::runtime::storage::artifacts::ArtifactUpload;
 use crate::runtime::storage::captures::SealRequest;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
@@ -109,6 +110,7 @@ struct State {
 }
 
 struct Tracked {
+    upload: Option<ArtifactUpload>,
     artifact: String,
     spool: TempPath,
     // Bytes in the spool; anything past it is an interrupted write.
@@ -198,6 +200,10 @@ impl FileWatch {
 
     pub fn policy(&self) -> Policy {
         self.state().policy
+    }
+
+    pub(super) fn execution(&self) -> &TestExecutionId {
+        &self.state().execution
     }
 
     pub fn poll_interval(&self) -> Duration {
@@ -357,6 +363,8 @@ impl State {
 
     // Seals every tracked file, then answers the execution's seal request.
     async fn finish(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_watch_seal(&self.execution).await;
         let mut outcome = Ok(());
         let paths = self.tracked.keys().cloned().collect::<Vec<_>>();
         for path in paths {
@@ -418,13 +426,14 @@ impl State {
             }
             if !self.tracked.contains_key(path) {
                 let baseline = if first && self.policy == Policy::Stream && self.selection != Selection::New { entry.size } else { 0 };
-                self.discover(path, *entry, baseline, events).await?;
+                self.discover(path, *entry, baseline, !first, events).await?;
             }
             match self.capture(path, *entry, events).await {
                 Ok(()) => {}
                 Err(source @ Error::Admission(AdmissionFailure::Unavailable { .. })) => return self.failed_pass(source),
                 Err(source) => return Err(source),
             }
+            self.publish(path).await?;
         }
         Ok(())
     }
@@ -472,7 +481,7 @@ impl State {
     }
 
     // Starts tracking one file, refusing it explicitly past the caps.
-    async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, new_source: bool, events: &mut Vec<WatchEvent>) -> Result<()> {
         if self.artifact.is_some() && !self.tracked.is_empty() {
             return Err(capped(format!("a watch into one named artifact tracks one file; {path:?} would be a second")));
         }
@@ -494,6 +503,7 @@ impl State {
         self.tracked.insert(
             path.to_owned(),
             Tracked {
+                upload: None,
                 artifact,
                 spool,
                 written: 0,
@@ -502,7 +512,7 @@ impl State {
                 mirrored: self.policy == Policy::Mirror,
                 synced: false,
                 pending: LineBuffer::new(line_bytes),
-                sealable: self.policy == Policy::Stream,
+                sealable: self.policy == Policy::Stream && new_source,
             },
         );
         events.push(WatchEvent::Progress {
@@ -538,6 +548,7 @@ impl State {
                 if copied == 0 {
                     return Ok(());
                 }
+                tracked.sealable = true;
                 events.push(WatchEvent::Progress {
                     path: path.to_owned(),
                     offset: tracked.written,
@@ -566,7 +577,12 @@ impl State {
                         "FTP server refused REST resume; line extraction cannot continue. Enable REST on the server or use a resumable/local source; captured evidence will be sealed",
                     ));
                 }
-                tracked.mirrored = true;
+                if tracked.upload.is_some() {
+                    // A Visible Stream Prefix Keeps Its Identity When FTP Falls Back.
+                    self.seal_file(path, events).await?;
+                    self.discover(path, entry, 0, true, events).await?;
+                }
+                self.tracked.get_mut(path).expect("fallback file is tracked").mirrored = true;
                 self.mirror(path, entry, events).await
             }
             Err(ReadFailure::Failed(source)) => Err(source),
@@ -621,15 +637,40 @@ impl State {
             return Ok(());
         };
         for (path, entry) in listing {
-            self.discover(&path, entry, 0, events).await?;
+            self.discover(&path, entry, 0, true, events).await?;
             self.tracked.get_mut(&path).expect("discovered files are tracked").mirrored = true;
             self.mirror(&path, entry, events).await?;
         }
         Ok(())
     }
 
+    // Publish Committed Stream Bytes Without Waiting For Any Viewer.
+    async fn publish(&mut self, path: &str) -> Result<()> {
+        let tracked = self.tracked.get_mut(path).expect("published file is tracked");
+        if !tracked.sealable || tracked.mirrored {
+            return Ok(());
+        }
+        if tracked.upload.is_none() {
+            tracked.upload = Some(
+                self.runtime
+                    .begin_streamed_artifact(ArtifactUploadInput {
+                        scope: self.scope.clone(),
+                        filename: tracked.artifact.clone(),
+                        content_type: Some(media_type_for_path(path).unwrap_or("application/octet-stream").to_owned()),
+                        size_bytes: 0,
+                        sha256: None,
+                    })
+                    .await?,
+            );
+        }
+        let upload = tracked.upload.as_ref().expect("stream artifact admitted");
+        upload.send_file_range(&tracked.spool, tracked.written).await?;
+        Ok(())
+    }
+
     // Uploads one spool as the artifact `<output>/<path>` and stops tracking it.
     async fn seal_file(&mut self, path: &str, events: &mut Vec<WatchEvent>) -> Result<()> {
+        self.publish(path).await?;
         let Some(mut tracked) = self.tracked.remove(path) else {
             return Ok(());
         };
@@ -637,21 +678,24 @@ impl State {
             self.offer(vec![last]).await;
         }
         if !tracked.sealable {
-            tracing::warn!(%path, "file watch never copied this file; nothing is sealed");
+            tracing::debug!(%path, "file watch never copied this file; nothing is sealed");
             return Ok(());
         }
         // Drop Any Interrupted Write Past The Committed Length
         open_spool(&tracked.spool, tracked.written, false).await?;
         let artifact = tracked.artifact;
-        let record = self
-            .runtime
-            .upload_artifact_file(
-                self.scope.clone(),
-                &tracked.spool,
-                artifact,
-                Some(media_type_for_path(path).unwrap_or("application/octet-stream").to_owned()),
-            )
-            .await?;
+        let record = if let Some(upload) = tracked.upload {
+            upload.finish().await?
+        } else {
+            self.runtime
+                .upload_artifact_file(
+                    self.scope.clone(),
+                    &tracked.spool,
+                    artifact,
+                    Some(media_type_for_path(path).unwrap_or("application/octet-stream").to_owned()),
+                )
+                .await?
+        };
         self.sealed.push(record.clone());
         *self.segments.entry(path.to_owned()).or_default() += 1;
         events.push(WatchEvent::Sealed {

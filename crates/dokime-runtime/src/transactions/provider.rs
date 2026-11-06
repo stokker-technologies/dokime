@@ -51,7 +51,6 @@ use dokime_domain::state::records::set::TestRecordSet;
 /* === Constants === */
 
 pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution; schedule a rerun first";
-pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a provider execution binding";
 
 /* === Macros === */
 
@@ -219,10 +218,12 @@ fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<RunPl
     if !execution_available(state, execution) {
         return Err(Error::conflict("execution_not_planned", EXECUTION_NOT_PLANNED));
     }
-    let target = state
-        .suites
-        .provider_target_for_case(execution.snapshot.case())
-        .ok_or_else(|| Error::unavailable("runtime_unavailable", PROVIDER_UNAVAILABLE))?;
+    let target = state.suites.provider_target_for_case(execution.snapshot.case()).ok_or_else(|| {
+        Error::unavailable(
+            "execution_plugin_unavailable",
+            "the plugin for this case is no longer available; install its original revision or add a case from an available plugin",
+        )
+    })?;
     let identity = state.execution_identity(&target.source);
     if execution.snapshot.plugin() != identity.as_ref() {
         return Err(Error::conflict("provider_identity_changed", "the materialized execution belongs to another plugin revision"));

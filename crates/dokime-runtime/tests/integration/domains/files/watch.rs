@@ -88,6 +88,59 @@ fn code(error: &Error) -> &str {
 /* === Tests === */
 
 #[dokime_tracing::trace_test]
+#[tokio::test]
+async fn many_file_stop() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    for index in 0..64 {
+        write(&tree.path().join(format!("nested/{index}.log")), b"baseline\n");
+    }
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations
+        .submit::<WatchFile>(WatchFile {
+            recursive: true,
+            rules: vec![include("**/*.log")],
+            maximum_files: Some(64),
+            execution_id: Some(bench.execution.clone()),
+            source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+            output: "many".into(),
+            artifact: None,
+            policy: FileWatchPolicy::Mirror,
+            selection: model::files::wire::FileWatchSelection::All,
+            wait_for_source_seconds: None,
+            poll_interval_ms: Some(60_000),
+            maximum_seconds: None,
+            maximum_bytes: None,
+            matchers: Vec::new(),
+            markers: Vec::new(),
+        })
+        .unwrap();
+    operations
+        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .await
+        .unwrap();
+    for index in 0..64 {
+        append(&tree.path().join(format!("nested/{index}.log")), b"changed\n");
+    }
+    let started = std::time::Instant::now();
+    let outcome = watch.cancel().await.unwrap().into_owned();
+    eprintln!("many_file_stop: cancellation and sealing {:?}", started.elapsed());
+    assert_eq!(outcome.artifacts.len(), 64);
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    let artifacts = bench.handle.artifacts().await.unwrap();
+    for index in 0..64 {
+        let filename = format!("many/nested/{index}.log");
+        let artifact = artifacts.iter().find(|record| record.filename == filename).unwrap();
+        assert_eq!(artifact.scope.test_execution_id.as_ref(), Some(&execution));
+        assert_eq!(artifact.status, ArtifactStatus::Complete);
+        let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, b"baseline\nchanged\n");
+    }
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {
     let bench = Bench::start(|config, _| config).await;
@@ -632,7 +685,7 @@ async fn snapshot_local_tree() {
     write(&tree.path().join("late.log"), b"late\n");
     assert!(poll(&mut stop).await.is_empty());
     let taken = sealed(&seal(&mut stop).await);
-    assert_artifact(&taken["bench.log"], "bench.log", b"start\nend\n");
+    assert_artifact(&taken["bench.log"], "bench.2.log", b"start\nend\n");
     assert_artifact(&taken["late.log"], "late.log", b"late\n");
 
     drop((start, stop));
@@ -1024,6 +1077,265 @@ async fn recursive_step_watches() {
     assert!(records.contains_key("capture.hpl30"));
     assert_eq!(records["Logs/status"].filename, "logs/Logs/status");
     assert_eq!(records["Logs/status"].size_bytes, 12);
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn live_artifact_tree() {
+    use dokime_domain::model::content::wire::{ExecutionFileFollowFramePayload, ExecutionFilePhase};
+    use dokime_runtime::ExecutionFileStreamState;
+    use dokime_runtime::artifacts::ArtifactUploadInput;
+    use std::num::NonZeroUsize;
+
+    let bench = Bench::start(|config, _| config).await;
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let tree = tempdir().unwrap();
+    let existing = tree.path().join("Logs/existing.log");
+    write(&existing, b"before\n");
+    write(&tree.path().join("Logs/untouched.log"), b"untouched\n");
+    write(&tree.path().join("Logs/empty.log"), b"");
+    let request = WatchFile {
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+        recursive: true,
+        rules: Vec::new(),
+        maximum_files: None,
+        output: OUTPUT.into(),
+        artifact: None,
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: None,
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let mut untouched = bench.handle.open_watch_file(&request, None).await.unwrap();
+    poll(&mut untouched).await;
+    assert!(sealed(&seal(&mut untouched).await).is_empty());
+    assert!(untouched.sealed().is_empty());
+    assert!(!bench.handle.execution_files(&execution).await.unwrap().iter().any(|file| file.relative_path.starts_with("artifacts/")));
+
+    let mut watch = bench.handle.open_watch_file(&request, None).await.unwrap();
+    poll(&mut watch).await;
+    append(&existing, b"first");
+    write(&tree.path().join("Logs/new/deep.log"), b"born");
+    write(&tree.path().join("Logs/new/empty.log"), b"");
+    poll(&mut watch).await;
+    let path = "artifacts/capture/Logs/existing.log";
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    let live = files.iter().find(|file| file.relative_path == path).unwrap();
+    assert_eq!(live.size_bytes, 5);
+    assert_eq!(live.stream_state, ExecutionFileStreamState::Streaming);
+    let artifact_id = live.artifact_id.clone();
+    let window = bench.handle.execution_file_content(&execution, path.into(), 0, 3).await.unwrap().unwrap();
+    assert_eq!(window.bytes, b"fir");
+    drop(window);
+    let mut follower = bench.handle.follow_execution_file(&execution, path, None, 0).await.unwrap().unwrap();
+    let identity = follower.metadata().identity.clone();
+    assert_eq!(follower.metadata().phase, ExecutionFilePhase::Producing);
+    let maximum = NonZeroUsize::new(3).unwrap();
+    let retained = follower.next_frame(maximum).await.unwrap().unwrap();
+    let Some(ExecutionFileFollowFramePayload::Chunk(first)) = &retained.payload else { panic!("first committed bytes") };
+    assert_eq!(first.data, b"fir");
+    // A Viewer Can Retain A Read While Capture Continues Independently.
+    append(&existing, b"more");
+    poll(&mut watch).await;
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    let grown = files.iter().find(|file| file.relative_path == path).unwrap();
+    assert_eq!(grown.size_bytes, 9);
+    assert_eq!(grown.artifact_id, artifact_id);
+    let mut bytes = first.data.clone();
+    drop(retained);
+    while bytes.len() < 9 {
+        let frame = follower.next_frame(maximum).await.unwrap().unwrap();
+        let Some(ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else { panic!("growing bytes") };
+        bytes.extend_from_slice(&chunk.data);
+    }
+    assert_eq!(bytes, b"firstmore");
+    let records = sealed(&seal(&mut watch).await);
+    assert_eq!(records.len(), 3);
+    assert_artifact(&records["Logs/existing.log"], "Logs/existing.log", b"firstmore");
+    assert_artifact(&records["Logs/new/deep.log"], "Logs/new/deep.log", b"born");
+    assert_artifact(&records["Logs/new/empty.log"], "Logs/new/empty.log", b"");
+    let terminal = follower.next_frame(maximum).await.unwrap().unwrap();
+    let Some(ExecutionFileFollowFramePayload::Terminal(terminal)) = &terminal.payload else { panic!("finished file") };
+    assert_eq!(terminal.phase, ExecutionFilePhase::Finished);
+    assert_eq!(terminal.length, 9);
+    assert_eq!(terminal.sealed.as_ref().unwrap().identity, identity);
+    assert!(follower.next_frame(maximum).await.unwrap().is_none());
+    drop(follower);
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    let finished = files.iter().find(|file| file.relative_path == path).unwrap();
+    assert_eq!(finished.stream_state, ExecutionFileStreamState::Finalized);
+    assert_eq!(finished.artifact_id, artifact_id);
+    let mut late = bench.handle.follow_execution_file(&execution, path, None, 0).await.unwrap().unwrap();
+    assert_eq!(late.metadata().phase, ExecutionFilePhase::Finished);
+    assert!(late.next_frame(maximum).await.unwrap().is_some());
+    drop(late);
+
+    let scope = records["Logs/existing.log"].scope.clone();
+    let mut uploads = Vec::new();
+    for name in ["Logs/existing.log", "Logs/existing.log", "Logs/existing.2.log", "Logs/existing.log"] {
+        let upload = bench
+            .handle
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope: scope.clone(),
+                filename: name.into(),
+                content_type: None,
+                size_bytes: 1,
+                sha256: None,
+            })
+            .await
+            .unwrap();
+        upload.send(b"x".to_vec()).await.unwrap();
+        uploads.push(upload);
+    }
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    let uploaded = files.iter().find(|file| file.relative_path == "artifacts/Logs/existing.log").unwrap();
+    assert_eq!(uploaded.content_type.as_deref(), Some("application/octet-stream"));
+    let window = bench.handle.execution_file_content(&execution, uploaded.relative_path.clone(), 0, 1).await.unwrap().unwrap();
+    assert_eq!(window.content_type.as_deref(), Some("application/octet-stream"));
+    drop(window);
+    let followed = bench.handle.follow_execution_file(&execution, &uploaded.relative_path, None, 0).await.unwrap().unwrap();
+    assert_eq!(followed.metadata().content_type, "application/octet-stream");
+    drop(followed);
+    let mut ids = std::collections::BTreeSet::new();
+    for (upload, name) in uploads.iter().zip(["Logs/existing.log", "Logs/existing.2.log", "Logs/existing.2.2.log", "Logs/existing.3.log"]) {
+        let record = upload.finish().await.unwrap();
+        assert_eq!(record.filename, name);
+        assert!(ids.insert(record.artifact_id.clone()));
+        let path = format!("artifacts/{name}");
+        let file = bench.handle.execution_file_content(&execution, path, 0, 8).await.unwrap().unwrap();
+        assert_eq!(file.bytes, b"x");
+    }
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    assert!(files.iter().filter(|file| file.relative_path.starts_with("artifacts/")).all(|file| !file.relative_path.contains("uploads/")));
+    drop(uploads);
+    bench.executor.release();
+    let checkpoint = crate::service_support::native::checkpoint(&bench.handle, &execution).await;
+    let saved = bench.handle.execution_files(&execution).await.unwrap();
+    assert_eq!(saved.iter().filter(|file| file.relative_path.starts_with("artifacts/")).count(), 7);
+    assert!(!saved.iter().any(|file| file.relative_path.contains("untouched") || file.relative_path.ends_with("Logs/empty.log")));
+    let mut reader = bench.handle.checkpoint_artifact(checkpoint, &records["Logs/existing.log"].artifact_id).await.unwrap();
+    let mut bytes = [0; 9];
+    assert_eq!(reader.read(&mut bytes).await.unwrap(), 9);
+    assert_eq!(&bytes, b"firstmore");
+    drop(reader);
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn live_media_upload() {
+    use dokime_runtime::ExecutionFileStreamState;
+    use dokime_runtime::artifacts::ArtifactUploadInput;
+
+    let bench = Bench::start(|config, _| config).await;
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let scope = bench.handle.watch_state().latest().state().executions[&execution].scope.clone();
+    // A Valid One-Pixel PNG Is Saved While The Execution Remains Blocked.
+    let png: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4, 0, 0, 0, 181, 28, 12, 2, 0, 0, 0, 11,
+        73, 68, 65, 84, 120, 218, 99, 100, 248, 15, 0, 1, 5, 1, 1, 39, 24, 227, 102, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+    let stem = "capture-".repeat(28);
+    let names = [format!("{stem}.png"), format!("{stem}.2.png"), format!("{stem}.2.2.png"), format!("{stem}.3.png")];
+    let mut uploads = Vec::new();
+    for requested in [&names[0], &names[0], &names[1], &names[0]] {
+        let upload = bench
+            .handle
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope: scope.clone(),
+                filename: requested.clone(),
+                content_type: Some("image/png".into()),
+                size_bytes: png.len() as u64,
+                sha256: None,
+            })
+            .await
+            .unwrap();
+        upload.send(png.to_vec()).await.unwrap();
+        uploads.push(upload);
+    }
+    for (upload, name) in uploads.iter().zip(&names) {
+        let record = upload.finish().await.unwrap();
+        assert_eq!(&record.filename, name);
+        let path = format!("media/{name}");
+        let files = bench.handle.execution_files(&execution).await.unwrap();
+        let file = files.iter().find(|file| file.relative_path == path).unwrap();
+        assert_eq!(file.artifact_id, record.artifact_id.to_string());
+        assert_eq!(file.content_type.as_deref(), Some("image/png"));
+        assert_eq!(file.stream_state, ExecutionFileStreamState::Finalized);
+        let content = bench.handle.execution_file_content(&execution, path, 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.content_type.as_deref(), Some("image/png"));
+        assert_eq!(content.bytes, png);
+        assert!(bench.handle.artifacts().await.unwrap().iter().any(|entry| entry.artifact_id == record.artifact_id));
+    }
+    assert!(bench.handle.watch_state().latest().state().executions[&execution].saved.is_none());
+    drop(uploads);
+    bench.executor.release();
+    crate::service_support::native::checkpoint(&bench.handle, &execution).await;
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    assert_eq!(files.iter().filter(|file| file.relative_path.starts_with("media/")).count(), 4);
+    let mut report = bench.handle.open_execution_report(&execution).await.unwrap();
+    let html = crate::service_support::reports::opened_bytes(&mut report).await;
+    let evidence = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tests/media");
+    std::fs::create_dir_all(&evidence).unwrap();
+    std::fs::write(evidence.join("report.html"), &html).unwrap();
+    let payload = crate::service_support::reports::parse(std::str::from_utf8(&html).unwrap());
+    let artifacts = payload["snapshot"]["artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 4);
+    for artifact in artifacts {
+        assert!(artifact["path"].as_str().unwrap().starts_with("media/"));
+        let path = artifact["path"].as_str().unwrap();
+        let href = artifact["href"].as_str().unwrap();
+        assert_eq!(href, format!("outputs/{path}"));
+        let content = bench.handle.execution_file_content(&execution, path.to_owned(), 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.bytes, png);
+        let destination = evidence.join(href);
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        std::fs::write(destination, &content.bytes).unwrap();
+        assert_eq!(artifact["downloadHref"], href);
+    }
+    bench.stop().await;
+}
+
+#[cfg(feature = "testing")]
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn artifact_live_failure() {
+    use dokime_domain::model::content::wire::{ExecutionFileFollowFramePayload, ExecutionFilePhase};
+    use dokime_runtime::artifacts::ArtifactUploadInput;
+    use std::num::NonZeroUsize;
+
+    let bench = Bench::start(|config, _| config).await;
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let scope = bench.handle.watch_state().latest().state().executions[&execution].scope.clone();
+    bench.handle.inject_artifact_capture_failure(execution.clone(), "failed.log".into(), std::io::ErrorKind::PermissionDenied);
+    let upload = bench
+        .handle
+        .begin_artifact_upload(ArtifactUploadInput {
+            scope,
+            filename: "failed.log".into(),
+            content_type: None,
+            size_bytes: 1,
+            sha256: None,
+        })
+        .await
+        .unwrap();
+    upload.send(b"x".to_vec()).await.unwrap();
+    let mut follower = bench.handle.follow_execution_file(&execution, "artifacts/failed.log", None, 0).await.unwrap().unwrap();
+    let maximum = NonZeroUsize::new(1).unwrap();
+    assert!(matches!(&follower.next_frame(maximum).await.unwrap().unwrap().payload, Some(ExecutionFileFollowFramePayload::Chunk(_))));
+    assert_eq!(upload.finish().await.unwrap().status, ArtifactStatus::Failed);
+    let frame = follower.next_frame(maximum).await.unwrap().unwrap();
+    let Some(ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else { panic!("failed capture terminates") };
+    assert_eq!(terminal.phase, ExecutionFilePhase::Abandoned);
+    assert!(terminal.sealed.is_none());
+    assert!(follower.next_frame(maximum).await.unwrap().is_none());
+    drop((follower, upload));
     bench.stop().await;
 }
 

@@ -191,7 +191,7 @@ async fn shared_stream_publishes() {
     assert!(values.contains(&Value::Number(2.0)));
     let templates = rows.iter().map(|row| row.scope.as_ref().and_then(|scope| scope.template_id.clone())).collect::<BTreeSet<_>>();
     assert_eq!(templates.len(), 2, "each row keeps its own template scope");
-    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
+    let ended = handle.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert!(
         ended.test_executions.iter().all(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Passed)
     );

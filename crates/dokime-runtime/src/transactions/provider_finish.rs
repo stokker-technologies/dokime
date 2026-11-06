@@ -440,7 +440,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         finish.finished_at.clone(),
     );
     plan.health = Some((
-        if succeeded { HealthSeverity::Info } else { HealthSeverity::Error },
+        if succeeded || stopped { HealthSeverity::Info } else { HealthSeverity::Error },
         format!("Provider execution {}.", outcome.status),
         outcome.failures.first().map(|failure| failure.message.clone()),
     ));
@@ -522,7 +522,11 @@ fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: 
         finish.finished_at.clone(),
     );
     if !stopped {
-        plan.health = Some((HealthSeverity::Error, "Provider execution failed.".to_owned(), Some(error.message.clone())));
+        plan.health = Some((
+            if stopped { HealthSeverity::Info } else { HealthSeverity::Error },
+            if stopped { "Provider execution cancelled by operator." } else { "Provider execution failed." }.to_owned(),
+            Some(error.message.clone()),
+        ));
     }
     plan
 }

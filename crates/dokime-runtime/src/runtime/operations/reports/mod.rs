@@ -74,6 +74,39 @@ impl Serve<MaterializeReport> for Runtime {
 }
 
 impl Resources {
+    // Freeze Catalog Contributions And Plugin Analysis Results Before Completion Releases Plugins.
+    pub(crate) fn freeze_report_context<'a>(
+        &'a self, source: &'a dokime_domain::model::execution::result::CycleView,
+        inputs: &'a crate::runtime::storage::executions::CaptureInputs,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let id = &inputs.execution.test_execution_id;
+            let mut lifecycle = self
+                .execution_storage
+                .report_finalization(id)
+                .await?
+                .and_then(|intent| intent.lifecycle)
+                .ok_or_else(|| invalid("report context requires a frozen lifecycle"))?;
+            if lifecycle.context.is_some() {
+                return Ok(());
+            }
+            let defaults = self.settings.read_application_settings().await?.settings.report;
+            let inspection = self.execution_storage.capture_execution_view(source, inputs, defaults).await?;
+            let mut captured = inspection.source_snapshot()?.clone();
+            let progress = self.progress.begin("Freezing Report Analyses");
+            captured.frozen_plots = crate::report::materialize::freeze_analyses(&self.scope, &inspection, &progress).await?;
+            progress.finish();
+            let context = crate::report::saved::save_context(&self.execution_storage.storage, &captured).await?;
+            lifecycle.context = Some(context);
+            self.runtime
+                .commit(crate::transactions::CaptureReportLifecycle { lifecycle })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))?;
+            self.execution_storage.storage.flush_recovery().await?;
+            Ok(())
+        })
+    }
+
     // Keep Nested Report Frames Off Native Control And Listener Stacks.
     pub(crate) fn materialize(&self, request: MaterializeReport) -> BoxFuture<'_, Result<MaterializedReport>> {
         Box::pin(async move {
@@ -195,6 +228,9 @@ async fn execution(
         resources.execution_storage.finish_outputs(id).await?;
     }
     let inputs = resources.execution_storage.prepare_capture(&source, member, at, final_report).await?;
+    if final_report {
+        resources.freeze_report_context(&source, &inputs).await?;
+    }
     let defaults = resources.settings.read_application_settings().await?.settings.report;
     let inspection = resources.execution_storage.capture_execution_view(&source, &inputs, defaults).await?;
 

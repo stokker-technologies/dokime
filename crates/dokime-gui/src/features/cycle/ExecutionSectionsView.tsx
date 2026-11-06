@@ -34,6 +34,7 @@
 
 /* === Local Imports === */
 
+import { DocumentRetryContext } from "@/components/document/DocumentViewRenderer";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
@@ -85,7 +86,7 @@ export type ExecutionSectionsViewProps = {
   surface: DocumentSurface;
   pane: ReturnType<typeof evidencePaneState>;
   plotWindow: ReturnType<typeof usePlotWindow>;
-  onRetry?: () => void;
+  onRetry?: (cardId?: string) => void;
   control?: ReactNode;
   /** The execution's answerable prompts, queued directly under Control; none in a file. */
   promptQueue?: ReactNode;
@@ -126,17 +127,13 @@ export function ExecutionSectionsView({
   const { shared, view } = surface;
   const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
   const present = new Set(executionDocumentSections(mainCards));
+  if (view.sections.some((section) => section.loading || section.unavailable)) present.add("report");
   const reportSections = view.sections.map((section) => ({
     ...section,
     cards: section.cards.filter(isReportCard),
   }));
   const template = plan?.templates.find((item) => item.template_id === row.case.templateId);
   const parameterRows = executionParameterRows(row.case.testCase?.parameters, template?.parameters ?? []);
-  const running = started !== null && isActiveExecutionStatus(started.status);
-  const elapsed = useElapsedSeconds(started?.started_at, live && running);
-  const executionDuration = started
-    ? durationText({ duration_s: measuredSeconds(started), status: running ? "running" : started.status }, live, elapsed)
-    : "";
   return (
     <div className="grid min-h-0">
       <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={[...trail.slice(0, -1), `${titlePrefix ?? ""}${label}`]}>
@@ -145,7 +142,7 @@ export function ExecutionSectionsView({
           live={live}
           onRename={onRename}
           prefix={titlePrefix}
-          progress={[stepProgress(view.stepRecords), executionDuration].filter(Boolean).join(" · ") || null}
+          progress={<ExecutionProgress execution={started} live={live} steps={view.stepRecords} />}
           status={cycleRowStatus({ ...row, execution: started ?? row.execution })}
           subject="Execution"
           title={label}
@@ -212,7 +209,9 @@ export function ExecutionSectionsView({
                 title="Report"
               >
                 {present.has("report") ? (
-                  <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
+                  <DocumentRetryContext.Provider value={onRetry}>
+                    <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
+                  </DocumentRetryContext.Provider>
                 ) : null}
               </ExecutionSectionCard>
             ) : null}
@@ -242,6 +241,23 @@ export function ExecutionSectionsView({
 }
 
 /* === Private Functions === */
+
+function ExecutionProgress({
+  execution,
+  live,
+  steps,
+}: {
+  execution: TestExecution | null;
+  live: boolean;
+  steps: readonly { status: string }[];
+}) {
+  const running = execution !== null && isActiveExecutionStatus(execution.status);
+  const elapsed = useElapsedSeconds(execution?.started_at, live && running);
+  const duration = execution
+    ? durationText({ duration_s: measuredSeconds(execution), status: running ? "running" : execution.status }, live, elapsed)
+    : "";
+  return [stepProgress(steps), duration].filter(Boolean).join(" · ") || null;
+}
 
 /** What the runtime measured: from start to finish, once the execution ended. */
 function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished_at">): number | null {

@@ -207,6 +207,7 @@ async fn reduce(local: &State, plan: Plan, outputs: &[Output], config: QueryConf
             plan.read.clone(),
             QueryWork::new(config.clone(), operation),
             Population { rows: 0, fields },
+            None,
             move |state, input, contract, work| {
                 let batch = Batch::new(&input, &contract, operation)?;
                 let columns = state.fields.keys().map(|field| batch.column(field)).collect::<Vec<_>>();

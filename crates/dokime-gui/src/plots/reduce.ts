@@ -64,6 +64,26 @@ export function windowIndices(
       for (const index of m4Indices(x, y, from, to, buckets)) picked.add(index);
     }
   }
+  const indices = [...picked].sort((left, right) => left - right);
+  // M4 Chooses Finite Samples; Retain Gap Edges Between Them As Well.
+  for (const y of series) {
+    for (let position = 1; position < indices.length; position += 1) {
+      const before = indices[position - 1];
+      const after = indices[position];
+      if (y[before] == null || y[after] == null) continue;
+      let first = -1;
+      let last = -1;
+      for (let index = before + 1; index < after; index += 1) {
+        if (typeof y[index] === "number" && Number.isFinite(y[index])) continue;
+        if (first < 0) first = index;
+        last = index;
+      }
+      if (first >= 0) {
+        picked.add(first);
+        picked.add(last);
+      }
+    }
+  }
   return [...picked].sort((left, right) => left - right);
 }
 

@@ -56,6 +56,14 @@ pub struct Case {
 
     generation_index: u64,
     label_number: u64,
+    definition_revision: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct Registration {
+    pub(crate) id: String,
+    pub(crate) cases: Vec<String>,
 }
 
 /* === Enums === */
@@ -79,14 +87,28 @@ impl StoredObject for Case {
     }
 }
 
+impl Identified for Registration {
+    fn definition() -> (DefinitionId, u32) {
+        (DefinitionId::new("dokime.object.case_registration"), 1)
+    }
+}
+
+impl StoredObject for Registration {
+    type Key = str;
+    const RETENTION: ObjectRetention = ObjectRetention::Latest;
+
+    fn key(&self) -> &str {
+        &self.id
+    }
+}
+
 impl TryFrom<&TestCase> for Case {
     type Error = Error;
 
     fn try_from(case: &TestCase) -> Result<Self> {
-        if Self::encoding_memory(case)? == usize::MAX {
-            return Err(Error::Invalid("case encoding size overflow"));
+        if case.suite_id.trim().is_empty() {
+            return Err(Error::Invalid("case requires its owning suite registration"));
         }
-
         Ok(Self {
             suite_id: case.suite_id.clone(),
             case_id: case.test_case_id.as_str().to_owned(),
@@ -96,6 +118,7 @@ impl TryFrom<&TestCase> for Case {
             parameters: values::encode(&case.parameters)?,
             generation_index: case.generation_index,
             label_number: case.label_number,
+            definition_revision: String::new(),
         })
     }
 }
@@ -122,43 +145,9 @@ impl TryFrom<Case> for TestCase {
 }
 
 impl Case {
-    pub fn encoding_memory(case: &TestCase) -> Result<usize> {
-        if case.suite_id.trim().is_empty() {
-            return Err(Error::Invalid("case requires its owning suite registration"));
-        }
-        let metadata = metadata::Row::encoding_memory(&case.metadata)?;
-        let suite = case.suite.as_ref().map(metadata::Row::encoding_memory).transpose()?;
-        let parameters = values::encoding_memory(&case.parameters)?;
-        if metadata == usize::MAX || suite == Some(usize::MAX) || parameters == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            case.suite_id.len(),
-            case.test_case_id.as_str().len(),
-            case.test_case_template_id.as_str().len(),
-            metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
-            suite.map_or(0, |bytes| bytes.saturating_sub(std::mem::size_of::<metadata::Row>())),
-            parameters.saturating_sub(std::mem::size_of::<Vec<values::Cell>>()),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("case metadata is missing"))?.projection_memory()?;
-        let suite = self.suite.as_ref().map(metadata::Row::projection_memory).transpose()?.unwrap_or(0);
-        let parameters = values::owned_memory(&self.parameters)?;
-        if [metadata, suite, parameters].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.suite_id.capacity(),
-            self.case_id.capacity(),
-            self.template_id.capacity(),
-            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-            suite.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
-            parameters.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<TestCase>(), usize::saturating_add))
+    #[cfg(feature = "native")]
+    pub(crate) fn capture_revision(&mut self, revision: String) {
+        self.definition_revision = revision;
     }
 }
 
@@ -168,11 +157,20 @@ pub async fn read(storage: &crate::storage::Manager, id: &CaseId) -> Result<Opti
     let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
         return Ok(None);
     };
-    let peak = stored.value.projection_memory()?;
-    if peak == usize::MAX {
-        return Err(Error::Invalid("case projection memory overflows"));
-    }
     Ok(Some(stored.try_map(|stored| stored.value.try_into())?))
+}
+
+#[cfg(feature = "native")]
+pub(crate) async fn read_registered(
+    storage: &crate::storage::Manager, id: &CaseId,
+) -> Result<Option<harmos::storage::ReadBatch<(TestCase, String)>>> {
+    let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
+        return Ok(None);
+    };
+    Ok(Some(stored.try_map(|stored| {
+        let revision = stored.value.definition_revision.clone();
+        Ok::<_, Error>((stored.value.try_into()?, revision))
+    })?))
 }
 
 /* === Private Functions === */

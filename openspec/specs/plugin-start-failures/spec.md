@@ -1,17 +1,17 @@
-# plugin-start-failures Specification
+# Plugin Start Failures Specification
 
 ## Purpose
-Define actionable plugin startup diagnostics that retain root causes and consequences and connect operators to existing settings, retry and secret remediation.
+Define actionable plugin startup diagnostics that retain root causes and consequences and connect operators to existing settings, Reload and secret remediation.
 
 ## Requirements
 
 ### Requirement: Actionable Startup Failure
 
-The plugin startup failure SHALL show root causes using Display or structured fields, retain all diagnostics, summarize dependent unavailable work and offer the existing settings/retry flow.
+The plugin startup failure SHALL show root causes using Display or structured fields, retain all diagnostics, summarize dependent unavailable work and offer the existing settings/Reload flow.
 
 #### Scenario: Missing Secret
 - **WHEN** plugin startup is refused because a secret identifier is unavailable
-- **THEN** the failure carries its structured identity and offers Set Secret opening Secret Storage Add Secret with the identifier prefilled, followed by the existing restart retry
+- **THEN** the failure carries its structured identity and offers Set Secret opening Secret Storage Add Secret with the identifier prefilled, followed by the existing Reload action
 
 #### Scenario: Dependent Work
 - **WHEN** a startup/prepare pass reports missing resources alongside a construction failure

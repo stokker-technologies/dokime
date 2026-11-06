@@ -32,7 +32,10 @@ mod execution_seal_report;
 mod execution_workflow;
 mod numeric_query_parity;
 mod plugin;
+#[cfg(feature = "testing")]
+mod plugin_completion;
 mod plugin_store_leases;
+mod plugins;
 mod query_buckets;
 mod query_running;
 mod query_samples;

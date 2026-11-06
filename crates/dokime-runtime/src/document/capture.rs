@@ -66,6 +66,21 @@ pub struct RepeatInstance {
     pub filter: DocumentFilter,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CardFailure {
+    pub code: String,
+    pub message: String,
+    pub budget: Option<CardBudget>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CardBudget {
+    pub name: String,
+    pub limit: u64,
+    pub reached: u64,
+    pub card_id: String,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -74,11 +89,30 @@ pub enum CardBindingResult {
     Static,
     Summary { groups: Vec<TelemetrySummaryGroupPayload> },
     Plot { descriptor: Box<PlotDescriptor> },
+    Pending,
+    Failed { failure: CardFailure },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl CardFailure {
+    pub(crate) fn document(error: crate::Error) -> Self {
+        let message = error.to_string();
+        let budget = match error {
+            crate::Error::Document(super::DocumentFailure::Budget { budget, limit, reached, card }) => Some(CardBudget {
+                name: budget.into(),
+                limit: limit as u64,
+                reached: reached as u64,
+                card_id: card,
+            }),
+            _ => None,
+        };
+        let code = budget.as_ref().map_or("document_card_failed", |budget| budget.name.as_str()).to_owned();
+        Self { code, message, budget }
+    }
+}
 
 impl SectionBinding {
     pub fn valid_result(&self) -> bool {

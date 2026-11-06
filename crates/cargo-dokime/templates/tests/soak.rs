@@ -14,15 +14,16 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::{Arc, Mutex};
 
 // Third Party Imports
 use dokime::host::ToolConnectionAcquired;
 use dokime::plugin::testing::Harness;
 
 // Local Imports
-use {{crate}}::bench::Sensor;
-use {{crate}}::domain::model::chamber::ChamberReading;
-use {{crate}}::domain::operations::ReadChamber;
+use {{crate}}::operations::chamber::{ChamberReading, ChamberReleased, HeaterIdentity, TargetSet};
+use {{crate}}::operations::soak::EncodedSummary;
+use {{crate}}::operations::{EncodeSummary, OpenHeater, ReadChamber, ReleaseChamber, SetTarget};
 
 /* === Constants === */
 
@@ -42,20 +43,33 @@ use {{crate}}::domain::operations::ReadChamber;
 
 /* === Private Functions === */
 
-fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
-    let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
-    move |_| ChamberReading {
-        celsius: sensor.read_celsius().expect("the simulated sensor reads"),
-        sensor: sensor.describe(),
-    }
+fn bench() -> Harness {
+    let temperature = Arc::new(Mutex::new(22.0));
+    let measured = Arc::clone(&temperature);
+    Harness::template("{{crate}}.soak.hold")
+        .answering::<OpenHeater, _>(|operation| HeaterIdentity {
+            serial: format!("SIM-{}", operation.port),
+            firmware: "sim-1.0".to_owned(),
+        })
+        .answering::<SetTarget, _>(move |operation| {
+            *temperature.lock().unwrap() = operation.celsius;
+            TargetSet {}
+        })
+        .answering::<ReadChamber, _>(move |_| ChamberReading {
+            celsius: *measured.lock().unwrap(),
+            sensor: "simulated sensor".to_owned(),
+        })
+        .answering::<ReleaseChamber, _>(|_| ChamberReleased {})
+        .answering::<EncodeSummary, _>(|operation| EncodedSummary {
+            json: serde_json::to_vec_pretty(&operation.summary).expect("summary data serializes"),
+        })
 }
 
 #[tokio::test]
 async fn soak_holds_band() {
-    let report = Harness::template("{{crate}}.soak.hold")
+    let report = bench()
         .parameter("hold_samples", 3)
         .parameter("attended", true)
-        .answering::<ReadChamber, _>(chamber())
         // The record the step waits for, filed the way the host would file it.
         // The type is the host's own declaration, so the test names no id.
         .publish(ToolConnectionAcquired {
@@ -95,22 +109,30 @@ async fn soak_holds_band() {
 }
 
 #[tokio::test]
-async fn unreachable_target_run() {
-    // An authored failure is evidence, not a harness error: the run happened and
-    // the report says what it learned.
+async fn unavailable_target_operation_run() {
+    // A refused operation ends the step while cleanup can still release the bench.
+    let released = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let observed = Arc::clone(&released);
     let report = Harness::template("{{crate}}.soak.hold")
-        .parameter("target_c", 900.0)
-        .answering::<ReadChamber, _>(chamber())
+        .answering::<OpenHeater, _>(|_| HeaterIdentity {
+            serial: "SIM-1".into(),
+            firmware: "sim-1.0".into(),
+        })
+        .answering::<ReadChamber, _>(|_| ChamberReading {
+            celsius: 22.0,
+            sensor: "simulated sensor".into(),
+        })
+        .answering::<ReleaseChamber, _>(move |_| {
+            released.store(true, std::sync::atomic::Ordering::Release);
+            ChamberReleased {}
+        })
         .run::<{{crate}}::suites::Suites>()
         .await
         .expect("the run reaches a terminal outcome");
 
     assert!(!report.passed());
-    let diagnostics = report.diagnostics();
-    assert!(
-        diagnostics.contains("step `reach`") && diagnostics.contains("the chamber cannot hold"),
-        "the reach step failed with the bench's own refusal as the cause: {diagnostics}"
-    );
+    assert!(report.diagnostics().contains("step `reach`"));
+    assert!(observed.load(std::sync::atomic::Ordering::Acquire), "cleanup releases the chamber after a refused call");
 }
 
 /* === Tests === */

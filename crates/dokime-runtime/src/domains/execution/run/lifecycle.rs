@@ -100,6 +100,8 @@ impl ExecutionCleanup {
         }
 
         if self.stage == CleanupStage::Publications {
+            // Captures Keep Their Original Scope Through Final Rows And Markers.
+            context.runtime.execution_storage.captures.close(&self.execution.test_execution_id).await;
             #[cfg(feature = "testing")]
             super::testing::record(&self.execution.test_execution_id, "publications");
             let publication_started = Instant::now();
@@ -129,6 +131,8 @@ impl ExecutionCleanup {
             self.stage = CleanupStage::Capture;
         }
         if self.stage == CleanupStage::Capture {
+            #[cfg(feature = "testing")]
+            super::testing::before_stream_drain(&self.execution.test_execution_id).await;
             #[cfg(feature = "testing")]
             super::testing::record(&self.execution.test_execution_id, "capture_leases");
             self.capture.release(context).await?;

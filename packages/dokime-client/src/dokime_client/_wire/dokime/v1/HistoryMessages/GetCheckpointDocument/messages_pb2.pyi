@@ -799,16 +799,18 @@ class Row75(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row123, _Mapping]] = ..., Count: _Optional[_Union[Row124, _Mapping]] = ..., Distance: _Optional[_Union[Row125, _Mapping]] = ..., Duration: _Optional[_Union[Row126, _Mapping]] = ..., Frequency: _Optional[_Union[Row127, _Mapping]] = ..., Power: _Optional[_Union[Row128, _Mapping]] = ..., Temperature: _Optional[_Union[Row129, _Mapping]] = ..., Voltage: _Optional[_Union[Row130, _Mapping]] = ..., Ratio: _Optional[_Union[Row131, _Mapping]] = ..., Custom: _Optional[_Union[Row132, _Mapping]] = ...) -> None: ...
 
 class Row76(_message.Message):
-    __slots__ = ("process_epoch", "state_revision", "telemetry", "artifacts_sha256")
+    __slots__ = ("process_epoch", "state_revision", "telemetry", "artifacts_sha256", "evidence")
     PROCESS_EPOCH_FIELD_NUMBER: _ClassVar[int]
     STATE_REVISION_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     ARTIFACTS_SHA256_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     process_epoch: str
     state_revision: int
     telemetry: Row133
     artifacts_sha256: str
-    def __init__(self, process_epoch: _Optional[str] = ..., state_revision: _Optional[int] = ..., telemetry: _Optional[_Union[Row133, _Mapping]] = ..., artifacts_sha256: _Optional[str] = ...) -> None: ...
+    evidence: Row133
+    def __init__(self, process_epoch: _Optional[str] = ..., state_revision: _Optional[int] = ..., telemetry: _Optional[_Union[Row133, _Mapping]] = ..., artifacts_sha256: _Optional[str] = ..., evidence: _Optional[_Union[Row133, _Mapping]] = ...) -> None: ...
 
 class Row77(_message.Message):
     __slots__ = ("Section", "Placement")

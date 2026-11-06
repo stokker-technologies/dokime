@@ -122,6 +122,7 @@ impl RuntimeHandle {
                 plan.read,
                 QueryWork::new(config.clone(), operation),
                 Buckets::default(),
+                None,
                 move |state, input, contract, work| {
                     let batch = Batch::new(&input, &contract, operation)?;
                     let columns = selection.schema().fields.iter().map(|field| batch.column(&field.id)).collect::<Vec<_>>();

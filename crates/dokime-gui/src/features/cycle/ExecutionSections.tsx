@@ -171,7 +171,7 @@ export function ExecutionSections({
       surface={surface}
       pane={pane}
       plotWindow={plotWindow}
-      onRetry={() => void documentQuery.refetch()}
+      onRetry={(cardId) => void documentQuery.retryCard(cardId)}
       documentView={DocumentView}
       control={actions ? <ExecutionControl actions={actions} ordinal={row.ordinal} /> : null}
       promptQueue={live ? <PromptQueue prompts={pagePrompts} records={surface.view.records} steps={surface.view.stepRecords} /> : undefined}

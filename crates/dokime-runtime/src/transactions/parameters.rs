@@ -73,38 +73,25 @@ impl Transaction<RuntimeState> for UpsertScopedParameter {
     }
 
     fn apply(&self, state: &mut RuntimeState) {
-        apply_upsert_scoped_parameter(state, self.clone());
+        let Some(parameters) = scoped_parameters_mut(state, &self.scope) else {
+            return;
+        };
+        parameters.insert(
+            self.key.clone(),
+            MaterializedParameter {
+                metadata: self.metadata.clone().unwrap_or_else(|| synthetic_metadata(&self.key)),
+                group_id: self.group_id.clone(),
+                source: self.source.clone(),
+                value: self.value.clone(),
+                unit: self.unit.clone(),
+            },
+        );
     }
 }
 
 /* === Public Functions === */
 
-pub fn apply_upsert_scoped_parameter(state: &mut RuntimeState, update: UpsertScopedParameter) -> bool {
-    let Some(parameters) = scoped_parameters_mut(state, &update.scope) else {
-        return false;
-    };
-    let metadata = update.metadata.unwrap_or_else(|| synthetic_metadata(&update.key));
-    upsert_parameter(parameters, &update.key, update.value, update.source, metadata, update.group_id, update.unit)
-}
-
 /* === Private Functions === */
-
-fn upsert_parameter(
-    parameters: &mut BTreeMap<String, MaterializedParameter>, key: &str, value: Value, source: ParameterSource, metadata: Metadata,
-    group_id: Option<Identifier>, unit: Option<MeasurementUnit>,
-) -> bool {
-    if let Some(existing) = parameters.get_mut(key) {
-        let changed = existing.source != source
-            || existing.value != value
-            || existing.metadata != metadata
-            || existing.group_id != group_id
-            || existing.unit != unit;
-        *existing = MaterializedParameter { metadata, group_id, source, value, unit };
-        return changed;
-    }
-    parameters.insert(key.to_owned(), MaterializedParameter { metadata, group_id, source, value, unit });
-    true
-}
 
 fn scoped_parameters_mut<'a>(state: &'a mut RuntimeState, scope: &RecordScope) -> Option<&'a mut BTreeMap<String, MaterializedParameter>> {
     if let Some(test_execution_id) = scope.test_execution_id.as_ref() {

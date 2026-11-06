@@ -47,6 +47,11 @@ use dokime_domain::model::{
 
 /* === Structs === */
 
+pub(crate) struct QueryProjection {
+    pub metadata: Vec<&'static str>,
+    pub decoded_bytes: usize,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -55,7 +60,7 @@ use dokime_domain::model::{
 
 impl State {
     pub(crate) async fn query_native_batches<T: Send + 'static>(
-        &self, read: QueryRead, mut work: QueryWork, mut output: T,
+        &self, read: QueryRead, mut work: QueryWork, mut output: T, projection: Option<QueryProjection>,
         mut consume: impl FnMut(&mut T, RecordBatch, TelemetryContract, &QueryWork) -> Result<(), Box<Failure>> + Send + 'static,
     ) -> Result<(T, QueryWork), Box<Failure>> {
         let operation = work.operation;
@@ -69,7 +74,9 @@ impl State {
                     {
                         return Err(Failure::new(Reason::SnapshotUnavailable, operation, "The exact query cut is unavailable"));
                     }
-                    scan(connection, &root, &read, &mut work, &mut |batch, contract, work| consume(&mut output, batch, contract, work))?;
+                    scan(connection, &root, &read, &mut work, projection.as_ref(), &mut |batch, contract, work| {
+                        consume(&mut output, batch, contract, work)
+                    })?;
                     work.check()?;
                     Ok((output, work))
                 })())
@@ -86,7 +93,7 @@ impl State {
 /* === Private Functions === */
 
 fn scan(
-    connection: &Connection, root: &Path, read: &QueryRead, work: &mut QueryWork,
+    connection: &Connection, root: &Path, read: &QueryRead, work: &mut QueryWork, projection: Option<&QueryProjection>,
     consume: &mut impl FnMut(RecordBatch, TelemetryContract, &QueryWork) -> Result<(), Box<Failure>>,
 ) -> Result<(), Box<Failure>> {
     let operation = work.operation;
@@ -137,14 +144,11 @@ fn scan(
         work.charge(index.rows, index.body_bytes.saturating_add(u64::from(index.metadata_bytes)))?;
         let batch = (|| -> StorageResult<_> {
             let schema = ipc::contract_schema(&contract, execution.as_deref())?;
-            let metadata = ["position", "timestamp", "source", "sample_id", "received_at"];
-            let projection = ipc::Projection::new(schema, &metadata, &read.fields)?;
-            ipc::read_query_batch(
-                &root.join(format!("telemetry/{id}.arrow")),
-                &index,
-                &projection,
-                work.config.limits().working_bytes as usize / 2,
-            )
+            let metadata = projection
+                .map_or(&["position", "timestamp", "source", "sample_id", "received_at"][..], |projection| projection.metadata.as_slice());
+            let maximum = projection.map_or(work.config.limits().working_bytes as usize / 2, |projection| projection.decoded_bytes);
+            let projection = ipc::Projection::new(schema, metadata, &read.fields)?;
+            ipc::read_query_batch(&root.join(format!("telemetry/{id}.arrow")), &index, &projection, maximum)
         })()
         .map_err(|e| storage_error(e, operation))?;
         // Capture Ranges Are Bounded By The Admitted Batch, Never By History Length.

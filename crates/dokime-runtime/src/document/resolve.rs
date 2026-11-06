@@ -56,6 +56,8 @@ const VALUE_PLACEHOLDER: &str = "{value}";
 /* === Structs === */
 
 struct DocumentMaterializer<'a> {
+    limits: DocumentLimits,
+    expanded_nodes: usize,
     unavailable_reason_bytes: usize,
     capture: Option<&'a mut CaptureBindings>,
     artifact_lists: &'a mut Vec<ArtifactListDescriptor>,
@@ -70,6 +72,7 @@ struct DocumentMaterializer<'a> {
     selection: &'a crate::document::input::DocumentSelection,
     evidence: Evidence<'a>,
     repeats: Option<&'a RepeatValues>,
+    summary_queries: Option<&'a mut Vec<DocumentCardDefinition>>,
 }
 
 /// The distinct values each repeated section expands over, resolved ahead of a
@@ -111,11 +114,26 @@ struct CaptureBindings {
 /* === Implementations === */
 
 impl DocumentMaterializer<'_> {
+    fn charge_node(&mut self, card: &Identifier) -> Result<()> {
+        self.expanded_nodes = self.expanded_nodes.saturating_add(1);
+        if self.expanded_nodes > self.limits.expanded_nodes {
+            return Err(DocumentFailure::Budget {
+                budget: "expanded_nodes",
+                limit: self.limits.expanded_nodes,
+                reached: self.expanded_nodes,
+                card: card.to_string(),
+            }
+            .into());
+        }
+        Ok(())
+    }
+
     fn capture_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<bool> {
         let mut present = false;
         for node in nodes {
             match node {
                 DocumentNode::Card(placement) => {
+                    self.charge_node(&placement.card_id)?;
                     self.ensure_card_payload(&placement.card_id)?;
                     present = true;
                 }
@@ -146,6 +164,7 @@ impl DocumentMaterializer<'_> {
                         if !self.capture_nodes(section.children)? {
                             continue;
                         }
+                        self.charge_node(&section.node_id)?;
                         let capture = self.capture.as_mut().expect("capture assembly is active");
                         if capture
                             .sections
@@ -187,12 +206,15 @@ impl DocumentMaterializer<'_> {
             DocumentNode::Section(section) => {
                 let sections = self.expanded_section_nodes(*section);
                 for section in sections {
+                    let id = section.node_id.clone();
                     if let Some(section) = self.materialize_section_node(section)? {
+                        self.charge_node(&id)?;
                         push_exact(output, section)?;
                     }
                 }
             }
             DocumentNode::Card(placement) => {
+                self.charge_node(&placement.card_id)?;
                 if let Some(card) = self.materialize_card_placement(placement)? {
                     push_exact(output, card)?;
                 }
@@ -230,17 +252,30 @@ impl DocumentMaterializer<'_> {
         }
         if let Some(capture) = self.capture.as_mut() {
             let card = self.card_definitions.get(card_id).expect("declared card exists");
-            let result = match &card.body {
-                DocumentCardBody::TelemetrySummary { summary } => CardBindingResult::Summary {
-                    groups: telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?,
-                },
-                DocumentCardBody::Plot { plot } => {
-                    let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
-                    CardBindingResult::Plot {
-                        descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
-                    }
+            let sized = super::bounded::card_size(card, self.limits.materialized_bytes, self.limits.depth, card_id.as_str());
+            let result = if let Err(error) = sized {
+                CardBindingResult::Failed {
+                    failure: super::capture::CardFailure::document(error),
                 }
-                _ => CardBindingResult::Static,
+            } else {
+                match &card.body {
+                    DocumentCardBody::TelemetrySummary { summary } => {
+                        if let Some(queries) = self.summary_queries.as_mut() {
+                            queries.push(card.clone());
+                            CardBindingResult::Pending
+                        } else {
+                            let groups = telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?;
+                            CardBindingResult::Summary { groups }
+                        }
+                    }
+                    DocumentCardBody::Plot { plot } => {
+                        let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
+                        CardBindingResult::Plot {
+                            descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
+                        }
+                    }
+                    _ => CardBindingResult::Static,
+                }
             };
             let source_id = capture.source_ids.get(card_id).expect("captured card source exists").clone();
             let binding = CardBinding {
@@ -442,11 +477,6 @@ impl RepeatValues {
     fn get(&self, repeat: &DocumentSectionRepeat) -> Option<&[Value]> {
         self.0.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
     }
-
-    /// The most instances any one repeat expands into.
-    pub(crate) fn instances(&self) -> usize {
-        self.0.iter().map(|(_, values)| values.len()).max().unwrap_or(0)
-    }
 }
 
 impl RepeatScan {
@@ -591,6 +621,13 @@ pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> 
 }
 
 pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>) -> Result<Capture> {
+    capture_with_queries(input, limits, repeats, None)
+}
+
+pub(crate) fn capture_with_queries(
+    input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>,
+    summary_queries: Option<&mut Vec<DocumentCardDefinition>>,
+) -> Result<Capture> {
     let (mut cards, layout) = input.definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
@@ -618,6 +655,8 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits,
     let mut plot_descriptors = Vec::new();
     let mut plot_inputs = Vec::new();
     let mut materializer = DocumentMaterializer {
+        limits,
+        expanded_nodes: 0,
         unavailable_reason_bytes: limits.unavailable_reason_bytes,
         capture: Some(&mut capture),
         artifact_lists: &mut artifact_lists,
@@ -638,6 +677,7 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits,
             selection: Some(input.selection),
         },
         repeats,
+        summary_queries,
     };
     materializer.capture_nodes(definition.layout.nodes.clone())?;
     if capture.identity_collision {
@@ -717,6 +757,8 @@ pub(crate) fn resolve_normalized(
     let mut artifact_lists = Vec::new();
     let (cards, layout) = {
         let mut materializer = DocumentMaterializer {
+            limits,
+            expanded_nodes: 0,
             unavailable_reason_bytes: limits.unavailable_reason_bytes,
             capture: None,
             artifact_lists: &mut artifact_lists,
@@ -737,6 +779,7 @@ pub(crate) fn resolve_normalized(
                 selection: Some(&selection),
             },
             repeats: None,
+            summary_queries: None,
         };
         let layout = materializer.materialize_layout(layout_definition)?;
         (materializer.card_payloads, layout)
@@ -835,7 +878,7 @@ fn telemetry_summary_payload(
     Ok(groups)
 }
 
-fn telemetry_summary_tile_payload(
+pub(super) fn telemetry_summary_tile_payload(
     tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
 ) -> Result<TelemetrySummaryTilePayload> {
     let result = (|| {
@@ -851,8 +894,14 @@ fn telemetry_summary_tile_payload(
         Ok(value) => (value, None),
         Err(error) => (None, Some(unavailable_reason(error, unavailable_reason_bytes)?)),
     };
+    Ok(summary_tile_value(tile, value, unavailable))
+}
+
+pub(super) fn summary_tile_value(
+    tile: &TelemetrySummaryTileDefinition, value: Option<Value>, unavailable: Option<String>,
+) -> TelemetrySummaryTilePayload {
     let state = value.as_ref().and_then(|value| matching_summary_state(value, &tile.conditions));
-    Ok(TelemetrySummaryTilePayload {
+    TelemetrySummaryTilePayload {
         metadata: tile.metadata.clone(),
         value,
         unavailable,
@@ -861,7 +910,7 @@ fn telemetry_summary_tile_payload(
         presentation: tile.presentation.clone(),
         unit: tile.unit.clone(),
         state,
-    })
+    }
 }
 
 fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<String> {
@@ -884,7 +933,9 @@ pub(crate) fn matching_summary_state(
         .map(|condition| condition.state.clone())
 }
 
-fn row_matches_filters<'a>(row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>) -> bool {
+pub(super) fn row_matches_filters<'a>(
+    row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>,
+) -> bool {
     if let Row::Context(context) = row
         && filters.clone().any(|filter| row.needs_sample(&filter.expression))
     {
@@ -903,7 +954,7 @@ fn row_matches_filters<'a>(row: Row<'_>, filters: impl Iterator<Item = &'a Docum
     })
 }
 
-fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
+pub(super) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
     match operator {
         FilterOperator::Exists => actual.is_some_and(traceable_value),
         FilterOperator::Eq => expected.is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),

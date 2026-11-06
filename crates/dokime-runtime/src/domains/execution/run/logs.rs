@@ -52,7 +52,6 @@ struct StreamLogWriter<'a> {
     capacity: usize,
     buffer: Option<Vec<u8>>,
     log: &'a mut StreamLog,
-    workflow: &'a str,
 }
 
 /* === Enums === */
@@ -78,8 +77,7 @@ impl DropReason {
 
 impl StreamLog {
     pub(super) async fn append(
-        &mut self, context: &ExecutionFixtureContext, execution: &TestExecution, workflow: &str, source: &str,
-        entries: &[crate::execution::log::Entry],
+        &mut self, context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, entries: &[crate::execution::log::Entry],
     ) {
         if entries.is_empty() {
             return;
@@ -118,7 +116,7 @@ impl StreamLog {
             return;
         }
         let persisted = async {
-            let mut writer = StreamLogWriter::new(context, execution, workflow, self)?;
+            let mut writer = StreamLogWriter::new(context, execution, self)?;
             writer.storage.reserve_output(writer.execution, &writer.path).await?;
             for entry in entries {
                 writer.entry(entry).await?;
@@ -140,13 +138,11 @@ impl StreamLog {
 }
 
 impl<'a> StreamLogWriter<'a> {
-    fn new(
-        context: &'a ExecutionFixtureContext, execution: &'a TestExecution, workflow: &'a str, log: &'a mut StreamLog,
-    ) -> crate::runtime::Result<Self> {
+    fn new(context: &'a ExecutionFixtureContext, execution: &'a TestExecution, log: &'a mut StreamLog) -> crate::runtime::Result<Self> {
         let storage = &context.runtime.execution_storage;
         let capacity = 64 * 1024;
 
-        let path = segment_path(workflow, log.segment);
+        let path = segment_path(log.segment);
         Ok(Self {
             storage,
             execution: &execution.test_execution_id,
@@ -154,7 +150,6 @@ impl<'a> StreamLogWriter<'a> {
             capacity,
             buffer: None,
             log,
-            workflow,
         })
     }
 
@@ -296,10 +291,10 @@ impl<'a> StreamLogWriter<'a> {
         while offset < bytes.len() {
             if self.log.segment_bytes == SEGMENT_BYTES {
                 self.storage.close_output(self.execution, &self.path, false).await?;
-                self.log.segment = self.log.segment.checked_add(1).ok_or_else(|| log_error("log segment identity exhausted"))?;
+                let next = self.log.segment.checked_add(1).ok_or_else(|| log_error("log segment identity exhausted"))?;
+                self.log.segment = self.storage.reserve_execution_log_segment(self.execution, next).await?;
                 self.log.segment_bytes = 0;
-                self.path = segment_path(self.workflow, self.log.segment);
-                self.storage.reserve_output(self.execution, &self.path).await?;
+                self.path = segment_path(self.log.segment);
             }
             let count = (SEGMENT_BYTES - self.log.segment_bytes).min((bytes.len() - offset) as u64) as usize;
             let page = bytes[offset..offset + count].to_vec();
@@ -316,8 +311,8 @@ impl<'a> StreamLogWriter<'a> {
 /* === Public Functions === */
 
 pub(super) async fn report_dropped(
-    context: &ExecutionFixtureContext, execution: &TestExecution, workflow: &str, source: &str, stream_log: &mut StreamLog,
-    dropped: &[DiscardedArtifact], reason: DropReason,
+    context: &ExecutionFixtureContext, execution: &TestExecution, source: &str, stream_log: &mut StreamLog, dropped: &[DiscardedArtifact],
+    reason: DropReason,
 ) {
     if dropped.is_empty() {
         return;
@@ -336,7 +331,7 @@ pub(super) async fn report_dropped(
         return;
     }
     let persisted = async {
-        let mut writer = StreamLogWriter::new(context, execution, workflow, stream_log)?;
+        let mut writer = StreamLogWriter::new(context, execution, stream_log)?;
         writer.storage.reserve_output(writer.execution, &writer.path).await?;
         for artifact in dropped {
             writer.artifact(artifact, reason).await?;
@@ -352,8 +347,13 @@ pub(super) async fn report_dropped(
 
 /* === Private Functions === */
 
-fn segment_path(workflow: &str, segment: u32) -> String {
-    format!("{workflow}/stream.{segment:06}.log")
+fn segment_path(segment: u32) -> String {
+    let name = if segment == 0 {
+        "execution.log".to_owned()
+    } else {
+        crate::artifacts::name::collision_name("execution.log", u64::from(segment) + 1)
+    };
+    format!("artifacts/{name}")
 }
 
 fn log_error(error: impl ToString) -> crate::runtime::Error {
@@ -361,3 +361,60 @@ fn log_error(error: impl ToString) -> crate::runtime::Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn execution_log_names_rollover_and_capture_limit() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../report/fixtures/execution-report-input.json")).unwrap();
+        let mut cycle: dokime_domain::model::execution::result::CycleView =
+            serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
+        cycle.test_executions[0].saved = None;
+        let execution = &cycle.test_executions[0];
+        let root = tempfile::tempdir().unwrap();
+        let mut owner = crate::Runtime::start(crate::RuntimeConfig::new(root.path(), cycle.metadata.clone())).await.unwrap();
+        let runtime = owner.handle();
+        let storage = &runtime.execution_storage;
+        storage.acquire(&cycle, execution).await.unwrap();
+        let id = &execution.test_execution_id;
+        let path = segment_path(0);
+        storage.reserve_output(id, &path).await.unwrap();
+        let mut log = StreamLog {
+            segment_bytes: SEGMENT_BYTES - 1,
+            total_bytes: SEGMENT_BYTES - 1,
+            ..Default::default()
+        };
+        let mut writer = StreamLogWriter {
+            storage,
+            execution: id,
+            path,
+            capacity: 4,
+            buffer: Some(vec![1, 2, 3]),
+            log: &mut log,
+        };
+        writer.flush().await.unwrap();
+        let entries = storage.native_entries(id).await.unwrap();
+        assert!(entries.iter().any(|entry| entry.relative_path == "artifacts/execution.log" && entry.size_bytes == 1));
+        assert_eq!(writer.path, "artifacts/execution.2.log");
+        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 2);
+        assert_eq!(writer.log.segment_bytes, 2);
+        storage.native_target(id.clone(), "artifacts/execution.3.log".into(), true, false).await.unwrap();
+        writer.log.segment_bytes = SEGMENT_BYTES;
+        writer.buffer = Some(vec![4]);
+        writer.flush().await.unwrap();
+        assert_eq!(writer.path, "artifacts/execution.4.log");
+        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 1);
+        writer.log.total_bytes = EXECUTION_BYTES - 1;
+        writer.buffer = Some(vec![5]);
+        writer.flush().await.unwrap();
+        writer.buffer = Some(vec![6]);
+        assert!(writer.flush().await.is_err());
+        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 2);
+        drop(writer);
+        drop(runtime);
+        owner.shutdown().await.unwrap();
+    }
+}

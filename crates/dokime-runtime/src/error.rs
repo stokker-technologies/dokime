@@ -56,7 +56,7 @@ pub enum Error {
     #[error("secret {0:?} is not declared in this context")]
     UnknownSecret(String),
 
-    #[error("secret `{0}` is not in Secret Storage; add it and retry the plugin")]
+    #[error("secret `{0}` is not in Secret Storage; add it and reload the plugin")]
     UnavailableSecret(String),
 
     #[error("parameter {name:?}: {reason}")]

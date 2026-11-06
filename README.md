@@ -166,7 +166,7 @@ retains the complete setup and runnable lifecycle examples.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `ea6c9fd8d0bbc8560f23e5d6ca6af2ac3225e370`)
+(currently pinned to revision `1d4f4bcdcc3301fa6c6f2086515a7edba710f514`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -241,7 +241,7 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots containing earlier telemetry layouts, plugin identities,
+Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
 token identities, indexed record producer scopes, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
@@ -267,7 +267,9 @@ and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
 Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
 for packaging, inspection and installation.
 
-Live plots combine saved telemetry batches with the unflushed in-memory tail. The time-range slider filters storage queries:
+Timed live plots combine saved telemetry batches with the bounded, unflushed admission tail,
+independently of the save interval. Finite queries, All refreshes and frozen reports use saved data.
+The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 
@@ -280,6 +282,11 @@ and All for every plot in the view. Timed windows refresh automatically; All loa
 once and refreshes only when Refresh is pressed. Reports always cover all captured samples.
 All delivers each plot independently from bounded report previews, so one plot's
 failure leaves the others available. Markers follow the display point budget.
+
+Live summary tiles fold finite saved-evidence queries with bounded memory. Document
+capture no longer rejects estimated work based on retained source-row count.
+The page shows its structure first, then each data card loads and refreshes
+independently. A failed card leaves the others available.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

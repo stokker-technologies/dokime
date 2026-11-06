@@ -160,6 +160,39 @@ rechecks the cut and releases its reader transaction. Later arrivals are exclude
 by the physical frontier even when their timestamps fall inside the window.
 Captured contracts include retained Arrow versions from the selected execution or cycle, within the schema budget. For streams already present in that scope, persisted Arrow contracts take precedence over the mutable active catalog; a newer plugin version in another scope cannot enlarge an older execution’s schema. Conflicting contracts that reuse one version fail explicitly. Sparse raw scans advance through bounded durable-position spans and can return empty continuation pages after excluded rows.
 
+## Document Bindings
+
+Live document summaries use finite storage queries at their captured saved boundary.
+Compatible unfiltered telemetry statistics reuse the numeric index, including an
+exact median rank query. Integer index answers require lossless bounds; otherwise
+folds consume bounded typed pages and exact order statistics spill scratch.
+Record bindings seek execution-owned record pages and preserve subscribed capture
+scope. The document structure is authored metadata, with no row-based evaluation
+estimate or document source-row ceiling. Encoded output and actual expansion have
+presentation budgets independently of raw evidence retention.
+
+The capture operation supports metadata and selected-binding projections:
+
+```rust
+use dokime_operations::documents::CaptureCurrentDocument;
+
+let structure = CaptureCurrentDocument {
+    scope: Some(scope.clone()), document_id: document_id.clone(),
+    structure_only: true, card_ids: Vec::new(),
+};
+let card = CaptureCurrentDocument {
+    scope: Some(scope), document_id,
+    structure_only: false, card_ids: vec![card_id],
+};
+```
+
+StructureComplete commits declarations and pending identities before evidence is
+queried. EvidenceCut supplies the saved boundary; ArtifactCut supplies a separate
+artifact-input fingerprint when needed. CardComplete commits one complete binding.
+Completion and clean EOF validate the requested projection; a partial projection
+may leave unrequested bindings pending. Requests stay owned by their backend
+session, with cancellation releasing readers and exact-rank scratch.
+
 ## Exact Sample Statistics
 
 `runtime/query/statistics.rs` shares the durable numeric moments accumulator

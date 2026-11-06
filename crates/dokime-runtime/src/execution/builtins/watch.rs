@@ -55,6 +55,7 @@ const CANCELLED: &str = "the file watch was cancelled; it sealed what it capture
 /* === Structs === */
 
 struct Tail {
+    writer: Option<crate::artifacts::ArtifactWriter>,
     path: PathBuf,
     relative: String,
     directory: bool,
@@ -135,6 +136,7 @@ impl Capture {
                 self.tails.insert(
                     path.clone(),
                     Tail {
+                        writer: None,
                         path: self.root.join(&path),
                         relative: path.clone(),
                         directory: self.request.recursive || !self.request.rules.is_empty(),
@@ -144,7 +146,7 @@ impl Capture {
                         written: 0,
                         spool: tempfile::NamedTempFile::new().map_err(|error| error.to_string())?,
                         active: true,
-                        sealable: self.request.policy == FileWatchPolicy::Stream,
+                        sealable: self.request.policy == FileWatchPolicy::Stream && !first,
                         segment: *segment,
                         mirror: self.request.policy != FileWatchPolicy::Stream,
                         modified: None,
@@ -236,7 +238,11 @@ impl Tail {
             self.captured = retained;
         }
         self.modified = metadata.modified().ok();
-        self.sealable = true;
+        self.sealable |= self.mirror;
+        if self.sealable && !self.mirror && self.writer.is_none() {
+            self.writer = Some(binding.artifacts.create(&self.artifact).map_err(|error| error.to_string())?);
+            self.artifact = self.writer.as_ref().expect("stream writer created").name().to_owned();
+        }
         if length == self.offset {
             return Ok(());
         }
@@ -256,7 +262,15 @@ impl Tail {
             self.offset += count as u64;
             self.written += count as u64;
             self.captured += count as u64;
+            self.sealable = true;
             if !self.mirror {
+                if self.writer.is_none() {
+                    self.writer = Some(binding.artifacts.create(&self.artifact).map_err(|error| error.to_string())?);
+                    self.artifact = self.writer.as_ref().expect("stream writer created").name().to_owned();
+                }
+                let writer = self.writer.as_mut().expect("stream writer created");
+                writer.write_all(&bytes[..count]).map_err(|error| error.to_string())?;
+                writer.flush().map_err(|error| error.to_string())?;
                 let lines = self.lines.push(&bytes[..count]);
                 publish(binding, &self.matchers, lines).await;
             }
@@ -273,15 +287,24 @@ impl Tail {
     }
 
     async fn seal(&mut self, binding: &Binding) -> Result<(), String> {
-        if !self.active || !self.sealable {
+        if !self.active {
+            return Ok(());
+        }
+        if !self.sealable {
+            self.active = false;
             return Ok(());
         }
         let last = self.lines.finish();
         publish(binding, &self.matchers, last).await;
         self.spool.flush().map_err(|error| error.to_string())?;
-        if self.directory {
+        if let Some(writer) = self.writer.take() {
+            writer.finish().map_err(|error| error.to_string())?;
+        } else if self.directory {
             let mime = crate::execution_runtime::outputs::media_type_for_path(&self.relative).unwrap_or("application/octet-stream");
-            binding.artifacts.import_with_mime(self.spool.path(), &self.artifact, mime.to_owned()).map_err(|error| error.to_string())?;
+            self.artifact = binding
+                .artifacts
+                .import_with_mime(self.spool.path(), &self.artifact, mime.to_owned())
+                .map_err(|error| error.to_string())?;
         } else {
             binding.artifacts.import(self.spool.path(), &self.artifact).map_err(|error| error.to_string())?;
         }

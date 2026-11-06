@@ -173,10 +173,7 @@ pub struct Probes {
     pub minimum_scan_interval_s: u32,
 }
 
-#[dokime::section(
-    label = "Probe Timing",
-    description = "Native probe bounds within the SDK's fixed operation deadlines. Changes apply on restart or Retry."
-)]
+#[dokime::section(label = "Probe Timing", description = "Native probe bounds within the SDK's fixed operation deadlines.")]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Timing {
     #[setting(label = "Network Probe Timeout [ms]", default = NETWORK_BUDGET_MS, min = 1, max = 2_000,

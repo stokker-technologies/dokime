@@ -70,6 +70,7 @@ pub(super) struct HostLog {
     records: std::sync::Mutex<Vec<(String, RecordPublishRequest)>>,
     filed: tokio::sync::Notify,
     evidence: std::sync::Mutex<Vec<EvidenceBatch>>,
+    pub(super) watch_runtime: std::sync::Mutex<Option<dokime_runtime::RuntimeHandle>>,
 }
 
 // The host side of the operations a suite plugin calls back into: it files
@@ -193,6 +194,14 @@ impl<A: Attach> Native<A> {
             lifecycle: host,
             retired: false,
         }
+    }
+
+    pub(super) async fn reload(&mut self, configuration: Vec<u8>) {
+        let mut definitions: Vec<_> = self.plugins.definitions().cloned().collect();
+        assert_eq!(definitions.len(), 1);
+        definitions[0].configuration = configuration;
+        let rebuilt: Vec<_> = definitions.iter().map(|definition| definition.id.clone()).collect();
+        self.plugins.reload(PluginDefinitions::new(definitions, rebuilt).unwrap(), &mut self.lifecycle).await.unwrap();
     }
 
     pub(super) async fn retire(&mut self) {
@@ -394,16 +403,34 @@ impl Serve<LeaseAsk> for Hosting {
 }
 
 impl Serve<WatchFile> for Hosting {
-    fn serve<'a>(&'a self, _: WatchFile, _: harmos::Context<'a, WatchFile>) -> Served<'a, model::files::wire::WatchFileOutcome> {
-        Box::pin(async { Err(Status::failed_precondition("the fixture host watches no files")) })
+    fn serve<'a>(&'a self, request: WatchFile, ctx: harmos::Context<'a, WatchFile>) -> Served<'a, model::files::wire::WatchFileOutcome> {
+        Box::pin(async move {
+            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no watch runtime"))?;
+            let operations = runtime.operations().with_context(ctx.call().clone());
+            let mut instance = operations.submit::<WatchFile>(request).map_err(|error| Status::internal(error.to_string()))?;
+            tokio::select! {
+                result = &mut instance => return result.map(|response| response.into_owned().into()).map_err(|error| Status::internal(error.to_string())),
+                () = ctx.cancelled() => instance.request_cancel(),
+            }
+            instance.await.map(|response| response.into_owned().into()).map_err(|error| Status::internal(error.to_string()))
+        })
     }
 }
 
 impl Serve<AwaitFileWatchArmed> for Hosting {
     fn serve<'a>(
-        &'a self, _: AwaitFileWatchArmed, _: harmos::Context<'a, AwaitFileWatchArmed>,
+        &'a self, request: AwaitFileWatchArmed, ctx: harmos::Context<'a, AwaitFileWatchArmed>,
     ) -> Served<'a, model::files::wire::FileWatchArmed> {
-        Box::pin(async { Err(Status::failed_precondition("the fixture host watches no files")) })
+        Box::pin(async move {
+            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no watch runtime"))?;
+            let result = runtime
+                .operations()
+                .with_context(ctx.call().clone())
+                .call::<AwaitFileWatchArmed>(request)
+                .await
+                .map_err(|error| Status::internal(error.to_string()))?;
+            Ok(result.into_owned().into())
+        })
     }
 }
 

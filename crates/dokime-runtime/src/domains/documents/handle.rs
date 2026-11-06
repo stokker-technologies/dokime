@@ -25,8 +25,8 @@ use crate::document::{DocumentPayload, DocumentSelection};
 use crate::handle::RuntimeHandle;
 use crate::{
     execution_runtime::{
-        authoring::{ExecutionFileTarget, FileRegexMatch},
-        outputs::{ExecutionFileContent, ExecutionFileEntry, regex_matches, validate_relative_path},
+        authoring::ExecutionFileTarget,
+        outputs::{ExecutionFileContent, ExecutionFileEntry, validate_relative_path},
     },
     runtime::Result,
 };
@@ -117,7 +117,8 @@ impl RuntimeHandle {
             });
         };
         super::normalize_execution_selection(execution, &mut selection.scope);
-        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, Some(Default::default())).await?;
+        let at = self.saved_through(snapshot.revision()).await?;
+        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, at).await?;
         Ok(super::RuntimeDocumentData {
             records: acquired.records,
             telemetry: acquired.telemetry.expect("telemetry was requested"),
@@ -203,15 +204,6 @@ impl RuntimeHandle {
         })
         .await
         .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
-    }
-
-    pub async fn extract_execution_file_regex(
-        &self, test_execution_id: &TestExecutionId, relative_path: String, pattern: String, first_only: bool,
-    ) -> Result<Option<Vec<FileRegexMatch>>> {
-        let Some(content) = self.execution_file_content(test_execution_id, relative_path, 0, 2 * 1024 * 1024).await? else {
-            return Ok(None);
-        };
-        regex_matches(&content, &pattern, first_only).map(Some)
     }
 
     pub(crate) async fn abandon_execution_artifacts(&self, test_execution_id: &TestExecutionId) -> Result<()> {

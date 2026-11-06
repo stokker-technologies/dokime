@@ -54,6 +54,14 @@ pub(crate) struct Source {
     context: Option<Context>,
     record_contracts: Option<RecordContracts>,
     captured_at: String,
+    frozen_plots: Vec<FrozenPlot>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+struct FrozenPlot {
+    id: String,
+    payload: Option<native::Value>,
 }
 
 /* === Enums === */
@@ -68,6 +76,13 @@ impl Source {
     // Simultaneous Conversion/Validation Workspace Before Domain Construction.
 
     pub(crate) fn into_source(self) -> Result<CapturedSource> {
+        let mut frozen_plots = std::collections::BTreeMap::new();
+        for plot in self.frozen_plots {
+            let payload = report_value(take(plot.payload)?.try_into()?)?;
+            if frozen_plots.insert(plot.id, payload).is_some() {
+                return Err(invalid("duplicate frozen report plot"));
+            }
+        }
         if self.schema_version != SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
         }
@@ -88,6 +103,7 @@ impl Source {
             outputs: Vec::new(),
             captured_at: Timestamp::new(self.captured_at),
             context: take(self.context)?.try_into()?,
+            frozen_plots,
         };
         value.validate_header()?;
         Ok(value)
@@ -98,7 +114,16 @@ impl TryFrom<&CapturedSource> for Source {
     type Error = Error;
     fn try_from(value: &CapturedSource) -> Result<Self> {
         value.validate_header()?;
+        let frozen_plots = value
+            .frozen_plots
+            .iter()
+            .map(|(id, payload)| {
+                let payload = native::Value::try_from(&domain_value(payload))?;
+                Ok::<_, Error>(FrozenPlot { id: id.clone(), payload: Some(payload) })
+            })
+            .collect::<Result<Vec<_>>>()?;
         Ok(Self {
+            frozen_plots,
             schema_version: SCHEMA_VERSION,
             report_defaults: value.report_defaults,
             owner_node_id: text(value.owner_node_id.as_str())?,
@@ -118,6 +143,40 @@ impl TryFrom<&CapturedSource> for Source {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn domain_value(value: &crate::report::value::Value) -> dokime_domain::model::values::Value {
+    use crate::report::value::Value as Report;
+    use dokime_domain::model::values::Value as Domain;
+    match value {
+        Report::Null => Domain::Null,
+        Report::Bool(value) => Domain::Bool(*value),
+        Report::Integer(value) => Domain::Integer(*value),
+        Report::Unsigned(value) => Domain::Unsigned(*value),
+        Report::Number(value) => Domain::Number(*value),
+        Report::String(value) => Domain::Text(value.clone()),
+        Report::Array(values) => Domain::Array(values.iter().map(domain_value).collect()),
+        Report::Object(values) => Domain::Object(values.iter().map(|(key, value)| (key.clone(), domain_value(value))).collect()),
+        Report::Shared(value) => domain_value(value),
+    }
+}
+
+fn report_value(value: dokime_domain::model::values::Value) -> Result<crate::report::value::Value> {
+    use crate::report::value::Value as Report;
+    use dokime_domain::model::values::Value as Domain;
+    Ok(match value {
+        Domain::Null => Report::Null,
+        Domain::Bool(value) => Report::Bool(value),
+        Domain::Integer(value) => Report::Integer(value),
+        Domain::Unsigned(value) => Report::Unsigned(value),
+        Domain::Number(value) => Report::Number(value),
+        Domain::Text(value) => Report::String(value),
+        Domain::Array(values) => Report::Array(values.into_iter().map(report_value).collect::<Result<_>>()?),
+        Domain::Object(values) => {
+            Report::Object(values.into_iter().map(|(key, value)| Ok((key, report_value(value)?))).collect::<Result<_>>()?)
+        }
+        Domain::Datetime(_) => return Err(invalid("frozen report plot contains a typed datetime")),
+    })
+}
 
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())

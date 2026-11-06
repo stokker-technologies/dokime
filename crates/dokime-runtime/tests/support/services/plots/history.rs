@@ -22,7 +22,6 @@
 // Local Imports
 use super::*;
 use crate::service_support::{contracts, evidence};
-use dokime_runtime::runtime::query::RuntimePlotQueryMode;
 
 /* === Constants === */
 
@@ -60,10 +59,8 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
     let before = runtime.storage_read_counters().data_scan_rows;
     let mut equivalent = request.clone();
     equivalent.plot_id = Some("equivalent".into());
-    let envelopes = runtime
-        .query_plot_payloads(vec![request, equivalent], RuntimePlotQueryMode::Snapshot)
-        .await
-        .expect("a large sample set plots within its display points");
+    let envelopes =
+        runtime.query_plot_payloads(vec![request, equivalent]).await.expect("a large sample set plots within its display points");
     let scanned = runtime.storage_read_counters().data_scan_rows - before;
     assert_eq!(envelopes.len(), 2);
     assert_eq!(envelopes[0].payload.series, envelopes[1].payload.series);
@@ -71,16 +68,15 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
     assert_eq!(series.raw_points, samples);
     assert!(series.downsampled);
     assert!(series.points.len() <= display_points);
-    // Equivalent Requests Reuse One Evidence Scan, Including Bounded Marker Work.
-    let bound = (samples + samples / SAMPLE_BATCH) as u64;
-    assert!((samples as u64..=bound).contains(&scanned), "{scanned} rows scanned for {samples} samples");
+    // One Selected Stream Schema Is Read Once Alongside One Shared Telemetry Scan.
+    assert_eq!(scanned, samples as u64 + 1);
     let baseline = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap().len();
 
     let mut window_work = None;
     for day in 0..days {
         save_day(&runtime, samples.div_ceil(60) + day * MINUTES_PER_DAY).await;
         let before = runtime.storage_read_counters();
-        let results = runtime.query_plot_payloads(day_windows(), RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let results = runtime.query_plot_payloads(day_windows()).await.unwrap();
         let after = runtime.storage_read_counters();
         let scanned = after.data_scan_rows - before.data_scan_rows;
         assert_eq!(after.telemetry_anchor_rows - before.telemetry_anchor_rows, 1);
@@ -100,7 +96,7 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
 
     let mut request = wifi_request(None, Some(16));
     request.technique = DownsampleTechnique::MinMax;
-    let whole = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let whole = runtime.query_plot_payloads(vec![request]).await.unwrap();
     assert_eq!(whole[0].payload.series[0].raw_points, samples + days * MINUTES_PER_DAY);
     assert!(whole[0].payload.series[0].points.len() <= 16);
     drop(runtime);

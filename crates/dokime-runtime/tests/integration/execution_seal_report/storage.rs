@@ -174,7 +174,7 @@ pub(crate) async fn execution_save_sealing() {
     drop(content);
     assert!(large_reader.next_chunk(large_maximum).await.unwrap().is_none());
     drop(large_reader);
-    assert!(handle.cycles().await.iter().all(|cycle| cycle.test_cycle_id != cycle_id), "sealed cycle stays in saved history");
+    assert!(handle.cycles().await.unwrap().iter().all(|cycle| cycle.test_cycle_id != cycle_id), "sealed cycle stays in saved history");
     let saved_cycle = dokime_runtime::storage::objects::cycle::read(handle.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
@@ -372,4 +372,103 @@ pub(crate) async fn permanent_finalization_settles() {
     let mut report = runtime.open_execution_report(&execution).await.unwrap();
     assert!(!crate::service_support::reports::opened_bytes(&mut report).await.is_empty());
     owner.shutdown().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn stop_report_retry() {
+    use crate::domains::files;
+    use crate::service_support::all_plots::AllPlots;
+    use dokime_domain::model::{diagnostics::Diagnostic, files::wire::FileWatchPolicy};
+
+    let root = tempdir().unwrap();
+    // Deterministic Eight-Minute History Across Ten Streams And Twelve Plots.
+    let fixture = AllPlots::new(root.path(), 256, 2, 32).await;
+    let runtime = &fixture.runtime;
+    let execution = fixture.scope.test_execution_id.clone().unwrap();
+    let cycle = fixture.scope.test_cycle_id.clone().unwrap();
+    let tree = tempdir().unwrap();
+    for index in 0..16 {
+        std::fs::write(tree.path().join(format!("{index}.log")), b"retained evidence\n").unwrap();
+    }
+    let request = files::request(&execution.to_string(), files::local(tree.path()), vec![files::include("*.log")], FileWatchPolicy::Mirror);
+    let mut watch = runtime.open_file_watch(&request, None).await.unwrap();
+    files::poll(&mut watch).await;
+    let capture = tokio::spawn(async move {
+        watch.seal_requested().await;
+        let events = files::seal(&mut watch).await;
+        let artifacts = files::sealed(&events);
+        assert_eq!(artifacts.len(), 16);
+        artifacts
+    });
+
+    // A Queued Stop Must Settle Even When Its Report Cannot Be Saved.
+    let suite = runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == "provider:testdb:custom.suite").unwrap().suite;
+    let queued_cycle = start_cycle(runtime, suite).await;
+    let queued = cycle_snapshot(runtime, &queued_cycle).await.test_executions[0].test_execution_id.clone();
+    let receipt = runtime.start_execution(queued.clone(), Default::default(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    assert_eq!(runtime.run_request(&receipt.command_id).await.unwrap().unwrap().summary.phase, RunPhase::Queued);
+    let original = runtime.read_application_settings().await.unwrap();
+    let mut settings = original.settings.clone();
+    settings.report.source_bytes = 1024;
+    let limited = runtime
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: original.revision,
+            settings,
+        })
+        .await
+        .unwrap();
+    for id in [&queued, &execution] {
+        let error =
+            runtime.stop_execution(id.clone(), CommandContext::default()).await.expect_err("the report budget forces a save failure");
+        assert_eq!(error.code(), Some("report_not_saved"));
+        let diagnostic = Diagnostic::capture(&error).redacted();
+        assert!(diagnostic.message.contains(id.as_str()));
+        assert!(diagnostic.chain.iter().any(|cause| cause.contains("budget")), "{diagnostic:?}");
+        let snapshot = runtime.watch_state().latest();
+        assert_eq!(snapshot.state().executions[id].status, ExecutionStatus::Cancelled);
+        assert!(snapshot.state().executions[id].saved.is_none());
+        assert!(
+            snapshot
+                .state()
+                .run_requests
+                .values()
+                .filter(|request| request.selected_execution_ids.contains(id))
+                .all(|request| request.summary.phase == RunPhase::Stopped)
+        );
+        assert!(snapshot.state().report_finalizations[id].failure.is_some());
+    }
+    let artifacts = capture.await.unwrap();
+    let frozen = runtime.watch_state().latest().state().report_finalizations[&execution].clone();
+    assert!(runtime.seal_cycle(cycle.clone(), CommandContext::default()).await.is_err());
+    assert_eq!(runtime.watch_state().latest().state().cycles[&cycle].phase, CyclePhase::SealFailed);
+
+    // Retry Seal Reuses The Frozen Boundary And All Evidence After Repair.
+    runtime
+        .update_application_settings(dokime_domain::model::settings::UpdateSettings {
+            expected_revision: limited.revision,
+            settings: original.settings,
+        })
+        .await
+        .unwrap();
+    runtime.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
+    runtime.seal_cycle(queued_cycle, CommandContext::default()).await.unwrap();
+    let checkpoint = crate::service_support::native::checkpoint(runtime, &execution).await;
+    let inspection = crate::service_support::native::open(runtime, &checkpoint).await;
+    let seal = inspection.execution().saved.as_ref().unwrap();
+    assert_eq!(seal.source.evidence_through, frozen.evidence_at);
+    assert_eq!(seal.source.execution, frozen.lifecycle.unwrap().execution);
+    assert_eq!(inspection.execution().status, ExecutionStatus::Cancelled);
+    assert_eq!(crate::service_support::native::samples(runtime, &checkpoint).await.len(), 2560);
+    for index in 0..16 {
+        let record = &artifacts[&format!("{index}.log")];
+        files::assert_artifact(record, &format!("{index}.log"), b"retained evidence\n");
+        let content = runtime.read_artifact_content(&record.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, b"retained evidence\n");
+    }
+    let mut report = runtime.open_execution_report(&execution).await.unwrap();
+    assert!(!crate::service_support::reports::opened_bytes(&mut report).await.is_empty());
+    drop((inspection, checkpoint, report));
+    fixture.close().await;
 }

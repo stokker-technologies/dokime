@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
+import { act, type ComponentProps, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
@@ -41,7 +41,7 @@ import {
 } from "@/lib/statistics";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
-import { CartesianPlot, cursorPointOptions, seriesPointMarks } from "@/plots/CartesianPlot";
+import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
@@ -60,6 +60,7 @@ import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { drawMarkerKinds, markerKinds, markerLegendRows, markerTooltip, nearestMarker } from "@/plots/markers";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
@@ -875,6 +876,173 @@ test("Boolean State Plots", () => {
   assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
 });
 
+test("Marker Kind Legend And Visibility", () => {
+  const markers = [
+    { x: 0, label: "first", record_type: "kind-a", color: "" },
+    { x: 5, label: "second", record_type: "kind-a", color: "" },
+    { x: 10, label: "third", record_type: "kind-a", color: "" },
+    { x: 7, label: "other", record_type: "kind-b", color: "" },
+  ];
+  const prompts = [
+    { kind: "asked" as const, x: 5, title: "fixture" },
+    { kind: "answered" as const, x: 8, title: "fixture" },
+  ];
+  const kinds = markerKinds(markers, prompts);
+  const range = { min: 5, max: 8 };
+  const rows = markerLegendRows(kinds, new Set(), range, []);
+  assert.deepEqual(
+    rows.map((row) => row.key),
+    ["event:kind-a", "event:kind-b", "prompt:asked", "prompt:answered"],
+  );
+  assert.deepEqual(
+    rows.map((row) => row.cells.count),
+    ["1", "1", "1", "1"],
+  );
+  assert.deepEqual(
+    markerLegendRows(kinds, new Set(), null, []).map((row) => row.cells.count),
+    ["3", "1", "1", "1"],
+  );
+  assert.equal(markerLegendRows(kinds, new Set(), { min: 20, max: 30 }, [])[0].cells.count, "0");
+  for (const row of rows) {
+    assert.ok(Object.entries(row.cells).every(([key, value]) => key === "count" || value === ""));
+    assert.equal(row.xCursor, "");
+    assert.equal(row.yCursor, "");
+  }
+  const hidden = toggleTrace(new Set(), rows[0].key);
+  assert.deepEqual(
+    markerLegendRows(kinds, hidden, range, []).map((row) => row.hidden),
+    [true, false, false, false],
+  );
+  const stems: number[] = [];
+  const plot = {
+    ctx: {
+      save() {},
+      restore() {},
+      setLineDash() {},
+      beginPath() {},
+      moveTo(x: number, y: number) {
+        if (y === 0 || y === 4) stems.push(x);
+      },
+      lineTo() {},
+      closePath() {},
+      stroke() {},
+      fill() {},
+    },
+    bbox: { left: 0, top: 0, width: 10, height: 100 },
+    over: { clientWidth: 10 },
+    valToPos: (x: number) => x,
+  } as unknown as uPlot;
+  drawMarkerKinds(plot, kinds.slice(0, 2), hidden, []);
+  assert.deepEqual(stems, [7]);
+  assert.equal(nearestMarker(plot, kinds.slice(0, 2), hidden, 5)?.label, markers[3].label);
+  assert.equal(nearestMarker(plot, kinds.slice(0, 2), new Set(), 5)?.label, markers[1].label);
+  assert.equal(nearestMarker(plot, kinds, new Set(), 5)?.label, promptMarkerLabel(prompts[0]));
+  assert.equal(nearestMarker(plot, kinds, new Set(["prompt:asked"]), 5)?.label, markers[1].label);
+  assert.deepEqual(markerKinds([], []), []);
+  assert.deepEqual(markerKinds([{ ...markers[0], x: null }], []), []);
+  assert.deepEqual(markerLegendRows([], hidden, range, []), []);
+});
+
+test("Event And Prompt Markers Share Tooltip State At Every Card Edge", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  for (const width of [120, 320, 680]) {
+    const card = { left: 137, width };
+    const areaWidth = width - 60;
+    for (const [left, top] of [
+      [0, 0],
+      [areaWidth, 0],
+      [0, 200],
+      [areaWidth, 200],
+      [areaWidth / 2, 100],
+    ]) {
+      const plot = {
+        cursor: { left, top },
+        over: { clientWidth: areaWidth, getBoundingClientRect: () => ({ left: card.left + 40 }) },
+        valToPos: () => left,
+      } as unknown as uPlot;
+      const states = kinds.map((kind) => {
+        const tooltip = markerTooltip(plot, [kind], new Set(), card);
+        assert.ok(tooltip);
+        assert.equal(tooltip.label, kind.moments[0].label);
+        assert.ok(tooltip.left >= 0);
+        assert.ok(tooltip.width > 0);
+        assert.ok(tooltip.left + tooltip.width <= card.width);
+        assert.equal(markerTooltip(plot, [kind], new Set([kind.key]), card), null);
+        return { left: tooltip.left, width: tooltip.width };
+      });
+      assert.deepEqual(states[0], states[1]);
+      assert.deepEqual(states[0], states[2]);
+      plot.cursor.left = -1;
+      assert.equal(markerTooltip(plot, kinds, new Set(), card), null);
+    }
+  }
+});
+
+test("Marker Canvas Draws Glyphs Without Text", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  const ctx = {
+    save() {},
+    restore() {},
+    setLineDash() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    closePath() {},
+    stroke: vi.fn(),
+    fill: vi.fn(),
+    fillText: vi.fn(),
+    strokeText: vi.fn(),
+  };
+  const plot = { ctx, bbox: { left: 0, top: 0, width: 400, height: 200 }, valToPos: () => 100 } as unknown as uPlot;
+  drawMarkerKinds(plot, kinds, new Set(), []);
+  assert.ok(ctx.stroke.mock.calls.length >= kinds.length);
+  assert.ok(ctx.fill.mock.calls.length > 0);
+  assert.equal(ctx.fillText.mock.calls.length, 0);
+  assert.equal(ctx.strokeText.mock.calls.length, 0);
+});
+
+test("Marker Rows Follow Traces On Both Surfaces", () => {
+  const payload = hostFrame([0, 5, 10], [[1, 2, 3]]);
+  const markers = [{ x: 5, label: "fixture", record_type: "fixture-kind", color: "" }];
+  for (const zoom of [false, true]) {
+    const html = renderToStaticMarkup(
+      createElement(
+        PlotInteractionProvider,
+        { zoom },
+        createElement(CartesianPlot, {
+          title: "Fixture",
+          cartesian: payload.cartesian,
+          series: payload.series,
+          markers,
+          promptMarkers: [
+            { x: 7, kind: "asked", title: "fixture" },
+            { x: 8, kind: "answered", title: "fixture" },
+          ],
+          legend: { summaries: [], pending: false },
+        }),
+      ),
+    );
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const rows = document.querySelectorAll("tbody tr");
+    assert.equal(rows.length, 4);
+    assert.equal(rows[0].querySelectorAll("svg[viewBox='0 0 12 16']").length, 0);
+    for (const row of [...rows].slice(1)) assert.equal(row.querySelectorAll("svg[viewBox='0 0 12 16']").length, 1);
+    assert.equal(document.querySelectorAll(".plot-prompts").length, 0);
+  }
+});
+
 test("Point Marks", () => {
   const color = "rgb(96, 165, 250)";
   const background = "rgb(10, 10, 10)";
@@ -890,7 +1058,7 @@ test("Point Marks", () => {
     assert.equal(hollow.stroke, color);
     assert.equal(hollow.fill, background);
     assert.equal(hollow.size, solid.size);
-    // Dense line points draw no marks; every drawn hollow mark is a ring, never a filled disc.
+    // Dense Line Points Keep Only Isolated Marks; Ordinary Hollow Marks Remain Rings.
     if (hollow.show) {
       assert.ok(hollow.width > 0 && hollow.width < hollow.size / 2);
     }
@@ -903,6 +1071,105 @@ test("Point Marks", () => {
   const dense = seriesPointMarks("points", true, color, background);
   assert.ok(dense.size < sparse.size);
   assert.ok(seriesPointMarks("line_points", false, color, background).width > sparse.width);
+});
+
+test("Sparse Aligned Point Paths", () => {
+  const x = Array.from({ length: 20 }, (_, index) => 1_700_000_000 + index * 11);
+  const traces = [0, 1].map((parity) => x.map((_, index) => (index % 2 === parity ? index : null)));
+  for (const fitPixels of [false, true]) {
+    const data = drawnData({ source: [x, ...traces], aligned: true, range: null, everySample: true }, null, 640, fitPixels);
+    assert.deepEqual(data, [x, ...traces]);
+    for (const style of ["points", "line", "line_points", "step"] as const) {
+      const marks = seriesPointMarks(style, false, "currentColor", "transparent");
+      for (let index = 1; index <= traces.length; index += 1) {
+        const plot = { data, series: [{}, { spanGaps: false }, { spanGaps: false }] } as unknown as uPlot;
+        const filter = (marks as uPlot.Series.Points).filter;
+        const selected = typeof filter === "function" ? filter(plot, index, marks.show) : filter;
+        const count = marks.show ? traces[index - 1].filter((value) => value !== null).length : (selected?.length ?? 0);
+        assert.equal(count, 10, `${style} retains every isolated aligned sample`);
+      }
+    }
+  }
+  for (const style of ["line", "line_points", "step"] as const) {
+    const marks = seriesPointMarks(style, true, "currentColor", "transparent");
+    const filter = marks.filter;
+    assert.equal(typeof filter, "function");
+    if (typeof filter !== "function") continue;
+    const plot = {
+      data: [
+        [0, 1, 2, 3, 4, 5, 6],
+        [1, 2, null, 3, null, 4, 5],
+      ],
+      series: [{}, { spanGaps: false, idxs: [0, 6] }],
+    } as unknown as uPlot;
+    assert.deepEqual(filter(plot, 1, false), [3]);
+    plot.series[1].spanGaps = true;
+    assert.equal(filter(plot, 1, false), null);
+    (plot.data as unknown[])[1] = [null, null, null, 3, null, null, null];
+    assert.deepEqual(filter(plot, 1, false), [3]);
+    assert.equal(filter(plot, 1, true), null);
+  }
+});
+
+test("Sparse Faceted Point Paths", () => {
+  const circles: number[][] = [];
+  class CanvasPath {
+    moveTo() {}
+    lineTo() {}
+    arc(...values: number[]) {
+      circles.push(values);
+    }
+  }
+  vi.stubGlobal("Path2D", CanvasPath);
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+  const plot = {
+    data: [
+      null,
+      [
+        [0, null, 2, 3, 4, 5],
+        [1, 2, null, 4, null, 6],
+      ],
+    ],
+    ctx: { save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, fill() {}, stroke() {} },
+    bbox: { left: 0, top: 0, width: 100, height: 100 },
+    valToPos: (value: number) => value * 10,
+  } as unknown as uPlot;
+  const source = plot.data;
+  for (const range of [null, { min: 1, max: 4 }]) {
+    const drawn = { source, aligned: false, range: null, everySample: false };
+    assert.equal(drawnData(drawn, range, 1, true), source);
+    assert.equal(drawn.everySample, true);
+  }
+  for (const style of ["points", "line", "line_points", "step"] as const) {
+    circles.length = 0;
+    facetedSeriesPaths(style, seriesPointMarks(style, false, "currentColor", "transparent"), "currentColor")(plot, 1, 0, 5);
+    assert.deepEqual(
+      circles.map(([x, y]) => [x, y]),
+      [
+        [0, 10],
+        [30, 40],
+        [50, 60],
+      ],
+      `${style} draws only finite pairs`,
+    );
+  }
+});
+
+test("Window Reduction Retains Gaps", () => {
+  const x = Array.from({ length: 100 }, (_, index) => index);
+  const y = x.map((index) => (index === 49 ? 1_000 : [0, 99].includes(index) ? index : null));
+  for (const range of [null, { min: 40, max: 60 }])
+    for (const fitPixels of [false, true]) {
+      const indices = windowIndices(x, [y], range, 1, fitPixels);
+      assert.ok(indices?.includes(49));
+      const data = drawnData({ source: [x, y], aligned: true, range: null, everySample: true }, range, 1, fitPixels);
+      const reduced = data[1];
+      const middle = data[0].indexOf(49);
+      assert.equal(reduced[middle - 1], null);
+      assert.equal(reduced[middle + 1], null);
+    }
 });
 
 test("Cursor Point Marks", () => {
@@ -1203,6 +1470,7 @@ test("Stream Errors Replace Retained Charts", () => {
       documentPlots: [descriptor],
       liveStates: { pulse: failed },
       title: "Signals",
+      viewportMode: "fit",
     }),
   );
   assert.match(html, /role="alert"/);
@@ -1212,6 +1480,30 @@ test("Stream Errors Replace Retained Charts", () => {
 
 test("Plot Edits Survive Presentation Changes", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  let visibility: IntersectionObserverCallback;
+  let element: Element;
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        visibility = callback;
+      }
+      observe(target: Element) {
+        element = target;
+      }
+      unobserve() {}
+    },
+  );
+  const show = async (visible: boolean) => {
+    await act(async () =>
+      visibility([{ target: element, isIntersecting: visible } as IntersectionObserverEntry], {} as IntersectionObserver),
+    );
+  };
+  let renders = 0;
+  function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
+    renders += 1;
+    return createElement(PlotSettingsButton, props);
+  }
   const descriptor: DocumentViewPlot = {
     plot_id: "pulse",
     title: "Pulse",
@@ -1237,7 +1529,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
       root.render(
         createElement(
           PlotSettingsEditorContext.Provider,
-          { value: PlotSettingsButton },
+          { value: Editor },
           createElement(LivePlotGroupGrid, {
             documentPlots: [descriptor],
             liveStates: { pulse: state },
@@ -1249,6 +1541,8 @@ test("Plot Edits Survive Presentation Changes", async () => {
     );
   };
   await render();
+  assert.equal(renders, 0, "off-screen plots mount lazily");
+  await show(true);
   const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings For ']");
   assert.ok(trigger);
   await act(async () => trigger.click());
@@ -1261,12 +1555,17 @@ test("Plot Edits Survive Presentation Changes", async () => {
   const payload = hostFrame([0, 1], [[2, 3]]);
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  await show(false);
+  const pausedRenders = renders;
   for (const state of [ready, failed, ready]) {
     await render(state);
     const current = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
     assert.ok(current);
     assert.equal(current.value, "2500");
   }
+  assert.equal(renders, pausedRenders, "off-screen payloads do not render the plot subtree");
+  await show(true);
+  assert.ok(renders > pausedRenders, "returning applies the latest retained payload");
   const cancel = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(
     (button) => button.textContent === "Cancel",
   );

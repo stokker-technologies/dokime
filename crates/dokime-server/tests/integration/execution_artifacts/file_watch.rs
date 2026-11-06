@@ -103,21 +103,23 @@ pub(crate) async fn file_watch_artifacts() {
     // Refused Initial Admission Must Not Advertise Armed Readiness
     let extra = tree.path().join("logs/second.log");
     std::fs::write(&extra, b"second\n").unwrap();
-    let mut refused = watch(
+    let refused = watch(
         &client,
         FileWatch {
             maximum_files: Some(1),
             ..request("refused", Some(1))
         },
     )
-    .await
-    .unwrap();
-    let failure = loop {
-        match refused.message().await {
-            Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
-            Err(error) => break error,
-            Ok(None) => panic!("initial admission unexpectedly succeeded"),
-        }
+    .await;
+    let failure = match refused {
+        Err(error) => error,
+        Ok(mut frames) => loop {
+            match frames.message().await {
+                Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
+                Err(error) => break error,
+                Ok(None) => panic!("initial admission unexpectedly succeeded"),
+            }
+        },
     };
     assert_eq!(failure.code(), Code::ResourceExhausted);
     std::fs::remove_file(extra).unwrap();

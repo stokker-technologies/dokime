@@ -33,17 +33,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("bench")]
-    Bench(#[from] crate::bench::BenchError),
-
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime::Error),
 
     #[error("evidence file")]
     Artifact(#[from] std::io::Error),
-
-    #[error("summary")]
-    Summary(#[from] serde_json::Error),
 
     #[error("a soak sample carries no numeric `{0}`")]
     Unmeasured(&'static str),

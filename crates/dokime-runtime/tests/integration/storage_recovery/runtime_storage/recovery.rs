@@ -14,9 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
 
 // Third Party Imports
+use base64::Engine;
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -28,8 +28,7 @@ use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, Exec
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 
 /* === Constants === */
-// The Steady Charging Cycle That Stranded Its Root Had 9 Members, One With 637
-// Telemetry Aggregates (49 Columns x 13 Statistics) Charged Near 4 MB.
+// Each Member Captures Wide Telemetry, A Large Shared Plan And Eight Artifacts.
 const MEMBERS: usize = 9;
 const COLUMNS: usize = 49;
 const STREAM: &str = "fixture.wide";
@@ -39,10 +38,7 @@ const STREAM: &str = "fixture.wide";
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Default)]
-struct Captured(Arc<Mutex<Vec<u8>>>);
-
-// Publishes One Wide Telemetry Stream Into The First Member Only
+// Publishes Wide Telemetry And Artifacts Into Every Member
 struct WideTelemetryExecutor;
 
 /* === Enums === */
@@ -50,25 +46,6 @@ struct WideTelemetryExecutor;
 /* === Traits === */
 
 /* === Implementations === */
-impl std::io::Write for Captured {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
-    type Writer = Self;
-
-    fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
-    }
-}
-
 impl ExecutionFixture for WideTelemetryExecutor {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
@@ -77,23 +54,25 @@ impl ExecutionFixture for WideTelemetryExecutor {
         Box::pin(async move {
             for execution in runnable_executions(cycle) {
                 activate_fixture_execution(&context, execution).await;
-                if execution.test_execution_id == cycle.test_executions[0].test_execution_id {
-                    let scope = provider_execution_scope(cycle);
-                    context.publish_telemetry_batch(wide_batch(scope)).await.unwrap();
+                let scope = execution.scope.clone();
+                context.publish_telemetry_batch(wide_batch(scope.clone())).await.unwrap();
+                for index in 0..8 {
+                    let upload = context
+                        .begin_artifact_upload(dokime_runtime::artifacts::ArtifactUploadInput {
+                            scope: scope.clone(),
+                            filename: format!("measurement-{index}.bin"),
+                            content_type: None,
+                            size_bytes: 3,
+                            sha256: None,
+                        })
+                        .await
+                        .unwrap();
+                    upload.send(vec![index, 1, 2]).await.unwrap();
+                    upload.finish().await.unwrap();
                 }
             }
             Ok(python_outcome(cycle, "passed", false))
         })
-    }
-}
-
-impl Captured {
-    fn text(&self) -> String {
-        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
-    }
-
-    fn clear(&self) {
-        self.0.lock().unwrap().clear();
     }
 }
 
@@ -113,7 +92,7 @@ async fn sealed_cycle(handle: &RuntimeHandle, suite: TestSuite) -> CycleView {
 }
 
 async fn resident(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> bool {
-    handle.cycles().await.iter().any(|cycle| &cycle.test_cycle_id == cycle_id)
+    handle.cycles().await.unwrap().iter().any(|cycle| &cycle.test_cycle_id == cycle_id)
 }
 
 // Every Sealed Member Reopens From Native History With Its Wide Aggregates
@@ -131,6 +110,25 @@ async fn assert_history(handle: &RuntimeHandle, cycles: &[&CycleView], entries: 
             if index == 0 {
                 let aggregates = view.execution().output_parameters.keys().filter(|key| key.starts_with("telemetry.")).count();
                 assert!(aggregates >= COLUMNS * 13);
+            }
+            let artifacts: Vec<_> = view
+                .execution()
+                .saved
+                .as_ref()
+                .unwrap()
+                .source
+                .outputs
+                .iter()
+                .filter_map(|output| match &output.content {
+                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact { record, .. } => Some(record),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(artifacts.len(), 8);
+            for artifact in artifacts {
+                let content = handle.read_artifact_content(&artifact.artifact_id, artifact.size_bytes as usize).await.unwrap().unwrap();
+                let index = artifact.filename.strip_prefix("measurement-").unwrap().strip_suffix(".bin").unwrap().parse::<u8>().unwrap();
+                assert_eq!(content.bytes, vec![index, 1, 2]);
             }
         }
     }
@@ -152,14 +150,16 @@ fn wide_config(root: &Path) -> RuntimeConfig {
         interval: Some(dokime_runtime::DurationMillis(1_000)),
         ..TelemetryContract::declared(STREAM, "Fixture Wide").with_storage_schema(wide_schema())
     };
-    config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
+    let mut settings = config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
         source: "fixture_host".to_owned(),
         version: "test".to_owned(),
         description: "Fixture Host".to_owned(),
         enabled: true,
         telemetry_contracts: vec![contract],
         ..Default::default()
-    }])
+    }]);
+    settings.managed_storage = dokime_runtime::config::managed_storage_defaults();
+    settings
 }
 
 fn wide_schema() -> harmos::schema::graph::Schema {
@@ -207,89 +207,197 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
     TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier(STREAM), samples)
 }
 
-// Shut A Session Down And Return The Payload Bytes Of The State Snapshot It
-// Wrote, After Checking The Session's Journal Against The Entry Bound The
-// State Policy Derives From Its Checkpoint.
-async fn shut_down(mut owner: Runtime, handle: RuntimeHandle, logs: &Captured) -> usize {
+// Shutdown Publishes A Snapshot And Compacts Every Covered Journal Entry.
+async fn shut_down(mut owner: Runtime, handle: RuntimeHandle) -> u64 {
     let root = handle.storage_root();
     let limits = dokime_runtime::config::storage_state_defaults();
     let journal = std::fs::read(root.join("state.jsonl")).unwrap();
     let largest = journal.split_inclusive(|byte| *byte == b'\n').map(<[u8]>::len).max().unwrap();
-    // A Wide Member's Finalized Aggregates Are The Largest Entry, Near 344 KB.
     assert!(
         largest <= limits.max_entry_bytes.get(),
         "the session's largest journal entry of {largest} bytes against the state entry bound"
     );
     drop(handle);
     owner.shutdown().await.unwrap();
-    assert!(!logs.text().contains("snapshot skipped"), "the session's state should fit one state snapshot:\n{}", logs.text());
 
     let snapshot = std::fs::read(root.join("state.json")).expect("shutdown writes a state snapshot");
     assert!(snapshot.len() <= limits.max_checkpoint_bytes.get());
     let record: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    let compacted = std::fs::read(root.join("state.jsonl")).unwrap();
+    assert!(compacted.len() < journal.len(), "snapshot compacts the journal");
+    let rows: Vec<serde_json::Value> =
+        compacted.split(|byte| *byte == b'\n').filter(|row| !row.is_empty()).map(|row| serde_json::from_slice(row).unwrap()).collect();
+    assert_eq!(rows[0]["value"]["after"], record["value"]["through"]);
+    assert!(rows.iter().all(|row| row["value"].get("payload").is_none()), "restart has no old journal entries to replay");
     let payload = record["value"]["payload"].as_str().unwrap();
-    // Unpadded Base64 Carries Three Payload Bytes In Every Four Characters.
-    payload.len() * 3 / 4
+    let bytes = base64::engine::general_purpose::STANDARD_NO_PAD.decode(payload).unwrap();
+    let checkpoint: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let position = checkpoint["position"].as_u64().unwrap();
+    eprintln!("SNAPSHOT payload_bytes={} position={position} journal_bytes={}", bytes.len(), compacted.len());
+    position
 }
 
 // The Snapshot Encoding Stores Shared Catalogs And Plans Once; Decoding Restores Them
 fn assert_round_trip(handle: &RuntimeHandle) {
     let latest = handle.watch_state().latest();
     let encoded = serde_json::to_vec(latest.state()).unwrap();
+    let fields: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    eprintln!("STATE bytes={} executions={} cycles={}", encoded.len(), latest.state().executions.len(), latest.state().cycles.len());
+    for (name, value) in fields.as_object().unwrap() {
+        let size = serde_json::to_vec(value).unwrap().len();
+        if size > 1000 {
+            eprintln!("STATE field={name} bytes={size}");
+        }
+    }
+    if let Some(execution) = latest.state().executions.values().next() {
+        let value = serde_json::to_value(execution).unwrap();
+        for (name, value) in value.as_object().unwrap() {
+            eprintln!("EXECUTION field={name} bytes={}", serde_json::to_vec(value).unwrap().len());
+        }
+    }
     let decoded: dokime_runtime::state::RuntimeState = serde_json::from_slice(&encoded).unwrap();
     assert!(&decoded == latest.state(), "state survives its snapshot encoding");
 }
 
 /* === Tests === */
 
-// Sealed Cycles Leave Live State At The Next Cycle Start Or Restart, So A Wide
-// Cycle Never Strands Its Root And The State Snapshot Stays Bounded With The
-// Shipped Plugin Catalogs Loaded.
-pub(crate) async fn skipped_snapshot_recovery() {
-    // Measured 934,729 And 673,866 Bytes: About 512 KB Of State (420 KB Of It The
-    // Pooled Plugin Catalog) Plus The Journal Tail, Mostly The Wide Member's
-    // Finalized Aggregates; Report Lifecycles Reference Their Frozen Revisions.
-    const SNAPSHOT_LIMIT: usize = 960 * 1024;
-
-    let logs = Captured::default();
-    let _subscriber = tracing::subscriber::set_default(
-        tracing_subscriber::fmt().with_writer(logs.clone()).with_ansi(false).with_max_level(tracing::Level::WARN).finish(),
-    );
+// Sealed Evidence Stays In Native History; Snapshots And Journal Compaction
+// Recover Control State Without Replaying The Session's Complete History.
+pub(crate) async fn bounded_snapshot_recovery() {
     let root = tempdir().unwrap();
-    let suite = fixture_suite(&["passed"; MEMBERS]);
+    let mut suite = fixture_suite(&["passed"]);
+    let template = &mut suite.test_case_templates[0];
+    let mut member = template.parameters[0].clone();
+    member.parameter_id = dokime_runtime::model::identity::new_id();
+    member.metadata = metadata("member", "Member");
+    member.value_type = ValueType::Integer;
+    member.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    member.expression = dokime_runtime::definition::ParameterExpr::Array {
+        values: (0..MEMBERS)
+            .map(|index| dokime_runtime::definition::ParameterExpr::Literal { value: Value::Integer(index as i64) })
+            .collect(),
+    };
+    template.parameters.push(member);
+    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Session");
+    let mut section = dokime_runtime::document::DocumentSection::new("Definition");
+    section.card(dokime_runtime::document::DocumentCard {
+        metadata: metadata("definition", "Definition"),
+        layout: Default::default(),
+        filters: Vec::new(),
+        body: dokime_runtime::document::DocumentCardBody::Text {
+            markdown: "0123456789abcdef".repeat(4096),
+        },
+    });
+    let mut plot = dokime_runtime::document::Plot::time_series("Samples");
+    plot.y(dokime_runtime::expressions::telemetry(STREAM, "value_00"));
+    section.plot(plot);
+    document.section(section);
+    template.document = Some(document);
 
     // The Latest Sealed Cycle Stays Resident Within Its Session
-    let (mut owner, handle) = reboot(root.path()).await;
+    let (owner, handle) = reboot(root.path()).await;
     register_python_suite(&handle, suite.clone()).await;
     let first = sealed_cycle(&handle, suite.clone()).await;
+    let registration = dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>();
+    let cases = first.test_executions.iter().map(|execution| execution.snapshot.case().clone()).collect::<Vec<_>>();
+    handle.register_cases(registration.clone(), cases.clone()).await.unwrap();
+    let requests = handle.watch_state().latest().state().run_requests.keys().cloned().collect::<Vec<_>>();
     assert!(resident(&handle, &first.test_cycle_id).await);
     assert_round_trip(&handle);
-    drop(handle);
-    owner.shutdown().await.unwrap();
-    // Not Yet Bounded: The Resident Wide Cycle Holds About 340 KB Of Aggregates
-    // In State And Again About 300 KB In The Journal Tail Of Its Finalization.
-    logs.clear();
+    let mut before = handle.watch_state().latest().state().clone();
+    for execution in &first.test_executions {
+        before.executions.insert(execution.test_execution_id.clone(), execution.clone());
+    }
+    let encoded = serde_json::to_vec(&before).unwrap();
+    let decoded: dokime_runtime::state::RuntimeState = serde_json::from_slice(&encoded).unwrap();
+    assert!(decoded == before, "snapshot encoding retains complete generated outputs while work is still resident");
+    let mut original = serde_json::to_value(&before).unwrap();
+    for execution in &first.test_executions {
+        let member = &mut original["executions"]["members"][execution.test_execution_id.as_str()];
+        member.as_object_mut().unwrap().remove("telemetry_outputs");
+        member["execution"]["output_parameters"] = serde_json::to_value(&execution.output_parameters).unwrap();
+    }
+    let before_bytes = serde_json::to_vec(&original).unwrap().len();
+    let after_bytes = serde_json::to_vec(handle.watch_state().latest().state()).unwrap().len();
+    for (field, value) in serde_json::to_value(&first.test_executions[0]).unwrap().as_object().unwrap() {
+        eprintln!("BEFORE EXECUTION field={field} bytes={}", serde_json::to_vec(value).unwrap().len());
+    }
+    eprintln!(
+        "STATE COMPARISON executions={MEMBERS} before={before_bytes} after={after_bytes} before_per_execution={} after_per_execution={}",
+        before_bytes / MEMBERS,
+        after_bytes / MEMBERS
+    );
+    let after = serde_json::to_value(handle.watch_state().latest().state()).unwrap();
+    eprintln!(
+        "EXECUTION POOL before_per_execution={} after_per_execution={}",
+        serde_json::to_vec(&original["executions"]).unwrap().len() / MEMBERS,
+        serde_json::to_vec(&after["executions"]).unwrap().len() / MEMBERS,
+    );
+    assert!(after_bytes < before_bytes, "sealed state references durable evidence");
+    let saved_position = shut_down(owner, handle).await;
 
     // A Restart Retires It From Live State Without Touching Its History
     let (owner, handle) = reboot(root.path()).await;
+    assert!(handle.watch_state().latest().revision() > saved_position, "restart restores the compacted snapshot frontier");
     assert!(!resident(&handle, &first.test_cycle_id).await);
+    for request in requests {
+        assert!(handle.run_request(&request).await.unwrap().unwrap().summary.phase.terminal());
+    }
+    assert!(
+        handle.register_cases(registration, cases[..1].to_vec()).await.is_err(),
+        "retired registrations keep their immutable membership"
+    );
     assert_history(&handle, &[&first], MEMBERS).await;
 
     // Starting Another Cycle Retires The Previous Sealed One In Session
     register_python_suite(&handle, suite.clone()).await;
     let second = sealed_cycle(&handle, suite.clone()).await;
     assert!(resident(&handle, &second.test_cycle_id).await);
-    let third = start_cycle(&handle, suite).await;
+    for _ in 0..2 {
+        let current = sealed_cycle(&handle, suite.clone()).await;
+        let state = handle.watch_state().latest();
+        assert_eq!(state.state().executions.len(), current.test_executions.len());
+        assert!(state.state().run_requests.values().all(|request| request.summary.cycle_id == current.test_cycle_id));
+        assert_eq!(
+            state.state().suites.cases_for_suite(&current.test_executions[0].snapshot.case().suite_id).count(),
+            current.cases().count()
+        );
+    }
+    let third = handle
+        .create_cycle(
+            dokime_runtime::transactions::CycleDefinition {
+                metadata: metadata("reused", "Reused Cases"),
+                continue_automatically: true,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let mut changed = first.test_executions[0].snapshot.case().clone();
+    changed.parameters.insert("member".into(), Value::Integer(-1));
+    assert!(handle.register_cases(dokime_runtime::model::identity::new_id(), vec![changed]).await.is_err());
+    let reused =
+        first.test_executions.iter().map(|execution| (dokime_runtime::model::identity::new_id(), execution.test_case_id.clone())).collect();
+    handle.append_executions(third.clone(), reused).await.unwrap();
+    assert!(
+        handle
+            .append_executions(
+                third.clone(),
+                vec![(first.test_executions[0].test_execution_id.clone(), first.test_executions[0].test_case_id.clone())]
+            )
+            .await
+            .is_err(),
+        "retired execution identities remain unavailable"
+    );
     assert!(!resident(&handle, &second.test_cycle_id).await);
     assert!(resident(&handle, &third).await);
-    let written = shut_down(owner, handle, &logs).await;
-    assert!(written <= SNAPSHOT_LIMIT, "state snapshot of {written} bytes");
+    let saved_position = shut_down(owner, handle).await;
 
     // The Next Boot Restores That Snapshot And Writes Its Own
     let (owner, handle) = reboot(root.path()).await;
+    assert!(handle.watch_state().latest().revision() > saved_position, "restart restores the compacted snapshot frontier");
     assert!(!resident(&handle, &second.test_cycle_id).await);
     // The Third Cycle Was Started But Never Run; Its Planned Members Are Listed Too
-    assert_history(&handle, &[&first, &second], 3 * MEMBERS).await;
-    let written = shut_down(owner, handle, &logs).await;
-    assert!(written <= SNAPSHOT_LIMIT, "state snapshot of {written} bytes");
+    assert_history(&handle, &[&first, &second], 5 * MEMBERS).await;
+    shut_down(owner, handle).await;
 }

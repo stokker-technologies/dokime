@@ -102,7 +102,7 @@ pub async fn wait_for_subscription_record(subscription: &mut dokime_runtime::run
 }
 
 pub async fn cycle_snapshot(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId) -> dokime_domain::model::execution::result::CycleView {
-    runtime.cycles().await.into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
+    runtime.cycles().await.unwrap().into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).unwrap()
 }
 
 pub async fn wait_for_cycle_lifecycle(

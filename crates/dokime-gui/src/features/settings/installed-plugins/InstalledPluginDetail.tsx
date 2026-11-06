@@ -57,7 +57,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
           <InstalledPluginStatusBadge status={detail.status} />
           {detail.restart === "pending" ? (
             <p role="status" className="text-sm text-muted-foreground">
-              Restart pending: applies when no cycle is active.
+              Restart pending: applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.
             </p>
           ) : null}
         </SettingsRow>
@@ -71,6 +71,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
             onSubmit={(values) => onSaveSettings(detail.plugin_id, values)}
             schema={detail.settings}
             values={detail.values}
+            unapplied={detail.unapplied}
             discovered={detail.discovered ?? {}}
           />
         </div>
@@ -78,7 +79,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
       {detail.settings.contributions?.some((entry) => entry.kind === "secret") ? (
         <SettingsCard
           title="Required Secrets"
-          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then retry the plugin."
+          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then reload the plugin."
         >
           {detail.settings.contributions
             .filter((entry) => entry.kind === "secret")

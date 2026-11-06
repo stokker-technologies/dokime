@@ -35,7 +35,7 @@ use dokime_domain::model::values::Value;
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 use dokime_runtime::runtime::progress::{LiveOperation, OperationOutcome};
-use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimeChange, RuntimePlotQueryMode};
+use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimeChange};
 use dokime_runtime::{Identifier, Metadata, TestCycleId, TestExecutionId};
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
@@ -348,9 +348,8 @@ pub async fn contended_reads(size: Contention) {
             };
             for round in 0..size.rounds {
                 barrier.wait().await;
-                let mode = if round == 0 { RuntimePlotQueryMode::Snapshot } else { RuntimePlotQueryMode::Replace };
                 let at = handle.storage().cursor_saved();
-                let envelopes = handle.query_plot_payloads_at(vec![request.clone()], mode, &at).await.unwrap();
+                let envelopes = handle.query_plot_payloads_at(vec![request.clone()], &at).await.unwrap();
                 assert_eq!(envelopes.len(), 1, "plot {index} round {round}");
                 let envelope = &envelopes[0];
                 assert_eq!(envelope.revision, at.sequence);
@@ -387,7 +386,7 @@ pub async fn contended_reads(size: Contention) {
         }
         for _ in 0..10 {
             handle.run_request(&case_run.as_ref().unwrap().command_id).await.unwrap().expect("admitted request stays queryable");
-            assert!(handle.cycles().await.iter().any(|cycle| cycle.test_cycle_id == queued));
+            assert!(handle.cycles().await.unwrap().iter().any(|cycle| cycle.test_cycle_id == queued));
         }
         barrier.wait().await;
     }

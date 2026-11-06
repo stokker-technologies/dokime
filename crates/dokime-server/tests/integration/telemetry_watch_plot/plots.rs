@@ -301,7 +301,7 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
     let before = handle.storage().cursor_saved();
     publish(&handle, &id, 10, 1).await;
     let saved = handle.storage().cursor_saved();
-    let changed = handle.plot_streams_saved_between(&before, &saved).await.unwrap();
+    let changed = handle.plot_streams_between(&before, &saved).await.unwrap();
     assert_eq!(changed, std::collections::BTreeSet::from(["fixture.progress".to_owned()]));
     let mut refreshed = std::collections::BTreeSet::new();
     let mut replacement_cut = None;
@@ -326,7 +326,7 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
     }
     assert_eq!(refreshed.len(), progress.len());
     assert!(!refreshed.contains(idle));
-    let changed = handle.plot_streams_saved_between(&saved, &handle.storage().cursor_saved()).await.unwrap();
+    let changed = handle.plot_streams_between(&saved, &handle.storage().cursor_saved()).await.unwrap();
     assert!(changed.is_empty());
     drop(watch);
     server.shutdown().await.unwrap();
@@ -337,3 +337,108 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn live_plot_cadence() {
+    let root = tempfile::tempdir().unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut config = support::budgets::runtime_config(root.path(), support::metadata("plots.cadence", "Plots"));
+    config.local_storage.telemetry_interval = dokime::config::local_storage_defaults().telemetry_interval;
+    let mut owner = Box::pin(dokime::Runtime::start(prepared.configuration(config))).await.unwrap();
+    let handle = owner.handle();
+    support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
+    let id = Identifier::new("fixture.progress").unwrap();
+    publish(&handle, &id, 0, 2).await;
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let timed = model::plots::wire::PlotRequest { window_s: Some(60.0), ..request(10_000) };
+    let mut watch =
+        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![timed.clone()] }).await.unwrap().into_inner();
+    let mut saved_only = plots::open_watch(&client, 10_000).await;
+    assert_eq!(served_points(&data_frame(&mut watch).await), 2);
+    assert_eq!(served_points(&data_frame(&mut saved_only).await), 2);
+
+    // Keep External I/O From Auto-Advancing The Paused Clock.
+    let clock = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
+    tokio::time::pause();
+    let cadence = Duration::from_millis(200);
+    let saved = handle.storage().cursor_saved();
+    let published = tokio::time::Instant::now();
+    plots::publish_pending(&handle, &id, 2, 1).await;
+    let frame = data_frame(&mut watch).await;
+    eprintln!("live publication-to-frame virtual latency: {:?}", published.elapsed());
+    assert!(published.elapsed() <= cadence);
+    assert_eq!(served_points(&frame), 3);
+    assert_eq!(handle.storage().cursor_saved(), saved);
+
+    // Finite Timed And All Queries Exclude The Unsaved Row.
+    for selected in [timed.clone(), request(10_000)] {
+        let mut finite = client
+            .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![selected] })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(finite.envelopes.len(), 1);
+        let envelope = finite.envelopes.pop().unwrap();
+        assert_eq!(envelope.payload.unwrap().series[0].points.len(), 2);
+        assert!(envelope.revision <= saved.sequence);
+    }
+
+    // The Saved-Only Control Uses The Former Live Read Policy. Harmos Also Owns A Periodic Save.
+    tokio::time::advance(cadence).await;
+    assert_eq!(served_points(&data_frame(&mut saved_only).await), 3);
+    eprintln!("saved-only publication-to-frame virtual latency: {:?}", published.elapsed());
+    assert_eq!(served_points(&data_frame(&mut watch).await), 3);
+
+    // Multiple High-Rate Publications Coalesce, Beyond A Small Stream Window.
+    let published = tokio::time::Instant::now();
+    for batch in 0..16 {
+        plots::publish_pending(&handle, &id, 3 + batch * 80, 80).await;
+    }
+    let accepted = handle.storage().cursor_accepted();
+    assert!(accepted.sequence > handle.storage().cursor_saved().sequence);
+
+    // Opening Watches Merge Every Saved And Pending Row Without A Gap.
+    let mut opening =
+        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![timed.clone()] }).await.unwrap().into_inner();
+    let frame = data_frame(&mut opening).await;
+    let points = &frame.envelope.as_ref().unwrap().payload.as_ref().unwrap().series[0].points;
+    assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
+    drop(opening);
+
+    // One Throttled Frame Covers The Burst, Even If A Normal Save Races It.
+    let frame = {
+        let mut waiting = std::pin::pin!(data_frame(&mut watch));
+        assert!(futures_util::poll!(&mut waiting).is_pending());
+        tokio::time::advance(cadence).await;
+        waiting.await
+    };
+    eprintln!("coalesced publication-to-frame virtual latency: {:?}", published.elapsed());
+    assert!(published.elapsed() <= cadence);
+    assert_eq!(served_points(&frame), 1283);
+
+    // The Same Rows Survive The Tail-To-Saved Handoff Once, Without A Gap.
+    handle.storage().flush().await.unwrap();
+    let mut finite = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![timed] })
+        .await
+        .unwrap()
+        .into_inner();
+    let envelope = finite.envelopes.pop().unwrap();
+    let points = &envelope.payload.as_ref().unwrap().series[0].points;
+    assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
+    assert!(handle.storage().cursor_saved().covers(&accepted).unwrap());
+    tokio::time::resume();
+    clock.abort();
+    let _ = clock.await;
+    drop(watch);
+    drop(saved_only);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}

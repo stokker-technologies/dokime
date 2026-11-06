@@ -223,7 +223,7 @@ pub struct TelemetrySummaryCondition {
     pub state: TelemetrySummaryState,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlotDefinition {
     #[serde(skip)]
     pub automatic_id: bool,
@@ -1606,6 +1606,74 @@ impl PlotAxisKind {
             Self::WallTime => None,
             Self::Elapsed { unit } => Some(unit.as_str()),
         }
+    }
+}
+
+// Builder Hints Are Not Persisted Definition Data. Compare Every Stored Field;
+// The Exhaustive Pattern Requires New Fields To Participate In This Contract.
+impl PartialEq for PlotDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            automatic_id: _,
+            metadata,
+            plot_type,
+            stream,
+            x,
+            y,
+            z_stream,
+            z_field,
+            series_by,
+            x_expression,
+            y_expressions,
+            z_expression,
+            series_by_expression,
+            filters,
+            unit,
+            style,
+            x_scale,
+            y_scale,
+            fft,
+            analysis,
+            interval,
+            histogram,
+            marker_record_types,
+            reference_lines,
+            reference_bands,
+            x_format,
+            y_format,
+            x_axis,
+            display_points,
+            downsample,
+        } = self;
+        metadata == &other.metadata
+            && plot_type == &other.plot_type
+            && stream == &other.stream
+            && x == &other.x
+            && y == &other.y
+            && z_stream == &other.z_stream
+            && z_field == &other.z_field
+            && series_by == &other.series_by
+            && x_expression == &other.x_expression
+            && y_expressions == &other.y_expressions
+            && z_expression == &other.z_expression
+            && series_by_expression == &other.series_by_expression
+            && filters == &other.filters
+            && unit == &other.unit
+            && style == &other.style
+            && x_scale == &other.x_scale
+            && y_scale == &other.y_scale
+            && fft == &other.fft
+            && analysis == &other.analysis
+            && interval == &other.interval
+            && histogram == &other.histogram
+            && marker_record_types == &other.marker_record_types
+            && reference_lines == &other.reference_lines
+            && reference_bands == &other.reference_bands
+            && x_format == &other.x_format
+            && y_format == &other.y_format
+            && x_axis == &other.x_axis
+            && display_points == &other.display_points
+            && downsample == &other.downsample
     }
 }
 

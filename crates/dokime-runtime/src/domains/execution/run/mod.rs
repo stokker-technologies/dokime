@@ -455,7 +455,6 @@ async fn execute_case(
     let opened = session::Opened {
         context: context.clone(),
         execution: execution.clone(),
-        workflow: workflow.to_owned(),
         source: source.to_owned(),
         target: target.clone(),
         prompts: PromptBridge::new(declared.prompts),

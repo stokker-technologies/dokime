@@ -69,10 +69,7 @@ async fn external_analysis_reload() {
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
         assert_eq!(definitions.iter().filter(|definition| definition.id == "plugin_obc.analysis.ripple").count(), 1);
-        let envelopes = runtime
-            .query_plot_payloads(vec![request.clone()], dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot)
-            .await
-            .unwrap();
+        let envelopes = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
         let computed = envelopes[0].payload.computed.as_ref().unwrap();
         assert_eq!(computed.selection.id, "plugin_obc.analysis.ripple");
         assert_eq!(computed.series[0].input_samples, 100);

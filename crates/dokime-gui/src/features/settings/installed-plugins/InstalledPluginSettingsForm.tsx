@@ -20,6 +20,7 @@ import type { Settings, SettingsEntry, SettingValues } from "./installed-plugin-
 type Props = {
   schema: Settings;
   values: SettingValues;
+  unapplied?: string[];
   /**
    * What the plugin discovered for the fields nobody saved.
    *
@@ -41,7 +42,7 @@ type Props = {
  * full-width fields. The schema carries no groups today, so there are no group
  * eyebrows to draw; when `SettingsEntry` gains one, the eyebrow goes here.
  */
-export function InstalledPluginSettingsForm({ schema, values, discovered, onSubmit }: Props) {
+export function InstalledPluginSettingsForm({ schema, values, discovered, onSubmit, unapplied = [] }: Props) {
   // The draft starts from the discovered values written over the saved ones, so
   // a field the plugin filled in shows what it found. Nothing is confirmed
   // twice: every change writes after the same debounce, and the row reports it.
@@ -68,6 +69,7 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
       {fields.map((field) => (
         <SettingField
           discovered={Object.hasOwn(discovered, field.id)}
+          unapplied={unapplied.includes(field.id)}
           field={field}
           key={field.id}
           onSave={(value) => onSubmit(write(field.id, value))}
@@ -83,11 +85,13 @@ function SettingField({
   value,
   onSave,
   discovered,
+  unapplied,
 }: {
   field: Exclude<SettingsEntry, { kind: "secret" }>;
   value: SettingValues[string] | undefined;
   onSave: (value: SettingValues[string] | undefined) => Promise<void>;
   discovered: boolean;
+  unapplied: boolean;
 }) {
   const id = useId();
   const [fieldValue, setFieldValue] = useState(value);
@@ -164,6 +168,7 @@ function SettingField({
   }
   return (
     <SettingsRow
+      className={unapplied ? "border-l-2 border-orange-500 bg-orange-500/10" : undefined}
       description={field.description}
       error={invalid ? "Enter a number within the allowed range." : undefined}
       htmlFor={id}
@@ -173,6 +178,15 @@ function SettingField({
           {discovered ? (
             <Badge variant="secondary" title="Found by the program. Changing it keeps it.">
               Discovered
+            </Badge>
+          ) : null}
+          {unapplied ? (
+            <Badge
+              variant="warning"
+              className="border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300"
+              data-setting-unapplied={field.id}
+            >
+              Applied On Reload
             </Badge>
           ) : null}
           <SettingsFieldStatus onRetry={autosave.retry} state={autosave.state} />
