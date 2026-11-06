@@ -186,12 +186,10 @@ impl RuntimeHandle {
         .map_err(|_| Error::timeout("cycle_list_deadline", "cycle list exceeded its active-work deadline"))?
     }
 
-    // Historical Inspection Is A Read-Only Projection; Never Reinsert Retired Work Into Managed State.
+    // Verify Every Saved Member Without Retaining Its Evidence Payload in the Control Snapshot.
     pub async fn inspect_cycle(&self, id: &TestCycleId) -> Result<RuntimeStateSnapshot> {
         let snapshot = self.watch_state().latest();
         if let Some(cycle) = snapshot.state().cycles.get(id) {
-            let mut state = snapshot.state().clone();
-            let mut bytes = 0usize;
             for member in &cycle.execution_ids {
                 let projection = &snapshot.state().executions[member];
                 if projection.saved.is_none() {
@@ -201,13 +199,11 @@ impl RuntimeHandle {
                     .known_execution(member)
                     .await?
                     .ok_or_else(|| Error::not_found("cycle_member_missing", "saved cycle member is unavailable"))?;
-                bytes = bytes.saturating_add(saved.memory_size());
-                if bytes as u64 > self.query_config().limits().working_bytes {
+                if saved.memory_size() as u64 > self.query_config().limits().working_bytes {
                     return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
                 }
-                state.executions.insert(member.clone(), saved);
             }
-            return Ok(RuntimeStateSnapshot::new(Arc::new(state), snapshot.revision()));
+            return Ok(snapshot);
         }
         let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
             return Ok(snapshot);
@@ -229,11 +225,17 @@ impl RuntimeHandle {
             )
             .await?
             .ok_or_else(|| Error::not_found("cycle_member_missing", "saved cycle member is unavailable"))?;
-            bytes = bytes.saturating_add(member.value.memory_size());
-            if bytes as u64 > self.query_config().limits().working_bytes {
+            if bytes.saturating_add(member.value.memory_size()) as u64 > self.query_config().limits().working_bytes {
                 return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
             }
-            state.executions.insert(member.value.test_execution_id.clone(), member.value.clone());
+            let retained = member.try_map(|member| {
+                let mut execution = member.value;
+                RuntimeState::sealed_projection(&mut execution);
+                let bytes = execution.memory_size();
+                state.executions.insert(execution.test_execution_id.clone(), execution);
+                Ok::<_, Error>(bytes)
+            })?;
+            bytes = bytes.saturating_add(*retained);
         }
         state.cycles.insert(id.clone(), header.value.clone());
         state.validate_execution_ownership().map_err(|reason| Error::conflict("invalid_cycle_membership", reason))?;

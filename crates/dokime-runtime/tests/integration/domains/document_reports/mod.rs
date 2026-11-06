@@ -760,6 +760,44 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
+async fn cycle_inspection_retains_control_projections() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite.clone()).await;
+    let cycle = cycle_snapshot(&runtime, &cycle_id).await;
+    for execution in &cycle.test_executions {
+        let receipt = runtime.start_execution(execution.test_execution_id.clone(), Default::default(), CommandContext::default()).await;
+        crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
+    let selected = &cycle.test_executions[0].test_execution_id;
+    let parameters = runtime.inspect_execution(selected).await.unwrap().execution.output_parameters.clone();
+    assert!(parameters.values().any(|parameter| parameter.source == dokime_runtime::definition::ParameterSource::Telemetry));
+    let published = runtime.watch_state().latest();
+    let inspected = runtime.inspect_cycle(&cycle_id).await.unwrap();
+    for execution in &cycle.test_executions {
+        let id = &execution.test_execution_id;
+        assert_eq!(inspected.state().executions[id], published.state().executions[id]);
+    }
+    drop(inspected);
+
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    start_cycle(&runtime, suite).await;
+    assert!(!runtime.watch_state().latest().state().cycles.contains_key(&cycle_id));
+    let inspected = runtime.inspect_cycle(&cycle_id).await.unwrap();
+    for execution in &cycle.test_executions {
+        let id = &execution.test_execution_id;
+        assert_eq!(inspected.state().executions[id], published.state().executions[id]);
+    }
+    assert_eq!(runtime.inspect_execution(selected).await.unwrap().execution.output_parameters, parameters);
+    drop(inspected);
+    owner.shutdown().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
 async fn execution_inspection_ignores_corrupt_sibling() {
     use dokime_runtime::storage::sqlite::{rusqlite, rusqlite::params};
     use sha2::{Digest, Sha256};
